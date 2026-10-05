@@ -12,6 +12,9 @@ O backend contém as rotas de plataforma necessárias ao shell e a camada de ban
 | `nav.py` | `GET /api/nav` | Fragmento HTML da sidebar e das abas, recortado pelo perfil e pelo vínculo de quem chama |
 | `acesso.py` | `GET /api/acesso-negado` | Tela de acesso negado (403): e-mail fora do cadastro, sessão ausente ou tela que o perfil ou o vínculo não abre |
 | `acesso.py` | `POST /api/demonstracao/perfil` | Seletor de perfil do modo demonstração: guarda no cookie quem o avaliador escolheu |
+| `attachments.py` | `GET /api/anexos` | Fragmento dos anexos de um registro: o componente de envio do Design System e a lista (nome, tamanho, quem enviou, quando) |
+| `attachments.py` | `POST /api/anexos/enviar` | Recebe o arquivo (`multipart/form-data`) e devolve o mesmo fragmento atualizado; 422 com a mensagem sob o campo quando passa do limite ou o tipo está fora da lista |
+| `attachments.py` | `GET /api/anexos/{anexo_id}/baixar` | Download do arquivo com o nome original, depois de checar a permissão do registro de origem (a exceção de download do Padrão: resposta de arquivo, não fragmento) |
 
 As telas e rotas de exemplo do Padrão foram removidas. Os módulos de domínio ainda não têm endpoints; o banco Postgres é preparado pelo `run.bat` desde a ISSUE-005.
 
@@ -96,6 +99,92 @@ No local o envio fica desligado: nada a configurar. Para um teste manual, as var
 
 Com `ligado` e alguma variável do Graph vazia, o envio falha e a falha fica na trilha com o **nome** da variável que falta, nunca com o valor. A tabela completa de variáveis do produto e o guia de publicação são da ISSUE-092.
 
+## Anexos
+
+O arquivo de um anexo é guardado de verdade (D5a, ISSUE-012): o banco fica com os metadados (`anexo`: nome, tipo, tamanho, hash, quem enviou, quando e o registro de origem) e o arquivo vai para o armazenamento que a variável de ambiente escolhe, sem mudança de código. A tela de cada módulo só reserva o lugar do componente; a plataforma cuida do resto.
+
+* `src/core/file_storage.py` — a **porta de arquivos** (`FileStorage`: `save` e `read` sobre uma chave) e o adaptador da **pasta local** (`LocalFolderStorage`: `data/anexos/` na raiz do repositório, fora do git). `configured_storage()` escolhe o adaptador pelo ambiente.
+* `src/core/blob_storage.py` — o adaptador do **Azure Blob Storage** (`BlobStorage`). O SDK oficial (`azure-storage-blob`) só é importado em `BlobStorage.from_environment`; o adaptador fala com uma costura de duas chamadas (`BlobContainer`), que os testes trocam por um dublê, sem rede e sem o SDK instalado.
+* `src/core/attachments.py` — a fachada: `upload`, `panel` (a lista de um registro), `open_download` e `has_evidence`, mais os limites do grupo `anexos` dos parâmetros vigentes (`current_limits`, `file_problem`).
+* `src/core/attachment_origins.py` — o registro de **tipos de origem**: cada módulo registra a tabela dos seus registros, a sua pasta e a **função de leitura**, a resposta da sua fachada a "esta pessoa pode ler este registro?".
+* `src/blueprints/attachments.py` e `src/templates/comum/anexos.html` — as três rotas e o fragmento (o componente de envio do Design System e a tabela). O estilo são as classes `.upload` e `.anexos` de `app/ds/patterns.css`.
+* `src/core/routing.py` — `file_route(access=...)`, o decorador do download: a mesma resolução de usuário, escopo e permissão do `fragment_route`, sem o gate do Alpine, com a recusa em texto simples (403, 404 ou 422).
+
+### Variáveis de ambiente do armazenamento
+
+| Variável | Local (demonstração) | Azure | Para quê |
+|---|---|---|---|
+| `GESTNOW_ARMAZENAMENTO_ANEXOS` | ausente (vale `local`) | `blob` | Escolhe o adaptador. Valor diferente de `local` e `blob` falha alto, como o `GESTNOW_MODO`. |
+| `GESTNOW_PASTA_ANEXOS` | ausente (vale `data/anexos/` na raiz do repositório) | não se usa | Troca a pasta do adaptador local. |
+| `GESTNOW_BLOB_CONEXAO` | ausente | Cadeia de conexão da conta de armazenamento, só como configuração do aplicativo no Azure, nunca no repositório | Só é lida com `blob`. |
+| `GESTNOW_BLOB_CONTAINER` | ausente | Nome do container; sem a variável vale `anexos` | Só é lida com `blob`. |
+
+No local nada precisa ser configurado: os arquivos vão para `data/anexos/<projeto>/<anexo>`. Para ligar o Blob no Azure:
+
+1. Crie a conta de armazenamento e um container **privado** (`anexos`): todo download passa pela API, que checa a permissão do registro de origem, e nenhum endereço do Blob chega à tela.
+2. Preencha, como configurações do aplicativo, `GESTNOW_ARMAZENAMENTO_ANEXOS=blob`, `GESTNOW_BLOB_CONEXAO` e, se o nome for outro, `GESTNOW_BLOB_CONTAINER`.
+3. `azure-storage-blob` está em `pyproject.toml`, `uv.lock` e `requirements.txt`: o deploy o instala. Para voltar à pasta local, ponha `GESTNOW_ARMAZENAMENTO_ANEXOS` em `local` ou remova-a.
+
+Com `blob` e a cadeia de conexão ausente a requisição falha alto, com o **nome** da variável que falta (nunca o valor), e nada é gravado. O guia de publicação e a tabela completa de variáveis são da ISSUE-092.
+
+### Como um módulo usa os anexos
+
+1. **Registre o tipo de origem** no fim do `service.py` do módulo, com a função de leitura. Ela devolve o `OriginRecord` quando o registro existe e a pessoa pode lê-lo, `None` quando o registro não existe, e levanta `AccessDeniedError` (403) quando existe e a pessoa não pode ler. A plataforma pergunta antes de listar, enviar e baixar, depois de conferir que a pessoa alcança o módulo; assim a permissão do anexo é sempre a do registro.
+
+   ```python
+   def read_punch_item(session: Session, *, user: User, record_id: int) -> OriginRecord | None:
+       item = session.get(PunchItem, record_id)
+       if item is None:
+           return None
+       # Aqui entra a regra de leitura do módulo (recorte por empresa, por exemplo).
+       return OriginRecord(project_id=item.project_id)
+
+
+   attachment_origins.register(
+       OriginType(table="punch_item", module="planejamento", read=read_punch_item)
+   )
+   ```
+
+2. **Reserve o lugar na view** e peça o fragmento. O id do registro vem da própria tela; o `id` do lugar é o alvo do `$ajax` (o formulário do fragmento troca o fragmento inteiro):
+
+   ```html
+   <div id="anexos-punch"
+        x-init="$ajax('/api/anexos?origem=punch_item&registro=12', { target: 'anexos-punch' })">
+     <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+   </div>
+   ```
+
+3. **Evidência obrigatória** é ao menos um anexo gravado. A fachada pergunta no passo que exige a evidência e recusa com 422 na mensagem do módulo:
+
+   ```python
+   if not attachments.has_evidence(session, origin_table="punch_item", origin_record_id=item.id):
+       raise InvalidDataError({"evidencia": "Anexe ao menos uma evidência para fechar o item."})
+   ```
+
+4. **Dado pessoal** (Q35: nome e dados médicos do HSE). A função de leitura devolve `OriginRecord(project_id=..., restricted=True)`: quem tem `Permission.VIEW_RESTRICTED` (Gestor e Admin) lista e baixa; quem só grava (Membro) envia o arquivo e vê no lugar da lista o aviso de que o anexo é restrito. Se só alguns anexos de um registro são dado pessoal, o módulo registra um segundo tipo de origem (outro nome em `table`) para eles.
+
+### Regras
+
+* **Limites** são o grupo `anexos` dos parâmetros vigentes na data (no início, 25 MB e PDF, JPG, PNG, DOCX, XLSX, PPTX, DWG e ZIP). Nova versão do grupo muda o próximo envio, nunca os anexos já guardados. Sem versão do grupo valem os valores iniciais. 1 MB são 1.048.576 bytes: o arquivo do tamanho exato do limite passa e um byte a mais não. O tipo vem da extensão do nome, sem diferenciar maiúsculas (`.jpeg` vale como JPG), e o tipo MIME do download é o do servidor, a partir do tipo, nunca o que o navegador disse. Arquivo vazio, sem extensão ou de tipo fora da lista é recusado. Toda recusa é 422 e a mensagem vai no campo `arquivo`.
+* **Nome**: o original (sem pasta e sem caracteres de controle, com os acentos compostos) fica só no banco e volta no download (`Content-Disposition`, com `filename*` em UTF-8). No armazenamento a chave é `<projeto_id>/<anexo_id>`.
+* **Ordem do envio**: confere o acesso e o registro, valida o arquivo e só então grava os metadados com a linha de trilha (`auditoria`, entidade `anexo`) na transação da requisição; o arquivo é guardado por último, e se isso falhar a requisição inteira é desfeita. Se o commit falhar depois de o arquivo ser guardado, sobra um arquivo sem referência, inofensivo.
+* **Download**: `GET /api/anexos/{anexo_id}/baixar` é um link comum do navegador (sem o cabeçalho do Alpine) e passa por `file_route(access=Access())`: resolve o usuário, pergunta ao módulo dono do registro e, se o anexo é restrito, exige `VIEW_RESTRICTED`. Recusa é 403, anexo ou arquivo inexistente é 404 e identificador malformado é 422, sempre em texto simples.
+* Fora desta fatia: remover anexo (a tabela não tem `versao`: o anexo é um fato gravado uma vez) e conferir o conteúdo do arquivo contra a extensão.
+
+| Termo de negócio | Nome no código |
+|---|---|
+| Anexo (metadados) | `models.Attachment` (tabela `anexo`) |
+| Porta de arquivos | `file_storage.FileStorage`; adaptadores `LocalFolderStorage` e `blob_storage.BlobStorage` |
+| Limites do grupo Anexos | `attachments.AttachmentLimits`, lidos por `current_limits` |
+| Recusa por tamanho ou tipo | `attachments.file_problem(nome, tamanho, limites)`: a mensagem do campo ou `None` |
+| Enviar anexo | `attachments.upload` |
+| Lista de anexos de um registro | `attachments.panel` |
+| Baixar anexo | `attachments.open_download` e a rota `download_attachment` |
+| Evidência (ao menos um anexo) | `attachments.has_evidence` |
+| Tipo de origem do anexo | `attachment_origins.OriginType`, registrado por `attachment_origins.register` |
+| Função de leitura do módulo dono | `attachment_origins.OriginReader` (devolve `OriginRecord`, `None` ou levanta `AccessDeniedError`) |
+| Anexo de dado pessoal | `OriginRecord(restricted=True)` e `Permission.VIEW_RESTRICTED` |
+
 ## Acesso e permissões
 
 Quem entra, o que vê e o que grava é decidido **no servidor**, nunca na tela (D7, ISSUE-011). O **cadastro de Colaboradores é a fonte de verdade do acesso**: ter conta Microsoft não basta.
@@ -143,7 +232,7 @@ cd api
 
 ## Desenvolvimento local
 
-Na raiz do repositório, use `run.bat`. Ele prepara `api/.venv` na primeira execução, prepara o banco e inicia `scripts/dev_local.py`, que serve `app/`, simula a sessão local e encaminha `/api/health`, `/api/nav` e as demais rotas de plataforma (`/api/escopo/projetos`, `/api/glossario`, `/api/acesso-negado` e `/api/demonstracao/perfil`) aos blueprints reais. Rota nova de plataforma entra na lista `ROUTES` desse script. Esse caminho não depende do SWA CLI nem do Azure Functions Core Tools. Localmente quem está logado é escolhido no seletor de perfil da barra lateral (modo demonstração); o `/.auth/me` simulado só avisa o shell de que há sessão.
+Na raiz do repositório, use `run.bat`. Ele prepara `api/.venv` na primeira execução, prepara o banco e inicia `scripts/dev_local.py`, que serve `app/`, simula a sessão local e encaminha `/api/health`, `/api/nav` e as demais rotas de plataforma (`/api/escopo/projetos`, `/api/glossario`, `/api/acesso-negado`, `/api/demonstracao/perfil` e as três de `/api/anexos`) aos blueprints reais. Rota nova de plataforma entra na lista `ROUTES` desse script. Esse caminho não depende do SWA CLI nem do Azure Functions Core Tools. Localmente quem está logado é escolhido no seletor de perfil da barra lateral (modo demonstração); o `/.auth/me` simulado só avisa o shell de que há sessão.
 
 Para ver o **login de verdade** localmente, defina `GESTNOW_DEV_PRINCIPAL` com o e-mail de uma conta Microsoft (variável de ambiente, ou em `api/local.settings.json`, fora do git) antes de subir o `run.bat`: o servidor local passa a mandar o cabeçalho do principal que o Static Web Apps mandaria, o seletor de perfil some, e-mail que está no cadastro de Colaboradores entra com o perfil dele e qualquer outro vê a tela de acesso negado.
 

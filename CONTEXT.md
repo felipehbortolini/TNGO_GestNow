@@ -295,6 +295,26 @@ tela o que aconteceu. Quem liga o envio real de e-mail é `GESTNOW_ENVIO_EMAIL`.
 destinatários e assunto, sem sair por e-mail. É o que acontece enquanto o envio
 real está desligado, e a tela avisa "simulado".
 
+## Anexos
+
+**Anexo** — arquivo de verdade ligado a um registro de um módulo (evidência,
+proposta, desenho, laudo). O banco guarda nome, tipo, tamanho, hash, quem
+enviou, quando e o registro de origem; o arquivo fica em `data/anexos/` (modo
+local) ou no Azure Blob Storage. Os limites (25 MB; PDF, JPG, PNG, DOCX, XLSX,
+PPTX, DWG e ZIP) são o grupo Anexos dos parâmetros vigentes.
+
+**Porta de arquivos** — o ponto único por onde o arquivo de um anexo é guardado
+e lido, com duas implementações: a pasta local e o Azure Blob Storage. Quem
+escolhe é `GESTNOW_ARMAZENAMENTO_ANEXOS`, sem mudança de código.
+
+**Tipo de origem** — o que cada módulo registra para que os seus registros
+aceitem anexos: a tabela, a pasta do módulo e a função que diz se uma pessoa
+pode ler o registro. O download de um anexo pergunta a essa função; o anexo de
+dado pessoal (HSE) só é visto por Gestor e Admin.
+
+**Evidência** — ao menos um anexo gravado no registro. Onde o protótipo exigia
+evidência, o módulo pergunta `attachments.has_evidence`.
+
 ---
 
 ## Qualidade

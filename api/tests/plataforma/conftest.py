@@ -14,6 +14,8 @@ build their own register use ``sessao_das_rotas``, which leaves it empty.
 
 from __future__ import annotations
 
+import sys
+import types
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -23,6 +25,7 @@ from sqlalchemy.orm import Session
 from src.core import config, database
 from src.core.models import Client
 from src.modulos.configuracoes.models import Person, Project
+from tests.armazenamento_falso import ArmazenamentoEmMemoria, ContainerFalso, SdkFalso
 from tests.identidades import criar_colaborador
 
 ADMIN_DA_DEMONSTRACAO = "admin-da-demonstracao@example.invalid"
@@ -75,3 +78,32 @@ def dois_projetos(rotas_na_transacao_do_teste: Session) -> tuple[Project, Projec
         rotas_na_transacao_do_teste, codigo="TN-TESTE-002", nome="Construção de uma nova caldeira"
     )
     return fabrica, caldeira
+
+
+@pytest.fixture
+def armazenamento() -> ArmazenamentoEmMemoria:
+    """The file port in memory, for the tests of the attachments facade (ISSUE-012)."""
+    return ArmazenamentoEmMemoria()
+
+
+@pytest.fixture
+def sdk_do_azure(monkeypatch: pytest.MonkeyPatch) -> SdkFalso:
+    """A stand-in for ``azure.storage.blob`` in the import system, undone when the test ends."""
+    estado = SdkFalso()
+
+    class BlobServiceClient:
+        @classmethod
+        def from_connection_string(cls, conexao: str) -> BlobServiceClient:
+            estado.conexoes.append(conexao)
+            return cls()
+
+        def get_container_client(self, nome: str) -> ContainerFalso:
+            return estado.containers.setdefault(nome, ContainerFalso(nome))
+
+    pacote = types.ModuleType("azure.storage")
+    modulo = types.ModuleType("azure.storage.blob")
+    modulo.__dict__["BlobServiceClient"] = BlobServiceClient
+    pacote.__dict__["blob"] = modulo
+    monkeypatch.setitem(sys.modules, "azure.storage", pacote)
+    monkeypatch.setitem(sys.modules, "azure.storage.blob", modulo)
+    return estado

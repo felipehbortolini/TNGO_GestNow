@@ -15,8 +15,24 @@
 #    uv export --format requirements.txt --no-dev --no-hashes -o requirements.txt
 alembic==1.20.0
     # via timenow-gestnow-api
+azure-core==1.41.0
+    # via azure-storage-blob
 azure-functions==2.2.0
     # via timenow-gestnow-api
+azure-storage-blob==12.31.0
+    # via timenow-gestnow-api
+certifi==2026.7.22
+    # via requests
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
+charset-normalizer==3.5.2
+    # via requests
+cryptography==50.0.2
+    # via azure-storage-blob
+idna==3.20
+    # via requests
+isodate==0.7.2
+    # via azure-storage-blob
 jinja2==3.1.6
     # via timenow-gestnow-api
 mako==1.4.3
@@ -30,6 +46,10 @@ psycopg==3.3.6
     # via timenow-gestnow-api
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'
     # via psycopg
+pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
+requests==2.34.2
+    # via azure-core
 sqlalchemy==2.1.3
     # via
     #   alembic
@@ -37,8 +57,12 @@ sqlalchemy==2.1.3
 typing-extensions==4.16.0
     # via
     #   alembic
+    #   azure-core
+    #   azure-storage-blob
     #   sqlalchemy
 tzdata==2026.5 ; sys_platform == 'win32'
     # via psycopg
+urllib3==2.8.0
+    # via requests
 werkzeug==3.1.8
     # via azure-functions
