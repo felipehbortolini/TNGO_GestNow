@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
+import os
 import re
 import sys
 import traceback
@@ -22,8 +24,12 @@ from src.core.config import load_local_settings  # noqa: E402
 
 load_local_settings()
 
-from src.blueprints import health, nav  # noqa: E402
+from src.blueprints import acesso, health, nav  # noqa: E402
 
+# Only tells the shell that someone is signed in. In demonstration the API does
+# not take the identity from here: it comes from the profile selector in the
+# sidebar (cookie ``gestnow_demo_perfil``), and with a real principal header
+# (SWA CLI emulator, Azure) the header wins.
 DEMO_USER = {
     "clientPrincipal": {
         "identityProvider": "aad",
@@ -34,11 +40,36 @@ DEMO_USER = {
     }
 }
 
+# The e-mail of a Microsoft account to simulate: with it the server adds the
+# principal header that Static Web Apps would, so the real login path can be
+# seen locally (an e-mail in the register of Colaboradores enters, any other one
+# sees the screen of denied access) and the profile selector disappears, as in
+# Azure. Unset, the demonstration selector decides who is signed in.
+DEV_PRINCIPAL_VARIABLE = "GESTNOW_DEV_PRINCIPAL"
+PRINCIPAL_HEADER = "x-ms-client-principal"
+
+
+def dev_principal_header() -> str | None:
+    """The principal header for the simulated account, or ``None`` when none is set."""
+    email = (os.environ.get(DEV_PRINCIPAL_VARIABLE) or "").strip()
+    if not email:
+        return None
+    principal = {
+        "identityProvider": "aad",
+        "userId": "00000000000000000000000000000000",
+        "userDetails": email,
+        "userRoles": ["anonymous", "authenticated"],
+    }
+    return base64.b64encode(json.dumps(principal).encode()).decode()
+
+
 ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpResponse]]] = [
     ("GET", re.compile(r"^/api/health$"), health.health),
     ("GET", re.compile(r"^/api/nav$"), nav.main_nav),
     ("GET", re.compile(r"^/api/escopo/projetos$"), nav.choose_project),
     ("GET", re.compile(r"^/api/glossario$"), nav.glossary),
+    ("GET", re.compile(r"^/api/acesso-negado$"), acesso.denied_screen),
+    ("POST", re.compile(r"^/api/demonstracao/perfil$"), acesso.switch_demo_profile),
 ]
 
 
@@ -73,6 +104,19 @@ class LocalHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(length) if length else b""
 
+    def _api_headers(self) -> dict[str, str]:
+        """The request headers, with the principal of the simulated account when there is one.
+
+        Static Web Apps overwrites whatever the client sent as the principal, so
+        the simulated one replaces it; without a simulated account nothing changes.
+        """
+        headers = dict(self.headers.items())
+        principal = dev_principal_header()
+        if principal is None:
+            return headers
+        kept = {name: value for name, value in headers.items() if name.lower() != PRINCIPAL_HEADER}
+        return {**kept, PRINCIPAL_HEADER: principal}
+
     def _dispatch_api(self, method: str, path: str, query: dict[str, list[str]]) -> bool:
         for route_method, route_pattern, handler in ROUTES:
             if route_method != method:
@@ -84,7 +128,7 @@ class LocalHandler(BaseHTTPRequestHandler):
             request = func.HttpRequest(
                 method=method,
                 url=path,
-                headers=dict(self.headers.items()),
+                headers=self._api_headers(),
                 params={name: values[0] for name, values in query.items()},
                 route_params=match.groupdict(),
                 body=self._read_request_body(),

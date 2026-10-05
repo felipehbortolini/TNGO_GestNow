@@ -8,22 +8,43 @@ the tab bar shows (tabs, the sub-tabs of a group, or Voltar on a detail), which
 address each link carries (always with the scope, so a copied link opens in
 the same scope) and where the scope selector goes when the scope changes (a
 detail screen goes back to its list, D8).
+
+Given the ``User`` of the request, the list is also cut to what that person may
+open (D7), by the same rules the routes enforce (``core.rbac``): Configurações
+only for Gestor and Admin and, for a supplier, one single item — the
+Programação Semanal, whose screens become its tabs. A screen that exists but
+that the person may not open is not hidden behind a "not found": the shell is
+sent to the screen of denied access (HU-019). The sidebar is only a courtesy:
+the authority is the server, on every route.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
-from src.core import navigation
+from src.core import navigation, rbac
+from src.core.auth import DemoSelector
 from src.core.navigation import NavModule, Screen
+from src.core.rbac import Bond, User
 from src.core.scope import PORTFOLIO_PARAMETER, Scope
 
 APP_NAME = "Timenow GestNow"
 
 PORTFOLIO_ICON = "layers"
 PROJECT_ICON = "building"
+
+# The single item a supplier sees (D7): the Programação Semanal as a module of
+# its own, so its five screens are the tabs and not a group inside "02".
+SUPPLIER_MODULE_ID = "programacao_semanal"
+SUPPLIER_MODULE_TITLE = "Programação Semanal"
+SUPPLIER_MODULE_ICON = "calendar"
+
+# The route that draws the screen of denied access (HU-003, HU-019); the shell
+# opens it in the place of a screen the person may not open.
+DENIAL_ROUTE = "/api/acesso-negado"
+DENIED_PAGE_TITLE = f"Acesso negado · {APP_NAME}"
 
 
 class ProjectLike(Protocol):
@@ -89,6 +110,16 @@ class ScopeOption:
 
 
 @dataclass(frozen=True)
+class UserBadge:
+    """The user card at the foot of the sidebar: who is signed in, and as what."""
+
+    name: str
+    initials: str
+    description: str
+    email: str
+
+
+@dataclass(frozen=True)
 class NavigationView:
     """Everything the navigation fragment prints, already decided."""
 
@@ -107,6 +138,8 @@ class NavigationView:
     current_path: str | None
     current_view: str | None
     page_title: str
+    user: UserBadge | None = None
+    demo: DemoSelector | None = None
 
     @property
     def has_bar(self) -> bool:
@@ -114,38 +147,167 @@ class NavigationView:
         return bool(self.tabs) or self.back is not None
 
 
-def build(path: str | None, scope: Scope, projects: Sequence[ProjectLike]) -> NavigationView:
-    """The navigation of the screen at ``path``, in the given scope.
+@dataclass(frozen=True)
+class _Position:
+    """Where the person is in what the person may see.
+
+    ``screen`` is the open screen as the person sees it and ``module`` the
+    module that holds it. ``denied`` is a screen that exists in the list but
+    that the person may not open: then there is no open screen.
+    """
+
+    screen: Screen | None
+    module: NavModule | None
+    denied: Screen | None
+
+
+def build(
+    path: str | None,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    user: User | None = None,
+    demo: DemoSelector | None = None,
+) -> NavigationView:
+    """The navigation of the screen at ``path``, in the given scope, for the user.
 
     An unknown (or missing) path builds the navigation with nothing open: the
     sidebar is complete, the bar is empty and ``current_view`` is ``None`` so
-    the shell knows it must choose another screen.
+    the shell knows it must choose another screen. A screen the user may not
+    open also leaves nothing open, but ``current_view`` is then the route of
+    the screen of denied access. Without a ``user`` nothing is cut (the list as
+    it is); ``demo`` is the profile selector of the demonstration, when it exists.
     """
-    current = navigation.screen_for_path(path)
-    active_module = navigation.module_of(current) if current is not None else None
+    modules = _visible_modules(user)
+    where = _position(path, modules, user)
+    active_module = where.module
     parameter = scope.parameter
-    tabs, subtabs, subtabs_label = _tabs(active_module, current, parameter)
+    tabs, subtabs, subtabs_label = _tabs(active_module, where.screen, parameter)
     options = _scope_options(scope, projects)
     selected = next((option for option in options if option.selected), options[0])
     return NavigationView(
-        modules=tuple(
-            _module_link(module, active_module, parameter) for module in navigation.modules()
-        ),
+        modules=tuple(_module_link(module, active_module, parameter) for module in modules),
         tabs=tabs,
         subtabs=subtabs,
         subtabs_label=subtabs_label,
         tabs_label=f"Telas de {active_module.title}" if tabs and active_module else None,
-        back=_back_link(current, parameter),
+        back=_back_link(where.screen, parameter),
         scope_options=options,
         scope_parameter=parameter,
         scope_label=selected.label,
         scope_icon=PORTFOLIO_ICON if scope.is_portfolio else PROJECT_ICON,
-        scope_destination=_scope_destination(current),
+        scope_destination=_scope_destination(where.screen),
         home_url=_home_url(parameter),
-        current_path=navigation.public_path(current) if current is not None else None,
-        current_view=navigation.view_path(current) if current is not None else None,
-        page_title=_page_title(current, active_module),
+        current_path=_current_path(where),
+        current_view=_current_view(where),
+        page_title=_page_title(where),
+        user=_badge(user),
+        demo=demo,
     )
+
+
+# ── What the user may see ────────────────────────────────────────────────
+
+
+def _visible_modules(user: User | None) -> tuple[NavModule, ...]:
+    """The modules of the list narrowed to what the user may open (D7).
+
+    Every screen goes through ``rbac.can_open_screen``, the same rule the
+    routes enforce; a module left with no listed screen disappears. A supplier
+    gets the one module made for it.
+    """
+    if user is None:
+        return navigation.modules()
+    if user.bond is Bond.SUPPLIER:
+        return _supplier_modules(user)
+    narrowed = (_narrow(module, user) for module in navigation.modules())
+    return tuple(module for module in narrowed if module is not None)
+
+
+def _narrow(module: NavModule, user: User) -> NavModule | None:
+    screens = tuple(screen for screen in module.screens if rbac.can_open_screen(user, screen))
+    if not any(not screen.is_detail for screen in screens):
+        return None
+    return module if len(screens) == len(module.screens) else replace(module, screens=screens)
+
+
+def _supplier_modules(user: User) -> tuple[NavModule, ...]:
+    """The Programação Semanal as the supplier's only module, with its screens as the tabs."""
+    screens = tuple(
+        replace(screen, group=None, nav_module=SUPPLIER_MODULE_ID)
+        for screen in navigation.screens()
+        if rbac.can_open_screen(user, screen)
+    )
+    if not screens:
+        return ()
+    return (
+        NavModule(
+            id=SUPPLIER_MODULE_ID,
+            title=SUPPLIER_MODULE_TITLE,
+            icon=SUPPLIER_MODULE_ICON,
+            screens=screens,
+        ),
+    )
+
+
+def _position(path: str | None, modules: Sequence[NavModule], user: User | None) -> _Position:
+    """Find the screen at ``path`` among the modules the user sees.
+
+    A real screen that is not among them is ``denied``. Início is the entrance
+    of the product, so for a person who cannot open it (a supplier) the
+    entrance is the first screen the person can: nobody lands on a denial.
+    """
+    requested = navigation.screen_for_path(path)
+    if requested is None:
+        return _Position(screen=None, module=None, denied=None)
+    found = _locate(modules, requested)
+    if found is None and user is not None and requested.key == navigation.HOME_KEY and modules:
+        found = _locate(modules, modules[0].landing)
+    if found is None:
+        return _Position(screen=None, module=None, denied=requested)
+    module, screen = found
+    return _Position(screen=screen, module=module, denied=None)
+
+
+def _locate(modules: Sequence[NavModule], target: Screen) -> tuple[NavModule, Screen] | None:
+    for module in modules:
+        for screen in module.screens:
+            if screen.key == target.key:
+                return module, screen
+    return None
+
+
+def _current_path(where: _Position) -> str | None:
+    shown = where.screen or where.denied
+    return navigation.public_path(shown) if shown is not None else None
+
+
+def _current_view(where: _Position) -> str | None:
+    screen, denied = where.screen, where.denied
+    if screen is not None:
+        return navigation.view_path(screen)
+    if denied is not None:
+        return f"{DENIAL_ROUTE}?caminho={navigation.public_path(denied)}"
+    return None
+
+
+def _badge(user: User | None) -> UserBadge | None:
+    if user is None:
+        return None
+    return UserBadge(
+        name=user.name,
+        initials=_initials(user.name),
+        description=f"{user.general_profile} · {user.bond}",
+        email=user.email,
+    )
+
+
+def _initials(name: str) -> str:
+    """The first letter of the first and of the last name, capitalized."""
+    words = name.split()
+    if not words:
+        return "?"
+    last = words[-1][0] if len(words) > 1 else ""
+    return (words[0][0] + last).upper()
 
 
 def _home_url(parameter: str) -> str:
@@ -252,8 +414,11 @@ def _scope_destination(current: Screen | None) -> str:
     return navigation.public_path(navigation.origin_of(current))
 
 
-def _page_title(current: Screen | None, module: NavModule | None) -> str:
+def _page_title(where: _Position) -> str:
     """``Ata · Central de Ações · Timenow GestNow``; Início is just ``Início · Timenow GestNow``."""
+    if where.denied is not None:
+        return DENIED_PAGE_TITLE
+    current, module = where.screen, where.module
     if current is None or module is None:
         return APP_NAME
     if current.title == module.title:

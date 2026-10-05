@@ -9,6 +9,14 @@
 
   O servidor decide o que está ativo e para onde o seletor de escopo vai; o
   roteador do shell (ds/shell.js) só lê os data-* da raiz.
+
+  Quem está logado e o que a pessoa pode abrir também vêm do servidor (D7): a
+  lista de módulos já chega recortada pelo perfil e pelo vínculo, e o cartão do
+  usuário traz o nome e o perfil do cadastro de Colaboradores. No modo
+  demonstração, sem login Microsoft, o seletor de perfil troca a pessoa; as
+  opções não levam o atributo selected (a pessoa atual entra por data-atual, no
+  x-init), para o seletor de escopo continuar sendo o único select com opção
+  marcada no fragmento.
   Espera: nav (core.navigation_view.NavigationView).
 #}
 <aside
@@ -61,6 +69,28 @@
     </div>
   </div>
 
+  {% if nav.demo %}
+  <div class="sidebar__perfil">
+    <label class="sidebar__escopo-rotulo" for="perfil-seletor">Perfil (demonstração)</label>
+    <div class="escopo">
+      <span class="escopo__icone" x-init="$el.innerHTML = window.icon('person', 18)" aria-hidden="true"></span>
+      <select
+        id="perfil-seletor"
+        class="input escopo__seletor"
+        aria-label="Perfil de demonstração"
+        data-dica-trilho="Perfil: {{ nav.user.name if nav.user else '' }}"
+        data-atual="{{ nav.demo.current_id }}"
+        x-init="$el.value = $el.dataset.atual"
+        @change="trocarPerfil($event.target.value)"
+      >
+        {% for pessoa in nav.demo.options %}
+        <option value="{{ pessoa.id }}">{{ pessoa.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  {% endif %}
+
   <p class="sidebar__section-label">Módulos</p>
 
   <nav class="sidebar__nav" aria-label="Módulos">
@@ -94,26 +124,20 @@
     ></span>
   </div>
 
-  <template x-if="!usuario">
-    <div class="sidebar__user">
-      <a href="/.auth/login/aad" class="btn btn--primary" style="width: 100%">Entrar</a>
+  {% if nav.user %}
+  <div class="sidebar__user">
+    <div class="avatar" data-dica-trilho="{{ nav.user.name }}">{{ nav.user.initials }}</div>
+    <div class="userchip__info">
+      <div class="userchip__name">{{ nav.user.name }}</div>
+      <div class="userchip__role" title="{{ nav.user.email }}">{{ nav.user.description }}</div>
     </div>
-  </template>
-
-  <template x-if="usuario">
-    <div class="sidebar__user">
-      <div class="avatar" x-text="iniciais" :data-dica-trilho="nome"></div>
-      <div class="userchip__info">
-        <div class="userchip__name" x-text="nome"></div>
-        <div class="userchip__role" :title="email" x-text="email"></div>
-      </div>
-      <a
-        href="/.auth/logout"
-        class="iconbtn sidebar__user-chev"
-        aria-label="Sair"
-        data-dica-trilho="Sair"
-        x-init="$el.innerHTML = window.icon('signout', 16)"
-      ></a>
-    </div>
-  </template>
+    <a
+      href="/.auth/logout"
+      class="iconbtn sidebar__user-chev"
+      aria-label="Sair"
+      data-dica-trilho="Sair"
+      x-init="$el.innerHTML = window.icon('signout', 16)"
+    ></a>
+  </div>
+  {% endif %}
 </aside>

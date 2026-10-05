@@ -15,9 +15,13 @@
                  autoridade: vai em toda chamada a /api/. O cookie só lembra
      inclusão    no Portfólio, botão com data-tn-incluir pede o projeto antes
                  e reabre a tela no projeto com ?acao= (TN.escopo.acaoPendente)
+     perfil      no modo demonstração, o seletor da barra lateral troca a pessoa
+                 (o servidor guarda a escolha) e a navegação refaz a tela
 
    Links de tela usam <a href="/modulo/tela?..." data-tn-tela>. A lista de
-   telas e a regra de qual está ativa são do servidor (core/navigation.py).
+   telas e a regra de qual está ativa são do servidor (core/navigation.py);
+   o que cada pessoa pode abrir também (D7): tela fora do perfil ou do vínculo
+   chega aqui como a tela de acesso negado, desenhada pelo servidor.
 
    Carrega pelo shell, nunca por fragmento. Ver docs/CONTRATO-VISUAL.md.
    ============================================================ */
@@ -345,9 +349,11 @@
     };
   }
 
+  /* A pessoa logada (nome, perfil e vínculo) vem do servidor, já desenhada no
+     cartão da barra lateral: quem manda no que ela vê é o cadastro de
+     Colaboradores, não a conta que o /.auth/me descreve. */
   function componenteSidebar() {
     return {
-      usuario: null,
       saude: "…",
       trilho: emTrilho(),
 
@@ -358,7 +364,6 @@
             '<span class="sidebar__logo sidebar__logo--completa">' + window.LOGO_FULL + "</span>" +
             '<span class="sidebar__logo sidebar__logo--atomo">' + window.logoAtom(28) + "</span>";
         }
-        this.usuario = await usuarioLogado();
         this.saude = await estadoDaApi();
       },
 
@@ -374,20 +379,24 @@
         });
       },
 
-      get nome() {
-        if (!this.usuario) return "";
-        const afirmacao = (this.usuario.claims || []).find(function (c) { return c.typ === "name"; });
-        return (afirmacao && afirmacao.val) || this.usuario.userDetails || "";
-      },
-
-      get email() {
-        return this.usuario ? this.usuario.userDetails || "" : "";
-      },
-
-      get iniciais() {
-        const partes = (this.nome || "?").trim().split(/\s+/);
-        const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-        return (partes[0][0] + ultima).toUpperCase();
+      /* Modo demonstração (HU-004): o servidor guarda a pessoa escolhida num
+         cookie, e a navegação refaz a barra e a tela com o perfil novo. Se o
+         servidor recusar, o seletor volta à pessoa atual (data-atual). */
+      async trocarPerfil(colaborador) {
+        const seletor = this.$el.querySelector("#perfil-seletor");
+        try {
+          const resposta = await fetch("/api/demonstracao/perfil", {
+            method: "POST",
+            headers: { "X-Alpine-Request": "true" },
+            body: new URLSearchParams({ colaborador: colaborador })
+          });
+          if (!resposta.ok) throw new Error("perfil recusado");
+        } catch {
+          window.TN.toast("Não foi possível trocar o perfil.", "erro");
+          if (seletor) seletor.value = seletor.dataset.atual;
+          return;
+        }
+        await window.TN.shell.navegar(enderecoAtual(), { historico: "substituir" });
       }
     };
   }

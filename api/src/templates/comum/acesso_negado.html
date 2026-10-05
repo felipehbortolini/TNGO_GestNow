@@ -1,0 +1,28 @@
+{% extends "base_fragment.html" %}
+{#
+  Tela de acesso negado do Design System (HU-003, HU-019): a tela inteira, no
+  lugar do conteúdo, e não o aviso de uma operação (esse é comum/erro.html). Serve
+  três casos, e o texto diz qual: e-mail fora do cadastro de Colaboradores (com a
+  orientação de a quem pedir liberação e a conta usada), sessão ausente e tela
+  que o perfil ou o vínculo não abre.
+
+  A raiz é o <main id="app-shell" class="content"> que toda tela tem; o id vem do
+  alvo pedido pelo shell.
+
+  Espera: titulo, mensagem; opcionais: orientacao, email, acao_url,
+  acao_rotulo e acao_tela (o link troca a tela sem recarregar o documento).
+#}
+{% block root %}
+<main id="{{ target_id|default('app-shell') }}" class="content">
+  <div class="guard">
+    <img src="/ds/assets/ilustra-acesso-negado.png" alt="" />
+    <h1>{{ titulo }}</h1>
+    <p>{{ mensagem }}</p>
+    {% if orientacao %}<p>{{ orientacao }}</p>{% endif %}
+    {% if email %}<p>Conta usada: <strong>{{ email }}</strong></p>{% endif %}
+    {% if acao_url %}
+    <a class="btn btn--primary" href="{{ acao_url }}"{% if acao_tela %} data-tn-tela{% endif %}>{{ acao_rotulo }}</a>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

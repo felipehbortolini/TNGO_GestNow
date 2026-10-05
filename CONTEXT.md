@@ -126,6 +126,29 @@ Semanal.
 **Implantação** — ambiente técnico em que o app roda (local ou Azure). Para o
 escopo dos dados usa-se **projeto**, nunca “ambiente”.
 
+**Principal** — a identidade que o Static Web Apps entrega à API no cabeçalho
+`x-ms-client-principal`; o e-mail dela é procurado no cadastro de
+Colaboradores, que decide se a pessoa entra.
+
+**Permissão** — o que uma rota ou fachada pede ao perfil geral: ver, gravar,
+gerir (aprovar, decidir, encerrar), ver o campo restrito do HSE, configurar ou
+administrar. Cada perfil tem o seu conjunto; o servidor decide, nunca a tela.
+
+**Acesso negado** — a tela do Design System que a pessoa vê quando não pode
+entrar (e-mail fora do cadastro, com a orientação de a quem pedir liberação, ou
+sessão ausente) ou quando o perfil ou o vínculo não abre a tela pedida. A
+recusa de uma operação, dentro de uma tela, é 403 com a mensagem no próprio
+lugar.
+
+**Seletor de perfil** — no modo demonstração, o seletor da barra lateral que
+troca a pessoa logada, para ver cada tela como cada papel a vê. Só existe
+enquanto não há login Microsoft; guarda a escolha no cookie `gestnow_demo_perfil`.
+
+**Segregação de funções** — regra de que quem faz um passo não faz o passo
+conflitante do mesmo registro: quem elabora a linha de base não a aprova, o
+responsável pelo plano não o aprova, o validador de uma lição não é o autor. O
+servidor recusa com 403 e a mensagem.
+
 ---
 
 ## Estrutura da aplicação

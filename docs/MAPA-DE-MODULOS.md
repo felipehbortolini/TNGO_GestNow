@@ -18,7 +18,11 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | Transação da requisição, trilha, versão, numeração e dinheiro | `api/src/core/database.py` (`unidade_de_trabalho`), `recording.py`, `audit.py`, `versioning.py`, `numbering.py` e `money.py` |
 | Erros de domínio e resposta de erro de rota | `api/src/core/errors.py`, `api/src/core/routing.py` e `api/src/templates/comum/erro.html` |
 | Tabela ou migração | `api/src/modulos/<modulo>/models.py` (tabelas de domínio), `api/src/core/models.py` e `api/src/modulos/configuracoes/models.py` (plataforma e cadastros); revisão nova em `api/migrations/versions/` |
-| Permissão | `api/src/modulos/<modulo>/service.py` e `api/src/core/rbac.py` (plataforma a chegar na ISSUE-011). A tela nunca é a autoridade de acesso |
+| Permissão | `api/src/modulos/<modulo>/service.py` e `api/src/core/rbac.py` (perfil geral, papéis por projeto, vínculo e segregação de funções). A tela nunca é a autoridade de acesso |
+| Quem entra: login Microsoft, cadastro de Colaboradores e modo demonstração | `api/src/core/auth.py` (principal do Static Web Apps, seletor de perfil e o cookie `gestnow_demo_perfil`) e o cadastro lido por `api/src/modulos/configuracoes/service.py` (`find_access_by_email`) |
+| O que a rota exige de quem chama (usuário, escopo, módulo e permissão) | `Access` e `fragment_route(access=...)` em `api/src/core/routing.py`; seção "Acesso e permissões" de `api/README.md` |
+| Tela de acesso negado e troca de perfil da demonstração | `api/src/blueprints/acesso.py`, `api/src/templates/comum/acesso_negado.html` e `api/src/templates/nav/navegacao_negada.html`; o seletor fica em `api/src/templates/nav/sidebar.html` |
+| O que o fornecedor, o cliente ou cada perfil vê na barra lateral | `api/src/core/navigation_view.py` (recorte pelo mesmo `rbac` das rotas); Configurações só para Gestor e Admin e Colaboradores só para o Admin em `MODULE_PERMISSION` e `SCREEN_PERMISSION` de `api/src/core/rbac.py` |
 | Parâmetro | `api/src/modulos/configuracoes/` e a validação/consumo em `api/src/modulos/<modulo>/validation.py`; Configurações versiona o valor, o módulo consumidor valida seu domínio |
 | Exportação | `api/src/modulos/<modulo>/export.py`; exportador comum e impressão são introduzidos na ISSUE-017 |
 | Importação | `api/src/modulos/<modulo>/validation.py` para regras de linha e o fluxo comum descrito na ISSUE-018; nada grava antes da confirmação |

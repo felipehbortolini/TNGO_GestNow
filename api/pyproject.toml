@@ -142,6 +142,14 @@ max-complexity = 10
 # do método sobrescrito — é falso positivo estrutural, não argumento esquecido.
 "src/core/money.py" = ["ARG002"]
 
+# `criar_colaborador` e `requisicao`, em tests/identidades.py, montam dados de
+# teste com muitos argumentos opcionais, e é assim de propósito: depois do `*`
+# são todos KEYWORD-ONLY, e cada teste informa só o que importa para o caso
+# (perfil, vínculo, empresa, papéis, cookie, corpo...). A regra existe para
+# argumento posicional, onde a ordem se erra na chamada; reduzir significaria
+# criar um objeto de opções, a mesma coisa com mais indireção.
+"tests/identidades.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

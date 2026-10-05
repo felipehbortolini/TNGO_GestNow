@@ -1,0 +1,48 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta multi-alvo de /api/nav quando a pessoa não pode entrar (HU-002,
+  HU-003): e-mail fora do cadastro de Colaboradores, colaborador desativado ou
+  sem sessão. A barra lateral fica mínima (a marca e a conta usada, com o Sair)
+  e a barra de abas fica oculta; o conteúdo é a tela de acesso negado, que o
+  shell abre pelo data-tela, porque o ajax devolve 403 com a mesma raiz de cada
+  alvo (main-nav e module-tabs, como em navegacao.html).
+
+  Espera: email (a conta usada, ou vazio), tela (a rota da tela de acesso negado)
+  e titulo (o título da página).
+#}
+{% block root %}
+<aside
+  id="main-nav"
+  class="sidebar"
+  aria-label="Navegação principal"
+  x-data="sidebar"
+  data-escopo="portfolio"
+  data-caminho=""
+  data-tela="{{ tela }}"
+  data-titulo="{{ titulo }}"
+>
+  <div class="sidebar__brand">
+    <a href="/" class="sidebar__logo-link" aria-label="Timenow GestNow"></a>
+  </div>
+
+  <hr class="sidebar__divisor" />
+
+  {% if email %}
+  <div class="sidebar__user">
+    <div class="avatar" data-dica-trilho="{{ email }}">{{ email[:1]|upper }}</div>
+    <div class="userchip__info">
+      <div class="userchip__name">Sem acesso</div>
+      <div class="userchip__role" title="{{ email }}">{{ email }}</div>
+    </div>
+    <a
+      href="/.auth/logout"
+      class="iconbtn sidebar__user-chev"
+      aria-label="Sair"
+      data-dica-trilho="Sair"
+      x-init="$el.innerHTML = window.icon('signout', 16)"
+    ></a>
+  </div>
+  {% endif %}
+</aside>
+<div id="module-tabs" class="module-tabs" hidden></div>
+{% endblock %}

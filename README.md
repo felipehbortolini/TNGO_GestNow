@@ -22,7 +22,7 @@ Também é possível escolher outra porta pelo terminal:
 run.bat 8080
 ```
 
-O modo local simula uma sessão de demonstração e serve apenas para desenvolvimento. Ele não representa a configuração de produção no Azure.
+O modo local simula uma sessão de demonstração e serve apenas para desenvolvimento. Ele não representa a configuração de produção no Azure. Nele, quem está logado é escolhido no **seletor de perfil** da barra lateral, que lista os colaboradores do cadastro; sem escolha, entra o primeiro Admin da demonstração. No Azure o acesso vem do login Microsoft e só entra quem está no cadastro de Colaboradores (`api/README.md`, seção "Acesso e permissões").
 
 ## Porta de qualidade
 

@@ -25,7 +25,14 @@ from sqlalchemy.orm import Session
 from src.core import recording
 from src.core.errors import InvalidDataError
 from src.modulos.configuracoes import validation
-from src.modulos.configuracoes.models import ParameterValue, ParameterVersion, Project
+from src.modulos.configuracoes.models import (
+    Collaborator,
+    CollaboratorScheduleRole,
+    ParameterValue,
+    ParameterVersion,
+    Person,
+    Project,
+)
 
 INITIAL_JUSTIFICATION = "Versão inicial"
 
@@ -325,6 +332,103 @@ def list_projects(session: Session) -> list[ProjectSummary]:
         ProjectSummary(id=row.id, code=row.code, name=row.name)
         for row in session.execute(statement)
     ]
+
+
+@dataclass(frozen=True)
+class CollaboratorAccess:
+    """What the access gate reads of a collaborator: who, profile, bond, company and roles (D7).
+
+    Plain values, as the register keeps them: the platform (``core.auth``)
+    turns the texts into its profile, bond and role types and refuses a value
+    it does not know. ``schedule_roles`` holds one ``(project_id, role)`` pair
+    per role given in the Programação Semanal.
+    """
+
+    id: int
+    person_id: int
+    name: str
+    email: str
+    general_profile: str
+    bond: str
+    company_id: int | None
+    active: bool
+    schedule_roles: tuple[tuple[int, str], ...] = ()
+
+
+def find_access_by_email(session: Session, email: str) -> CollaboratorAccess | None:
+    """The collaborator of an e-mail, active or not, or ``None`` outside the register.
+
+    The register is the source of truth of who enters (D7); the e-mail is
+    compared without regard to case, because the Microsoft account and the
+    register may spell it differently.
+    """
+    found = _access_rows(session, func.lower(Person.email) == email.strip().lower())
+    return found[0] if found else None
+
+
+def find_access(session: Session, collaborator_id: int) -> CollaboratorAccess | None:
+    """The collaborator with the id, active or not, or ``None`` when there is none."""
+    found = _access_rows(session, Collaborator.id == collaborator_id)
+    return found[0] if found else None
+
+
+def list_active_access(session: Session) -> list[CollaboratorAccess]:
+    """Every active collaborator, by id: the people the demonstration selector offers."""
+    return _access_rows(session, Collaborator.active.is_(True))
+
+
+def _access_rows(session: Session, condition: Any) -> list[CollaboratorAccess]:
+    """The collaborators that meet the condition, with their person, by id.
+
+    One query for the people and one for all their roles, so a list of
+    collaborators costs two queries and not one per person.
+    """
+    statement = (
+        select(Collaborator, Person)
+        .join(Person, Person.id == Collaborator.person_id)
+        .where(condition)
+        .order_by(Collaborator.id)
+    )
+    rows = session.execute(statement).all()
+    roles = _schedule_roles_by_collaborator(session, [row.Collaborator.id for row in rows])
+    return [
+        CollaboratorAccess(
+            id=row.Collaborator.id,
+            person_id=row.Person.id,
+            name=row.Person.name,
+            email=row.Person.email,
+            general_profile=row.Collaborator.general_profile,
+            bond=row.Collaborator.bond,
+            company_id=row.Collaborator.company_id,
+            active=row.Collaborator.active,
+            schedule_roles=roles.get(row.Collaborator.id, ()),
+        )
+        for row in rows
+    ]
+
+
+def _schedule_roles_by_collaborator(
+    session: Session, collaborator_ids: Sequence[int]
+) -> dict[int, tuple[tuple[int, str], ...]]:
+    if not collaborator_ids:
+        return {}
+    statement = (
+        select(
+            CollaboratorScheduleRole.collaborator_id,
+            CollaboratorScheduleRole.project_id,
+            CollaboratorScheduleRole.role,
+        )
+        .where(CollaboratorScheduleRole.collaborator_id.in_(collaborator_ids))
+        .order_by(
+            CollaboratorScheduleRole.collaborator_id,
+            CollaboratorScheduleRole.project_id,
+            CollaboratorScheduleRole.role,
+        )
+    )
+    grouped: dict[int, list[tuple[int, str]]] = {}
+    for row in session.execute(statement):
+        grouped.setdefault(row.collaborator_id, []).append((row.project_id, row.role))
+    return {collaborator_id: tuple(pairs) for collaborator_id, pairs in grouped.items()}
 
 
 # ── Gravação ─────────────────────────────────────────────────────────────

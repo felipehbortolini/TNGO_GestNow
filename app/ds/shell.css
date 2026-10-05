@@ -180,6 +180,11 @@
 .sidebar__escopo .escopo__seletor { padding: 8px 36px 8px 12px; font-size: 13px; text-overflow: ellipsis; }
 .escopo__icone { display: none; }
 
+/* Seletor de perfil do modo demonstração (HU-004, D7): o mesmo desenho do
+   seletor de escopo, logo abaixo dele. Só existe sem login Microsoft. */
+.sidebar__perfil { flex: none; padding: 0 16px 12px; }
+.sidebar__perfil .escopo__seletor { padding: 8px 36px 8px 12px; font-size: 13px; text-overflow: ellipsis; }
+
 /* Escolha do projeto da inclusão no Portfólio (fragmento /api/escopo/projetos) */
 .escopo-escolha__link {
   display: flex; align-items: center; gap: 12px; flex: 1;
@@ -215,7 +220,9 @@
   border: 1px solid var(--borda); border-radius: var(--r-md);
   background: var(--verde-soft); color: var(--brand-title); pointer-events: none;
 }
-.sidebar-trilho .sidebar__escopo .escopo__seletor {
+.sidebar-trilho .sidebar__perfil { padding: 0 0 8px; }
+.sidebar-trilho .sidebar__escopo .escopo__seletor,
+.sidebar-trilho .sidebar__perfil .escopo__seletor {
   position: absolute; inset: 0; width: 100%; height: 100%;
   padding: 0; opacity: 0; cursor: pointer;
 }

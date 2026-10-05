@@ -44,6 +44,10 @@ Este módulo não calcula indicadores de negócio. A validação da edição de 
 | Nova versão | Valida os valores, exige justificativa (mínimo de 10 caracteres) e grava a próxima versão do grupo com autor, vigência e trilha, na transação da requisição | `service.save_parameter_group` |
 | Versão inicial | Semeia a versão 1 de cada grupo sem versão, com a justificativa "Versão inicial"; rodar de novo não duplica | `service.seed_initial_parameters` |
 | Projetos do portfólio | Leitura dos projetos (id, código e nome) por código, para o seletor de escopo e para validar o parâmetro `projeto` da URL (ISSUE-009, D8); quem precisa dos projetos lê aqui e nunca a tabela | `service.list_projects`, `service.ProjectSummary` |
+| Acesso do colaborador | O que o gate lê do cadastro (ISSUE-011, D7): quem é, perfil geral, vínculo, empresa, se está ativo e os papéis da Programação Semanal por projeto, como o cadastro guarda (textos); a plataforma (`core.auth`) converte nos tipos de `core.rbac` e recusa o valor que não conhece | `service.CollaboratorAccess` |
+| Colaborador de um e-mail | O colaborador do e-mail, ativo ou não, sem diferenciar maiúsculas; `None` quando o e-mail não está no cadastro (a pessoa vê o acesso negado) | `service.find_access_by_email` |
+| Colaborador de um id | O colaborador do id, ativo ou não, ou `None` | `service.find_access` |
+| Colaboradores ativos | Os ativos, por id: as pessoas que o seletor de perfil da demonstração oferece | `service.list_active_access` |
 
 O calendário da plataforma (data de hoje, semana ISO, períodos, parcial e corte) fica em `src/core/calendario.py` e é o único leitor do relógio; toda fórmula recebe a data de referência como argumento (D6).
 
@@ -52,6 +56,8 @@ As fórmulas dos domínios permanecem nas `calculations.py` dos módulos donos; 
 ## Fluxos
 
 Alterar parâmetro exige justificativa e cria nova versão com vigência, autor, antes e depois. Colaboradores são cadastrados com um perfil geral e, quando aplicável, papéis por projeto na Programação Semanal. Cadastros de apoio não são duplicados dentro dos módulos consumidores.
+
+O **cadastro de Colaboradores é a fonte de verdade do acesso** (D7): a cada requisição o gate (`core.auth`) procura o e-mail do principal do Static Web Apps aqui, e e-mail fora do cadastro ou de colaborador desativado vê o acesso negado. Uma mudança no cadastro vale na requisição seguinte da pessoa, porque nada do acesso fica guardado fora dele. Configurações só aparece para Gestor e Admin e a tela Colaboradores é só do Admin (`rbac.MODULE_PERMISSION` e `rbac.SCREEN_PERMISSION`); a tela e as gravações do cadastro chegam na ISSUE-077.
 
 ## Integrações
 
@@ -69,6 +75,7 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 |---|---|
 | Rotas | `routes.py` |
 | Versionamento e cadastros | `service.py` (parâmetros: leitura por data, gravação validada e semeadura) |
+| Acesso do colaborador lido pelo gate | `service.py` (`find_access_by_email`, `find_access`, `list_active_access`); quem decide e o que cada perfil pode: `src/core/auth.py` e `src/core/rbac.py` |
 | Calendário da plataforma | `src/core/calendario.py` (data de hoje, semana ISO, períodos, parcial e corte) |
 | Derivação própria | Não há KPI próprio; cálculos permanecem nos módulos consumidores |
 | Regras de entrada | `validation.py` (uma função por regra; o registro `_RULES` liga a regra ao campo) |
@@ -76,6 +83,6 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 | Persistência | `models.py`; projeto e cadastros de apoio criados pela revisão `0001_plataforma` (ISSUE-005); plataforma em `src/core/models.py` |
 | Fragmentos | `api/src/templates/configuracoes/` |
 | Tela, estilo e comportamento | `app/_views/configuracoes/` e `app/paginas/configuracoes/` |
-| Testes | `api/tests/configuracoes/` (fachada e regras) e `api/tests/plataforma/test_calendario.py` |
+| Testes | `api/tests/configuracoes/` (fachada e regras; `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
 
 As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. As ISSUE-076 a ISSUE-078 completam este documento com rotas, telas e os testes de acesso.

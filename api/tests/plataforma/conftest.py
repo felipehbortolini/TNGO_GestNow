@@ -4,6 +4,12 @@
 ``gestnow_teste`` and see none of what a test wrote in ``db_session``. Here the
 unit of work is replaced by the test's session, so the route reads the
 projects the test created and nothing outlives the test.
+
+The routes of the shell resolve who is calling (ISSUE-011). In demonstration,
+with no principal and no choice in the selector, the person is the first active
+Admin, so ``rotas_na_transacao_do_teste`` leaves one in the register and the
+route tests that do not care about identity keep working; the access tests that
+build their own register use ``sessao_das_rotas``, which leaves it empty.
 """
 
 from __future__ import annotations
@@ -14,21 +20,37 @@ from contextlib import contextmanager
 import pytest
 from sqlalchemy.orm import Session
 
-from src.core import database
+from src.core import config, database
 from src.core.models import Client
 from src.modulos.configuracoes.models import Person, Project
+from tests.identidades import criar_colaborador
+
+ADMIN_DA_DEMONSTRACAO = "admin-da-demonstracao@example.invalid"
 
 
 @pytest.fixture
-def rotas_na_transacao_do_teste(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> Session:
-    """Make every ``fragment_route`` use the session of the test instead of its own."""
+def sessao_das_rotas(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> Session:
+    """Routes use the session of the test, in demonstration mode, with an empty register."""
 
     @contextmanager
     def unidade_do_teste() -> Iterator[Session]:
         yield db_session
 
     monkeypatch.setattr(database, "unidade_de_trabalho", unidade_do_teste)
+    monkeypatch.delenv(config.APP_MODE_VARIABLE, raising=False)
     return db_session
+
+
+@pytest.fixture
+def rotas_na_transacao_do_teste(sessao_das_rotas: Session) -> Session:
+    """Make every ``fragment_route`` use the session of the test, with one Admin in the register."""
+    criar_colaborador(
+        sessao_das_rotas,
+        email=ADMIN_DA_DEMONSTRACAO,
+        nome="Admin da demonstração",
+        perfil="Admin",
+    )
+    return sessao_das_rotas
 
 
 def criar_projeto(session: Session, *, codigo: str, nome: str) -> Project:
