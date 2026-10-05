@@ -1,0 +1,89 @@
+{% extends "base_fragment.html" %}
+{#
+  Versão imprimível de uma tela (D12): o que o botão PDF (data-tn-pdf, em
+  ds/ui.js) busca, monta na página e imprime; a pessoa escolhe "Salvar como
+  PDF". Não há biblioteca de PDF: o papel é a folha de impressão do Design System
+  (ds/print.css).
+
+  É um fragmento como os outros: sem link, estilo nem script. O cabeçalho leva o
+  logo e o contexto (escopo, data de geração e as linhas extras do documento);
+  depois vêm os indicadores com a referência de gestão, os gráficos (o motor de
+  gráficos os desenha a partir de data-grafico e data-dados) e as tabelas, com o
+  cabeçalho num thead, que a folha repete em toda página, e a linha de totais num
+  tfoot. Sem navegação: nada aqui é link nem aba.
+
+  A raiz leva o id do alvo que o botão pediu (X-Alpine-Target) e a classe do papel:
+  folha--a4 (padrão) ou folha--a3, que o documento escolhe. O data-titulo é o
+  título da página enquanto imprime, que o navegador sugere como nome do PDF.
+  Os gráficos saem sem animação (data-animar).
+
+  Espera: folha (core.printable.Sheet).
+#}
+{% block root %}
+<div id="{{ target_id|default('folha-impressao', true) }}" class="folha folha--{{ folha.paper }}" data-titulo="{{ folha.file_title }}" data-animar="nao">
+  <header class="folha__cab">
+    <div class="folha__marca">
+      <img class="folha__logo" src="/ds/assets/favicon-timenow.png" alt="" />
+      <span class="folha__produto">Timenow GestNow</span>
+    </div>
+    <p class="folha__emissao">Gerado em {{ folha.generated_on }}</p>
+  </header>
+
+  <h1 class="folha__titulo">{{ folha.title }}</h1>
+  <dl class="folha__contexto">
+    <div class="folha__item"><dt>Escopo</dt><dd>{{ folha.scope_label }}</dd></div>
+    {% for rotulo, valor in folha.context %}
+    <div class="folha__item"><dt>{{ rotulo }}</dt><dd>{{ valor }}</dd></div>
+    {% endfor %}
+  </dl>
+
+  {% if folha.kpis %}
+  <section class="folha__kpis" aria-label="Indicadores">
+    {% for kpi in folha.kpis %}
+    <div class="{{ kpi.css }}">
+      <span class="folha__kpi-rotulo">{{ kpi.label }}</span>
+      <strong class="folha__kpi-valor">{{ kpi.value }}</strong>
+      {% if kpi.status %}<span class="folha__kpi-situacao">{{ kpi.status }}</span>{% endif %}
+      {% if kpi.reference %}<span class="folha__kpi-referencia">Referência: {{ kpi.reference }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% for grafico in folha.charts %}
+  <figure class="folha__grafico">
+    <figcaption class="folha__grafico-titulo">{{ grafico.title }}</figcaption>
+    <div data-grafico="{{ grafico.kind }}" data-dados='{{ grafico.data | tojson }}'></div>
+  </figure>
+  {% endfor %}
+
+  {% for tabela in folha.tables %}
+  <section class="folha__secao">
+    <h2 class="folha__secao-titulo">{{ tabela.title }}</h2>
+    <table class="folha__tbl">
+      <thead>
+        <tr>
+          {% for coluna in tabela.columns %}<th scope="col" class="{{ coluna.css }}">{{ coluna.header }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in tabela.rows %}
+        <tr>
+          {% for celula in linha %}<td class="{{ celula.css }}">{{ celula.text }}</td>{% endfor %}
+        </tr>
+        {% else %}
+        <tr><td class="folha__vazio" colspan="{{ tabela.columns|length }}">Nenhum registro.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if tabela.totals %}
+      <tfoot>
+        <tr>
+          {% for celula in tabela.totals %}<td class="{{ celula.css }}">{{ celula.text }}</td>{% endfor %}
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

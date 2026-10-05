@@ -17,6 +17,8 @@ alembic==1.20.0
     # via timenow-gestnow-api
 azure-functions==2.2.0
     # via timenow-gestnow-api
+et-xmlfile==2.0.0
+    # via openpyxl
 jinja2==3.1.6
     # via timenow-gestnow-api
 mako==1.4.3
@@ -26,6 +28,10 @@ markupsafe==3.0.3
     #   jinja2
     #   mako
     #   werkzeug
+openpyxl==3.1.5
+    # via timenow-gestnow-api
+pillow==12.3.0
+    # via timenow-gestnow-api
 psycopg==3.3.6
     # via timenow-gestnow-api
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'

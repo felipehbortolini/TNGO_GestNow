@@ -22,6 +22,13 @@ the platform routes that must work for someone the register does not know yet
 ``on_error`` lets a screen that owns a form re-render it filled with what
 the person typed (422 and 409); returning ``None`` falls back to the
 common error fragment.
+
+``download_route`` is the exception of the Padrão (D14, ISSUE-017): a route
+that answers with a file (the Excel of a screen, an attachment) and not with a
+fragment. The browser asks for a file without the Alpine header, so the gate
+does not apply, but everything else does: the same ``Access``, the same user
+and scope, the same transaction and the same error map. A download that is
+refused answers 403 with the message in the toast header, like any route.
 """
 
 from __future__ import annotations
@@ -140,6 +147,31 @@ def fragment_route(
 
     if handler is not None:
         return decorator(handler)
+    return decorator
+
+
+def download_route(*, access: Access) -> Callable[[Callable], Callable]:
+    """Decorate a download endpoint: no Alpine gate, but the same access as any route (D14).
+
+    The handler receives ``(req, session, context)`` and returns the file
+    (``responses.file_response``). Unlike a fragment route, ``access`` is
+    required: a download that does not say who may take it is a mistake, so
+    the user is always resolved and the module and the permission always
+    checked before the handler runs.
+    """
+
+    def decorator(endpoint: Callable) -> Callable:
+        @functools.wraps(endpoint)
+        def wrapper(req: func.HttpRequest) -> func.HttpResponse:
+            try:
+                with database.unidade_de_trabalho() as session:
+                    return endpoint(req, session, authorize(session, req, access))
+            except DomainError as error:
+                return error_response(error, req)
+
+        _present_as_azure_function(wrapper, access)
+        return wrapper
+
     return decorator
 
 
