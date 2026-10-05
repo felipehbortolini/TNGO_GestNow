@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Submissão de RFA — 52 Semanas — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1500px;margin:0 auto;height:700px;position:relative;}
+  .hint{max-width:1500px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Mapa de Submissão de RFA · 52 Semanas — grade de semanas (6 por vez), filtros, ano, botão Hoje e pop-up com as atividades da RFA ao clicar no card (dados fake PMO; o payload segue a mesma codificação da medida)</div>
+<div class="frame">
+<style>
+.frame *,.ov *{box-sizing:border-box;margin:0;padding:0}
+.frame{font-family:'Segoe UI',sans-serif;color:#2A2A2A;font-size:13px;--m:'Montserrat','Segoe UI',sans-serif}
+.wr{display:flex;flex-direction:column;height:100%;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);padding:10px 14px;overflow:hidden;container-type:inline-size}
+.hd{display:flex;align-items:center;gap:10px 14px;flex:0 0 auto;flex-wrap:wrap}
+.t1{font-size:20px;font-weight:600;color:#006357;line-height:1.15;white-space:nowrap}
+.t2,.k span,.cw,.rw i,.lb{font-family:var(--m);font-style:normal;font-weight:600;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+.t2{font-size:9.5px;color:#00A793;margin-top:2px}
+.kp{display:flex;gap:10px 13px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.k{text-align:right}
+.k b{display:block;font-size:21px;font-weight:600;line-height:1;color:#7D7D7D}
+.k span{display:block;font-size:9px;color:#7D7D7D;margin-top:3px}
+.k.g b{color:#4EB776}.k.y b{color:#E8B430}.k.o b{color:#EB6100}.k.b b{color:#648FA0}
+.yr{display:flex;background:#F1F1F1;border-radius:9999px;padding:3px;gap:2px;flex:0 0 auto;margin-left:12px}
+.yr button{border:0;background:transparent;cursor:pointer;border-radius:9999px;padding:5px 12px;font-family:var(--m);font-size:10.5px;font-weight:600;letter-spacing:1px;color:#7D7D7D}
+.yr button.on{background:#00A793;color:#FFFFFF}
+.yr i{font-style:normal;opacity:.7;margin-left:5px;font-size:9.5px}
+.tl{display:flex;align-items:center;gap:6px;flex:0 0 auto;margin-top:8px;padding-bottom:6px;border-bottom:1px solid #F1F1F1;flex-wrap:nowrap;overflow:hidden}
+.tl input,.tl select{font:600 10.5px var(--m);color:#535358;border:1px solid #DCDCDC;border-radius:9999px;padding:5px 9px;background:#FFFFFF;outline:none;height:28px;min-width:0;flex:1 1 0;text-overflow:ellipsis}
+.tl input{flex:1.6 1 0;letter-spacing:0;font-weight:400;padding-left:11px}
+.tl input:focus,.tl select:focus{border-color:#00A793}
+.tl select.on{background:#E6F8F4;border-color:#00A793;color:#006357}
+.tl select option{font:400 11px 'Segoe UI',sans-serif;color:#2A2A2A;text-transform:none}
+.nv{display:flex;align-items:center;gap:3px;flex:0 0 auto}
+.nv button{border:1px solid #DCDCDC;background:#FFFFFF;color:#535358;cursor:pointer;border-radius:9999px;height:28px;min-width:28px;padding:0 9px;font:600 10.5px var(--m);letter-spacing:.6px}
+.ct{font-size:10.5px;color:#7D7D7D;white-space:nowrap;flex:0 0 auto;padding-left:2px}
+.ct b{color:#006357}
+.bd{flex:1 1 auto;min-height:0;margin-top:6px;display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 30px)/6);gap:6px;overflow-x:auto;overflow-y:hidden;scroll-behavior:smooth;scroll-snap-type:x proximity;padding-bottom:4px}
+.bd::-webkit-scrollbar{height:7px}
+.bd::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:5px}
+.cl{display:flex;flex-direction:column;min-width:0;min-height:0;border-radius:8px;scroll-snap-align:start;background:#FFFFFF}
+.cl.alt{background:#FAFBFB}
+.cl.tw{background:#F1FBF8;box-shadow:inset 0 0 0 1px #91D9D1}
+.ch{flex:0 0 auto;padding:5px 6px 4px;border-bottom:1px solid #F1F1F1}
+.cw{font-size:11px;color:#006357;display:flex;align-items:center;gap:5px}
+.cw em{font-style:normal;font-size:8.5px;color:#A0A0A0;letter-spacing:.6px}
+.cw b{margin-left:auto;background:#E6F8F4;color:#006357;border-radius:9999px;font-size:9px;padding:1px 6px;line-height:1.5}
+.cl.tw .cw b{background:#00A793;color:#FFFFFF}
+.cr{font-size:9.5px;color:#7D7D7D;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;padding:4px;display:flex;flex-direction:column;gap:4px;scrollbar-gutter:stable}
+.cb::-webkit-scrollbar{width:4px}
+.cb::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:5px}
+.cd{position:relative;background:#FFFFFF;border:1px solid #F1F1F1;border-radius:6px;padding:5px 7px 5px 9px;cursor:pointer;flex:0 0 auto;min-width:0}
+.cd:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:6px 0 0 6px;background:var(--o)}
+.cn{font-size:13px;font-weight:600;color:#006357;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:28px}
+.r2{display:flex;align-items:center;gap:4px;margin-top:3px;min-width:0}
+.fs{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:1px 6px;border-radius:9999px;flex:0 0 auto;font-style:normal;line-height:1.6}
+.fs.f0{background:#F1F1F1;color:#535358}
+.fs.f1{background:#F0FBF8;color:#00806F}
+.fs.f2{background:#DDF5F0;color:#00705F}
+.fs.f3{background:#B8E9E0;color:#005A4D}
+.fs.f4{background:#006357;color:#FFFFFF}
+.fs.f5{background:#F1F1F1;color:#535358}
+.po{font-size:10.5px;color:#7D7D7D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto}
+.cf{display:flex;align-items:center;gap:4px;margin-top:4px;min-width:0;flex-wrap:wrap}
+.sg,.sp{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;padding:1px 6px;border-radius:9999px;white-space:nowrap;flex:0 0 auto;line-height:1.6;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.sg.g{background:#DDF8F0;color:#2B6533}
+.sg.y{background:#FDF8E5;color:#806320}
+.sg.o{background:#FDF0E6;color:#8A4B12}
+.sg.n{background:#F1F1F1;color:#535358}
+.sp.p{background:#DDF8F0;color:#2B6533}
+.sp.r{background:#FDF0E6;color:#8A4B12}
+.sp.n{background:#F1F1F1;color:#535358}
+.dt{font-size:11px;font-weight:600;color:#2A2A2A;white-space:nowrap;flex:0 0 auto}
+.qt{position:absolute;top:4px;right:5px;background:#E6F8F4;color:#006357;font-size:8.5px;font-weight:600;border-radius:9999px;padding:1px 5px;line-height:1.5}
+.ez{font-size:11px;color:#DCDCDC;text-align:center;padding:8px 0}
+.ft{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding-top:6px;border-top:1px solid #F1F1F1;margin-top:4px;flex-wrap:wrap}
+.lg{display:flex;align-items:center;gap:4px;font-size:10.5px;color:#7D7D7D;white-space:nowrap}
+.lg em{width:8px;height:8px;border-radius:9999px;display:block;font-style:normal;flex:0 0 auto}
+#ff{margin-left:auto;font-size:10.5px;color:#7D7D7D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.es{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;padding:36px;font-size:14px;color:#7D7D7D;grid-column:1/-1}
+.es i{font-style:normal;font-size:32px;color:#DCDCDC}
+.ov{position:fixed;inset:0;background:rgba(42,42,42,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:10px;font-family:'Segoe UI',sans-serif;font-size:13px;color:#2A2A2A;--m:'Montserrat','Segoe UI',sans-serif}
+.ov.on{display:flex}
+.md{background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);padding:11px 16px;width:1900px;max-width:98vw;max-height:96vh;overflow:auto}
+.m1{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600;color:#006357;flex-wrap:wrap}
+.mx{margin-left:auto;border:0;background:none;cursor:pointer;font-size:22px;color:#B9B9BC;line-height:1}
+.m2{font-size:12.5px;color:#7D7D7D;margin:2px 0 6px}
+.mr{display:flex;gap:7px;flex-wrap:wrap;padding:5px 0 6px;border-top:1px solid #F1F1F1;border-bottom:1px solid #F1F1F1;margin-bottom:7px}
+.mc{display:flex;align-items:center;gap:6px;background:#FAFAFA;border:1px solid #F1F1F1;border-radius:6px;padding:4px 9px;min-width:180px}
+.mc u{width:8px;height:8px;border-radius:9999px;text-decoration:none;display:block;flex:0 0 auto}
+.lb{font-size:9px;color:#A0A0A0}
+.mc b{font-size:13.5px;font-weight:600;color:#2A2A2A;margin-left:auto;text-align:right}
+.tb{width:100%;border-collapse:collapse;table-layout:fixed}
+.tb th{font-family:var(--m);font-size:9.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#006357;background:#F5FAFB;text-align:left;padding:5px 7px;border-bottom:1px solid #E6F8F4;position:sticky;top:0}
+.tb td{font-size:12.5px;color:#2A2A2A;padding:4px 6px;border-bottom:1px solid #F5F5F5;vertical-align:top;line-height:1.3}
+.tb tr:last-child td{border-bottom:0}
+.tb td.a{font-weight:600;border-left:3px solid var(--s);padding-left:9px}
+.tb td.d{font-size:12px;white-space:nowrap;color:#535358;text-align:center}
+.tb td.d.v{color:#B9B9BC}
+.tb td.x{color:#7D7D7D;font-size:11.5px}
+.tb td.p{color:#006357;font-size:11.5px;font-weight:600}
+.cl3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.st{display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:600;font-family:var(--m);letter-spacing:.4px;text-transform:uppercase;color:#7D7D7D;margin-left:5px;white-space:nowrap}
+.st u{width:6px;height:6px;border-radius:9999px;text-decoration:none;display:block}
+.ov .fs{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:1px 6px;border-radius:9999px;font-style:normal;line-height:1.6}
+@container (max-width:1100px){.t2,.lg{display:none}.kp{gap:9px}.k b{font-size:18px}}
+@container (max-width:860px){.t1{font-size:17px}.yr button{padding:5px 8px;letter-spacing:0}.kp{gap:7px}.ct{display:none}}
+@container (max-width:640px){.hd>div:first-child{display:none}.po{display:none}}
+</style>
+<div class='wr'>
+<div class='hd'>
+<div><div class='t1'>Mapa de Submiss&atilde;o de RFA &middot; 52 Semanas</div>
+<div class='t2'>Projeto &times; Fase &middot; agrupado de 6 em 6 semanas</div></div>
+<div class='kp' id='kp'></div>
+<div class='yr' id='yr'></div>
+</div>
+<div class='tl'>
+<input id='q' placeholder='Buscar projeto, portf&oacute;lio, atividade...'>
+<select id='f0'></select><select id='f1'></select><select id='f2'></select>
+<select id='f3'></select><select id='f4'></select>
+<div class='nv'><button id='pv' title='6 semanas anteriores'>&#8249;</button>
+<button id='hj'>Hoje</button>
+<button id='nx' title='pr&oacute;ximas 6 semanas'>&#8250;</button></div>
+<div class='ct' id='ct'></div>
+</div>
+<div class='bd' id='bd'></div>
+<div class='ft'>
+<div class='lg'><em style='background:#4EB776'></em>Conclu&iacute;do</div>
+<div class='lg'><em style='background:#E8B430'></em>Previsto</div>
+<div class='lg'><em style='background:#EB6100'></em>Atrasado</div>
+<div class='lg'><em style='background:#DCDCDC'></em>Sem status</div>
+<div id='ff'></div>
+</div>
+</div>
+<div class='ov' id='ov'><div class='md' id='md'></div></div>
+<script>(function(){var D='OK2025¦U02026¤0PROPOSED¦1FEL1¦2FEL2¦3FEL3¦4EXEC¤Alumínio Primário¦Energia¦Logística¦Mineração¦Refinaria¤0Concluído¦1Previsto¦2Atrasado¦3Não iniciado¤0Plano¦1Replano¦2Sem plano¤1Extremely High - 25¦2Very High - 20¦3High - 16¦6Medium - 10¦7Low - 9¦9-¤Estável¦Melhorando¦Piorando¤Atrasada¦Dentro do prazo¦Risco de atraso¤Análise de riscos¦Aprovação do cliente¦Emissão do RFA¦Estudo de viabilidade¦Memorial descritivo¦Plano de execução¦Revisão de engenharia¦Validação de custos¤¦Aguardando aprovação do cliente¦Dependência de fornecedor¦Falta de documentação técnica¦Pendência de licença ambiental¦Revisão de escopo em andamento¤¦Assinatura do gerente¦Atender norma interna NI-204¦Evidência de teste¦Parecer jurídico¦Revisão por comitê técnico¤¦Ana Souza¦Carlos Mendes¦Juliana Alves¦Marcos Rocha¦Pedro Lima¤Projeto Ômega¦033120522OY¦06OIO8OH??020003¬Documentação enviada, em análise.¦07O9NnNp??000000¬Aguardando retorno do fornecedor.¦02NjNUNUNt050002¬Aguardando retorno do fornecedor.¦03ONOBOCOJ040004¬¦04OFO1O4OQ050001¬Documentação enviada, em análise.¦00NeNLNMNc030202¬¦01OEO0O1??000400¬§Projeto Ômega¦034400020Oc¦01NuNfNiNx000000¬Aguardando retorno do fornecedor.¦06OUOBOJOV010003¬Dependência da área de suprimentos.¦03OLN.O7OB020104¬Replanejado após reunião de 15/09.¦04OANoNxO0020004¬¦07NzNWNY??030502¬¦02ORO5O9??000000¬¦00OPNrNo??010004¬§Projeto Épsilon¦074301300O.¦02OSO5O7OQ000000¬¦05OXO3O3Oe000200¬¦07OjOJOSOg030004¬Aguardando retorno do fornecedor.¦03OoONONOj010303¬Documentação enviada, em análise.¦00OMO6O3??040002¬Aguardando retorno do fornecedor.¦06OfOLOUOd000500¬Replanejado após reunião de 15/09.¦04OINlNv??020404¬¦01O4NWNg??040004¬Replanejado após reunião de 15/09.§Projeto Delta¦073400101P1¦06O8NaNi??000000¬Documentação enviada, em análise.¦07OSOEOJ??000000¬¦02O8NfNl??000000¬Dependência da área de suprimentos.¦03OkOYOVOu010405¬¦01OKOAOHOH010105¬Replanejado após reunião de 15/09.¦04OtOOOTOy010002¬Dependência da área de suprimentos.¦00OCNyNy??000400¬¦05OUNtN_OL000000¬§Projeto Sigma¦0C1401301PY¦05PQPGPMPP000000¬Aguardando retorno do fornecedor.¦00OuObOhOv000200¬¦01OgOPOXOZ020003¬Aguardando retorno do fornecedor.¦03OgOOOLOn000000¬Replanejado após reunião de 15/09.¦07P1OaOf??010501¬Aguardando retorno do fornecedor.¦02PIP1P0PB050002¬¦06P3OpOuP9000500¬¦04OzOgOeOq000000¬Aguardando retorno do fornecedor.§Projeto Tau¦0E1101012Po¦00OwOjOoOq040003¬¦05OsONOPOy000000¬¦06PIO_P1P9000400¬Aguardando retorno do fornecedor.¦02POO_O.??020001¬§Projeto Kappa¦0H4120512Q9¦01PNPCPDPY050003¬Dependência da área de suprimentos.¦02PtPhPmPr000000¬¦05PwPPPRPy020504¬Aguardando retorno do fornecedor.¦06PFOrOzP5020003¬Documentação enviada, em análise.§Projeto Gama¦0L4301521QW¦06Q7PxPyQJ010101¬Documentação enviada, em análise.¦01QBP.Q5??010305¬Aguardando retorno do fornecedor.¦04QAPjPiQM010003¬¦05QGQ0Q1QM000500¬Dependência da área de suprimentos.¦03QGP_Q0??000100¬Dependência da área de suprimentos.¦02PxPWPWPu000400¬Dependência da área de suprimentos.§Projeto Beta¦0R2100112RG¦06R4QtR1R8030103¬Dependência da área de suprimentos.¦01QxQYQiR1050501¬Documentação enviada, em análise.¦05QgQNQU??000300¬¦02QrQJQJQx020002¬Documentação enviada, em análise.¦04QyQOQR??050101¬Documentação enviada, em análise.¦03QwQXQYR3000300¬¦07R6QrQpR2040005¬Documentação enviada, em análise.¦00RBQoQvRL010002¬Aguardando retorno do fornecedor.§Projeto Lambda¦0T1222000RT¦04QhQ8Q8Qa000200¬Dependência da área de suprimentos.¦07QwQWQTQx000400¬¦01QjQUQXQc000000¬Dependência da área de suprimentos.¦05RLR3R4RC040003¬Replanejado após reunião de 15/09.§Projeto Alfa¦0U1401000RX¦07QeQHQRQq030004¬¦03RJR7R6RU040002¬¦04RAR0Q.RB000200¬Dependência da área de suprimentos.¦02QcQCQIQT050404¬¦01Q_QWQZQs000100¬§Projeto Theta¦0U2001410RY¦00QtQLQSQz000000¬Replanejado após reunião de 15/09.¦03RKQsQzRT000100¬Dependência da área de suprimentos.¦02QrQTQa??020004¬Documentação enviada, em análise.¦07RNQmQtRH000000¬¦04QcQJQIQc050001¬Aguardando retorno do fornecedor.¦06QvQVQS??000400¬Aguardando retorno do fornecedor.¦05RPRFRMRX000000¬¦01Q.QTQWQt000200¬Dependência da área de suprimentos.§Projeto Alfa¦0e2400412Se¦00SKS8SDSS020005¬¦07R.RZRcRy020205¬¦03R.RiRn??050002¬¦05STS2SASK000500¬Aguardando retorno do fornecedor.¦06RoRURYRs020002¬§Projeto Kappa¦0g1120011St¦01SfS9S6SZ000000¬Dependência da área de suprimentos.¦04SkSDSASs000500¬Dependência da área de suprimentos.¦07SkS8SI??000200¬¦02SbSOSLSl030201¬Documentação enviada, em análise.§Projeto Ômega¦0k1401320TJ¦03SsSXSVSo050001¬Dependência da área de suprimentos.¦00SPS5S3ST000000¬¦07SbSESFSe030402¬¦04TESnSrTI000000¬Aguardando retorno do fornecedor.¦01SPSASJSM030104¬Replanejado após reunião de 15/09.§Projeto Ômega¦0m2421010TY¦00T6SxSySz050103¬Replanejado após reunião de 15/09.¦03ScSNSRSn000500¬Dependência da área de suprimentos.¦01SsSXSXSs020001¬Replanejado após reunião de 15/09.¦06SlSHSH??000300¬§Projeto Theta¦0p3302011Tq¦01T1SbSbSy000200¬Dependência da área de suprimentos.¦07S.SpSqTB030001¬Dependência da área de suprimentos.¦03TjTZTWTt000000¬Aguardando retorno do fornecedor.¦00TST9THTX000500¬Dependência da área de suprimentos.¦02TJSwT1TC020004¬Aguardando retorno do fornecedor.§Projeto Beta¦173022302Ul¦06UXU5U9??050003¬¦05U7TiThUH020202¬¦00UQUAUBUY050201¬Dependência da área de suprimentos.¦01UKTkToUQ050205¬Replanejado após reunião de 15/09.¦04UfU4U8??000000¬¦07UVUHULUO000500¬Replanejado após reunião de 15/09.¦02U7TkTt??000200¬§Projeto Lambda¦1D2101001VN¦01UZUNUQ??020405¬Replanejado após reunião de 15/09.¦05V8UoUvVC050005¬Dependência da área de suprimentos.¦02VGUxV1VA000500¬Dependência da área de suprimentos.¦06U_UlUpUy000400¬Dependência da área de suprimentos.¦00UcULUQUb000000¬Replanejado após reunião de 15/09.¦07V9UeUd??000000¬¦04V8UtUv??010102¬Aguardando retorno do fornecedor.§Projeto Tau¦1J3300112W3¦07VCUnUmVO000000¬Dependência da área de suprimentos.¦02VRUuU.??020004¬Dependência da área de suprimentos.¦01VtVSVQVq000500¬¦05VWV8V7??020001¬¦03V9UrUvVE000000¬§Projeto Theta¦1M1001512WO¦05W4VkVnWD000400¬¦06VdVTVVVg010205¬¦04W2VTVc??000000¬¦00VnVbVgVp020104¬Aguardando retorno do fornecedor.¦01VcVMVNVS000100¬Replanejado após reunião de 15/09.¦02VWVBVKVY000000¬Documentação enviada, em análise.¦03VoVUVYVk020303¬Replanejado após reunião de 15/09.¦07VlVQVT??000400¬§Projeto Alfa¦1Q4200002Wo¦06WEVtVq??050003¬¦01W1ViVoW5010004¬Dependência da área de suprimentos.¦02W3VtVq??050004¬¦07W0VgVnW4050102¬Documentação enviada, em análise.§Projeto Épsilon¦1Q3300222Wp¦05WdV.V.??000300¬¦06WLV.W9WM000000¬Documentação enviada, em análise.¦02WhWPWNWs020304¬Replanejado após reunião de 15/09.¦03WQWAWJWT000000¬Dependência da área de suprimentos.§Projeto Zeta¦1S1420001X2¦01WZVxVvWV030004¬¦02WwWQWUX1000300¬Dependência da área de suprimentos.¦00WVWLWSWf000100¬Aguardando retorno do fornecedor.¦06WvWMWJWn000300¬§Projeto Kappa¦1W2200220XR¦05WuWJWKWk000500¬Documentação enviada, em análise.¦02XGWxW.??000100¬Replanejado após reunião de 15/09.¦04WYWFWEWe010401¬Aguardando retorno do fornecedor.¦07WgW7WHWl000000¬Replanejado após reunião de 15/09.§Projeto Lambda¦1X3100021XX¦03WcW3W6Wi000100¬¦07XCWlWtX9000500¬Replanejado após reunião de 15/09.¦06WjWFWI??000000¬Documentação enviada, em análise.¦00WpWJWP??000000¬Aguardando retorno do fornecedor.¦04X1WjWkWw000400¬Dependência da área de suprimentos.¦01WlWHWGWo010004¬Replanejado após reunião de 15/09.§Projeto Tau¦1Z4000000Xl¦07XKWrWy??000300¬Documentação enviada, em análise.¦05X7WfWe??020403¬Aguardando retorno do fornecedor.¦04W.WmWqWz030404¬Replanejado após reunião de 15/09.¦01X2WsWz??030001¬¦06WsWQWS??030001¬Dependência da área de suprimentos.§Projeto Sigma¦1c2010420Y8¦02XaXHXQ??020305¬Documentação enviada, em análise.¦00XpXaXc??040504¬¦06XUXCXIXU020203¬Dependência da área de suprimentos.¦04XlX9XCXj050304¬Replanejado após reunião de 15/09.¦05XYX6XE??050004¬Dependência da área de suprimentos.¦03XGWxWyXH000100¬Aguardando retorno do fornecedor.¦07XrXcXi??050503¬Dependência da área de suprimentos.§Projeto Épsilon¦1e1122112YH¦03XXXKXU??000000¬Aguardando retorno do fornecedor.¦01Y7XiXrY1010003¬¦06XaXIXNXm000300¬Replanejado após reunião de 15/09.¦04XdXNXQXm050403¬§Projeto Gama¦1k1231110Yy¦07YMXmXn??000400¬¦04YTYGYJ??020203¬Documentação enviada, em análise.¦06YmYAYJ??000200¬Aguardando retorno do fornecedor.¦03YfY8Y6??020405¬Aguardando retorno do fornecedor.¦01YYYBYB??030504¬Aguardando retorno do fornecedor.¦02YAY0Y3YJ010201¬§Projeto Delta¦1n2310421ZG¦00YWYJYRYi000400¬Documentação enviada, em análise.¦03Z4YU????010001¬¦07YkYY????000300¬Aguardando retorno do fornecedor.¦06Y_YNYNZ4030503¬¦02YUY9Y9??000200¬§Projeto Gama¦1p2410101ZZ¦06ZQYy????020405¬Dependência da área de suprimentos.¦02ZCYl????040304¬¦00ZEYv????000000¬¦01ZSYq????020401¬Aguardando retorno do fornecedor.¦05ZDYp????010102¬Aguardando retorno do fornecedor.§Projeto Zeta¦1q2310101Zh¦06Z7Yy????000400¬¦00ZcZ3????000400¬¦02ZJYn????020301¬Replanejado após reunião de 15/09.¦01Z7YgYg??000500¬¦03ZDZ2????000100¬Dependência da área de suprimentos.¦04ZZZK????000000¬Dependência da área de suprimentos.¦07ZVZJ????020005¬Dependência da área de suprimentos.';var _n=new Date(),T=Date.UTC(_n.getFullYear(),_n.getMonth(),_n.getDate()),EPO=2200,ANO=_n.getFullYear(),SEMDATA=3,TOT=36,CUT=0;
+setTimeout(function(){
+var A='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_.',X={},i,j;
+for(i=0;i<64;i++){X[A.charAt(i)]=i;}
+var MO=['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+var SC=['g','y','o','n'],SB=['#4EB776','#E8B430','#EB6100','#DCDCDC'],PS=['p','r','n'];
+var AL=['Concluída','Concluída c/ atraso','Atrasada','Em andamento','Não iniciada'];
+var AK=['#4EB776','#E8B430','#D03636','#648FA0','#DCDCDC'];
+var g_=document.getElementById.bind(document);
+var bd=g_('bd'),kp=g_('kp'),yr=g_('yr'),ct=g_('ct'),ff=g_('ff'),ov=g_('ov'),md=g_('md');
+var YI=0,Q='',FS=[-1,-1,-1,-1,-1],WN=52;
+function e_(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
+function nz(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+function p2(n){return n<10?'0'+n:''+n;}
+function dt(v){return new Date(T+v*864e5);}
+function fd(v){if(v===null||v===undefined)return '—';var x=dt(v);
+return p2(x.getUTCDate())+'/'+p2(x.getUTCMonth()+1)+'/'+String(x.getUTCFullYear()).slice(2);}
+function fs(v){var x=dt(v);return p2(x.getUTCDate())+'/'+p2(x.getUTCMonth()+1);}
+function oc(r){return r<=1?'#D03636':r==2?'#EB6100':r<=5?'#E8B430':r<=7?'#228BC3':'#DCDCDC';}
+function dec(s,i){var c=s.charAt(i);return c=='?'?null:X[c]*64+X[s.charAt(i+1)]-EPO;}
+var S=D.split('¤');function sp(k){return (S[k]||'').split('¦');}
+var YD=sp(0),FD=sp(1),PD=sp(2),RD=sp(3),SD=sp(4),OD=sp(5),RT=sp(6),TD=sp(7),AD=sp(8),
+QR=sp(9),QE=sp(10),QP=sp(11);
+function i2(s,i){return X[s.charAt(i)]*64+X[s.charAt(i+1)];}
+var C=[];if(S[12]){S[12].split('§').forEach(function(r){var f=r.split('¦');
+if(f.length<2||f[1].length<11)return;var h=f[1];
+C.push({k:C.length,n:f[0],yi:X[h.charAt(0)],wk:X[h.charAt(1)],fa:X[h.charAt(2)],pf:X[h.charAt(3)],
+sr:X[h.charAt(4)],sd:X[h.charAt(5)],om:X[h.charAt(6)],rt:X[h.charAt(7)],td:X[h.charAt(8)],sb:dec(h,9),
+a:f.slice(2).filter(function(z){return z.length>=16;}).map(function(z){var q=z.split('¬'),b=q[0];
+return{ai:i2(b,0),tp:dec(b,2),ip:dec(b,4),ir:dec(b,6),tr:dec(b,8),
+rs:QR[i2(b,10)]||'',ex:QE[i2(b,12)]||'',rr:QP[i2(b,14)]||'',cm:q[1]||''};})});});}
+function anc(y){return dec(YD[y]||'??',0);}
+function yl(y){return (YD[y]||'').slice(2);}
+function sev(c){return X[(RD[c.sr]||'3').charAt(0)];}
+function fcl(c){return X[(FD[c.fa]||'5').charAt(0)];}
+function lbl(a,ix,d){var v=a[ix];return v===undefined?d:v.slice(1);}
+function txt(c){var s=c.n+' '+(PD[c.pf]||'')+' '+lbl(FD,c.fa,'')+' '+lbl(RD,c.sr,'')+' '+lbl(SD,c.sd,'')
++' '+lbl(OD,c.om,'')+' '+(RT[c.rt]||'')+' '+(TD[c.td]||''),i;
+for(i=0;i<c.a.length;i++)s+=' '+(AD[c.a[i].ai]||'')+' '+c.a[i].rs+' '+c.a[i].ex+' '+c.a[i].rr+' '+c.a[i].cm;
+return nz(s);}
+function liv(){return Q!=''||FS.join()!='-1,-1,-1,-1,-1';}
+function vis0(c){
+if(FS[0]>=0&&c.fa!=FS[0])return false;
+if(FS[1]>=0&&c.pf!=FS[1])return false;
+if(FS[2]>=0&&c.sr!=FS[2])return false;
+if(FS[3]>=0&&c.sd!=FS[3])return false;
+if(FS[4]>=0&&c.om!=FS[4])return false;
+return !Q||txt(c).indexOf(Q)>=0;}
+function vis(c){return c.yi==YI&&vis0(c);}
+function qy(y){var q=0,k;for(k=0;k<C.length;k++)if(C[k].yi==y&&vis0(C[k]))q++;return q;}
+function ast(a){if(a.tr!==null)return (a.tp!==null&&a.tr>a.tp)?1:0;
+if(a.tp!==null&&a.tp<0)return 2;if(a.ir!==null)return 3;return 4;}
+function opts(el,rot,arr,sk){el.innerHTML='<option value=-1>'+rot+': todos</option>'+
+arr.map(function(v,ix){return v===''?'':'<option value='+ix+'>'+e_(sk?v.slice(1):v)+'</option>';}).join('');}
+function cw(){var c=bd.querySelector('.cl');if(!c)return 0;return (c.getBoundingClientRect().width+6)*6;}
+function card(c){var s=sev(c);
+return '<div class=\'cd\' data-k=\''+c.k+'\' style=\'--o:'+SB[s]+'\'>'
++(c.a.length?'<span class=\'qt\'>'+c.a.length+'</span>':'')
++'<div class=\'cn\' title=\''+e_(c.n)+'\'>'+e_(c.n)+'</div>'
++'<div class=\'r2\'><em class=\'fs f'+fcl(c)+'\'>'+e_(lbl(FD,c.fa,'—'))+'</em>'
++'<span class=\'po\' title=\''+e_(PD[c.pf]||'—')+'\'>'+e_(PD[c.pf]||'—')+'</span></div>'
++'<div class=\'cf\'><span class=\'sg '+SC[s]+'\'>'+e_(lbl(RD,c.sr,'—'))+'</span>'
++'<span class=\'dt\'>'+fd(c.sb)+'</span>'
++'<span class=\'sp '+PS[X[(SD[c.sd]||'2').charAt(0)]]+'\'>'+e_(lbl(SD,c.sd,'—'))+'</span></div></div>';}
+function render(){
+var sel=C.filter(vis),by={},mx=52,K=[0,0,0,0],h='';
+for(i=0;i<sel.length;i++){var c=sel[i];(by[c.wk]=by[c.wk]||[]).push(c);
+if(c.wk>mx)mx=c.wk;K[sev(c)]++;}
+WN=mx;var an=anc(YI),tw=an===null?-1:Math.floor((0-an)/7)+1;
+if(!sel.length){bd.innerHTML='<div class=\'es\'><i>&#9711;</i><span>Nenhuma RFA atende aos filtros selecionados.</span></div>';}
+else{for(j=1;j<=mx;j++){var ws=an+(j-1)*7,li=by[j]||[];
+li.sort(function(a,b){var x=(a.sb===null?9e9:a.sb)-(b.sb===null?9e9:b.sb);
+return x||(a.n<b.n?-1:(a.n>b.n?1:0));});
+h+='<div class=\'cl'+(j==tw?' tw':(Math.floor((j-1)/6)%2?' alt':''))+'\'>'
++'<div class=\'ch\'><div class=\'cw\'>W'+p2(j)+'<em>'+MO[dt(ws+3).getUTCMonth()]+'</em>'
++(li.length?'<b>'+li.length+'</b>':'')+'</div>'
++'<div class=\'cr\'>'+fs(ws)+' – '+fs(ws+6)+'</div></div>'
++'<div class=\'cb\'>'+(li.length?li.map(card).join(''):'<div class=\'ez\'>—</div>')+'</div></div>';}
+bd.innerHTML=h;}
+kp.innerHTML=[[sel.length,'RFAs',''],[K[0],'Concluídas',' g'],[K[1],'Previstas',' y'],
+[K[2],'Atrasadas',' o'],[SEMDATA,'Sem data',' b']]
+.map(function(a){return '<div class=\'k'+a[2]+'\'><b>'+a[0]+'</b><span>'+a[1]+'</span></div>';}).join('');
+ct.innerHTML='<b>'+sel.length+'</b>/'+qy(YI);
+ff.textContent=yl(YI)+' — '+mx+' semanas'
++(SEMDATA?'  •  '+SEMDATA+' RFA(s) sem Data_Sub válida não têm coluna':'')
++(CUT?'  •  teto de caracteres atingido: aumente _teto, reduza _fases/_anos ou filtre o visual':'');
+for(i=0;i<yr.children.length;i++){var v=+yr.children[i].getAttribute('data-v');
+yr.children[i].children[0].textContent='('+qy(v)+')';}
+}
+function goto(w,it){var c=bd.querySelector('.cl');if(!c)return;
+bd.scrollTo({left:(c.getBoundingClientRect().width+6)*Math.max(0,w-1),behavior:it?'instant':'smooth'});}
+yr.innerHTML=YD.map(function(v,ix){return v===''?'':'<button data-v='+ix+'>'+e_(v.slice(2))+'<i></i></button>';}).join('');
+for(i=0;i<YD.length;i++)if(YD[i]&&YD[i].slice(2)==String(ANO))YI=i;
+opts(g_('f0'),'FASE',FD,1);opts(g_('f1'),'PORTFÓLIO',PD,0);opts(g_('f2'),'STATUS RFA',RD,1);
+opts(g_('f3'),'DATA SUB',SD,1);opts(g_('f4'),'ORM',OD,1);
+for(i=0;i<5;i++)(function(ix){var el=g_('f'+ix);el.addEventListener('change',function(){
+FS[ix]=+this.value;this.classList.toggle('on',FS[ix]>=0);render();});})(i);
+yr.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+YI=+b.getAttribute('data-v');
+for(i=0;i<yr.children.length;i++)yr.children[i].classList.toggle('on',yr.children[i]===b);
+render();setTimeout(function(){hoje(1);},30);});
+g_('q').addEventListener('input',function(){Q=nz(this.value.trim());render();});
+g_('pv').addEventListener('click',function(){bd.scrollTo({left:bd.scrollLeft-cw(),behavior:'smooth'});});
+g_('nx').addEventListener('click',function(){bd.scrollTo({left:bd.scrollLeft+cw(),behavior:'smooth'});});
+function hoje(it){var an=anc(YI);if(an===null)return;
+var w=Math.floor((0-an)/7)+1;goto(Math.max(1,Math.min(WN,w)-1),it);}
+g_('hj').addEventListener('click',function(){hoje(0);});
+bd.addEventListener('click',function(e){var el=e.target.closest('.cd');if(!el)return;
+var c=C[+el.getAttribute('data-k')],s=sev(c),om=lbl(OD,c.om,'—');
+var ok=c.a.filter(function(a){return a.tr!==null;}).length;
+md.innerHTML='<div class=\'m1\'>'+e_(c.n)+'<em class=\'fs f'+fcl(c)+'\'>'+e_(lbl(FD,c.fa,'—'))+'</em>'
++'<span class=\'sg '+SC[s]+'\'>'+e_(lbl(RD,c.sr,'—'))+'</span>'
++'<span class=\'sp '+PS[X[(SD[c.sd]||'2').charAt(0)]]+'\'>'+e_(lbl(SD,c.sd,'—'))+'</span>'
++'<button class=\'mx\'>&times;</button></div>'
++'<div class=\'m2\'>'+e_(PD[c.pf]||'—')+' &middot; Submissão RFA <b>'+fd(c.sb)+'</b>'
++' &middot; semana W'+p2(c.wk)+' de '+yl(c.yi)+' &middot; '+c.a.length+' atividade(s), '+ok+' concluída(s)</div>'
++'<div class=\'mr\'>'
++'<div class=\'mc\'><u style=\'background:'+oc(X[(OD[c.om]||'.').charAt(0)])+'\'></u><span class=\'lb\'>ORM</span><b>'+e_(om)+'</b></div>'
++'<div class=\'mc\'><span class=\'lb\'>RFA TENDÊNCIA</span><b>'+e_(RT[c.rt]||'—')+'</b></div>'
++'<div class=\'mc\'><span class=\'lb\'>TENDÊNCIA</span><b>'+e_(TD[c.td]||'—')+'</b></div></div>'
++'<table class=\'tb\'><colgroup><col style=\'width:18%\'><col style=\'width:6%\'><col style=\'width:6%\'><col style=\'width:6%\'><col style=\'width:6%\'><col style=\'width:15%\'><col style=\'width:9%\'><col style=\'width:14%\'><col style=\'width:20%\'></colgroup>'
++'<thead><tr><th>Atividade</th><th>Término previsto</th><th>Início previsto</th><th>Início real</th><th>Término realizado</th><th>Restrição</th><th>Resp. restrição</th><th>Exigência</th><th>Comentário</th></tr></thead><tbody>'
++c.a.map(function(a){var k=ast(a);
+return '<tr><td class=\'a\' style=\'--s:'+AK[k]+'\'>'+e_(AD[a.ai]||'—')
++'<span class=\'st\'><u style=\'background:'+AK[k]+'\'></u>'+AL[k]+'</span></td>'
++'<td class=\'d'+(a.tp===null?' v':'')+'\'>'+fd(a.tp)+'</td>'
++'<td class=\'d'+(a.ip===null?' v':'')+'\'>'+fd(a.ip)+'</td>'
++'<td class=\'d'+(a.ir===null?' v':'')+'\'>'+fd(a.ir)+'</td>'
++'<td class=\'d'+(a.tr===null?' v':'')+'\'>'+fd(a.tr)+'</td>'
++'<td class=\'x\'><div class=\'cl3\' title=\''+e_(a.rs)+'\'>'+(a.rs?e_(a.rs):'—')+'</div></td>'
++'<td class=\'p\'><div class=\'cl3\' title=\''+e_(a.rr)+'\'>'+(a.rr?e_(a.rr):'—')+'</div></td>'
++'<td class=\'x\'><div class=\'cl3\' title=\''+e_(a.ex)+'\'>'+(a.ex?e_(a.ex):'—')+'</div></td>'
++'<td class=\'x\'><div class=\'cl3\' title=\''+e_(a.cm)+'\'>'+(a.cm?e_(a.cm):'—')+'</div></td></tr>';}).join('')
++(c.a.length?'':'<tr><td colspan=9 style=\'color:#B9B9BC;text-align:center;padding:18px\'>Nenhuma atividade registrada para esta RFA.</td></tr>')
++'</tbody></table>';
+ov.classList.add('on');});
+ov.addEventListener('click',function(e){if(e.target===ov||e.target.classList.contains('mx'))ov.classList.remove('on');});
+document.addEventListener('keydown',function(e){if(e.key=='Escape')ov.classList.remove('on');});
+for(i=0;i<yr.children.length;i++)yr.children[i].classList.toggle('on',+yr.children[i].getAttribute('data-v')==YI);
+render();setTimeout(function(){hoje(1);},40);},110);})();</script>
+</div>
+<!--
+  Amostra fake PMO. O payload (segmentos separados por ¤: anos · fases · portfólios · status RfA · status data sub ·
+  ORM · RfA tendência · tendência · atividades · restrições · exigências · responsáveis · cards) segue exatamente a
+  codificação da medida: datas em base64 relativas a hoje (2 chars), dicionários indexados por 1 char / 2 chars.
+  As datas dos dados fake são relativas ao dia em que o arquivo foi gerado.
+-->
+</body>
+</html>

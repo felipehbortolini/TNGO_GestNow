@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview — Card Severidade de Riscos</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #F4F5F7;
+    padding: 32px;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    box-sizing: border-box;
+  }
+  .stage {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .meta {
+    color: #2A2A2A;
+    margin-bottom: 18px;
+  }
+  .meta h1 { font-size: 18px; margin: 0 0 4px; color: #006357; }
+  .meta p  { font-size: 13px; margin: 0; color: #7D7D7D; }
+  /* Moldura simulando a área do visual no Power BI */
+  .visual-frame {
+    background: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px 0 rgba(0,0,0,0.15);
+    padding: 16px;
+    height: 180px;
+    box-sizing: border-box;
+  }
+</style>
+</head>
+<body>
+  <!-- Dados FAKE PMO: distribuicao de severidade de riscos por projeto -->
+  <!-- Total = 47 riscos: VeryHigh 6 (13%), High 11 (23%), Medium 18 (38%), Low 9 (19%), Sem ORM 3 (6%) -->
+  <div class="stage">
+    <div class="meta">
+      <h1>Card Severidade de Riscos</h1>
+      <p>Portfolio PMO — 47 riscos avaliados (Projeto Alfa, Beta, Gama, Delta) | Atualizado 30/06/2026</p>
+    </div>
+
+    <div class="visual-frame">
+      <!-- INICIO: replica fiel do HTML gerado pela medida DAX -->
+      <div style="width:100%;height:100%;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;padding:clamp(4px, 1vw, 8px);box-sizing:border-box;">
+        <div style="display:flex;flex-direction:row;justify-content:space-between;align-items:stretch;flex-wrap:nowrap;gap:clamp(6px, 1vw, 16px);width:100%;">
+
+          <!-- Very High -->
+          <div style="flex:1;min-width:0;background:linear-gradient(135deg, #d03636, #a12626);border-radius:clamp(6px, 1.2vw, 12px);padding:clamp(10px, 2vh, 20px);display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;box-shadow:0 4px 10px rgba(208,54,54,0.3);">
+            <div style="font-size:clamp(12px, 1.6vw, 18px);font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:1px;z-index:2;text-align:center;margin-bottom:clamp(4px, 1vh, 8px);white-space:nowrap;">Very High</div>
+            <div style="display:flex;align-items:baseline;gap:4px;z-index:2;line-height:1;">
+              <span style="font-size:clamp(18px, 3vw, 42px);font-weight:600;color:#fff;">6</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:300;color:rgba(255,255,255,.5);">|</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:500;color:rgba(255,255,255,.8);">13%</span>
+            </div>
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.08);z-index:1;"></div>
+          </div>
+
+          <!-- High -->
+          <div style="flex:1;min-width:0;background:linear-gradient(135deg, #eb6100, #b84c00);border-radius:clamp(6px, 1.2vw, 12px);padding:clamp(10px, 2vh, 20px);display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;box-shadow:0 4px 10px rgba(235,97,0,0.3);">
+            <div style="font-size:clamp(12px, 1.6vw, 18px);font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:1px;z-index:2;text-align:center;margin-bottom:clamp(4px, 1vh, 8px);white-space:nowrap;">High</div>
+            <div style="display:flex;align-items:baseline;gap:4px;z-index:2;line-height:1;">
+              <span style="font-size:clamp(18px, 3vw, 42px);font-weight:600;color:#fff;">11</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:300;color:rgba(255,255,255,.5);">|</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:500;color:rgba(255,255,255,.8);">23%</span>
+            </div>
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.08);z-index:1;"></div>
+          </div>
+
+          <!-- Medium -->
+          <div style="flex:1;min-width:0;background:linear-gradient(135deg, #e8b43b, #c2952f);border-radius:clamp(6px, 1.2vw, 12px);padding:clamp(10px, 2vh, 20px);display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;box-shadow:0 4px 10px rgba(232,180,59,0.3);">
+            <div style="font-size:clamp(12px, 1.6vw, 18px);font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:1px;z-index:2;text-align:center;margin-bottom:clamp(4px, 1vh, 8px);white-space:nowrap;">Medium</div>
+            <div style="display:flex;align-items:baseline;gap:4px;z-index:2;line-height:1;">
+              <span style="font-size:clamp(18px, 3vw, 42px);font-weight:600;color:#fff;">18</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:300;color:rgba(255,255,255,.5);">|</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:500;color:rgba(255,255,255,.8);">38%</span>
+            </div>
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.12);z-index:1;"></div>
+          </div>
+
+          <!-- Low -->
+          <div style="flex:1;min-width:0;background:linear-gradient(135deg, #00a793, #007d6e);border-radius:clamp(6px, 1.2vw, 12px);padding:clamp(10px, 2vh, 20px);display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;box-shadow:0 4px 10px rgba(0,167,147,0.3);">
+            <div style="font-size:clamp(12px, 1.6vw, 18px);font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase;letter-spacing:1px;z-index:2;text-align:center;margin-bottom:clamp(4px, 1vh, 8px);white-space:nowrap;">Low</div>
+            <div style="display:flex;align-items:baseline;gap:4px;z-index:2;line-height:1;">
+              <span style="font-size:clamp(18px, 3vw, 42px);font-weight:600;color:#fff;">9</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:300;color:rgba(255,255,255,.5);">|</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:500;color:rgba(255,255,255,.8);">19%</span>
+            </div>
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.08);z-index:1;"></div>
+          </div>
+
+          <!-- Sem ORM -->
+          <div style="flex:1;min-width:0;background:#f8f9fa;border:1px solid #dee2e6;border-radius:clamp(6px, 1.2vw, 12px);padding:clamp(10px, 2vh, 20px);display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.05);">
+            <div style="font-size:clamp(12px, 1.6vw, 18px);font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:1px;z-index:2;text-align:center;margin-bottom:clamp(4px, 1vh, 8px);white-space:nowrap;">Sem ORM</div>
+            <div style="display:flex;align-items:baseline;gap:4px;z-index:2;line-height:1;">
+              <span style="font-size:clamp(18px, 3vw, 42px);font-weight:600;color:#495057;">3</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:300;color:rgba(108,117,125,.4);">|</span>
+              <span style="font-size:clamp(14px, 2vw, 28px);font-weight:500;color:#6c757d;">6%</span>
+            </div>
+            <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(108,117,125,.08);z-index:1;"></div>
+          </div>
+
+        </div>
+      </div>
+      <!-- FIM: replica fiel do HTML gerado pela medida DAX -->
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Calendario Procurement — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{width:100%;max-width:586px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:405px;}
+  .hint{max-width:586px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Calendário de Ações Procurement (dados fake PMO: grade 6×7 fixa por [Next action date], sem scroll, badge por dia)</div>
+<div class="frame">
+  <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-family:'Segoe UI',sans-serif;color:#2A2A2A;}
+    @keyframes fu{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+    .wr{display:flex;flex-direction:column;height:100%;padding:8px 10px;}
+    .nv{flex:0 0 auto;display:flex;align-items:center;gap:6px;}
+    .nb{width:22px;height:22px;flex:0 0 auto;border:1px solid #DCDCDC;border-radius:9999px;background:#FFF;
+      color:#006357;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .nb:hover{border-color:#00A793;background:#E6F8F4;}
+    .mn{font-family:'Montserrat','Segoe UI',sans-serif;font-size:13px;font-weight:700;color:#006357;margin:0 4px;}
+    .tj{border:1px solid #DCDCDC;border-radius:9999px;background:#FFF;color:#535358;font-size:9.5px;font-weight:600;
+      height:22px;padding:0 10px;cursor:pointer;margin-left:auto;}
+    .tj:hover{border-color:#00A793;color:#006357;background:#E6F8F4;}
+    .dow{flex:0 0 auto;display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:6px;}
+    .dow span{text-align:center;font-size:8.5px;font-weight:700;text-transform:uppercase;color:#A0A0A0;padding:2px 0;}
+    .grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(6,1fr);gap:3px;margin-top:2px;}
+    .dc{position:relative;display:flex;flex-direction:column;min-width:0;overflow:hidden;background:#FFF;
+      border:1px solid #F1F1F1;border-radius:6px;padding:3px 5px 4px;cursor:pointer;animation:fu .2s ease both;}
+    .dc.e{cursor:default;background:#FDFDFD;border-color:#F7F7F7;color:#DADADA;}
+    .dc.we{background:#FAFAFA;}
+    .dc.p{background:#FDF4F4;border-color:#F6E3E3;}
+    .dc.t{border-color:#00A793;box-shadow:inset 0 0 0 1px #00A793;background:#F2FBF9;}
+    .dn{font-size:10.5px;font-weight:700;}
+    .cb{position:absolute;top:3px;right:4px;min-width:15px;text-align:center;padding:0 4px;line-height:14px;
+      border-radius:9999px;background:#00A793;color:#FFF;font-size:8px;font-weight:700;}
+    .cb.r{background:#D03636;}.cb.y{background:#E8B430;}
+    .sb{margin-top:auto;display:flex;height:3px;border-radius:3px;overflow:hidden;background:#F1F1F1;}
+    .sb i{display:block;}
+  </style>
+
+  <div class="wr">
+    <div class="nv">
+      <button class="nb">&#8249;</button><span class="mn">Fevereiro 2026</span><button class="nb">&#8250;</button>
+      <button class="tj">Hoje</button>
+    </div>
+    <div class="dow"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <script>
+  var TODAY=9;
+  var DAYS=[
+   {d:1,we:true},{d:2},{d:3,c:2,cls:''},{d:4},{d:5,c:1,cls:'y'},{d:6},{d:7,we:true},
+   {d:8,we:true},{d:9,today:true,c:3,cls:''},{d:10},{d:11,c:1,cls:'r',past:true},{d:12},{d:13},{d:14,we:true},
+   {d:15,we:true},{d:16},{d:17,c:2,cls:'y'},{d:18},{d:19},{d:20,c:1,cls:''},{d:21,we:true},
+   {d:22,we:true},{d:23},{d:24},{d:25,c:1,cls:'r',past:true},{d:26},{d:27,c:2,cls:''},{d:28,we:true},
+   {n:1,e:true},{n:2,e:true},{n:3,e:true},{n:4,e:true},{n:5,e:true},{n:6,e:true},{n:7,e:true}
+  ];
+  var h='';
+  DAYS.forEach(function(day){
+    if(day.e){h+="<div class='dc e'><span class='dn'>"+day.n+"</span></div>";return;}
+    var cls='dc'+(day.we?' we':'')+(day.past?' p':'')+(day.today?' t':'');
+    var badge=day.c?"<span class='cb "+day.cls+"'>"+day.c+"</span>":'';
+    var bar=day.c?"<div class='sb'><i style='flex:2;background:#4EB776'></i><i style='flex:1;background:#E8B430'></i></div>":'';
+    h+="<div class='"+cls+"'><span class='dn'>"+day.d+"</span>"+badge+bar+"</div>";
+  });
+  document.getElementById('grid').innerHTML=h;
+  </script>
+  <!-- ===== /COMPONENTE ===== -->
+</div>
+
+<!-- Amostra de domínio PMO refletida: base 'Procurement' — grade fixa de 42 células (6 semanas ×
+     7 dias) pelo eixo [Next action date], sem scroll em nenhum mês. Badge no canto mostra a
+     contagem de ações do dia (verde=no prazo, âmbar=atenção, vermelho=atrasado); dia atual com
+     contorno teal, dias passados com leve destaque rosado, fins de semana em cinza. -->
+</body>
+</html>

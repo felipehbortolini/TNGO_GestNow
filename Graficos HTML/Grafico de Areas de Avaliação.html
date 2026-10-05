@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Avaliação Desempenho Tendência — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:32px;font-family:'Segoe UI',sans-serif;}
+  .stage{max-width:880px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);height:560px;overflow:hidden;position:relative;}
+  .meta{max-width:880px;margin:0 auto 18px;color:#2A2A2A;}
+  .meta h1{font-family:'Montserrat','Segoe UI',sans-serif;font-size:18px;color:#006357;
+    margin:0 0 4px;letter-spacing:.4px;}
+  .meta p{margin:0;font-size:12px;color:#7D7D7D;}
+</style>
+</head>
+<body>
+  <div class="meta">
+    <h1>HTML Avaliação Desempenho Tendência</h1>
+    <p>Preview standalone — dados fake PMO (tendência mensal 2026 de % do desempenho, contrato 4221987)</p>
+  </div>
+
+  <div class="stage">
+    <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+    <style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%!important;height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important;}
+.td-card{position:fixed;top:0;left:0;width:100%;height:100%;font-family:'Segoe UI',sans-serif;background:transparent;display:flex;flex-direction:column;overflow:hidden;padding:4px 8px;}
+@keyframes tdFadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes tdPop{from{opacity:0;transform:scale(0);}to{opacity:1;transform:scale(1);}}
+@keyframes tdDraw{from{stroke-dashoffset:1;}to{stroke-dashoffset:0;}}
+@keyframes tdFade{from{opacity:0;}to{opacity:1;}}
+@keyframes tdRing{0%{transform:scale(1);opacity:.75;}100%{transform:scale(2.4);opacity:0;}}
+.tl-ring{animation:tdRing 1.8s 2.2s cubic-bezier(0.22,1,0.36,1) infinite;}
+.td-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-shrink:0;margin-bottom:4px;animation:tdFadeUp .5s cubic-bezier(0.22,1,0.36,1) both;}
+.td-chips{display:flex;gap:6px;align-items:stretch;}
+.td-btns{display:flex;gap:4px;flex-shrink:0;}
+.td-btn{font-family:Montserrat,'Segoe UI';font-size:9px;font-weight:600;letter-spacing:.2px;color:#7D7D7D;background:#FFFFFF;border:1px solid #DCDCDC;border-radius:4px;padding:5px 13px;white-space:nowrap;}
+.td-btn.on{background:#00A793;border-color:#00A793;color:#FFFFFF;}
+.td-chip{display:flex;flex-direction:column;justify-content:center;gap:0;background:#F5FAFB;border:1px solid #F1F1F1;border-radius:6px;padding:3px 8px;min-width:0;}
+.td-chip .k{font-family:Montserrat,'Segoe UI';font-size:6.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#A0A0A0;white-space:nowrap;}
+.td-chip .v{font-size:11px;font-weight:600;color:#7D7D7D;line-height:1.15;white-space:nowrap;}
+.td-chip.hl{border:none;}
+.td-chip.hl .k{color:rgba(255,255,255,.78);}
+.td-chip.hl .v{color:#FFFFFF;}
+.td-chart{flex:1;min-height:0;animation:tdFade .8s .2s both;}
+.td-chart svg{width:100%;height:100%;display:block;}
+.tl-line{fill:none;stroke:#00A793;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:tdDraw 1.6s .3s cubic-bezier(0.4,0,0.2,1) forwards;}
+.tl-area{opacity:0;animation:tdFade 1s 1.1s forwards;}
+.tl-dot{animation:tdPop .4s cubic-bezier(0.22,1.4,0.36,1) both;}
+.tl-vlbl{font-size:13px;font-weight:600;fill:#7D7D7D;text-anchor:middle;animation:tdFade .5s both;}
+.tl-mlbl{font-size:11px;font-weight:600;fill:#A0A0A0;text-anchor:middle;letter-spacing:.3px;}
+.tl-glbl{font-size:10px;font-weight:600;fill:#B9B9BC;text-anchor:end;}
+.tl-zlbl{font-size:9px;font-weight:700;letter-spacing:.8px;text-anchor:end;opacity:.55;}
+/* Adaptação só para o preview: a medida usa position:fixed (100vh) dentro do
+   entregável Power BI; aqui amarra-se ao palco .stage para o visual não cobrir a página. */
+.stage .td-card{position:absolute;top:0;left:0;width:100%;height:100%;}
+    </style>
+
+    <div class='td-card'>
+      <div class='td-head'>
+        <div class='td-chips' id='tdChips'></div>
+        <div class='td-btns'><span class='td-btn on'>Alumar</span><span class='td-btn'>Juruti</span><span class='td-btn'>Poços de Cálculo</span></div>
+      </div>
+      <div class='td-chart'><svg id='tdSvg' viewBox='0 0 1150 260' preserveAspectRatio='none'></svg></div>
+    </div>
+
+    <script>
+// Dados fake PMO — 1 ponto por competência/aplicável. Mesmo schema do _dJson do DAX:
+// {m:'MMM/YY', v:0..100} (jan–dez 2026, contrato de avaliação de desempenho 2026).
+var D=[
+ {m:'JAN/26',v:68.4},{m:'FEV/26',v:71.2},{m:'MAR/26',v:69.8},{m:'ABR/26',v:73.5},
+ {m:'MAI/26',v:76.1},{m:'JUN/26',v:79.9},{m:'JUL/26',v:82.4},{m:'AGO/26',v:85.7},
+ {m:'SET/26',v:88.2},{m:'OUT/26',v:90.3},{m:'NOV/26',v:92.8},{m:'DEZ/26',v:94.6}
+];
+function cls(v){ return v>=90 ? {c:'#4EB776',n:'Muito Bom'} : v>=81 ? {c:'#00A793',n:'Bom'} : v>70 ? {c:'#E8B430',n:'Insuficiente'} : {c:'#D03636',n:'Não Aceitável'}; }
+function fmt(v){ return v.toFixed(1).replace('.',','); }
+var vals=D.map(function(d){return d.v;});
+var vmin=Math.min.apply(null,vals), ymin=Math.min(60, Math.floor((vmin-4)/10)*10), ymax=100;
+var svgEl=document.getElementById('tdSvg');
+var chartEl=document.querySelector('.td-chart');
+var lastW=0, lastH=0;
+function draw(){
+ var vw=document.documentElement.clientWidth||window.innerWidth||0;
+ var vh=document.documentElement.clientHeight||window.innerHeight||0;
+ var cw=chartEl.clientWidth||vw;
+ var ch=chartEl.clientHeight||Math.max(60,vh-40);
+ if(!cw||!ch) return;
+ if(cw===lastW&&ch===lastH) return;
+ lastW=cw; lastH=ch;
+ var W=1150, H=Math.max(150, Math.round(W*ch/cw));
+ var L=46, R=26, T=18, B=Math.min(30, Math.max(18, Math.round(H*0.08)));
+ var plot=H-T-B;
+ function Y(v){ return T+(ymax-v)/(ymax-ymin)*plot; }
+ function X(i){ return D.length>1 ? L+i*(W-L-R)/(D.length-1) : (L+W-R)/2; }
+ var s='';
+ var zones=[{a:90,b:ymax,c:'#4EB776',n:'MUITO BOM'},{a:81,b:90,c:'#00A793',n:'BOM'},{a:70,b:81,c:'#E8B430',n:'INSUFICIENTE'},{a:ymin,b:70,c:'#D03636',n:'NÃO ACEITÁVEL'}];
+ zones.forEach(function(z){ if(z.b<=ymin) return; var a=Math.max(z.a,ymin);
+  s+='<rect x=\''+L+'\' y=\''+Y(z.b)+'\' width=\''+(W-L-R)+'\' height=\''+(Y(a)-Y(z.b))+'\' fill=\''+z.c+'\' opacity=\'0.04\'/>';
+  s+='<text class=\'tl-zlbl\' x=\''+(W-R-8)+'\' y=\''+((Y(a)+Y(z.b))/2+3)+'\' fill=\''+z.c+'\'>'+z.n+'</text>';
+ });
+ for(var g=ymin; g<=ymax; g+=10){
+  s+='<line x1=\''+L+'\' y1=\''+Y(g)+'\' x2=\''+(W-R)+'\' y2=\''+Y(g)+'\' stroke=\'#F1F1F1\' stroke-width=\'1\'/>';
+  s+='<text class=\'tl-glbl\' x=\''+(L-8)+'\' y=\''+(Y(g)+3.5)+'\'>'+g+'</text>';
+ }
+ s+='<line x1=\''+L+'\' y1=\''+Y(90)+'\' x2=\''+(W-R)+'\' y2=\''+Y(90)+'\' stroke=\'#4EB776\' stroke-width=\'1.2\' stroke-dasharray=\'5 4\' opacity=\'.55\'/>';
+ var p='M'+X(0)+' '+Y(D[0].v);
+ for(var i=1;i<D.length;i++){ var mx=(X(i-1)+X(i))/2, my=(Y(D[i-1].v)+Y(D[i].v))/2; p+=' Q'+X(i-1)+' '+Y(D[i-1].v)+' '+mx+' '+my; }
+ p+=' T'+X(D.length-1)+' '+Y(D[D.length-1].v);
+ var pa=p+' L'+X(D.length-1)+' '+Y(ymin)+' L'+X(0)+' '+Y(ymin)+' Z';
+ s+='<defs><linearGradient id=\'tdArea\' x1=\'0\' y1=\'0\' x2=\'0\' y2=\'1\'><stop offset=\'0%\' stop-color=\'#00A793\' stop-opacity=\'.16\'/><stop offset=\'100%\' stop-color=\'#00A793\' stop-opacity=\'0\'/></linearGradient></defs>';
+ s+='<path class=\'tl-area\' d=\''+pa+'\' fill=\'url(#tdArea)\'/>';
+ s+='<path class=\'tl-line\' d=\''+p+'\' pathLength=\'1\'/>';
+ D.forEach(function(d,i){
+  var c=cls(d.v), x=X(i), y=Y(d.v), last=(i===D.length-1);
+  if(last){ s+='<circle class=\'tl-ring\' style=\'transform-origin:'+x+'px '+y+'px;\' cx=\''+x+'\' cy=\''+y+'\' r=\'6.5\' fill=\'none\' stroke=\''+c.c+'\' stroke-width=\'2\'/>'; }
+  s+='<circle class=\'tl-dot\' style=\'animation-delay:'+(300+i*110)+'ms;transform-origin:'+x+'px '+y+'px;\' cx=\''+x+'\' cy=\''+y+'\' r=\''+(last?5.5:4)+'\' fill=\''+c.c+'\' stroke=\'#FFFFFF\' stroke-width=\'1.8\'/>';
+  s+='<text class=\'tl-vlbl\' style=\'animation-delay:'+(400+i*110)+'ms;\' x=\''+x+'\' y=\''+(y-10)+'\' fill=\''+(last?c.c:'#7D7D7D')+'\'>'+fmt(d.v)+'</text>';
+  s+='<text class=\'tl-mlbl\' x=\''+x+'\' y=\''+(H-5)+'\'>'+d.m+'</text>';
+ });
+ svgEl.setAttribute('viewBox','0 0 '+W+' '+H);
+ svgEl.innerHTML=s;
+}
+draw();
+window.addEventListener('resize',draw);
+if(window.ResizeObserver){ try{ new ResizeObserver(draw).observe(chartEl); }catch(e){} }
+[60,200,500,1000].forEach(function(t){ setTimeout(draw,t); });
+var avg=vals.reduce(function(a,b){return a+b;},0)/vals.length;
+var best=Math.max.apply(null,vals);
+var lastD=D[D.length-1], lc=cls(lastD.v);
+var delta=D.length>1 ? lastD.v-D[D.length-2].v : 0;
+var dTxt=(delta>=0?'▲ +':'▼ ')+fmt(delta)+' p.p.';
+var dCor=delta>=0?'#4EB776':'#D03636';
+document.getElementById('tdChips').innerHTML=
+ '<div class=\'td-chip\'><span class=\'k\'>Média do Período</span><span class=\'v\'>'+fmt(avg)+'%</span></div>'+
+ '<div class=\'td-chip\'><span class=\'k\'>Melhor Mês</span><span class=\'v\'>'+fmt(best)+'%</span></div>'+
+ '<div class=\'td-chip\'><span class=\'k\'>vs Mês Anterior</span><span class=\'v\' style=\'color:'+dCor+';\'>'+dTxt+'</span></div>'+
+ '<div class=\'td-chip hl\' style=\'background:'+lc.c+';\'><span class=\'k\'>'+lastD.m+' · Atual</span><span class=\'v\'>'+fmt(lastD.v)+'% · '+lc.n+'</span></div>';
+    </script>
+    <!-- ===== /COMPONENTE ===== -->
+  </div>
+
+  <!-- Amostra de domínio PMO refletida: 12 meses de avaliação de desempenho do
+       Contrato 2026 (unidades Alumar/Juruti/Poços no seletor). Série parte de
+       68,4% ("Não Aceitável") em jan e evolui até 94,6% ("Muito Bom") em dez,
+       cruzando as zonas 70/81/90 — média 81,1%, melhor mês 94,6%, +1,8 p.p. contra nov. -->
+</body>
+</html>

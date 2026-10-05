@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML KPI Desvios Casos Criticos — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:32px;font-family:'Segoe UI',sans-serif;}
+  .stage{max-width:280px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);height:130px;overflow:hidden;container-type:inline-size;}
+  .meta{max-width:280px;margin:0 auto 18px;color:#2A2A2A;}
+  .meta h1{font-family:'Montserrat','Segoe UI',sans-serif;font-size:16px;color:#006357;
+    margin:0 0 4px;letter-spacing:.4px;}
+  .meta p{margin:0;font-size:12px;color:#7D7D7D;}
+</style>
+</head>
+<body>
+  <div class="meta">
+    <h1>HTML KPI Desvios Casos Criticos</h1>
+    <p>Preview standalone — dados fake PMO (vagas críticas, abertas há 45 dias ou mais)</p>
+  </div>
+
+  <div class="stage">
+    <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+    <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{width:100%;height:100%;overflow:hidden;}
+    @keyframes ccEntrada{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+    .cc-card{width:100%;height:100%;min-height:88px;padding:10px 14px;font-family:'Segoe UI',sans-serif;
+      background:transparent;display:flex;flex-direction:column;justify-content:center;gap:4px;
+      position:relative;overflow:hidden;animation:ccEntrada .35s cubic-bezier(.22,1,.36,1) both;
+      container-type:inline-size;}
+    .cc-card:before{content:'';position:absolute;top:0;bottom:0;left:0;width:3px;background:#D03636;}
+    .cc-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+    .cc-value{font-family:'Montserrat','Segoe UI',sans-serif;font-size:34px;font-weight:700;
+      line-height:1;letter-spacing:-.8px;color:#D03636;}
+    .cc-badge{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+      max-width:100%;padding:3px 8px;border:1px solid #E07878;border-radius:9999px;background:#FAEBEB;
+      color:#942826;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .cc-badge svg{width:11px;height:11px;flex:0 0 auto;}
+    .cc-detail{max-width:100%;font-size:11px;font-weight:600;color:#7D7D7D;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis;}
+    .cc-base{max-width:100%;font-size:10.5px;color:#A0A0A0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    </style>
+
+    <div class="cc-card">
+      <div class="cc-top">
+        <span class="cc-value">3</span>
+        <span class="cc-badge">
+          <svg viewBox="0 0 20 20" fill="none"><path d="M10 3.2 17.6 16H2.4L10 3.2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 8v3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="13.8" r=".9" fill="currentColor"/></svg>
+          6,5% das vagas abertas
+        </span>
+      </div>
+      <span class="cc-detail">Média de 52,7 dias em aberto</span>
+      <span class="cc-base">Maior: 68 dias · Excedente médio: 7,7 dias</span>
+    </div>
+    <!-- ===== /COMPONENTE ===== -->
+  </div>
+
+  <!-- Amostra de domínio PMO refletida: casos críticos = vagas abertas há 45 dias ou mais (acima
+       do SLA de 30). Ícone/estado muda entre "sem vagas", "nenhum crítico" (check) e "crítico"
+       (alerta). Responsivo via @container: esconde base abaixo de 200px, detalhe abaixo de 260px. -->
+</body>
+</html>

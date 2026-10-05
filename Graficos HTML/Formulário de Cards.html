@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Lista de Formulários Cards — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:32px;font-family:'Segoe UI',sans-serif;}
+  .stage{max-width:880px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);height:620px;overflow:hidden;}
+  .meta{max-width:880px;margin:0 auto 18px;color:#2A2A2A;}
+  .meta h1{font-family:'Montserrat','Segoe UI',sans-serif;font-size:18px;color:#006357;
+    margin:0 0 4px;letter-spacing:.4px;}
+  .meta p{margin:0;font-size:12px;color:#7D7D7D;}
+</style>
+</head>
+<body>
+  <div class="meta">
+    <h1>HTML Lista de Formulários Cards</h1>
+    <p>Preview standalone — dados fake PMO (4 registros de formulários, visão de lista multi-seleção com busca e detalhe)</p>
+  </div>
+
+  <div class="stage">
+    <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+      .pa-outer{width:100%;height:100%;display:flex;flex-direction:column;background:transparent;overflow:hidden;}
+      .pa-search-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFFFFF;border-bottom:2px solid #F1F1F1;flex-shrink:0;}
+      .pa-search-icon{font-size:14px;color:#00A793;flex-shrink:0;}
+      .pa-search-input{flex:1;border:none;outline:none;font-size:14px;font-family:'Segoe UI',sans-serif;color:#2A2A2A;background:transparent;}
+      .pa-search-input::placeholder{color:#BBBBBB;}
+      .pa-search-count{font-size:12px;color:#7D7D7D;font-weight:600;white-space:nowrap;padding:3px 8px;background:#F5FAFB;border-radius:9999px;border:1px solid #E8E8E8;}
+      .pa-back-bar{display:none;align-items:center;gap:8px;padding:8px 14px;background:#f8fafb;border-bottom:2px solid #F1F1F1;flex-shrink:0;cursor:pointer;}
+      .pa-back-bar:hover{background:#edf7f5;}
+      .pa-back-arrow{width:28px;height:28px;border-radius:8px;background:#006357;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+      .pa-back-label{font-size:12px;font-weight:700;color:#006357;letter-spacing:.3px;text-transform:uppercase;}
+      .pa-back-prj{font-size:12px;color:#7d7d7d;margin-left:4px;}
+      .pa-content{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:10px;gap:12px;}
+      .pa-content::-webkit-scrollbar{width:6px;}
+      .pa-content::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px;}
+      .pa-content::-webkit-scrollbar-thumb:hover{background:#aaa;}
+      .pa-content::-webkit-scrollbar-track{background:transparent;}
+      .pa-landing{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:30px 15px;text-align:center;}
+      .mh-prj-modal{background:#fff;border-radius:16px;width:100%;max-width:560px;box-shadow:0 6px 20px rgba(0,0,0,.08);display:flex;flex-direction:column;border:1px solid #eaecef;}
+      .mh-prj-header{padding:18px 22px;background:linear-gradient(135deg,#006357,#00a793);display:flex;align-items:center;border-radius:15px 15px 0 0;}
+      .mh-prj-header-left{display:flex;flex-direction:column;gap:3px;}
+      .mh-prj-eyebrow{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.7);}
+      .mh-prj-title{font-size:17px;font-weight:800;color:#fff;letter-spacing:.2px;}
+      .mh-prj-body{padding:20px 22px;display:flex;flex-direction:column;gap:14px;}
+      .mh-prj-acao-strip{border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;}
+      .mh-prj-acao-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.85;}
+      .mh-prj-acao-value{font-size:13px;font-weight:800;letter-spacing:.1px;}
+      .mh-prj-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+      .mh-prj-card{background:#f8fafb;border:1px solid #eaecef;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;}
+      .mh-prj-card-lbl{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#006357;}
+      .mh-prj-card-val{font-size:13px;font-weight:700;color:#1a1a1a;}
+      .mh-prj-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.2px;}
+      .mh-prj-footer-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+      .mh-prj-footer-card{background:#f8fafb;border:1px solid #eaecef;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;}
+      .mh-prj-footer-lbl{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#006357;}
+      .mh-prj-footer-val{font-size:13px;font-weight:700;color:#1a1a1a;}
+      .mhp-divider{height:1px;background:#eaecef;}
+      .mhp-section-lbl{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#006357;}
+      .mhp-acao-box{display:flex;align-items:flex-start;gap:10px;background:#f0faf9;border:1px solid #b2e4dc;border-radius:10px;padding:12px 14px;}
+      .mhp-acao-icon{flex-shrink:0;margin-top:1px;}
+      .mhp-acao-text{font-size:12px;color:#1a1a1a;line-height:1.6;font-weight:500;}
+      .pa-card-row{width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px;}
+      .pa-mini-card{background:#fff;border-radius:12px;border:1px solid #eaecef;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;transition:box-shadow .2s,transform .15s;}
+      .pa-mini-card:hover{box-shadow:0 6px 18px rgba(0,99,87,.12);transform:translateY(-1px);}
+      .pa-mini-left{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;}
+      .pa-mini-prj{font-size:13px;font-weight:700;color:#006357;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .pa-mini-ta{font-size:11px;color:#7d7d7d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .pa-mini-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+      .pa-mini-status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;}
+      .pa-mini-chevron{color:#00a793;font-size:18px;font-weight:700;line-height:1;}
+    </style>
+
+    <div class="pa-outer">
+      <div id="pa-search-bar" class="pa-search-bar">
+        <span class="pa-search-icon">&#9740;</span>
+        <input id="pa-srch" class="pa-search-input" type="text" placeholder="Pesquisar por codigo..."/>
+        <span id="pa-count" class="pa-search-count">4 / 4</span>
+      </div>
+
+      <div id="pa-back-bar" class="pa-back-bar">
+        <div class="pa-back-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span class="pa-back-label">Voltar</span>
+        <span id="pa-back-prj" class="pa-back-prj"></span>
+      </div>
+
+      <div id="pa-content" class="pa-content">
+        <div id="pa-list-view" class="pa-card-row">
+
+          <div class="pa-mini-card" data-pa-prj="PRJ-001" data-pa-safe="1">
+            <div class="pa-mini-left">
+              <div class="pa-mini-prj">PRJ-001</div>
+              <div class="pa-mini-ta">Categoria B</div>
+            </div>
+            <div class="pa-mini-right">
+              <span class="pa-mini-status" style="background:#fef9ec;color:#a07800;">Em Andamento</span>
+              <span class="pa-mini-chevron">›</span>
+            </div>
+          </div>
+          <div id="pafw_1" style="display:none;flex-direction:column;align-items:center;width:100%;gap:12px;padding:10px 0;">
+            <div style="width:100%;max-width:560px;">
+              <div class="mh-prj-modal">
+                <div class="mh-prj-header"><div class="mh-prj-header-left">
+                  <div class="mh-prj-eyebrow">Detalhes do Registro</div>
+                  <div class="mh-prj-title">PRJ-001</div>
+                </div></div>
+                <div class="mh-prj-body">
+                  <div class="mh-prj-acao-strip" style="background:#fff4ed;"><div>
+                    <div class="mh-prj-acao-label" style="color:#c05500;">Subcategoria</div>
+                    <div class="mh-prj-acao-value" style="color:#b84c00;">Categoria B</div>
+                  </div></div>
+                  <div class="mh-prj-grid">
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Responsavel</div><div class="mh-prj-card-val">Carlos Lima</div></div>
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Status</div><div><span class="mh-prj-pill" style="background:#fef9ec;color:#a07800;">Em Andamento</span></div></div>
+                  </div>
+                  <div class="mh-prj-footer-row">
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Data de Termino</div><div class="mh-prj-footer-val">12/09/2026</div></div>
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Area</div><div><span class="mh-prj-pill" style="background:#fdeaea;color:#a12626;">Nao</span></div></div>
+                  </div>
+                  <div class="mhp-divider"></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="mhp-section-lbl">Descricao</div>
+                    <div class="mhp-acao-box">
+                      <div class="mhp-acao-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/></svg></div>
+                      <div class="mhp-acao-text">Inspeção de integridade dos dutos da unidade de ácido, com emissão de relatório dos reparos identificados.</div>
+                    </div>
+                  </div>
+                </div></div>
+            </div>
+          </div>
+
+          <div class="pa-mini-card" data-pa-prj="PRJ-002" data-pa-safe="2">
+            <div class="pa-mini-left">
+              <div class="pa-mini-prj">PRJ-002</div>
+              <div class="pa-mini-ta">Categoria A</div>
+            </div>
+            <div class="pa-mini-right">
+              <span class="pa-mini-status" style="background:#fff4ed;color:#b84c00;">Atrasado</span>
+              <span class="pa-mini-chevron">›</span>
+            </div>
+          </div>
+          <div id="pafw_2" style="display:none;flex-direction:column;align-items:center;width:100%;gap:12px;padding:10px 0;">
+            <div style="width:100%;max-width:560px;">
+              <div class="mh-prj-modal">
+                <div class="mh-prj-header"><div class="mh-prj-header-left">
+                  <div class="mh-prj-eyebrow">Detalhes do Registro</div>
+                  <div class="mh-prj-title">PRJ-002</div>
+                </div></div>
+                <div class="mh-prj-body">
+                  <div class="mh-prj-acao-strip" style="background:#fef9ec;"><div>
+                    <div class="mh-prj-acao-label" style="color:#b08800;">Subcategoria</div>
+                    <div class="mh-prj-acao-value" style="color:#a07800;">Categoria A</div>
+                  </div></div>
+                  <div class="mh-prj-grid">
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Responsavel</div><div class="mh-prj-card-val">Ana Souza</div></div>
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Status</div><div><span class="mh-prj-pill" style="background:#fff4ed;color:#b84c00;">Atrasado</span></div></div>
+                  </div>
+                  <div class="mh-prj-footer-row">
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Data de Termino</div><div class="mh-prj-footer-val">30/07/2026</div></div>
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Area</div><div><span class="mh-prj-pill" style="background:#edfaf5;color:#006b45;">Sim</span></div></div>
+                  </div>
+                  <div class="mhp-divider"></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="mhp-section-lbl">Descricao</div>
+                    <div class="mhp-acao-box">
+                      <div class="mhp-acao-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/></svg></div>
+                      <div class="mhp-acao-text">Revisão do laudo GCMS dos tanques T-301 e T-302 para liberação da operação.</div>
+                    </div>
+                  </div>
+                </div></div>
+            </div>
+          </div>
+
+          <div class="pa-mini-card" data-pa-prj="PRJ-003" data-pa-safe="3">
+            <div class="pa-mini-left">
+              <div class="pa-mini-prj">PRJ-003</div>
+              <div class="pa-mini-ta">Categoria C</div>
+            </div>
+            <div class="pa-mini-right">
+              <span class="pa-mini-status" style="background:#fef9ec;color:#a07800;">Em Andamento</span>
+              <span class="pa-mini-chevron">›</span>
+            </div>
+          </div>
+          <div id="pafw_3" style="display:none;flex-direction:column;align-items:center;width:100%;gap:12px;padding:10px 0;">
+            <div style="width:100%;max-width:560px;">
+              <div class="mh-prj-modal">
+                <div class="mh-prj-header"><div class="mh-prj-header-left">
+                  <div class="mh-prj-eyebrow">Detalhes do Registro</div>
+                  <div class="mh-prj-title">PRJ-003</div>
+                </div></div>
+                <div class="mh-prj-body">
+                  <div class="mh-prj-acao-strip" style="background:#edfaf5;"><div>
+                    <div class="mh-prj-acao-label" style="color:#007a50;">Subcategoria</div>
+                    <div class="mh-prj-acao-value" style="color:#006b45;">Categoria C</div>
+                  </div></div>
+                  <div class="mh-prj-grid">
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Responsavel</div><div class="mh-prj-card-val">Mariana Costa</div></div>
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Status</div><div><span class="mh-prj-pill" style="background:#fef9ec;color:#a07800;">Em Andamento</span></div></div>
+                  </div>
+                  <div class="mh-prj-footer-row">
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Data de Termino</div><div class="mh-prj-footer-val">18/10/2026</div></div>
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Area</div><div><span class="mh-prj-pill" style="background:#fdeaea;color:#a12626;">Nao</span></div></div>
+                  </div>
+                  <div class="mhp-divider"></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="mhp-section-lbl">Descricao</div>
+                    <div class="mhp-acao-box">
+                      <div class="mhp-acao-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/></svg></div>
+                      <div class="mhp-acao-text">Manutenção preventiva das bombas P-204 A/B, incluindo troca de selos mecânicos e alinhamento.</div>
+                    </div>
+                  </div>
+                </div></div>
+            </div>
+          </div>
+
+          <div class="pa-mini-card" data-pa-prj="PRJ-004" data-pa-safe="4">
+            <div class="pa-mini-left">
+              <div class="pa-mini-prj">PRJ-004</div>
+              <div class="pa-mini-ta">Categoria D</div>
+            </div>
+            <div class="pa-mini-right">
+              <span class="pa-mini-status" style="background:#e3f0fa;color:#1565c0;">Nao iniciado</span>
+              <span class="pa-mini-chevron">›</span>
+            </div>
+          </div>
+          <div id="pafw_4" style="display:none;flex-direction:column;align-items:center;width:100%;gap:12px;padding:10px 0;">
+            <div style="width:100%;max-width:560px;">
+              <div class="mh-prj-modal">
+                <div class="mh-prj-header"><div class="mh-prj-header-left">
+                  <div class="mh-prj-eyebrow">Detalhes do Registro</div>
+                  <div class="mh-prj-title">PRJ-004</div>
+                </div></div>
+                <div class="mh-prj-body">
+                  <div class="mh-prj-acao-strip" style="background:#fdeaea;"><div>
+                    <div class="mh-prj-acao-label" style="color:#b02828;">Subcategoria</div>
+                    <div class="mh-prj-acao-value" style="color:#a12626;">Categoria D</div>
+                  </div></div>
+                  <div class="mh-prj-grid">
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Responsavel</div><div class="mh-prj-card-val">Roberto Neves</div></div>
+                    <div class="mh-prj-card"><div class="mh-prj-card-lbl">Status</div><div><span class="mh-prj-pill" style="background:#e3f0fa;color:#1565c0;">Nao iniciado</span></div></div>
+                  </div>
+                  <div class="mh-prj-footer-row">
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Data de Termino</div><div class="mh-prj-footer-val">15/11/2026</div></div>
+                    <div class="mh-prj-footer-card"><div class="mh-prj-footer-lbl">Area</div><div><span class="mh-prj-pill" style="background:#fdeaea;color:#a12626;">Nao</span></div></div>
+                  </div>
+                  <div class="mhp-divider"></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div class="mhp-section-lbl">Descricao</div>
+                    <div class="mhp-acao-box">
+                      <div class="mhp-acao-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke="#00a793" stroke-width="2" stroke-linejoin="round"/></svg></div>
+                      <div class="mhp-acao-text">Comissionamento da subestação SE-2 e testes de energização do painel elétrico principal.</div>
+                    </div>
+                  </div>
+                </div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script>
+      setTimeout(function(){
+        var inp       = document.getElementById('pa-srch');
+        var count     = document.getElementById('pa-count');
+        var backBar   = document.getElementById('pa-back-bar');
+        var backLbl   = document.getElementById('pa-back-prj');
+        var searchBar = document.getElementById('pa-search-bar');
+        var content   = document.getElementById('pa-content');
+
+        function runSearch(){
+            if(!inp) return;
+            var q = inp.value.toLowerCase().trim();
+            var cards = document.querySelectorAll('#pa-list-view .pa-mini-card');
+            var vis = 0;
+            cards.forEach(function(el){
+                var txt = (el.getAttribute('data-pa-prj')||'').toLowerCase();
+                var show = q==='' || txt.indexOf(q)>=0;
+                el.style.display = show ? '' : 'none';
+                if(show) vis++;
+            });
+            if(count){
+                var tot = document.querySelectorAll('#pa-list-view .pa-mini-card').length;
+                count.textContent = tot > 0 ? vis+' / '+tot : '';
+            }
+        }
+        if(inp){
+            ['input','keyup','change'].forEach(function(ev){ inp.addEventListener(ev,runSearch); });
+            runSearch();
+        }
+
+        function showDetail(safeId, prjLabel){
+            var fw = document.getElementById('pafw_'+safeId);
+            if(!fw) return;
+            if(searchBar) searchBar.style.display = 'none';
+            document.querySelectorAll('#pa-list-view .pa-mini-card').forEach(function(el){
+                el.style.display = 'none';
+            });
+            document.querySelectorAll('[id^=pafw_]').forEach(function(el){
+                el.style.display = 'none';
+            });
+            fw.style.display = 'flex';
+            if(backBar){
+                backBar.style.display = 'flex';
+                if(backLbl) backLbl.textContent = prjLabel;
+            }
+            if(content) content.scrollTop = 0;
+        }
+
+        function showList(){
+            document.querySelectorAll('[id^=pafw_]').forEach(function(el){
+                el.style.display = 'none';
+            });
+            if(searchBar) searchBar.style.display = '';
+            if(backBar)   backBar.style.display   = 'none';
+            if(inp){ inp.value=''; runSearch(); }
+            if(content) content.scrollTop = 0;
+        }
+
+        document.querySelectorAll('.pa-mini-card').forEach(function(mc){
+            mc.addEventListener('click',function(e){
+                e.stopPropagation();
+                showDetail(
+                    mc.getAttribute('data-pa-safe')||'',
+                    mc.getAttribute('data-pa-prj') ||''
+                );
+            });
+        });
+
+        if(backBar) backBar.addEventListener('click', showList);
+
+        var allMini = document.querySelectorAll('.pa-mini-card');
+        if(count && allMini.length>0) count.textContent = allMini.length+' / '+allMini.length;
+
+      },150);
+    </script>
+    <!-- ===== /COMPONENTE ===== -->
+  </div>
+
+  <!-- Amostra de domínio PMO refletida: 4 registros (visão multi — branch do CONCATENATEX _cardsMulti).
+       Schema por registro: Codigo (PRJ-00x) | Subcategoria (Categoria A–F com cores do SWITCH) |
+       Status (Nao iniciado / Em Andamento / Atrasado com cores do SWITCH) | Responsavel |
+       DataFim (dd/MM/yyyy) | Area (Sim=verde / Nao=vermelho) | Nome (descrição sanitizada).
+       Ex.: PRJ-001 | Categoria B | Em Andamento | Carlos Lima | 12/09/2026 | Area Nao |
+       "Inspeção de integridade dos dutos da unidade de ácido...".
+       Cards mini (data-pa-prj/data-pa-safe) + frames pafw_N ocultos reproduzem a busca,
+       abertura de detalhe e botão voltar do JS exato da medida. -->
+</body>
+</html>

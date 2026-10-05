@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabela Matricial Heatmap — Preview</title>
+<style>
+  body {
+    background: #F4F5F7;
+    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px 0 rgba(0,0,0,0.15);
+    padding: 16px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+    overflow-x: auto;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #006357;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'Segoe UI', sans-serif;
+    margin-bottom: 16px;
+  }
+  /* ── Heatmap table ── */
+  *{box-sizing:border-box;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .eh-table{
+    width:100%;border-collapse:separate;border-spacing:0;
+    font-size:11px;background:#fff;border-radius:8px;
+    overflow:hidden;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);table-layout:fixed;
+  }
+  .eh-col-area{width:11%;}
+  .eh-col-data{width:7%;}
+  .eh-col-total{width:5%;}
+  .eh-table thead th{
+    position:sticky;top:0;z-index:10;padding:0;
+    text-align:center;font-weight:700;vertical-align:middle;
+  }
+  .eh-th-area{
+    background:#006357!important;color:#fff;font-size:12px;
+    text-transform:uppercase;letter-spacing:.5px;
+    text-align:left!important;vertical-align:middle!important;padding:8px 10px!important;
+  }
+  .eh-th-col{background:#006357!important;color:#fff;padding:12px 2px;height:160px;}
+  .eh-th-col-inner{
+    display:block;writing-mode:vertical-rl;transform:rotate(180deg);
+    white-space:normal;word-break:break-word;font-size:10px;font-weight:700;
+    letter-spacing:.4px;line-height:1.15;text-transform:uppercase;
+    max-height:150px;overflow:hidden;text-overflow:ellipsis;margin:0 auto;text-align:center;
+  }
+  .eh-th-total{background:#006357!important;color:#fff!important;padding:12px 2px;min-height:120px;}
+  .eh-th-total-inner{
+    display:block;writing-mode:vertical-rl;transform:rotate(180deg);
+    white-space:nowrap;font-size:10px;font-weight:700;margin:0 auto;
+    letter-spacing:.4px;text-transform:uppercase;text-align:center;
+  }
+  .eh-row{animation:fadeUp .35s ease both;}
+  .eh-row-total{background:#fff;}
+  .eh-row-total td{font-weight:700;border-top:2px solid #00A793!important;}
+  .eh-td-area{
+    text-align:left;padding:8px 10px;font-weight:700;font-size:11px;
+    color:#006357;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    border-bottom:1px solid #f0f0f0;
+  }
+  .eh-td-area-total{
+    text-align:left;padding:8px 10px;font-weight:700;font-size:11px;color:#006357;white-space:nowrap;
+  }
+  .eh-cell{
+    display:inline-flex;align-items:center;justify-content:center;
+    border-radius:4px;font-weight:700;width:32px;height:28px;font-size:11px;margin:0 auto;
+  }
+  .eh-td{text-align:center;padding:5px 2px;border-bottom:1px solid #f0f0f0;vertical-align:middle;}
+  .eh-td-total-col{text-align:center;padding:5px 2px;border-bottom:1px solid #f0f0f0;vertical-align:middle;}
+  .eh-cell-zero{color:#e0e0e0;font-size:11px;display:block;text-align:center;}
+  .eh-cell-val{color:#fff;}
+  .eh-cell-total{
+    color:#fff;font-weight:700;border-radius:4px;display:inline-flex;
+    align-items:center;justify-content:center;width:34px;height:28px;font-size:12px;margin:0 auto;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="card-title">Heatmap Matricial — Distribuição por Área e Restrição</div>
+  <table class="eh-table">
+    <colgroup>
+      <col class="eh-col-area"/>
+      <col class="eh-col-data"/><col class="eh-col-data"/><col class="eh-col-data"/>
+      <col class="eh-col-data"/><col class="eh-col-data"/><col class="eh-col-data"/>
+      <col class="eh-col-data"/><col class="eh-col-data"/><col class="eh-col-data"/>
+      <col class="eh-col-total"/>
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="eh-th-area">Área</th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Escopo Pendente</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Aprovação Técnica</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Sem Restrição</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">HOLD</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Aguard. Proposta</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Sem SSE</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Em Desenvolvimento</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Rec. Propostas</span></th>
+        <th class="eh-th-col"><span class="eh-th-col-inner">Entend. Técnico</span></th>
+        <th class="eh-th-total"><span class="eh-th-total-inner">Total</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Projeto Alfa — Em dia -->
+      <tr class="eh-row" style="animation-delay:0ms;">
+        <td class="eh-td-area">Alfa</td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">3</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#00A793;">7</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#008A7D;">12</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">2</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#E8B430;">15</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#33B9A9;">5</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">1</span></td>
+        <td class="eh-td-total-col"><span class="eh-cell-total" style="background:#E8B430;">45</span></td>
+      </tr>
+      <!-- Projeto Beta — Alerta -->
+      <tr class="eh-row" style="animation-delay:40ms;">
+        <td class="eh-td-area">Beta</td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#E8B430;">14</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#33B9A9;">6</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#EB6100;">20</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">3</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#D03636;">30</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#33B9A9;">4</span></td>
+        <td class="eh-td-total-col"><span class="eh-cell-total" style="background:#EB6100;">77</span></td>
+      </tr>
+      <!-- Projeto Gama — Atrasado -->
+      <tr class="eh-row" style="animation-delay:80ms;">
+        <td class="eh-td-area">Gama</td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">2</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#00A793;">9</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">1</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#33B9A9;">5</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#E8B430;">11</span></td>
+        <td class="eh-td"><span class="eh-cell eh-cell-val" style="background:#D03636;">24</span></td>
+        <td class="eh-td"><span class="eh-cell-zero">·</span></td>
+        <td class="eh-td-total-col"><span class="eh-cell-total" style="background:#D03636;">52</span></td>
+      </tr>
+      <!-- Linha Total Geral -->
+      <tr class="eh-row eh-row-total">
+        <td class="eh-td-area-total">TOTAL GERAL</td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#E8B430;">17</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">9</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#EB6100;">27</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#EB6100;">21</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">7</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#E8B430;">18</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#D03636;">41</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#EB6100;">29</span></td>
+        <td class="eh-td" style="background:#fafafa;"><span class="eh-cell eh-cell-val" style="background:#91D9D1;">5</span></td>
+        <td class="eh-td-total-col"><span class="eh-cell-total" style="background:#D03636;">174</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

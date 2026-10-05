@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMSR Heatmap v1.7 — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1300px;margin:0 auto;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:640px;}
+  .hint{max-width:1300px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — PMSR Heatmap v1.7 — resumo por portfólio (ordenado por flags abertas), clique na linha para ver os projetos, na célula para a lista de projetos com a flag, no título da categoria para o detalhe e no projeto para o pop-up de atividades (dados fake PMO; o payload segue a codificação da medida)</div>
+<div class="frame">
+<style>
+.frame *,.mh-modal-backdrop *,.mh-prj-backdrop *{margin:0;padding:0;box-sizing:border-box;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+.frame{font-family:'Segoe UI',sans-serif;color:#2A2A2A;background:#FFFFFF;--m:'Montserrat','Segoe UI',sans-serif;}
+.mh-wrap{width:100%;height:100%;max-width:100%;display:flex;flex-direction:column;background:#FFFFFF;padding:2px 0 0;overflow:hidden;}
+.mh-bar{display:flex;align-items:center;gap:12px;padding:2px 4px 4px;flex:0 0 auto;border-bottom:1px solid #F1F1F1;}
+.mh-bar.off{display:none;}
+.mh-crumb{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;font-size:11px;color:#7D7D7D;}
+.mh-crumb-cur{font-family:var(--m);font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#006357;white-space:nowrap;}
+.mh-crumb-sep{color:#DCDCDC;}
+.mh-crumb-n{font-size:10.5px;color:#A0A0A0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mh-back{border:1px solid #DCDCDC;background:#FFFFFF;color:#006357;font-family:var(--m);font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:6px 12px;border-radius:9999px;cursor:pointer;white-space:nowrap;}
+.mh-search{border:1px solid #DCDCDC;border-radius:9999px;padding:6px 12px;font-family:'Segoe UI',sans-serif;font-size:11px;color:#2A2A2A;outline:none;width:220px;flex:0 0 auto;background:#FFFFFF;}
+.mh-search::placeholder{color:#A0A0A0;}
+.mh-search:focus{border-color:#00A793;}
+.mh-scroll{flex:1 1 auto;overflow-x:hidden;overflow-y:auto;min-height:0;max-width:100%;padding-top:2px;}
+.mh-table{width:100%;max-width:100%;border-collapse:separate;border-spacing:0;background:#FFFFFF;table-layout:fixed;}
+.mh-table thead tr:first-child th{position:sticky;top:0;z-index:11;background:#F0F4F6;color:#006357;font-family:var(--m);font-size:var(--hf,14px);font-weight:600;letter-spacing:.4px;text-transform:uppercase;height:var(--hh,44px);padding:4px 4px;text-align:center;white-space:normal;word-break:break-word;line-height:1.2;}
+.mh-top-head{background:#F0F4F6!important;}
+.mh-cat-title{cursor:pointer;}
+.mh-table thead tr:nth-child(2) th{position:sticky;top:44px;z-index:10;background:#F5FAFB;color:#535358;font-family:var(--m);font-size:var(--sf,13px);font-weight:600;letter-spacing:.2px;padding:5px 2px;text-align:center;white-space:normal;word-break:break-word;line-height:1.2;border-bottom:2px solid #00A793;overflow:hidden;}
+th.mh-spacer-top{width:4px!important;padding:0!important;background:#F0F4F6!important;}
+th.mh-spacer-sub{width:4px!important;padding:0!important;}
+td.mh-spacer{width:4px!important;background:transparent!important;padding:0!important;}
+.mh-row td{text-align:center;border-bottom:1px solid #F1F1F1;overflow:hidden;}
+.mh-row td.mh-port{font-weight:600;color:#006357;white-space:nowrap;text-align:left;padding-left:8px;overflow:hidden;text-overflow:ellipsis;}
+.mh-row-clickable{cursor:pointer;}
+.mh-chev{color:#00A793;margin-left:6px;font-size:.85em;display:inline-block;}
+.mh-row-total{background:#FFFFFF!important;position:sticky;bottom:0;z-index:9;}
+.mh-row-total td{border-top:2px solid #00A793!important;border-bottom:0!important;font-weight:600;}
+.mh-row-total .mh-port{font-family:var(--m);letter-spacing:.6px;text-transform:uppercase;}
+.mh-row-subtotal-prj{background:#F5FAFB!important;position:sticky;top:78px;z-index:8;}
+.mh-row-subtotal-prj td{border-bottom:2px solid #00A793!important;font-weight:600;}
+.mh-row-subtotal-prj .mh-port{font-family:var(--m);font-size:11px!important;letter-spacing:.6px;text-transform:uppercase;}
+.mh-cell{display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;font-weight:600;padding:4px 8px;min-width:0;max-width:100%;white-space:nowrap;}
+.mh-cell-y{background:#FAEBEB;color:#721C1E;cursor:pointer;}
+.mh-cell-n{background:#DDF8F0;color:#2B6533;}
+.mh-cell-na{background:#F1F1F1;color:#535358;}
+.mh-cell-90d{background:#FDF8E5;color:#806320;}
+.mh-cell-unmapped{background:#F7F7F7;color:#A0A0A0;}
+.mh-cell-zero{color:#DCDCDC;font-weight:400;}
+.mh-cell-dev0{background:#DDF8F0;color:#2B6533;}
+.mh-cell-dev-low{background:#FDF8E5;color:#806320;}
+.mh-cell-dev-mid{background:#FDF0E6;color:#8A4B12;}
+.mh-cell-dev-hi{background:#FAEBEB;color:#721C1E;}
+.mh-metric{display:inline-flex;align-items:center;justify-content:center;border-radius:4px;font-weight:600;padding:4px 8px;max-width:100%;background:#F5FAFB;color:#006357;font-variant-numeric:tabular-nums;}
+.mh-view-port .mh-row td{padding:var(--rp,12px) 2px;font-size:var(--rf,15px);}
+.mh-view-port .mh-row td.mh-port{font-size:calc(var(--rf,15px) + 1px)!important;}
+.mh-view-port .mh-cell{font-size:var(--rf,15px);min-height:var(--ch,28px);padding:var(--cp,4px) min(8px,7%);min-width:min(24px,100%);}
+.mh-view-port .mh-metric{font-size:var(--rf,15px);padding:var(--cp,4px) min(8px,7%);}
+.mh-view-prj .mh-row td{padding:6px 2px;font-size:13px;}
+.mh-view-prj .mh-row td.mh-port{font-size:13px!important;}
+.mh-view-prj .mh-cell{font-size:11.5px;padding:3px min(6px,7%);white-space:normal;word-break:break-word;line-height:1.15;}
+.mh-view-prj .mh-metric{font-size:13px;padding:3px min(6px,7%);}
+.mh-empty{padding:36px 20px!important;text-align:center!important;color:#A0A0A0;font-size:12px;}
+.mh-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(42,42,42,.45);z-index:999;align-items:center;justify-content:center;padding:16px;font-family:'Segoe UI',sans-serif;color:#2A2A2A;--m:'Montserrat','Segoe UI',sans-serif;}
+.mh-modal-backdrop.active{display:flex;}
+.mh-modal{background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);width:100%;max-width:560px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;}
+.mh-modal-header{padding:16px 24px;background:#FFFFFF;border-bottom:2px solid #00A793;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;}
+.mh-modal-title{font-size:16px;font-weight:600;color:#006357;}
+.mh-modal-close{background:none;border:0;color:#B9B9BC;font-size:22px;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;}
+.mh-modal-body{padding:16px 24px 24px;overflow-y:auto;flex:1 1 auto;}
+.mh-modal-list{list-style:none;}
+.mh-modal-item{padding:12px;margin-bottom:8px;background:#F5FAFB;border-left:3px solid #D03636;border-radius:4px;font-size:12px;color:#2A2A2A;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.mh-modal-item b{font-weight:600;color:#006357;}
+.mh-modal-sub{font-family:var(--m);font-size:8.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#A0A0A0;white-space:nowrap;}
+.mh-modal-empty{padding:40px 20px;text-align:center;color:#A0A0A0;font-size:13px;list-style:none;}
+.mh-badge{display:inline-block;padding:3px 8px;background:#FAEBEB;border-radius:9999px;font-family:var(--m);font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin:4px 4px 0 0;color:#721C1E;}
+.mh-cutnote{margin-top:12px;padding:12px;background:#FDF8E5;border-radius:4px;font-size:10.5px;color:#806320;line-height:1.45;}
+.mh-prj-backdrop{display:none;position:fixed;inset:0;background:rgba(42,42,42,.45);z-index:1000;align-items:center;justify-content:center;padding:16px;font-family:'Segoe UI',sans-serif;color:#2A2A2A;--m:'Montserrat','Segoe UI',sans-serif;}
+.mh-prj-backdrop.active{display:flex;}
+.mh-prj-modal{background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);width:100%;max-width:1092px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;}
+.mh-prj-header{padding:10px 20px;background:#FFFFFF;border-bottom:2px solid #00A793;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;}
+.mh-prj-header-left{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.mh-prj-eyebrow{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#00A793;}
+.mh-prj-title{font-size:20px;font-weight:600;color:#006357;}
+.mh-prj-close{background:none;border:0;color:#B9B9BC;width:28px;height:28px;border-radius:4px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mh-prj-body{padding:10px 20px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;flex:1 1 auto;}
+.mhp-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:start;}
+.mhp-field{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.mhp-label{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#00A793;}
+.mhp-pn{font-size:12px;font-weight:600;color:#7D7D7D;margin-right:8px;}
+.mhp-divider{height:1px;background:#F1F1F1;}
+.mhp-acao-box{display:flex;gap:8px;background:#F5FAFB;border-radius:8px;padding:10px;}
+.mhp-acao-icon{flex-shrink:0;}
+.mhp-acao-text{font-size:11.5px;line-height:1.4;color:#2A2A2A;}
+.mh-fchips{display:flex;flex-wrap:wrap;gap:4px;}
+.mh-fchip{display:inline-block;padding:4px 12px;border-radius:9999px;font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;background:#FAEBEB;color:#721C1E;}
+.mh-fchip.ok{background:#DDF8F0;color:#2B6533;}
+.mh-acts-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.mh-acts-kpi{display:flex;gap:4px;flex-wrap:wrap;}
+.mh-akpi{font-family:var(--m);font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:4px 12px;border-radius:9999px;background:#F1F1F1;color:#535358;}
+.mh-akpi.g{background:#DDF8F0;color:#2B6533;}
+.mh-akpi.y{background:#FDF8E5;color:#806320;}
+.mh-akpi.r{background:#FAEBEB;color:#721C1E;}
+.mh-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.mh-act{border:1px solid #F1F1F1;border-left:3px solid #DCDCDC;border-radius:8px;padding:8px 12px;background:#FFFFFF;}
+.mh-act.g{border-left-color:#4EB776;}
+.mh-act.y{border-left-color:#E8B430;}
+.mh-act.r{border-left-color:#D03636;}
+.mh-act.b{border-left-color:#648FA0;}
+.mh-act.x{border-left-color:#DCDCDC;}
+.mh-act-top{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
+.mh-act-num{flex:0 0 auto;width:20px;height:20px;border-radius:9999px;background:#E6F8F4;color:#006357;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+.mh-act-step{flex:1 1 auto;font-family:var(--m);font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#006357;min-width:0;}
+.mh-act-st{flex:0 0 auto;font-size:10px;font-weight:600;padding:4px 12px;border-radius:9999px;background:#F1F1F1;color:#535358;}
+.mh-act-st.g{background:#DDF8F0;color:#2B6533;}
+.mh-act-st.y{background:#FDF8E5;color:#806320;}
+.mh-act-st.r{background:#FAEBEB;color:#721C1E;}
+.mh-act-st.b{background:#F0F4F6;color:#374759;}
+.mh-act-st.x{background:#F7F7F7;color:#A0A0A0;}
+.mh-act-just{font-size:11.5px;line-height:1.4;color:#2A2A2A;}
+.mh-act-just.none{color:#B9B9BC;font-style:italic;}
+.mh-act-meta{display:flex;gap:16px;margin-top:5px;flex-wrap:wrap;}
+.mh-act-meta span{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.mh-act-meta i{font-family:var(--m);font-style:normal;font-size:8px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:#A0A0A0;}
+.mh-act-meta b{font-size:11px;font-weight:600;color:#2A2A2A;}
+.mh-act-com{margin-top:5px;padding:6px 10px;border-left:2px solid #91D9D1;background:#F5FAFB;border-radius:0 4px 4px 0;font-size:11px;font-style:italic;line-height:1.4;color:#535358;}
+@media (max-width:640px){.mhp-row3{grid-template-columns:1fr;}.mh-acts{grid-template-columns:1fr;}.mh-search{width:140px;}}
+</style>
+<div class='mh-wrap'>
+<div class='mh-bar'><div class='mh-crumb' id='bc'></div>
+<input class='mh-search' id='q' placeholder='Buscar projeto, respons&aacute;vel, atividade...'></div>
+<div class='mh-scroll'><table class='mh-table' id='tb'><thead id='hd'></thead><tbody id='ls'></tbody></table></div>
+</div>
+<div class='mh-modal-backdrop' id='ovf'><div class='mh-modal' id='mdf'></div></div>
+<div class='mh-prj-backdrop' id='ovp'><div class='mh-prj-modal' id='mdp'></div></div>
+<script>(function(){var D='EXEC¥FEL1¥FEL2¥FEL3¤EXEC¥FEL1¥FEL2¥FEL3¤Aprovado¥Em andamento¥Em análise¤EXEC¥FEL1¥FEL2¥FEL3¤¥Atualizar forecast no P6 e revalidar o handover.¥Regularizar RfA junto ao cliente até o fim do mês.¥Replanejar entregas e submeter PCN.¥Solicitar PPR e encerrar pendências de comissionamento.¤¥<90D¥N¥N/A¥Nil Spend¥Y¤Alumínio Primário¥Energia¥Logística¥Mineração¥Refinaria¤5,0,1,2,0,1,0,1,0,2,0,2,1,1;5,1,1,1,2,2,2,1,0,2,1,2,1,0;8,0,2,5,2,3,2,1,2,2,1,2,0,0;11,4,2,1,3,1,1,1,0,0,2,1,3,1;5,0,1,1,0,1,2,2,0,1,0,1,0,2¤PRJ-1008¥022020¥2522222232322¥04/09/2027¥Projeto Sigma 8¥PACP¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Ana Souza¦01/10/2026¦¦¦Atrasado§¬PRJ-1009¥011210¥2452332222222¥18/08/2027¥Projeto Épsilon 9¥¬PRJ-1020¥011011¥2251322222522¥19/06/2027¥Projeto Épsilon 20¥CONSTRUCAO/INSTALACAO¦Medição validada, falta emissão do documento.¦Marcos Rocha¦18/09/2026¦¦¦Não iniciado§COMISSIONAMENTO¦Licença ambiental pendente de renovação.¦Juliana Alves¦20/08/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§PACP¦Medição validada, falta emissão do documento.¦Pedro Lima¦18/12/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§¬PRJ-1013¥000204¥2222525252255¥16/12/2026¥Projeto Épsilon 13¥ENGENHARIA¦¦Marcos Rocha¦26/11/2026¦¦¦Atrasado§PACP¦Revisão de escopo em andamento com a engenharia.¦Juliana Alves¦17/12/2026¦¦¦Atrasado§PPR¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Marcos Rocha¦28/09/2026¦¦¦Atrasado§¬PRJ-1007¥022224¥2222222252522¥13/01/2027¥Projeto Sigma 7¥¬PRJ-1033¥122221¥2225355252222¥13/10/2027¥Projeto Delta 33¥PPR¦Medição validada, falta emissão do documento.¦Pedro Lima¦09/08/2026¦¦¦Não iniciado§CONSTRUCAO/INSTALACAO¦Revisão de escopo em andamento com a engenharia.¦Ana Souza¦19/12/2026¦22/12/2026¦Reunião de alinhamento marcada para a próxima semana.¦Concluído§COMISSIONAMENTO¦Aguardando aprovação do cliente.¦Marcos Rocha¦23/10/2026¦¦Escalar para o comitê se não houver retorno.¦Não iniciado§¬PRJ-1022¥122022¥5522524252522¥12/08/2027¥Projeto Zeta 22¥¬PRJ-1025¥100203¥2221522222322¥16/10/2026¥Projeto Delta 25¥ENGENHARIA¦Medição validada, falta emissão do documento.¦Marcos Rocha¦27/08/2026¦¦Escalar para o comitê se não houver retorno.¦Não iniciado§CAPITALIZACAO¦Aguardando aprovação do cliente.¦Carlos Mendes¦02/12/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§¬PRJ-1030¥122224¥2252252225253¥17/10/2026¥Projeto Sigma 30¥ENGENHARIA¦Medição validada, falta emissão do documento.¦Marcos Rocha¦04/11/2026¦¦¦Atrasado§¬PRJ-1011¥122224¥2225322222522¥10/11/2026¥Projeto Ômega 11¥¬PRJ-1015¥222020¥2225252332222¥15/04/2027¥Projeto Épsilon 15¥COMISSIONAMENTO¦Medição validada, falta emissão do documento.¦Marcos Rocha¦30/09/2026¦¦¦Em andamento§PACP¦¦Pedro Lima¦09/09/2026¦¦¦Em andamento§RFA¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Ana Souza¦25/10/2026¦¦¦Atrasado§CAPITALIZACAO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Ana Souza¦30/08/2026¦¦¦Em andamento§¬PRJ-1034¥222120¥2252222252222¥30/01/2027¥Projeto Gama 34¥PROCUREMENT¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Juliana Alves¦27/08/2026¦¦¦Em andamento§RFA¦Revisão de escopo em andamento com a engenharia.¦Carlos Mendes¦20/11/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§PACP¦Aguardando aprovação do cliente.¦Juliana Alves¦13/10/2026¦¦¦Não iniciado§ENGENHARIA¦Revisão de escopo em andamento com a engenharia.¦Ana Souza¦06/10/2026¦18/10/2026¦Reunião de alinhamento marcada para a próxima semana.¦Concluído§¬PRJ-1018¥233131¥2552522222222¥06/02/2027¥Projeto Gama 18¥CAPITALIZACAO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Pedro Lima¦15/09/2026¦¦¦Não iniciado§PROCUREMENT¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Juliana Alves¦08/11/2026¦¦¦Não iniciado§¬PRJ-1026¥233232¥2222322222222¥07/11/2027¥Projeto Ômega 26¥CAPITALIZACAO¦¦Marcos Rocha¦01/10/2026¦¦¦Não iniciado§COMISSIONAMENTO¦Revisão de escopo em andamento com a engenharia.¦Carlos Mendes¦27/08/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§CONSTRUCAO/INSTALACAO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Marcos Rocha¦15/11/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§¬PRJ-1004¥233033¥2552522522522¥15/10/2026¥Projeto Ômega 4¥COMISSIONAMENTO¦¦Marcos Rocha¦23/09/2026¦¦¦Em andamento§¬PRJ-1003¥222123¥2252252522232¥20/02/2027¥Projeto Épsilon 3¥PACP¦Aguardando aprovação do cliente.¦Pedro Lima¦21/11/2026¦¦¦Em andamento§PROCUREMENT¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Juliana Alves¦22/10/2026¦23/10/2026¦¦Concluído§COMISSIONAMENTO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Ana Souza¦31/12/2026¦27/12/2026¦Escalar para o comitê se não houver retorno.¦Concluído§¬PRJ-1010¥233134¥2225525235522¥14/01/2027¥Projeto Delta 10¥¬PRJ-1021¥233034¥2252222252222¥11/01/2027¥Projeto Delta 21¥¬PRJ-1005¥300200¥5521222222225¥14/09/2026¥Projeto Gama 5¥ENGENHARIA¦Licença ambiental pendente de renovação.¦Juliana Alves¦10/08/2026¦13/08/2026¦¦Concluído§CONSTRUCAO/INSTALACAO¦Revisão de escopo em andamento com a engenharia.¦Pedro Lima¦21/08/2026¦21/08/2026¦¦Concluído§PPR¦Aguardando aprovação do cliente.¦Pedro Lima¦30/12/2026¦¦¦Em andamento§RFA¦¦Marcos Rocha¦29/11/2026¦¦¦Atrasado§¬PRJ-1006¥322120¥2225222225222¥29/07/2027¥Projeto Beta 6¥RFA¦Aguardando aprovação do cliente.¦Juliana Alves¦05/12/2026¦13/12/2026¦¦Concluído§PROCUREMENT¦Licença ambiental pendente de renovação.¦Marcos Rocha¦09/08/2026¦¦¦Não iniciado§¬PRJ-1016¥322120¥2252252222222¥24/09/2026¥Projeto Sigma 16¥¬PRJ-1001¥311211¥2222232223252¥01/04/2027¥Projeto Sigma 1¥PACP¦Aguardando aprovação do cliente.¦Carlos Mendes¦15/09/2026¦26/09/2026¦¦Concluído§COMISSIONAMENTO¦Medição validada, falta emissão do documento.¦Carlos Mendes¦23/09/2026¦¦Escalar para o comitê se não houver retorno.¦Em andamento§RFA¦Medição validada, falta emissão do documento.¦Ana Souza¦28/10/2026¦¦¦Não iniciado§CAPITALIZACAO¦Licença ambiental pendente de renovação.¦Carlos Mendes¦04/10/2026¦¦¦Atrasado§¬PRJ-1023¥333131¥2422222223522¥15/01/2027¥Projeto Alfa 23¥CAPITALIZACAO¦¦Pedro Lima¦28/12/2026¦¦¦Em andamento§PPR¦Medição validada, falta emissão do documento.¦Ana Souza¦23/09/2026¦¦¦Em andamento§¬PRJ-1014¥300102¥2225222222252¥11/09/2026¥Projeto Delta 14¥CAPITALIZACAO¦Revisão de escopo em andamento com a engenharia.¦Juliana Alves¦10/12/2026¦¦Escalar para o comitê se não houver retorno.¦Em andamento§ENGENHARIA¦Aguardando aprovação do cliente.¦Ana Souza¦18/12/2026¦¦Escalar para o comitê se não houver retorno.¦Atrasado§COMISSIONAMENTO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Carlos Mendes¦13/08/2026¦¦¦Atrasado§¬PRJ-1032¥333132¥2245222225222¥06/12/2026¥Projeto Beta 32¥ENGENHARIA¦¦Carlos Mendes¦26/09/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§CONSTRUCAO/INSTALACAO¦Medição validada, falta emissão do documento.¦Juliana Alves¦24/10/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§PPR¦Aguardando aprovação do cliente.¦Carlos Mendes¦28/11/2026¦¦¦Não iniciado§¬PRJ-1024¥322023¥5541225322222¥08/11/2027¥Projeto Beta 24¥¬PRJ-1012¥311013¥2222222222322¥17/10/2026¥Projeto Alfa 12¥COMISSIONAMENTO¦Medição validada, falta emissão do documento.¦Pedro Lima¦13/11/2026¦17/11/2026¦Reunião de alinhamento marcada para a próxima semana.¦Concluído§¬PRJ-1019¥300004¥5222532232352¥21/05/2027¥Projeto Épsilon 19¥ENGENHARIA¦Medição validada, falta emissão do documento.¦Carlos Mendes¦15/11/2026¦13/11/2026¦¦Concluído§¬PRJ-1029¥333134¥5221322222222¥12/07/2027¥Projeto Sigma 29¥PPR¦¦Marcos Rocha¦17/11/2026¦¦¦Atrasado§PACP¦Licença ambiental pendente de renovação.¦Carlos Mendes¦07/12/2026¦¦¦Em andamento§CONSTRUCAO/INSTALACAO¦Medição validada, falta emissão do documento.¦Marcos Rocha¦09/09/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§COMISSIONAMENTO¦Aguardando aprovação do cliente.¦Juliana Alves¦20/08/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Em andamento§¬PRJ-1027¥433230¥2522252222225¥02/09/2027¥Projeto Sigma 27¥ENGENHARIA¦Aguardando aprovação do cliente.¦Carlos Mendes¦01/09/2026¦¦¦Atrasado§CONSTRUCAO/INSTALACAO¦Fornecedor sinalizou atraso na entrega dos equipamentos.¦Ana Souza¦30/08/2026¦¦Escalar para o comitê se não houver retorno.¦Não iniciado§PROCUREMENT¦Licença ambiental pendente de renovação.¦Juliana Alves¦17/12/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§PACP¦¦Ana Souza¦31/10/2026¦¦Escalar para o comitê se não houver retorno.¦Atrasado§¬PRJ-1028¥400100¥2222222222222¥25/09/2027¥Projeto Gama 28¥CONSTRUCAO/INSTALACAO¦¦Ana Souza¦16/09/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§ENGENHARIA¦Licença ambiental pendente de renovação.¦Marcos Rocha¦27/09/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Não iniciado§RFA¦Revisão de escopo em andamento com a engenharia.¦Carlos Mendes¦15/10/2026¦25/10/2026¦Reunião de alinhamento marcada para a próxima semana.¦Concluído§¬PRJ-1002¥411212¥2221325222222¥08/10/2027¥Projeto Beta 2¥COMISSIONAMENTO¦Licença ambiental pendente de renovação.¦Juliana Alves¦19/08/2026¦¦Escalar para o comitê se não houver retorno.¦Não iniciado§¬PRJ-1017¥411014¥2221555222525¥08/03/2027¥Projeto Gama 17¥PACP¦Licença ambiental pendente de renovação.¦Ana Souza¦23/11/2026¦¦¦Atrasado§COMISSIONAMENTO¦¦Carlos Mendes¦09/11/2026¦24/11/2026¦¦Concluído§¬PRJ-1031¥433234¥2251322252222¥11/09/2026¥Projeto Beta 31¥PACP¦Licença ambiental pendente de renovação.¦Carlos Mendes¦26/12/2026¦¦Reunião de alinhamento marcada para a próxima semana.¦Atrasado§PROCUREMENT¦Aguardando aprovação do cliente.¦Juliana Alves¦25/08/2026¦¦Escalar para o comitê se não houver retorno.¦Em andamento§';var FILT=0,CUT=0;
+setTimeout(function(){
+var A='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_.',X={},i,j;
+for(i=0;i<64;i++){X[A.charAt(i)]=i;}
+var g_=document.getElementById.bind(document);
+function e_(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');}
+function nz(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+var S=D.split('¤');
+var TA=(S[0]||'').split('¥'),RS=(S[1]||'').split('¥'),SS=(S[2]||'').split('¥'),
+OH=(S[3]||'').split('¥'),AP=(S[4]||'').split('¥'),FG=(S[5]||'').split('¥');
+var PFL=(S[6]||'').split('¥');
+var AGG=(S[7]||'').split(';').map(function(r){var t=r.split(','),o=[],q;
+for(q=0;q<14;q++){o.push(+t[q]||0);}return o;});
+var P=[];
+if(S[8]){P=S[8].split('¬').filter(function(r){return r.length>8;}).map(function(r){
+var f=r.split('¥'),k=f[1]||'000000',fl=f[2]||'',a=[],q;
+for(q=0;q<13;q++){a.push(X[fl.charAt(q)]||0);}
+return{n:f[0]||'',pb:X[k.charAt(0)]||0,ta:X[k.charAt(1)]||0,rs:X[k.charAt(2)]||0,
+ss:X[k.charAt(3)]||0,oh:X[k.charAt(4)]||0,ap:X[k.charAt(5)]||0,fg:a,dt:f[3]||'',pj:f[4]||'',cc:f[5]||''};});}
+var CN=['Over Spend','Over Comit','RfA Rev','Aged 90D','Inactive 1YR','Aged Action','Nil Spend',
+'Handover Late','Fcst Hand. Inv.','Fcst Compl. Inv.','PPR Due','PPR 12M','PPR 18M'];
+var CS=['Over Spend','Over Comit','RfA Rev','Aged 90D','Inac. 1YR','Aged Act.','Nil Spend',
+'Hand. Late','Hand. Inv.','Comp. Inv.','PPR Due','PPR 12M','PPR 18M'];
+var CAT=[['Expenditure',[0,1,2]],['Ageing',[3,4,5,6]],['Schedule',[7,8,9]],['PPR',[11,12]]];
+var TRK=[0,1,2,3,4,5,6,7,8,9,11,12];
+var VW=-1,Q='',CUR=[];
+var hd=g_('hd'),ls=g_('ls'),bc=g_('bc'),tb=g_('tb'),qi=g_('q'),
+ovf=g_('ovf'),mdf=g_('mdf'),ovp=g_('ovp'),mdp=g_('mdp'),
+br=document.querySelector('.mh-bar'),sc=document.querySelector('.mh-scroll');
+function note(){if(!CUT)return '';
+var t=CUT>1?'Lista parcial: o teto de caracteres deixou projetos fora do payload. Os contadores da tabela seguem exatos.'
+:'Todos os projetos estao no payload. Para alguns deles a lista de atividades ficou de fora por limite de caracteres.';
+return '<div class=\'mh-cutnote\'>'+t+'</div>';}
+function fl(p,ix){return FG[p.fg[ix]]||'';}
+function isY(v){return String(v).toUpperCase()=='Y';}
+function nflag(p){var c=0,q;for(q=0;q<TRK.length;q++){if(isY(fl(p,TRK[q])))c++;}return c;}
+function fcell(v){var s=String(v==null?'':v),u=s.toUpperCase();
+if(u=='Y')return '<span class=\'mh-cell mh-cell-y\'>Y</span>';
+if(u=='N')return '<span class=\'mh-cell mh-cell-n\'>N</span>';
+if(u=='N/A')return '<span class=\'mh-cell mh-cell-na\'>N/A</span>';
+if(u.indexOf('<90D')>=0)return '<span class=\'mh-cell mh-cell-90d\'>&lt;90D</span>';
+if(s=='')return '<span class=\'mh-cell-zero\'>-</span>';
+return '<span class=\'mh-cell mh-cell-unmapped\'>'+e_(s)+'</span>';}
+function dev(n){var c=n===0?'mh-cell-dev0':(n<=3?'mh-cell-dev-low':(n<=7?'mh-cell-dev-mid':'mh-cell-dev-hi'));
+return '<span class=\'mh-cell '+c+'\'>'+n+'</span>';}
+function sp(){return '<td class=\'mh-spacer\'></td>';}
+function agN(b){return (AGG[b]||[])[0]||0;}
+function agY(b,ix){return (AGG[b]||[])[ix+1]||0;}
+function agS(b){var s=0,q;for(q=0;q<TRK.length;q++){s+=agY(b,TRK[q]);}return s;}
+function toN(){var s=0,q;for(q=0;q<AGG.length;q++){s+=agN(q);}return s;}
+function toY(ix){var s=0,q;for(q=0;q<AGG.length;q++){s+=agY(q,ix);}return s;}
+function toS(){var s=0,q;for(q=0;q<TRK.length;q++){s+=toY(TRK[q]);}return s;}
+function ordGer(){var o=[],q;for(q=0;q<PFL.length;q++){if(agN(q))o.push(q);}
+o.sort(function(a,b){return (agS(b)-agS(a))||(agN(b)-agN(a))||(PFL[a]<PFL[b]?-1:(PFL[a]>PFL[b]?1:0));});return o;}
+function thead(det){var h='<tr><th class=\'mh-top-head\' style=\'width:17%\'>'+(det?'Projeto':'Portf&oacute;lio')+'</th>',g,c,d;
+for(c=0;c<4;c++){h+='<th colspan=\''+CAT[c][1].length+'\' class=\'mh-top-head mh-cat-title\' data-cat=\''+c+'\'>'+CAT[c][0]+'</th><th class=\'mh-spacer-top\'></th>';}
+h+='<th colspan=\''+(det?1:3)+'\' class=\'mh-top-head\'>'+(det?'Flags':'Desvios')+'</th></tr><tr><th>&nbsp;</th>';
+for(c=0;c<4;c++){g=CAT[c][1];for(d=0;d<g.length;d++){h+='<th title=\''+CN[g[d]]+'\'>'+CS[g[d]]+'</th>';}h+='<th class=\'mh-spacer-sub\'></th>';}
+h+='<th>'+(det?'&nbsp;':'Flags')+'</th>'+(det?'':'<th>Qtd. Proj</th><th>Flags / Proj</th>')+'</tr>';
+return h;}
+function cnt(v,tag){return v?'<span class=\'mh-cell mh-cell-y\' data-fl=\''+tag+'\'>'+v+'</span>':'<span class=\'mh-cell mh-cell-n\'>0</span>';}
+function rowAgg(b,cls,lbl,full){var n=b=='*'?toN():agN(b),s=b=='*'?toS():agS(b);
+var h='',g,q,v,c;
+h+='<tr class=\'mh-row '+cls+'\''+(cls.indexOf('clickable')>=0?' data-pb=\''+b+'\'':'')+'>';
+h+='<td class=\'mh-port\' title=\''+e_(lbl)+'\'>'+e_(lbl)+(cls.indexOf('clickable')>=0?'<span class=\'mh-chev\'>&#9656;</span>':'')+'</td>';
+for(c=0;c<4;c++){g=CAT[c][1];for(q=0;q<g.length;q++){v=b=='*'?toY(g[q]):agY(b,g[q]);
+h+='<td>'+cnt(v,b+':'+g[q])+'</td>';}h+=sp();}
+h+='<td>'+dev(s)+'</td>';
+if(full){h+='<td><span class=\'mh-metric\'>'+n+'</span></td>'
++'<td><span class=\'mh-metric\'>'+(n?(s/n).toFixed(1):'0.0')+'</span></td>';}
+return h+'</tr>';}
+function rowPrj(p,ix){var s=nflag(p),h='',g,q,c;
+h+='<tr class=\'mh-row mh-row-clickable\' data-p=\''+ix+'\'>';
+h+='<td class=\'mh-port\' title=\''+e_(p.n)+'\'>'+e_(p.n)+'</td>';
+for(c=0;c<4;c++){g=CAT[c][1];for(q=0;q<g.length;q++){h+='<td>'+fcell(fl(p,g[q]))+'</td>';}h+=sp();}
+return h+'<td>'+dev(s)+'</td></tr>';}
+function txt(p){return nz(p.n+' '+p.pj+' '+(TA[p.ta]||'')+' '+(RS[p.rs]||'')+' '+(SS[p.ss]||'')+' '+(AP[p.ap]||'')+' '+p.cc);}
+function acts(cc){if(!cc)return[];var raw=cc.split('§'),o=[],q,f,z;
+for(q=0;q<raw.length;q++){z=raw[q];if(!z||!z.replace(/[¦\s]/g,''))continue;f=z.split('¦');
+o.push({st:(f[0]||'').trim(),ju:(f[1]||'').trim(),re:(f[2]||'').trim(),pp:(f[3]||'').trim(),
+pc:(f[4]||'').trim(),cm:(f[5]||'').trim(),sa:(f[6]||'').trim()});}return o;}
+function ameta(s){var u=nz(s);if(!u)return 'x';
+if(u.indexOf('conclu')>=0||u.indexOf('finaliz')>=0)return 'g';
+if(u.indexOf('atras')>=0)return 'r';
+if(u.indexOf('andament')>=0||u.indexOf('execu')>=0)return 'y';
+return 'b';}
+function capSf(){var t2=hd.querySelectorAll('tr:nth-child(2) th'),pb=g_('pbx'),i2,k2,ws,mx,cap=99,w2;
+if(!pb){pb=document.createElement('span');pb.id='pbx';pb.style.cssText='position:absolute;left:-9999px;'
++'top:0;white-space:pre;font-weight:600;letter-spacing:.2px;font-size:100px;'
++'font-family:Montserrat,Segoe UI,sans-serif;';document.body.appendChild(pb);}
+for(i2=0;i2<t2.length;i2++){w2=t2[i2].clientWidth-6;if(w2<8)continue;
+ws=t2[i2].textContent.replace(/ /g,' ').trim().split(/ +/);mx=0;
+for(k2=0;k2<ws.length;k2++){pb.textContent=ws[k2];if(pb.offsetWidth>mx)mx=pb.offsetWidth;}
+if(mx>0)cap=Math.min(cap,Math.floor(100*w2/mx));}return cap;}
+function applyCap(){var c2=capSf(),cu=parseFloat(getComputedStyle(tb).getPropertyValue('--sf'))||13;
+if(c2<cu)tb.style.setProperty('--sf',c2+'px');}
+function alignHead(){var r1=hd.querySelector('tr:first-child'),r2=hd.querySelector('tr:nth-child(2)');if(!r1||!r2)return;
+var h1=r1.getBoundingClientRect().height,ths2=r2.querySelectorAll('th'),k;
+for(k=0;k<ths2.length;k++){ths2[k].style.top=h1+'px';}
+var h2=r2.getBoundingClientRect().height,sub=ls.querySelector('.mh-row-subtotal-prj');
+if(sub)sub.style.top=(h1+h2)+'px';}
+function fit(){if(!sc)return;
+var ST=[[12,15,4,28,44,14,13],[10,15,4,26,44,14,13],[8,14,4,24,44,14,13],[6,14,3,22,44,14,13],
+[5,13,3,20,44,14,13],[4,13,3,19,44,14,13],[3,12,2,18,44,14,13],[2,12,2,16,44,14,13],
+[1,11,2,14,44,14,13],[0,11,1,13,40,13,12],[0,10,1,12,36,12,11],[0,9,0,10,30,11,9],
+[0,8,0,9,24,10,8]],k;
+for(k=0;k<ST.length;k++){tb.style.setProperty('--rp',ST[k][0]+'px');
+tb.style.setProperty('--rf',ST[k][1]+'px');tb.style.setProperty('--cp',ST[k][2]+'px');
+tb.style.setProperty('--ch',ST[k][3]+'px');tb.style.setProperty('--hh',ST[k][4]+'px');
+tb.style.setProperty('--hf',ST[k][5]+'px');tb.style.setProperty('--sf',ST[k][6]+'px');
+if(sc.scrollHeight<=sc.clientHeight+1)break;}
+applyCap();
+var nr=ls.querySelectorAll('tr').length;
+var gp=function(){return sc.clientHeight-tb.getBoundingClientRect().height-2;};
+if(nr){var cp=parseFloat(getComputedStyle(tb).getPropertyValue('--rp'))||0,it=0;
+while(gp()>nr*2&&it<24){cp++;tb.style.setProperty('--rp',cp+'px');it++;}
+if(sc.scrollHeight>sc.clientHeight+1)tb.style.setProperty('--rp',(cp-1)+'px');}
+alignHead();}
+function render(){var det=VW>=0,h='',lst,ord;
+tb.className='mh-table '+(det?'mh-view-prj':'mh-view-port');
+if(det){tb.style.setProperty('--hh','44px');tb.style.setProperty('--hf','14px');tb.style.setProperty('--sf','13px');}
+hd.innerHTML=thead(det);CUR=[];
+if(!det){ord=ordGer();for(i=0;i<ord.length;i++){h+=rowAgg(ord[i],'mh-row-clickable',PFL[ord[i]],1);}
+h+=rowAgg('*','mh-row-total','TOTAL GERAL',1);
+bc.innerHTML='';
+if(qi)qi.style.display='none';}
+else{lst=P.filter(function(p){return p.pb===VW;});
+if(Q)lst=lst.filter(function(p){return txt(p).indexOf(Q)>=0;});CUR=lst;
+h+=rowAgg(VW,'mh-row-subtotal-prj','TOTAL',0);
+for(i=0;i<lst.length;i++){h+=rowPrj(lst[i],i);}
+if(!lst.length)h+='<tr><td colspan=\'30\' class=\'mh-empty\'>Nenhum projeto encontrado'+(Q?' para a busca informada.':'.')+'</td></tr>';
+bc.innerHTML='<button class=\'mh-back\' id=\'bk\'>&#8592; Gerentes</button>'
++'<span class=\'mh-crumb-sep\'>/</span><span class=\'mh-crumb-cur\'>'+e_(PFL[VW]||'')+'</span>'
++'<span class=\'mh-crumb-n\'>'+lst.length+' de '+agN(VW)+' projeto(s) &middot; clique na linha para ver as atividades</span>';
+if(qi)qi.style.display='';}
+ls.innerHTML=h;
+if(br)br.className='mh-bar'+(det?'':' off');
+if(det)applyCap();
+alignHead();
+if(!det)fit();
+}
+function openFlag(b,ix){var lst=(b=='*'?P.slice():P.filter(function(p){return p.pb===+b;}))
+.filter(function(p){return isY(fl(p,ix));});
+var ttl=e_(b=='*'?'Total Geral':(PFL[+b]||''))+' &middot; '+CN[ix];
+mdf.innerHTML='<div class=\'mh-modal-header\'><div class=\'mh-modal-title\'>'+ttl+'</div>'
++'<button class=\'mh-modal-close\'>&times;</button></div><div class=\'mh-modal-body\'><ul class=\'mh-modal-list\'>'
++(lst.length?lst.map(function(p){return '<li class=\'mh-modal-item\' data-pn=\''+e_(p.n)+'\'>'
++'<b>'+e_(p.n)+'</b><span class=\'mh-modal-sub\'>'+e_(PFL[p.pb]||'')+' &middot; '+nflag(p)+' flag(s)</span></li>';}).join('')
+:'<li class=\'mh-modal-empty\'>Nenhum projeto encontrado.</li>')+'</ul>'
++(CUT>1?note():'')
++'</div>';ovf.classList.add('active');}
+function openCat(ci){var g=CAT[ci][1];
+var lst=P.filter(function(p){var q;for(q=0;q<g.length;q++){if(isY(fl(p,g[q])))return true;}return false;});
+mdf.innerHTML='<div class=\'mh-modal-header\'><div class=\'mh-modal-title\'>Pend&ecirc;ncias &middot; '+CAT[ci][0]+'</div>'
++'<button class=\'mh-modal-close\'>&times;</button></div><div class=\'mh-modal-body\'><ul class=\'mh-modal-list\'>'
++(lst.length?lst.map(function(p){var b='',q;
+for(q=0;q<g.length;q++){if(isY(fl(p,g[q])))b+='<span class=\'mh-badge\'>'+CN[g[q]]+'</span>';}
+return '<li class=\'mh-modal-item\' data-pn=\''+e_(p.n)+'\' style=\'flex-direction:column;align-items:flex-start;gap:4px\'>'
++'<b>'+e_(p.n)+' <span class=\'mh-modal-sub\'>'+e_(PFL[p.pb]||'')+'</span></b><div>'+b+'</div></li>';}).join('')
+:'<li class=\'mh-modal-empty\'>Nenhuma pend&ecirc;ncia encontrada.</li>')+'</ul>'
++(CUT>1?note():'')
++'</div>';ovf.classList.add('active');}
+function openPrj(p){if(!p)return;var as=acts(p.cc),n=as.length,cg=0,cy=0,cr=0,q,m,fc='';
+for(q=0;q<n;q++){m=ameta(as[q].sa);if(m=='g')cg++;else if(m=='y')cy++;else if(m=='r')cr++;}
+for(q=0;q<TRK.length;q++){if(isY(fl(p,TRK[q])))fc+='<span class=\'mh-fchip\'>'+CN[TRK[q]]+'</span>';}
+if(!fc)fc='<span class=\'mh-fchip ok\'>Nenhuma flag aberta</span>';
+var s=nflag(p),ap=AP[p.ap]||'';
+var h='<div class=\'mh-prj-header\'><div class=\'mh-prj-header-left\'>'
++'<div class=\'mh-prj-eyebrow\'>Projeto &middot; '+e_(PFL[p.pb]||'')+'</div>'
++'<div class=\'mh-prj-title\'><span class=\'mhp-pn\'>'+e_(p.n)+'</span>'+(p.pj?e_(p.pj):'')+'</div></div>'
++'<button class=\'mh-prj-close\'>&#10005;</button></div><div class=\'mh-prj-body\'>'
++'<div class=\'mhp-row3\'>'
++'<div class=\'mhp-field\'><div class=\'mhp-label\'>Total de flags</div>'
++'<div style=\'display:flex;align-items:center;gap:7px\'>'+dev(s)+'</div></div>'
++'<div class=\'mhp-field\'><div class=\'mhp-label\'>A&ccedil;&atilde;o para Retirar Flag</div>'
++'<div class=\'mhp-acao-box\'><div class=\'mhp-acao-icon\'>'
++'<svg width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\'>'
++'<path d=\'M12 2L2 7l10 5 10-5-10-5z\' stroke=\'#00a793\' stroke-width=\'2\' stroke-linejoin=\'round\'/>'
++'<path d=\'M2 17l10 5 10-5\' stroke=\'#00a793\' stroke-width=\'2\' stroke-linejoin=\'round\'/>'
++'<path d=\'M2 12l10 5 10-5\' stroke=\'#00a793\' stroke-width=\'2\' stroke-linejoin=\'round\'/></svg></div>'
++'<div class=\'mhp-acao-text\'>'+(ap?e_(ap):'Nenhuma a&ccedil;&atilde;o registrada.')+'</div></div></div>'
++'<div class=\'mhp-field\'><div class=\'mhp-label\'>Flags abertas</div><div class=\'mh-fchips\'>'+fc+'</div></div>'
++'</div>'
++'<div class=\'mhp-divider\'></div>'
++'<div class=\'mh-acts-head\'><div class=\'mhp-label\'>Atividades do projeto</div><div class=\'mh-acts-kpi\'>'
++'<span class=\'mh-akpi\'>'+n+' atividade(s)</span>'
++(cg?'<span class=\'mh-akpi g\'>'+cg+' conclu&iacute;da(s)</span>':'')
++(cy?'<span class=\'mh-akpi y\'>'+cy+' em andamento</span>':'')
++(cr?'<span class=\'mh-akpi r\'>'+cr+' atrasada(s)</span>':'')
++'</div></div><div class=\'mh-acts\'>';
+if(!n){h+='<div class=\'mh-empty\' style=\'padding:26px 0!important\'>'+(CUT==1?'A lista de atividades deste projeto ficou fora do payload por limite de caracteres.':'Nenhuma atividade em aberto para este projeto.')+'</div>';}
+for(q=0;q<n;q++){var a=as[q],c=ameta(a.sa);
+h+='<div class=\'mh-act '+c+'\'>'
++'<div class=\'mh-act-top\'><span class=\'mh-act-num\'>'+(q+1)+'</span>'
++'<span class=\'mh-act-step\'>'+(a.st?e_(a.st):'Etapa n&atilde;o informada')+'</span>'
++'<span class=\'mh-act-st '+c+'\'>'+(a.sa?e_(a.sa):'—')+'</span></div>'
++'<div class=\'mh-act-just'+(a.ju?'':' none')+'\'>'+(a.ju?e_(a.ju):'Sem justificativa registrada.')+'</div>'
++'<div class=\'mh-act-meta\'>'
++'<span><i>Respons&aacute;vel</i><b>'+(a.re?e_(a.re):'—')+'</b></span>'
++'<span><i>Prazo Previsto</i><b>'+(a.pp?e_(a.pp):'—')+'</b></span>'
++'<span><i>Prazo Conclus&atilde;o</i><b>'+(a.pc?e_(a.pc):'—')+'</b></span></div>'
++(a.cm?'<div class=\'mh-act-com\'>'+e_(a.cm)+'</div>':'')
++'</div>';}
+mdp.innerHTML=h+'</div></div>';ovp.classList.add('active');ovp.querySelector('.mh-prj-body').scrollTop=0;}
+ls.addEventListener('click',function(e){var c=e.target.closest('[data-fl]');
+if(c){var t=c.getAttribute('data-fl').split(':');openFlag(t[0],+t[1]);return;}
+var r=e.target.closest('tr[data-pb]');
+if(r){VW=+r.getAttribute('data-pb');Q='';if(qi)qi.value='';render();return;}
+var rp=e.target.closest('tr[data-p]');if(rp){openPrj(CUR[+rp.getAttribute('data-p')]);}});
+hd.addEventListener('click',function(e){var c=e.target.closest('[data-cat]');if(c)openCat(+c.getAttribute('data-cat'));});
+bc.addEventListener('click',function(e){if(e.target.closest('#bk')){VW=-1;Q='';if(qi)qi.value='';render();}});
+if(qi)qi.addEventListener('input',function(){Q=nz(this.value.trim());render();});
+mdf.addEventListener('click',function(e){var li=e.target.closest('[data-pn]');if(!li)return;
+var pn=li.getAttribute('data-pn'),k;
+for(k=0;k<P.length;k++){if(P[k].n===pn){ovf.classList.remove('active');VW=P[k].pb;Q='';
+if(qi)qi.value='';render();openPrj(P[k]);break;}}});
+ovf.addEventListener('click',function(e){if(e.target===ovf||e.target.closest('.mh-modal-close'))ovf.classList.remove('active');});
+ovp.addEventListener('click',function(e){if(e.target===ovp||e.target.closest('.mh-prj-close'))ovp.classList.remove('active');});
+document.addEventListener('keydown',function(e){if(e.key=='Escape'){ovf.classList.remove('active');ovp.classList.remove('active');}});
+var rT;function reflow(){clearTimeout(rT);
+rT=setTimeout(function(){if(VW<0)fit();
+else{tb.style.setProperty('--sf','13px');applyCap();alignHead();}},120);}
+window.addEventListener('resize',reflow);
+if(window.ResizeObserver){new ResizeObserver(reflow).observe(document.documentElement);}
+if(FILT){var nzb=[],q2;for(q2=0;q2<PFL.length;q2++){if(agN(q2)>0)nzb.push(q2);}if(nzb.length===1)VW=nzb[0];}
+render();},130);})();</script>
+</div>
+<!--
+  Amostra fake PMO. Payload na mesma codificação da medida: segmentos ¤ (TA·RS·SS·OH·AP·FG·portfólios·AGG·projetos),
+  dicionários com índice de 1 char, 13 flags por projeto e atividades por § / ¦. Agregados (AGG) calculados sobre todos os projetos.
+-->
+</body>
+</html>
