@@ -709,14 +709,6 @@ def test_vinculo_cliente_com_perfil_de_gestor_abre_configuracoes(sessao_das_rota
 ROTAS_PUBLICAS_POR_NATUREZA = {"health"}
 
 
-@pytest.fixture(scope="module")
-def funcoes_registradas() -> list:
-    """The functions the Azure Functions host would index; ``get_functions`` runs once per process."""
-    import function_app
-
-    return function_app.app.get_functions()
-
-
 def test_toda_rota_registrada_declara_a_politica_de_acesso(funcoes_registradas: list) -> None:
     sem_politica = [
         funcao.get_function_name()

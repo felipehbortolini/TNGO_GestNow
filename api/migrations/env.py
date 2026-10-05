@@ -24,7 +24,9 @@ from src.core import database
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Running the migrations in-process (tests, prepare_database) must not silence the
+    # application loggers that were created before this file ran.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 database.import_all_models()
 target_metadata = database.Base.metadata

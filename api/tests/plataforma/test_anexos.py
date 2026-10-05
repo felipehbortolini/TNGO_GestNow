@@ -1347,15 +1347,15 @@ def test_download_com_identificador_mal_formado_e_422_em_texto(identificador: st
 # ── Routes: the contract ─────────────────────────────────────────────────
 
 
-def test_as_rotas_de_anexos_estao_registradas_com_os_caminhos_e_os_metodos_da_spec() -> None:
-    import function_app
-
+def test_as_rotas_de_anexos_estao_registradas_com_os_caminhos_e_os_metodos_da_spec(
+    funcoes_registradas: list,
+) -> None:
     rotas = {
         funcao.get_function_name(): (
             funcao.get_trigger().route,
             [metodo.value for metodo in funcao.get_trigger().methods],
         )
-        for funcao in function_app.app.get_functions()
+        for funcao in funcoes_registradas
     }
 
     assert rotas["list_attachments"] == ("anexos", ["GET"])
@@ -1363,10 +1363,10 @@ def test_as_rotas_de_anexos_estao_registradas_com_os_caminhos_e_os_metodos_da_sp
     assert rotas["download_attachment"] == ("anexos/{anexo_id}/baixar", ["GET"])
 
 
-def test_o_download_declara_so_a_identidade_e_a_permissao_vem_do_registro_de_origem() -> None:
-    import function_app
-
-    rotas = {funcao.get_function_name(): funcao for funcao in function_app.app.get_functions()}
+def test_o_download_declara_so_a_identidade_e_a_permissao_vem_do_registro_de_origem(
+    funcoes_registradas: list,
+) -> None:
+    rotas = {funcao.get_function_name(): funcao for funcao in funcoes_registradas}
 
     declarado = rotas["download_attachment"].get_user_function().__dict__["access"]
 

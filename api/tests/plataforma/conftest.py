@@ -107,3 +107,15 @@ def sdk_do_azure(monkeypatch: pytest.MonkeyPatch) -> SdkFalso:
     monkeypatch.setitem(sys.modules, "azure.storage", pacote)
     monkeypatch.setitem(sys.modules, "azure.storage.blob", modulo)
     return estado
+
+
+@pytest.fixture(scope="session")
+def funcoes_registradas() -> list:
+    """The functions the Azure Functions host would index.
+
+    ``FunctionApp.get_functions`` is not idempotent (a second call raises for repeated
+    names), so every test that inspects the registered routes shares this one call.
+    """
+    import function_app
+
+    return function_app.app.get_functions()
