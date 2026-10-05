@@ -76,8 +76,12 @@
   transition: background .15s;
 }
 .sidebar__item:hover { background: var(--surface-hover); }
-.sidebar__item.is-active { background: var(--surface-hover); }
+/* Item ativo: fundo, filete verde à esquerda e ícone cheio. No trilho o rótulo
+   some, então o destaque não pode depender do peso da letra. */
+.sidebar__item.is-active { background: var(--surface-hover); box-shadow: inset 3px 0 0 var(--verde-500); }
 .sidebar__item.is-active .sidebar__item-label { font-weight: 500; }
+.sidebar__item.is-active .sidebar__item-icon { background: var(--brand-primary); color: var(--branco); }
+.sidebar__item-num { margin-right: 6px; font-weight: 600; color: var(--text-dimmed); font-variant-numeric: tabular-nums; }
 
 .sidebar__item-icon {
   width: 28px; height: 28px; flex: none;
@@ -129,6 +133,108 @@
 @keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .content { flex: 1; min-width: 0; overflow-y: auto; }
+/* O shell leva o foco ao conteúdo depois de trocar de tela; a área não é um
+   controle, então o anel de foco não informa nada. */
+.content:focus { outline: none; }
+
+/* ============================================================
+   Coluna de conteúdo e barra do módulo (D2)
+   A barra de abas fica fora do <main id="app-shell">, que cada tela
+   substitui por inteiro; assim ela sobrevive à troca de tela e vem da
+   mesma resposta de /api/nav que a barra lateral.
+   ============================================================ */
+.app__coluna { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.module-tabs { flex: none; background: var(--branco); border-bottom: 1px solid var(--borda); }
+.module-tabs[hidden] { display: none; }
+.module-tabs__in {
+  max-width: 1280px; margin: 0 auto; padding: 0 32px;
+  display: flex; align-items: center; min-height: 48px; overflow-x: auto;
+}
+.module-tabs .tabs { border-bottom: 0; flex: none; }
+.module-tabs .tab { display: inline-block; padding: 14px 16px; text-decoration: none; white-space: nowrap; }
+.module-tabs .tab.is-active::after { bottom: 0; }
+.module-tabs__voltar { gap: 4px; }
+/* Segunda linha: as subabas do grupo aberto (Programação Semanal). */
+.module-tabs__sub { background: var(--neutro-50); border-top: 1px solid var(--neutro-100); }
+.module-tabs__sub .module-tabs__in { min-height: 40px; }
+.module-tabs__sub .tab { padding: 10px 14px; font-size: 12px; }
+
+/* ============================================================
+   Marca, recolher e seletor de escopo da barra lateral (D2, D8)
+   ============================================================ */
+.sidebar__recolher { margin-left: auto; }
+.sidebar__recolher-icone { display: inline-flex; }
+.sidebar__recolher-icone--expandir { display: none; }
+.sidebar__logo { display: inline-flex; }
+.sidebar__logo--atomo { display: none; }
+.sidebar__logo-link .sidebar__logo--atomo svg { width: 28px; }
+
+.sidebar__escopo { flex: none; padding: 12px 16px; }
+.sidebar__escopo-rotulo {
+  display: block; margin-bottom: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: .4px;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.escopo { position: relative; }
+.sidebar__escopo .escopo__seletor { padding: 8px 36px 8px 12px; font-size: 13px; text-overflow: ellipsis; }
+.escopo__icone { display: none; }
+
+/* Escolha do projeto da inclusão no Portfólio (fragmento /api/escopo/projetos) */
+.escopo-escolha__link {
+  display: flex; align-items: center; gap: 12px; flex: 1;
+  color: var(--text-primary); text-decoration: none;
+}
+
+/* ============================================================
+   Trilho de ícones (D2)
+   A barra nunca some. Acima de 1100 px o botão a recolhe até aqui; abaixo
+   disso ela já nasce assim. A classe fica no <html>, posta por um script no
+   <head> antes da primeira pintura (sem salto) e mantida por ds/shell.js.
+   O nome de cada item sai do aria-label do link e aparece na dica.
+   ============================================================ */
+.sidebar-trilho .sidebar { width: 64px; }
+.sidebar-trilho .sidebar__brand { flex-direction: column; gap: 8px; padding: 16px 0 8px; }
+.sidebar-trilho .sidebar__recolher { margin-left: 0; }
+.sidebar-trilho .sidebar__recolher-icone--recolher { display: none; }
+.sidebar-trilho .sidebar__recolher-icone--expandir { display: inline-flex; }
+.sidebar-trilho .sidebar__logo--completa { display: none; }
+.sidebar-trilho .sidebar__logo--atomo { display: inline-flex; }
+.sidebar-trilho .sidebar__section-label,
+.sidebar-trilho .sidebar__item-label,
+.sidebar-trilho .sidebar__escopo-rotulo,
+.sidebar-trilho .sidebar__user .userchip__info { display: none; }
+.sidebar-trilho .sidebar__item { justify-content: center; gap: 0; padding: 12px 0; }
+
+/* O seletor vira um quadrado com o ícone; o <select> de verdade fica por cima,
+   transparente, para o clique abrir a lista nativa e o teclado seguir valendo. */
+.sidebar-trilho .sidebar__escopo { padding: 8px 0; }
+.sidebar-trilho .escopo { width: 40px; height: 40px; margin: 0 auto; }
+.sidebar-trilho .escopo__icone {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--verde-soft); color: var(--brand-title); pointer-events: none;
+}
+.sidebar-trilho .sidebar__escopo .escopo__seletor {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  padding: 0; opacity: 0; cursor: pointer;
+}
+.sidebar-trilho .escopo:focus-within .escopo__icone { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+/* Saúde da API vira um ponto (o texto segue lá, para o leitor de tela); o card
+   do usuário vira o avatar com o botão de sair embaixo. */
+.sidebar-trilho .sidebar__saude { display: flex; justify-content: center; padding: 12px 0 0; }
+.sidebar-trilho .sidebar__saude .pill {
+  width: 12px; height: 12px; padding: 0; overflow: hidden;
+  font-size: 0; background: currentColor;
+}
+.sidebar-trilho .sidebar__user { flex-direction: column; justify-content: center; gap: 8px; padding: 12px 0; cursor: default; }
+.sidebar-trilho .sidebar__user-chev { margin-left: 0; }
+
+@media (max-width: 1100px) {
+  /* Abaixo de 1100 px a barra já é trilho: não há o que recolher. */
+  .sidebar__recolher { display: none; }
+}
 
 /* Foco visível em toda a navegação */
 .sidebar__item:focus-visible,
@@ -208,6 +314,17 @@
   .page { padding: 24px 16px 40px; }
   .home { padding: 48px 24px; }
   .home__bg { opacity: .2; }
+  .module-tabs__in { padding: 0 16px; }
+}
+
+/* ---------- Impressão ----------
+   Única situação em que a navegação não aparece (D2): no papel ela não tem
+   função. O conteúdo passa a fluir pela página em vez de rolar dentro dela. */
+@media print {
+  .skip-link, .sidebar, .module-tabs { display: none; }
+  .app { display: block; height: auto; overflow: visible; }
+  .app__coluna { display: block; }
+  .content { overflow: visible; }
 }
 /* O bloco de movimento reduzido para .modal/.modal-backdrop foi para
    tokens.css, junto das classes que ele afeta. */

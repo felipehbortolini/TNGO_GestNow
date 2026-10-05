@@ -277,3 +277,62 @@ TN.fmtMesAno(8, 2026)      // Agosto de 2026
 TN.avatar("Ana Souza", 38) // markup do avatar com iniciais
 TN.pill("Ativo", "ok")     // markup da pill
 ```
+
+---
+
+## Dica (tooltip) — `ds/dica.js` e `.dica`
+
+Balão de texto curto que aparece ao passar o mouse **e ao focar pelo teclado**.
+O Padrão só tinha o atributo `title`, que demora, não tem estilo e não aparece
+no foco; a dica o substitui onde o texto importa.
+
+```html
+<!-- em qualquer elemento -->
+<a class="tab" href="…" data-dica="Cronograma de desembolso">Desembolso</a>
+
+<!-- só enquanto a barra lateral é trilho de ícones (o rótulo some) -->
+<a class="sidebar__item" href="…" aria-label="02 Planejamento"
+   data-dica-trilho="02 Planejamento">…</a>
+```
+
+Quem tem só ícone continua precisando de `aria-label`: a dica é auxílio visual,
+não nome acessível. Do JavaScript: `TN.dica.mostrar([{ titulo, texto }], retangulo, "baixo")`
+e `TN.dica.esconder()`.
+
+### Siglas
+
+Toda sigla do glossário (SPI, CPI, VME, RNC, TF, `S39`...) ganha a dica ao passar
+o mouse, em qualquer tela, sem marcar nada no HTML: a palavra sob o ponteiro é
+achada pela posição e o significado vem do `CONTEXT.md` (`/api/glossario`).
+Texto dentro de gráfico e de lista de seleção não tem a dica; `data-sem-dica` a
+desliga num trecho. Sigla nova: o termo no `CONTEXT.md` e
+`api/.venv/bin/python scripts/generate_glossary.py`.
+
+## Inclusão no Portfólio — `data-tn-incluir`
+
+Todo registro pertence a um projeto. No Portfólio, o botão de inclusão precisa
+pedir o projeto antes de abrir o formulário:
+
+```html
+<button type="button" class="btn btn--primary" data-tn-incluir="nova" @click="abrirFormulario()">
+  Nova ação
+</button>
+```
+
+No Portfólio o shell intercepta o clique, abre a escolha do projeto e reabre a
+tela no projeto com `?acao=nova`; no projeto o botão segue o `@click` normal.
+A tela abre o formulário no `iniciar(raiz)`:
+
+```js
+if (TN.escopo.acaoPendente() === "nova") abrirFormulario();
+```
+
+`acaoPendente()` devolve a ação e a tira do endereço, para recarregar a tela
+não reabrir o formulário. No servidor, `Scope.require_project()` recusa o
+registro sem projeto.
+
+## Link de tela — `data-tn-tela`
+
+`<a href="/central-acoes/ata?codigo=TN-2026-0028" data-tn-tela>` troca a view sem
+recarregar o documento e mantém o escopo. O endereço é `/<modulo>/<tela>` (com
+hífen no lugar do `_`), como na lista de navegação.

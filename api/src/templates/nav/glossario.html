@@ -1,0 +1,24 @@
+{% extends "base_fragment.html" %}
+{#
+  Glossário de siglas para a dica do shell (HU-018). Vem do CONTEXT.md, a fonte
+  única, pelo arquivo glossario.json; o shell lê os <dt>/<dd> daqui e não mostra
+  nada: a raiz fica oculta. Dado por data-*, nunca por <script> no fragmento.
+
+  data-sigla    uma sigla (SPI tem duas entradas, de custo e físico);
+  data-padrao   uma notação explicada por um termo (semana: S39).
+  Espera: glossario (core.glossary.Glossary).
+#}
+{% block root %}
+<div id="{{ target_id }}" hidden>
+  <dl>
+    {% for item in glossario.abbreviations %}
+    <dt data-sigla="{{ item.abbreviation }}">{{ item.term }}</dt>
+    <dd>{{ item.meaning }}</dd>
+    {% endfor %}
+    {% for item in glossario.patterns %}
+    <dt data-padrao="{{ item.kind }}">{{ item.term }}</dt>
+    <dd>{{ item.meaning }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+{% endblock %}

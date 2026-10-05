@@ -23,6 +23,10 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | Integração entre módulos | `service.py` de quem inicia e fachada do módulo dono em `api/src/modulos/<modulo-dono>/service.py`; veja também a issue de integração ligada por último conforme D9 |
 | Envio de e-mail ou o aviso "simulado" | `api/src/core/notification.py` (porta e envio simulado) e `api/src/core/graph_mail.py` (Microsoft Graph); as variáveis `GESTNOW_ENVIO_EMAIL` e `GESTNOW_GRAPH_*` estão em `api/README.md` |
 | Tradução PT/EN | Catálogo futuro `api/src/core/translations.py` (ISSUE-087/088) e texto-fonte nos fragmentos `api/src/templates/<modulo>/`; não coloque tradução de interface em JavaScript de página |
+| Item de menu, aba, tela de detalhe ou Voltar | `api/src/core/navegacao.json` (lista única de dois níveis); regra do que a barra lateral e as abas mostram em `api/src/core/navigation_view.py` |
+| Barra lateral, trilho de ícones, endereço da tela ou troca de tela | `app/ds/shell.js` e `app/ds/shell.css`; fragmento em `api/src/templates/nav/` e rota em `api/src/blueprints/nav.py` |
+| Escopo (Portfólio ou projeto) e cadastro no Portfólio | `api/src/core/scope.py` (resolução por URL, cookie e padrão; `Scope.require_project`); botão com `data-tn-incluir` e `TN.escopo.acaoPendente()` em `app/ds/shell.js` |
+| Dica de sigla ou do trilho | Significado: o termo em `CONTEXT.md`, depois `api/.venv/bin/python scripts/generate_glossary.py`; comportamento e estilo: `app/ds/dica.js` e `.dica` em `app/ds/tokens.css` |
 
 `<modulo>` usa o identificador em snake_case abaixo. Rotas públicas usam português minúsculo com hífen, sob `/api/` (ex.: `central_acoes` → `/api/central-acoes/`).
 

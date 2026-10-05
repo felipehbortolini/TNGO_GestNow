@@ -23,6 +23,8 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Design System | `app/ds/` | `tokens.css`, `shell.css`, `patterns.css`, ícones, UI e assets |
 | Biblioteca de gráficos | `app/ds/graficos/` | Destino dos visuais portados nas ISSUE-014 a ISSUE-016 |
 | Alpine.js e Alpine AJAX | `app/lib/` | Bibliotecas vendorizadas; não editar |
+| Barra lateral, trilho, roteador e escopo no navegador | `app/ds/shell.js` e `app/ds/shell.css` | Trilho de ícones (ISSUE-009), troca de tela por `/<modulo>/<tela>?projeto=`, `TN.escopo` e o mecanismo de inclusão no Portfólio |
+| Dica (tooltip) e hover das siglas | `app/ds/dica.js` e `.dica` em `app/ds/tokens.css` | `data-dica`, `data-dica-trilho` e o significado de sigla lido de `#glossario` |
 
 ## Backend
 
@@ -42,7 +44,11 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Modelos da plataforma | `api/src/core/models.py` | Cliente, sequência, auditoria, anexo e notificação |
 | Migrações Alembic | `api/migrations/` | Uma revisão por fatia de módulo, a partir de `0001_plataforma` |
 | Fragmentos de domínio | `api/src/templates/<modulo>/` | Jinja2 devolvido pelas rotas do módulo |
-| Fragmento da sidebar | `api/src/templates/nav/sidebar.html` | Navegação global do shell |
+| Fragmento da sidebar | `api/src/templates/nav/sidebar.html` | Navegação global do shell; partial da barra lateral, irmã de `abas.html` (abas e Voltar) na resposta multi-alvo de `navegacao.html` |
+| Lista de navegação | `api/src/core/navegacao.json`, `navigation.py` e `navigation_view.py` | A lista única de dois níveis (ISSUE-009), as buscas por endereço e o que a barra lateral e as abas mostram |
+| Escopo (Portfólio ou projeto) | `api/src/core/scope.py` | Resolução por URL, cookie e padrão, o cookie `gestnow_projeto` e `Scope.require_project` |
+| Glossário de siglas | `api/src/core/glossary.py` e `glossario.json` | Extraído do `CONTEXT.md` por `scripts/generate_glossary.py`; o teste `test_glossario.py` confere a sincronia |
+| Rotas do shell | `api/src/blueprints/nav.py` | `/api/nav`, `/api/escopo/projetos` e `/api/glossario` |
 | Testes | `api/tests/<modulo>/` e `api/tests/conftest.py` | Testes por módulo; o conftest recria `gestnow_teste` e isola cada teste numa transação |
 | Renderização de fragmentos | `api/src/core/responses.py` | `AlpineAjaxResponse` e gate Alpine AJAX |
 

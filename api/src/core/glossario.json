@@ -1,0 +1,136 @@
+{
+  "siglas": [
+    {
+      "sigla": "EAP",
+      "termo": "EAP",
+      "significado": "Estrutura Analítica do Projeto. Decompõe o escopo em áreas, subáreas e pacotes com pesos; suas medições são a única fonte do avanço físico do projeto."
+    },
+    {
+      "sigla": "EAC",
+      "termo": "EAC",
+      "significado": "Estrutura Analítica de Custos. Decompõe o orçamento em pacotes e itens. Neste produto a sigla nunca significa Estimate at Completion."
+    },
+    {
+      "sigla": "SM",
+      "termo": "SM",
+      "significado": "Solicitação de Mudança. Registro formal para analisar, decidir e incorporar uma mudança de escopo, prazo, custo ou contrato; linha de base só muda pela SM aprovada."
+    },
+    {
+      "sigla": "MAS",
+      "termo": "MAS",
+      "significado": "Mapa de Suprimentos. Visão calculada dos marcos de aquisição, fabricação e entrega dos pacotes de compra; não é um cadastro separado."
+    },
+    {
+      "sigla": "ROS",
+      "termo": "ROS",
+      "significado": "Required On Site. Data em que o item de compra é necessário no local do projeto. A folga compara essa data com a previsão de entrega."
+    },
+    {
+      "sigla": "VME",
+      "termo": "VME",
+      "significado": "Valor Monetário Esperado de um risco: probabilidade média da faixa multiplicada pelo impacto em custo, em centavos."
+    },
+    {
+      "sigla": "RNC",
+      "termo": "RNC",
+      "significado": "Registro de Não Conformidade. Descreve um requisito não atendido, sua contenção, causa, disposição, ação corretiva e verificação de eficácia."
+    },
+    {
+      "sigla": "ITP",
+      "termo": "ITP",
+      "significado": "Inspection and Test Plan, ou plano de inspeção e testes. Declara pontos de espera (H), testemunho (W) e revisão documental (R) antes da execução/aceitação."
+    },
+    {
+      "sigla": "PPC",
+      "termo": "PPC",
+      "significado": "Percentual do Plano Concluído: realizado dividido pelo previsto de uma atividade. É específico da atividade; não é o indicador consolidado da semana."
+    },
+    {
+      "sigla": "FP",
+      "termo": "FP",
+      "significado": "Fator de Produtividade: horas-homem apropriadas divididas pelas horas ganhas; 1,00 corresponde ao índice da proposta."
+    },
+    {
+      "sigla": "CP",
+      "termo": "CP",
+      "significado": "Capacidade Produtiva: horas produtivas do dia, calculadas a partir das execuções dos turnos."
+    },
+    {
+      "sigla": "EV",
+      "termo": "EV",
+      "significado": "Valor Agregado"
+    },
+    {
+      "sigla": "PV",
+      "termo": "PV",
+      "significado": "Valor Planejado"
+    },
+    {
+      "sigla": "AC",
+      "termo": "AC",
+      "significado": "Custo Real. São valores acumulados na data de corte."
+    },
+    {
+      "sigla": "CPI",
+      "termo": "CPI",
+      "significado": "Índice de desempenho de custo, EV dividido por AC."
+    },
+    {
+      "sigla": "SPI",
+      "termo": "SPI de custo",
+      "significado": "Índice de prazo do valor agregado, EV dividido por PV."
+    },
+    {
+      "sigla": "SPI",
+      "termo": "SPI físico",
+      "significado": "Avanço real da EAP dividido pelo avanço previsto da EAP. O qualificador é obrigatório para não confundir os dois domínios."
+    },
+    {
+      "sigla": "BAC",
+      "termo": "BAC",
+      "significado": "Orçamento no término."
+    },
+    {
+      "sigla": "VAC",
+      "termo": "VAC",
+      "significado": "BAC menos Projeção no término; valor negativo indica projeção acima do orçamento."
+    },
+    {
+      "sigla": "HHT",
+      "termo": "HHT",
+      "significado": "Horas-Homem Trabalhadas, base para as taxas de segurança."
+    },
+    {
+      "sigla": "TF",
+      "termo": "TF",
+      "significado": "Taxa de frequência com afastamento."
+    },
+    {
+      "sigla": "TRIF",
+      "termo": "TRIF",
+      "significado": "Taxa de lesões registráveis."
+    },
+    {
+      "sigla": "TG",
+      "termo": "TG",
+      "significado": "Taxa de gravidade por dias perdidos/debitados. A base de normalização é um parâmetro."
+    },
+    {
+      "sigla": "HSE",
+      "termo": "HSE",
+      "significado": "Saúde, Segurança e Meio Ambiente (Health, Safety and Environment)."
+    },
+    {
+      "sigla": "HiPo",
+      "termo": "HiPo",
+      "significado": "Ocorrência de alto potencial, classificada pela consequência potencial além da gravidade real."
+    }
+  ],
+  "padroes": [
+    {
+      "padrao": "semana",
+      "termo": "Semana ISO",
+      "significado": "Período de segunda a domingo. A semana 1 contém a primeira quinta-feira do ano; o calendário de semanas tem uma definição única na plataforma."
+    }
+  ]
+}

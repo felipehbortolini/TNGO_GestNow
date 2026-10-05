@@ -37,6 +37,8 @@ DEMO_USER = {
 ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpResponse]]] = [
     ("GET", re.compile(r"^/api/health$"), health.health),
     ("GET", re.compile(r"^/api/nav$"), nav.main_nav),
+    ("GET", re.compile(r"^/api/escopo/projetos$"), nav.choose_project),
+    ("GET", re.compile(r"^/api/glossario$"), nav.glossary),
 ]
 
 

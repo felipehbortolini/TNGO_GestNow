@@ -43,7 +43,7 @@ leitura. Detalhes e exemplos em [CLEAN-CODE.md](CLEAN-CODE.md).
 
 - [ ] A view está em `app/_views/`, e a raiz é `<main id="app-shell" class="content">`
 - [ ] O fragmento não tem `<html>`, `<head>`, `<body>`, `<link>`, `<style>` nem `<script src>`
-- [ ] O item de navegação foi acrescentado em `ITENS_NAV`, em `api/src/blueprints/nav.py`
+- [ ] A tela foi acrescentada na lista de navegação, `api/src/core/navegacao.json` (módulo, id, título e, se for detalhe, a lista de origem)
 - [ ] O ícone escolhido existe em `app/ds/icons.js`
 - [ ] Endpoint novo? Está atrás de `is_alpine_request()` e responde por `AlpineAjaxResponse`
 - [ ] Template Jinja2 novo? Estende `base_fragment.html` e usa `{{ target_id }}` — nunca id fixo

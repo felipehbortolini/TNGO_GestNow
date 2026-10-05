@@ -511,6 +511,23 @@ textarea.input { resize: vertical; min-height: 80px; }
 .empty :is(h1, h2, h3, h4, h5, h6) { margin: 0; color: var(--brand-title); }
 .empty p { margin: 0; font-size: 13px; max-width: 360px; line-height: 1.5; }
 
+/* ---------- Dica (tooltip) ----------
+   Balão de texto curto montado por ds/dica.js: nome do item da barra lateral
+   quando ela é trilho de ícones e significado de sigla. O Padrão não tinha
+   componente de dica (só o atributo title, que não aparece no foco do
+   teclado nem tem estilo). Fica acima do modal e do toast, e não recebe o
+   ponteiro, para nunca esconder o que o originou. O JS posiciona. */
+.dica {
+  position: fixed; z-index: 300; max-width: 320px;
+  padding: 8px 12px; border-radius: var(--r-md);
+  background: var(--neutro-800); color: var(--branco);
+  font-size: 12px; line-height: 1.5; box-shadow: var(--shadow-hover);
+  pointer-events: none;
+}
+.dica__item + .dica__item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--neutro-600); }
+.dica__titulo { font-weight: 600; }
+.dica__texto { color: var(--neutro-200); }
+
 /* ---------- Responsivo ---------- */
 @media (max-width: 1100px) {
   .fgrid { grid-template-columns: 1fr; }

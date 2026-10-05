@@ -15,6 +15,7 @@ type and the value as text (lists use the index in the path).
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -24,7 +25,7 @@ from sqlalchemy.orm import Session
 from src.core import recording
 from src.core.errors import InvalidDataError
 from src.modulos.configuracoes import validation
-from src.modulos.configuracoes.models import ParameterValue, ParameterVersion
+from src.modulos.configuracoes.models import ParameterValue, ParameterVersion, Project
 
 INITIAL_JUSTIFICATION = "Versão inicial"
 
@@ -301,6 +302,29 @@ def current_parameters(session: Session, *, reference_date: date) -> dict[str, d
     return {
         group: _restore(rows_by_version.get(version.id, [])) for group, version in versions.items()
     }
+
+
+@dataclass(frozen=True)
+class ProjectSummary:
+    """The fields of a project that other modules and the shell may read: identity and label."""
+
+    id: int
+    code: str
+    name: str
+
+
+def list_projects(session: Session) -> list[ProjectSummary]:
+    """Every project of the portfolio, ordered by code: the list of the scope selector (D8).
+
+    The register belongs to Configurações (D5), so the platform layer that
+    resolves the scope and the shell that renders the selector read it here
+    and never the table.
+    """
+    statement = select(Project.id, Project.code, Project.name).order_by(Project.code)
+    return [
+        ProjectSummary(id=row.id, code=row.code, name=row.name)
+        for row in session.execute(statement)
+    ]
 
 
 # ── Gravação ─────────────────────────────────────────────────────────────

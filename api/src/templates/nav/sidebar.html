@@ -1,113 +1,95 @@
-{% extends "base_fragment.html" %}
 {#
-  Sidebar do padrão Timenow — 300px, marca + itens de 52px.
-  Substitui a navbar horizontal do template original (decisão D1).
+  Partial da barra lateral (D2): marca, seletor de escopo, os módulos da lista
+  única de navegação, saúde da API e usuário. Raiz <aside id="main-nav">.
 
-  Continua sendo fragmento de servidor, como antes: quem é dono dos links
-  e do card de usuário é o backend, então dá para variar a navegação por
-  perfil sem tocar no shell.
+  A barra nunca é ocultada. Acima de 1100 px o botão a recolhe num trilho de
+  ícones; abaixo disso ela já nasce trilho. No trilho o rótulo some, o link
+  guarda o nome em aria-label e a dica (data-dica-trilho) mostra o nome ao
+  passar o mouse ou focar.
 
-  Sobrescreve {% block root %} porque a raiz precisa ser <aside>, não a
-  <div> padrão de base_fragment.html.
+  O servidor decide o que está ativo e para onde o seletor de escopo vai; o
+  roteador do shell (ds/shell.js) só lê os data-* da raiz.
+  Espera: nav (core.navigation_view.NavigationView).
 #}
-{% block root %}
 <aside
-  id="{{ target_id }}"
+  id="main-nav"
   class="sidebar"
   aria-label="Navegação principal"
-  x-data="{
-    rota: location.pathname,
-    usuario: null,
-    saude: '…',
-    async init() {
-      /* ícones vêm de ds/icons.js — fonte única, sem SVG duplicado aqui */
-      this.$el.querySelectorAll('[data-icone]').forEach(function (el) {
-        el.innerHTML = window.icon(el.dataset.icone, 16);
-      });
-      var marca = this.$el.querySelector('.sidebar__logo-link');
-      if (marca && window.LOGO_FULL) marca.innerHTML = window.LOGO_FULL;
-
-      try {
-        const r = await fetch('/.auth/me');
-        if (r.ok) {
-          const dados = await r.json();
-          this.usuario = dados.clientPrincipal || null;
-        }
-      } catch (e) { /* sem sessão */ }
-
-      try {
-        const h = await fetch('/api/health');
-        const d = await h.json();
-        this.saude = d.status;
-      } catch (e) { this.saude = 'offline'; }
-    },
-    get nome() {
-      if (!this.usuario) return '';
-      const c = this.usuario.claims?.find(c => c.typ === 'name');
-      return c?.val || this.usuario.userDetails || '';
-    },
-    get email() {
-      return this.usuario ? (this.usuario.userDetails || '') : '';
-    },
-    get iniciais() {
-      const n = (this.nome || '?').trim().split(/\s+/);
-      return (n[0][0] + (n.length > 1 ? n[n.length - 1][0] : '')).toUpperCase();
-    },
-    /* Na carga inicial a rota é '/' ou '/index.html', enquanto o item de
-     início aponta para '/_views/inicio/home.html'. Sem esta equivalência,
-       nenhum item nasce marcado e o aria-current não aparece. */
-    ativo(href) {
-      var atual = this.rota;
-      if (atual === '/' || atual === '/index.html') atual = '{{ itens[0].href if itens else "" }}';
-      return atual === href;
-    }
-  }"
+  x-data="sidebar"
+  @tn-trilho.window="trilho = $event.detail"
+  data-escopo="{{ nav.scope_parameter }}"
+  data-caminho="{{ nav.current_path or '' }}"
+  data-tela="{{ nav.current_view or '' }}"
+  data-titulo="{{ nav.page_title }}"
 >
-{% block fragment %}
   <div class="sidebar__brand">
     <a
-      href="/_views/inicio/home.html"
-      x-target="app-shell"
-      @click="rota = '/_views/inicio/home.html'"
+      href="{{ nav.home_url }}"
+      data-tn-tela
       class="sidebar__logo-link"
-      title="Início"
-      aria-label="Timenow GestNow — Início"
+      aria-label="Timenow GestNow, Início"
+      data-dica-trilho="Início"
     ></a>
+    <button
+      type="button"
+      class="iconbtn sidebar__recolher"
+      @click="alternarTrilho()"
+      :aria-label="trilho ? 'Expandir a barra lateral' : 'Recolher a barra lateral'"
+    >
+      <span class="sidebar__recolher-icone sidebar__recolher-icone--recolher" x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
+      <span class="sidebar__recolher-icone sidebar__recolher-icone--expandir" x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
+    </button>
   </div>
 
   <hr class="sidebar__divisor" />
 
-  <p class="sidebar__section-label">{{ secao | default("Aplicação") }}</p>
+  <div class="sidebar__escopo" data-destino="{{ nav.scope_destination }}">
+    <label class="sidebar__escopo-rotulo" for="escopo-seletor">Escopo</label>
+    <div class="escopo">
+      <span class="escopo__icone" x-init="$el.innerHTML = window.icon('{{ nav.scope_icon }}', 18)" aria-hidden="true"></span>
+      <select
+        id="escopo-seletor"
+        class="input escopo__seletor"
+        aria-label="Escopo dos dados"
+        data-dica-trilho="Escopo: {{ nav.scope_label }}"
+        @change="trocarEscopo($event.target.value)"
+      >
+        {% for opcao in nav.scope_options %}
+        <option value="{{ opcao.value }}"{% if opcao.selected %} selected{% endif %}>{{ opcao.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
 
-  <nav class="sidebar__nav">
-    {% for item in itens %}
+  <p class="sidebar__section-label">Módulos</p>
+
+  <nav class="sidebar__nav" aria-label="Módulos">
+    {% for modulo in nav.modules %}
     <a
-      class="sidebar__item"
-      href="{{ item.href }}"
-      x-target="app-shell"
-      x-target.away="_top"
-      @click="rota = '{{ item.href }}'"
-      :class="ativo('{{ item.href }}') ? 'sidebar__item is-active' : 'sidebar__item'"
-      :aria-current="ativo('{{ item.href }}') ? 'page' : false"
+      class="sidebar__item{% if modulo.active %} is-active{% endif %}"
+      href="{{ modulo.url }}"
+      data-tn-tela
+      aria-label="{{ modulo.label }}"
+      data-dica-trilho="{{ modulo.label }}"
+      {% if modulo.active %}aria-current="true"{% endif %}
     >
-      <span class="sidebar__item-icon" data-icone="{{ item.icone }}" aria-hidden="true"></span>
-      <span class="sidebar__item-label">{{ item.rotulo }}</span>
+      <span class="sidebar__item-icon" x-init="$el.innerHTML = window.icon('{{ modulo.icon }}', 16)" aria-hidden="true"></span>
+      <span class="sidebar__item-label">
+        {% if modulo.number %}<span class="sidebar__item-num">{{ modulo.number }}</span>{% endif %}{{ modulo.title }}
+      </span>
     </a>
     {% endfor %}
   </nav>
 
-  <!-- Indicador de saúde da API — preservado do template original,
-       reposicionado para o rodapé da sidebar.
-
-       role="status" porque o texto muda sozinho: se a API cair, quem usa
-       leitor de tela não tem como perceber a troca de "API online" para
-       "API offline" sem um anúncio. A região vive vazia até o x-text
-       preencher, que é a ordem que dispara o anúncio. -->
+  <!-- Indicador de saúde da API, preservado do template original. role="status"
+       porque o texto muda sozinho e quem usa leitor de tela precisa ouvir. No
+       trilho vira um ponto colorido; o texto continua para o leitor de tela. -->
   <div class="sidebar__saude">
     <span
       class="pill"
       role="status"
       :class="saude === 'ok' ? 'pill--ok' : 'pill--erro'"
+      :data-dica-trilho="'API ' + (saude === 'ok' ? 'online' : saude)"
       x-text="saude === 'ok' ? 'API online' : 'API ' + saude"
     ></span>
   </div>
@@ -120,7 +102,7 @@
 
   <template x-if="usuario">
     <div class="sidebar__user">
-      <div class="avatar" x-text="iniciais"></div>
+      <div class="avatar" x-text="iniciais" :data-dica-trilho="nome"></div>
       <div class="userchip__info">
         <div class="userchip__name" x-text="nome"></div>
         <div class="userchip__role" :title="email" x-text="email"></div>
@@ -129,11 +111,9 @@
         href="/.auth/logout"
         class="iconbtn sidebar__user-chev"
         aria-label="Sair"
-        title="Sair"
+        data-dica-trilho="Sair"
         x-init="$el.innerHTML = window.icon('signout', 16)"
       ></a>
     </div>
   </template>
-{% endblock %}
 </aside>
-{% endblock %}

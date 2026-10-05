@@ -21,8 +21,26 @@
     <link rel="stylesheet" href="/ds/shell.css" />
     <link rel="stylesheet" href="/ds/patterns.css" />
 
+    <!-- Barra lateral (D2): trilho de ícones em tela estreita (até 1100 px) ou
+         quando a pessoa a recolheu. A classe precisa valer antes da primeira
+         pintura, senão a barra completa aparece e salta para o trilho; a
+         mesma regra vive em ds/shell.js (aplicarTrilho). -->
+    <script>
+      (function () {
+        var recolhida = false;
+        try {
+          recolhida = localStorage.getItem("gestnow.sidebar.recolhida") === "1";
+        } catch (e) { /* armazenamento bloqueado: vale o padrão */ }
+        if (window.matchMedia("(max-width: 1100px)").matches || recolhida) {
+          document.documentElement.classList.add("sidebar-trilho");
+        }
+      })();
+    </script>
+
     <script defer src="/ds/icons.js"></script>
     <script defer src="/ds/ui.js"></script>
+    <script defer src="/ds/dica.js"></script>
+    <script defer src="/ds/shell.js"></script>
     <script defer src="/lib/alpine-ajax-0.12.7.min.js"></script>
     <script defer src="/lib/alpinejs-3.14.8.min.js"></script>
   </head>
@@ -30,69 +48,44 @@
   <body>
     <a href="#app-shell" class="skip-link">Pular para o conteúdo</a>
 
-    <div class="app">
-      <!-- ============================================================
-           Sidebar — servida por /api/nav depois da autenticação.
-           O servidor é dono dos links e do card de usuário, então dá
-           para variar a navegação por perfil sem tocar no shell.
-           Enquanto não chega, mostra esqueleto.
-           ============================================================ -->
+    <!-- ============================================================
+         O componente "shell" (ds/shell.js) é o roteador: confere a sessão,
+         pede /api/nav e abre a view do endereço. Sequência de boot:
+           1. confere o sentinela do Design System (script no fim do body)
+           2. consulta /.auth/me
+           3. sem sessão  → carrega /login.html
+           4. com sessão  → revela a sidebar, carrega o glossário das siglas
+                            e abre a tela do endereço (ou o Início)
+         ============================================================ -->
+    <div class="app" x-data="shell" @ajax:redirect="window.location.reload()">
+      <!-- Sidebar — servida por /api/nav depois da autenticação. O servidor é
+           dono dos links, do escopo e do card de usuário, então dá para variar
+           a navegação por perfil sem tocar no shell. Enquanto não chega,
+           mostra esqueleto. Nunca é ocultada (D2). -->
       <aside id="main-nav" class="sidebar" aria-label="Navegação principal" style="display: none">
         <div class="sidebar__brand"><div class="skeleton-marca"></div></div>
       </aside>
 
-      <!-- ============================================================
-           Área de conteúdo. Cada view de _views/ substitui este
-           elemento inteiro, por isso a raiz do fragmento precisa ser
-           <main id="app-shell" class="content">.
+      <div class="app__coluna">
+        <!-- Abas do módulo, da mesma resposta de /api/nav. Ficam fora do
+             <main> para sobreviver à troca de tela. -->
+        <div id="module-tabs" class="module-tabs" hidden></div>
 
-           Sequência de boot:
-             1. confere o sentinela do Design System
-             2. consulta /.auth/me
-             3. sem sessão  → carrega /login.html
-             4. com sessão  → revela a sidebar, busca /api/nav e
-                              abre a view do deep link (ou a home)
-           ============================================================ -->
-      <main
-        id="app-shell"
-        class="content"
-        x-data="{ pronto: false }"
-        x-init="
-          (async function () {
-            let logado = false;
-            try {
-              const r = await fetch('/.auth/me');
-              if (r.ok) {
-                const dados = await r.json();
-                logado = !!dados.clientPrincipal;
-              }
-            } catch (e) { /* sem sessão */ }
-
-            if (!logado) {
-              await $ajax('/login.html', { target: 'app-shell' });
-              pronto = true;
-              return;
-            }
-
-            document.getElementById('main-nav').style.display = '';
-            $ajax('/api/nav', { target: 'main-nav' });
-
-            const rota = location.pathname;
-            const inicial = (rota !== '/' && rota !== '/index.html')
-              ? rota
-              : '/_views/inicio/home.html';
-            await $ajax(inicial, { target: 'app-shell' });
-            pronto = true;
-          })();
-        "
-        @ajax:redirect="window.location.reload()"
-      >
-        <div x-show="!pronto" class="page-loading">
-          <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
-          <p class="page-loading__txt">Carregando...</p>
-        </div>
-      </main>
+        <!-- Área de conteúdo. Cada view de _views/ substitui este elemento
+             inteiro, por isso a raiz do fragmento precisa ser
+             <main id="app-shell" class="content">. -->
+        <main id="app-shell" class="content">
+          <div class="page-loading">
+            <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
+            <p class="page-loading__txt">Carregando...</p>
+          </div>
+        </main>
+      </div>
     </div>
+
+    <!-- Glossário das siglas (oculto): /api/glossario o preenche no boot e
+         ds/dica.js lê dele o significado de cada sigla. -->
+    <div id="glossario" hidden></div>
 
     <!-- Raízes de overlay: modais e toasts vivem fora do shell para não
          serem descartados quando a view é trocada.

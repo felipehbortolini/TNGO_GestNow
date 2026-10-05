@@ -1,7 +1,7 @@
 ---
 id: ISSUE-009
 title: "Shell com barra lateral sempre visível, navegação de dois níveis, abas do módulo, escopo Portfólio ou projeto e dicas de siglas"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
@@ -62,13 +62,13 @@ do glossário.
 
 ## Critérios de aceite
 
-- [ ] A barra lateral está visível em 1280, 1100 e 760 px; em 760 px é trilho de ícones com dica.
-- [ ] O item ativo fica destacado; numa tela de detalhe, o módulo de origem fica destacado e o Voltar retorna à lista.
-- [ ] O escopo vai para a URL e para o cookie, e um link copiado abre no mesmo escopo.
-- [ ] Recarregar uma URL profunda abre a mesma tela no mesmo escopo.
-- [ ] Trocar o escopo numa tela de detalhe volta para a lista do módulo.
-- [ ] No Portfólio, o mecanismo de inclusão pede o projeto e reabre a tela no projeto com o formulário aberto.
-- [ ] Passar o mouse sobre uma sigla mostra o significado.
+- [x] A barra lateral está visível em 1280, 1100 e 760 px; em 760 px é trilho de ícones com dica.
+- [x] O item ativo fica destacado; numa tela de detalhe, o módulo de origem fica destacado e o Voltar retorna à lista.
+- [x] O escopo vai para a URL e para o cookie, e um link copiado abre no mesmo escopo.
+- [x] Recarregar uma URL profunda abre a mesma tela no mesmo escopo.
+- [x] Trocar o escopo numa tela de detalhe volta para a lista do módulo.
+- [x] No Portfólio, o mecanismo de inclusão pede o projeto e reabre a tela no projeto com o formulário aberto.
+- [x] Passar o mouse sobre uma sigla mostra o significado.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -87,3 +87,46 @@ Fontes: shell e sidebar do Padrão; `js/layout.js` e `js/siglas.js` do
 protótipo; `nav` do app de Programação Semanal. Nesta issue a identidade é um
 Admin fixo da demonstração; perfis, recorte por vínculo e itens por permissão
 chegam na ISSUE-011.
+
+## Registro de execução
+
+Data: 05/10/2026.
+
+Feito: a lista única de navegação é `api/src/core/navegacao.json` (Início, 01 a
+08 e Configurações; 51 telas, com os 5 detalhes apontando a lista de origem e
+a Programação Semanal como grupo do 02), lida por `core/navigation.py`
+(validação que falha alto, busca por endereço, URLs) e por
+`core/navigation_view.py` (o que a barra lateral, as abas, o Voltar e o seletor
+de escopo mostram). O Node da ISSUE-010 lê o mesmo JSON. `/api/nav` devolve a
+barra lateral e as abas numa resposta multi-alvo, resolve o escopo e grava o
+cookie `gestnow_projeto`; `/api/escopo/projetos` é a escolha de projeto do
+mecanismo de inclusão e `/api/glossario` alimenta a dica (todas em
+`api/src/blueprints/nav.py`). O escopo (`core/scope.py`) resolve por URL, depois
+cookie, depois Portfólio, valida contra `configuracoes.service.list_projects` e
+entrega às fachadas (`Scope.require_project`). No front: `ds/shell.js` (trilho,
+roteador com URL profunda `/<modulo>/<tela>?projeto=`, escopo, inclusão),
+`ds/dica.js` (componente de dica e hover das siglas), `.dica` em `tokens.css`,
+trilho, abas e seletor em `shell.css`, `index.html` reestruturado e seis ícones
+novos. O glossário vem do `CONTEXT.md` por `scripts/generate_glossary.py` para
+`api/src/core/glossario.json` (só `api/` vai ao Azure), com teste de sincronia.
+
+Decisões, anotadas na spec como "Decisão da execução (ISSUE-009), pendente de
+revisão do dono": lista de navegação em JSON compartilhado; endereço
+`/<modulo>/<tela>?projeto=` com o parâmetro vencendo o cookie e valor inválido
+caindo na fonte seguinte com aviso; trilho em até 1100 px e recolhível acima;
+criação do componente de dica, porque o Padrão só tem `title`; glossário
+gerado a partir do `CONTEXT.md`; escolha do projeto da inclusão por fragmento do
+servidor com `?acao=`. Fora desta fatia: perfis, recorte por vínculo e itens por
+permissão (ISSUE-011); P1 a P5, I1 a I5 e N1 a N5 do protótipo, que não estão no
+`CONTEXT.md`; o trio de cada tela (ISSUE-010).
+
+Verificação: por nova política do dono, esta rodada não rodou o pytest, o
+`npm run verificar` completo nem a revisão de tela nas três larguras. Os
+testes foram escritos (`test_navegacao.py`, `test_escopo.py`,
+`test_glossario.py`) e ficam para o orquestrador rodar; o último critério fica
+desmarcado até lá. Rodei só ruff, ruff format, ty, eslint e
+`verificar-padrao.mjs` sobre os arquivos novos, todos sem apontamento. Ponto de
+atenção para a ISSUE-011 ou 092: `routing.fragment_route` usa
+`functools.wraps`, e o Azure Functions indexa a assinatura de `__wrapped__`
+(`req, session`); se o indexador recusar o parâmetro `session`, basta fixar
+`__signature__` com só `req` no decorador.

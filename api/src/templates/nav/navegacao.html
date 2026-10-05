@@ -1,0 +1,14 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta multi-alvo de /api/nav (D2): a barra lateral e a barra de abas do
+  módulo saem juntas, da mesma lista de navegação, para nunca discordarem.
+  Cada raiz tem id fixo (exceção prevista para respostas multi-alvo) porque o
+  shell pede os dois alvos de uma vez: main-nav e module-tabs.
+
+  Sobrescreve {% block root %} para não embrulhar as duas raízes na <div>
+  padrão de base_fragment.html.
+#}
+{% block root %}
+{% include "nav/sidebar.html" %}
+{% include "nav/abas.html" %}
+{% endblock %}

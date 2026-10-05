@@ -1,0 +1,134 @@
+{
+  "descricao": "Lista única de navegação do GestNow (D2): dois níveis, módulos e telas. Fonte do /api/nav (barra lateral e abas), das telas de detalhe com Voltar e da verificação trio-da-tela. Lida pelo Python (api/src/core/navigation.py) e pelo Node. Uma tela é identificada por 'modulo/id': o módulo é a pasta (app/_views/<modulo>/<id>.html e app/paginas/<modulo>/<id>.css e .js) e, quando a tela não o declara, é o do módulo de navegação. 'detalhe_de' marca a tela de detalhe e aponta a tela de lista de origem; 'grupo' agrupa telas contíguas numa só aba com subabas; 'curto' é o nome da aba quando o título é longo.",
+  "modulos": [
+    {
+      "id": "inicio",
+      "titulo": "Início",
+      "icone": "home",
+      "telas": [
+        { "id": "home", "titulo": "Início" },
+        { "modulo": "relatorio", "id": "gerencial", "titulo": "Relatório gerencial", "detalhe_de": "inicio/home" }
+      ]
+    },
+    {
+      "id": "central_acoes",
+      "numero": "01",
+      "titulo": "Central de Ações",
+      "icone": "taskList",
+      "telas": [
+        { "id": "acoes", "titulo": "Ações" },
+        { "id": "dashboard", "titulo": "Dashboards e KPIs" },
+        { "id": "atas", "titulo": "Atas" },
+        { "id": "ata", "titulo": "Ata", "detalhe_de": "central_acoes/atas" }
+      ]
+    },
+    {
+      "id": "planejamento",
+      "numero": "02",
+      "titulo": "Planejamento",
+      "icone": "chartLine",
+      "telas": [
+        { "id": "eap", "titulo": "EAP" },
+        { "id": "curva_s", "titulo": "Curva S" },
+        { "id": "kpis", "titulo": "KPIs" },
+        { "id": "relato", "titulo": "Relato do período" },
+        { "id": "6wla", "titulo": "6WLA" },
+        { "modulo": "programacao_semanal", "id": "programacao", "titulo": "Programação", "grupo": "Programação Semanal" },
+        { "modulo": "programacao_semanal", "id": "dashboard", "titulo": "Dashboard da programação", "curto": "Dashboard", "grupo": "Programação Semanal" },
+        { "modulo": "programacao_semanal", "id": "governanca", "titulo": "Governança da programação", "curto": "Governança", "grupo": "Programação Semanal" },
+        { "modulo": "programacao_semanal", "id": "importacao", "titulo": "Importação e impressão", "curto": "Importação", "grupo": "Programação Semanal" },
+        { "modulo": "programacao_semanal", "id": "configuracao", "titulo": "Configuração da programação", "curto": "Configuração", "grupo": "Programação Semanal" },
+        { "id": "produtividade", "titulo": "Produtividade" },
+        { "id": "punch_list", "titulo": "Punch list" }
+      ]
+    },
+    {
+      "id": "financeiro",
+      "numero": "03",
+      "titulo": "Gestão Financeira",
+      "icone": "money",
+      "telas": [
+        { "id": "eac", "titulo": "EAC" },
+        { "id": "mapa_controle", "titulo": "Mapa de controle" },
+        { "id": "desembolso", "titulo": "Cronograma de desembolso", "curto": "Desembolso" },
+        { "id": "kpis", "titulo": "KPIs de custo", "curto": "KPIs" },
+        { "id": "curva_s", "titulo": "Curva S financeira", "curto": "Curva S" },
+        { "id": "contingencia", "titulo": "Contingência" },
+        { "id": "contratos", "titulo": "Contratos" },
+        { "id": "contrato", "titulo": "Contrato", "detalhe_de": "financeiro/contratos" }
+      ]
+    },
+    {
+      "id": "suprimentos",
+      "numero": "04",
+      "titulo": "Suprimentos",
+      "icone": "cart",
+      "telas": [
+        { "id": "painel", "titulo": "Painel de suprimentos", "curto": "Painel" },
+        { "id": "plano_compras", "titulo": "Plano de compras", "curto": "Plano" },
+        { "id": "processos", "titulo": "Processos de compra", "curto": "Processos" },
+        { "id": "mas", "titulo": "Mapa de Suprimentos (MAS)", "curto": "MAS" },
+        { "id": "diligenciamento", "titulo": "Diligenciamento e recebimento", "curto": "Diligenciamento" },
+        { "id": "fornecedores", "titulo": "Fornecedores" }
+      ]
+    },
+    {
+      "id": "riscos",
+      "numero": "05",
+      "titulo": "Gestão de Riscos",
+      "icone": "warning",
+      "telas": [
+        { "id": "registro", "titulo": "Registro de riscos", "curto": "Registro" },
+        { "id": "matriz", "titulo": "Matriz de riscos 5x5", "curto": "Matriz P x I" },
+        { "id": "ficha", "titulo": "Ficha do risco", "detalhe_de": "riscos/registro" },
+        { "id": "painel", "titulo": "Painel de riscos", "curto": "Painel" }
+      ]
+    },
+    {
+      "id": "qualidade",
+      "numero": "06",
+      "titulo": "Gestão da Qualidade",
+      "icone": "shield",
+      "telas": [
+        { "id": "painel", "titulo": "Painel da qualidade", "curto": "Painel" },
+        { "id": "rnc", "titulo": "Não conformidades (RNC)" },
+        { "id": "inspecoes", "titulo": "Inspeções e ITP" },
+        { "id": "auditorias", "titulo": "Auditorias" }
+      ]
+    },
+    {
+      "id": "hse",
+      "numero": "07",
+      "titulo": "HSE",
+      "icone": "hardHat",
+      "telas": [
+        { "id": "painel", "titulo": "Painel HSE", "curto": "Painel" },
+        { "id": "ocorrencias", "titulo": "Ocorrências" },
+        { "id": "inspecoes", "titulo": "Inspeções e observações", "curto": "Inspeções" },
+        { "id": "analises_risco", "titulo": "Análises de risco (APR/HAZOP)", "curto": "Análises de risco" },
+        { "id": "hht", "titulo": "Horas trabalhadas (HHT)" }
+      ]
+    },
+    {
+      "id": "governanca",
+      "numero": "08",
+      "titulo": "Governança",
+      "icone": "landmark",
+      "telas": [
+        { "id": "mudancas", "titulo": "Gestão de mudanças", "curto": "Mudanças" },
+        { "id": "mudanca", "titulo": "Solicitação de mudança", "detalhe_de": "governanca/mudancas" },
+        { "id": "licoes", "titulo": "Lições aprendidas", "curto": "Lições" }
+      ]
+    },
+    {
+      "id": "configuracoes",
+      "titulo": "Configurações",
+      "icone": "gear",
+      "telas": [
+        { "id": "parametros", "titulo": "Parâmetros do sistema", "curto": "Parâmetros" },
+        { "id": "colaboradores", "titulo": "Colaboradores" },
+        { "id": "cadastros", "titulo": "Cadastros de apoio", "curto": "Cadastros" }
+      ]
+    }
+  ]
+}

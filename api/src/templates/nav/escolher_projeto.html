@@ -1,0 +1,27 @@
+{% extends "base_fragment.html" %}
+{#
+  Escolha do projeto do mecanismo de inclusão (D8). No Portfólio todo registro
+  precisa pertencer a um projeto: o botão de inclusão abre este quadro, e cada
+  projeto é um link que reabre a mesma tela naquele projeto, com ?acao= para a
+  tela abrir o formulário. O endereço de cada link vem pronto do servidor.
+  Espera: opcoes (lista com code, name e url).
+#}
+{% block fragment %}
+{% if opcoes %}
+<ul class="lista-simples">
+  {% for opcao in opcoes %}
+  <li class="lista-simples__item">
+    <a class="escopo-escolha__link" href="{{ opcao.url }}" data-tn-tela>
+      <span class="pill pill--neutral">{{ opcao.code }}</span>
+      <span class="body-txt">{{ opcao.name }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <h3>Nenhum projeto cadastrado</h3>
+  <p>Cadastre um projeto em Configurações para poder incluir registros.</p>
+</div>
+{% endif %}
+{% endblock %}

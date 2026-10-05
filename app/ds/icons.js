@@ -48,6 +48,13 @@ const ICONS = {
   listaPontos: '<path d="M7.5 5h9M7.5 10h9M7.5 15h9"/><circle cx="4" cy="5" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="15" r="1" fill="currentColor" stroke="none"/>',
   listaNumeros: '<path d="M7.5 5h9M7.5 10h9M7.5 15h9"/><path d="M3.2 3.6h1v3M2.8 9.2h1.8L2.8 11h1.9M2.9 13.6h1.6l-1 1.3 1 1.3H2.9" stroke-width="1.1"/>',
   sort: '<path d="M7 4v12M4 13l3 3 3-3M13 16V4M10 7l3-3 3 3"/>',
+  /* Módulos da navegação do GestNow (D2) e o recolher da barra lateral. */
+  chevronLeft: '<path d="M12 5l-5 5 5 5"/>',
+  home: '<path d="M3.5 9.4 10 3.8l6.5 5.6"/><path d="M5 8.3v8.2h3.4v-4.4h3.2v4.4H15V8.3"/>',
+  chartLine: '<path d="M3.5 3.5v13h13"/><path d="m6.4 12.6 3-3.6 2.6 2 3.9-5"/>',
+  cart: '<path d="M2.8 3.8h2.2l1.7 8.5h7.9l1.6-6H5.4"/><circle cx="8" cy="15.7" r="1.1"/><circle cx="14" cy="15.7" r="1.1"/>',
+  hardHat: '<path d="M3 13.4h14"/><path d="M4.8 13.4a5.2 5.2 0 0 1 10.4 0"/><path d="M8.6 8.6V6h2.8v2.6"/>',
+  landmark: '<path d="M3 16.5h14M10 3.6 3.6 7.2h12.8L10 3.6ZM5.6 8.6v6.2M10 8.6v6.2M14.4 8.6v6.2"/>',
 };
 
 function icon(name, size = 18, cls = "") {

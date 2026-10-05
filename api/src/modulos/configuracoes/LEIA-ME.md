@@ -33,6 +33,7 @@ Este módulo não calcula indicadores de negócio. A validação da edição de 
 | Versão vigente | Versão de cada grupo cuja vigência não é posterior à data de referência | `service.current_version`, `current_versions`, `current_group`, `current_parameters` |
 | Nova versão | Valida os valores, exige justificativa (mínimo de 10 caracteres) e grava a próxima versão do grupo com autor, vigência e trilha, na transação da requisição | `service.save_parameter_group` |
 | Versão inicial | Semeia a versão 1 de cada grupo sem versão, com a justificativa "Versão inicial"; rodar de novo não duplica | `service.seed_initial_parameters` |
+| Projetos do portfólio | Leitura dos projetos (id, código e nome) por código, para o seletor de escopo e para validar o parâmetro `projeto` da URL (ISSUE-009, D8); quem precisa dos projetos lê aqui e nunca a tabela | `service.list_projects`, `service.ProjectSummary` |
 
 O calendário da plataforma (data de hoje, semana ISO, períodos, parcial e corte) fica em `src/core/calendario.py` e é o único leitor do relógio; toda fórmula recebe a data de referência como argumento (D6).
 

@@ -1,0 +1,61 @@
+{#
+  Partial da barra do módulo (D2), irmã da barra lateral na mesma resposta.
+  Raiz <div id="module-tabs">.
+
+  Mostra, nesta ordem de decisão:
+    - numa tela de detalhe (ata, contrato, ficha do risco, SM): só o Voltar,
+      que leva à lista de origem, no lugar das abas;
+    - numa tela de lista: as abas das telas do módulo; as telas de um grupo
+      (Programação Semanal, submódulo do 02) são uma aba só e, dentro delas,
+      uma segunda linha traz as subabas;
+    - módulo com uma tela só, ou endereço desconhecido: barra oculta.
+
+  Aba com nome curto guarda o título completo no aria-label e na dica.
+  Espera: nav (core.navigation_view.NavigationView).
+#}
+<div id="module-tabs" class="module-tabs"{% if not nav.has_bar %} hidden{% endif %}>
+  {% if nav.back %}
+  <div class="module-tabs__in">
+    <a
+      class="btn btn--secondary btn--sm module-tabs__voltar"
+      href="{{ nav.back.url }}"
+      data-tn-tela
+      aria-label="Voltar para {{ nav.back.title }}"
+    >
+      <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
+      Voltar
+    </a>
+  </div>
+  {% elif nav.tabs %}
+  <div class="module-tabs__in">
+    <nav class="tabs" aria-label="{{ nav.tabs_label }}">
+      {% for aba in nav.tabs %}
+      <a
+        class="tab{% if aba.is_active %} is-active{% endif %}"
+        href="{{ aba.url }}"
+        data-tn-tela
+        {% if aba.current %}aria-current="{{ aba.current }}"{% endif %}
+        {% if aba.is_abbreviated %}aria-label="{{ aba.title }}" data-dica="{{ aba.title }}"{% endif %}
+      >{{ aba.label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+  {% if nav.subtabs %}
+  <div class="module-tabs__sub">
+    <div class="module-tabs__in">
+      <nav class="tabs" aria-label="Telas de {{ nav.subtabs_label }}">
+        {% for aba in nav.subtabs %}
+        <a
+          class="tab{% if aba.is_active %} is-active{% endif %}"
+          href="{{ aba.url }}"
+          data-tn-tela
+          {% if aba.current %}aria-current="{{ aba.current }}"{% endif %}
+          {% if aba.is_abbreviated %}aria-label="{{ aba.title }}" data-dica="{{ aba.title }}"{% endif %}
+        >{{ aba.label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>

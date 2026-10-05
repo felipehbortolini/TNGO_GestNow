@@ -161,6 +161,32 @@ cada um com seu id fixo, para atualizar mais de um bloco numa requisição. É a
 
 ---
 
+## Navegação e escopo
+
+**Lista de navegação** — arquivo único (`api/src/core/navegacao.json`) com os
+módulos e as telas, em dois níveis. Alimenta a barra lateral, as abas do módulo,
+o Voltar e a verificação trio-da-tela; tela nova entra ali e em nenhum outro
+lugar.
+
+**Tela de detalhe** — tela que se abre de uma lista (ata, contrato, ficha do
+risco, SM, relatório gerencial). Não tem aba: a barra lateral destaca o módulo
+de origem e o botão Voltar leva à lista.
+
+**Escopo** — de onde vêm os dados da requisição: o Portfólio ou um projeto.
+Resolvido por requisição, pelo parâmetro `projeto` da URL, depois pelo cookie,
+com o Portfólio como padrão.
+
+**Portfólio** — o conjunto de todos os projetos; é o escopo padrão. Todo
+registro novo pertence a um projeto, por isso a inclusão pede o projeto antes.
+
+**Trilho** — a barra lateral reduzida a ícones, com dica. É o que ela vira até
+1100 px ou quando recolhida; a barra nunca some.
+
+**Dica** — balão de texto curto (`.dica`, `TN.dica`): o nome do item no trilho e
+o significado de uma sigla.
+
+---
+
 ## Camada visual
 
 **Design System** (DS) — `app/ds/`. A única fonte visual da aplicação. Três
