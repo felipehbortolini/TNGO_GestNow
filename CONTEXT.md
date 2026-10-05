@@ -203,6 +203,18 @@ Resolve o `target_id` a partir do cabeçalho, injeta no contexto e renderiza.
 **Toast por cabeçalho** — mensagem ao usuário viaja em `X-TN-Toast` na resposta;
 `ds/ui.js` a converte em toast. A página não precisa saber que isso aconteceu.
 
+## Carga e modos
+
+**Modo do app** — demonstração ou produção, vindo de `GESTNOW_MODO`
+(ausente vale demonstração, o modo local; valor desconhecido falha alto).
+
+**Carga de demonstração** — a base que o modo demonstração grava a partir dos
+mocks do protótipo já convertidos, com todas as datas deslocadas de
+25/09/2026 (a **âncora**) até a data de hoje. Cada módulo registra a sua parte
+(`seed.py`); a tabela `carga_demonstracao` marca o que já entrou, então rodar
+de novo não duplica. Em produção a base nasce vazia: só o primeiro Admin, de
+`GESTNOW_ADMIN_EMAIL`, e os parâmetros iniciais. Vive em `api/src/carga/`.
+
 ---
 
 ## Qualidade

@@ -44,7 +44,7 @@ Alterar parâmetro exige justificativa e cria nova versão com vigência, autor,
 
 ## Integrações
 
-É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados.
+É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados. A carga de demonstração (`api/src/carga/`) grava estes cadastros e chama `seed_initial_parameters`; o preparo de produção grava só o primeiro Admin e a versão 1.
 
 ## Parâmetros
 
@@ -67,4 +67,4 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 | Tela, estilo e comportamento | `app/_views/configuracoes/` e `app/paginas/configuracoes/` |
 | Testes | `api/tests/configuracoes/` (fachada e regras) e `api/tests/plataforma/test_calendario.py` |
 
-As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. As ISSUE-076 a ISSUE-078 completam este documento com rotas, telas e os testes de acesso.
+As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. As ISSUE-076 a ISSUE-078 completam este documento com rotas, telas e os testes de acesso.

@@ -77,6 +77,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem ── Carga do modo configurado: demonstracao deslocada para hoje ou producao ──
+"%PY%" scripts\seed_database.py
+if errorlevel 1 (
+    echo.
+    echo  ERRO: nao foi possivel aplicar a carga. Veja a mensagem acima.
+    pause
+    exit /b 1
+)
+
 echo.
 echo  Abrindo http://localhost:%PORTA%
 echo  O servidor local nao exige Azure Functions Core Tools.

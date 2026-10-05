@@ -1,0 +1,475 @@
+{
+  "origem": "Sistema/data do protótipo, na ordem de carga do MODELO-DE-DADOS.md",
+  "ancora": "2026-09-25",
+  "geradoPor": "scripts/converter_mocks.mjs",
+  "clientes": [
+    {
+      "id": 1,
+      "nome": "Metalúrgica Horizonte S.A.",
+      "sigla": "MHS",
+      "ativo": true
+    }
+  ],
+  "projetos": [
+    {
+      "id": 1,
+      "clienteId": 1,
+      "codigo": "TN-2026-014",
+      "nome": "Construção de uma nova fábrica",
+      "pep": "PEP-4501",
+      "padraoAta": "TN-2026",
+      "padraoRisco": "RSK-TN-2026",
+      "padraoPunch": "PL-TN-2026",
+      "gerenteId": 2,
+      "apetiteRisco": "moderado",
+      "inicio": "2026-01-05",
+      "terminoPrevisto": "2027-03-31",
+      "orcamentoCentavos": 4460000000,
+      "ponderacao": {
+        "estrategico": 5,
+        "complexidade": 5
+      }
+    },
+    {
+      "id": 2,
+      "clienteId": 1,
+      "codigo": "TN-2026-021",
+      "nome": "Construção de uma nova caldeira de biomassa",
+      "pep": "PEP-4502",
+      "padraoAta": "CB-2026",
+      "padraoRisco": "RSK-CB-2026",
+      "padraoPunch": "PL-CB-2026",
+      "gerenteId": 14,
+      "apetiteRisco": "moderado",
+      "inicio": "2026-03-02",
+      "terminoPrevisto": "2027-06-30",
+      "orcamentoCentavos": 1820000000,
+      "ponderacao": {
+        "estrategico": 4,
+        "complexidade": 4
+      }
+    },
+    {
+      "id": 3,
+      "clienteId": 1,
+      "codigo": "TN-2026-027",
+      "nome": "Construção de uma nova torre de resfriamento",
+      "pep": "PEP-4503",
+      "padraoAta": "TR-2026",
+      "padraoRisco": "RSK-TR-2026",
+      "padraoPunch": "PL-TR-2026",
+      "gerenteId": 15,
+      "apetiteRisco": "moderado",
+      "inicio": "2026-06-01",
+      "terminoPrevisto": "2027-02-26",
+      "orcamentoCentavos": 740000000,
+      "ponderacao": {
+        "estrategico": 3,
+        "complexidade": 2
+      }
+    }
+  ],
+  "empresas": [
+    {
+      "id": 1,
+      "nome": "Alfa Montagens",
+      "tipo": "Contratada"
+    },
+    {
+      "id": 2,
+      "nome": "Beta Transformadores",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 3,
+      "nome": "Gama Válvulas",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 4,
+      "nome": "Delta Estruturas",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 5,
+      "nome": "Épsilon Engenharia",
+      "tipo": "Contratada"
+    },
+    {
+      "id": 6,
+      "nome": "Zeta Civil",
+      "tipo": "Contratada"
+    },
+    {
+      "id": 7,
+      "nome": "Ômega Moagem",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 8,
+      "nome": "Sigma Bombas",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 9,
+      "nome": "Kappa Elétrica",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 10,
+      "nome": "Lambda Cabos",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 11,
+      "nome": "Teta Automação",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 12,
+      "nome": "Iota Flotação",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 13,
+      "nome": "Timenow Gerenciadora",
+      "tipo": "Gerenciadora"
+    },
+    {
+      "id": 14,
+      "nome": "Ômicron Caldeiras",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 15,
+      "nome": "Pi Montagens Industriais",
+      "tipo": "Contratada"
+    },
+    {
+      "id": 16,
+      "nome": "Rho Torres de Resfriamento",
+      "tipo": "Fornecedor"
+    },
+    {
+      "id": 17,
+      "nome": "Tau Construções",
+      "tipo": "Contratada"
+    },
+    {
+      "id": 18,
+      "nome": "Upsilon Filtros",
+      "tipo": "Fornecedor"
+    }
+  ],
+  "pessoas": [
+    {
+      "id": 1,
+      "nome": "Leonardo Gomes",
+      "funcao": "PMO",
+      "empresaId": null,
+      "email": "leonardo.gomes@exemplo.com"
+    },
+    {
+      "id": 2,
+      "nome": "João Gestor",
+      "funcao": "Gerente do projeto",
+      "empresaId": null,
+      "email": "joao.gestor@exemplo.com"
+    },
+    {
+      "id": 3,
+      "nome": "Maria Souza",
+      "funcao": "Planejamento",
+      "empresaId": null,
+      "email": "maria.souza@exemplo.com"
+    },
+    {
+      "id": 4,
+      "nome": "Marina Alves",
+      "funcao": "Meio Ambiente",
+      "empresaId": null,
+      "email": "marina.alves@exemplo.com"
+    },
+    {
+      "id": 5,
+      "nome": "Carlos Nunes",
+      "funcao": "Montagem",
+      "empresaId": 1,
+      "email": "carlos.nunes@exemplo.com"
+    },
+    {
+      "id": 6,
+      "nome": "Renata Lima",
+      "funcao": "Engenharia",
+      "empresaId": 5,
+      "email": "renata.lima@exemplo.com"
+    },
+    {
+      "id": 7,
+      "nome": "Diego Matos",
+      "funcao": "Suprimentos",
+      "empresaId": null,
+      "email": "diego.matos@exemplo.com"
+    },
+    {
+      "id": 8,
+      "nome": "Ana Prado",
+      "funcao": "Comissionamento",
+      "empresaId": null,
+      "email": "ana.prado@exemplo.com"
+    },
+    {
+      "id": 9,
+      "nome": "Paulo Serra",
+      "funcao": "Qualidade",
+      "empresaId": null,
+      "email": "paulo.serra@exemplo.com"
+    },
+    {
+      "id": 10,
+      "nome": "Beatriz Rocha",
+      "funcao": "HSE",
+      "empresaId": null,
+      "email": "beatriz.rocha@exemplo.com"
+    },
+    {
+      "id": 11,
+      "nome": "Fábio Teixeira",
+      "funcao": "Engenheiro de obra",
+      "empresaId": 6,
+      "email": "fabio.teixeira@exemplo.com"
+    },
+    {
+      "id": 12,
+      "nome": "Rafael Costa",
+      "funcao": "Fiscal de contratos",
+      "empresaId": null,
+      "email": "rafael.costa@exemplo.com"
+    },
+    {
+      "id": 13,
+      "nome": "Juliana Reis",
+      "funcao": "Custos",
+      "empresaId": null,
+      "email": "juliana.reis@exemplo.com"
+    },
+    {
+      "id": 14,
+      "nome": "Paula Menezes",
+      "funcao": "Gerente do projeto",
+      "empresaId": null,
+      "email": "paula.menezes@exemplo.com"
+    },
+    {
+      "id": 15,
+      "nome": "Ricardo Tavares",
+      "funcao": "Gerente do projeto",
+      "empresaId": null,
+      "email": "ricardo.tavares@exemplo.com"
+    },
+    {
+      "id": 16,
+      "nome": "Sônia Ribeiro",
+      "funcao": "Planejamento",
+      "empresaId": null,
+      "email": "sonia.ribeiro@exemplo.com"
+    },
+    {
+      "id": 17,
+      "nome": "Hugo Fontes",
+      "funcao": "Montagem",
+      "empresaId": 15,
+      "email": "hugo.fontes@exemplo.com"
+    },
+    {
+      "id": 18,
+      "nome": "Otávio Lins",
+      "funcao": "Engenheiro de obra",
+      "empresaId": 17,
+      "email": "otavio.lins@exemplo.com"
+    }
+  ],
+  "sistemas": [
+    {
+      "id": 1,
+      "projetoId": 1,
+      "codigo": "210",
+      "nome": "Moagem",
+      "area": "Beneficiamento"
+    },
+    {
+      "id": 2,
+      "projetoId": 1,
+      "codigo": "310",
+      "nome": "Flotação",
+      "area": "Beneficiamento"
+    },
+    {
+      "id": 3,
+      "projetoId": 1,
+      "codigo": "420",
+      "nome": "Subestação unitária",
+      "area": "Elétrica"
+    },
+    {
+      "id": 4,
+      "projetoId": 1,
+      "codigo": "510",
+      "nome": "Utilidades",
+      "area": "Utilidades"
+    },
+    {
+      "projetoId": 2,
+      "codigo": "610",
+      "nome": "Caldeira e queimador",
+      "area": "Geração de vapor",
+      "id": 5
+    },
+    {
+      "projetoId": 2,
+      "codigo": "620",
+      "nome": "Alimentação de biomassa",
+      "area": "Geração de vapor",
+      "id": 6
+    },
+    {
+      "projetoId": 2,
+      "codigo": "630",
+      "nome": "Tratamento de gases",
+      "area": "Meio ambiente",
+      "id": 7
+    },
+    {
+      "projetoId": 3,
+      "codigo": "710",
+      "nome": "Torre de resfriamento",
+      "area": "Utilidades",
+      "id": 8
+    },
+    {
+      "projetoId": 3,
+      "codigo": "720",
+      "nome": "Bombeamento de água de resfriamento",
+      "area": "Utilidades",
+      "id": 9
+    }
+  ],
+  "locais": [
+    {
+      "projetoId": 1,
+      "codigo": "310",
+      "nome": "Flotação 310"
+    },
+    {
+      "projetoId": 1,
+      "codigo": "TERRAPLENAGEM",
+      "nome": "Terraplenagem"
+    },
+    {
+      "projetoId": 1,
+      "codigo": "510",
+      "nome": "Utilidades 510"
+    },
+    {
+      "projetoId": 1,
+      "codigo": "210",
+      "nome": "Moagem 210"
+    },
+    {
+      "projetoId": 1,
+      "codigo": "420",
+      "nome": "Subestação 420"
+    },
+    {
+      "projetoId": 2,
+      "codigo": "620",
+      "nome": "Alimentação 620"
+    },
+    {
+      "projetoId": 2,
+      "codigo": "610",
+      "nome": "Caldeira 610"
+    },
+    {
+      "projetoId": 3,
+      "codigo": "710",
+      "nome": "Bacia 710"
+    },
+    {
+      "projetoId": 3,
+      "codigo": "720",
+      "nome": "Casa de bombas 720"
+    }
+  ],
+  "disciplinas": [
+    "Arquitetura",
+    "Automação",
+    "Civil",
+    "Elétrica",
+    "Engenharia",
+    "Estruturas",
+    "Instrumentação",
+    "Mecânica",
+    "Meio ambiente",
+    "Montagem",
+    "Pintura",
+    "Tubulação"
+  ],
+  "unidades": [
+    {
+      "tipo": "medida",
+      "codigo": "%",
+      "nome": "Percentual"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "Hh",
+      "nome": "Homem-hora"
+    },
+    {
+      "tipo": "organizacional",
+      "codigo": "Unidade Horizonte",
+      "nome": "Unidade Horizonte"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "juntas",
+      "nome": "Juntas"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "m",
+      "nome": "Metro"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "m²",
+      "nome": "Metro quadrado"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "m³",
+      "nome": "Metro cúbico"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "mês",
+      "nome": "Mês"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "t",
+      "nome": "Tonelada"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "un",
+      "nome": "Unidade"
+    },
+    {
+      "tipo": "medida",
+      "codigo": "vb",
+      "nome": "Verba"
+    }
+  ]
+}

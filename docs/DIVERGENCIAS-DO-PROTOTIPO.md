@@ -24,6 +24,7 @@
 | Início do horizonte do 6WLA (`lookaheadInicio`). | Valor fixo em 28/09/2026. | Calculado da data de hoje (o horizonte de seis semanas acompanha o calendário). | D6 (data de referência viva). | pendente de aceite |
 | Situação das ocorrências de HSE calculada pela idade contra a data de referência. | `ocorrencias.situacao`: Registrada, Ações definidas, Em tratamento ou Encerrada conforme os dias desde o evento até 25/09/2026. | Estado do fluxo, alterado pelos passos (Registrada → Em investigação → Ações definidas → Em tratamento → Encerrada), com os prazos vigentes gravados na ocorrência. | D6 (data viva) e D5b (prazo vigente gravado). O mesmo cenário é reproduzido na carga de demonstração. | pendente de aceite |
 | Versão dos parâmetros. | `MOCK.parametros.versao` única para todo o conjunto: a gravação cria a versão seguinte do objeto inteiro (`v1` → `v2`), com `vigenciaFim` na anterior. | Cada grupo tem a própria versão (`parametro_versao`, uma linha por grupo e versão); na leitura, a plataforma combina a versão vigente de cada grupo na data de referência, sem `vigencia_fim`. | Modelo "uma linha por grupo e versão", aprovado para execução na ISSUE-003 (D5). Os valores lidos continuam os mesmos. | pendente de aceite |
+| Pessoas da carga de demonstração. | `mock-base` com 18 pessoas, todas de vínculo interno ou de contratada; nenhuma de vínculo Cliente. | As 18 pessoas do mock, mais 1 pessoa de demonstração (`visualizador@cliente.demo`) para o vínculo Cliente; os colaboradores de demonstração cobrem os quatro perfis gerais, os quatro papéis da Programação Semanal e os três vínculos. | D7/Q21: o modo demonstração precisa mostrar o app em cada vínculo, inclusive Cliente, e a spec pede colaboradores de demonstração. As 18 pessoas e os números da plataforma continuam presentes. | pendente de aceite |
 
 ## Histórico
 
@@ -32,3 +33,4 @@
 | 05/10/2026 | ISSUE-003 | Registro inicial das divergências estruturais da modelagem (D5, D5b, D6, D8). |
 | 05/10/2026 | ISSUE-004 | Divergências da parte 2 do modelo: Curva S física, evolução do score residual, Programação Semanal do protótipo (D10), horizonte do 6WLA e situação das ocorrências de HSE. |
 | 05/10/2026 | ISSUE-007 | Versão dos parâmetros: o protótipo versiona o conjunto inteiro; o GestNow versiona por grupo, com a leitura por data combinando a versão vigente de cada grupo. |
+| 05/10/2026 | ISSUE-008 | Pessoa de demonstração a mais (vínculo Cliente) para o seletor de perfis cobrir os três vínculos (D7/Q21). |

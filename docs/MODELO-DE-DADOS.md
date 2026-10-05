@@ -234,6 +234,11 @@ erDiagram
         bigint referencia_registro_id
         timestamptz criado_em
     }
+    carga_demonstracao {
+        bigint id PK
+        text nome UK
+        timestamptz executada_em
+    }
     sistema {
         bigint id PK
         bigint projeto_id FK
@@ -1889,6 +1894,7 @@ fachada, não por coluna.
 | `auditoria` | Trilha de auditoria **só de inclusão**: quem, quando, entidade, registro, ação e o antes/depois. Sem `versao`; a atualização e a exclusão são proibidas no banco. | plataforma |
 | `anexo` | Metadados do arquivo (nome, tipo, tamanho, hash, autor, data) e o registro de origem (tabela + id). O arquivo fica na pasta local ou no Blob; o download checa a permissão do registro de origem (D5a). | plataforma |
 | `notificacao` | Registro de envio (follow-up, pauta, tesouraria): destinatários, assunto, corpo, situação `simulado`/`enviado`/`erro` e referência ao registro. | plataforma |
+| `carga_demonstracao` | Parte da carga de demonstração já aplicada (`nome`), para rodar a carga de novo não duplicar nada (ISSUE-008). Não existe no modo produção. | plataforma |
 | `sistema` | Cadastro de apoio de sistemas do projeto (código, nome, área); usado pelo punch list e pelas telas de planejamento. | configurações |
 | `unidade` | Cadastro de apoio de unidades: de medida (m, un, Hh) ou organizacional (Unidade Horizonte), distinguidas por `tipo`. | configurações |
 | `local` | Cadastro de apoio de locais do projeto (código, nome). | configurações |

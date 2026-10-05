@@ -50,6 +50,18 @@ class NumberingSequence(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 
+class SeedRun(Base):
+    """Parte da carga de demonstração já aplicada; rodar de novo não duplica (ISSUE-008)."""
+
+    __tablename__ = "carga_demonstracao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column("nome", Text, unique=True)
+    executed_at: Mapped[datetime] = mapped_column(
+        "executada_em", DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class AuditEntry(Base):
     """Trilha de auditoria só de inclusão, gravada na transação da mudança."""
 
