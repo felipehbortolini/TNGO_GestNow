@@ -22,6 +22,13 @@ the platform routes that must work for someone the register does not know yet
 ``on_error`` lets a screen that owns a form re-render it filled with what
 the person typed (422 and 409); returning ``None`` falls back to the
 common error fragment.
+
+``file_route`` is the download exception of the Padrão (ISSUE-012, D14): a
+file is opened by the browser as a plain link, so there is no Alpine header to
+gate on and the answer is the file, not a fragment. The unit of work, the user,
+the scope and the permission are exactly those of ``fragment_route``; a refusal
+comes back as plain text with its status, because the page that opened the link
+is not the shell.
 """
 
 from __future__ import annotations
@@ -110,6 +117,28 @@ def error_response(error: DomainError, req: func.HttpRequest) -> func.HttpRespon
     )
 
 
+def plain_text_response(message: str, *, status_code: int) -> func.HttpResponse:
+    """A plain-text answer to a link the browser opened: the message, the status, no caching."""
+    return func.HttpResponse(
+        message,
+        status_code=status_code,
+        headers={
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+        mimetype="text/plain",
+    )
+
+
+def file_error_response(error: DomainError) -> func.HttpResponse:
+    """Render a domain error as plain text with its status: the answer of a refused download."""
+    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    return plain_text_response(
+        " ".join(messages) or "Não foi possível concluir.", status_code=_status_for(error)
+    )
+
+
 def fragment_route(
     handler: Callable | None = None,
     *,
@@ -140,6 +169,30 @@ def fragment_route(
 
     if handler is not None:
         return decorator(handler)
+    return decorator
+
+
+def file_route(*, access: Access | None = None):
+    """Decorate a download endpoint: the transaction, the access and the error map, with no Alpine gate.
+
+    The handler receives ``(req, session, context)`` like a fragment route with
+    ``access`` and returns the file; a refusal (403, 422) is plain text.
+    """
+
+    def decorator(endpoint: Callable) -> Callable:
+        @functools.wraps(endpoint)
+        def wrapper(req: func.HttpRequest) -> func.HttpResponse:
+            try:
+                with database.unidade_de_trabalho() as session:
+                    if access is None or not access.identity:
+                        return endpoint(req, session)
+                    return endpoint(req, session, authorize(session, req, access))
+            except DomainError as error:
+                return file_error_response(error)
+
+        _present_as_azure_function(wrapper, access)
+        return wrapper
+
     return decorator
 
 

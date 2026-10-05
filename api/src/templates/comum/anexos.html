@@ -1,0 +1,88 @@
+{% extends "base_fragment.html" %}
+{#
+  Anexos de um registro (D5a, HU-140 a HU-143): o componente de envio de arquivo do
+  Design System e a lista dos anexos, num fragmento só. A tela que quer anexos pede
+  este fragmento no lugar que escolheu, dando ao lugar um id e o mesmo id como alvo:
+
+    <div id="anexos-ocorrencia"
+         x-init="$ajax('/api/anexos?origem=ocorrencia&registro=12', { target: 'anexos-ocorrencia' })">
+      <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+    </div>
+
+  O formulário envia o arquivo a /api/anexos/enviar e a resposta troca o fragmento
+  inteiro: a lista atualizada com o formulário limpo, ou o 422 com a mensagem sob o
+  campo do arquivo. Quem pode enviar mas não pode ver (anexo de dado pessoal, Q35)
+  recebe o formulário e o aviso no lugar da lista.
+
+  Espera: origem, registro, linhas (id, name, size, uploaded_by, uploaded_at e url),
+  pode_ver, pode_enviar, aviso_restrito, limite_mb, tipos, aceitos, erro_arquivo e
+  erros_gerais.
+#}
+{% block fragment %}
+<section class="anexos" aria-labelledby="{{ target_id }}-titulo">
+  <h3 class="h-card5" id="{{ target_id }}-titulo">Anexos{% if pode_ver %} ({{ linhas|length }}){% endif %}</h3>
+
+  {% if erros_gerais %}
+  <div class="aviso aviso--erro" role="alert">
+    {% for mensagem in erros_gerais %}
+    <span>{{ mensagem }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if pode_enviar %}
+  <form class="upload" method="post" action="/api/anexos/enviar" enctype="multipart/form-data" x-target="{{ target_id }}"
+    data-tn-loading="Enviando o arquivo...">
+    <input type="hidden" name="origem" value="{{ origem }}" />
+    <input type="hidden" name="registro" value="{{ registro }}" />
+    <div class="field upload__campo">
+      <label for="{{ target_id }}-arquivo">Arquivo</label>
+      <input id="{{ target_id }}-arquivo" class="input upload__arquivo{% if erro_arquivo %} input--erro{% endif %}"
+        type="file" name="arquivo" accept="{{ aceitos }}" required
+        {% if erro_arquivo %}aria-invalid="true" {% endif %}aria-describedby="{{ target_id }}-dica{% if erro_arquivo %} {{ target_id }}-erro{% endif %}" />
+      <span class="hint" id="{{ target_id }}-dica">Até {{ limite_mb }} MB por arquivo. Tipos aceitos: {{ tipos }}.</span>
+      {% if erro_arquivo %}
+      <span class="field__erro" id="{{ target_id }}-erro" role="alert">{{ erro_arquivo }}</span>
+      {% endif %}
+    </div>
+    <button class="btn btn--primary" type="submit">Enviar anexo</button>
+  </form>
+  {% endif %}
+
+  {% if not pode_ver %}
+  <div class="aviso aviso--info">
+    <span>{{ aviso_restrito }}</span>
+  </div>
+  {% elif linhas %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th class="td-num">Tamanho</th>
+          <th>Enviado por</th>
+          <th>Enviado em</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+        <tr>
+          <td class="fw-600">
+            <a class="anexos__link" href="{{ linha.url }}" download>
+              <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+              <span class="anexos__nome">{{ linha.name }}</span>
+            </a>
+          </td>
+          <td class="td-num num">{{ linha.size }}</td>
+          <td>{{ linha.uploaded_by }}</td>
+          <td class="num">{{ linha.uploaded_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="body-txt muted">Nenhum anexo enviado ainda.</p>
+  {% endif %}
+</section>
+{% endblock %}

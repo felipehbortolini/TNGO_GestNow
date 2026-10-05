@@ -223,6 +223,29 @@
 .chip--erro { background: var(--erro-50); color: var(--erro-700); }
 
 /* ============================================================
+   Upload e lista de anexos
+   O componente de envio de arquivo dos registros (D5a): um campo
+   de arquivo e o botão na mesma linha, que quebra no celular, e a
+   tabela dos anexos logo abaixo. O servidor desenha o conjunto em
+   api/src/templates/comum/anexos.html; a tela só reserva o lugar.
+   O campo é o .input do formulário: aqui entra só o botão nativo
+   de escolher o arquivo, com a cara do botão secundário.
+   ============================================================ */
+.anexos { display: flex; flex-direction: column; gap: var(--space-lg); }
+.anexos__link { display: inline-flex; align-items: center; gap: var(--space-sm); color: var(--brand-title); }
+.anexos__nome { overflow-wrap: anywhere; }
+
+.upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-lg); }
+.upload__campo { flex: 1 1 280px; min-width: 0; }
+.upload__arquivo::file-selector-button {
+  margin-right: var(--space-md); padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--brand-title); border-radius: var(--r-md);
+  background: transparent; color: var(--brand-title);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.upload__arquivo::file-selector-button:hover { background: var(--verde-50); }
+
+/* ============================================================
    Utilitário de acessibilidade
    Rótulo visível só para leitor de tela.
    ============================================================ */

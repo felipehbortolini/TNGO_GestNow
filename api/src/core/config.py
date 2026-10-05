@@ -17,6 +17,13 @@ with the same rule: unset means off — the notification port then records the
 send as simulated — and any other value than the two known ones fails loud.
 The Microsoft Graph credentials that the "on" state needs are read by
 ``graph_mail``, which is the only consumer.
+
+``GESTNOW_ARMAZENAMENTO_ANEXOS`` chooses where the files of the attachments
+live (ISSUE-012, D5a): ``local`` (the default, when unset) is the folder
+``data/anexos/`` at the repository root, outside git, and ``blob`` is Azure Blob
+Storage. Any other value fails loud, like the two variables above.
+``GESTNOW_PASTA_ANEXOS`` moves the local folder elsewhere. The Blob settings
+are read by ``blob_storage``, which is the only consumer.
 """
 
 from __future__ import annotations
@@ -26,16 +33,26 @@ import os
 from pathlib import Path
 
 LOCAL_SETTINGS_PATH = Path(__file__).resolve().parents[2] / "local.settings.json"
+# ``api/src/core/config.py`` -> the repository root, where ``data/anexos/`` is ignored by git.
+# Where the code is deployed there may be fewer folders above it: the app must still start.
+_ANCESTORS = Path(__file__).resolve().parents
+REPOSITORY_ROOT = _ANCESTORS[min(3, len(_ANCESTORS) - 1)]
 
 APP_MODE_VARIABLE = "GESTNOW_MODO"
 ADMIN_EMAIL_VARIABLE = "GESTNOW_ADMIN_EMAIL"
 EMAIL_SENDING_VARIABLE = "GESTNOW_ENVIO_EMAIL"
+ATTACHMENT_STORAGE_VARIABLE = "GESTNOW_ARMAZENAMENTO_ANEXOS"
+ATTACHMENT_FOLDER_VARIABLE = "GESTNOW_PASTA_ANEXOS"
 
 DEMONSTRATION = "demonstracao"
 PRODUCTION = "producao"
 
 EMAIL_SENDING_OFF = "desligado"
 EMAIL_SENDING_ON = "ligado"
+
+ATTACHMENT_STORAGE_LOCAL = "local"
+ATTACHMENT_STORAGE_BLOB = "blob"
+DEFAULT_ATTACHMENT_FOLDER = REPOSITORY_ROOT / "data" / "anexos"
 
 
 class InvalidApplicationModeError(RuntimeError):
@@ -55,6 +72,16 @@ class InvalidEmailSendingError(RuntimeError):
         super().__init__(
             f"Valor invalido em {EMAIL_SENDING_VARIABLE}: {value!r}. "
             f"Use {EMAIL_SENDING_OFF!r} ou {EMAIL_SENDING_ON!r}."
+        )
+
+
+class InvalidAttachmentStorageError(RuntimeError):
+    """Raised when the attachment storage value is not one of the two known adapters."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__(
+            f"Valor invalido em {ATTACHMENT_STORAGE_VARIABLE}: {value!r}. "
+            f"Use {ATTACHMENT_STORAGE_LOCAL!r} ou {ATTACHMENT_STORAGE_BLOB!r}."
         )
 
 
@@ -93,3 +120,21 @@ def email_sending() -> str:
     if value == EMAIL_SENDING_ON:
         return EMAIL_SENDING_ON
     raise InvalidEmailSendingError(value)
+
+
+def attachment_storage() -> str:
+    """The configured attachment storage; unset means the local folder, any other value fails loud."""
+    value = (
+        (os.environ.get(ATTACHMENT_STORAGE_VARIABLE) or ATTACHMENT_STORAGE_LOCAL).strip().lower()
+    )
+    if value == ATTACHMENT_STORAGE_LOCAL:
+        return ATTACHMENT_STORAGE_LOCAL
+    if value == ATTACHMENT_STORAGE_BLOB:
+        return ATTACHMENT_STORAGE_BLOB
+    raise InvalidAttachmentStorageError(value)
+
+
+def attachment_folder() -> Path:
+    """The folder of the local adapter: the configured one, or ``data/anexos/`` at the root."""
+    value = (os.environ.get(ATTACHMENT_FOLDER_VARIABLE) or "").strip()
+    return Path(value) if value else DEFAULT_ATTACHMENT_FOLDER

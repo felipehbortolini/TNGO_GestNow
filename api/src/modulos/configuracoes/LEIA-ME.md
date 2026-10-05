@@ -65,7 +65,7 @@ O **cadastro de Colaboradores é a fonte de verdade do acesso** (D7): a cada req
 
 ## Parâmetros
 
-Este módulo é dono do versionamento e dos 14 grupos gerais: `avaliacaoContratada`, `claims`, `hse`, `riscos`, `financeiro`, `suprimentos`, `punch`, `mudancas`, `licoes`, `produtividade`, `eap`, `qualidade`, `portfolio` (os 13 do protótipo) e `anexos` (D5a). Os valores iniciais ficam em `service.INITIAL_PARAMETERS`, com as mesmas chaves do `MOCK.parametros` do protótipo; a versão 1 é semeada por `service.seed_initial_parameters`.
+Este módulo é dono do versionamento e dos 14 grupos gerais: `avaliacaoContratada`, `claims`, `hse`, `riscos`, `financeiro`, `suprimentos`, `punch`, `mudancas`, `licoes`, `produtividade`, `eap`, `qualidade`, `portfolio` (os 13 do protótipo) e `anexos` (D5a, lido por `core.attachments`: `tamanhoMaximoMb` e `tiposAceitos` são o limite e a lista de tipos do próximo envio). Os valores iniciais ficam em `service.INITIAL_PARAMETERS`, com as mesmas chaves do `MOCK.parametros` do protótipo; a versão 1 é semeada por `service.seed_initial_parameters`.
 
 Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminho com o índice das listas (`riscos.probabilidades.0.mediaPct`), o `tipo` é `texto`, `inteiro`, `decimal`, `booleano` ou `nulo`, o `valor` é o texto canônico e a `ordem` é a posição da folha na travessia. `parametro_versao` guarda uma linha por grupo e versão, com autor e justificativa; nada é editado.
 
