@@ -1,7 +1,7 @@
 ---
 id: ISSUE-013
 title: "Porta de notificação: e-mail via Microsoft Graph escrito e desligado, envio simulado registrado na trilha"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
