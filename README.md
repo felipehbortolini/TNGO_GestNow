@@ -56,6 +56,7 @@ api\.venv\Scripts\python.exe -m pytest  # dentro de api/
 | Servidor local sem Functions Core Tools | `scripts/dev_local.py` e `run.bat` |
 | Preparo do banco local | `scripts/prepare_database.py` |
 | Camada de banco e modelos | `api/src/core/database.py`, `api/src/core/models.py` e `api/migrations/` |
+| Envio de notificações (simulado ou e-mail pelo Microsoft Graph) | `api/src/core/notification.py` e `api/src/core/graph_mail.py`; variáveis em `api/README.md` |
 | Testes e banco de teste | `api/tests/conftest.py` |
 | Padrões herdados e documentação | `docs/` |
 | Especificação e execução das issues | `docs/SPEC-MIGRACAO-GESTNOW.md` e `docs/issues/` |

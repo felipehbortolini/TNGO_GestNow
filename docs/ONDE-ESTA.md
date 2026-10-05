@@ -37,6 +37,7 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Sessão, base dos modelos e relatório do banco | `api/src/core/database.py` | `GESTNOW_DATABASE_URL`, engine SQLAlchemy, `Base` dos modelos, revisão da migração e a unidade de trabalho (`unidade_de_trabalho`) |
 | Gravação segura (trilha, versão, numeração e dinheiro) | `api/src/core/recording.py`, `audit.py`, `versioning.py`, `numbering.py` e `money.py` | A forma única de gravar registro editável com trilha, o 409 de edição simultânea, a numeração por projeto e os centavos formatados só na apresentação (ISSUE-006) |
 | Erros de domínio e decorador de rota | `api/src/core/errors.py` e `routing.py` | `AccessDeniedError`/`InvalidDataError`/`VersionConflictError`; `fragment_route` com gate, transação e o mapa 403/409/422 |
+| Porta de notificação (e-mail simulado ou pelo Microsoft Graph) | `api/src/core/notification.py` e `graph_mail.py` | `send` grava `notificacao` e a trilha e devolve o aviso para a tela; `GESTNOW_ENVIO_EMAIL` liga o envio real (ISSUE-013) |
 | Configuração local | `api/src/core/config.py` | Carrega `api/local.settings.json` (fora do git) para o ambiente |
 | Modelos da plataforma | `api/src/core/models.py` | Cliente, sequência, auditoria, anexo e notificação |
 | Migrações Alembic | `api/migrations/` | Uma revisão por fatia de módulo, a partir de `0001_plataforma` |

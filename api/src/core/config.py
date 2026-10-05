@@ -11,6 +11,12 @@ would.
 unset means demonstration, the local mode; anything other than the two known
 values fails loud instead of silently loading the wrong base. In production,
 ``GESTNOW_ADMIN_EMAIL`` carries the first Admin's e-mail.
+
+``GESTNOW_ENVIO_EMAIL`` switches the real e-mail sending on (ISSUE-013, D12),
+with the same rule: unset means off — the notification port then records the
+send as simulated — and any other value than the two known ones fails loud.
+The Microsoft Graph credentials that the "on" state needs are read by
+``graph_mail``, which is the only consumer.
 """
 
 from __future__ import annotations
@@ -23,9 +29,13 @@ LOCAL_SETTINGS_PATH = Path(__file__).resolve().parents[2] / "local.settings.json
 
 APP_MODE_VARIABLE = "GESTNOW_MODO"
 ADMIN_EMAIL_VARIABLE = "GESTNOW_ADMIN_EMAIL"
+EMAIL_SENDING_VARIABLE = "GESTNOW_ENVIO_EMAIL"
 
 DEMONSTRATION = "demonstracao"
 PRODUCTION = "producao"
+
+EMAIL_SENDING_OFF = "desligado"
+EMAIL_SENDING_ON = "ligado"
 
 
 class InvalidApplicationModeError(RuntimeError):
@@ -35,6 +45,16 @@ class InvalidApplicationModeError(RuntimeError):
         super().__init__(
             f"Valor invalido em {APP_MODE_VARIABLE}: {value!r}. "
             f"Use {DEMONSTRATION!r} ou {PRODUCTION!r}."
+        )
+
+
+class InvalidEmailSendingError(RuntimeError):
+    """Raised when the e-mail sending value is not one of the two known states."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__(
+            f"Valor invalido em {EMAIL_SENDING_VARIABLE}: {value!r}. "
+            f"Use {EMAIL_SENDING_OFF!r} ou {EMAIL_SENDING_ON!r}."
         )
 
 
@@ -63,3 +83,13 @@ def admin_email() -> str | None:
     """The first Admin's e-mail configured for production, or ``None`` when absent."""
     value = os.environ.get(ADMIN_EMAIL_VARIABLE)
     return value.strip() if value and value.strip() else None
+
+
+def email_sending() -> str:
+    """The configured e-mail sending state; unset means off, any other value fails loud."""
+    value = (os.environ.get(EMAIL_SENDING_VARIABLE) or EMAIL_SENDING_OFF).strip().lower()
+    if value == EMAIL_SENDING_OFF:
+        return EMAIL_SENDING_OFF
+    if value == EMAIL_SENDING_ON:
+        return EMAIL_SENDING_ON
+    raise InvalidEmailSendingError(value)

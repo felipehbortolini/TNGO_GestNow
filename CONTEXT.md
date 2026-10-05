@@ -215,6 +215,16 @@ mocks do protótipo já convertidos, com todas as datas deslocadas de
 de novo não duplica. Em produção a base nasce vazia: só o primeiro Admin, de
 `GESTNOW_ADMIN_EMAIL`, e os parâmetros iniciais. Vive em `api/src/carga/`.
 
+## Notificações
+
+**Porta de notificação** — o ponto único por onde saem o follow-up de ações, a
+pauta de riscos ao gerente e o envio à tesouraria. Registra cada envio e diz à
+tela o que aconteceu. Quem liga o envio real de e-mail é `GESTNOW_ENVIO_EMAIL`.
+
+**Envio simulado** — notificação registrada na trilha de auditoria, com
+destinatários e assunto, sem sair por e-mail. É o que acontece enquanto o envio
+real está desligado, e a tela avisa "simulado".
+
 ---
 
 ## Qualidade

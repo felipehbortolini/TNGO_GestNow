@@ -1893,7 +1893,7 @@ fachada, não por coluna.
 | `sequencia_numeracao` | Próximo número por projeto e tipo (ata, SM, risco, RNC, punch, lição, claim, EOT...), com trava de linha na transação. | plataforma |
 | `auditoria` | Trilha de auditoria **só de inclusão**: quem, quando, entidade, registro, ação e o antes/depois. Sem `versao`; a atualização e a exclusão são proibidas no banco. | plataforma |
 | `anexo` | Metadados do arquivo (nome, tipo, tamanho, hash, autor, data) e o registro de origem (tabela + id). O arquivo fica na pasta local ou no Blob; o download checa a permissão do registro de origem (D5a). | plataforma |
-| `notificacao` | Registro de envio (follow-up, pauta, tesouraria): destinatários, assunto, corpo, situação `simulado`/`enviado`/`erro` e referência ao registro. | plataforma |
+| `notificacao` | Registro de envio (follow-up, pauta, tesouraria): destinatários, assunto, corpo, situação `simulado`/`enviado`/`erro` e referência ao registro. Gravada pela porta de notificação (ISSUE-013): `tipo` guarda `follow_up`, `pauta_riscos` ou `tesouraria` e `canal` guarda `email`; o texto do erro de um envio que falhou fica na linha da trilha (`auditoria.depois`, chave `erro`), sem coluna própria. Sem `versao`: é um fato gravado uma vez, já com a situação final. | plataforma |
 | `carga_demonstracao` | Parte da carga de demonstração já aplicada (`nome`), para rodar a carga de novo não duplicar nada (ISSUE-008). Não existe no modo produção. | plataforma |
 | `sistema` | Cadastro de apoio de sistemas do projeto (código, nome, área); usado pelo punch list e pelas telas de planejamento. | configurações |
 | `unidade` | Cadastro de apoio de unidades: de medida (m, un, Hh) ou organizacional (Unidade Horizonte), distinguidas por `tipo`. | configurações |
