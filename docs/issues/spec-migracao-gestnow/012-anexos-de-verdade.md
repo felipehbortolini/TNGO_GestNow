@@ -1,7 +1,7 @@
 ---
 id: ISSUE-012
 title: "Anexos de verdade: pasta local ou Blob, limites por parâmetro e download com a permissão do registro de origem"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
