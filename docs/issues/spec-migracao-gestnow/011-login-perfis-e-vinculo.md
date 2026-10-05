@@ -68,7 +68,7 @@ afins) fica disponível para os módulos, recusando com 403 e mensagem.
 - [x] Papel da Programação Semanal vale só no projeto em que foi dado.
 - [x] Configurações aparece só para Gestor e Admin.
 - [x] A função de segregação recusa com 403 e mensagem.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 

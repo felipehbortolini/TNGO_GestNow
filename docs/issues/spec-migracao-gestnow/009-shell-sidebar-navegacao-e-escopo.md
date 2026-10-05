@@ -69,7 +69,7 @@ do glossário.
 - [x] Trocar o escopo numa tela de detalhe volta para a lista do módulo.
 - [x] No Portfólio, o mecanismo de inclusão pede o projeto e reabre a tela no projeto com o formulário aberto.
 - [x] Passar o mouse sobre uma sigla mostra o significado.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 

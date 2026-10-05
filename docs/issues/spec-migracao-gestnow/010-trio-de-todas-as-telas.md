@@ -62,7 +62,7 @@ lista de navegação. A falta falha alto.
 - [x] Nenhum fragmento carrega `<link>` ou `<script>`.
 - [x] A verificação `trio-da-tela` reprova view sem CSS, view sem JS, trio fora do shell e view sem item de navegação, nomeando a tela.
 - [x] O `LEIA-ME.md` de cada módulo lista os trios das suas telas.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 

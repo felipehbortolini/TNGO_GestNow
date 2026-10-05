@@ -61,7 +61,7 @@ plataforma responde isso para os módulos.
 - [x] Download de quem não pode ler o registro de origem é recusado; de quem pode, entrega o arquivo com o nome original.
 - [x] Trocar a variável de ambiente troca a implementação sem mudar código (o adaptador Blob é testado com dublê).
 - [x] A função de evidência responde se um registro tem ao menos um anexo.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 

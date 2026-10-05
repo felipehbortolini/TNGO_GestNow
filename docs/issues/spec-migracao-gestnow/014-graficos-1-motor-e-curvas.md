@@ -55,7 +55,7 @@ seus visuais nela.
 - [x] O drill ano, mês e semana funciona nas curvas.
 - [x] Os dados chegam por `data-*`; nenhum fragmento tem `<script>`.
 - [x] Abrir o styleguide não gera erro no console.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada. Não rodada nesta execução (política do dono): fica para a rodada do orquestrador.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada. Não rodada nesta execução (política do dono): fica para a rodada do orquestrador.
 
 ## Verificação
 
