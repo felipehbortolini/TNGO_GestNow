@@ -1,7 +1,7 @@
 ---
 id: ISSUE-010
 title: "Trio HTML, CSS e JS de todas as telas vinculado no shell e verificação trio-da-tela"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2

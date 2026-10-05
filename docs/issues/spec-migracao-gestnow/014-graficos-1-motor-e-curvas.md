@@ -1,7 +1,7 @@
 ---
 id: ISSUE-014
 title: "Biblioteca de gráficos 1: motor comum com drill e curvas, barras, Pareto e relógios"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2

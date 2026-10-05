@@ -1,7 +1,7 @@
 ---
 id: ISSUE-011
 title: "Login Microsoft com o cadastro de Colaboradores, perfis em dois eixos, recorte por vínculo e modo demonstração"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
