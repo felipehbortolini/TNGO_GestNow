@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Pareto Tipo de Ação x Status — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:32px;font-family:'Segoe UI',sans-serif;}
+  .stage{max-width:880px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);height:560px;overflow:hidden;position:relative;}
+  .meta{max-width:880px;margin:0 auto 18px;color:#2A2A2A;}
+  .meta h1{font-family:'Montserrat','Segoe UI',sans-serif;font-size:18px;color:#006357;
+    margin:0 0 4px;letter-spacing:.4px;}
+  .meta p{margin:0;font-size:12px;color:#7D7D7D;}
+</style>
+</head>
+<body>
+  <div class="meta">
+    <h1>HTML Pareto Tipo de Ação x Status</h1>
+    <p>Preview standalone — dados fake PMO (12 tipos de ação da GCMS: 299 ações, vital few 80% = 7/12)</p>
+  </div>
+
+  <div class="stage">
+    <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS que a medida DAX emite) ===== -->
+    <style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:transparent}
+:root{--u:clamp(4.4px,min(1.04vh,.63vw),14px);
+--gl:max(calc(var(--u)*7.2),30px);--gr:max(calc(var(--u)*7.4),30px);
+--pt:calc(var(--u)*5.6);--t:#00A793;--d:#006357;--o:#EB6100;--g:#7D7D7D;--s:#9AA0A6}
+body{font-family:'Segoe UI',sans-serif;color:#2A2A2A}
+.m{font-family:Montserrat,'Segoe UI',sans-serif;font-weight:600}
+.wp{position:fixed;top:0;left:0;width:100vw;height:100vh;display:flex;
+flex-direction:column;padding:calc(var(--u)*1.5) calc(var(--u)*1.2)}
+
+.hd{display:flex;align-items:flex-start;gap:calc(var(--u)*1.8);flex:0 0 auto}
+.ti{flex:1 1 auto;min-width:0}
+.eb{font-size:calc(var(--u)*1.8);letter-spacing:.14em;color:var(--t);white-space:nowrap}
+.h1{font-size:calc(var(--u)*4);font-weight:600;color:var(--d);line-height:1.1;
+margin-top:calc(var(--u)*.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb{font-size:calc(var(--u)*1.85);color:var(--g);margin-top:calc(var(--u)*.4);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rl{width:calc(var(--u)*9.6);height:calc(var(--u)*.5);border-radius:99px;
+background:var(--t);margin-top:calc(var(--u)*.9)}
+.kp{display:flex;gap:calc(var(--u)*1.2);flex:1 1 auto;max-width:62%}
+.kc{flex:1 1 0;min-width:0;background:#fff;border-radius:calc(var(--u)*.8);
+box-shadow:0 2px 4px 0 rgba(0,0,0,.15);padding:calc(var(--u)*1.4) calc(var(--u)*1.7);
+border-top:calc(var(--u)*.5) solid}
+.kl{font-size:calc(var(--u)*1.4);letter-spacing:.1em;color:var(--t);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{font-size:calc(var(--u)*4.2);font-weight:600;line-height:1.2;margin-top:calc(var(--u)*.4)}
+.ks{font-size:calc(var(--u)*1.65);color:var(--g);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.in{display:flex;align-items:center;gap:calc(var(--u)*1.1);flex:0 0 auto;
+margin-top:calc(var(--u)*1.4);font-size:calc(var(--u)*2)}
+.in span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.in b{font-weight:600}
+.ic{width:calc(var(--u)*1.2);height:calc(var(--u)*1.2);border-radius:50%;
+background:var(--o);flex:0 0 auto}
+
+.pw{position:relative;flex:1 1 auto;min-height:0;margin-top:calc(var(--u)*1.2)}
+.pa{position:absolute;left:var(--gl);right:var(--gr);top:var(--pt);bottom:0}
+.gl{position:absolute;left:0;right:0;border-top:1px solid #E8E8E8}
+.gb{border-top-width:2px}
+.ay,.az{position:absolute;font-size:calc(var(--u)*1.8);font-weight:600;
+transform:translateY(50%);white-space:nowrap;line-height:1}
+.ay{right:calc(100% + var(--u)*1.3);color:var(--s)}
+.az{left:calc(100% + var(--u)*1.3);color:var(--t)}
+.at{position:absolute;top:50%;font-size:calc(var(--u)*1.5);letter-spacing:.12em;
+color:var(--s);writing-mode:vertical-rl;white-space:nowrap}
+.al{left:0;transform:translateY(-50%) rotate(180deg)}
+.ar{right:0;transform:translateY(-50%);color:var(--t)}
+
+.zn{position:absolute;left:0;top:calc(-1*var(--pt));bottom:0;overflow:hidden;
+border-radius:calc(var(--u)*1.2);background:linear-gradient(#00A79322,#00A79305)}
+.zn:after{content:'';position:absolute;top:0;bottom:0;width:calc(var(--u)*15);
+background:linear-gradient(90deg,#FFF0,#FFFA,#FFF0);animation:sw 4.5s ease-in-out 1.6s infinite}
+.zc{position:absolute;left:0;top:0;background:var(--t);color:#fff;white-space:nowrap;
+font-size:calc(var(--u)*1.5);letter-spacing:.1em;border-radius:99px;
+padding:calc(var(--u)*.45) calc(var(--u)*1.3)}
+.ze{position:absolute;top:calc(-1*var(--pt));bottom:0;width:2px;opacity:.8;
+background:repeating-linear-gradient(180deg,var(--o) 0 8px,transparent 8px 15px);
+animation:mv 1.4s linear infinite}
+.l8{position:absolute;left:0;right:0;bottom:80%;height:2px;opacity:.85;
+background:repeating-linear-gradient(90deg,var(--o) 0 11px,transparent 11px 19px);
+animation:mh 1.4s linear infinite}
+.b8{position:absolute;right:0;bottom:80%;transform:translateY(50%);background:var(--o);
+color:#fff;font-size:calc(var(--u)*1.7);font-weight:600;border-radius:calc(var(--u)*.8);
+padding:calc(var(--u)*.3) calc(var(--u)*1);line-height:1.3}
+
+.cs{position:absolute;inset:0;display:flex;align-items:flex-end}
+.co{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;
+flex-direction:column;justify-content:flex-end;align-items:center}
+.st{position:relative;z-index:1;width:58%;min-width:3px;max-width:calc(var(--u)*11.2);
+display:flex;flex-direction:column;overflow:hidden;
+border-radius:calc(var(--u)*1) calc(var(--u)*1) 0 0;box-shadow:0 3px 5px rgba(0,0,0,.15);
+transform-origin:50% 100%;animation:gw .8s cubic-bezier(.17,.84,.28,1) both}
+.sg{display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden;
+color:#fff;font-weight:600;font-style:normal;line-height:1;font-size:calc(var(--u)*1.55)}
+.sg+.sg{box-shadow:inset 0 1.6px 0 #fff}
+.gC{background:linear-gradient(#7BD3A0,#4EB776)}
+.gA{background:linear-gradient(#F2CD5E,#E8B430)}
+.gI{background:linear-gradient(#8AABB8,#648FA0)}
+.gN{background:linear-gradient(#C9B79C,#B09975)}
+.gO{background:linear-gradient(#BCC1C6,#9AA0A6)}
+.gT{background:linear-gradient(#E35B5B,#D03636)}
+
+.tv{position:absolute;z-index:4;left:50%;transform:translateX(-50%);white-space:nowrap;
+font-size:calc(var(--u)*2.7);font-weight:600;line-height:1;margin-bottom:calc(var(--u)*1.4);
+text-shadow:0 0 4px #fff,0 0 4px #fff,0 0 8px #fff;animation:fd .5s ease-out both}
+.pi{position:absolute;z-index:3;left:50%;transform:translateX(-50%);white-space:nowrap;
+font-size:calc(var(--u)*1.7);font-weight:600;line-height:1.25;border:1.4px solid;
+border-radius:99px;padding:calc(var(--u)*.35) calc(var(--u)*1);
+margin-bottom:calc(var(--u)*1.6);animation:fd .5s ease-out both}
+.pv{background:var(--d);border-color:var(--d);color:#fff}
+.pn{background:#fff;border-color:#D8DCE0;color:var(--g)}
+.pi.up{margin-bottom:calc(var(--u)*5.4)}
+.do{position:absolute;z-index:3;left:50%;border-radius:50%;
+border:calc(var(--u)*.3) solid var(--d);width:calc(var(--u)*1.8);height:calc(var(--u)*1.8);
+animation:pp .5s cubic-bezier(.2,1.5,.4,1) both}
+.dv{background:var(--d)}.dn{background:#fff}.dl{border-color:var(--o)}
+.ha{position:absolute;z-index:2;left:50%;border-radius:50%;border:3px solid var(--o);
+width:calc(var(--u)*2);height:calc(var(--u)*2);animation:hl 2.2s ease-out 2s infinite}
+.ld{position:absolute;z-index:0;left:50%;width:2px;transform:translateX(-50%);opacity:.45;
+background:repeating-linear-gradient(180deg,#006357 0 3px,transparent 3px 8px);
+animation:fd .5s ease-out both}
+.cv{position:absolute;z-index:2;inset:0;width:100%;height:100%;
+overflow:visible;pointer-events:none}
+.cw,.cl{fill:none;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.cw{stroke:#fff;stroke-opacity:.92;stroke-width:calc(var(--u)*.9)}
+.cl{stroke:url(#gL);stroke-width:calc(var(--u)*.45);stroke-dasharray:6000;
+animation:dw 1.5s cubic-bezier(.3,.7,.2,1) .55s both}
+
+.xl{display:flex;flex:0 0 auto;padding:calc(var(--u)*1) var(--gr) 0 var(--gl)}
+.xc{flex:1 1 0;min-width:0;text-align:center;padding:0 calc(var(--u)*.3);
+animation:fd .5s ease-out both}
+.xu{height:calc(var(--u)*.42);border-radius:99px;width:58%;
+max-width:calc(var(--u)*11.2);margin:0 auto calc(var(--u)*.8)}
+.xn{font-size:calc(var(--u)*1.7);font-weight:600;line-height:1.14;overflow-wrap:break-word;
+display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.xs{font-size:calc(var(--u)*1.45);font-weight:600;color:var(--s);line-height:1.3;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.lg{display:flex;flex:0 0 auto;align-items:flex-start;gap:calc(var(--u)*1.4);
+padding:calc(var(--u)*1.1) var(--gr) 0 var(--gl)}
+.li{display:flex;gap:calc(var(--u)*.8);flex:1 1 0;min-width:0}
+.lb{width:calc(var(--u)*1.6);height:calc(var(--u)*1.6);border-radius:calc(var(--u)*.4);
+flex:0 0 auto;margin-top:calc(var(--u)*.3)}
+.lt{min-width:0}
+.ln{font-size:calc(var(--u)*1.85);font-weight:600;line-height:1.2;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv{font-size:calc(var(--u)*1.6);color:var(--g);white-space:nowrap;line-height:1.4}
+.lf{flex:0 0 auto;font-size:calc(var(--u)*1.5);color:var(--s);white-space:nowrap;align-self:flex-end}
+
+@keyframes gw{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fd{from{opacity:0}to{opacity:1}}
+@keyframes pp{from{transform:translate(-50%,50%) scale(0)}to{transform:translate(-50%,50%) scale(1)}}
+@keyframes dw{from{stroke-dashoffset:6000}to{stroke-dashoffset:0}}
+@keyframes hl{from{opacity:.7;transform:translate(-50%,50%) scale(1)}
+to{opacity:0;transform:translate(-50%,50%) scale(3.4)}}
+@keyframes mv{to{background-position:0 15px}}
+@keyframes mh{to{background-position:19px 0}}
+@keyframes sw{from{left:-25%}to{left:115%}}
+.do,.ha{transform:translate(-50%,50%)}
+
+@media(max-width:900px){.at{display:none}.k4{display:none}.kp{max-width:52%}}
+@media(max-width:680px){.k3{display:none}}
+@media(max-width:480px){.kp{display:none}.lv{display:none}.xs{display:none}}
+@media(max-width:622px){.sg{font-size:0}.zc{display:none}}
+@media(max-width:434px){.pi,.ld{display:none}}
+@media(max-width:280px){.tv{display:none}}
+@media(max-height:520px){.sb{display:none}.in{margin-top:calc(var(--u)*.8)}}
+@media(max-height:400px){.in,.ks{display:none}.xs{display:none}}
+@media(max-height:300px){.lg,.rl{display:none}}
+.d1{animation-delay:170ms}.e1{animation-delay:800ms}
+.d2{animation-delay:240ms}.e2{animation-delay:880ms}
+.d3{animation-delay:310ms}.e3{animation-delay:960ms}
+.d4{animation-delay:380ms}.e4{animation-delay:1040ms}
+.d5{animation-delay:450ms}.e5{animation-delay:1120ms}
+.d6{animation-delay:520ms}.e6{animation-delay:1200ms}
+.d7{animation-delay:590ms}.e7{animation-delay:1280ms}
+.d8{animation-delay:660ms}.e8{animation-delay:1360ms}
+.d9{animation-delay:730ms}.e9{animation-delay:1440ms}
+.d10{animation-delay:800ms}.e10{animation-delay:1520ms}
+.d11{animation-delay:870ms}.e11{animation-delay:1600ms}
+.d12{animation-delay:940ms}.e12{animation-delay:1680ms}
+/* Adaptação só para o preview: a medida ancora em 100vw/100vh; aqui o palco é o próprio card. */
+.stage .wp{position:absolute;top:0;left:0;width:100%;height:100%}
+.stage .wp{--u:clamp(3.5px,min(1.1vh,.7vw),13px)}
+    </style>
+
+    <div class='wp'>
+      <div class='hd'>
+        <div class='ti'>
+          <div class='eb m'>AN&#193;LISE DE PARETO &#183; 80/20</div>
+          <div class='h1'>Tipo de A&#231;&#227;o &#215; Status</div>
+          <div class='sb'>Concentra&#231;&#227;o das a&#231;&#245;es e desdobramento da execu&#231;&#227;o</div>
+          <div class='rl'></div>
+        </div>
+        <div class='kp'>
+          <div class='kc k1' style='border-top-color:#006357'><div class='kl m'>TOTAL DE A&#199;&#213;ES</div><div class='kv' style='color:#006357'>299</div><div class='ks'>12 tipos de a&#231;&#227;o</div></div>
+          <div class='kc k2' style='border-top-color:#EB6100'><div class='kl m'>VITAL FEW (80%)</div><div class='kv' style='color:#EB6100'>7/12</div><div class='ks'>80% das a&#231;&#245;es</div></div>
+          <div class='kc k3' style='border-top-color:#E8B430'><div class='kl m'>EM ABERTO NO FOCO</div><div class='kv' style='color:#E8B430'>143</div><div class='ks'>60% da zona vital</div></div>
+          <div class='kc k4' style='border-top-color:#D03636'><div class='kl m'>ATRASADAS</div><div class='kv' style='color:#D03636'>36</div><div class='ks'>28 dentro do 80%</div></div>
+        </div>
+      </div>
+
+      <div class='in'><div class='ic'></div><span>
+        <b style='color:#006357'>7 de 12 tipos</b> (58% das categorias) concentram
+        <b style='color:#EB6100'>80%</b> das a&#231;&#245;es &#8212; nesse foco h&#225;
+        <b style='color:#E8B430'>143 em aberto</b> e
+        <b style='color:#D03636'>28 atrasadas</b>.
+      </span></div>
+
+      <div class='pw'>
+        <div class='at al m'>N&#186; DE A&#199;&#213;ES</div>
+        <div class='at ar m'>% ACUMULADO</div>
+        <div class='pa'>
+          <div class='gl gb' style='bottom:0%'></div><div class='ay' style='bottom:0%'>0</div><div class='az' style='bottom:0%'>0%</div>
+          <div class='gl' style='bottom:25%'></div><div class='ay' style='bottom:25%'>20</div><div class='az' style='bottom:25%'>25%</div>
+          <div class='gl' style='bottom:50%'></div><div class='ay' style='bottom:50%'>40</div><div class='az' style='bottom:50%'>50%</div>
+          <div class='gl' style='bottom:75%'></div><div class='ay' style='bottom:75%'>60</div><div class='az' style='bottom:75%'>75%</div>
+          <div class='gl' style='bottom:100%'></div><div class='ay' style='bottom:100%'>80</div><div class='az' style='bottom:100%'>100%</div>
+
+          <div class='zn' style='width:calc(5833*.01%)'><div class='zc m'>ZONA VITAL &#199; 80%</div></div>
+          <div class='ze' style='left:calc(5833*.01%)'></div>
+          <div class='l8'></div><div class='b8'>80%</div>
+
+          <div class='cs'>
+            <div class='co'>
+              <div class='st d1' style='height:calc(6500*.01%)'>
+                <i class='sg gT' style='flex:5'>5</i>
+                <i class='sg gI' style='flex:18'>18</i>
+                <i class='sg gA' style='flex:12'>12</i>
+                <i class='sg gC' style='flex:14'>14</i>
+              </div>
+              <div class='ld e1' style='bottom:calc(1739*.01%);height:calc(4761*.01%)'></div>
+              <div class='do e1 dv' style='bottom:calc(1739*.01%)'></div>
+              <div class='pi e1 pv up' style='bottom:calc(6500*.01%)'>17%</div>
+              <div class='tv e1' style='bottom:calc(6500*.01%);color:#006357'>52</div>
+            </div>
+            <div class='co'>
+              <div class='st d2' style='height:calc(5125*.01%)'>
+                <i class='sg gT' style='flex:5'>5</i>
+                <i class='sg gI' style='flex:10'>10</i>
+                <i class='sg gA' style='flex:6'>6</i>
+                <i class='sg gC' style='flex:18'>18</i>
+              </div>
+              <div class='ld e2' style='bottom:calc(3110*.01%);height:calc(2015*.01%)'></div>
+              <div class='do e2 dv' style='bottom:calc(3110*.01%)'></div>
+              <div class='pi e2 pv up' style='bottom:calc(5125*.01%)'>31%</div>
+              <div class='tv e2' style='bottom:calc(5125*.01%);color:#006357'>41</div>
+            </div>
+            <div class='co'>
+              <div class='st d3' style='height:calc(4625*.01%)'>
+                <i class='sg gI' style='flex:8'>8</i>
+                <i class='sg gA' style='flex:12'>12</i>
+                <i class='sg gC' style='flex:11'>11</i>
+              </div>
+              <div class='ld e3' style='bottom:calc(4348*.01%);height:calc(277*.01%)'></div>
+              <div class='do e3 dv' style='bottom:calc(4348*.01%)'></div>
+              <div class='pi e3 pv up' style='bottom:calc(4625*.01%)'>43%</div>
+              <div class='tv e3' style='bottom:calc(4625*.01%);color:#006357'>37</div>
+            </div>
+            <div class='co'>
+              <div class='st d4' style='height:calc(4250*.01%)'>
+                <i class='sg gT' style='flex:5'>5</i>
+                <i class='sg gA' style='flex:7'>7</i>
+                <i class='sg gC' style='flex:19'>19</i>
+              </div>
+              <div class='do e4 dv' style='bottom:calc(5485*.01%)'></div>
+              <div class='pi e4 pv' style='bottom:calc(5485*.01%)'>55%</div>
+              <div class='tv e4' style='bottom:calc(4250*.01%);color:#006357'>34</div>
+            </div>
+            <div class='co'>
+              <div class='st d5' style='height:calc(3625*.01%)'>
+                <i class='sg gI' style='flex:7'>7</i>
+                <i class='sg gA' style='flex:10'>10</i>
+                <i class='sg gC' style='flex:7'>7</i>
+              </div>
+              <div class='do e5 dv' style='bottom:calc(6455*.01%)'></div>
+              <div class='pi e5 pv' style='bottom:calc(6455*.01%)'>65%</div>
+              <div class='tv e5' style='bottom:calc(3625*.01%);color:#006357'>29</div>
+            </div>
+            <div class='co'>
+              <div class='st d6' style='height:calc(3375*.01%)'>
+                <i class='sg gI' style='flex:5'>5</i>
+                <i class='sg gA' style='flex:8'>8</i>
+                <i class='sg gC' style='flex:9'>9</i>
+              </div>
+              <div class='do e6 dv' style='bottom:calc(7358*.01%)'></div>
+              <div class='pi e6 pv' style='bottom:calc(7358*.01%)'>74%</div>
+              <div class='tv e6' style='bottom:calc(3375*.01%);color:#006357'>27</div>
+            </div>
+            <div class='co'>
+              <div class='st d7' style='height:calc(2500*.01%)'>
+                <i class='sg gA' style='flex:7'>7</i>
+                <i class='sg gC' style='flex:6'>6</i>
+              </div>
+              <div class='ha' style='bottom:calc(8027*.01%)'></div>
+              <div class='do e7 dv dl' style='bottom:calc(8027*.01%)'></div>
+              <div class='pi e7 pv' style='bottom:calc(8027*.01%)'>80%</div>
+              <div class='tv e7' style='bottom:calc(2500*.01%);color:#006357'>20</div>
+            </div>
+            <div class='co'>
+              <div class='st d8' style='height:calc(1875*.01%)'>
+                <i class='sg gA' style='flex:5'>5</i>
+              </div>
+              <div class='do e8 dn' style='bottom:calc(8528*.01%)'></div>
+              <div class='pi e8 pn' style='bottom:calc(8528*.01%)'>85%</div>
+              <div class='tv e8' style='bottom:calc(1875*.01%);color:#7D7D7D'>15</div>
+            </div>
+            <div class='co'>
+              <div class='st d9' style='height:calc(1500*.01%)'></div>
+              <div class='do e9 dn' style='bottom:calc(8930*.01%)'></div>
+              <div class='pi e9 pn' style='bottom:calc(8930*.01%)'>89%</div>
+              <div class='tv e9' style='bottom:calc(1500*.01%);color:#7D7D7D'>12</div>
+            </div>
+            <div class='co'>
+              <div class='st d10' style='height:calc(1500*.01%)'></div>
+              <div class='do e10 dn' style='bottom:calc(9331*.01%)'></div>
+              <div class='pi e10 pn' style='bottom:calc(9331*.01%)'>93%</div>
+              <div class='tv e10' style='bottom:calc(1500*.01%);color:#7D7D7D'>12</div>
+            </div>
+            <div class='co'>
+              <div class='st d11' style='height:calc(1375*.01%)'></div>
+              <div class='do e11 dn' style='bottom:calc(9699*.01%)'></div>
+              <div class='pi e11 pn' style='bottom:calc(9699*.01%)'>97%</div>
+              <div class='tv e11' style='bottom:calc(1375*.01%);color:#7D7D7D'>11</div>
+            </div>
+            <div class='co'>
+              <div class='st d12' style='height:calc(1125*.01%)'></div>
+              <div class='do e12 dn' style='bottom:calc(10000*.01%)'></div>
+              <div class='pi e12 pn' style='bottom:calc(10000*.01%)'>100%</div>
+              <div class='tv e12' style='bottom:calc(1125*.01%);color:#7D7D7D'>9</div>
+            </div>
+          </div>
+
+          <svg class='cv' viewBox='0 0 12000 10000' preserveAspectRatio='none'>
+            <defs><linearGradient id='gL' x1='0' y1='0' x2='1' y2='0'>
+            <stop offset='0' stop-color='#00A793'/><stop offset='.55' stop-color='#7FA24E'/>
+            <stop offset='1' stop-color='#EB6100'/></linearGradient></defs>
+            <polyline class='cw' points='500,8261 1500,6890 2500,5652 3500,4515 4500,3545 5500,2642 6500,1973 7500,1472 8500,1070 9500,669 10500,301 11500,0'/>
+            <polyline class='cl' points='500,8261 1500,6890 2500,5652 3500,4515 4500,3545 5500,2642 6500,1973 7500,1472 8500,1070 9500,669 10500,301 11500,0'/>
+          </svg>
+
+        </div>
+      </div>
+
+      <div class='xl'>
+        <div class='xc d1'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Mitiga&#231;&#227;o de Riscos</div><div class='xs'>17% do total</div></div>
+        <div class='xc d2'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Inspe&#231;&#227;o de Seguran&#231;a</div><div class='xs'>14% do total</div></div>
+        <div class='xc d3'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>A&#231;&#227;o Corretiva (CAP)</div><div class='xs'>12% do total</div></div>
+        <div class='xc d4'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Fechamento de N&#227;o Conformidade</div><div class='xs'>11% do total</div></div>
+        <div class='xc d5'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Monitoramento de Riscos</div><div class='xs'>10% do total</div></div>
+        <div class='xc d6'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Adequa&#231;&#227;o &#224; Norma</div><div class='xs'>9% do total</div></div>
+        <div class='xc d7'><div class='xu' style='background:#00A793'></div><div class='xn' style='color:#006357'>Execu&#231;&#227;o de Servi&#231;o</div><div class='xs'>7% do total</div></div>
+        <div class='xc d8'><div class='xu' style='background:#DDE1E4'></div><div class='xn' style='color:#7D7D7D'>Tratamento de Desvios</div><div class='xs'>5% do total</div></div>
+        <div class='xc d9'><div class='xu' style='background:#DDE1E4'></div><div class='xn' style='color:#7D7D7D'>Valida&#231;&#227;o de Engenharia</div><div class='xs'>4% do total</div></div>
+        <div class='xc d10'><div class='xu' style='background:#DDE1E4'></div><div class='xn' style='color:#7D7D7D'>Libera&#231;&#227;o de Pacote de Trabalho</div><div class='xs'>4% do total</div></div>
+        <div class='xc d11'><div class='xu' style='background:#DDE1E4'></div><div class='xn' style='color:#7D7D7D'>Atualiza&#231;&#227;o de Cronograma</div><div class='xs'>4% do total</div></div>
+        <div class='xc d12'><div class='xu' style='background:#DDE1E4'></div><div class='xn' style='color:#7D7D7D'>Comissionamento de Equipamento</div><div class='xs'>3% do total</div></div>
+      </div>
+
+      <div class='lg'>
+        <div class='li'><i class='lb' style='background:#4EB776'></i><div class='lt'><div class='ln'>Conclu&#237;do</div><div class='lv'>99 &#183; 33%</div></div></div>
+        <div class='li'><i class='lb' style='background:#E8B430'></i><div class='lt'><div class='ln'>Em andamento</div><div class='lv'>81 &#183; 27%</div></div></div>
+        <div class='li'><i class='lb' style='background:#648FA0'></i><div class='lt'><div class='ln'>N&#227;o iniciado</div><div class='lv'>65 &#183; 22%</div></div></div>
+        <div class='li'><i class='lb' style='background:#B09975'></i><div class='lt'><div class='ln'>N&#227;o Aplic&#225;vel</div><div class='lv'>17 &#183; 6%</div></div></div>
+        <div class='li'><i class='lb' style='background:#D03636'></i><div class='lt'><div class='ln'>Atrasado</div><div class='lv'>36 &#183; 12%</div></div></div>
+        <div class='li'><i class='lb' style='background:#9AA0A6'></i><div class='lt'><div class='ln'>Outros</div><div class='lv'>1 &#183; 0%</div></div></div>
+      </div>
+    </div>
+    <!-- ===== /COMPONENTE ===== -->
+  </div>
+
+  <!-- Amostra de domínio PMO refletida: 12 tipos de ação reais da extração
+       "GCMS – PMSR" (Mitigação 52 a Comissionamento 9) → 299 ações. Ranking desc com
+       acumulado: a zona vital (7/12, 58% dos tipos) reúne 240 ações (80%);
+       143 ainda em aberto e 28 atrasadas dentro do foco. Barras empilhadas por
+       status (Concluído 99 · Em andamento 81 · Não iniciado 65 · Não Aplicável 17 ·
+       Atrasado 36 · Outros 1) e curva acumulada verde→laranja ao fundo. -->
+</body>
+</html>

@@ -1,0 +1,527 @@
+/* ============================================================
+   Timenow Design System v2.4 — Tokens e Componentes Base
+   Kit reutilizável — não pertence a nenhum app específico.
+   Extraído da Central de Ações e Atas em 13/08/2026.
+
+   v2.4 (13/08/2026):
+   - --verde-100 corrigido: era azulado, fora da rampa (C6)
+   - .app movido para shell.css; .card consolidado aqui (C1)
+   - sentinela --ds-carregado (Regra 4 do contrato visual)
+   ============================================================ */
+
+/* ---------- Montserrat ----------
+   Hospedada no próprio app, sem CDN — a Regra 1 do contrato visual proíbe
+   host externo, e Google Fonts entregaria a fonte de fora.
+
+   Arquivo variável: um único woff2 de 38 KB cobre toda a faixa de pesos,
+   em vez de um arquivo por peso. Subset latin (U+0000-00FF e pontuação),
+   que é o que a interface em português usa.
+
+   Origem: fonts.gstatic.com, repositório oficial do Google Fonts.
+   Licença SIL Open Font License 1.1 — permite redistribuir junto da
+   aplicação. Baixada em 13/08/2026.
+
+   font-display: swap — o texto aparece na hora com a fonte de fallback e
+   troca quando a Montserrat chega. Sem isso, rótulo em branco no primeiro
+   carregamento. */
+@font-face {
+  font-family: "Montserrat";
+  src: url("assets/fonts/Montserrat-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Sentinela do contrato visual: o shell verifica esta variável no boot.
+     Se o Design System não carregar, o app falha de forma visível em vez
+     de servir uma tela sem estilo. Não remover. */
+  --ds-carregado: 1;
+
+  /* Neutros */
+  --branco: #FFFFFF;
+  --neutro-50: #F5FAFB;
+  --neutro-100: #F1F1F1;
+  --neutro-200: #DCDCDC;
+  --neutro-300: #B9B9BC;
+  --neutro-400: #A0A0A0;
+  --neutro-600: #535358;
+  --neutro-800: #1C1C1D;
+  /* ---- Cores de texto ----
+     Escurecidas em 13/08/2026 para aprovar o mínimo de 4,5:1 da WCAG AA
+     sobre branco. Os valores antigos vinham do Figma e reprovavam:
+       --text-secondary  #7D7D7D → 4,12:1
+       --text-dimmed     #868E96 → 3,32:1
+       (o auxiliar usava --neutro-400 #A0A0A0 → 2,61:1, abaixo até do
+        mínimo para texto grande)
+     Os três eram usados exclusivamente como `color`, nunca como fundo ou
+     borda, então o ajuste não mexeu em nenhum elemento decorativo. */
+  --text-primary: #2A2A2A;   /* 14,35:1 */
+  --text-secondary: #767676; /* 4,54:1 */
+  --text-dimmed: #6C757D;    /* 4,69:1 */
+  /* Texto auxiliar: dica de campo, placeholder, metadado de linha.
+     Papel de texto, e por isso token próprio — antes usava --neutro-400,
+     que é degrau da rampa neutra e existe para superfície, não para letra.
+     Escurecer o degrau desfiguraria a rampa (300 #B9B9BC → 600 #535358). */
+  --text-hint: #767676;      /* 4,54:1 */
+  --surface-hover: #F1F3F5;
+  /* paperLight do Kyno — hover mais suave, usado no card de usuário */
+  --surface-hover-suave: #F8F9FA;
+  /* Cor de rótulo de item de navegação (mantine-color-text) */
+  --text-nav: #212529;
+
+  /* Verde Timenow */
+  --verde-50: #E6F8F4;
+  /* Era #C2DAE5 — um tom azulado que não pertencia a esta rampa e derrubava
+     o contraste de --verde-700 para 3,76:1. Novo valor interpolado entre
+     --verde-50 e --verde-200, mantendo o matiz verde da marca.
+     Contraste com --verde-700: 4,55:1 (aprova AA). */
+  --verde-100: #D2F1EB;
+  --verde-200: #91D9D1;
+  --verde-500: #00A793;
+  --verde-600: #008A7D;
+  /* Estava sendo usado em 8 lugares sem nunca ter sido definido: a cor
+     simplesmente não se aplicava. Valor no ponto da rampa entre 600 e
+     brand. Contraste 4,96:1 sobre --verde-50 e 4,55:1 sobre --verde-100 —
+     aprova AA nos dois fundos desde a correção da rampa. */
+  --verde-700: #00776A;
+  /* Fundo de toda superfície com texto branco: botão primário, cabeçalho de
+     modal, mini-avatar e toast. Contraste com #fff: 7,09:1 — aprova AAA.
+
+     Era --verde-500 (#00A793), que dava 3,02:1 e reprovava o mínimo de
+     4,5:1 da WCAG para texto normal. O --verde-500 continua em elemento
+     NÃO textual — trilho de KPI, ícone, anel de foco, trilho do toggle,
+     sublinhado de aba — onde o mínimo é 3:1 e ele passa. */
+  --brand-primary: #006457;
+  --brand-primary-hover: #005046; /* 9,39:1 sobre branco */
+  --brand-title: #006357;
+  /* Verde lavado — fundo de ícone e avatar. Opacidade 0.10 conforme o
+     variant="light" do Kyno; era 0.12. */
+  --verde-soft: rgba(0, 167, 147, 0.10);
+  --verde-soft-forte: rgba(0, 167, 147, 0.20);
+
+  /* Laranja Timenow */
+  --laranja-500: #EB6100;
+
+  /* Semânticos */
+  --ok-50: #DDF8F0;  --ok-500: #4EB76D;  --ok-800: #2B6533;
+  --warn-50: #FDF8E5; --warn-500: #E8B43B; --warn-700: #A5602A; --warn-800: #806320;
+  --erro-50: #FAEBEB; --erro-500: #D03636; --erro-700: #942826;
+  --frio-50: #F0F4F6; --frio-300: #97B4BF; --frio-500: #648FA0; --frio-700: #476672;
+  --roxo-50: #F1EBF7; --roxo-500: #7438B0; --roxo-700: #522870;
+  --azul-50: #E9F3F9; --azul-500: #2288C3; --azul-800: #134568;
+
+  /* Novas famílias (Figma) */
+  --bege-500: #B09975;
+  --musgo-500: #7C7D45;
+  --rosa-500: #D96096;
+
+  /* Base */
+  --font: "Segoe UI", system-ui, sans-serif;
+  --font-label: "Montserrat", "Segoe UI", sans-serif;
+  /* Elevação por borda, não por sombra (padrão Timenow) */
+  --borda: #DEE2E6;
+  --shadow: 0 1px 2px 0 rgba(16, 40, 36, 0.06);
+  --shadow-hover: 0 2px 8px 0 rgba(16, 40, 36, 0.10);
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Espaçamento */
+  --space-xxs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+}
+
+* { box-sizing: border-box; }
+
+/* ---------- Foco visível ----------
+   Regra única para todo componente interativo. Faltava: .btn, .iconbtn,
+   .tab, .seg__btn e .toggle não tinham indicador nenhum, e quem navega por
+   teclado ficava sem saber onde estava — os componentes mais usados do
+   sistema eram justamente os invisíveis (WCAG 2.4.7).
+
+   :focus-visible, não :focus — o anel aparece no teclado e não no clique
+   de mouse. Contraste de --verde-500 sobre branco: 3,02:1, aprova o
+   mínimo de 3:1 da WCAG 1.4.11 para elemento não textual.
+
+   .input tem tratamento próprio (borda + halo), logo abaixo. */
+.btn:focus-visible,
+.iconbtn:focus-visible,
+.tab:focus-visible,
+.seg__btn:focus-visible,
+.toggle:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--verde-500);
+  outline-offset: 2px;
+}
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--branco);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: var(--font); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--neutro-200); border-radius: 9999px; border: 2px solid var(--branco); }
+::-webkit-scrollbar-thumb:hover { background: var(--neutro-300); }
+
+/* ---------- Layout ----------
+   .app vive só em shell.css: lá ele é o container flex da sidebar, que é o
+   layout padrão Timenow. Havia duas definições conflitantes (C1) e a que
+   valia dependia da ordem de carga dos arquivos. */
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
+
+/* ---------- Animações ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(16px) scale(0.95); } to { opacity: 1; transform: none; } }
+.anim { animation: fadeUp 0.55s var(--ease) both; }
+.d1 { animation-delay: 0.05s; } .d2 { animation-delay: 0.12s; }
+.d3 { animation-delay: 0.19s; } .d4 { animation-delay: 0.26s; }
+.d5 { animation-delay: 0.33s; } .d6 { animation-delay: 0.4s; }
+
+/* ---------- Topbar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  border-bottom: 1px solid var(--neutro-100);
+}
+.topbar__in {
+  max-width: 1280px; margin: 0 auto; padding: 12px 32px;
+  display: flex; align-items: center; gap: 16px; min-height: 64px;
+}
+.topbar__title { font-size: 14px; font-weight: 600; color: var(--brand-title); display: flex; align-items: center; gap: 12px; }
+.spacer { flex: 1; }
+.vdiv { width: 1px; height: 24px; background: var(--neutro-100); flex: none; }
+
+.iconbtn {
+  width: 36px; height: 36px; border-radius: 9999px; border: none;
+  background: transparent; color: var(--brand-title); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.15s; flex: none;
+}
+.iconbtn:hover { background: var(--verde-50); }
+
+.userchip { display: flex; align-items: center; gap: 12px; }
+.userchip__info { text-align: right; line-height: 1.3; }
+.userchip__name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.userchip__role { font-size: 11px; color: var(--text-secondary); }
+.avatar {
+  width: 36px; height: 36px; border-radius: 9999px; flex: none;
+  background: var(--verde-50); color: var(--brand-title); border: 1px solid var(--verde-100);
+  font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ---------- Tipografia ---------- */
+.aglutinador {
+  font-family: var(--font-label);
+  font-size: 14px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--verde-500); margin: 0;
+}
+.aglutinador--sm { font-size: 11px; }
+.h-dash { font-size: 40px; font-weight: 700; color: var(--brand-title); margin: 0; line-height: 1.15; }
+.h-card1 { font-size: 28px; font-weight: 600; color: var(--brand-title); margin: 0; }
+.h-card3 { font-size: 20px; font-weight: 600; color: var(--brand-title); margin: 0; }
+.h-card4 { font-size: 16px; font-weight: 600; color: var(--brand-title); margin: 0; }
+.h-card5 { font-size: 14px; font-weight: 600; color: var(--brand-title); margin: 0; }
+.body-txt { font-size: 13px; font-weight: 400; color: var(--text-primary); }
+.muted { color: var(--text-secondary); }
+.hint { font-size: 11px; color: var(--text-hint); }
+
+/* ---------- Botões ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 14px; font-weight: 600; padding: 8px 16px;
+  border-radius: var(--r-md); border: none; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  white-space: nowrap; text-decoration: none;
+}
+.btn:active { transform: scale(0.98); }
+.btn--primary { background: var(--brand-primary); color: #fff; }
+.btn--primary:hover { background: var(--brand-primary-hover); }
+.btn--primary:disabled { background: var(--verde-100); color: var(--text-secondary); cursor: not-allowed; transform: none; }
+.btn--secondary { background: transparent; color: var(--brand-title); border: 1px solid var(--brand-title); }
+.btn--secondary:hover { background: var(--verde-50); }
+/* Sem sublinhado: botão não deve se passar por link (padrão Timenow) */
+.btn--ghost { background: transparent; color: var(--brand-title); padding: 8px 12px; }
+.btn--ghost:hover { background: var(--verde-50); }
+.btn--danger { background: var(--erro-500); color: #fff; }
+.btn--danger:hover { background: #BD3131; }
+.btn--sm { font-size: 12px; padding: 4px 12px; }
+.btn--lg { font-size: 16px; padding: 12px 24px; }
+
+/* ---------- Cards ----------
+   Definição única (C1). No padrão Timenow a elevação vem da borda de 1px,
+   não da sombra — shell.css redefinia isto para acrescentar a borda, e qual
+   das duas valia dependia da ordem de carga. */
+.card {
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+.card--hero { border-radius: var(--r-lg); }
+.card__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 24px; border-bottom: 1px solid var(--neutro-100);
+}
+.card__body { padding: 8px 24px 16px; }
+
+/* ---------- Pills / Status ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 9999px;
+  white-space: nowrap;
+}
+.pill--ok { background: var(--ok-50); color: var(--ok-800); }
+.pill--erro { background: var(--erro-50); color: var(--erro-700); }
+.pill--warn { background: var(--warn-50); color: var(--warn-800); }
+.pill--fix { background: var(--azul-50); color: var(--azul-800); }
+.pill--neutral { background: var(--frio-50); color: var(--frio-700); }
+
+/* ---------- Tabelas ---------- */
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl thead th {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary);
+  padding: 12px 16px; background: var(--neutro-50); position: sticky; top: 0;
+  text-align: left; white-space: nowrap;
+}
+.tbl tbody td { padding: 12px 16px; border-bottom: 1px solid var(--neutro-100); }
+.tbl tbody tr:hover td { background: var(--verde-50); }
+.td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.td-center { text-align: center; }
+
+/* ---------- Formulários ---------- */
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label {
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.field--full { grid-column: 1 / -1; }
+.fgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+.input {
+  width: 100%; padding: 12px 12px; font-size: 14px; font-family: var(--font);
+  border: 1px solid var(--neutro-200); border-radius: var(--r-md);
+  color: var(--text-primary); background: var(--branco);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+.input:focus { border-color: var(--verde-500); box-shadow: 0 0 0 3px rgba(0, 167, 147, 0.12); }
+.input::placeholder { color: var(--text-hint); }
+.input:disabled { background: var(--neutro-50); color: var(--text-secondary); cursor: not-allowed; }
+
+select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 20 20' fill='none' stroke='%23A0A0A0' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 8l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 40px; }
+
+textarea.input { resize: vertical; min-height: 80px; }
+
+/* Estado de erro de campo. O DS tinha :focus e :disabled, mas nenhuma
+   variante para validação — e validação em 422 é padrão do framework. */
+.input--erro { border-color: var(--erro-500); }
+.input--erro:focus { border-color: var(--erro-500); box-shadow: 0 0 0 3px rgba(208, 54, 54, 0.12); }
+.field__erro { font-size: 12px; color: var(--erro-700); }
+
+/* ---------- Avisos em bloco ----------
+   Mensagem persistente dentro da página, diferente do toast (efêmero,
+   flutuante). Borda lateral em vez de fundo saturado: o padrão Timenow
+   evita blocos de cor cheia em área de conteúdo. */
+.aviso {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 16px; border-radius: var(--r-md);
+  border-left: 3px solid var(--neutro-300); background: var(--neutro-50);
+}
+.aviso--ok { border-left-color: var(--ok-500); background: var(--ok-50); }
+.aviso--erro { border-left-color: var(--erro-500); background: var(--erro-50); }
+.aviso--warn { border-left-color: var(--warn-500); background: var(--warn-50); }
+.aviso--info { border-left-color: var(--azul-500); background: var(--azul-50); }
+
+/* ---------- Lista simples ----------
+   Lista enxuta com borda, para conjuntos pequenos que não justificam
+   uma tabela. */
+.lista-simples {
+  list-style: none; margin: 0; padding: 0;
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  overflow: hidden; background: var(--branco);
+}
+.lista-simples__item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--neutro-100);
+}
+.lista-simples__item:last-child { border-bottom: none; }
+.lista-simples__item:hover { background: var(--verde-50); }
+
+/* ---------- Toggle / Switch ---------- */
+.toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.toggle__track {
+  width: 40px; height: 22px; border-radius: 9999px; padding: 2px;
+  background: var(--neutro-200); transition: background 0.2s var(--ease);
+  display: flex; align-items: center;
+}
+.toggle__thumb {
+  width: 18px; height: 18px; border-radius: 9999px;
+  background: var(--branco); box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s var(--ease);
+}
+.toggle.is-active .toggle__track { background: var(--verde-500); }
+.toggle.is-active .toggle__thumb { transform: translateX(18px); }
+
+/* ---------- Segmented Control ---------- */
+.seg { display: inline-flex; background: var(--neutro-100); border-radius: 9999px; padding: 4px; gap: 2px; }
+.seg__btn {
+  border: none; background: transparent; cursor: pointer;
+  padding: 8px 16px; border-radius: 9999px;
+  font-size: 12px; font-weight: 600; color: var(--neutro-600);
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.seg__btn:hover { color: var(--brand-title); }
+.seg__btn.is-active { background: var(--branco); color: var(--brand-title); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+
+/* ---------- Tabs ---------- */
+.tabs { display: flex; border-bottom: 2px solid var(--neutro-100); gap: 0; }
+.tab {
+  padding: 12px 24px; font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  background: none; border: none; cursor: pointer; position: relative;
+  transition: color 0.15s;
+}
+.tab:hover { color: var(--brand-title); }
+.tab.is-active { color: var(--brand-title); }
+.tab.is-active::after {
+  content: ""; position: absolute; bottom: -2px; left: 0; right: 0;
+  height: 2px; background: var(--verde-500); border-radius: 2px 2px 0 0;
+}
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.2s var(--ease);
+}
+.modal {
+  background: var(--branco); border-radius: var(--r-lg); box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  padding: 32px; width: 100%; max-width: 480px; margin: 24px;
+  animation: fadeUp 0.3s var(--ease);
+}
+.modal__actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.modal.is-out { opacity: 0; transform: translateY(12px) scale(.98); transition: all .2s var(--ease); }
+
+/* Modal com cabeçalho tintado — é o que ds/ui.js gera em .modal().
+   Estas classes viviam no CSS do app-piloto, não no Design System: o JS do
+   kit produzia markup que só ficava estilizado dentro daquele projeto. */
+.modal--gen {
+  padding: 0; overflow: hidden; max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column;
+}
+.modal--gen .modal__head {
+  background: var(--brand-primary); color: #fff; padding: 16px 24px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; flex: none;
+}
+.modal--gen .modal__title {
+  margin: 0; font-family: var(--font-label);
+  font-size: 18px; font-weight: 700; color: #fff;
+}
+.modal--gen .modal__subtitle { margin: 4px 0 0; font-size: 13px; color: rgba(255, 255, 255, .85); }
+.modal--gen .modal__close { color: #fff; }
+.modal--gen .modal__close:hover { background: rgba(255, 255, 255, .15); }
+.modal--gen .modal__body { padding: 24px; overflow-y: auto; flex: 1; }
+
+/* ---------- Confirmação ---------- */
+.conf__msg { font-size: 16px; font-weight: 600; color: var(--text-primary); margin: 0 0 16px; line-height: 1.5; }
+.conf__destaque {
+  border: 1px solid var(--neutro-200); border-radius: var(--r-sm);
+  overflow: hidden; margin-bottom: 24px; background: rgba(185, 185, 188, .08);
+}
+.conf__row { display: flex; padding: 12px 16px; border-bottom: 1px solid var(--neutro-100); font-size: 13px; }
+.conf__row:last-child { border-bottom: none; }
+.conf__label { width: 130px; flex: none; color: var(--text-secondary); }
+.conf__valor { font-weight: 600; color: var(--text-primary); word-break: break-word; }
+
+/* Guarda de saída — .guard-center e .guard-msg eram usadas pelo modals.js
+   do piloto e nunca chegaram a ser definidas em lugar nenhum. */
+.guard-center { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.guard-msg { max-width: 42ch; }
+
+/* ---------- Detalhes em tabela ---------- */
+.det { max-height: 420px; }
+.det__row { display: flex; padding: 12px 4px; border-bottom: 1px solid var(--neutro-100); font-size: 13px; }
+.det__row:last-child { border-bottom: none; }
+.det__label { width: 140px; flex: none; color: var(--text-secondary); }
+.det__valor { font-weight: 600; word-break: break-word; }
+
+/* ---------- Toast ---------- */
+.toast-root { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--brand-primary); color: #fff; font-size: 13px; font-weight: 600;
+  padding: 12px 16px; border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 100, 87, 0.3);
+  animation: toastIn 0.3s var(--ease);
+}
+.toast.is-out { opacity: 0; transform: translateY(8px); transition: all 0.3s var(--ease); }
+
+/* Variantes de toast. ui.js aplicava .toast--erro e .toast--aviso desde o
+   piloto, mas nenhuma das duas chegou a ser definida: um toast de erro
+   renderizava com o verde de sucesso. */
+.toast--erro { background: var(--erro-500); box-shadow: 0 8px 24px rgba(208, 54, 54, 0.3); }
+.toast--aviso { background: var(--warn-700); box-shadow: 0 8px 24px rgba(165, 96, 42, 0.3); }
+
+/* ---------- Overlay / Spinner ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(6px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.spinner {
+  width: 36px; height: 36px; border: 3px solid var(--neutro-200);
+  border-top-color: var(--verde-500); border-radius: 9999px;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ---------- Empty State ---------- */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; min-height: 220px; color: var(--text-secondary); text-align: center;
+  padding: 40px 24px;
+}
+.empty svg { color: var(--neutro-300); }
+/* Nível do cabeçalho é semântico e depende de onde o estado vazio aparece
+   na página — dentro de um card com <h2>, tem que ser <h3>. Por isso o
+   seletor aceita qualquer nível em vez de fixar h4, como fazia antes e
+   forçava a quebra do esboço. */
+.empty :is(h1, h2, h3, h4, h5, h6) { margin: 0; color: var(--brand-title); }
+.empty p { margin: 0; font-size: 13px; max-width: 360px; line-height: 1.5; }
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 1100px) {
+  .fgrid { grid-template-columns: 1fr; }
+  .userchip__info { display: none; }
+}
+@media (max-width: 760px) {
+  .wrap, .topbar__in { padding-left: 16px; padding-right: 16px; }
+}
+/* Regra única de movimento reduzido: cobre todo componente animado deste
+   arquivo. shell.css tinha um segundo bloco para .modal/.modal-backdrop,
+   que são declarados aqui — a regra foi trazida junto (C1). */
+@media (prefers-reduced-motion: reduce) {
+  .anim, .toast, .modal, .modal-backdrop { animation: none; }
+}

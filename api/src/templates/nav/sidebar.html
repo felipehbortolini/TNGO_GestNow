@@ -1,0 +1,139 @@
+{% extends "base_fragment.html" %}
+{#
+  Sidebar do padrão Timenow — 300px, marca + itens de 52px.
+  Substitui a navbar horizontal do template original (decisão D1).
+
+  Continua sendo fragmento de servidor, como antes: quem é dono dos links
+  e do card de usuário é o backend, então dá para variar a navegação por
+  perfil sem tocar no shell.
+
+  Sobrescreve {% block root %} porque a raiz precisa ser <aside>, não a
+  <div> padrão de base_fragment.html.
+#}
+{% block root %}
+<aside
+  id="{{ target_id }}"
+  class="sidebar"
+  aria-label="Navegação principal"
+  x-data="{
+    rota: location.pathname,
+    usuario: null,
+    saude: '…',
+    async init() {
+      /* ícones vêm de ds/icons.js — fonte única, sem SVG duplicado aqui */
+      this.$el.querySelectorAll('[data-icone]').forEach(function (el) {
+        el.innerHTML = window.icon(el.dataset.icone, 16);
+      });
+      var marca = this.$el.querySelector('.sidebar__logo-link');
+      if (marca && window.LOGO_FULL) marca.innerHTML = window.LOGO_FULL;
+
+      try {
+        const r = await fetch('/.auth/me');
+        if (r.ok) {
+          const dados = await r.json();
+          this.usuario = dados.clientPrincipal || null;
+        }
+      } catch (e) { /* sem sessão */ }
+
+      try {
+        const h = await fetch('/api/health');
+        const d = await h.json();
+        this.saude = d.status;
+      } catch (e) { this.saude = 'offline'; }
+    },
+    get nome() {
+      if (!this.usuario) return '';
+      const c = this.usuario.claims?.find(c => c.typ === 'name');
+      return c?.val || this.usuario.userDetails || '';
+    },
+    get email() {
+      return this.usuario ? (this.usuario.userDetails || '') : '';
+    },
+    get iniciais() {
+      const n = (this.nome || '?').trim().split(/\s+/);
+      return (n[0][0] + (n.length > 1 ? n[n.length - 1][0] : '')).toUpperCase();
+    },
+    /* Na carga inicial a rota é '/' ou '/index.html', enquanto o item de
+       início aponta para '/_views/home.html'. Sem esta equivalência,
+       nenhum item nasce marcado e o aria-current não aparece. */
+    ativo(href) {
+      var atual = this.rota;
+      if (atual === '/' || atual === '/index.html') atual = '{{ itens[0].href if itens else "" }}';
+      return atual === href;
+    }
+  }"
+>
+{% block fragment %}
+  <div class="sidebar__brand">
+    <a
+      href="/_views/home.html"
+      x-target="app-shell"
+      @click="rota = '/_views/home.html'"
+      class="sidebar__logo-link"
+      title="Início"
+      aria-label="Timenow GestNow — Início"
+    ></a>
+  </div>
+
+  <hr class="sidebar__divisor" />
+
+  <p class="sidebar__section-label">{{ secao | default("Aplicação") }}</p>
+
+  <nav class="sidebar__nav">
+    {% for item in itens %}
+    <a
+      class="sidebar__item"
+      href="{{ item.href }}"
+      x-target="app-shell"
+      x-target.away="_top"
+      @click="rota = '{{ item.href }}'"
+      :class="ativo('{{ item.href }}') ? 'sidebar__item is-active' : 'sidebar__item'"
+      :aria-current="ativo('{{ item.href }}') ? 'page' : false"
+    >
+      <span class="sidebar__item-icon" data-icone="{{ item.icone }}" aria-hidden="true"></span>
+      <span class="sidebar__item-label">{{ item.rotulo }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <!-- Indicador de saúde da API — preservado do template original,
+       reposicionado para o rodapé da sidebar.
+
+       role="status" porque o texto muda sozinho: se a API cair, quem usa
+       leitor de tela não tem como perceber a troca de "API online" para
+       "API offline" sem um anúncio. A região vive vazia até o x-text
+       preencher, que é a ordem que dispara o anúncio. -->
+  <div class="sidebar__saude">
+    <span
+      class="pill"
+      role="status"
+      :class="saude === 'ok' ? 'pill--ok' : 'pill--erro'"
+      x-text="saude === 'ok' ? 'API online' : 'API ' + saude"
+    ></span>
+  </div>
+
+  <template x-if="!usuario">
+    <div class="sidebar__user">
+      <a href="/.auth/login/aad" class="btn btn--primary" style="width: 100%">Entrar</a>
+    </div>
+  </template>
+
+  <template x-if="usuario">
+    <div class="sidebar__user">
+      <div class="avatar" x-text="iniciais"></div>
+      <div class="userchip__info">
+        <div class="userchip__name" x-text="nome"></div>
+        <div class="userchip__role" :title="email" x-text="email"></div>
+      </div>
+      <a
+        href="/.auth/logout"
+        class="iconbtn sidebar__user-chev"
+        aria-label="Sair"
+        title="Sair"
+        x-init="$el.innerHTML = window.icon('signout', 16)"
+      ></a>
+    </div>
+  </template>
+{% endblock %}
+</aside>
+{% endblock %}

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Régua de Etapas PMSR — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1300px;margin:0 auto;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:640px;}
+  .hint{max-width:1300px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Régua de Etapas PMSR — 4 etapas por projeto (Conclusão do Escopo · Ata de Comissionamento · Ata de Capitalização · Capitalização), filtros de status por etapa e pop-up de detalhes ao clicar na linha (dados fake PMO; o payload segue a codificação da medida)</div>
+<div class="frame">
+<style>
+.frame *{margin:0;padding:0;box-sizing:border-box;}
+.frame{font-family:'Segoe UI',Arial,sans-serif;color:#2A2A2A;}
+.rg-wrap{width:100%;height:100%;display:flex;flex-direction:column;padding:14px 16px 10px;background:transparent;}
+.rg-head{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+.rg-head-r{display:flex;flex-direction:row;align-items:center;gap:22px;margin-left:auto;}
+.rg-kpis{display:flex;gap:22px;align-items:flex-start;}
+.rg-kpi{text-align:right;}
+.rg-kpi b{display:block;font-size:24px;line-height:1;color:#006357;}
+.rg-kpi span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#7D7D7D;margin-top:5px;}
+.rg-kpi.green b{color:#4EB776;}
+.rg-legend{display:flex;align-items:center;gap:11px;flex-wrap:wrap;justify-content:flex-end;}
+.rg-leg{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:600;color:#58717C;white-space:nowrap;}
+.rg-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.rg-dot.done{background:#4EB776;}
+.rg-dot.prog{background:#F2B84B;}
+.rg-dot.todo{background:#F2761D;}
+.rg-dot.na{background:#D5DDE1;}
+.rg-clear{display:none;border:1px solid #DEE4E7;background:#FFF;color:#58717C;border-radius:999px;padding:4px 11px;font-size:9.5px;font-weight:700;cursor:pointer;line-height:1.2;}
+.rg-clear.on{display:inline-block;}
+.rg-clear:hover{background:#F5FAFB;color:#006357;}
+.rg-colhead{display:flex;align-items:flex-end;gap:14px;padding:12px 16px 7px 20px;border-bottom:1px solid #E8ECEE;}
+.rg-ch-id{flex:0 0 190px;min-width:0;font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8FA0A8;}
+.rg-ch-rail{flex:1;min-width:330px;display:flex;gap:10px;}
+.rg-ch-step{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;text-align:center;font-size:9.5px;font-weight:700;letter-spacing:.45px;text-transform:uppercase;color:#58717C;line-height:1.25;}
+.rg-ch-step i{display:block;font-style:normal;font-size:8px;color:#B2C0C6;margin-bottom:2px;}
+.rg-ch-f{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:5px;flex-wrap:wrap;}
+.rg-f{display:inline-flex;align-items:center;gap:3px;border:1px solid #E4E9EC;background:#FFF;border-radius:999px;padding:2px 6px;font-size:9px;font-weight:700;color:#8FA0A8;cursor:pointer;line-height:1.2;letter-spacing:0;}
+.rg-f i{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0;flex-shrink:0;}
+.rg-f.done i{background:#4EB776;}
+.rg-f.prog i{background:#F2B84B;}
+.rg-f.todo i{background:#F2761D;}
+.rg-f.na i{background:#D5DDE1;}
+.rg-f:hover{background:#F5FAFB;border-color:#CFE8E3;}
+.rg-f.on{color:#006357;border-color:#00A793;background:#F0FBF9;box-shadow:0 0 0 1.5px rgba(0,167,147,.14);}
+.rg-f.zero{opacity:.38;}
+.rg-ch-dates{flex:0 0 176px;display:flex;gap:8px;}
+.rg-ch-date{flex:1;text-align:center;font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8FA0A8;}
+.rg-scroll{flex:1;overflow:auto;min-height:0;padding:9px 2px 2px;display:flex;flex-direction:column;gap:7px;}
+.rg-row{width:100%;display:flex;align-items:center;gap:14px;background:#FFF;border-radius:9px;border:1px solid #E8ECEE;border-left:4px solid #00A793;padding:9px 15px;cursor:pointer;flex:0 0 auto;}
+.rg-row:hover{background:#F5FAFB;border-color:#CFE8E3;}
+.rg-row.s-done{border-left-color:#4EB776;}
+.rg-row.s-prog{border-left-color:#F2B84B;}
+.rg-row.s-todo{border-left-color:#F2761D;}
+.rg-row.s-na{border-left-color:#D5DDE1;}
+.rg-id{flex:0 0 190px;min-width:0;}
+.rg-project{font-size:13.5px;font-weight:700;color:#006357;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rg-meta{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;}
+.rg-tag{font-size:8px;font-weight:700;letter-spacing:.35px;text-transform:uppercase;color:#58717C;background:#F0F4F6;border-radius:999px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;}
+.rg-rail{flex:1;min-width:330px;display:flex;gap:10px;}
+.rg-step{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.rg-track{width:100%;height:5px;border-radius:999px;background:#EDF1F3;}
+.rg-track.done{background:#4EB776;}
+.rg-track.prog{background:#F2B84B;}
+.rg-track.todo{background:#F2761D;}
+.rg-track.na{background:#EDF1F3;}
+.rg-st{font-size:11.5px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.rg-st.done{color:#2E8B57;}
+.rg-st.prog{color:#B27600;}
+.rg-st.todo{color:#D2600F;}
+.rg-st.na{color:#A7B0B5;}
+.rg-dt{font-size:10.5px;color:#7D7D7D;line-height:1.15;white-space:nowrap;}
+.rg-dt.prev{color:#B27600;}
+.rg-qtd{font-size:8.5px;font-weight:700;color:#006357;background:#DDF8F0;border-radius:999px;padding:1px 5px;margin-left:4px;}
+.rg-dates{flex:0 0 176px;display:flex;gap:8px;}
+.rg-date{flex:1;min-width:0;text-align:center;background:#F7FAFB;border:1px solid #EDF1F3;border-radius:7px;padding:6px 4px;}
+.rg-date.bl{background:#FCFDFD;}
+.rg-date-lab{display:block;font-size:8.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8FA0A8;}
+.rg-date-val{display:block;font-size:13px;font-weight:700;color:#006357;margin-top:2px;white-space:nowrap;}
+.rg-empty{padding:45px 20px;text-align:center;font-size:12px;color:#8A8A8A;}
+.rg-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(20,35,38,.52);justify-content:center;padding:10px 18px;overflow-y:auto;}
+.rg-overlay.active{display:flex;}
+.rg-modal{width:min(96vw,1450px);height:max-content;margin:auto 0;background:#FFF;border-radius:12px;border:1px solid #E8ECEE;display:flex;flex-direction:column;}
+.rg-modal-header{padding:12px 24px 10px;border-bottom:2px solid #00A793;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0;background:#F5FAFB;}
+.rg-modal-eyebrow{font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#00A793;margin-bottom:3px;}
+.rg-modal-title{font-size:19px;font-weight:700;color:#006357;line-height:1.15;word-break:break-word;}
+.rg-close{border:0;background:#FFF;color:#58717C;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;}
+.rg-close:hover{background:#DDF8F0;color:#006357;}
+.rg-modal-body{padding:12px 24px 16px;display:flex;flex-direction:column;gap:9px;}
+.rg-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;}
+.rg-field{min-width:0;background:#F8FAFB;border:1px solid #EDF0F2;border-radius:8px;padding:6px 10px;}
+.rg-field-label{font-size:8px;font-weight:700;letter-spacing:.85px;text-transform:uppercase;color:#00A793;margin-bottom:3px;}
+.rg-field-value{font-size:12px;font-weight:600;color:#2A2A2A;word-break:break-word;line-height:1.2;}
+.rg-text-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.rg-text-box{background:#F8FAFB;border:1px solid #EDF0F2;border-radius:8px;padding:8px 11px;min-width:0;min-height:52px;}
+.rg-text-value{font-size:11px;line-height:1.35;color:#454545;word-break:break-word;}
+.rg-date-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.rg-date-card{border-radius:8px;padding:7px 12px;background:#F5FAFB;border-left:4px solid #00A793;min-width:0;}
+.rg-date-card.real{background:#F9FCFA;border-left-color:#4EB776;}
+.rg-date-card.pacp{background:#F7FBFC;border-left-color:#648FA0;}
+.rg-date-label{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#648FA0;}
+.rg-date-value{font-size:15px;font-weight:700;color:#006357;margin-top:3px;}
+.rg-section-title{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#00A793;margin-bottom:6px;}
+.rg-modal-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;align-items:start;}
+.rg-modal-step{border:1px solid #E8ECEE;border-left:4px solid #CBD3D9;border-radius:8px;padding:9px 11px;min-width:0;}
+.rg-modal-step.done{border-left-color:#4EB776;background:#FBFEFC;}
+.rg-modal-step.prog{border-left-color:#F2B84B;background:#FFFDF8;}
+.rg-modal-step.todo{border-left-color:#F2761D;background:#FFFBF7;}
+.rg-modal-step.na{border-left-color:#CBD3D9;background:#FCFCFC;}
+.rg-modal-step-num{font-size:9px;font-weight:700;color:#00A793;letter-spacing:.6px;text-transform:uppercase;}
+.rg-modal-step-head{display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap;}
+.rg-modal-step-name{font-size:12px;font-weight:700;color:#2A2A2A;}
+.rg-count{display:inline-flex;align-items:center;justify-content:center;background:#DDF8F0;color:#006357;border-radius:999px;padding:2px 8px;font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;}
+.rg-modal-step-row{display:flex;align-items:baseline;gap:7px;margin-top:6px;flex-wrap:wrap;}
+.rg-modal-step-date{font-size:11px;font-weight:700;color:#006357;white-space:nowrap;}
+.rg-modal-step-status{font-size:9.5px;font-weight:700;white-space:nowrap;}
+.rg-modal-step-status.done{color:#2E8B57;}
+.rg-modal-step-status.prog{color:#B27600;}
+.rg-modal-step-status.todo{color:#D2600F;}
+.rg-modal-step-status.na{color:#A7B0B5;}
+.rg-acts{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.rg-act{background:#FFF;border:1px solid #E8ECEE;border-radius:6px;padding:7px 9px;min-width:0;}
+.rg-act-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;}
+.rg-act-status{font-size:8px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap;}
+.rg-act-status.done{background:#DDF8F0;color:#2B6533;}
+.rg-act-status.prog{background:#FFF3D9;color:#9A6500;}
+.rg-act-status.todo{background:#FFEFE2;color:#B85A10;}
+.rg-act-status.na{background:#F0F4F6;color:#7D7D7D;}
+.rg-act-date{font-size:9px;font-weight:700;color:#006357;white-space:nowrap;}
+.rg-act-title{font-size:11px;font-weight:600;color:#2A2A2A;line-height:1.35;word-break:break-word;}
+.rg-act-meta{font-size:9px;color:#7D7D7D;margin-top:5px;word-break:break-word;}
+.rg-act-comment{font-size:10px;line-height:1.4;color:#535358;margin-top:6px;padding-top:6px;border-top:1px dashed #E8ECEE;word-break:break-word;}
+.rg-act-none{font-size:10px;color:#A0A0A0;margin-top:8px;}
+.rg-other-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:8px;align-items:start;}
+.rg-other-card{border:1px solid #E8ECEE;border-left:3px solid #A9BFC7;border-radius:8px;padding:9px;background:#FCFDFD;min-width:0;}
+.rg-other-name{font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#58717C;margin-bottom:2px;}
+@media(max-width:860px){.rg-kpis{gap:14px;}.rg-ch-id,.rg-id{flex:0 0 130px;}.rg-ch-dates,.rg-dates{flex:0 0 140px;}.rg-ch-rail,.rg-rail{min-width:250px;}.rg-text-grid{grid-template-columns:1fr;}.rg-date-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:620px){.rg-wrap{padding:10px 8px 8px;}.rg-row{gap:8px;padding:8px 9px;}.rg-colhead{gap:8px;padding:10px 10px 6px 14px;}.rg-ch-id,.rg-id{flex:0 0 96px;}.rg-ch-dates,.rg-dates{flex:0 0 104px;}.rg-ch-rail,.rg-rail{min-width:160px;gap:6px;}.rg-tag{max-width:80px;}.rg-date-val{font-size:11px;}.rg-st{font-size:10px;}.rg-dt{font-size:9.5px;}}
+</style>
+<div class='rg-wrap'>
+<div class='rg-head'>
+<div class='rg-head-r'>
+<div class='rg-kpis' id='rgKpis'></div>
+<div class='rg-legend'>
+<span class='rg-leg'><span class='rg-dot done'></span>Concluído</span>
+<span class='rg-leg'><span class='rg-dot prog'></span>Em andamento</span>
+<span class='rg-leg'><span class='rg-dot todo'></span>Não iniciado</span>
+<span class='rg-leg'><span class='rg-dot na'></span>N/A</span>
+<button type='button' class='rg-clear' id='rgClear'>Limpar filtros</button>
+</div>
+</div>
+</div>
+<div class='rg-colhead'>
+<div class='rg-ch-id'>Projeto</div>
+<div class='rg-ch-rail'>
+<div class='rg-ch-step'><i>01</i>Conclusão do Escopo</div>
+<div class='rg-ch-step'><i>02</i>Ata de Comissionamento</div>
+<div class='rg-ch-step'><i>03</i>Ata de Capitalização</div>
+<div class='rg-ch-step'><i>04</i>Capitalização</div>
+</div>
+<div class='rg-ch-dates'>
+<div class='rg-ch-date'>PACP</div>
+<div class='rg-ch-date'>PACP BL</div>
+</div>
+</div>
+<div id='rgList' class='rg-scroll'></div>
+</div>
+<div id='rgOverlay' class='rg-overlay'>
+<div id='rgModal' class='rg-modal'></div>
+</div>
+<script>
+var rgRaw='PRJ-2001¥Pedro Lima¥Energia¥EXEC¥Sim¥Aguardando liberação do cliente.¥Sem pendências críticas.¥16/01/2027¥—¥CAPITALIZACAO¦Capitalizar ativo¦Ana Souza¦29/08/2026¦¦Documentação enviada para revisão.¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Juliana Alves¦09/09/2026¦¦Aguardando assinatura do cliente.¦Não iniciado§PACP¦Atualizar PACP no GCMS¦Ana Souza¦07/11/2026¦08/11/2026¦¦Concluído¥Roberto Dias¥18/12/2026¥18/12/2026¬PRJ-2002¥Carlos Mendes¥Logística¥EXEC¥Sim¥Dependência de licença ambiental.¥Revisar prazo com o gerente.¥20/12/2026¥30/09/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Marcos Rocha¦02/10/2026¦06/10/2026¦¦Concluído§ENGENHARIA¦Revisar documentação técnica¦Pedro Lima¦20/09/2026¦¦Documentação enviada para revisão.¦Não iniciado§PACP¦Atualizar PACP no GCMS¦Ana Souza¦11/10/2026¦18/10/2026¦¦Concluído¥Fernanda Costa¥11/11/2026¥23/10/2026¬PRJ-2003¥Ana Souza¥Mineração¥EXEC¥Não¥Dependência de licença ambiental.¥Acompanhar capitalização no fechamento do mês.¥21/01/2027¥28/09/2026¥CAPITALIZACAO¦Capitalizar ativo¦Carlos Mendes¦24/11/2026¦¦¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Juliana Alves¦29/11/2026¦¦Aguardando assinatura do cliente.¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Marcos Rocha¦11/10/2026¦¦Documentação enviada para revisão.¦Em andamento§COMISSIONAMENTO¦Emitir ata de comissionamento¦Ana Souza¦22/10/2026¦¦¦Em andamento¥Fernanda Costa¥05/10/2026¥03/10/2026¬PRJ-2004¥Carlos Mendes¥Alumínio Primário¥Handover¥Não¥Aguardando liberação do cliente.¥Sem pendências críticas.¥22/12/2026¥13/08/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦11/10/2026¦¦¦Não iniciado§CAPITALIZACAO¦Capitalizar ativo¦Pedro Lima¦06/09/2026¦¦Aguardando assinatura do cliente.¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦14/11/2026¦¦¦Não iniciado¥Fernanda Costa¥08/03/2027¥26/01/2027¬PRJ-2005¥Juliana Alves¥Refinaria¥FEL3¥Não¥Escopo revisado em reunião de março.¥Sem pendências críticas.¥17/10/2026¥03/09/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Marcos Rocha¦11/12/2026¦11/12/2026¦¦Concluído§CAPITALIZACAO¦Capitalizar ativo¦Juliana Alves¦08/09/2026¦¦¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦12/12/2026¦¦Documentação enviada para revisão.¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦31/10/2026¦08/11/2026¦Documentação enviada para revisão.¦Concluído§CONSTRUCAO/INSTALACAO¦Validar medição final¦Ana Souza¦25/10/2026¦¦Documentação enviada para revisão.¦Em andamento¥Luís Prado¥03/10/2026¥29/08/2026¬PRJ-2006¥Pedro Lima¥Logística¥Handover¥Não¥Escopo revisado em reunião de março.¥Acompanhar capitalização no fechamento do mês.¥31/01/2027¥24/08/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦18/11/2026¦¦¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦10/12/2026¦19/12/2026¦Aguardando assinatura do cliente.¦Concluído§PACP¦Atualizar PACP no GCMS¦Marcos Rocha¦08/11/2026¦02/11/2026¦Documentação enviada para revisão.¦Concluído¥Fernanda Costa¥22/03/2027¥05/03/2027¬PRJ-2007¥Ana Souza¥Refinaria¥EXEC¥Sim¥Aguardando liberação do cliente.¥Revisar prazo com o gerente.¥10/11/2026¥—¥CAPITALIZACAO¦Capitalizar ativo¦Pedro Lima¦15/12/2026¦¦Documentação enviada para revisão.¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Ana Souza¦13/09/2026¦¦Dependência da área de contabilidade.¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦23/12/2026¦¦Documentação enviada para revisão.¦Em andamento§ENGENHARIA¦Revisar documentação técnica¦Pedro Lima¦12/11/2026¦22/11/2026¦Documentação enviada para revisão.¦Concluído§CONSTRUCAO/INSTALACAO¦Validar medição final¦Carlos Mendes¦04/11/2026¦¦Aguardando assinatura do cliente.¦Não iniciado¥Fernanda Costa¥25/10/2026¥11/10/2026¬PRJ-2008¥Ana Souza¥Energia¥Handover¥Não¥Aguardando liberação do cliente.¥Acompanhar capitalização no fechamento do mês.¥06/01/2027¥17/09/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Ana Souza¦05/10/2026¦04/10/2026¦Documentação enviada para revisão.¦Concluído§CONSTRUCAO/INSTALACAO¦Validar medição final¦Carlos Mendes¦13/10/2026¦¦Dependência da área de contabilidade.¦Em andamento¥Roberto Dias¥03/02/2027¥21/12/2026¬PRJ-2009¥Marcos Rocha¥Alumínio Primário¥EXEC¥Sim¥Escopo revisado em reunião de março.¥Sem pendências críticas.¥17/12/2026¥—¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Marcos Rocha¦03/11/2026¦13/11/2026¦Aguardando assinatura do cliente.¦Concluído§CAPITALIZACAO¦Emitir ata de capitalização¦Juliana Alves¦08/12/2026¦06/12/2026¦Documentação enviada para revisão.¦Concluído§PACP¦Atualizar PACP no GCMS¦Marcos Rocha¦13/09/2026¦¦¦Em andamento§CONSTRUCAO/INSTALACAO¦Validar medição final¦Ana Souza¦06/11/2026¦¦Documentação enviada para revisão.¦Em andamento¥Fernanda Costa¥09/10/2026¥30/08/2026¬PRJ-2010¥Ana Souza¥Mineração¥FEL3¥Não¥Dependência de licença ambiental.¥Revisar prazo com o gerente.¥04/12/2026¥19/09/2026¥CAPITALIZACAO¦Emitir ata de capitalização¦Ana Souza¦26/10/2026¦01/11/2026¦Documentação enviada para revisão.¦Concluído§CAPITALIZACAO¦Capitalizar ativo¦Pedro Lima¦28/11/2026¦01/12/2026¦Documentação enviada para revisão.¦Concluído§COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦24/12/2026¦27/12/2026¦Documentação enviada para revisão.¦Concluído§COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦10/09/2026¦18/09/2026¦¦Concluído¥Roberto Dias¥24/03/2027¥09/03/2027¬PRJ-2011¥Pedro Lima¥Logística¥Handover¥Sim¥Aguardando liberação do cliente.¥Sem pendências críticas.¥28/11/2026¥30/08/2026¥CAPITALIZACAO¦Emitir ata de capitalização¦Marcos Rocha¦11/11/2026¦¦Documentação enviada para revisão.¦Em andamento§COMISSIONAMENTO¦Emitir ata de comissionamento¦Carlos Mendes¦16/12/2026¦¦¦Não iniciado§CAPITALIZACAO¦Capitalizar ativo¦Pedro Lima¦01/10/2026¦05/10/2026¦Dependência da área de contabilidade.¦Concluído¥Luís Prado¥01/01/2027¥26/12/2026¬PRJ-2012¥Carlos Mendes¥Logística¥FEL3¥Não¥Dependência de licença ambiental.¥Acompanhar capitalização no fechamento do mês.¥23/01/2027¥07/08/2026¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Juliana Alves¦10/11/2026¦¦Dependência da área de contabilidade.¦Em andamento§CONSTRUCAO/INSTALACAO¦Validar medição final¦Pedro Lima¦21/11/2026¦¦¦Em andamento¥Roberto Dias¥02/01/2027¥23/12/2026¬PRJ-2013¥Juliana Alves¥Alumínio Primário¥FEL3¥Sim¥Aguardando liberação do cliente.¥Revisar prazo com o gerente.¥23/10/2026¥—¥CAPITALIZACAO¦Capitalizar ativo¦Marcos Rocha¦19/10/2026¦¦Dependência da área de contabilidade.¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦27/11/2026¦¦¦Não iniciado§COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦18/11/2026¦¦¦Não iniciado¥Fernanda Costa¥17/12/2026¥02/11/2026¬PRJ-2014¥Pedro Lima¥Energia¥Handover¥Não¥Dependência de licença ambiental.¥Revisar prazo com o gerente.¥20/11/2026¥—¥COMISSIONAMENTO¦Emitir ata de comissionamento¦Ana Souza¦03/09/2026¦¦Dependência da área de contabilidade.¦Em andamento§COMISSIONAMENTO¦Emitir ata de comissionamento¦Pedro Lima¦18/11/2026¦24/11/2026¦¦Concluído§CAPITALIZACAO¦Capitalizar ativo¦Carlos Mendes¦07/11/2026¦¦Dependência da área de contabilidade.¦Em andamento§CAPITALIZACAO¦Emitir ata de capitalização¦Juliana Alves¦12/09/2026¦¦¦Não iniciado§CAPITALIZACAO¦Emitir ata de capitalização¦Pedro Lima¦27/10/2026¦¦Aguardando assinatura do cliente.¦Em andamento¥Luís Prado¥10/10/2026¥25/09/2026';
+var rgRC='¬';
+var rgFD='¥';
+var rgBK='§';
+var rgFK='¦';
+var rgEtapas=[
+{nome:'Conclusão do Escopo',chave:''},
+{nome:'Ata de Comissionamento',chave:'EMITIR ATA DE COMISSIONAMENTO'},
+{nome:'Ata de Capitalização',chave:'EMITIR ATA DE CAPITALIZACAO'},
+{nome:'Capitalização',chave:'CAPITALIZAR'}
+];
+function rgNorm(s){
+s=(s||'').toString().toUpperCase();
+if(s.normalize){s=s.normalize('NFD').replace(/[̀-ͯ]/g,'');}
+return s.replace(/\s+/g,' ').trim();
+}
+function rgDateKey(s){
+var p=(s||'').trim().split('/');
+if(p.length!==3){return 0;}
+var d=parseInt(p[0],10),m=parseInt(p[1],10),y=parseInt(p[2],10);
+if(!d||!m||!y){return 0;}
+return y*10000+m*100+d;
+}
+function rgParseAtividades(concat){
+var out=[];
+if(!concat){return out;}
+concat.split(rgBK).forEach(function(bloco){
+if(!bloco){return;}
+var f=bloco.split(rgFK);
+var etapa=(f[0]||'').trim();
+if(!etapa){return;}
+var a={
+etapa:etapa,
+pendencia:(f[1]||'').trim(),
+responsavel:(f[2]||'').trim(),
+previsto:(f[3]||'').trim(),
+conclusao:(f[4]||'').trim(),
+comentario:(f[5]||'').trim(),
+status:(f[6]||'').trim()
+};
+if(!(a.pendencia||a.responsavel||a.previsto||a.conclusao||a.comentario||a.status)){return;}
+a.busca=rgNorm(a.etapa+' '+a.pendencia);
+out.push(a);
+});
+return out;
+}
+function rgAtvCls(a){
+var s=rgNorm(a.status);
+if(s.indexOf('CONCLU')>-1){return 'done';}
+if(s.indexOf('ANDAMENTO')>-1){return 'prog';}
+if(s.indexOf('NAO INICIAD')>-1){return 'todo';}
+if(a.conclusao!==''){return 'done';}
+if(s!==''){return 'prog';}
+return 'todo';
+}
+var rgRotulos={done:'Concluído',prog:'Em andamento',todo:'Não iniciado',na:'N/A'};
+function rgAtvLabel(a){
+if(a.status&&a.status!==''){return a.status;}
+return rgRotulos[rgAtvCls(a)];
+}
+function rgSlot(a){
+for(var i=1;i<rgEtapas.length;i++){
+if(a.busca.indexOf(rgEtapas[i].chave)>-1){return i;}
+}
+return -1;
+}
+function rgEtapaInfo(atividades,idx){
+var def=rgEtapas[idx];
+var lista=atividades.filter(function(a){return a.slot===idx;});
+var info={nome:def.nome,lista:lista,qtd:lista.length,cls:'na',status:'N/A',data:'—',prev:false};
+if(!lista.length){return info;}
+var done=0,prog=0,kConc=0,kPrev=0,dConc='',dPrev='';
+lista.forEach(function(a){
+var c=rgAtvCls(a);
+if(c==='done'){done++;}else if(c==='prog'){prog++;}
+var kc=rgDateKey(a.conclusao);
+if(kc>kConc){kConc=kc;dConc=a.conclusao;}
+var kp=rgDateKey(a.previsto);
+if(kp>kPrev){kPrev=kp;dPrev=a.previsto;}
+});
+if(done===lista.length){info.cls='done';}
+else if(done>0||prog>0){info.cls='prog';}
+else{info.cls='todo';}
+info.status=rgRotulos[info.cls];
+if(dConc!==''){info.data=dConc;}
+else if(dPrev!==''){info.data=dPrev;info.prev=true;}
+return info;
+}
+function rgStatusProjeto(etapas){
+var reais=etapas.filter(function(e){return e.cls!=='na';});
+if(!reais.length){return 'na';}
+var done=0,prog=0;
+reais.forEach(function(e){
+if(e.cls==='done'){done++;}else if(e.cls==='prog'){prog++;}
+});
+if(done===reais.length){return 'done';}
+if(done>0||prog>0){return 'prog';}
+return 'todo';
+}
+var rgData=rgRaw?rgRaw.split(rgRC).map(function(x){
+var p=x.split(rgFD);
+var o={
+projeto:p[0]||'',responsavel:p[1]||'',portfolio:p[2]||'',fase:p[3]||'',passivo:p[4]||'',
+justificativa:p[5]||'',comentarios:p[6]||'',previsto:p[7]||'—',realizado:p[8]||'—',concat:p[9]||'',
+gerente:p[10]||'',pacp:p[11]||'—',pacpbl:p[12]||'—'
+};
+o.atividades=rgParseAtividades(o.concat);
+o.atividades.forEach(function(a){a.slot=rgSlot(a);});
+o.etapas=rgEtapas.map(function(e,i){return rgEtapaInfo(o.atividades,i);});
+o.outras=o.atividades.filter(function(a){return a.slot<0;});
+o.cls=rgStatusProjeto(o.etapas);
+return o;
+}):[];
+function rgText(tag,cls,text){
+var e=document.createElement(tag);
+if(cls){e.className=cls;}
+e.textContent=text||'';
+return e;
+}
+function rgMakeStep(info){
+var step=document.createElement('div');
+step.className='rg-step';
+var track=document.createElement('div');
+track.className='rg-track '+info.cls;
+step.appendChild(track);
+var st=document.createElement('div');
+st.className='rg-st '+info.cls;
+st.textContent=info.status;
+if(info.qtd>1){st.appendChild(rgText('span','rg-qtd',String(info.qtd)));}
+step.appendChild(st);
+step.appendChild(rgText('div','rg-dt'+(info.prev?' prev':''),info.cls==='na'?'—':(info.prev?'Prev. '+info.data:info.data)));
+return step;
+}
+function rgDateBox(label,valor,extra){
+var d=document.createElement('div');
+d.className='rg-date'+(extra?' '+extra:'');
+d.appendChild(rgText('span','rg-date-lab',label));
+d.appendChild(rgText('span','rg-date-val',valor||'—'));
+return d;
+}
+function rgRenderKpis(vis){
+var total=rgData.length;
+document.getElementById('rgKpis').innerHTML=
+'<div class=rg-kpi><b>'+vis+'</b><span>'+(vis===total?'Projetos':'de '+total+' projetos')+'</span></div>';
+}
+function rgActCard(a,mostrarEtapa){
+var cls=rgAtvCls(a);
+var card=document.createElement('div');
+card.className='rg-act';
+var top=document.createElement('div');
+top.className='rg-act-top';
+top.appendChild(rgText('span','rg-act-status '+cls,rgAtvLabel(a)));
+top.appendChild(rgText('span','rg-act-date',a.conclusao!==''?a.conclusao:(a.previsto!==''?'Prev. '+a.previsto:'—')));
+card.appendChild(top);
+if(mostrarEtapa){card.appendChild(rgText('div','rg-other-name',a.etapa));}
+card.appendChild(rgText('div','rg-act-title',a.pendencia!==''?a.pendencia:'Sem descrição de pendência'));
+var meta=[];
+if(a.responsavel!==''){meta.push('Resp.: '+a.responsavel);}
+if(a.previsto!==''){meta.push('Previsto: '+a.previsto);}
+if(a.conclusao!==''){meta.push('Conclusão: '+a.conclusao);}
+if(meta.length){card.appendChild(rgText('div','rg-act-meta',meta.join('  ·  ')));}
+if(a.comentario!==''){card.appendChild(rgText('div','rg-act-comment',a.comentario));}
+return card;
+}
+function rgOpenModal(x){
+var modal=document.getElementById('rgModal');
+var overlay=document.getElementById('rgOverlay');
+modal.innerHTML='';
+var header=document.createElement('div');
+header.className='rg-modal-header';
+var hleft=document.createElement('div');
+hleft.appendChild(rgText('div','rg-modal-eyebrow','Detalhes do projeto'));
+hleft.appendChild(rgText('div','rg-modal-title',x.projeto));
+var close=document.createElement('button');
+close.className='rg-close';
+close.innerHTML='&#10005;';
+close.onclick=function(){overlay.classList.remove('active');};
+header.appendChild(hleft);
+header.appendChild(close);
+var body=document.createElement('div');
+body.className='rg-modal-body';
+function field(label,value){
+var f=document.createElement('div');
+f.className='rg-field';
+f.appendChild(rgText('div','rg-field-label',label));
+f.appendChild(rgText('div','rg-field-value',value||'—'));
+return f;
+}
+var info=document.createElement('div');
+info.className='rg-info-grid';
+info.appendChild(field('Fase',x.fase));
+info.appendChild(field('Portfólio',x.portfolio));
+info.appendChild(field('Passivo',x.passivo));
+info.appendChild(field('Status',rgRotulos[x.cls]));
+info.appendChild(field('Responsável',x.responsavel));
+info.appendChild(field('Gerente',x.gerente));
+var texts=document.createElement('div');
+texts.className='rg-text-grid';
+function textBox(label,value){
+var box=document.createElement('div');
+box.className='rg-text-box';
+box.appendChild(rgText('div','rg-field-label',label));
+box.appendChild(rgText('div','rg-text-value',value||'—'));
+return box;
+}
+texts.appendChild(textBox('Justificativa',x.justificativa));
+texts.appendChild(textBox('Comentários',x.comentarios));
+var dates=document.createElement('div');
+dates.className='rg-date-grid';
+function dateCard(label,valor,extra){
+var c=document.createElement('div');
+c.className='rg-date-card'+(extra?' '+extra:'');
+c.appendChild(rgText('div','rg-date-label',label));
+c.appendChild(rgText('div','rg-date-value',valor||'—'));
+return c;
+}
+dates.appendChild(dateCard('Previsto',x.previsto,''));
+dates.appendChild(dateCard('Realizado',x.realizado,'real'));
+dates.appendChild(dateCard('PACP',x.pacp,'pacp'));
+dates.appendChild(dateCard('PACP BL',x.pacpbl,'pacp'));
+var stepsWrap=document.createElement('div');
+stepsWrap.appendChild(rgText('div','rg-section-title','Etapas da régua'));
+var steps=document.createElement('div');
+steps.className='rg-modal-steps';
+x.etapas.forEach(function(e,i){
+var card=document.createElement('div');
+card.className='rg-modal-step '+e.cls;
+card.appendChild(rgText('div','rg-modal-step-num','Etapa 0'+(i+1)));
+var head=document.createElement('div');
+head.className='rg-modal-step-head';
+head.appendChild(rgText('div','rg-modal-step-name',e.nome));
+if(e.qtd>1){head.appendChild(rgText('span','rg-count',e.qtd+' atividades'));}
+card.appendChild(head);
+var stRow=document.createElement('div');
+stRow.className='rg-modal-step-row';
+if(e.cls!=='na'){
+stRow.appendChild(rgText('span','rg-modal-step-date',(e.prev?'Previsto: ':'Realizado: ')+e.data));
+}
+stRow.appendChild(rgText('span','rg-modal-step-status '+e.cls,e.status));
+card.appendChild(stRow);
+if(e.qtd){
+var acts=document.createElement('div');
+acts.className='rg-acts';
+e.lista.forEach(function(a){acts.appendChild(rgActCard(a,false));});
+card.appendChild(acts);
+}else{
+card.appendChild(rgText('div','rg-act-none',i===0?'Fonte ainda não mapeada para esta etapa.':'Este projeto não possui esta atividade no PMSR.'));
+}
+steps.appendChild(card);
+});
+stepsWrap.appendChild(steps);
+body.appendChild(info);
+body.appendChild(texts);
+body.appendChild(dates);
+body.appendChild(stepsWrap);
+if(x.outras.length){
+var otherWrap=document.createElement('div');
+otherWrap.appendChild(rgText('div','rg-section-title','Demais atividades do PMSR'));
+var grid=document.createElement('div');
+grid.className='rg-other-grid';
+x.outras.forEach(function(a){
+var c=document.createElement('div');
+c.className='rg-other-card';
+c.appendChild(rgActCard(a,true));
+grid.appendChild(c);
+});
+otherWrap.appendChild(grid);
+body.appendChild(otherWrap);
+}
+modal.appendChild(header);
+modal.appendChild(body);
+overlay.classList.add('active');
+}
+function rgRender(data){
+var list=document.getElementById('rgList');
+list.innerHTML='';
+if(!data.length){
+list.innerHTML='<div class=rg-empty>Nenhum projeto encontrado para o status selecionado.</div>';
+return;
+}
+data.forEach(function(x){
+var row=document.createElement('div');
+row.className='rg-row s-'+x.cls;
+row.onclick=function(){rgOpenModal(x);};
+var id=document.createElement('div');
+id.className='rg-id';
+id.appendChild(rgText('div','rg-project',x.projeto));
+var meta=document.createElement('div');
+meta.className='rg-meta';
+if(x.portfolio){meta.appendChild(rgText('span','rg-tag',x.portfolio));}
+if(x.fase){meta.appendChild(rgText('span','rg-tag',x.fase));}
+id.appendChild(meta);
+var rail=document.createElement('div');
+rail.className='rg-rail';
+x.etapas.forEach(function(e){rail.appendChild(rgMakeStep(e));});
+var dates=document.createElement('div');
+dates.className='rg-dates';
+dates.appendChild(rgDateBox('PACP',x.pacp,''));
+dates.appendChild(rgDateBox('PACP BL',x.pacpbl,'bl'));
+row.appendChild(id);
+row.appendChild(rail);
+row.appendChild(dates);
+list.appendChild(row);
+});
+}
+var rgSts=[{k:'done',n:'Concluído'},{k:'prog',n:'Em andamento'},{k:'todo',n:'Não iniciado'},{k:'na',n:'N/A'}];
+var rgFiltros=[[],[],[],[]];
+var rgBtns=[];
+function rgPassa(x,exceto){
+for(var i=0;i<rgFiltros.length;i++){
+if(i===exceto){continue;}
+if(rgFiltros[i].length&&rgFiltros[i].indexOf(x.etapas[i].cls)<0){return false;}
+}
+return true;
+}
+function rgAtualizar(){
+var vis=rgData.filter(function(x){return rgPassa(x,-1);});
+rgRender(vis);
+rgRenderKpis(vis.length);
+var bases=rgFiltros.map(function(f,i){return rgData.filter(function(x){return rgPassa(x,i);});});
+rgBtns.forEach(function(b){
+var n=0;
+bases[b.col].forEach(function(x){if(x.etapas[b.col].cls===b.st){n++;}});
+b.num.textContent=n;
+if(n===0){b.el.classList.add('zero');}else{b.el.classList.remove('zero');}
+});
+var algum=false;
+rgFiltros.forEach(function(f){if(f.length){algum=true;}});
+var cl=document.getElementById('rgClear');
+if(algum){cl.classList.add('on');}else{cl.classList.remove('on');}
+}
+function rgMontarFiltros(){
+Array.prototype.forEach.call(document.querySelectorAll('.rg-ch-step'),function(step,col){
+var box=document.createElement('div');
+box.className='rg-ch-f';
+rgSts.forEach(function(s){
+var b=document.createElement('button');
+b.type='button';
+b.className='rg-f '+s.k;
+b.title=s.n;
+b.appendChild(document.createElement('i'));
+var num=rgText('span','','0');
+b.appendChild(num);
+b.addEventListener('click',function(){
+var arr=rgFiltros[col],i=arr.indexOf(s.k);
+if(i>-1){arr.splice(i,1);b.classList.remove('on');}
+else{arr.push(s.k);b.classList.add('on');}
+rgAtualizar();
+});
+rgBtns.push({el:b,num:num,col:col,st:s.k});
+box.appendChild(b);
+});
+step.appendChild(box);
+});
+}
+document.getElementById('rgClear').addEventListener('click',function(){
+rgFiltros=[[],[],[],[]];
+rgBtns.forEach(function(b){b.el.classList.remove('on');});
+rgAtualizar();
+});
+document.getElementById('rgOverlay').addEventListener('click',function(e){
+if(e.target===this){this.classList.remove('active');}
+});
+rgMontarFiltros();
+rgAtualizar();
+</script>
+</div>
+<!--
+  Amostra fake PMO. Payload na mesma codificação da medida: projetos separados por ¬, campos por ¥ (13 campos),
+  atividades do Concatenado por § e campos da atividade por ¦ (etapa · pendência · responsável · previsto · conclusão · comentário · status).
+  A casa de cada atividade na régua é feita por texto da pendência (Emitir ata de comissionamento / capitalização, Capitalizar).
+-->
+</body>
+</html>

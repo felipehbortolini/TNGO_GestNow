@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Galeria de Restricoes - Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;font-family:'Segoe UI',sans-serif;padding:32px;display:flex;justify-content:center;}
+  .stage{width:360px;height:420px;background:#F4F5F7;}
+</style>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-thumb{background:#ccc;border-radius:2px;}
+  ::-webkit-scrollbar-thumb:hover{background:#aaa;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  .gal-wrap{font-family:'Segoe UI',sans-serif;width:100%;height:100%;max-height:100%;display:flex;flex-direction:column;align-items:center;overflow:hidden;padding:8px;}
+  .gal-card-area{width:100%;flex:1;overflow:hidden;border-radius:14px;min-height:0;}
+  .gal-track{display:flex;height:100%;transition:transform .4s cubic-bezier(.4,0,.2,1);}
+  .gal-card{min-width:100%;height:100%;display:flex;flex-direction:column;padding:16px 20px;background:#fff;border:1px solid #e8e8e8;border-radius:14px;overflow:hidden;}
+  .gal-card-header{border-bottom:1px solid #f0f0f0;padding-bottom:12px;margin-bottom:12px;flex-shrink:0;}
+  .gal-card-title{font-size:16px;font-weight:700;color:#006357;line-height:1.3;margin-bottom:4px;word-break:break-word;overflow-wrap:break-word;}
+  .gal-card-sub{font-size:12px;color:#666;font-weight:500;}
+  .gal-body{flex:1;min-height:0;overflow-y:auto;font-size:14px;color:#444;line-height:1.6;padding:4px;white-space:normal;word-break:break-word;overflow-wrap:break-word;}
+  .gal-body.empty{color:#AEAEB2;font-style:italic;}
+  .gal-counter{font-family:Montserrat,sans-serif;font-size:9px;font-weight:600;color:#00A793;letter-spacing:1px;text-transform:uppercase;padding:0 0 6px;flex-shrink:0;align-self:flex-start;}
+  .gal-nav{display:flex;align-items:center;justify-content:center;gap:16px;flex-shrink:0;padding:8px 0 2px;}
+  .gal-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid #ddd;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;user-select:none;}
+  .gal-btn:hover{border-color:#00a793;background:#f0faf8;transform:scale(1.1);}
+  .gal-btn:active{transform:scale(.95);background:#e0f5f0;}
+  .gal-btn svg{width:14px;height:14px;stroke:#555;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .gal-btn:hover svg{stroke:#00a793;}
+  .gal-dots{display:flex;gap:6px;align-items:center;}
+  .gal-dot{width:6px;height:6px;border-radius:50%;background:#ddd;transition:all .3s;}
+  .gal-dot.active{width:18px;border-radius:3px;background:#00a793;}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="gal-wrap">
+    <div class="gal-counter"></div>
+    <div class="gal-card-area"><div class="gal-track"></div></div>
+    <div class="gal-nav">
+      <div class="gal-btn gal-prev"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+      <div class="gal-dots"></div>
+      <div class="gal-btn gal-next"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></div>
+    </div>
+  </div>
+</div>
+<script>
+// DADOS FAKE realistas - dominio PMO/projetos
+// formato por registro: Atividade|Responsavel|Observacao ; registros separados por ||
+var raw=[
+  "Projeto Alfa - Liberacao de area civil|Mariana Costa|Status: Atrasado (12/03/2026). Area civil pendente de laudo geotecnico. Avanco 45%. Valor em risco R$ 1.240.000,00. Aguardando ART do responsavel tecnico.",
+  "Projeto Beta - Fornecimento de valvulas|Ricardo Alves|Status: Em alerta (28/02/2026). Fornecedor com atraso de 15 dias na entrega. Avanco 70%. Impacto estimado R$ 380.500,00 no cronograma de montagem.",
+  "Projeto Gama - Ensaio hidrostatico|Fernanda Lima|Status: Em dia (05/04/2026). Ensaio agendado apos conclusao da soldagem. Avanco 88%. Sem restricoes financeiras. Valor do pacote R$ 520.000,00.",
+  "Projeto Delta - Comissionamento eletrico|Carlos Menezes|Status: Backlog (prev. 20/05/2026). Aguardando energizacao da subestacao. Avanco 10%. Depende de liberacao da concessionaria. Valor R$ 2.100.000,00.",
+  "Projeto Alfa - Montagem de tubulacao|Nao atribuido|Status: Concluido (18/01/2026). Pacote finalizado dentro do prazo. Avanco 100%. Valor realizado R$ 640.000,00. Sem restricoes remanescentes."
+].join("||");
+
+setTimeout(function(){
+  var track=document.querySelector('.gal-track');
+  var dotsContainer=document.querySelector('.gal-dots');
+  var counter=document.querySelector('.gal-counter');
+  var nav=document.querySelector('.gal-nav');
+  if(!track||!raw)return;
+  var registros=raw.split('||').map(function(r){return r.trim();}).filter(function(r){return r!='';});
+  var total=registros.length;
+  if(total===0)return;
+  registros.forEach(function(reg,i){
+    var f=reg.split('|');
+    var ativ=(f[0]||'').trim()||'Atividade sem nome';
+    var resp=(f[1]||'').trim()||'Nao atribuido';
+    var obs=(f[2]||'').trim()||'Sem observacao';
+    var card=document.createElement('div');card.className='gal-card';
+    var hdr=document.createElement('div');hdr.className='gal-card-header';
+    var ttl=document.createElement('div');ttl.className='gal-card-title';ttl.textContent=ativ;
+    var sub=document.createElement('div');sub.className='gal-card-sub';
+    var respSpan=document.createElement('span');respSpan.style.cssText='color:#1a1a1a;font-weight:700;';respSpan.textContent=resp;
+    sub.textContent='Responsavel: ';sub.appendChild(respSpan);
+    hdr.appendChild(ttl);hdr.appendChild(sub);
+    var body=document.createElement('div');
+    body.className='gal-body'+(obs==='Sem observacao'?' empty':'');
+    body.textContent=obs;
+    card.appendChild(hdr);card.appendChild(body);
+    track.appendChild(card);
+  });
+  if(counter)counter.textContent='Restricoes: '+total;
+  dotsContainer.innerHTML='';
+  if(total<=1){if(nav)nav.style.display='none';return;}
+  for(var i=0;i<total;i++){
+    var d=document.createElement('div');
+    d.className='gal-dot'+(i===0?' active':'');
+    dotsContainer.appendChild(d);
+  }
+  var dots=document.querySelectorAll('.gal-dot');
+  var idx=0;
+  function go(n){
+    if(n<0)n=total-1;
+    if(n>=total)n=0;
+    idx=n;
+    track.style.transform='translateX(-'+(idx*100)+'%)';
+    dots.forEach(function(d,k){d.classList.toggle('active',k===idx);});
+  }
+  document.querySelector('.gal-prev').onclick=function(){go(idx-1);};
+  document.querySelector('.gal-next').onclick=function(){go(idx+1);};
+},200);
+</script>
+</body>
+</html>

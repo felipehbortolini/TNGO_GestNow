@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Baseline vs Actual — Handover Consolidado — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:640px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:760px;}
+  .hint{max-width:640px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Baseline vs Actual — Handover Consolidado (Status Atual · Diferença RFA vs Forecast · Invalid Handover) com variação % por categoria (dados fake PMO)</div>
+<div class="frame">
+<style>
+.frame *{box-sizing:border-box;margin:0;padding:0;}
+.frame{font-family:'Segoe UI',Arial,sans-serif;}
+.hv-root{width:100%;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:18px 16px 16px 16px;background:transparent;overflow:hidden;}
+.hv-main-title{font-size:23px;font-weight:900;line-height:1;letter-spacing:1.7px;text-transform:uppercase;color:#006357;}
+.hv-stack{min-height:0;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:13px;}
+.hv-card{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);padding:0 0 10px 0;border-bottom:2px solid rgba(0,99,87,.18);background:transparent;overflow:hidden;}
+.hv-card:last-child{border-bottom:none;padding-bottom:0;}
+.hv-header{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;padding:0 0 11px 0;}
+.hv-title{font-size:13px;font-weight:900;letter-spacing:.85px;line-height:1.1;text-transform:uppercase;color:#006357;}
+.hv-legend{display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;}
+.hv-leg{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.hv-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;}
+.hv-leg-text{font-size:10px;font-weight:700;line-height:1;color:#506966;}
+.hv-rows{min-height:0;display:grid;grid-template-rows:minmax(42px,1fr) minmax(48px,.72fr) minmax(42px,1fr);gap:9px;align-items:center;}
+.hv-bar-row{display:flex;align-items:center;gap:9px;min-height:0;height:100%;}
+.hv-row-label{width:70px;flex:0 0 70px;font-size:11px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:#52706C;}
+.hv-track-bg{flex:1 1 auto;min-width:0;height:clamp(36px,72%,66px);border-radius:10px;background:#EEF3F2;overflow:hidden;}
+.hv-track{display:flex;width:100%;height:100%;border-radius:10px;overflow:hidden;}
+.hv-segment{display:flex;align-items:center;justify-content:center;min-width:27px;height:100%;padding:0 3px;border-right:2px solid rgba(255,255,255,.72);overflow:hidden;}
+.hv-segment:last-child{border-right:none;}
+.hv-segment-num{font-size:17px;font-weight:900;line-height:1;color:#FFFFFF;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.25);}
+.hv-total{width:43px;flex:0 0 43px;font-size:20px;font-weight:900;line-height:1;text-align:right;color:#183B37;}
+.hv-deltas{display:grid;align-items:stretch;gap:7px;width:100%;min-height:0;}
+.hv-deltas-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+.hv-deltas-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+.hv-delta{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;padding:6px 3px;border-radius:8px;}
+.hv-delta-label{width:100%;font-size:9px;font-weight:900;line-height:1;text-align:center;color:#49625F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hv-delta-bottom{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;}
+.hv-delta-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-size:11px;font-weight:900;line-height:1;color:#FFFFFF;flex:0 0 20px;}
+.hv-delta-value{font-size:11px;font-weight:900;line-height:1;white-space:nowrap;}
+.hv-good{background:rgba(0,167,147,.10);}.hv-good .hv-delta-icon{background:#00A793;}.hv-good .hv-delta-value{color:#007B6D;}
+.hv-bad{background:rgba(208,54,54,.10);}.hv-bad .hv-delta-icon{background:#D03636;}.hv-bad .hv-delta-value{color:#B52626;}
+.hv-neutral{background:rgba(112,130,126,.11);}.hv-neutral .hv-delta-icon{background:#758784;}.hv-neutral .hv-delta-value{color:#5B6D6A;}
+.hv-empty{height:100%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#758784;}
+</style>
+<div class='hv-root'><div class='hv-main-title'>Baseline vs Actual</div><div class='hv-stack'><section class='hv-card'><div class='hv-header'><div class='hv-title'>STATUS ATUAL</div><div class='hv-legend'><div class='hv-leg'><span class='hv-dot' style='background:#00A793;'></span><span class='hv-leg-text'>Not Late</span></div><div class='hv-leg'><span class='hv-dot' style='background:#E8B43B;'></span><span class='hv-leg-text'>&lt; 6 Months</span></div><div class='hv-leg'><span class='hv-dot' style='background:#EB6100;'></span><span class='hv-leg-text'>&lt; 1 Year</span></div><div class='hv-leg'><span class='hv-dot' style='background:#D03636;'></span><span class='hv-leg-text'>&gt; 1 Year</span></div></div></div><div class='hv-rows'><div class='hv-bar-row'><div class='hv-row-label'>Baseline</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:51 1 0;background:#00A793;'><span class='hv-segment-num'>51</span></div><div class='hv-segment' style='flex:37 1 0;background:#E8B43B;'><span class='hv-segment-num'>37</span></div><div class='hv-segment' style='flex:11 1 0;background:#EB6100;'><span class='hv-segment-num'>11</span></div><div class='hv-segment' style='flex:21 1 0;background:#D03636;'><span class='hv-segment-num'>21</span></div></div></div><div class='hv-total'>120</div></div><div class='hv-deltas hv-deltas-4'><div class='hv-delta hv-bad'><span class='hv-delta-label'>Not Late</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▼</span><span class='hv-delta-value'>-5,9%</span></div></div><div class='hv-delta hv-bad'><span class='hv-delta-label'>&lt; 6 Months</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▲</span><span class='hv-delta-value'>+8,1%</span></div></div><div class='hv-delta hv-bad'><span class='hv-delta-label'>&lt; 1 Year</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▲</span><span class='hv-delta-value'>+27,3%</span></div></div><div class='hv-delta hv-good'><span class='hv-delta-label'>&gt; 1 Year</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▼</span><span class='hv-delta-value'>-14,3%</span></div></div></div><div class='hv-bar-row'><div class='hv-row-label'>Actual</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:48 1 0;background:#00A793;'><span class='hv-segment-num'>48</span></div><div class='hv-segment' style='flex:40 1 0;background:#E8B43B;'><span class='hv-segment-num'>40</span></div><div class='hv-segment' style='flex:14 1 0;background:#EB6100;'><span class='hv-segment-num'>14</span></div><div class='hv-segment' style='flex:18 1 0;background:#D03636;'><span class='hv-segment-num'>18</span></div></div></div><div class='hv-total'>120</div></div></div></section><section class='hv-card'><div class='hv-header'><div class='hv-title'>DIFERENÇA RFA vs FORECAST</div><div class='hv-legend'><div class='hv-leg'><span class='hv-dot' style='background:#00A793;'></span><span class='hv-leg-text'>Not Late</span></div><div class='hv-leg'><span class='hv-dot' style='background:#E8B43B;'></span><span class='hv-leg-text'>&lt; 6 Months</span></div><div class='hv-leg'><span class='hv-dot' style='background:#EB6100;'></span><span class='hv-leg-text'>&lt; 1 Year</span></div><div class='hv-leg'><span class='hv-dot' style='background:#D03636;'></span><span class='hv-leg-text'>&gt; 1 Year</span></div></div></div><div class='hv-rows'><div class='hv-bar-row'><div class='hv-row-label'>Baseline</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:16 1 0;background:#00A793;'><span class='hv-segment-num'>16</span></div><div class='hv-segment' style='flex:59 1 0;background:#E8B43B;'><span class='hv-segment-num'>59</span></div><div class='hv-segment' style='flex:20 1 0;background:#EB6100;'><span class='hv-segment-num'>20</span></div><div class='hv-segment' style='flex:25 1 0;background:#D03636;'><span class='hv-segment-num'>25</span></div></div></div><div class='hv-total'>120</div></div><div class='hv-deltas hv-deltas-4'><div class='hv-delta hv-good'><span class='hv-delta-label'>Not Late</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▲</span><span class='hv-delta-value'>+37,5%</span></div></div><div class='hv-delta hv-good'><span class='hv-delta-label'>&lt; 6 Months</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▼</span><span class='hv-delta-value'>-11,9%</span></div></div><div class='hv-delta hv-good'><span class='hv-delta-label'>&lt; 1 Year</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▼</span><span class='hv-delta-value'>-15,0%</span></div></div><div class='hv-delta hv-bad'><span class='hv-delta-label'>&gt; 1 Year</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▲</span><span class='hv-delta-value'>+16,0%</span></div></div></div><div class='hv-bar-row'><div class='hv-row-label'>Actual</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:22 1 0;background:#00A793;'><span class='hv-segment-num'>22</span></div><div class='hv-segment' style='flex:52 1 0;background:#E8B43B;'><span class='hv-segment-num'>52</span></div><div class='hv-segment' style='flex:17 1 0;background:#EB6100;'><span class='hv-segment-num'>17</span></div><div class='hv-segment' style='flex:29 1 0;background:#D03636;'><span class='hv-segment-num'>29</span></div></div></div><div class='hv-total'>120</div></div></div></section><section class='hv-card'><div class='hv-header'><div class='hv-title'>INVALID HANDOVER</div><div class='hv-legend'><div class='hv-leg'><span class='hv-dot' style='background:#00A793;'></span><span class='hv-leg-text'>Válido</span></div><div class='hv-leg'><span class='hv-dot' style='background:#D03636;'></span><span class='hv-leg-text'>Inválido</span></div></div></div><div class='hv-rows'><div class='hv-bar-row'><div class='hv-row-label'>Baseline</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:119 1 0;background:#00A793;'><span class='hv-segment-num'>119</span></div><div class='hv-segment' style='flex:1 1 0;background:#D03636;'><span class='hv-segment-num'>1</span></div></div></div><div class='hv-total'>120</div></div><div class='hv-deltas hv-deltas-2'><div class='hv-delta hv-bad'><span class='hv-delta-label'>Válido</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▼</span><span class='hv-delta-value'>-0,8%</span></div></div><div class='hv-delta hv-bad'><span class='hv-delta-label'>Inválido</span><div class='hv-delta-bottom'><span class='hv-delta-icon'>▲</span><span class='hv-delta-value'>+100,0%</span></div></div></div><div class='hv-bar-row'><div class='hv-row-label'>Actual</div><div class='hv-track-bg'><div class='hv-track'><div class='hv-segment' style='flex:118 1 0;background:#00A793;'><span class='hv-segment-num'>118</span></div><div class='hv-segment' style='flex:2 1 0;background:#D03636;'><span class='hv-segment-num'>2</span></div></div></div><div class='hv-total'>120</div></div></div></section></div></div>
+</div>
+<!--
+  Amostra fake PMO. Baseline = valores fixos da medida; Actual = contagens fake.
+  Variação = (Actual − Baseline) / Baseline; verde se favorável (Not Late/Válido sobem, demais caem), vermelho se desfavorável.
+-->
+</body>
+</html>

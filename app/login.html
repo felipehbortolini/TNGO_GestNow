@@ -1,0 +1,23 @@
+<!--
+  Portão de login — carregado pelo shell quando não há sessão.
+
+  É HTML estático servido de app/, não um template Jinja2: precisa ficar
+  acessível a quem ainda não autenticou, e por isso não pode depender da
+  API, que exige papel "authenticated".
+
+  Fragmento: sem <head>, sem <link>, sem <script src>. O estilo já veio
+  do shell (Regra 2 do contrato visual).
+-->
+<main id="app-shell" class="content">
+  <div class="guard">
+    <img src="/ds/assets/ilustra-acesso-negado.png" alt="" />
+    <h1>Bem-vindo</h1>
+    <p>
+      Este aplicativo é restrito a colaboradores da Timenow.
+      Entre com sua conta corporativa para continuar.
+    </p>
+    <a href="/.auth/login/aad" class="btn btn--primary btn--lg">
+      Entrar com conta Timenow
+    </a>
+  </div>
+</main>

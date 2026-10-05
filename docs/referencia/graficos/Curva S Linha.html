@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Curva S Semana Mês Ano — Financeira — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1100px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:520px;}
+  .hint{max-width:1100px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Curva S Semana · Mês · Ano — Financeira — % físico-financeiro acumulado (Linha de Base | Previsto | Realizado) com drill-down semanal e pop-up ao passar o mouse (dados fake PMO, 2025-2026)</div>
+<div class="frame">
+<style>
+html,body{}
+#wrap{width:100%;height:100%;display:flex;flex-direction:column;}
+#top{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px;border-bottom:1px solid #F1F1F1;flex-wrap:wrap;position:relative;}
+#btns{display:flex;gap:6px;flex-wrap:wrap;}
+.yb{background:#E8F0EF;color:#006357;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.4px;}
+.yb:hover{background:#D4E6E3;}
+.yb.on{background:#006357;color:#FFFFFF;}
+#leg{display:flex;gap:14px;align-items:center;position:absolute;right:12px;top:50%;transform:translateY(-50%);}
+.lg{display:flex;align-items:center;gap:5px;font-size:11px;color:#7D7D7D;font-family:'Montserrat',sans-serif;font-weight:600;}
+.lg b{display:inline-block;width:20px;height:3px;border-radius:2px;}
+#cw{position:relative;flex:1;min-height:0;overflow:hidden;}
+#tt{display:none;position:absolute;z-index:10;pointer-events:none;min-width:155px;max-width:270px;padding:9px 11px;border-radius:7px;background:rgba(31,41,55,.96);color:#FFFFFF;font-size:11px;font-family:'Segoe UI',sans-serif;box-shadow:0 4px 15px rgba(0,0,0,.20);line-height:1.55;}
+#tt b{font-size:12px;}
+#tt .tr{display:flex;justify-content:space-between;gap:18px;}
+#tt .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;}
+@keyframes fd{from{opacity:0}to{opacity:1}}
+#ch svg{animation:fd .35s ease;}
+</style>
+<div id="wrap">
+  <div id="top"><div id="btns"></div>
+  <div id="leg">
+  <span class="lg"><b style="background:transparent;border-top:2px dashed #B9B9BC;height:0;"></b>Linha de Base</span>
+  <span class="lg"><b style="background:#648FA0;"></b>Previsto</span>
+  <span class="lg"><b style="background:#00A793;"></b>Realizado</span>
+  </div></div>
+  <div id="cw"><div id="ch"></div><div id="tt"></div></div>
+</div>
+<script>
+// Dados fake PMO — Curva S FINANCEIRA: % do valor físico-financeiro acumulado por semana
+// lb = Linha de Base, pr = Previsto (forecast), rl = Realizado (0-100%)
+var D=[
+ {a:2025,m:1,mn:'Jan',w:1,lb:0.8,pr:0.4,rl:0.2},
+ {a:2025,m:1,mn:'Jan',w:2,lb:0.9,pr:0.4,rl:0.2},
+ {a:2025,m:1,mn:'Jan',w:3,lb:1,pr:0.5,rl:0.2},
+ {a:2025,m:1,mn:'Jan',w:4,lb:1.2,pr:0.6,rl:0.2},
+ {a:2025,m:1,mn:'Jan',w:5,lb:1.3,pr:0.6,rl:0.2},
+ {a:2025,m:2,mn:'Fev',w:1,lb:1.5,pr:0.7,rl:0.3},
+ {a:2025,m:2,mn:'Fev',w:2,lb:1.7,pr:0.8,rl:0.3},
+ {a:2025,m:2,mn:'Fev',w:3,lb:1.9,pr:0.9,rl:0.4},
+ {a:2025,m:2,mn:'Fev',w:4,lb:2.1,pr:1,rl:0.4},
+ {a:2025,m:3,mn:'Mar',w:1,lb:2.4,pr:1.2,rl:0.4},
+ {a:2025,m:3,mn:'Mar',w:2,lb:2.7,pr:1.3,rl:0.5},
+ {a:2025,m:3,mn:'Mar',w:3,lb:3,pr:1.5,rl:0.6},
+ {a:2025,m:3,mn:'Mar',w:4,lb:3.4,pr:1.7,rl:0.6},
+ {a:2025,m:4,mn:'Abr',w:1,lb:3.8,pr:1.9,rl:0.7},
+ {a:2025,m:4,mn:'Abr',w:2,lb:4.2,pr:2.1,rl:0.8},
+ {a:2025,m:4,mn:'Abr',w:3,lb:4.7,pr:2.4,rl:0.9},
+ {a:2025,m:4,mn:'Abr',w:4,lb:5.3,pr:2.7,rl:1},
+ {a:2025,m:4,mn:'Abr',w:5,lb:6,pr:3,rl:1.2},
+ {a:2025,m:5,mn:'Mai',w:1,lb:6.7,pr:3.4,rl:1.3},
+ {a:2025,m:5,mn:'Mai',w:2,lb:7.4,pr:3.8,rl:1.5},
+ {a:2025,m:5,mn:'Mai',w:3,lb:8.3,pr:4.2,rl:1.7},
+ {a:2025,m:5,mn:'Mai',w:4,lb:9.3,pr:4.7,rl:1.9},
+ {a:2025,m:6,mn:'Jun',w:1,lb:10.3,pr:5.3,rl:2.1},
+ {a:2025,m:6,mn:'Jun',w:2,lb:11.5,pr:6,rl:2.4},
+ {a:2025,m:6,mn:'Jun',w:3,lb:12.8,pr:6.7,rl:2.7},
+ {a:2025,m:6,mn:'Jun',w:4,lb:14.2,pr:7.4,rl:3},
+ {a:2025,m:7,mn:'Jul',w:1,lb:15.7,pr:8.3,rl:3.4},
+ {a:2025,m:7,mn:'Jul',w:2,lb:17.4,pr:9.3,rl:3.8},
+ {a:2025,m:7,mn:'Jul',w:3,lb:19.2,pr:10.3,rl:4.2},
+ {a:2025,m:7,mn:'Jul',w:4,lb:21.1,pr:11.5,rl:4.7},
+ {a:2025,m:7,mn:'Jul',w:5,lb:23.1,pr:12.8,rl:5.3},
+ {a:2025,m:8,mn:'Ago',w:1,lb:25.4,pr:14.2,rl:6},
+ {a:2025,m:8,mn:'Ago',w:2,lb:27.7,pr:15.7,rl:6.7},
+ {a:2025,m:8,mn:'Ago',w:3,lb:30.2,pr:17.4,rl:7.4},
+ {a:2025,m:8,mn:'Ago',w:4,lb:32.7,pr:19.2,rl:8.3},
+ {a:2025,m:9,mn:'Set',w:1,lb:35.4,pr:21.1,rl:9.3},
+ {a:2025,m:9,mn:'Set',w:2,lb:38.2,pr:23.1,rl:10.3},
+ {a:2025,m:9,mn:'Set',w:3,lb:41.1,pr:25.4,rl:11.5},
+ {a:2025,m:9,mn:'Set',w:4,lb:44,pr:27.7,rl:12.8},
+ {a:2025,m:10,mn:'Out',w:1,lb:47,pr:30.2,rl:14.2},
+ {a:2025,m:10,mn:'Out',w:2,lb:50,pr:32.7,rl:15.7},
+ {a:2025,m:10,mn:'Out',w:3,lb:53,pr:35.4,rl:17.4},
+ {a:2025,m:10,mn:'Out',w:4,lb:56,pr:38.2,rl:19.2},
+ {a:2025,m:10,mn:'Out',w:5,lb:58.9,pr:41.1,rl:21.1},
+ {a:2025,m:11,mn:'Nov',w:1,lb:61.8,pr:44,rl:23.1},
+ {a:2025,m:11,mn:'Nov',w:2,lb:64.6,pr:47,rl:25.4},
+ {a:2025,m:11,mn:'Nov',w:3,lb:67.3,pr:50,rl:27.7},
+ {a:2025,m:11,mn:'Nov',w:4,lb:69.8,pr:53,rl:30.2},
+ {a:2025,m:12,mn:'Dez',w:1,lb:72.3,pr:56,rl:32.7},
+ {a:2025,m:12,mn:'Dez',w:2,lb:74.6,pr:58.9,rl:35.4},
+ {a:2025,m:12,mn:'Dez',w:3,lb:76.9,pr:61.8,rl:38.2},
+ {a:2025,m:12,mn:'Dez',w:4,lb:78.9,pr:64.6,rl:41.1},
+ {a:2026,m:1,mn:'Jan',w:1,lb:80.8,pr:67.3,rl:44},
+ {a:2026,m:1,mn:'Jan',w:2,lb:82.6,pr:69.8,rl:47},
+ {a:2026,m:1,mn:'Jan',w:3,lb:84.3,pr:72.3,rl:50},
+ {a:2026,m:1,mn:'Jan',w:4,lb:85.8,pr:74.6,rl:53},
+ {a:2026,m:1,mn:'Jan',w:5,lb:87.2,pr:76.9,rl:56},
+ {a:2026,m:2,mn:'Fev',w:1,lb:88.5,pr:78.9,rl:58.9},
+ {a:2026,m:2,mn:'Fev',w:2,lb:89.7,pr:80.8,rl:61.8},
+ {a:2026,m:2,mn:'Fev',w:3,lb:90.7,pr:82.6,rl:64.6},
+ {a:2026,m:2,mn:'Fev',w:4,lb:91.7,pr:84.3,rl:67.3},
+ {a:2026,m:3,mn:'Mar',w:1,lb:92.6,pr:85.8,rl:69.8},
+ {a:2026,m:3,mn:'Mar',w:2,lb:93.3,pr:87.2,rl:72.3},
+ {a:2026,m:3,mn:'Mar',w:3,lb:94,pr:88.5,rl:74.6},
+ {a:2026,m:3,mn:'Mar',w:4,lb:94.7,pr:89.7,rl:76.9},
+ {a:2026,m:4,mn:'Abr',w:1,lb:95.3,pr:90.7,rl:78.9},
+ {a:2026,m:4,mn:'Abr',w:2,lb:95.8,pr:91.7,rl:80.8},
+ {a:2026,m:4,mn:'Abr',w:3,lb:96.2,pr:92.6,rl:82.6},
+ {a:2026,m:4,mn:'Abr',w:4,lb:96.6,pr:93.3,rl:84.3},
+ {a:2026,m:4,mn:'Abr',w:5,lb:97,pr:94,rl:85.8},
+ {a:2026,m:5,mn:'Mai',w:1,lb:97.3,pr:94.7,rl:87.2},
+ {a:2026,m:5,mn:'Mai',w:2,lb:97.6,pr:95.3,rl:88.5},
+ {a:2026,m:5,mn:'Mai',w:3,lb:97.9,pr:95.8,rl:89.7},
+ {a:2026,m:5,mn:'Mai',w:4,lb:98.1,pr:96.2,rl:90.7},
+ {a:2026,m:6,mn:'Jun',w:1,lb:98.3,pr:96.6,rl:91.7},
+ {a:2026,m:6,mn:'Jun',w:2,lb:98.5,pr:97,rl:92.6},
+ {a:2026,m:6,mn:'Jun',w:3,lb:98.7,pr:97.3,rl:93.3},
+ {a:2026,m:6,mn:'Jun',w:4,lb:98.8,pr:97.6,rl:94},
+ {a:2026,m:7,mn:'Jul',w:1,lb:99,pr:97.9,rl:94.7},
+ {a:2026,m:7,mn:'Jul',w:2,lb:99.1,pr:98.1,rl:95.3},
+ {a:2026,m:7,mn:'Jul',w:3,lb:99.2,pr:98.3,rl:95.8},
+ {a:2026,m:7,mn:'Jul',w:4,lb:99.3,pr:98.5,rl:96.2},
+ {a:2026,m:7,mn:'Jul',w:5,lb:99.4,pr:98.7,rl:96.6},
+ {a:2026,m:8,mn:'Ago',w:1,lb:99.4,pr:98.8,rl:97},
+ {a:2026,m:8,mn:'Ago',w:2,lb:99.5,pr:99,rl:97.3},
+ {a:2026,m:8,mn:'Ago',w:3,lb:99.6,pr:99.1,rl:97.6},
+ {a:2026,m:8,mn:'Ago',w:4,lb:99.6,pr:99.2,rl:97.9},
+ {a:2026,m:9,mn:'Set',w:1,lb:99.6,pr:99.3,rl:98.1},
+ {a:2026,m:9,mn:'Set',w:2,lb:99.7,pr:99.4,rl:98.3},
+ {a:2026,m:9,mn:'Set',w:3,lb:99.7,pr:99.4,rl:98.5},
+ {a:2026,m:9,mn:'Set',w:4,lb:99.8,pr:99.5,rl:98.7},
+ {a:2026,m:10,mn:'Out',w:1,lb:99.8,pr:99.6,rl:98.8},
+ {a:2026,m:10,mn:'Out',w:2,lb:99.8,pr:99.6,rl:99},
+ {a:2026,m:10,mn:'Out',w:3,lb:99.8,pr:99.6,rl:99.1},
+ {a:2026,m:10,mn:'Out',w:4,lb:99.8,pr:99.7,rl:99.2},
+ {a:2026,m:10,mn:'Out',w:5,lb:99.9,pr:99.7,rl:99.3},
+ {a:2026,m:11,mn:'Nov',w:1,lb:99.9,pr:99.8,rl:99.4},
+ {a:2026,m:11,mn:'Nov',w:2,lb:99.9,pr:99.8,rl:99.4},
+ {a:2026,m:11,mn:'Nov',w:3,lb:99.9,pr:99.8,rl:99.5},
+ {a:2026,m:11,mn:'Nov',w:4,lb:99.9,pr:99.8,rl:99.6},
+ {a:2026,m:12,mn:'Dez',w:1,lb:99.9,pr:99.8,rl:99.6},
+ {a:2026,m:12,mn:'Dez',w:2,lb:99.9,pr:99.9,rl:99.6},
+ {a:2026,m:12,mn:'Dez',w:3,lb:99.9,pr:99.9,rl:99.7},
+ {a:2026,m:12,mn:'Dez',w:4,lb:100,pr:100,rl:100}
+];
+var PL=58,PR=20,PT=30,PB=88;
+var sel=null,EX={};
+function sm(p){
+if(p.length<2)return '';
+if(p.length<3)return 'M'+p[0][0]+','+p[0][1]+' L'+p[1][0]+','+p[1][1];
+var d='M'+p[0][0]+','+p[0][1];
+for(var i=0;i<p.length-1;i++){var p0=p[i-1]||p[i],p1=p[i],p2=p[i+1],p3=p[i+2]||p2;
+d+=' C'+(p1[0]+(p2[0]-p0[0])/6)+','+(p1[1]+(p2[1]-p0[1])/6)+
+' '+(p2[0]-(p3[0]-p1[0])/6)+','+(p2[1]-(p3[1]-p1[1])/6)+' '+p2[0]+','+p2[1];}
+return d;
+}
+function mkM(rows){
+var map={},arr=[];
+rows.forEach(function(d){
+var k=d.a+'_'+d.m;
+if(!map[k]){map[k]={k:k,a:d.a,m:d.m,mn:d.mn,wks:[]};arr.push(map[k]);}
+map[k].wks.push(d);
+});
+arr.sort(function(a,b){return a.a!==b.a?a.a-b.a:a.m-b.m;});
+arr.forEach(function(mo){mo.wks.sort(function(a,b){return a.w-b.w;});});
+return arr;
+}
+function fmtP(v){return v.toFixed(1).replace('.',',')+'%';}
+function showTip(ix,e,pts){
+var p=pts[ix],tt=document.getElementById('tt'),cw=document.getElementById('cw');
+if(!p)return;
+var h='<b>'+p.lab+'</b>';
+h+=`<div style='border-bottom:1px solid rgba(255,255,255,.22);margin:4px 0;'></div>`;
+if(p.lb!==null)h+=`<div class='tr'><span><i class='dot' style='background:#B9B9BC;'></i>Linha de Base</span><strong>${fmtP(p.lb)}</strong></div>`;
+if(p.pr!==null)h+=`<div class='tr'><span><i class='dot' style='background:#648FA0;'></i>Previsto</span><strong>${fmtP(p.pr)}</strong></div>`;
+if(p.rl!==null)h+=`<div class='tr'><span><i class='dot' style='background:#00A793;'></i>Realizado</span><strong>${fmtP(p.rl)}</strong></div>`;
+tt.innerHTML=h;tt.style.display='block';
+var r=cw.getBoundingClientRect();
+var x=e.clientX-r.left+12,y=e.clientY-r.top+12;
+if(x+tt.offsetWidth>cw.clientWidth-8)x=e.clientX-r.left-tt.offsetWidth-12;
+if(y+tt.offsetHeight>cw.clientHeight-8)y=Math.max(4,cw.clientHeight-tt.offsetHeight-8);
+tt.style.left=x+'px';tt.style.top=y+'px';
+}
+function draw(){
+var rows=sel===null?D:D.filter(function(d){return d.a===sel;});
+var mos=mkM(rows),ch=document.getElementById('ch');
+document.getElementById('tt').style.display='none';
+if(!mos.length){ch.innerHTML='';return;}
+var cw=document.getElementById('cw');
+var svgW=Math.max(cw.clientWidth||900,300);
+var H=Math.max(cw.clientHeight||460,200);
+var DH=H-PT-PB,drawW=svgW-PL-PR;
+var slots=0;
+mos.forEach(function(mo){
+mo.ex=!!EX[mo.k];
+slots+=mo.ex?mo.wks.length:1;
+});
+if(!slots){ch.innerHTML='';return;}
+var slotW=drawW/slots;
+var x=PL;
+mos.forEach(function(mo){
+mo.x0=x;
+if(mo.ex){
+mo.wks.forEach(function(wk,i){wk.px=x+i*slotW+slotW/2;});
+mo.tw=mo.wks.length*slotW;
+}
+else{
+mo.tw=slotW;
+var lb=null,pr=null,rl=null;
+mo.wks.forEach(function(wk){
+if(wk.lb!==null)lb=lb===null?wk.lb:Math.max(lb,wk.lb);
+if(wk.pr!==null)pr=pr===null?wk.pr:Math.max(pr,wk.pr);
+if(wk.rl!==null)rl=rl===null?wk.rl:Math.max(rl,wk.rl);
+});
+mo.agg={lb:lb,pr:pr,rl:rl,px:x+slotW/2};
+}
+mo.xc=mo.x0+mo.tw/2;
+x+=mo.tw;
+});
+var xE=PL+drawW;
+var pts=[];
+mos.forEach(function(mo){
+if(mo.ex)mo.wks.forEach(function(wk){
+pts.push({x:wk.px,lb:wk.lb,pr:wk.pr,rl:wk.rl,lab:'S'+wk.w+' · '+mo.mn+' '+mo.a});
+});
+else pts.push({x:mo.agg.px,lb:mo.agg.lb,pr:mo.agg.pr,rl:mo.agg.rl,lab:mo.mn+' '+mo.a});
+});
+var rng=100;
+function Y(v){return PT+DH-(v/rng)*DH;}
+var gy=PT+DH;
+var s=`<svg width='${svgW}' height='${H}' viewBox='0 0 ${svgW} ${H}' xmlns='http://www.w3.org/2000/svg'>`;
+[0,25,50,75,100].forEach(function(v){
+var gvy=Y(v);
+s+=`<line x1='${PL}' y1='${gvy}' x2='${xE}' y2='${gvy}' stroke='#EDEDED' stroke-width='1'/>`;
+s+=`<text x='${PL-8}' y='${gvy+5}' font-size='18' fill='#B9B9BC' text-anchor='end'>${v}%</text>`;
+});
+mos.forEach(function(mo){
+if(mo.ex)s+=`<rect x='${mo.x0}' y='${PT}' width='${mo.tw}' height='${DH+4}' fill='#F5FAFB'/>`;
+});
+var plb=[],ppr=[],prl=[];
+pts.forEach(function(p){
+if(p.lb!==null)plb.push([p.x,Y(p.lb)]);
+if(p.pr!==null)ppr.push([p.x,Y(p.pr)]);
+if(p.rl!==null)prl.push([p.x,Y(p.rl)]);
+});
+s+=`<path d='${sm(plb)}' fill='none' stroke='#B9B9BC' stroke-width='1.5' stroke-dasharray='6,4' stroke-linecap='round'/>`;
+s+=`<path d='${sm(ppr)}' fill='none' stroke='#648FA0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/>`;
+s+=`<path id='rl' d='${sm(prl)}' fill='none' stroke='#00A793' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/>`;
+pts.forEach(function(p){
+if(p.lb!==null)s+=`<circle cx='${p.x}' cy='${Y(p.lb)}' r='2.5' fill='#B9B9BC' stroke='#fff' stroke-width='1'/>`;
+if(p.pr!==null)s+=`<circle cx='${p.x}' cy='${Y(p.pr)}' r='3.5' fill='#648FA0' stroke='#fff' stroke-width='1.5'/>`;
+if(p.rl!==null)s+=`<circle cx='${p.x}' cy='${Y(p.rl)}' r='4.5' fill='#00A793' stroke='#fff' stroke-width='2'/>`;
+});
+var lx=-999;
+pts.forEach(function(p){
+if(p.rl===null)return;
+if(p.x-lx<56)return;
+lx=p.x;
+var ry=Y(p.rl),flip=ry-PT<44;
+var ly=flip?ry+36:ry-12;
+s+=`<rect x='${p.x-26}' y='${ly-20}' width='52' height='22' rx='4' fill='#00A793' opacity='0.93'/>`;
+s+=`<text x='${p.x}' y='${ly-5}' font-size='11' font-weight='700' fill='#fff' text-anchor='middle'>${p.rl.toFixed(1)}%</text>`;
+});
+s+=`<line x1='${PL}' y1='${gy}' x2='${xE}' y2='${gy}' stroke='#DCDCDC' stroke-width='1'/>`;
+mos.forEach(function(mo,i){
+if(i>0)s+=`<line x1='${mo.x0}' y1='${gy+2}' x2='${mo.x0}' y2='${gy+84}' stroke='#E5E5E5' stroke-width='1' stroke-dasharray='2,3'/>`;
+});
+var fsW=Math.max(9,Math.min(13,slotW*0.26));
+mos.forEach(function(mo){
+if(mo.ex)mo.wks.forEach(function(wk){
+s+=`<text x='${wk.px}' y='${gy+16}' font-size='${fsW}' font-weight='600' fill='#00A793' text-anchor='middle'>S${wk.w}</text>`;
+});
+});
+var fsM=Math.max(9,Math.min(14,slotW*0.22));
+mos.forEach(function(mo){
+var fc=mo.ex?'#006357':'#555555';
+s+=`<text x='${mo.xc}' y='${gy+36}' font-size='${fsM}' font-weight='600' fill='${fc}' text-anchor='middle' data-mk='${mo.k}' style='cursor:pointer'>${mo.mn}</text>`;
+if(mo.ex)s+=`<line x1='${mo.x0+4}' y1='${gy+39}' x2='${mo.x0+mo.tw-4}' y2='${gy+39}' stroke='#00A793' stroke-width='1.5'/>`;
+});
+var yrM={},yrA=[];
+mos.forEach(function(mo){
+if(!yrM[mo.a]){
+yrM[mo.a]={a:mo.a,x0:mo.x0,x1:mo.x0+mo.tw};
+yrA.push(yrM[mo.a]);
+}
+else yrM[mo.a].x1=mo.x0+mo.tw;
+});
+yrA.forEach(function(yr,i){
+var cx=(yr.x0+yr.x1)/2;
+s+=`<text x='${cx}' y='${gy+66}' font-size='16' font-weight='700' fill='#006357' text-anchor='middle'>${yr.a}</text>`;
+if(i>0)s+=`<line x1='${yr.x0}' y1='${gy+46}' x2='${yr.x0}' y2='${gy+74}' stroke='#006357' stroke-width='1.5'/>`;
+});
+pts.forEach(function(p,pi){
+s+=`<rect class='hit' data-p='${pi}' x='${p.x-slotW/2}' y='${PT}' width='${slotW}' height='${DH}' fill='transparent' style='cursor:default'/>`;
+});
+s+='</svg>';
+ch.innerHTML=s;
+ch.querySelectorAll('[data-mk]').forEach(function(el){
+el.addEventListener('click',function(){
+EX[this.dataset.mk]=!EX[this.dataset.mk];
+draw();
+});
+});
+ch.querySelectorAll('.hit').forEach(function(el){
+el.addEventListener('mouseenter',function(e){showTip(parseInt(this.dataset.p,10),e,pts);});
+el.addEventListener('mousemove',function(e){showTip(parseInt(this.dataset.p,10),e,pts);});
+el.addEventListener('mouseleave',function(){document.getElementById('tt').style.display='none';});
+});
+var rl=document.getElementById('rl');
+if(rl&&rl.getTotalLength){
+var L=rl.getTotalLength();
+rl.style.strokeDasharray=L;
+rl.style.strokeDashoffset=L;
+rl.getBoundingClientRect();
+rl.style.transition='stroke-dashoffset 1.5s cubic-bezier(.4,0,.2,1)';
+rl.style.strokeDashoffset=0;
+}
+}
+var anos=[];
+D.forEach(function(d){if(anos.indexOf(d.a)<0)anos.push(d.a);});
+anos.sort(function(a,b){return a-b;});
+var bh='<button class="yb on" data-y="all">Todos</button>';
+anos.forEach(function(y){
+bh+='<button class="yb" data-y="'+y+'">'+y+'</button>';
+});
+document.getElementById('btns').innerHTML=bh;
+document.querySelectorAll('.yb').forEach(function(b){
+b.addEventListener('click',function(){
+document.querySelectorAll('.yb').forEach(function(x){x.classList.remove('on');});
+this.classList.add('on');
+var y=this.getAttribute('data-y');
+sel=y==='all'?null:parseInt(y,10);
+EX={};
+draw();
+});
+});
+draw();
+</script>
+</div>
+<!--
+  Amostra fake PMO (2025-2026): curva S financeira (% do valor físico-financeiro acumulado).
+  lb = Linha de Base, pr = Previsto, rl = Realizado, fechando em 100% em dez/2026.
+  Agregação mensal = máx. acumulado do mês; clique no mês expande as semanas (S1..S5).
+  Pop-up: passar o mouse sobre o ponto/slot mostra período + Linha de Base / Previsto / Realizado.
+-->
+</body>
+</html>

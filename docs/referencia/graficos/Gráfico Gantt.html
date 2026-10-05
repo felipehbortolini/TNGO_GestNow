@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Gantt Atividades (Timenow) — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1100px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:600px;}
+  .hint{max-width:1100px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — Gantt de Atividades (dados fake PMO: cronograma 2026–2027, 14 atividades WBS, hoje = 05/08/2026)</div>
+<div class="frame">
+<!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;background:transparent;font-family:'Segoe UI',sans-serif;overflow:hidden;}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#B9B9BC;}
+::-webkit-scrollbar-track{background:transparent;}
+.wrap{display:flex;flex-direction:column;height:100%;width:100%;gap:8px;padding:4px;color:#2A2A2A;}
+.kpi{display:flex;align-items:stretch;gap:8px;flex-shrink:0;}
+.k{flex:1;min-width:0;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);border-left:3px solid #DCDCDC;padding:6px 12px;display:flex;flex-direction:column;justify-content:center;}
+.k-l{font-family:'Montserrat','Segoe UI',sans-serif;font-size:9px;font-weight:600;color:#7D7D7D;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.k-v{font-size:20px;font-weight:600;color:#7D7D7D;line-height:1.15;}
+.k-b{height:3px;border-radius:9999px;background:#F1F1F1;overflow:hidden;margin-top:4px;}
+.k-f{height:100%;border-radius:9999px;background:#00A793;transform-origin:left;animation:gw 1.3s cubic-bezier(.25,1,.5,1) both;}
+.sc{flex:1;min-height:0;overflow:auto;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);position:relative;}
+.chart{display:flex;min-width:100%;width:max-content;}
+.left{position:sticky;left:0;z-index:20;background:#FFFFFF;width:clamp(200px,24vw,340px);flex-shrink:0;border-right:1px solid #DCDCDC;}
+.lh{position:sticky;top:0;z-index:30;height:52px;display:flex;align-items:center;padding:0 12px;background:#F5FAFB;border-bottom:1px solid #DCDCDC;font-family:'Montserrat','Segoe UI',sans-serif;font-size:10px;font-weight:600;color:#006357;letter-spacing:1px;text-transform:uppercase;}
+.lr{height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;position:relative;border-bottom:1px solid #F1F1F1;}
+.lr:nth-child(odd){background:#FBFCFC;}
+.lr:hover{background:#E6F8F4;}
+.cm{position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 2px 2px 0;background:#D03636;}
+.lw{font-family:'Montserrat','Segoe UI',sans-serif;font-size:10px;font-weight:600;color:#00A793;flex-shrink:0;min-width:34px;}
+.ln{flex:1;min-width:0;font-size:12px;color:#2A2A2A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lp{font-size:9px;font-weight:600;padding:2px 8px;border-radius:9999px;white-space:nowrap;flex-shrink:0;font-family:'Montserrat','Segoe UI',sans-serif;}
+.right{position:relative;flex:1;min-width:900px;}
+.rh{position:sticky;top:0;z-index:15;height:52px;background:#F5FAFB;border-bottom:1px solid #DCDCDC;display:flex;flex-direction:column;}
+.row{display:flex;flex:1;width:100%;}
+.yr{border-right:1px solid #DCDCDC;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:600;color:#006357;overflow:hidden;}
+.mo{border-right:1px solid #F1F1F1;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;font-weight:600;color:#7D7D7D;overflow:hidden;white-space:nowrap;}
+.gl{position:absolute;top:52px;left:0;right:0;bottom:0;pointer-events:none;z-index:1;}
+.gl i{position:absolute;top:0;bottom:0;width:1px;background:#F1F1F1;}
+.td{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed #EB6100;z-index:12;pointer-events:none;}
+.tdl{position:absolute;top:0;transform:translateX(-50%);background:#EB6100;color:#FFFFFF;padding:2px 10px;border-radius:0 0 4px 4px;font-family:'Montserrat','Segoe UI',sans-serif;font-size:9px;font-weight:600;letter-spacing:1px;z-index:25;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);}
+.tr{height:44px;position:relative;border-bottom:1px solid #F1F1F1;z-index:2;}
+.tr:nth-child(odd){background:#FBFCFC;}
+.bar{position:absolute;top:11px;height:22px;border-radius:4px;display:block;cursor:pointer;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);transform-origin:left;animation:gw .9s cubic-bezier(.25,1,.5,1) both;transition:filter .2s,box-shadow .2s;}
+.bar:hover{filter:brightness(1.08);box-shadow:0 2px 4px 0 rgba(0,0,0,0.15),0 0 0 2px #00A79366;z-index:14;}
+.bar.cr{outline:2px solid #D03636;outline-offset:1px;}
+.bar.ok:after{content:'';position:absolute;right:6px;top:50%;width:9px;height:5px;margin-top:-4px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);opacity:.9;}
+.fu{position:absolute;top:0;bottom:0;right:0;background:rgba(255,255,255,.42);border-radius:0 4px 4px 0;}
+.dm{position:absolute;top:15px;width:10px;height:10px;margin-left:-5px;background:#FFFFFF;border:2px solid #006357;transform:rotate(45deg);border-radius:2px;z-index:10;}
+.dv{position:absolute;top:36px;height:3px;border-radius:9999px;opacity:.85;}
+.bar s{position:absolute;right:100%;margin-right:8px;top:3px;font-size:10px;font-weight:600;color:#A0A0A0;white-space:nowrap;text-decoration:none;}
+.bar u{position:absolute;left:100%;margin-left:8px;top:3px;font-size:10px;font-weight:600;color:#7D7D7D;white-space:nowrap;text-decoration:none;}
+.bar u em{font-style:normal;font-weight:600;margin-left:6px;}
+.lg{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;flex-shrink:0;background:#FFFFFF;border-radius:8px;box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);padding:8px 12px;}
+.lgi{display:flex;align-items:center;gap:6px;font-family:'Montserrat','Segoe UI',sans-serif;font-size:9px;font-weight:600;color:#7D7D7D;letter-spacing:.5px;text-transform:uppercase;}
+.lgd{width:14px;height:8px;border-radius:2px;flex-shrink:0;}
+.lgm{width:9px;height:9px;background:#FFFFFF;border:2px solid #006357;transform:rotate(45deg);border-radius:2px;flex-shrink:0;}
+@keyframes gw{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+@keyframes fu{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.kpi,.lg{animation:fu .5s ease both;}
+</style>
+
+<div class="wrap">
+  <div class="kpi">
+    <div class="k" style="border-left-color:#00A793;"><span class="k-l">Atividades</span><span class="k-v">14</span></div>
+    <div class="k" style="border-left-color:#008E7D;">
+      <span class="k-l">Conclu&iacute;das</span>
+      <span class="k-v" style="color:#008E7D;">3 <span style="font-size:11px;">21.4%</span></span>
+      <div class="k-b"><div class="k-f" style="width:21.43%"></div></div>
+    </div>
+    <div class="k" style="border-left-color:#D03636;">
+      <span class="k-l">Cr&iacute;ticas</span>
+      <span class="k-v" style="color:#D03636;">4</span>
+    </div>
+    <div class="k" style="border-left-color:#E8B430;">
+      <span class="k-l">Fora do prazo</span>
+      <span class="k-v" style="color:#E8B430;">2</span>
+    </div>
+  </div>
+
+  <div class="sc"><div class="chart">
+    <div class="left"><div class="lh">WBS &middot; Atividade</div>
+      <div class="lr"><span class="lw">1.1</span><span class="ln" title="Mobilização de canteiro">Mobilização de canteiro</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><span class="lw">1.2</span><span class="ln" title="Levantamento topográfico e geotécnico">Levantamento topográfico e geotécnico</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><span class="lw">1.3</span><span class="ln" title="Licenciamento ambiental">Licenciamento ambiental</span><span class="lp" style="background:#E8B4301F;color:#E8B430">Alerta</span></div>
+      <div class="lr"><span class="lw">1.4</span><span class="ln" title="Estudos de viabilidade técnica">Estudos de viabilidade técnica</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><i class="cm"></i><span class="lw">2.1</span><span class="ln" title="Fundação e estruturas de concreto">Fundação e estruturas de concreto</span><span class="lp" style="background:#D036361F;color:#D03636">Atrasado</span></div>
+      <div class="lr"><i class="cm"></i><span class="lw">2.2</span><span class="ln" title="Estruturas metálicas da planta">Estruturas metálicas da planta</span><span class="lp" style="background:#D036361F;color:#D03636">Atrasado</span></div>
+      <div class="lr"><span class="lw">2.3</span><span class="ln" title="Coberturas e fechamentos">Coberturas e fechamentos</span><span class="lp" style="background:#E8B4301F;color:#E8B430">Alerta</span></div>
+      <div class="lr"><i class="cm"></i><span class="lw">3.1</span><span class="ln" title="Montagem eletromecânica">Montagem eletromecânica</span><span class="lp" style="background:#E8B4301F;color:#E8B430">Alerta</span></div>
+      <div class="lr"><span class="lw">3.2</span><span class="ln" title="Tubulações industriais">Tubulações industriais</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><span class="lw">4.1</span><span class="ln" title="Sala de controle e automação">Sala de controle e automação</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><i class="cm"></i><span class="lw">4.2</span><span class="ln" title="Comissionamento da unidade">Comissionamento da unidade</span><span class="lp" style="background:#E8B4301F;color:#E8B430">Alerta</span></div>
+      <div class="lr"><span class="lw">5.1</span><span class="ln" title="Testes e partida operacional">Testes e partida operacional</span><span class="lp" style="background:#4EB7761F;color:#4EB776">Em dia</span></div>
+      <div class="lr"><span class="lw">5.2</span><span class="ln" title="Treinamento e documentação as-built">Treinamento e documentação as-built</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+      <div class="lr"><span class="lw">6.1</span><span class="ln" title="Suporte pós-entrega">Suporte pós-entrega</span><span class="lp" style="background:#4EB7761F;color:#4EB776">No prazo</span></div>
+    </div>
+    <div class="right">
+      <div class="rh">
+        <div class="row" style="border-bottom:1px solid #DCDCDC;">
+          <div class="yr" style="width:88.360%">2026</div>
+          <div class="yr" style="width:11.640%">2027</div>
+        </div>
+        <div class="row">
+          <div class="mo" style="width:7.407%">2</div>
+          <div class="mo" style="width:8.201%">3</div>
+          <div class="mo" style="width:7.937%">4</div>
+          <div class="mo" style="width:8.201%">5</div>
+          <div class="mo" style="width:7.937%">6</div>
+          <div class="mo" style="width:8.201%">7</div>
+          <div class="mo" style="width:8.201%">8</div>
+          <div class="mo" style="width:7.937%">9</div>
+          <div class="mo" style="width:8.201%">10</div>
+          <div class="mo" style="width:7.937%">11</div>
+          <div class="mo" style="width:8.201%">12</div>
+          <div class="mo" style="width:8.201%">1</div>
+          <div class="mo" style="width:3.439%">2</div>
+        </div>
+      </div>
+      <div class="gl">
+        <i style="left:0.000%"></i><i style="left:7.407%"></i><i style="left:15.608%"></i><i style="left:23.545%"></i>
+        <i style="left:31.746%"></i><i style="left:39.683%"></i><i style="left:47.884%"></i><i style="left:56.085%"></i>
+        <i style="left:64.021%"></i><i style="left:72.222%"></i><i style="left:80.159%"></i><i style="left:88.360%"></i>
+        <i style="left:96.561%"></i>
+      </div>
+      <div class="td" style="left:48.942%"></div>
+      <div class="tdl" style="left:48.942%">Hoje</div>
+
+      <div class="tr"><i class="dv" style="left:6.878%;width:1.852%;background:#4EB776"></i><i class="dm" style="left:8.730%"></i><b class="bar ok" style="left:0.265%;width:6.878%;background:#008E7D"><s>02/02/26</s><u>27/02/26<em style="color:#4EB776">-7d</em></u></b></div>
+      <div class="tr"><b class="bar ok" style="left:3.968%;width:10.582%;background:#008E7D"><s>16/02/26</s><u>27/03/26</u></b></div>
+      <div class="tr"><i class="dv" style="left:21.693%;width:3.704%;background:#D03636"></i><i class="dm" style="left:21.693%"></i><b class="bar" style="left:5.820%;width:19.841%;background:#005C51"><s>23/02/26</s><u>08/05/26<em style="color:#D03636">+14d</em></u></b></div>
+      <div class="tr"><i class="dm" style="left:19.841%"></i><b class="bar ok" style="left:7.672%;width:12.434%;background:#008E7D"><s>02/03/26</s><u>17/04/26</u></b></div>
+      <div class="tr"><i class="dv" style="left:39.418%;width:7.937%;background:#D03636"></i><i class="dm" style="left:39.418%"></i><b class="bar cr" style="left:9.524%;width:38.095%;background:#005C51"><s>09/03/26</s><u>30/07/26<em style="color:#D03636">+30d</em></u></b></div>
+      <div class="tr"><i class="dv" style="left:55.820%;width:5.556%;background:#D03636"></i><i class="dm" style="left:55.820%"></i><b class="bar cr" style="left:20.635%;width:41.005%;background:#005C51"><i class="fu" style="left:69.032%"></i><s>20/04/26</s><u>21/09/26<em style="color:#D03636">+21d</em></u></b></div>
+      <div class="tr"><i class="dv" style="left:63.757%;width:3.704%;background:#D03636"></i><i class="dm" style="left:63.757%"></i><b class="bar" style="left:29.894%;width:37.831%;background:#005C51"><i class="fu" style="left:50.350%"></i><s>25/05/26</s><u>14/10/26<em style="color:#D03636">+14d</em></u></b></div>
+      <div class="tr"><i class="dv" style="left:75.926%;width:3.968%;background:#D03636"></i><i class="dm" style="left:75.926%"></i><b class="bar cr" style="left:31.746%;width:48.413%;background:#005C51"><i class="fu" style="left:35.519%"></i><s>01/06/26</s><u>30/11/26<em style="color:#D03636">+15d</em></u></b></div>
+      <div class="tr"><i class="dv" style="left:83.862%;width:1.852%;background:#4EB776"></i><i class="dm" style="left:85.714%"></i><b class="bar" style="left:35.450%;width:48.677%;background:#005C51"><i class="fu" style="left:27.717%"></i><s>15/06/26</s><u>15/12/26<em style="color:#4EB776">-7d</em></u></b></div>
+      <div class="tr"><b class="bar" style="left:48.413%;width:36.508%;background:#005C51"><i class="fu" style="left:1.449%"></i><s>03/08/26</s><u>18/12/26</u></b></div>
+      <div class="tr"><i class="dv" style="left:85.714%;width:4.497%;background:#D03636"></i><i class="dm" style="left:85.714%"></i><b class="bar cr" style="left:65.079%;width:25.397%;background:#005C51"><s>05/10/26</s><u>08/01/27<em style="color:#D03636">+17d</em></u></b></div>
+      <div class="tr"><b class="bar" style="left:74.339%;width:13.757%;background:#005C51"><s>09/11/26</s><u>30/12/26</u></b></div>
+      <div class="tr"><i class="dm" style="left:95.767%"></i><b class="bar" style="left:79.894%;width:16.138%;background:#005C51"><s>30/11/26</s><u>29/01/27</u></b></div>
+      <div class="tr"><b class="bar" style="left:89.153%;width:6.878%;background:#005C51"><s>04/01/27</s><u>29/01/27</u></b></div>
+    </div>
+  </div></div>
+
+  <div class="lg">
+    <span class="lgi"><span class="lgd" style="background:#008E7D;"></span>Conclu&iacute;da</span>
+    <span class="lgi"><span class="lgd" style="background:#005C51;"></span>Em execu&ccedil;&atilde;o</span>
+    <span class="lgi"><span class="lgm"></span>Baseline (t&eacute;rmino)</span>
+    <span class="lgi"><span class="lgd" style="background:#D03636;"></span>Desvio (atraso)</span>
+    <span class="lgi"><span class="lgd" style="background:#4EB776;"></span>Desvio (antecipa&ccedil;&atilde;o)</span>
+    <span class="lgi"><span class="lgd" style="background:#EB6100;width:3px;"></span>Hoje</span>
+    <span class="lgi"><span class="lgd" style="background:#FFFFFF;outline:2px solid #D03636;"></span>Cr&iacute;tica</span>
+  </div>
+</div>
+
+<script>
+setTimeout(function(){
+var sc=document.querySelector('.sc'),td=document.querySelector('.td');
+if(sc&&td){var a=sc.getBoundingClientRect(),b=td.getBoundingClientRect();
+sc.scrollTo({left:sc.scrollLeft+(b.left-a.left)-(a.width/2),behavior:'smooth'});}
+},350);
+</script>
+<!-- ===== /COMPONENTE ===== -->
+</div>
+
+<!-- Amostra de domínio PMO refletida: 14 atividades WBS (1.1…6.1) do cronograma 2026–2027.
+     Escala do calendário calculada com a MESMA geometria do DAX:
+       _minD = 01/02/2026 − 15d · _maxD = 29/01/2027 (baseline mais tardia) + 15d ⇒ _dias = 378.
+     "Hoje" = 05/08/2026 ⇒ left 48.942% (linha .td/.tdl). Trilhos: left%/width% = DATEDIFF(minD,s)/378 e (dur)/378;
+     baseline = losango .dm, desvio .dv (+d atraso #D03636 / −d antecipação #4EB776), sombreamento .fu para trecho futuro.
+     3 concluídas (#008E7D) / 11 em execução (#005C51) · 4 críticas · 2 atrasadas → KPIs 14 / 3 (21.4%) / 4 / 2. -->
+</body>
+</html>

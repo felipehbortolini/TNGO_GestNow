@@ -1,0 +1,24 @@
+# requirements.txt — dependências de PRODUÇÃO da API
+#
+# Gerado a partir de uv.lock (`uv export --format requirements.txt --no-dev`).
+# Para desenvolvimento local, prefira `uv sync` — ele lê pyproject.toml e
+# uv.lock diretamente e também instala ruff/ty (grupo dev).
+#
+# Este arquivo existe para quem faz deploy sem uv: é o formato que o Azure
+# Functions espera. No deploy em Linux, o build do Oryx encontra este
+# arquivo na raiz de api/ e roda `pip install -r requirements.txt`
+# automaticamente — não é preciso rodar nada manualmente para isso.
+#
+# Ao mudar uma dependência em pyproject.toml, regenere com:
+#   cd api && uv lock && uv export --format requirements.txt --no-dev --no-hashes -o requirements.txt
+
+azure-functions==2.2.0
+    # via api
+jinja2==3.1.6
+    # via api
+markupsafe==3.0.3
+    # via
+    #   jinja2
+    #   werkzeug
+werkzeug==3.1.8
+    # via azure-functions

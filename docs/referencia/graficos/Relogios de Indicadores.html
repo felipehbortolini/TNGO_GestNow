@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gauge Destaque — Preview</title>
+<style>
+  body{background:#F4F5F7;padding:32px;margin:0;font-family:'Segoe UI',sans-serif;}
+  .page-title{font-family:'Segoe UI',sans-serif;color:#006357;font-size:22px;font-weight:600;
+    margin:0 0 4px;}
+  .page-sub{font-family:'Montserrat','Segoe UI',sans-serif;font-size:11px;font-weight:600;
+    color:#00A793;letter-spacing:1px;text-transform:uppercase;margin:0 0 24px;}
+  .row{display:flex;gap:16px;flex-wrap:wrap;}
+  /* card wrapper */
+  .stage{width:300px;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);padding:16px 24px;}
+  .stage h2{font-family:'Segoe UI',sans-serif;color:#006357;font-size:14px;
+    font-weight:600;margin:0 0 2px;letter-spacing:.3px;}
+  .stage .sub{font-size:12px;color:#7D7D7D;margin:0 0 12px;}
+  /* componente */
+  *{box-sizing:border-box;}
+  .wrap{width:100%;display:flex;align-items:center;justify-content:center;}
+  .card{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;padding:4px 8px;}
+  .donut-box{position:relative;width:140px;height:140px;flex-shrink:0;}
+  .status-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;
+    border-radius:9999px;font-size:12px;font-weight:600;
+    font-family:'Montserrat','Segoe UI',sans-serif;letter-spacing:.5px;text-transform:uppercase;}
+  .status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .bottom-row{display:flex;flex-direction:row;gap:6px;width:100%;align-items:stretch;}
+  .legend{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0;}
+  .legend-row{display:flex;align-items:center;justify-content:space-between;
+    padding:5px 8px;border-radius:6px;background:#F9FCFB;border:1px solid #E8E8E8;flex:1;}
+  .legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .legend-lbl{font-size:12px;color:#7D7D7D;font-weight:400;flex:1;margin-left:6px;}
+  .legend-val{font-size:14px;font-weight:600;letter-spacing:.3px;}
+  .delta-badge{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;padding:0 12px;border-radius:8px;border-width:1px;border-style:solid;
+    flex-shrink:0;width:72px;}
+  .delta-icon{font-size:16px;}
+  .delta-lbl{font-size:10px;font-weight:600;font-family:'Montserrat','Segoe UI',sans-serif;
+    letter-spacing:.6px;text-transform:uppercase;text-align:center;}
+  .delta-num{font-size:16px;font-weight:600;letter-spacing:.3px;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .card>*{animation:fadeUp .5s ease both;}
+  .card>*:nth-child(2){animation-delay:.08s;}
+  .card>*:nth-child(3){animation-delay:.16s;}
+</style>
+</head>
+<body>
+
+<p class="page-title">Painel PMO — Desempenho da Carteira</p>
+<p class="page-sub">Indicadores de avanço · Referência 01/07/2026</p>
+
+<div class="row">
+
+  <!-- CARD 1: Projeto Alfa — Em dia (valor acima de 70) -->
+  <div class="stage">
+    <h2>Projeto Alfa</h2>
+    <p class="sub">Expansão Planta Norte · Conclusão prevista 30/09/2026</p>
+    <div class="wrap">
+      <div class="card">
+        <div class="donut-box">
+          <svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+            <defs><filter id="ds_alfa"><feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+            <circle cx="70" cy="70" r="46" fill="#FFFFFF" filter="url(#ds_alfa)"/>
+            <circle cx="70" cy="70" r="54" fill="none" stroke="#F1F1F1" stroke-width="16"/>
+            <circle id="da_alfa" cx="70" cy="70" r="54" fill="none"
+              stroke="#4EB776" stroke-width="16" stroke-linecap="round"
+              stroke-dasharray="0 339.29" transform="rotate(-90 70 70)"/>
+            <!-- marcador de meta em 60% -->
+            <line x1="97.0" y1="23.0" x2="113.0" y2="14.0"
+              stroke="#2A2A2A" stroke-width="2.5" stroke-linecap="round"/>
+            <text id="cv_alfa" x="70" y="64" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="25" font-weight="400" fill="#4EB776">78.5</text>
+            <text x="70" y="83" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="13" fill="#7D7D7D">Meta: 60</text>
+          </svg>
+        </div>
+        <div style="display:flex;justify-content:center;">
+          <span class="status-pill" style="background:#F0FAF4;color:#4EB776;border:1px solid #A8E6C3;">
+            <span class="status-dot" style="background:#4EB776;"></span>Dentro da meta
+          </span>
+        </div>
+        <div class="bottom-row">
+          <div class="legend">
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#4EB776;"></span>
+              <span class="legend-lbl">Atual</span>
+              <span class="legend-val" style="color:#4EB776;">78.5</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#2A2A2A;"></span>
+              <span class="legend-lbl">Meta</span>
+              <span class="legend-val" style="color:#2A2A2A;">60</span>
+            </div>
+          </div>
+          <div class="delta-badge" style="background:#F0FAF4;border-color:#A8E6C3;color:#4EB776;">
+            <span class="delta-icon">&#9650;</span>
+            <span class="delta-lbl">vs meta</span>
+            <span class="delta-num">+18.5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD 2: Projeto Beta — Alerta (entre 60 e 70) -->
+  <div class="stage">
+    <h2>Projeto Beta</h2>
+    <p class="sub">Modernização Subestação · Conclusão prevista 15/12/2026</p>
+    <div class="wrap">
+      <div class="card">
+        <div class="donut-box">
+          <svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+            <defs><filter id="ds_beta"><feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+            <circle cx="70" cy="70" r="46" fill="#FFFFFF" filter="url(#ds_beta)"/>
+            <circle cx="70" cy="70" r="54" fill="none" stroke="#F1F1F1" stroke-width="16"/>
+            <circle id="da_beta" cx="70" cy="70" r="54" fill="none"
+              stroke="#EB6100" stroke-width="16" stroke-linecap="round"
+              stroke-dasharray="0 339.29" transform="rotate(-90 70 70)"/>
+            <line x1="97.0" y1="23.0" x2="113.0" y2="14.0"
+              stroke="#2A2A2A" stroke-width="2.5" stroke-linecap="round"/>
+            <text id="cv_beta" x="70" y="64" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="25" font-weight="400" fill="#EB6100">64.2</text>
+            <text x="70" y="83" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="13" fill="#7D7D7D">Meta: 60</text>
+          </svg>
+        </div>
+        <div style="display:flex;justify-content:center;">
+          <span class="status-pill" style="background:#FEF5EE;color:#EB6100;border:1px solid #FAD9BB;">
+            <span class="status-dot" style="background:#EB6100;"></span>Atenção
+          </span>
+        </div>
+        <div class="bottom-row">
+          <div class="legend">
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#EB6100;"></span>
+              <span class="legend-lbl">Atual</span>
+              <span class="legend-val" style="color:#EB6100;">64.2</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#2A2A2A;"></span>
+              <span class="legend-lbl">Meta</span>
+              <span class="legend-val" style="color:#2A2A2A;">60</span>
+            </div>
+          </div>
+          <div class="delta-badge" style="background:#F0FAF4;border-color:#A8E6C3;color:#4EB776;">
+            <span class="delta-icon">&#9650;</span>
+            <span class="delta-lbl">vs meta</span>
+            <span class="delta-num">+4.2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD 3: Projeto Gama — Atrasado (abaixo de 60) -->
+  <div class="stage">
+    <h2>Projeto Gama</h2>
+    <p class="sub">Retrofit Caldeiras · Conclusão prevista 28/02/2027</p>
+    <div class="wrap">
+      <div class="card">
+        <div class="donut-box">
+          <svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+            <defs><filter id="ds_gama"><feDropShadow dx="0" dy="1" stdDeviation="3" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+            <circle cx="70" cy="70" r="46" fill="#FFFFFF" filter="url(#ds_gama)"/>
+            <circle cx="70" cy="70" r="54" fill="none" stroke="#F1F1F1" stroke-width="16"/>
+            <circle id="da_gama" cx="70" cy="70" r="54" fill="none"
+              stroke="#D03636" stroke-width="16" stroke-linecap="round"
+              stroke-dasharray="0 339.29" transform="rotate(-90 70 70)"/>
+            <line x1="97.0" y1="23.0" x2="113.0" y2="14.0"
+              stroke="#2A2A2A" stroke-width="2.5" stroke-linecap="round"/>
+            <text id="cv_gama" x="70" y="64" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="25" font-weight="400" fill="#D03636">41.8</text>
+            <text x="70" y="83" text-anchor="middle" dominant-baseline="middle"
+              font-family="Segoe UI,sans-serif" font-size="13" fill="#7D7D7D">Meta: 60</text>
+          </svg>
+        </div>
+        <div style="display:flex;justify-content:center;">
+          <span class="status-pill" style="background:#FDF0F0;color:#D03636;border:1px solid #F5C0C0;">
+            <span class="status-dot" style="background:#D03636;"></span>Abaixo da meta
+          </span>
+        </div>
+        <div class="bottom-row">
+          <div class="legend">
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#D03636;"></span>
+              <span class="legend-lbl">Atual</span>
+              <span class="legend-val" style="color:#D03636;">41.8</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot" style="background:#2A2A2A;"></span>
+              <span class="legend-lbl">Meta</span>
+              <span class="legend-val" style="color:#2A2A2A;">60</span>
+            </div>
+          </div>
+          <div class="delta-badge" style="background:#FDF0F0;border-color:#F5C0C0;color:#D03636;">
+            <span class="delta-icon">&#9660;</span>
+            <span class="delta-lbl">vs meta</span>
+            <span class="delta-num">-18.2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .row -->
+
+<script>
+  // Animacao do arco e contador para cada card
+  var gauges = [
+    { arc:'da_alfa', txt:'cv_alfa', val:78.5 },
+    { arc:'da_beta', txt:'cv_beta', val:64.2 },
+    { arc:'da_gama', txt:'cv_gama', val:41.8 }
+  ];
+  var CIRC = 339.29;
+  setTimeout(function(){
+    gauges.forEach(function(g){
+      var elArc = document.getElementById(g.arc);
+      var elTxt = document.getElementById(g.txt);
+      var dur=900, elapsed=0, interval=16;
+      var MAX_FILL = Math.min(g.val, 100);
+      function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+      function tick(){
+        elapsed += interval;
+        var p = Math.min(elapsed/dur, 1);
+        var e = ease(p);
+        if(elTxt) elTxt.textContent = (g.val*e).toFixed(1);
+        if(elArc){
+          var fill = (MAX_FILL*e/100)*CIRC;
+          elArc.setAttribute('stroke-dasharray', fill.toFixed(2)+' '+(CIRC-fill).toFixed(2));
+        }
+        if(p<1) setTimeout(tick, interval);
+      }
+      tick();
+    });
+  }, 150);
+</script>
+</body>
+</html>

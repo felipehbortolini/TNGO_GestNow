@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Mapa Funcoes v3 — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:32px;font-family:'Segoe UI',sans-serif;}
+  .stage{max-width:880px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);height:560px;overflow:hidden;}
+  .meta{max-width:880px;margin:0 auto 18px;color:#2A2A2A;}
+  .meta h1{font-family:'Montserrat','Segoe UI',sans-serif;font-size:18px;color:#006357;
+    margin:0 0 4px;letter-spacing:.4px;}
+  .meta p{margin:0;font-size:12px;color:#7D7D7D;}
+</style>
+</head>
+<body>
+  <div class="meta">
+    <h1>HTML Mapa Funcoes v3</h1>
+    <p>Preview standalone — dados fake PMO (Mapa de Funções por portfólio: grade larga com Prev/Real/Rem/Contr. + bloco Total por linha)</p>
+  </div>
+
+  <div class="stage">
+    <!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+    <style>
+*{margin:0;padding:0;box-sizing:border-box;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:9999px;}
+::-webkit-scrollbar-thumb:hover{background:#A0A0A0;}
+::-webkit-scrollbar-track{background:transparent;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes growBar{from{width:0;}}
+.mf-wrap{width:100%;height:100%;font-family:'Segoe UI',sans-serif;overflow:auto;padding:10px;background:transparent;}
+.mf-shell{min-width:1000px;}
+.mf-table{width:100%;min-width:1000px;border-collapse:collapse;table-layout:fixed;background:transparent;font-size:11px;}
+.mf-h1 th{height:20px;padding:0 3px;background:linear-gradient(135deg,#00A793 0%,#008A7D 100%);color:#FFFFFF;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;text-align:center;vertical-align:middle;line-height:1.15;}
+.mf-h1 th.hp{text-align:left;padding-left:12px;}
+.mf-h2 th{height:26px;padding:0 2px;background:#00695E;color:#FFFFFF;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:600;font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;text-align:center;vertical-align:middle;}
+.hsep{border-left:1px solid rgba(255,255,255,.22);}
+.mf-total td{padding:3px 3px;background:linear-gradient(135deg,#004B42 0%,#006357 100%);color:#FFFFFF;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:13px;text-align:center;border-top:2px solid #00A793;line-height:1.15;}
+.mf-total td:first-child{text-align:left;padding-left:12px;font-size:10px;letter-spacing:1px;color:rgba(255,255,255,.92);}
+.mf-total td.tsep{border-left:1px solid rgba(255,255,255,.18);}
+.mf-row{animation:fadeUp .34s ease both;}
+.mf-row td{padding:9px 1px;text-align:center;background:transparent;border-bottom:1px solid rgba(0,0,0,.07);transition:background .16s;}
+.mf-row:hover td{background:#E6F8F4!important;}
+.mf-row td.tsep{border-left:1px solid #ECF1F3;}
+.mf-row td.mf-port{text-align:left;padding:8px 10px;transition:background .16s,box-shadow .2s ease;}
+.mf-row:hover td.mf-port{box-shadow:inset 3px 0 0 #00A793;}
+.pl{display:flex;align-items:center;gap:8px;}
+.dot{width:8px;height:8px;border-radius:9999px;flex-shrink:0;}
+.pn{font-weight:700;font-size:11.5px;color:#006357;letter-spacing:.2px;white-space:nowrap;}
+.ps{display:block;font-size:9px;font-weight:500;color:#648FA0;line-height:1.1;margin-top:1px;}
+.mini{height:3px;background:#F0F4F6;border-radius:9999px;margin:5px 0 0 16px;overflow:hidden;}
+.mini i{display:block;height:100%;border-radius:9999px;animation:growBar .9s cubic-bezier(.4,0,.2,1) both;}
+.v-prev{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:13px;color:#004B42;}
+.v-real{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:13px;color:#00A793;}
+.v-cont{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:13px;color:#004B42;}
+.badge{display:inline-block;min-width:24px;padding:2px 6px;border-radius:9999px;border:1px solid transparent;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:12px;letter-spacing:.2px;text-align:center;}
+.bg-green{background:#DDF8F0;color:#2B6533;border-color:#88CF9D;}
+.bg-red{background:#FAEBEB;color:#D03636;border-color:#E07878;}
+.bg-orange{background:#FAEFE0;color:#EB6100;border-color:#F6B68A;}
+    </style>
+
+    <div class="mf-wrap">
+      <div class="mf-shell">
+        <table class="mf-table" id="mfTbl"></table>
+      </div>
+    </div>
+
+    <script>
+var FN=['PC','Pl','Ld','Co'];
+var FNLAB=['Project Control','Planejador','Líder De Projetos','Coord. Portfólio'];
+var ROWS=[
+ {port:'REFINARIA',plan:{PC:6,Pl:5,Ld:3,Co:2},real:{PC:6,Pl:4,Ld:3,Co:1},cont:{PC:0,Pl:2,Ld:0,Co:1},vd:{p:0,r:0,c:0}},
+ {port:'SMELTER', plan:{PC:4,Pl:4,Ld:2,Co:2},real:{PC:4,Pl:2,Ld:1,Co:0},cont:{PC:0,Pl:3,Ld:2,Co:2},vd:{p:3,r:1,c:2}},
+ {port:'IMPOUNDMENT',plan:{PC:3,Pl:3,Ld:2,Co:1},real:{PC:3,Pl:1,Ld:2,Co:1},cont:{PC:0,Pl:1,Ld:0,Co:0},vd:{p:2,r:2,c:0}},
+ {port:'PAE', plan:{PC:4,Pl:3,Ld:1,Co:1},real:{PC:2,Pl:3,Ld:0,Co:1},cont:{PC:4,Pl:0,Ld:1,Co:0},vd:{p:3,r:2,c:1}},
+ {port:'PORTO',plan:{PC:2,Pl:2,Ld:1,Co:1},real:{PC:1,Pl:2,Ld:0,Co:1},cont:{PC:1,Pl:0,Ld:0,Co:0},vd:{p:2,r:1,c:1}}
+];
+var OUTROS={
+ port:'Outros',plan:{PC:1,Pl:1,Ld:0,Co:0},real:{PC:1,Pl:0,Ld:0,Co:0},cont:{PC:0,Pl:1,Ld:0,Co:0},vd:{p:8,r:5,c:4}
+};
+function remB(r){return r>0?'bg-orange':(r===0?'bg-green':'bg-red');}
+function pctOf(p,r){return p>0?Math.min(100,Math.round(100*r/p)):0;}
+function barCol(p){return p===100?'#4EB776':(p>=80?'#00A793':(p>=50?'#E8B430':'#EB6100'));}
+function dotCol(t){return t===0?'#4EB776':(t<=2?'#E8B430':'#EB6100');}
+function rowHtml(o){
+ var i,f,rem={},rPrev=0,rReal=0,rCont=0,rRem=0,pct,bar,h;
+ for(i=0;i<FN.length;i++){
+  f=FN[i];
+  rem[f]=o.plan[f]-o.real[f];
+  rPrev+=o.plan[f];rReal+=o.real[f];rCont+=o.cont[f];rRem+=rem[f];
+ }
+ rem.VD=o.vd.p-o.vd.r;
+ rPrev+=o.vd.p;rReal+=o.vd.r;rCont+=o.vd.c;rRem+=rem.VD;
+ pct=pctOf(rPrev,rReal);bar=barCol(pct);
+ var dot=dotCol(rRem);
+ var totBadge=remB(rRem);
+ h="<tr class='mf-row'><td class='mf-port'><div class='pl'>";
+ if(o.port==='Outros'){
+  h+="<span class='dot' style='background:"+dot+"'></span><span class='pn'>Outros<span class='ps'>Suporte e Construção</span></span>";
+ }else{
+  h+="<span class='dot' style='background:"+dot+"'></span><span class='pn'>"+o.port+"</span>";
+ }
+ h+="</div><div class='mini'><i style='width:"+pct+"%;background:"+bar+"'></i></div></td>";
+ for(i=0;i<FN.length;i++){
+  f=FN[i];
+  var r=o.plan[f]-o.real[f];
+  h+="<td class='tsep v-prev'>"+o.plan[f]+"</td><td class='v-real'>"+o.real[f]+"</td>";
+  h+="<td><span class='badge "+remB(r)+"'>"+r+"</span></td><td class='v-cont'>"+o.cont[f]+"</td>";
+ }
+ h+="<td class='tsep v-prev'>"+o.vd.p+"</td><td class='v-real'>"+o.vd.r+"</td>";
+ h+="<td><span class='badge "+remB(rem.VD)+"'>"+rem.VD+"</span></td><td class='v-cont'>"+o.vd.c+"</td>";
+ h+="<td class='tsep v-prev'>"+rPrev+"</td><td class='v-real'>"+rReal+"</td>";
+ h+="<td><span class='badge "+totBadge+"'>"+rRem+"</span></td><td class='v-cont'>"+rCont+"</td>";
+ h+="</tr>";
+ return h;
+}
+var T={PC:[0,0,0,0],Pl:[0,0,0,0],Ld:[0,0,0,0],Co:[0,0,0,0],VD:[0,0,0,0],TG:[0,0,0,0]};
+ROWS.concat([OUTROS]).forEach(function(o){
+ FN.forEach(function(f){
+  T[f][0]+=o.plan[f];T[f][1]+=o.real[f];T[f][2]+=o.plan[f]-o.real[f];T[f][3]+=o.cont[f];
+ });
+ T.VD[0]+=o.vd.p;T.VD[1]+=o.vd.r;T.VD[2]+=o.vd.p-o.vd.r;T.VD[3]+=o.vd.c;
+ FN.forEach(function(f){T.TG[0]+=o.plan[f];T.TG[1]+=o.real[f];T.TG[2]+=o.plan[f]-o.real[f];T.TG[3]+=o.cont[f];});
+ T.TG[0]+=o.vd.p;T.TG[1]+=o.vd.r;T.TG[2]+=o.vd.p-o.vd.r;T.TG[3]+=o.vd.c;
+});
+function tcell(v,cls){return "<td class='"+cls+"'>"+v+"</td>";}
+var colgroup=
+ "<colgroup>"+
+ "<col style='width:12%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'>"+
+ "<col style='width:3.5%'><col style='width:3.5%'><col style='width:3.5%'><col style='width:4.5%'>"+
+ "</colgroup>";
+var thead=
+ "<thead>"+
+ "<tr class='mf-h1'>"+
+ "<th class='hp'>Portfólio</th>"+
+ "<th class='hsep' colspan='4'>Project Control</th>"+
+ "<th class='hsep' colspan='4'>Planejador</th>"+
+ "<th class='hsep' colspan='4'>Líder De Projetos</th>"+
+ "<th class='hsep' colspan='4'>Coord. Portfólio</th>"+
+ "<th class='hsep' colspan='4'>Vagas Diversas</th>"+
+ "<th class='hsep' colspan='4'>Total</th>"+
+ "</tr>"+
+ "<tr class='mf-h2'>"+
+ "<th></th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "<th class='hsep'>Prev</th><th>Real</th><th>Rem</th><th>Contr.</th>"+
+ "</tr>"+
+ "<tr class='mf-total'>"+
+ "<td>Total Geral</td>"+
+ tcell(T.PC[0],'tsep')+tcell(T.PC[1],'')+tcell(T.PC[2],'')+tcell(T.PC[3],'')+
+ tcell(T.Pl[0],'tsep')+tcell(T.Pl[1],'')+tcell(T.Pl[2],'')+tcell(T.Pl[3],'')+
+ tcell(T.Ld[0],'tsep')+tcell(T.Ld[1],'')+tcell(T.Ld[2],'')+tcell(T.Ld[3],'')+
+ tcell(T.Co[0],'tsep')+tcell(T.Co[1],'')+tcell(T.Co[2],'')+tcell(T.Co[3],'')+
+ tcell(T.VD[0],'tsep')+tcell(T.VD[1],'')+tcell(T.VD[2],'')+tcell(T.VD[3],'')+
+ tcell(T.TG[0],'tsep')+tcell(T.TG[1],'')+tcell(T.TG[2],'')+tcell(T.TG[3],'')+
+ "</tr>"+
+ "</thead>";
+var tbody="<tbody>";
+ROWS.forEach(function(o){tbody+=rowHtml(o);});
+tbody+=rowHtml(OUTROS)+"</tbody>";
+document.getElementById('mfTbl').innerHTML=colgroup+thead+tbody;
+    </script>
+
+    <script>
+setTimeout(function(){
+ document.querySelectorAll('.mf-row').forEach(function(r,i){r.style.animationDelay=(i*45)+'ms';});
+},100);
+    </script>
+    <!-- ===== /COMPONENTE ===== -->
+  </div>
+
+  <!-- Amostra de domínio PMO refletida: 6 linhas (REFINARIA, SMELTER, IMPOUNDMENT, PAE, PORTO,
+       Outros (Suporte e Construção)) × 4 funções padrão + Vagas Diversas + bloco Total por linha.
+       Dot de saúde: verde remanescente 0, âmbar ≤2, laranja >2. Mini barra = % Real/Prev da linha
+       (verde 100%, teal ≥80%, âmbar ≥50%, laranja <50%). Badge Rem: verde 0 / laranja >0. -->
+</body>
+</html>

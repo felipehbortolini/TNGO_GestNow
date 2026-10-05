@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+ENV/
+.python_packages/
+.ruff_cache/
+
+# Azure Functions / Azurite
+**/local.settings*.json
+__blobstorage__
+__queuestorage__
+__tablestorage__/
+__azurite_db*__.json
+AzuriteConfig
+
+# Local secrets and data
+.env
+.env.*
+!.env.example
+*.local.json
+*.secrets.json
+data/anexos/
+bin/
+obj/
+
+# SWA CLI
+.swa/
+
+# Node
+node_modules/
+
+# Editor / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://aka.ms/azure/static-web-apps-cli/schema",
+  "configurations": {
+    "timenow-gestnow": {
+      "appLocation": "app/",
+      "apiLocation": "api/",
+      "outputLocation": "app/",
+      "apiLanguage": "python",
+      "apiVersion": "3.13"
+    }
+  }
+}

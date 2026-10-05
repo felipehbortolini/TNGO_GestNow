@@ -1,0 +1,247 @@
+/* ============================================================
+   patterns.css — Padrões de página do Timenow Design System
+
+   Composições que já se provaram em tela real e servem a qualquer
+   app. Diferente de tokens.css (componentes atômicos) e shell.css
+   (estrutura da tela), aqui moram arranjos: KPIs, barra de
+   ferramentas, pilha de avatares, linhas de lista, painel de filtro.
+
+   Origem: triagem de Projeto_Piloto/css/app.css (825 linhas).
+   Critério de corte: se o seletor cita ata, ação ou kanban, é do app
+   e não entra. Ver docs/PADROES-DE-PAGINA.md.
+
+   Os nomes foram generalizados — .ata-row virou .linha, .ma-toolbar
+   virou .toolbar — porque o kit não pertence a nenhum projeto.
+   ============================================================ */
+
+/* ============================================================
+   Tiles de KPI
+   Uma linha, altura enxuta, conteúdo ancorado nas duas pontas:
+   rótulo à esquerda, número à direita. O trilho colorido de 4px
+   sinaliza a situação de longe, antes de a pessoa ler o rótulo —
+   é o que torna a faixa varrível num relance.
+   ============================================================ */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(var(--kpis-colunas, 3), 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.kpi {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 20px 16px 24px;
+  background: var(--branco); border: 1px solid var(--borda);
+  border-radius: var(--r-md); box-shadow: var(--shadow);
+  font-family: var(--font); text-align: left; cursor: pointer;
+  transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.kpi:hover { box-shadow: var(--shadow-hover); border-color: var(--verde-500); transform: translateY(-1px); }
+.kpi:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.kpi.is-active { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+
+/* Variantes semânticas — no piloto eram --total/--rascunho/--enviada,
+   nomes do domínio daquele app. */
+.kpi--neutro::before { background: var(--verde-500); }
+.kpi--neutro .kpi__label { color: var(--verde-600); }
+.kpi--warn::before { background: var(--warn-500); }
+.kpi--warn .kpi__label { color: var(--warn-700); }
+.kpi--ok::before { background: var(--ok-500); }
+.kpi--ok .kpi__label { color: var(--ok-800); }
+.kpi--erro::before { background: var(--erro-500); }
+.kpi--erro .kpi__label { color: var(--erro-700); }
+.kpi--info::before { background: var(--azul-500); }
+.kpi--info .kpi__label { color: var(--azul-800); }
+
+.kpi__icone {
+  width: 32px; height: 32px; border-radius: var(--r-sm); flex: none;
+  background: var(--verde-soft); color: var(--verde-500);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kpi__label { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.kpi__value {
+  margin-left: auto; font-size: 24px; font-weight: 600;
+  color: var(--brand-title); font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Barra de ferramentas de listagem
+   Navegação de período à esquerda, busca ocupando o resto.
+   ============================================================ */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+
+.period {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  height: 44px; padding: 0 8px;
+  background: var(--branco); border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+.period .iconbtn { width: 32px; height: 32px; }
+.period__label {
+  min-width: 150px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--brand-title);
+  font-variant-numeric: tabular-nums;
+}
+.period__sep { font-size: 12px; color: var(--text-hint); }
+
+/* Busca com lupa dentro do campo */
+.busca { position: relative; display: flex; align-items: center; flex: 1; min-width: 240px; }
+.busca__icone {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; color: var(--text-dimmed);
+  display: inline-flex; align-items: center; justify-content: center;
+  pointer-events: none; background: transparent;
+}
+.busca__input { width: 100%; height: 44px; padding-left: 40px; }
+
+/* ============================================================
+   Linha de lista
+   Alternativa à tabela quando cada registro tem hierarquia própria
+   (título, metadados, pessoas, data) em vez de colunas comparáveis.
+   ============================================================ */
+.linha {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--neutro-100);
+  border-radius: var(--r-md); cursor: pointer;
+  transition: background .15s;
+}
+.linha:hover { background: var(--verde-50); }
+.linha:last-child { border-bottom: none; }
+.linha:focus-visible { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+
+.linha__icone {
+  width: 32px; height: 32px; border-radius: var(--r-sm); flex: none;
+  background: var(--verde-soft); color: var(--verde-500);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.linha__dot { width: 13px; height: 13px; border-radius: 9999px; flex: none; }
+.linha__main { flex: 1; min-width: 0; }
+.linha__id { font-size: 11px; font-weight: 400; color: var(--text-secondary); }
+.linha__titulo { margin-top: 2px; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.linha__meta { margin-top: 2px; font-size: 11px; color: var(--text-hint); }
+.linha__data { font-size: 11px; color: var(--text-hint); flex: none; }
+.linha__chev { color: var(--neutro-300); flex: none; }
+
+/* ============================================================
+   Facepile — pilha de avatares sobrepostos
+
+   Três detalhes fazem o padrão funcionar, e vale registrar porque
+   não são óbvios:
+
+   1. O preenchimento precisa contrastar com o anel. Com fundo claro
+      o anel branco não tem contra o que contrastar e os círculos
+      parecem fundidos — por isso o verde sólido.
+   2. O anel vai em box-shadow, não em border: com box-sizing, uma
+      borda de 2px consome 4px do diâmetro e aperta as iniciais.
+   3. O anel acompanha o fundo atrás da pilha. Branco fixo denuncia
+      a sobreposição quando a linha ganha realce no hover.
+
+   Sobreposição de 4px: valor do Fluent UI para layout "stack" na
+   faixa de 24–47px de avatar (spacingHorizontalXS).
+   ============================================================ */
+.facepile { display: flex; align-items: center; flex: none; }
+.facepile .mini-avatar { margin-left: -4px; }
+.facepile .mini-avatar:first-child { margin-left: 0; }
+.facepile__qtde { margin-left: 8px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+
+.mini-avatar {
+  width: 28px; height: 28px; border-radius: 9999px; flex: none;
+  background: var(--brand-primary); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px var(--branco);
+  transition: box-shadow .15s;
+}
+.linha:hover .mini-avatar { box-shadow: 0 0 0 2px var(--verde-50); }
+.mini-avatar--mais { background: var(--neutro-200); color: var(--text-primary); }
+
+/* ============================================================
+   Micro-rótulo de grupo
+   Separa blocos dentro de uma página sem o peso de um cabeçalho.
+   ============================================================ */
+.grupo-label {
+  margin: 0 0 8px;
+  font-family: var(--font-label);
+  font-size: 11px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.grupo + .grupo { margin-top: 32px; }
+
+/* ============================================================
+   Painel de filtros — sobreposto, ancorado à direita
+   ============================================================ */
+.filtro-panel {
+  position: fixed; top: 84px; right: 40px;
+  width: 410px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 120px); overflow-y: auto;
+  padding: 24px; z-index: 90;
+  background: var(--branco); border-radius: var(--r-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+  animation: fadeUp .25s var(--ease);
+}
+.filtro-panel h3 {
+  margin: 0 0 16px; font-family: var(--font-label);
+  font-size: 18px; font-weight: 700; color: var(--brand-title);
+}
+.filtro-sec { margin-bottom: 16px; }
+.filtro-sec__head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+.filtro-sec__head .period { margin: 0; padding: 0; border: none; height: auto; }
+.filtro-actions { display: flex; justify-content: flex-end; gap: 12px; }
+
+/* ============================================================
+   Barra de ações no rodapé do conteúdo
+   ============================================================ */
+.acoes-rodape {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding-top: 4px; flex-wrap: wrap;
+}
+.acoes-rodape--fixa {
+  position: sticky; bottom: 0;
+  padding: 16px 0; margin-top: 24px;
+  background: linear-gradient(to top, var(--branco) 70%, transparent);
+}
+
+/* ============================================================
+   Chips
+   ============================================================ */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600;
+  background: var(--neutro-100); color: var(--text-primary);
+}
+.chip--info { background: var(--verde-50); color: var(--verde-700); }
+.chip--warn { background: var(--warn-50); color: var(--warn-800); }
+.chip--erro { background: var(--erro-50); color: var(--erro-700); }
+
+/* ============================================================
+   Utilitário de acessibilidade
+   Rótulo visível só para leitor de tela.
+   ============================================================ */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ============================================================
+   Responsivo
+   ============================================================ */
+@media (max-width: 1100px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: 1fr; gap: 12px; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .period { justify-content: space-between; }
+  .filtro-panel { top: 16px; right: 16px; left: 16px; width: auto; }
+  .linha__data { display: none; }
+}

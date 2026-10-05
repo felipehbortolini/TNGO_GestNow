@@ -1,0 +1,27 @@
+{
+  "name": "timenow-gestnow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Timenow GestNow — Azure SWA + Functions V4 + Alpine.js + Timenow Design System.",
+  "type": "commonjs",
+  "scripts": {
+    "verificar": "node scripts/verificar.mjs",
+    "verificar:corrigir": "node scripts/verificar.mjs --corrigir",
+    "verificar:py": "node scripts/verificar.mjs --py",
+    "verificar:front": "node scripts/verificar.mjs --front",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "padrao": "node scripts/verificar-padrao.mjs"
+  },
+  "devDependencies": {
+    "@eslint/css": "^1.4.0",
+    "@eslint/js": "^10.0.1",
+    "@html-eslint/eslint-plugin": "^0.64.0",
+    "@html-eslint/parser": "^0.64.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

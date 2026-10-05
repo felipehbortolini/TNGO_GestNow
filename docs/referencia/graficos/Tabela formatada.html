@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Rateio Medicao — Preview</title>
+<style>
+  body{margin:0;background:#F4F5F7;padding:24px;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+  .frame{max-width:1100px;margin:0 auto;background:#FFFFFF;border-radius:8px;
+    box-shadow:0 2px 4px 0 rgba(0,0,0,0.15);overflow:hidden;height:560px;}
+  .hint{max-width:1100px;margin:0 auto 12px;color:#7D7D7D;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="hint">Preview standalone — HTML Rateio Medicao (dados fake PMO: rateio de 9 colaboradores por portfólio, % por código de serviço)</div>
+<div class="frame">
+<!-- ===== COMPONENTE (reprodução fiel do HTML/CSS/JS da medida DAX) ===== -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body,html{font-family:'Segoe UI',sans-serif;background:transparent;}
+.wrap{width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;}
+.sb{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FFF;border-bottom:2px solid #F1F1F1;flex-shrink:0;}
+.sinp{flex:1;border:none;outline:none;font-size:16px;font-family:'Segoe UI',sans-serif;color:#2A2A2A;background:transparent;}
+.sinp::placeholder{color:#B9B9BC;}
+.scnt{font-size:14px;color:#7D7D7D;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:600;white-space:nowrap;padding:3px 8px;background:#F5FAFB;border-radius:9999px;border:1px solid #DCDCDC;}
+.tw{flex:1;min-height:0;display:flex;flex-direction:column;background:#FFF;border-radius:0 0 8px 8px;box-shadow:0 4px 16px rgba(0,0,0,.08);}
+.ts{overflow-y:auto;overflow-x:hidden;flex:1;}
+.ts::-webkit-scrollbar{width:5px;height:5px;}
+.ts::-webkit-scrollbar-thumb{background:#DCDCDC;border-radius:3px;}
+.ts::-webkit-scrollbar-thumb:hover{background:#A0A0A0;}
+.ts::-webkit-scrollbar-track{background:transparent;}
+table{width:100%;border-collapse:collapse;table-layout:auto;}
+thead{position:sticky;top:0;z-index:10;}
+thead th{padding:6px 3px;font-size:10px;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;letter-spacing:.3px;text-align:center;white-space:normal;line-height:1.3;border-right:1px solid rgba(255,255,255,.15);vertical-align:middle;color:#FFF;}
+thead th:last-child{border-right:none;}
+thead tr:last-child{background:linear-gradient(135deg,#006357 0%,#00A793 100%);}
+.gm{background:#E6F8F4!important;color:#006357!important;font-size:10px!important;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700!important;letter-spacing:1px;text-transform:uppercase;padding:5px 6px!important;border-bottom:2px solid #00A793!important;border-right:2px solid rgba(0,167,147,.25)!important;}
+.gp{background:#E6F8F4!important;color:#006357!important;font-size:10px!important;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700!important;letter-spacing:1px;text-transform:uppercase;padding:5px 6px!important;border-bottom:2px solid #00A793!important;border-right:none!important;border-left:2px solid rgba(0,167,147,.25)!important;}
+.gt{background:#D8EFE9!important;color:#006357!important;font-size:10px!important;font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700!important;letter-spacing:.8px;text-transform:uppercase;padding:5px 6px!important;border-bottom:2px solid #006357!important;border-right:none!important;border-left:2px solid rgba(0,99,87,.25)!important;}
+td{padding:4px 5px;font-size:12px;color:#2A2A2A;text-align:center;vertical-align:middle;white-space:nowrap;border-bottom:1px solid #F1F1F1;}
+.trow:nth-child(even) td{background:#F9FCFB;}
+.trow.hidden{display:none;}
+.trow.hl td{background:#FDF8E5!important;}
+.fn{font-weight:500;text-transform:capitalize;white-space:normal;word-break:break-word;min-width:110px;}
+.tl{text-transform:capitalize;white-space:normal;word-break:break-word;min-width:90px;}
+.cc{display:inline-block;padding:2px 7px;border-radius:9999px;font-size:11px;font-weight:700;font-family:'Montserrat','Segoe UI',sans-serif;white-space:nowrap;border:1px solid transparent;text-transform:capitalize;}
+.rtp{display:inline-block;padding:2px 7px;border-radius:9999px;font-size:11px;font-weight:700;font-family:'Montserrat','Segoe UI',sans-serif;white-space:nowrap;border:1px solid transparent;text-transform:capitalize;}
+.hr{display:inline-block;padding:2px 6px;border-radius:9999px;font-size:12px;font-weight:600;border:1px solid transparent;font-family:'Segoe UI',sans-serif;}
+.hr-y{background:#FDF8E5;color:#E8B430;border-color:rgba(232,180,48,.4);}
+.hr-o{background:#FAEFE0;color:#EB6100;border-color:rgba(235,97,0,.4);}
+.hr-p{background:#F1EBF7;color:#7423B0;border-color:rgba(116,35,176,.4);}
+.hr-n{background:#F0F4F6;color:#535358;border-color:#DCDCDC;}
+.hr-g{background:#F0F4F6;color:#648FA0;border-color:#C2DAE5;}
+.sep-r{border-right:2px solid #C2DAE5!important;}
+.sep-l{border-left:2px solid #C2DAE5!important;}
+.p{padding:2px 2px!important;text-align:center;}
+.pv{display:inline-block;padding:2px 5px;border-radius:5px;font-weight:600;font-size:12px;min-width:34px;text-align:center;color:#B9B9BC;transition:background .35s,color .35s;}
+.ptot .pv{font-weight:700;font-size:13px;min-width:40px;}
+.ft{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#F5FAFB;border-top:1px solid #F1F1F1;flex-shrink:0;border-radius:0 0 8px 8px;}
+.fi{font-size:13px;color:#7D7D7D;font-family:'Montserrat','Segoe UI',sans-serif;}
+.fi span{font-weight:700;color:#006357;}
+.th-tip{padding:6px 3px!important;}
+td.td-tip{padding:3px 4px!important;}
+</style>
+
+<div class="wrap">
+  <div class="sb">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00A793" stroke-width="2.5" style="flex-shrink:0"><circle cx="10" cy="10" r="7"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>
+    <input id="srch" class="sinp" type="text" placeholder="Pesquisar colaborador, cargo, portfólio..."/>
+    <span id="rcnt" class="scnt">—</span>
+  </div>
+  <div class="tw"><div class="ts">
+    <table><thead>
+      <tr>
+        <th colspan="6" class="gm">Dados De Medição</th>
+        <th colspan="10" class="gp">Rateio Por Portfólio</th>
+        <th class="gt">Total</th>
+      </tr>
+      <tr>
+        <th>Colaborador</th>
+        <th>Cargo</th>
+        <th>Portfólio</th>
+        <th class="th-tip">Tipo De<br>Rateio</th>
+        <th>Horas Em<br>Projeto</th>
+        <th>Horas<br>Indiretas</th>
+        <th>Impoundment<br>Eng Phase</th>
+        <th>Impoundments<br>Plant</th>
+        <th>Impoundments<br>Arbs</th>
+        <th>Refinaria<br>Especial</th>
+        <th>Refinaria</th>
+        <th>Smelter</th>
+        <th>Pae</th>
+        <th>Porto</th>
+        <th>Arb 10</th>
+        <th>Arb 11</th>
+        <th>Total</th>
+      </tr>
+    </thead><tbody>
+    <!-- ===== LINHAS (CONCATENATEX _linhas por COLABORADOR; data-v = % × 10000) ===== -->
+    <!-- Ana Souza · Refinaria 60% / Ref. Especial 20% / Porto 10% / PAE 10% -->
+    <tr class="trow">
+      <td class="fn tcv">Ana Souza</td>
+      <td class="tl tcv">Engenheira de Planejamento</td>
+      <td><span class="cc">Refinaria</span></td>
+      <td class="td-tip"><span class="rtp">Específico</span></td>
+      <td><span class="hr hr-y">142:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">12:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="2000"><span class="pv">20.0%</span></td>
+      <td class="p" data-v="6000"><span class="pv">60.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="1000"><span class="pv">10.0%</span></td>
+      <td class="p" data-v="1000"><span class="pv">10.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Carlos Lima · Eng Phase 40% / Plant 35% / ARBs 15% / ARB10 5% / ARB11 5% -->
+    <tr class="trow">
+      <td class="fn tcv">Carlos Lima</td>
+      <td class="tl tcv">Técnico de Manutenção</td>
+      <td><span class="cc">Impoundment</span></td>
+      <td class="td-tip"><span class="rtp">Geral</span></td>
+      <td><span class="hr hr-n">165:30</span></td>
+      <td class="sep-r"><span class="hr hr-g">4:30</span></td>
+      <td class="p" data-v="4000"><span class="pv">40.0%</span></td>
+      <td class="p" data-v="3500"><span class="pv">35.0%</span></td>
+      <td class="p" data-v="1500"><span class="pv">15.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="500"><span class="pv">5.0%</span></td>
+      <td class="p" data-v="500"><span class="pv">5.0%</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Mariana Costa · Smelter 100% -->
+    <tr class="trow">
+      <td class="fn tcv">Mariana Costa</td>
+      <td class="tl tcv">Inspetora de Qualidade</td>
+      <td><span class="cc">Smelter</span></td>
+      <td class="td-tip"><span class="rtp">Timesheet</span></td>
+      <td><span class="hr hr-p">170:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">0:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="10000"><span class="pv">100.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Roberto Neves · Porto 55% / PAE 25% / Smelter 20% -->
+    <tr class="trow">
+      <td class="fn tcv">Roberto Neves</td>
+      <td class="tl tcv">Coordenador de Projetos</td>
+      <td><span class="cc">Porto</span></td>
+      <td class="td-tip"><span class="rtp">Específico</span></td>
+      <td><span class="hr hr-o">88:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">32:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="2000"><span class="pv">20.0%</span></td>
+      <td class="p" data-v="2500"><span class="pv">25.0%</span></td>
+      <td class="p" data-v="5500"><span class="pv">55.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Fernanda Alves · PAE 80% / Plant 10% / Refinaria 10% -->
+    <tr class="trow">
+      <td class="fn tcv">Fernanda Alves</td>
+      <td class="tl tcv">Analista de Contratos</td>
+      <td><span class="cc">Pae</span></td>
+      <td class="td-tip"><span class="rtp">Baseload</span></td>
+      <td><span class="hr hr-n">158:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">10:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="1000"><span class="pv">10.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="1000"><span class="pv">10.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="8000"><span class="pv">80.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Paulo Mendes · Refinaria 45% / Ref. Especial 35% / ARB11 20% -->
+    <tr class="trow">
+      <td class="fn tcv">Paulo Mendes</td>
+      <td class="tl tcv">Engenheiro de Processos</td>
+      <td><span class="cc">Refinaria</span></td>
+      <td class="td-tip"><span class="rtp">Específico</span></td>
+      <td><span class="hr hr-y">130:30</span></td>
+      <td class="sep-r"><span class="hr hr-g">16:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="3500"><span class="pv">35.0%</span></td>
+      <td class="p" data-v="4500"><span class="pv">45.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="2000"><span class="pv">20.0%</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Juliana Rocha · Plant 50% / ARBs 50% -->
+    <tr class="trow">
+      <td class="fn tcv">Juliana Rocha</td>
+      <td class="tl tcv">Assistente Administrativa</td>
+      <td><span class="cc">Engenharia</span></td>
+      <td class="td-tip"><span class="rtp">Geral</span></td>
+      <td><span class="hr hr-o">95:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">45:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="5000"><span class="pv">50.0%</span></td>
+      <td class="p" data-v="5000"><span class="pv">50.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Thiago Nunes · Smelter 70% / Porto 20% / PAE 10% -->
+    <tr class="trow">
+      <td class="fn tcv">Thiago Nunes</td>
+      <td class="tl tcv">Supervisor de Operações</td>
+      <td><span class="cc">Smelter</span></td>
+      <td class="td-tip"><span class="rtp">Timesheet</span></td>
+      <td><span class="hr hr-p">174:30</span></td>
+      <td class="sep-r"><span class="hr hr-g">2:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="7000"><span class="pv">70.0%</span></td>
+      <td class="p" data-v="1000"><span class="pv">10.0%</span></td>
+      <td class="p" data-v="2000"><span class="pv">20.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-v="10000"><span class="pv">100.0%</span></td>
+    </tr>
+    <!-- Beatriz Ramos · PAE 90% → total 90% (data-warn aciona realce âmbar no JS) -->
+    <tr class="trow">
+      <td class="fn tcv">Beatriz Ramos</td>
+      <td class="tl tcv">Arquiteta Corporativa</td>
+      <td><span class="cc">Pae</span></td>
+      <td class="td-tip"><span class="rtp">Baseload</span></td>
+      <td><span class="hr hr-y">148:00</span></td>
+      <td class="sep-r"><span class="hr hr-g">12:00</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="9000"><span class="pv">90.0%</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p" data-v="0"><span class="pv">—</span></td>
+      <td class="p ptot sep-l" data-warn="1" data-v="9000"><span class="pv">90.0%</span></td>
+    </tr>
+    </tbody></table>
+  </div>
+    <div class="ft">
+      <span class="fi">Exibindo <span id="fvis">—</span> de <span id="ftot">—</span> registros</span>
+      <span class="fi" style="color:#00A793;font-weight:700;">Rateio De Colaboradores · Med Parc</span>
+    </div>
+  </div>
+</div>
+
+<script>
+setTimeout(function(){
+function toTC(s){return s.toLowerCase().replace(/(?:^|\s|-)\S/g,function(c){return c.toUpperCase();});}
+document.querySelectorAll('.tcv').forEach(function(el){el.textContent=toTC(el.textContent||'');});
+document.querySelectorAll('.cc,.rtp').forEach(function(el){el.textContent=toTC(el.textContent||'');});
+var cats=['#E6F8F4|#006357|#91D9D1','#EEF2FF|#3730A3|#C7D2FE','#FAEFE0|#EB6100|#F6B68A',
+'#DDF8F0|#2B6533|#88CF9D','#F1EBF7|#7423B0|#D4C1E7','#FDF8E5|#806320|#F0CD7C'];
+var cm={},ci=0;
+document.querySelectorAll('.cc').forEach(function(el){
+var t=el.textContent.trim();if(!cm[t]){cm[t]=cats[ci%cats.length];ci++;}
+var p=cm[t].split('|');el.style.background=p[0];el.style.color=p[1];el.style.border='1px solid '+p[2];});
+var rtpCats=['#E6F8F4|#006357|#91D9D1','#EEF2FF|#3730A3|#C7D2FE','#FAEFE0|#EB6100|#F6B68A','#F1EBF7|#7423B0|#D4C1E7','#FDF8E5|#806320|#F0CD7C','#E6F0F5|#648FA0|#C2DAE5'];
+var rtpm={},rtpi=0;
+document.querySelectorAll('.rtp').forEach(function(el){
+var t=el.textContent.trim();if(!rtpm[t]){rtpm[t]=rtpCats[rtpi%rtpCats.length];rtpi++;}
+var p=rtpm[t].split('|');el.style.background=p[0];el.style.color=p[1];el.style.border='1px solid '+p[2];});
+document.querySelectorAll('.pv').forEach(function(el){
+var td=el.parentNode;
+var v=parseInt(td.getAttribute('data-v')||'0',10)/10000;
+if(v<=0)return;
+var isTot=td.classList.contains('ptot');
+var r=0,g=isTot?99:167,b=isTot?87:147;
+if(isTot&&v>1){r=208;g=54;b=54;}
+var a=Math.min(0.12+v*0.68,0.80);
+if(v>1)a=Math.min(0.25+(v-1)*1.5,0.80);
+el.style.background='rgba('+r+','+g+','+b+','+a.toFixed(2)+')';
+el.style.color=v>0.55?'#FFF':'#006357';});
+var inp=document.getElementById('srch');
+var cnt=document.getElementById('rcnt');
+var rows=document.querySelectorAll('.trow');
+function upd(){
+var v=document.querySelectorAll('.trow:not(.hidden)').length;
+cnt.textContent=v+'/'+rows.length;
+document.getElementById('fvis').textContent=v;
+document.getElementById('ftot').textContent=rows.length;}
+upd();
+inp.addEventListener('input',function(){
+var q=inp.value.toLowerCase().trim();
+rows.forEach(function(r){
+var t=r.textContent.toLowerCase();
+r.classList.toggle('hidden',q!==''&&t.indexOf(q)<0);
+r.classList.toggle('hl',q!==''&&t.indexOf(q)>=0);});upd();});
+rows.forEach(function(r,i){
+r.style.opacity='0';r.style.transform='translateY(5px)';
+r.style.transition='opacity .28s ease '+(i*18)+'ms,transform .28s ease '+(i*18)+'ms';
+setTimeout(function(){r.style.opacity='1';r.style.transform='translateY(0)';},30);});
+document.querySelectorAll('.ptot[data-warn]').forEach(function(td){
+var pv=td.querySelector('.pv');if(pv){pv.style.background='rgba(232,180,48,0.22)';pv.style.color='#806320';}});
+},150);
+</script>
+<!-- ===== /COMPONENTE ===== -->
+</div>
+
+<!-- Amostra de domínio fake PMO: 9 colaboradores com rateio de medição (MED_PARC).
+     Schema por linha (.trow): fn.tcv (colaborador) · tl.tcv (cargo) · .cc (portfólio) ·
+     .rtp (tipo: Específico/Geral/Baseload/Timesheet) · .hr horas em projeto (classe por
+     faixa: <100 hr-o, 100-149 hr-y, 150-168 hr-n, >168 hr-p) · 10 células .p data-v = %×10000
+     (0 → "—") · .ptot sep-l total (data-warn quando total ≠ 100% — Beatriz Ramos 90%).
+     Portfólios: Refinaria, Impoundment, Smelter, Porto, Pae, Engenharia. Horas H:MM. -->
+</body>
+</html>

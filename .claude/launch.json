@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "timenow-gestnow",
+      "runtimeExecutable": "api/.venv/Scripts/python.exe",
+      "runtimeArgs": ["scripts/dev_local.py", "4280"],
+      "port": 4280
+    }
+  ]
+}
