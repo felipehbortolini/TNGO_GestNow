@@ -125,6 +125,14 @@ max-complexity = 10
 # framework, e "corrigir" quebraria o registro da função.
 "src/blueprints/*.py" = ["ARG001"]
 
+# `save_parameter_group` e `_create_version` têm 6 parâmetros, e é assim de
+# propósito: depois do `*` são todos KEYWORD-ONLY (author_id, group, values,
+# effective_from, justification). A regra do clean code existe para argumento
+# posicional, onde a ordem se erra na chamada — problema que argumento nomeado
+# não tem; reduzir significaria criar um objeto de opções, a mesma coisa com
+# mais indireção.
+"src/modulos/configuracoes/service.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 

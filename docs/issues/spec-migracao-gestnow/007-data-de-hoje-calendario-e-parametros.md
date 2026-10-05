@@ -1,7 +1,7 @@
 ---
 id: ISSUE-007
 title: "Data de hoje, calendário de semanas e períodos, e parâmetros versionados"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
@@ -50,12 +50,12 @@ PDF, JPG, PNG, DOCX, XLSX, PPTX, DWG e ZIP). A tela de edição é da ISSUE-076.
 
 ## Critérios de aceite
 
-- [ ] Testes com data injetada cobrem semana ISO na virada de ano, período parcial e corte limitado à data de referência.
-- [ ] Nenhuma função de cálculo lê o relógio; uma checagem automática (teste ou porta de qualidade) garante isso.
-- [ ] A versão vigente dos parâmetros é lida por data, e gravar nova versão sem justificativa é recusado.
-- [ ] Cada regra de validação da seção 7.4 tem teste com o caso de fronteira.
-- [ ] A versão 1 contém todos os grupos da tabela 7.4 e o grupo Anexos.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] Testes com data injetada cobrem semana ISO na virada de ano, período parcial e corte limitado à data de referência.
+- [x] Nenhuma função de cálculo lê o relógio; uma checagem automática (teste ou porta de qualidade) garante isso.
+- [x] A versão vigente dos parâmetros é lida por data, e gravar nova versão sem justificativa é recusado.
+- [x] Cada regra de validação da seção 7.4 tem teste com o caso de fronteira.
+- [x] A versão 1 contém todos os grupos da tabela 7.4 e o grupo Anexos.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -72,3 +72,36 @@ Nenhuma.
 Fontes: `GI.regras.validarParametros` e `mock-config` do protótipo; seção 7.4
 do README. O efeito "daqui em diante" (avaliação guarda os pesos, ocorrência
 guarda o prazo) é regra dos módulos 03 e 07.
+
+## Registro de execução
+
+Data: 05/10/2026.
+
+Feito: `api/src/core/calendario.py` é o único leitor do relógio (`today` e
+`now`); semana ISO, mês civil, períodos do início do projeto até o corrente,
+marcação de parcial e corte recebem a data de referência como argumento.
+`api/src/modulos/configuracoes/service.py` traz o payload inicial dos 14 grupos,
+a leitura da versão vigente por data (`current_version`, `current_versions`,
+`current_group`, `current_parameters`), a semeadura idempotente da versão 1
+(`seed_initial_parameters`) e a gravação validada com autor, vigência,
+justificativa obrigatória e trilha (`save_parameter_group`).
+`api/src/modulos/configuracoes/validation.py` tem uma função por regra da seção
+7.4, ligada ao campo do formulário pelo registro `_RULES`. `audit.py`,
+`versioning.py` e `health.py` passaram a usar o calendário. Testes em
+`api/tests/plataforma/test_calendario.py` (9), `api/tests/configuracoes/test_parametros.py`
+(7) e `api/tests/configuracoes/test_validacao_parametros.py` (33).
+
+Decisões tomadas, anotadas na spec como "Decisão da execução (ISSUE-007),
+pendente de revisão do dono": forma dos valores versionados no banco (folha por
+linha em `parametro_valor`, `chave` com o índice das listas, `tipo`, `valor` e
+`ordem`) e semeadura da versão 1 por função idempotente, chamada pela ISSUE-008.
+Divergência estrutural registrada em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`: o
+protótipo versiona o conjunto inteiro dos parâmetros; o GestNow versiona por
+grupo, conforme a decisão da ISSUE-003 (D5).
+
+Fora desta fatia, por desenho da issue: rota, tela e exportação dos parâmetros
+são da ISSUE-076; a chamada da semeadura na carga de demonstração e no preparo
+de produção é da ISSUE-008.
+
+Verificação: `api/.venv/Scripts/python.exe -m pytest` verde (49 testes novos;
+suíte completa verde) e `npm run verificar` com as cinco etapas ok.

@@ -11,17 +11,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Protocol
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from src.core import audit
+from src.core import audit, calendario
 from src.core.errors import InvalidDataError, VersionConflictError
-
-# The conflict message shows the product's time; the database keeps the
-# instant in UTC. ISSUE-007 centralises the calendar in the platform —
-# until then this is the only display conversion here.
-PRODUCT_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 SEM_VESTIGIO = "Este registro foi alterado por outra pessoa. Recarregue para ver a versão atual"
 
@@ -67,4 +61,4 @@ def _message(session: Session, record: Versioned) -> str:
 
 
 def _display_time(moment: datetime) -> str:
-    return moment.astimezone(PRODUCT_TIMEZONE).strftime("%d/%m/%Y %H:%M")
+    return calendario.in_product_timezone(moment).strftime("%d/%m/%Y %H:%M")

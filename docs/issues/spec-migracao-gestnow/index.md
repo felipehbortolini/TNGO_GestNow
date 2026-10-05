@@ -33,7 +33,7 @@ vem primeiro.
 | ISSUE-004 | Modelo de dados, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, análises e relatório | 1 | task | done | ready-for-agent | ISSUE-003 | [ISSUE-004](./004-modelo-de-dados-parte-2.md) |
 | ISSUE-005 | Postgres local preparado pelo run.bat, migrações Alembic e banco de teste isolado | 2 | task | done | ready-for-agent | ISSUE-004 | [ISSUE-005](./005-postgres-local-migracoes-e-banco-de-teste.md) |
 | ISSUE-006 | Gravação segura: unidade de trabalho, trilha de auditoria, numeração por projeto e aviso de edição simultânea | 2 | task | done | ready-for-agent | ISSUE-005 | [ISSUE-006](./006-gravacao-segura.md) |
-| ISSUE-007 | Data de hoje, calendário de semanas e períodos, e parâmetros versionados | 2 | task | proposed | ready-for-agent | ISSUE-005 | [ISSUE-007](./007-data-de-hoje-calendario-e-parametros.md) |
+| ISSUE-007 | Data de hoje, calendário de semanas e períodos, e parâmetros versionados | 2 | task | done | ready-for-agent | ISSUE-005 | [ISSUE-007](./007-data-de-hoje-calendario-e-parametros.md) |
 | ISSUE-008 | Carga de demonstração deslocada para hoje, base de produção vazia com o primeiro Admin e harness do oráculo | 2 | task | proposed | ready-for-agent | ISSUE-006, ISSUE-007 | [ISSUE-008](./008-carga-de-demonstracao-e-producao-vazia.md) |
 | ISSUE-009 | Shell com barra lateral sempre visível, navegação de dois níveis, abas do módulo, escopo Portfólio ou projeto e dicas de siglas | 2 | task | proposed | ready-for-agent | ISSUE-008 | [ISSUE-009](./009-shell-sidebar-navegacao-e-escopo.md) |
 | ISSUE-010 | Trio HTML, CSS e JS de todas as telas vinculado no shell e verificação trio-da-tela | 2 | task | proposed | ready-for-agent | ISSUE-009 | [ISSUE-010](./010-trio-de-todas-as-telas.md) |

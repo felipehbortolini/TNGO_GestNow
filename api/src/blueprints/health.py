@@ -1,11 +1,10 @@
 """Health check blueprint."""
 
 import json
-from datetime import UTC, datetime
 
 import azure.functions as func
 
-from src.core import database
+from src.core import calendario, database
 
 bp = func.Blueprint()
 
@@ -16,7 +15,7 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
     body = json.dumps(
         {
             "status": "ok",
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": calendario.now().isoformat(),
             "banco": database.database_report(),
         }
     )

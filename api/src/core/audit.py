@@ -14,13 +14,14 @@ Portuguese names (D5).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
+from src.core import calendario
 from src.core.models import AuditEntry
 
 CREATED = "criado"
@@ -47,7 +48,7 @@ def append(session: Session, line: TrailLine) -> AuditEntry:
     entry = AuditEntry(
         project_id=line.project_id,
         user_id=line.user_id,
-        occurred_at=line.occurred_at or datetime.now(UTC),
+        occurred_at=line.occurred_at or calendario.now(),
         entity=line.entity,
         record_id=line.record_id,
         action=line.action,
