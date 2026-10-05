@@ -1,7 +1,7 @@
 ---
 id: ISSUE-015
 title: "Biblioteca de gráficos 2: cards, faixa de KPI, matrizes, heatmap, mapa de 52 semanas, quantitativos e etapas"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2

@@ -1,7 +1,7 @@
 ---
 id: ISSUE-017
 title: "Exportação Excel e versão imprimível (PDF pelo navegador) genéricas"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
