@@ -13,6 +13,17 @@ Módulo `riscos`. Mantém ameaças e oportunidades, avaliações, respostas, rev
 
 As integrações que chegam de Suprimentos, Contratos, Governança e Financeiro são ligadas nas ISSUE-067.
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Registro de riscos | `app/_views/riscos/registro.html` | `app/paginas/riscos/registro.css` | `app/paginas/riscos/registro.js` |
+| Matriz de riscos 5x5 | `app/_views/riscos/matriz.html` | `app/paginas/riscos/matriz.css` | `app/paginas/riscos/matriz.js` |
+| Ficha do risco | `app/_views/riscos/ficha.html` | `app/paginas/riscos/ficha.css` | `app/paginas/riscos/ficha.js` |
+| Painel de riscos | `app/_views/riscos/painel.html` | `app/paginas/riscos/painel.css` | `app/paginas/riscos/painel.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/riscos/`.

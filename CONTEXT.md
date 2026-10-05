@@ -138,6 +138,13 @@ conteúdo. Nunca é substituído; só o conteúdo dentro dele troca.
 não um documento: sua raiz é `<main id="app-shell" class="content">` e ela
 substitui o conteúdo do shell inteiro.
 
+**Trio da tela** — os três arquivos de uma tela, com o mesmo nome: a view
+(`app/_views/<modulo>/<tela>.html`), o estilo (`app/paginas/<modulo>/<tela>.css`)
+e o comportamento (`app/paginas/<modulo>/<tela>.js`). O shell vincula o CSS e o
+JS de todos; o CSS é escopado pela classe `.pagina--<modulo>-<tela>` da raiz da
+view e o JS registra `TN.paginas["<modulo>/<tela>"]`. A verificação
+`trio-da-tela` reprova a tela a que falta uma das partes ou o vínculo.
+
 **Componente** — arquivo em `app/_components/`. Pedaço reutilizável e
 **estático** de HTML, carregado por uma view. Se precisar de dado do servidor,
 não é componente — é fragmento de API.

@@ -1,0 +1,16 @@
+/* ============================================================
+   gerencial.css — Estilo da tela Relatório gerencial (relatorio/gerencial)
+
+   Relatório semanal ou mensal em folhas por módulo, com impressão, Excel e troca de período.
+
+   Escopo: tudo que morar aqui começa por .pagina--relatorio-gerencial, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
+   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
+   três telas sobe para ds/patterns.css.
+
+   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
+   próprio chega com as ISSUE-083 a ISSUE-086.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver
+   docs/CONTRATO-VISUAL.md.
+   ============================================================ */

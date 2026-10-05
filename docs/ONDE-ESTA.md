@@ -19,7 +19,7 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Documento completo e shell | `app/index.html` | Carrega Design System, Alpine AJAX, views e estado inicial do Início |
 | Início atualmente vazio | `app/_views/inicio/home.html` | Preserva a tela de entrada até as issues 079/080 |
 | Views de um módulo | `app/_views/<modulo>/<tela>.html` | Fragmentos HTML, um por tela |
-| CSS e JavaScript de página | `app/paginas/<modulo>/<tela>.css` e `.js` | Trio por tela conforme D3/ISSUE-010; CSS usa tokens |
+| CSS e JavaScript de página | `app/paginas/<modulo>/<tela>.css` e `.js` | Trio por tela (D3, ISSUE-010): vinculado em `app/index.html`, CSS escopado por `.pagina--<modulo>-<tela>` e só com tokens, JS registrado em `TN.paginas` (definido em `app/ds/ui.js`) |
 | Design System | `app/ds/` | `tokens.css`, `shell.css`, `patterns.css`, ícones, UI e assets |
 | Biblioteca de gráficos | `app/ds/graficos/` | Destino dos visuais portados nas ISSUE-014 a ISSUE-016 |
 | Alpine.js e Alpine AJAX | `app/lib/` | Bibliotecas vendorizadas; não editar |
@@ -64,6 +64,7 @@ As pastas existem antes das funcionalidades. Rotas de módulo são blueprints se
 | Instalar dependências | `scripts/instalar.ps1` |
 | Porta de qualidade | `npm run verificar` → `scripts/verificar.mjs` |
 | Verificações do Design System e estrutura | `scripts/verificar-padrao.mjs` |
+| Verificação `trio-da-tela` (view, CSS e JS de toda tela, vinculados no shell) | `scripts/verificar-trio-da-tela.mjs`, chamada por `verificar-padrao.mjs`; teste em `api/tests/plataforma/test_trio_da_tela.py` |
 | Skills de desenvolvimento | `.agents/skills/`; comece por `padrao-de-codigo` |
 
 ## Documentação e referências

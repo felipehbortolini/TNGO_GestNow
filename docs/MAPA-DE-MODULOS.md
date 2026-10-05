@@ -8,6 +8,8 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 |---|---|
 | Texto que aparece numa tela | O fragmento em `api/src/templates/<modulo>/<fragmento>.html`; para texto estático/estrutura, `app/_views/<modulo>/<tela>.html` |
 | Layout de uma página | `app/_views/<modulo>/<tela>.html`; se a composição é comum ao shell, `app/ds/shell.css` |
+| Tela nova, ou o trio de uma tela (view, CSS e JS vinculados no shell) | A linha em `api/src/core/navegacao.json`, o trio `app/_views/<modulo>/<tela>.html` + `app/paginas/<modulo>/<tela>.css` e `.js`, e o par de vínculos no grupo do módulo em `app/index.html`; a verificação `trio-da-tela` (`scripts/verificar-trio-da-tela.mjs`) confere |
+| Comportamento de uma tela (JavaScript da página) | `app/paginas/<modulo>/<tela>.js`: registra `TN.paginas["<modulo>/<tela>"]` com `iniciar(raiz)`, acionado pelo `x-init` da view |
 | Estilo de uma tela | `app/paginas/<modulo>/<tela>.css`; regra comum do Design System fica em `app/ds/tokens.css`, `shell.css` ou `patterns.css`, conforme `docs/ONDE-ESTA.md` |
 | Gráfico | `app/ds/graficos/<visual>.js` (biblioteca compartilhada, nas ISSUE-014 a ISSUE-016); aplicação e dados no `<tela>.js` do módulo; original de referência em `docs/referencia/graficos/` |
 | Fórmula ou cálculo | `api/src/modulos/<modulo>/calculations.py`; teste de fronteira em `api/tests/<modulo>/` |

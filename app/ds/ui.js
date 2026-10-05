@@ -29,6 +29,11 @@
     $: $,
     $$: $$,
 
+    /* Registro das páginas (D3): cada app/paginas/<modulo>/<tela>.js se registra
+       em TN.paginas["<modulo>/<tela>"] com iniciar(raiz), e a view o aciona por
+       x-init. Nasce aqui para existir quando o primeiro desses scripts rodar. */
+    paginas: {},
+
     /* icons.js define window.icon; é carregado antes deste arquivo */
     icon: function (nome, tamanho, classe) {
       return typeof window.icon === "function" ? window.icon(nome, tamanho, classe) : "";

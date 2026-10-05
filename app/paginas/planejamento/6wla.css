@@ -1,0 +1,16 @@
+/* ============================================================
+   6wla.css — Estilo da tela 6WLA (planejamento/6wla)
+
+   Atividades por semana (seis semanas), restrições e responsáveis.
+
+   Escopo: tudo que morar aqui começa por .pagina--planejamento-6wla, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
+   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
+   três telas sobe para ds/patterns.css.
+
+   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
+   próprio chega com a ISSUE-045.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver
+   docs/CONTRATO-VISUAL.md.
+   ============================================================ */

@@ -105,8 +105,8 @@ ESLint 10 em configuração plana, cobrindo as três linguagens:
 
 | Arquivos | Plugin |
 |---|---|
-| `app/ds/**/*.js`, `scripts/**/*.mjs` | ESLint core |
-| `app/ds/**/*.css` | `@eslint/css` |
+| `app/ds/**/*.js`, `app/paginas/**/*.js`, `scripts/**/*.mjs` | ESLint core |
+| `app/ds/**/*.css`, `app/paginas/**/*.css` | `@eslint/css` |
 | `app/index.html`, `_views/`, `_components/` | `@html-eslint` |
 
 Três decisões estruturais em `eslint.config.mjs`:
@@ -132,9 +132,10 @@ contrato eles não têm `<html>` (Regra 2 do contrato visual).
 
 ### Padrão Timenow — `verificar-padrao.mjs`
 
-As nove verificações que nenhum linter de mercado conhece: contrato visual,
+As verificações que nenhum linter de mercado conhece: contrato visual,
 colisão de seletor entre os arquivos do Design System, asset com nome UUID,
-raiz de fragmento, paridade com o template. Detalhes em
+raiz de fragmento, paridade com o template e o trio da tela (`trio-da-tela`,
+conferida por `scripts/verificar-trio-da-tela.mjs`). Detalhes em
 [CONTRATO-VISUAL](CONTRATO-VISUAL.md), Regra 5.
 
 ---

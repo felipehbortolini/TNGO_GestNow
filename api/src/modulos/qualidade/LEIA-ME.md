@@ -11,6 +11,17 @@ Módulo `qualidade`. Registra não conformidades, inspeções/ITP e auditorias, 
 | Inspeções e ITP | Planos com pontos H/W/R e registros por ponto | ISSUE-069 |
 | Auditorias | Programa, resultado, constatações e reprogramação | ISSUE-070 |
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Painel da qualidade | `app/_views/qualidade/painel.html` | `app/paginas/qualidade/painel.css` | `app/paginas/qualidade/painel.js` |
+| Não conformidades (RNC) | `app/_views/qualidade/rnc.html` | `app/paginas/qualidade/rnc.css` | `app/paginas/qualidade/rnc.js` |
+| Inspeções e ITP | `app/_views/qualidade/inspecoes.html` | `app/paginas/qualidade/inspecoes.css` | `app/paginas/qualidade/inspecoes.js` |
+| Auditorias | `app/_views/qualidade/auditorias.html` | `app/paginas/qualidade/auditorias.css` | `app/paginas/qualidade/auditorias.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/qualidade/`.

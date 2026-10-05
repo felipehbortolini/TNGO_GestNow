@@ -13,6 +13,17 @@ Módulo `central_acoes`. É o ponto único para acompanhar ações originadas no
 
 O status de uma ação é calculado pelo servidor. A origem registrada aponta de volta para a ficha que criou a ação.
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Ações | `app/_views/central_acoes/acoes.html` | `app/paginas/central_acoes/acoes.css` | `app/paginas/central_acoes/acoes.js` |
+| Dashboards e KPIs | `app/_views/central_acoes/dashboard.html` | `app/paginas/central_acoes/dashboard.css` | `app/paginas/central_acoes/dashboard.js` |
+| Atas | `app/_views/central_acoes/atas.html` | `app/paginas/central_acoes/atas.css` | `app/paginas/central_acoes/atas.js` |
+| Ata | `app/_views/central_acoes/ata.html` | `app/paginas/central_acoes/ata.css` | `app/paginas/central_acoes/ata.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/central-acoes/`.

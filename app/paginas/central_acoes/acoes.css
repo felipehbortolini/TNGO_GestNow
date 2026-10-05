@@ -1,0 +1,16 @@
+/* ============================================================
+   acoes.css — Estilo da tela Ações (central_acoes/acoes)
+
+   Ações de todas as origens em lista e kanban, com filtros, replanejamento justificado e link para a origem.
+
+   Escopo: tudo que morar aqui começa por .pagina--central_acoes-acoes, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
+   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
+   três telas sobe para ds/patterns.css.
+
+   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
+   próprio chega com as ISSUE-019 e ISSUE-020.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver
+   docs/CONTRATO-VISUAL.md.
+   ============================================================ */

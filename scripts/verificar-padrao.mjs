@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { descreverFalha, verificarTrioDaTela } from "./verificar-trio-da-tela.mjs";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const APP = join(RAIZ, "app");
@@ -224,11 +225,20 @@ for (const modulo of MODULOS) {
   }
 }
 
+// ── 11. Trio da tela ─────────────────────────────────────────────────
+// Toda tela da lista de navegação tem view, CSS e JS com o mesmo nome,
+// vinculados no shell (D3). A conferência mora em verificar-trio-da-tela.mjs,
+// que também roda sozinho (--raiz) para o teste.
+for (const falha of verificarTrioDaTela(RAIZ)) {
+  reportar("trio-da-tela", falha.arquivo, descreverFalha(falha));
+}
+
 // ── Relatório ───────────────────────────────────────────────────────
 const REGRAS = [
   "sem-cdn", "sem-tailwind-daisyui", "fragmento-limpo", "recurso-existe",
   "sem-uuid", "sem-prefixo-de-app", "raiz-do-fragmento", "contrato-visual",
   "colisao-css", "estrutura-dos-modulos",
+  "trio-da-tela",
 ];
 
 console.log("\nVerificação do padrão Timenow\n" + "─".repeat(52));

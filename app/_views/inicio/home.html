@@ -1,4 +1,6 @@
-<main id="app-shell" class="content">
+<main id="app-shell" class="content pagina--inicio-home"
+  x-data="{ estado: 'vazio-origem' }"
+  x-init="TN.paginas['inicio/home'].iniciar($el)">
   <div class="page">
     <div class="page-head">
       <div>
@@ -7,13 +9,36 @@
       </div>
     </div>
 
-    <section class="card" aria-labelledby="inicio-vazio-titulo">
+    <div class="card">
       <div class="card__body">
-        <div class="empty">
-          <h2 id="inicio-vazio-titulo" class="h-card4">Nenhum módulo disponível</h2>
+        <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>Carregando...</p>
+        </div>
+
+        <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
+          <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+          <h2 class="h-card4">Nenhum módulo disponível</h2>
           <p>Os módulos do GestNow estarão disponíveis nesta área conforme a migração avançar.</p>
         </div>
+
+        <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
+          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+        </div>
+
+        <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
+          <h2 class="h-card5">Não foi possível carregar os dados</h2>
+          <p class="body-txt">Confira a conexão e tente de novo.</p>
+        </div>
+
+        <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
+          <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
+          <h2 class="h-card3">Acesso negado</h2>
+          <p>Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+        </div>
       </div>
-    </section>
+    </div>
   </div>
 </main>

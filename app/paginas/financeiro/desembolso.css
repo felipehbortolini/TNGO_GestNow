@@ -1,0 +1,16 @@
+/* ============================================================
+   desembolso.css — Estilo da tela Cronograma de desembolso (financeiro/desembolso)
+
+   Saldo a pagar distribuído por mês, previsto e realizado, para alinhar com a tesouraria.
+
+   Escopo: tudo que morar aqui começa por .pagina--financeiro-desembolso, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
+   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
+   três telas sobe para ds/patterns.css.
+
+   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
+   próprio chega com a ISSUE-043.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver
+   docs/CONTRATO-VISUAL.md.
+   ============================================================ */

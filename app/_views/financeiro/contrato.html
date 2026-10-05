@@ -1,0 +1,44 @@
+<main id="app-shell" class="content pagina--financeiro-contrato"
+  x-data="{ estado: 'vazio-origem' }"
+  x-init="TN.paginas['financeiro/contrato'].iniciar($el)">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="h-dash">Contrato</h1>
+        <p class="page-head__sub">Ficha do contrato: valores, medições, aditivos, marcos, claims, extensões de prazo e avaliação.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__body">
+        <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>Carregando...</p>
+        </div>
+
+        <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
+          <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+          <h2 class="h-card4">Nenhum contrato aberto</h2>
+          <p>Abra um contrato pela lista de Contratos para ver a ficha aqui.</p>
+        </div>
+
+        <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
+          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+        </div>
+
+        <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
+          <h2 class="h-card5">Não foi possível carregar os dados</h2>
+          <p class="body-txt">Confira a conexão e tente de novo.</p>
+        </div>
+
+        <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
+          <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
+          <h2 class="h-card3">Acesso negado</h2>
+          <p>Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>

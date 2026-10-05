@@ -39,7 +39,9 @@ export default [
   // JavaScript do Design System — roda no navegador
   // ─────────────────────────────────────────────────────────────────────
   {
-    files: ["app/ds/**/*.js"],
+    // O JS de cada página (app/paginas/, o trio da tela) roda no mesmo
+    // navegador e segue as mesmas regras do Design System.
+    files: ["app/ds/**/*.js", "app/paginas/**/*.js"],
     ...js.configs.recommended,
     languageOptions: {
       ecmaVersion: 2022,
@@ -135,7 +137,9 @@ export default [
   // CSS do Design System
   // ─────────────────────────────────────────────────────────────────────
   {
-    files: ["app/ds/**/*.css"],
+    // O CSS de cada página (app/paginas/, o trio da tela) segue as mesmas
+    // regras: só tokens, e escopado pela classe raiz da view.
+    files: ["app/ds/**/*.css", "app/paginas/**/*.css"],
     plugins: { css },
     language: "css/css",
     languageOptions: {

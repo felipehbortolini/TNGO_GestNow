@@ -12,6 +12,16 @@ Módulo `relatorio`. Consolida dados dos módulos em relatórios semanais ou men
 | Folhas Riscos, Qualidade, HSE e Carteira | Indicadores e consolidados por seção | ISSUE-085 |
 | Excel e impressão/PDF | Exportação do relatório e alteração do período | ISSUE-086 |
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+O relatório gerencial é tela de detalhe do Início: abre a partir do botão e do modal de emissão que o Início guarda.
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Relatório gerencial | `app/_views/relatorio/gerencial.html` | `app/paginas/relatorio/gerencial.css` | `app/paginas/relatorio/gerencial.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/relatorio/`.

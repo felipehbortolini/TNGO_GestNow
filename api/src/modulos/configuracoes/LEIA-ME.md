@@ -10,6 +10,16 @@ Módulo `configuracoes`. Mantém colaboradores, cadastros de apoio e parâmetros
 | Colaboradores | Perfil geral, papéis da Programação Semanal por projeto, vínculo e empresa | ISSUE-077 |
 | Cadastros de apoio | Projetos, empresas, pessoas, sistemas, unidades e locais | ISSUE-078 |
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Parâmetros do sistema | `app/_views/configuracoes/parametros.html` | `app/paginas/configuracoes/parametros.css` | `app/paginas/configuracoes/parametros.js` |
+| Colaboradores | `app/_views/configuracoes/colaboradores.html` | `app/paginas/configuracoes/colaboradores.css` | `app/paginas/configuracoes/colaboradores.js` |
+| Cadastros de apoio | `app/_views/configuracoes/cadastros.html` | `app/paginas/configuracoes/cadastros.css` | `app/paginas/configuracoes/cadastros.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/configuracoes/`.

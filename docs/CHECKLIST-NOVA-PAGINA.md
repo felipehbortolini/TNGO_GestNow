@@ -11,8 +11,8 @@ node scripts/verificar.mjs
 ```
 
 Cinco etapas, todas obrigatórias: `ruff check`, `ruff format`, `ty check`,
-`eslint` e as 9 verificações do padrão Timenow. Se falhar, o relatório diz a
-etapa, o arquivo e o motivo.
+`eslint` e as verificações do padrão Timenow (inclusive a `trio-da-tela`). Se
+falhar, o relatório diz a etapa, o arquivo e o motivo.
 
 Boa parte costuma ser automática:
 
@@ -44,6 +44,8 @@ leitura. Detalhes e exemplos em [CLEAN-CODE.md](CLEAN-CODE.md).
 - [ ] A view está em `app/_views/`, e a raiz é `<main id="app-shell" class="content">`
 - [ ] O fragmento não tem `<html>`, `<head>`, `<body>`, `<link>`, `<style>` nem `<script src>`
 - [ ] A tela foi acrescentada na lista de navegação, `api/src/core/navegacao.json` (módulo, id, título e, se for detalhe, a lista de origem)
+- [ ] A tela tem o trio: a view, `app/paginas/<modulo>/<tela>.css` e `.js`, e o shell (`app/index.html`) vincula o CSS e o JS; a verificação `trio-da-tela` confere
+- [ ] A raiz da view leva a classe `pagina--<modulo>-<tela>` e aciona `TN.paginas["<modulo>/<tela>"].iniciar($el)` por `x-init`; o CSS é escopado por essa classe
 - [ ] O ícone escolhido existe em `app/ds/icons.js`
 - [ ] Endpoint novo? Está atrás de `is_alpine_request()` e responde por `AlpineAjaxResponse`
 - [ ] Template Jinja2 novo? Estende `base_fragment.html` e usa `{{ target_id }}` — nunca id fixo

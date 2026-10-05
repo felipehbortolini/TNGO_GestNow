@@ -11,6 +11,14 @@ Módulo `inicio`. Reúne o resumo do projeto e da carteira de projetos. A view e
 
 O protótipo chama a tela inicial de Home. No GestNow ela é o módulo Início; relatório gerencial é o módulo separado `relatorio`.
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Início | `app/_views/inicio/home.html` | `app/paginas/inicio/home.css` | `app/paginas/inicio/home.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/inicio/`.

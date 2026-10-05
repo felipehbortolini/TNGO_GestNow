@@ -13,6 +13,21 @@ Módulo `financeiro`. Mantém a Estrutura Analítica de Custos, o desempenho de 
 | Contingência | Reservas, consumo, liberações, exposição e cobertura | ISSUE-041 |
 | Contratos e ficha do contrato | Medições, aditivos, marcos, claims, EOT e avaliações | ISSUE-032 a ISSUE-035 |
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| EAC | `app/_views/financeiro/eac.html` | `app/paginas/financeiro/eac.css` | `app/paginas/financeiro/eac.js` |
+| Mapa de controle | `app/_views/financeiro/mapa_controle.html` | `app/paginas/financeiro/mapa_controle.css` | `app/paginas/financeiro/mapa_controle.js` |
+| Cronograma de desembolso | `app/_views/financeiro/desembolso.html` | `app/paginas/financeiro/desembolso.css` | `app/paginas/financeiro/desembolso.js` |
+| KPIs de custo | `app/_views/financeiro/kpis.html` | `app/paginas/financeiro/kpis.css` | `app/paginas/financeiro/kpis.js` |
+| Curva S financeira | `app/_views/financeiro/curva_s.html` | `app/paginas/financeiro/curva_s.css` | `app/paginas/financeiro/curva_s.js` |
+| Contingência | `app/_views/financeiro/contingencia.html` | `app/paginas/financeiro/contingencia.css` | `app/paginas/financeiro/contingencia.js` |
+| Contratos | `app/_views/financeiro/contratos.html` | `app/paginas/financeiro/contratos.css` | `app/paginas/financeiro/contratos.js` |
+| Contrato | `app/_views/financeiro/contrato.html` | `app/paginas/financeiro/contrato.css` | `app/paginas/financeiro/contrato.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/financeiro/`.

@@ -75,6 +75,27 @@ Elevação vem da **borda**, não da sombra.
 
 A raiz de toda view em `_views/` é `<main id="app-shell" class="content">`.
 
+## Trio da tela (GestNow)
+
+Toda tela da lista de navegação (`api/src/core/navegacao.json`) tem três arquivos
+com o mesmo nome: `app/_views/<modulo>/<tela>.html`, `app/paginas/<modulo>/<tela>.css`
+e `app/paginas/<modulo>/<tela>.js`. O estilo e o comportamento da tela moram nos dois
+últimos, nunca na view.
+
+- A raiz da view leva a classe `pagina--<modulo>-<tela>` (o `_` do identificador
+  fica: `.pagina--central_acoes-atas`) e aciona o JS por `x-init`:
+  `x-init="TN.paginas['<modulo>/<tela>'].iniciar($el)"`.
+- O CSS é escopado por essa classe e só usa tokens; o que se repetir em três telas
+  sobe para `ds/patterns.css`.
+- O JS registra `window.TN.paginas["<modulo>/<tela>"] = { iniciar: function (raiz) {…} }`.
+- Os cinco estados são blocos `data-estado` com `x-show="estado === '…'"`; o
+  `estado` do `x-data` da raiz abre no vazio de origem.
+- O shell (`app/index.html`) vincula o CSS e o JS de todos os trios. Tela nova:
+  linha em `navegacao.json`, os três arquivos e o par de vínculos no grupo do módulo.
+  A verificação `trio-da-tela` reprova, nomeando a tela, o que faltar.
+
+Detalhes em `docs/PADROES-DE-PAGINA.md`, "O trio da tela".
+
 ## Classes mais usadas
 
 ```

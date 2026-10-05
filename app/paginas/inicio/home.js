@@ -1,0 +1,25 @@
+/* ============================================================
+   home.js — Comportamento da tela Início (inicio/home)
+
+   Resumo do projeto e da carteira de projetos: um indicador-chave por módulo e os pontos de atenção.
+
+   Registra um único objeto em TN.paginas["inicio/home"]. A view o aciona por
+   x-init com iniciar(raiz), e raiz é o <main> da tela. O estado da tela
+   (carregando, vazio-origem, vazio-filtro, erro ou sem-permissao) mora no
+   x-data da view, que já abre no vazio de origem.
+
+   Sem comportamento próprio ainda: iniciar() só confirma o vazio de origem,
+   que vale até a carga dos dados chegar com as ISSUE-079 e ISSUE-080.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver
+   docs/CONTRATO-VISUAL.md.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  window.TN.paginas["inicio/home"] = {
+    iniciar: function (raiz) {
+      window.Alpine.$data(raiz).estado = "vazio-origem";
+    }
+  };
+})();

@@ -48,6 +48,58 @@ o outro a limpar a busca. Ver `api/src/templates/exemplo/list.html`.
 
 ---
 
+## O trio da tela
+
+No GestNow toda tela da lista de navegação (`api/src/core/navegacao.json`) tem um
+trio com o mesmo nome (D3):
+
+| Arquivo | O que é |
+|---|---|
+| `app/_views/<modulo>/<tela>.html` | A view, o fragmento da tela. Nunca carrega `<link>` nem `<script>` |
+| `app/paginas/<modulo>/<tela>.css` | O estilo da página, escopado por `.pagina--<modulo>-<tela>` e só com tokens |
+| `app/paginas/<modulo>/<tela>.js` | O comportamento da página: registra `TN.paginas["<modulo>/<tela>"]` com `iniciar(raiz)` |
+
+`<modulo>` e `<tela>` são os identificadores da lista de navegação, com o `_`
+mantido: `central_acoes/atas` tem a classe `.pagina--central_acoes-atas`. O shell
+(`app/index.html`) vincula o CSS e o JS de todos, agrupados por módulo, logo
+depois do Design System; a pasta `app/paginas/` é pública porque o shell os
+carrega antes do login.
+
+A raiz da view leva a classe da página e aciona o JS por `x-init`:
+
+```html
+<main id="app-shell" class="content pagina--central_acoes-atas"
+  x-data="{ estado: 'vazio-origem' }"
+  x-init="TN.paginas['central_acoes/atas'].iniciar($el)">
+```
+
+```js
+window.TN.paginas["central_acoes/atas"] = {
+  iniciar: function (raiz) {
+    window.Alpine.$data(raiz).estado = "vazio-origem";
+  }
+};
+```
+
+Os cinco estados nascem na view como cinco blocos `data-estado` (`carregando`,
+`vazio-origem`, `vazio-filtro`, `erro` e `sem-permissao`), cada um com
+`x-show="estado === '...'"`. O `estado` do `x-data` abre no vazio de origem; o
+`iniciar()` da tela muda de estado quando passa a buscar dados.
+
+Tela sem estilo ou comportamento próprio ainda tem os três arquivos, com o
+cabeçalho de propósito, para a regra ser uniforme e verificável. O que se repetir
+em três telas sobe para `ds/patterns.css`.
+
+**Tela nova:** acrescente a linha em `navegacao.json`, copie o trio de uma tela
+vizinha trocando os nomes e vincule o par (`<link>` e `<script defer>`) no grupo
+do módulo em `app/index.html`. A verificação `trio-da-tela`
+(`scripts/verificar-trio-da-tela.mjs`, chamada pela porta de qualidade) reprova,
+nomeando a tela: view sem CSS, view sem JS, trio fora do shell, view sem item de
+navegação, item de navegação sem view e trio incoerente (a classe da raiz, o
+`x-init` ou o registro do JS com outra chave).
+
+---
+
 ## Listagem
 
 Ordem consagrada: **KPIs → barra de ferramentas → lista**.

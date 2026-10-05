@@ -11,6 +11,16 @@ Módulo `governanca`. Controla solicitações de mudança (SM) e lições aprend
 | Acervo de lições | Busca, filtros, aplicabilidade e aplicação em projeto | ISSUE-027 |
 | Painel de lições | Lições publicadas, reuso e projetos sem registro | ISSUE-028 |
 
+## Trios das telas
+
+Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
+
+| Tela | View | CSS | JS |
+|---|---|---|---|
+| Gestão de mudanças | `app/_views/governanca/mudancas.html` | `app/paginas/governanca/mudancas.css` | `app/paginas/governanca/mudancas.js` |
+| Solicitação de mudança | `app/_views/governanca/mudanca.html` | `app/paginas/governanca/mudanca.css` | `app/paginas/governanca/mudanca.js` |
+| Lições aprendidas | `app/_views/governanca/licoes.html` | `app/paginas/governanca/licoes.css` | `app/paginas/governanca/licoes.js` |
+
 ## Rotas previstas
 
 Prefixo: `/api/governanca/`.

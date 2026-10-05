@@ -41,6 +41,134 @@
     <script defer src="/ds/ui.js"></script>
     <script defer src="/ds/dica.js"></script>
     <script defer src="/ds/shell.js"></script>
+
+    <!-- ============================================================
+         Trio de cada tela (D3): o CSS e o JS da página, um par por tela, com
+         caminho absoluto e agrupados por módulo, logo depois do Design System.
+         A view nunca os carrega (Regra 2 do contrato visual); a verificação
+         trio-da-tela confere que toda tela da lista de navegação
+         (api/src/core/navegacao.json) tem o par vinculado aqui.
+
+         Os scripts ficam antes do Alpine: cada um registra
+         TN.paginas["<modulo>/<tela>"] e a view o aciona por x-init, então o
+         registro precisa existir quando a primeira view chegar. Tela nova:
+         acrescente o par no grupo do módulo.
+         ============================================================ -->
+    <!-- inicio -->
+    <link rel="stylesheet" href="/paginas/inicio/home.css" />
+    <script defer src="/paginas/inicio/home.js"></script>
+    <!-- central_acoes -->
+    <link rel="stylesheet" href="/paginas/central_acoes/acoes.css" />
+    <script defer src="/paginas/central_acoes/acoes.js"></script>
+    <link rel="stylesheet" href="/paginas/central_acoes/dashboard.css" />
+    <script defer src="/paginas/central_acoes/dashboard.js"></script>
+    <link rel="stylesheet" href="/paginas/central_acoes/atas.css" />
+    <script defer src="/paginas/central_acoes/atas.js"></script>
+    <link rel="stylesheet" href="/paginas/central_acoes/ata.css" />
+    <script defer src="/paginas/central_acoes/ata.js"></script>
+    <!-- planejamento -->
+    <link rel="stylesheet" href="/paginas/planejamento/eap.css" />
+    <script defer src="/paginas/planejamento/eap.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/curva_s.css" />
+    <script defer src="/paginas/planejamento/curva_s.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/kpis.css" />
+    <script defer src="/paginas/planejamento/kpis.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/relato.css" />
+    <script defer src="/paginas/planejamento/relato.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/6wla.css" />
+    <script defer src="/paginas/planejamento/6wla.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/produtividade.css" />
+    <script defer src="/paginas/planejamento/produtividade.js"></script>
+    <link rel="stylesheet" href="/paginas/planejamento/punch_list.css" />
+    <script defer src="/paginas/planejamento/punch_list.js"></script>
+    <!-- programacao_semanal -->
+    <link rel="stylesheet" href="/paginas/programacao_semanal/programacao.css" />
+    <script defer src="/paginas/programacao_semanal/programacao.js"></script>
+    <link rel="stylesheet" href="/paginas/programacao_semanal/dashboard.css" />
+    <script defer src="/paginas/programacao_semanal/dashboard.js"></script>
+    <link rel="stylesheet" href="/paginas/programacao_semanal/governanca.css" />
+    <script defer src="/paginas/programacao_semanal/governanca.js"></script>
+    <link rel="stylesheet" href="/paginas/programacao_semanal/importacao.css" />
+    <script defer src="/paginas/programacao_semanal/importacao.js"></script>
+    <link rel="stylesheet" href="/paginas/programacao_semanal/configuracao.css" />
+    <script defer src="/paginas/programacao_semanal/configuracao.js"></script>
+    <!-- financeiro -->
+    <link rel="stylesheet" href="/paginas/financeiro/eac.css" />
+    <script defer src="/paginas/financeiro/eac.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/mapa_controle.css" />
+    <script defer src="/paginas/financeiro/mapa_controle.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/desembolso.css" />
+    <script defer src="/paginas/financeiro/desembolso.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/kpis.css" />
+    <script defer src="/paginas/financeiro/kpis.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/curva_s.css" />
+    <script defer src="/paginas/financeiro/curva_s.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/contingencia.css" />
+    <script defer src="/paginas/financeiro/contingencia.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/contratos.css" />
+    <script defer src="/paginas/financeiro/contratos.js"></script>
+    <link rel="stylesheet" href="/paginas/financeiro/contrato.css" />
+    <script defer src="/paginas/financeiro/contrato.js"></script>
+    <!-- suprimentos -->
+    <link rel="stylesheet" href="/paginas/suprimentos/painel.css" />
+    <script defer src="/paginas/suprimentos/painel.js"></script>
+    <link rel="stylesheet" href="/paginas/suprimentos/plano_compras.css" />
+    <script defer src="/paginas/suprimentos/plano_compras.js"></script>
+    <link rel="stylesheet" href="/paginas/suprimentos/processos.css" />
+    <script defer src="/paginas/suprimentos/processos.js"></script>
+    <link rel="stylesheet" href="/paginas/suprimentos/mas.css" />
+    <script defer src="/paginas/suprimentos/mas.js"></script>
+    <link rel="stylesheet" href="/paginas/suprimentos/diligenciamento.css" />
+    <script defer src="/paginas/suprimentos/diligenciamento.js"></script>
+    <link rel="stylesheet" href="/paginas/suprimentos/fornecedores.css" />
+    <script defer src="/paginas/suprimentos/fornecedores.js"></script>
+    <!-- riscos -->
+    <link rel="stylesheet" href="/paginas/riscos/registro.css" />
+    <script defer src="/paginas/riscos/registro.js"></script>
+    <link rel="stylesheet" href="/paginas/riscos/matriz.css" />
+    <script defer src="/paginas/riscos/matriz.js"></script>
+    <link rel="stylesheet" href="/paginas/riscos/ficha.css" />
+    <script defer src="/paginas/riscos/ficha.js"></script>
+    <link rel="stylesheet" href="/paginas/riscos/painel.css" />
+    <script defer src="/paginas/riscos/painel.js"></script>
+    <!-- qualidade -->
+    <link rel="stylesheet" href="/paginas/qualidade/painel.css" />
+    <script defer src="/paginas/qualidade/painel.js"></script>
+    <link rel="stylesheet" href="/paginas/qualidade/rnc.css" />
+    <script defer src="/paginas/qualidade/rnc.js"></script>
+    <link rel="stylesheet" href="/paginas/qualidade/inspecoes.css" />
+    <script defer src="/paginas/qualidade/inspecoes.js"></script>
+    <link rel="stylesheet" href="/paginas/qualidade/auditorias.css" />
+    <script defer src="/paginas/qualidade/auditorias.js"></script>
+    <!-- hse -->
+    <link rel="stylesheet" href="/paginas/hse/painel.css" />
+    <script defer src="/paginas/hse/painel.js"></script>
+    <link rel="stylesheet" href="/paginas/hse/ocorrencias.css" />
+    <script defer src="/paginas/hse/ocorrencias.js"></script>
+    <link rel="stylesheet" href="/paginas/hse/inspecoes.css" />
+    <script defer src="/paginas/hse/inspecoes.js"></script>
+    <link rel="stylesheet" href="/paginas/hse/analises_risco.css" />
+    <script defer src="/paginas/hse/analises_risco.js"></script>
+    <link rel="stylesheet" href="/paginas/hse/hht.css" />
+    <script defer src="/paginas/hse/hht.js"></script>
+    <!-- governanca -->
+    <link rel="stylesheet" href="/paginas/governanca/mudancas.css" />
+    <script defer src="/paginas/governanca/mudancas.js"></script>
+    <link rel="stylesheet" href="/paginas/governanca/mudanca.css" />
+    <script defer src="/paginas/governanca/mudanca.js"></script>
+    <link rel="stylesheet" href="/paginas/governanca/licoes.css" />
+    <script defer src="/paginas/governanca/licoes.js"></script>
+    <!-- configuracoes -->
+    <link rel="stylesheet" href="/paginas/configuracoes/parametros.css" />
+    <script defer src="/paginas/configuracoes/parametros.js"></script>
+    <link rel="stylesheet" href="/paginas/configuracoes/colaboradores.css" />
+    <script defer src="/paginas/configuracoes/colaboradores.js"></script>
+    <link rel="stylesheet" href="/paginas/configuracoes/cadastros.css" />
+    <script defer src="/paginas/configuracoes/cadastros.js"></script>
+    <!-- relatorio -->
+    <link rel="stylesheet" href="/paginas/relatorio/gerencial.css" />
+    <script defer src="/paginas/relatorio/gerencial.js"></script>
+
     <script defer src="/lib/alpine-ajax-0.12.7.min.js"></script>
     <script defer src="/lib/alpinejs-3.14.8.min.js"></script>
   </head>

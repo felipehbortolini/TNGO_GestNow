@@ -44,6 +44,12 @@ volta a nascer sem estilo. Sempre com barra no início.
 arquitetura (bibliotecas vendorizadas) e elimina dependência de rede externa em
 tempo de execução.
 
+**O trio da tela (GestNow, D3).** Logo depois do Design System, e agrupados por
+módulo, o shell vincula também o CSS e o JS de cada tela, em
+`app/paginas/<modulo>/<tela>.css` e `.js`, com caminho absoluto. É assim que a
+primeira execução já tem o visual de todas as telas sem que a view carregue nada.
+Ver [PADROES-DE-PAGINA.md](PADROES-DE-PAGINA.md), "O trio da tela".
+
 ---
 
 ## Regra 2 — Fragmentos nunca carregam estilo próprio
@@ -60,6 +66,10 @@ pior reexecutada.
 Precisa de estilo local? Vira classe em `ds/patterns.css`. Precisa de comportamento?
 Vai por atributo do Alpine (`x-data`, `x-init`, `@click`), que é inerte até o Alpine
 processar o nó.
+
+No GestNow o estilo e o comportamento próprios de uma tela moram no trio da tela
+(`app/paginas/<modulo>/<tela>.css` e `.js`), vinculado pelo shell e acionado pela
+view por `x-init`; só o que se repete em três telas sobe para `ds/patterns.css`.
 
 ---
 
@@ -140,6 +150,7 @@ node scripts/verificar-padrao.mjs
 | `raiz-do-fragmento` | view de `_views/` não começa com `<main id="app-shell">` |
 | `contrato-visual` | shell não carrega o DS, ou o sentinela sumiu |
 | `colisao-css` | a mesma classe é declarada em dois arquivos do DS |
+| `trio-da-tela` | uma tela da lista de navegação não tem view, CSS e JS vinculados no shell, ou uma view não tem item de navegação (`scripts/verificar-trio-da-tela.mjs`) |
 
 A verificação `recurso-existe` é a que teria pego o `/kyno-theme.css` no dia em que
 foi escrito. Rode antes de abrir PR e no CI.
@@ -151,6 +162,7 @@ foi escrito. Rode antes de abrir PR e no CI.
 | Onde | Carrega estilo? | Como |
 |---|---|---|
 | `app/index.html` | **Sim** | Único lugar; caminho absoluto; sem CDN |
+| `app/paginas/<modulo>/<tela>.css` e `.js` | Não: o shell os vincula | O trio da tela; um par por tela, agrupado por módulo, caminho absoluto |
 | `app/_views/*.html` | Não | Herda do shell |
 | `app/_components/*.html` | Não | Herda do shell |
 | `api/src/templates/**` | Não | Herda do shell |
