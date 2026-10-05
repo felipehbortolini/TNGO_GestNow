@@ -58,7 +58,7 @@ Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de 
 | Folga, OTD e avanço do MAS | `calculations.py` |
 | Validações de pacote/proposta/marco | `validation.py` |
 | Excel e PDF imprimível | `export.py` |
-| Persistência | `models.py`; entidades nas ISSUE-003 e ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/suprimentos/` |
 | Tela, estilo e comportamento | `app/_views/suprimentos/` e `app/paginas/suprimentos/` |
 | Testes | `api/tests/suprimentos/` |

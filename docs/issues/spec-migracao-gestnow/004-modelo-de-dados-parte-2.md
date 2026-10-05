@@ -1,7 +1,7 @@
 ---
 id: ISSUE-004
 title: "Modelo de dados, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, análises e relatório"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 1
@@ -62,11 +62,11 @@ chave do repositório JSON do app de Programação Semanal.
 
 ## Critérios de aceite
 
-- [ ] O diagrama completo mostra as ligações entre módulos (pacote do plano para item da EAC, pedido para contrato, ação para registro de origem, risco para SM, inspeção para pedido e afins).
-- [ ] A cobertura mapeia 100% das coleções de todos os mocks e das chaves do repositório JSON do app de Programação Semanal.
-- [ ] Nome e dados médicos das ocorrências de HSE ficam em tabela própria de acesso restrito, apontada no diagrama.
-- [ ] Nenhum indicador derivado vira coluna, salvo as exceções da D5b.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] O diagrama completo mostra as ligações entre módulos (pacote do plano para item da EAC, pedido para contrato, ação para registro de origem, risco para SM, inspeção para pedido e afins).
+- [x] A cobertura mapeia 100% das coleções de todos os mocks e das chaves do repositório JSON do app de Programação Semanal.
+- [x] Nome e dados médicos das ocorrências de HSE ficam em tabela própria de acesso restrito, apontada no diagrama.
+- [x] Nenhum indicador derivado vira coluna, salvo as exceções da D5b.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -84,3 +84,10 @@ Fontes: mocks `mock-planejamento`, `mock-suprimentos`, `mock-riscos`,
 repositório do app de Programação Semanal. A Programação Semanal segue o app,
 não a tela do protótipo (D10). Acesso ao campo restrito do HSE: Gestor e Admin
 (decisão Q35).
+
+## Registro de execução
+
+- Decisão da execução (ISSUE-004), pendente de revisão do dono: revisões do ITP em `itp` + `itp_revisao` + `itp_ponto`; o `hse_mensal` é o fechamento mensal declarado/importado e o nome/dado médico fica em `ocorrencia_restrito`; as três camadas dos marcos de Suprimentos ficam na mesma linha (`pacote_compra_marco`, `pedido_marco`); a configuração da programação é `programacao_configuracao` (uma por projeto); a avaliação e a revisão de risco ficam em `risco_avaliacao` e `risco_revisao`. Anotado no Histórico de decisões da spec.
+- Divergências com o protótipo (Q31) registradas em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`, todas "pendente de aceite": séries da Curva S física, evolução do score residual, lote semanal da Programação Semanal do protótipo (D10), horizonte do 6WLA e situação das ocorrências de HSE.
+- Verificação da cobertura: script Node carregou os 11 mocks na ordem do protótipo (56 coleções distintas, 104 ocorrências de coleção nos arquivos) e conferiu que 100% têm destino nas tabelas de cobertura; no repositório JSON do app, conferiu os 4 arquivos e as 13 chaves (8 de `programacao.json` + 3 de `cadastros` + 2 de `registro.json`), todas com destino.
+- `npm run verificar` passou nas cinco etapas, sem regra desligada. `index.md`, status da issue e commit são do orquestrador.

@@ -54,7 +54,7 @@ Prazos de tratamento de RNC por severidade (Crítica 15, Maior 30, Menor 45 dias
 | Indicadores de qualidade | `calculations.py` |
 | Validações de RNC, ITP e auditoria | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/qualidade/` |
 | Tela, estilo e comportamento | `app/_views/qualidade/` e `app/paginas/qualidade/` |
 | Testes | `api/tests/qualidade/` |

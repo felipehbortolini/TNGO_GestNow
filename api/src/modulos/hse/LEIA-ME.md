@@ -60,7 +60,7 @@ Prazo de comunicação (24h), investigação preliminar (48h), relatório final 
 | Taxas e séries | `calculations.py` |
 | Validações e campos restritos | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/hse/` |
 | Tela, estilo e comportamento | `app/_views/hse/` e `app/paginas/hse/` |
 | Testes | `api/tests/hse/` |

@@ -59,7 +59,7 @@ Incluem critérios/modelos de medição e faixas de desvio da EAP, faixas de pro
 | Medições, avanço e indicadores | `calculations.py` |
 | Validações | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades nas ISSUE-003 e ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/planejamento/` |
 | Tela, estilo e comportamento | `app/_views/planejamento/` e `app/paginas/planejamento/` |
 | Testes | `api/tests/planejamento/` |

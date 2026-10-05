@@ -56,7 +56,7 @@ Escala de severidade, probabilidades médias por faixa, cadência de revisão, l
 | Score, severidade e VME | `calculations.py` |
 | Validação de avaliação/plano | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/riscos/` |
 | Tela, estilo e comportamento | `app/_views/riscos/` e `app/paginas/riscos/` |
 | Testes | `api/tests/riscos/` |

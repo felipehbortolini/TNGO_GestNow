@@ -62,7 +62,7 @@ Incluem faixas do mapa de calor (1%, 5%, 10% inicialmente), tolerância de consu
 | Índices, projeções e desvios | `calculations.py` |
 | Validações monetárias e de revisão | `validation.py` |
 | Excel/imprimível específico | `export.py` |
-| Persistência | `models.py`; entidades nas ISSUE-003 e ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/financeiro/` |
 | Tela, estilo e comportamento | `app/_views/financeiro/` e `app/paginas/financeiro/` |
 | Testes | `api/tests/financeiro/` |

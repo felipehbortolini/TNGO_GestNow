@@ -55,7 +55,7 @@ Tipo e granularidade do período: semana ISO (segunda a domingo) ou mês civil; 
 | Parcialidade e corte do período | `calculations.py` |
 | Validação das opções | `validation.py` |
 | Excel/impressão | `export.py` |
-| Persistência de entidades próprias | `models.py`; entidades na ISSUE-004 |
+| Persistência de entidades próprias | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/relatorio/` |
 | Tela, estilo e comportamento | `app/_views/relatorio/` e `app/paginas/relatorio/` |
 | Testes | `api/tests/relatorio/` |

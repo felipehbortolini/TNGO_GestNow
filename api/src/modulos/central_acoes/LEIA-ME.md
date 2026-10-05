@@ -56,7 +56,7 @@ Não há grupo de parâmetros próprio definido nesta issue. Numeração, data d
 | Status e indicadores | `calculations.py` |
 | Validação de formulários | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades são desenhadas nas ISSUE-003 e ISSUE-004 |
+| Persistência | `models.py`; entidades desenhadas em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/central_acoes/` |
 | Tela, estilo e comportamento | `app/_views/central_acoes/` e `app/paginas/central_acoes/` |
 | Testes | `api/tests/central_acoes/` |

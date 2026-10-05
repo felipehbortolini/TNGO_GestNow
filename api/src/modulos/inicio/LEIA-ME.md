@@ -54,7 +54,7 @@ Critérios de ponderação da carteira: valor financeiro (60%), criticidade estr
 | Pesos e consolidados | `calculations.py` |
 | Entrada e justificativa | `validation.py` |
 | Exportação | `export.py` |
-| Persistência, se necessária | `models.py`; modelo relacional começa nas ISSUE-003 e ISSUE-004 |
+| Persistência, se necessária | `models.py`; modelo relacional em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/inicio/` |
 | Tela, estilo e comportamento | `app/_views/inicio/` e `app/paginas/inicio/` |
 | Testes | `api/tests/inicio/` |

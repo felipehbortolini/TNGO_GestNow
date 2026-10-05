@@ -56,7 +56,7 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 | PPC, aderência e faixas | `calculations.py` |
 | Validações da atividade/planilha | `validation.py` |
 | Planilha e impressão | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-004 |
+| Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/programacao_semanal/` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
