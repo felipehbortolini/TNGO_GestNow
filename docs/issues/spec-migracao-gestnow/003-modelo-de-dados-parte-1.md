@@ -1,7 +1,7 @@
 ---
 id: ISSUE-003
 title: "Modelo de dados, parte 1: plataforma, cadastros, Central de Ações, Governança e Financeiro"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 1
@@ -62,12 +62,12 @@ destino.
 
 ## Critérios de aceite
 
-- [ ] O diagrama cobre todas as entidades listadas, com cardinalidade e chaves estrangeiras.
-- [ ] Cada tabela tem uma linha de descrição com o módulo dono.
-- [ ] A tabela de cobertura mapeia 100% das coleções dos mocks de base, configuração, Central, Governança e Financeiro, inclusive a parte desses módulos no mock do portfólio.
-- [ ] Nenhum indicador derivado vira coluna, salvo as exceções da D5b, cada uma anotada.
-- [ ] O documento registra o estado "aceito para execução" (decisão Q30) e diz que a revisão do dono acontece no fim da execução.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] O diagrama cobre todas as entidades listadas, com cardinalidade e chaves estrangeiras.
+- [x] Cada tabela tem uma linha de descrição com o módulo dono.
+- [x] A tabela de cobertura mapeia 100% das coleções dos mocks de base, configuração, Central, Governança e Financeiro, inclusive a parte desses módulos no mock do portfólio.
+- [x] Nenhum indicador derivado vira coluna, salvo as exceções da D5b, cada uma anotada.
+- [x] O documento registra o estado "aceito para execução" (decisão Q30) e diz que a revisão do dono acontece no fim da execução.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -84,3 +84,11 @@ Fontes: mocks `mock-base`, `mock-config`, `mock-central`, `mock-governanca`,
 `mock-financeiro` e a parte correspondente de `mock-portfolio`; README do
 protótipo, seções 3 e 7. Mudança posterior de modelo atualiza o diagrama na
 mesma entrega (D5).
+
+## Registro de execução
+
+- Decisão da execução (ISSUE-003), pendente de revisão do dono: os parâmetros versionados ficam em `parametro_versao` + `parametro_valor` (chave, tipo, valor, ordem) e as notas da carteira em `portfolio_ponderacao`, filha da versão do grupo portfólio; a spec pede versões e valores, sem fixar a forma. Anotado no Histórico de decisões da spec.
+- Decisão da execução (ISSUE-003), pendente de revisão do dono: tabelas-filhas do agregado herdam `projeto_id` e a proteção de `versao` da raiz; não repetem as colunas. Anotado no Histórico de decisões da spec.
+- Decisão da execução (ISSUE-003), pendente de revisão do dono: `analisesPeriodo` de `mock-financeiro` tem a tabela `analise_periodo` desenhada na parte 2 (ISSUE-004); a cobertura da parte 1 aponta para lá. Anotado no Histórico de decisões da spec.
+- Divergências estruturais com o protótipo (Q31) registradas em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`, todas "pendente de aceite": valores agregados da EAC, séries da Curva S financeira, valor do marco de pagamento, reservas, ponderação da carteira e sessão/referência/escopo.
+- Verificação da cobertura: script Node carregou `window.MOCK` dos mocks citados e conferiu 6 + 2 + 2 + 2 + 13 coleções e as 15 da parte desta issue em `mock-portfolio`, todas com destino (40 linhas de cobertura). `npm run verificar` passou nas cinco etapas, sem regra desligada.
