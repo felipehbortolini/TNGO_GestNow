@@ -54,7 +54,7 @@
       return (n[0][0] + (n.length > 1 ? n[n.length - 1][0] : '')).toUpperCase();
     },
     /* Na carga inicial a rota é '/' ou '/index.html', enquanto o item de
-       início aponta para '/_views/home.html'. Sem esta equivalência,
+     início aponta para '/_views/inicio/home.html'. Sem esta equivalência,
        nenhum item nasce marcado e o aria-current não aparece. */
     ativo(href) {
       var atual = this.rota;
@@ -66,9 +66,9 @@
 {% block fragment %}
   <div class="sidebar__brand">
     <a
-      href="/_views/home.html"
+      href="/_views/inicio/home.html"
       x-target="app-shell"
-      @click="rota = '/_views/home.html'"
+      @click="rota = '/_views/inicio/home.html'"
       class="sidebar__logo-link"
       title="Início"
       aria-label="Timenow GestNow — Início"

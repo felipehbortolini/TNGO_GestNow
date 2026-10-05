@@ -1272,6 +1272,9 @@ do dono".
 | Q35 | Quem lê nome e dados médicos do HSE (LGPD) | Membro preenche; só Gestor e Admin leem, inclusive os anexos | D7, ISSUE-004, 073 |
 | Decisão da execução (ISSUE-001), pendente de revisão do dono | Identificadores e sessão local | Pacote npm `timenow-gestnow`, pacote Python `timenow-gestnow-api`; identidade demonstrativa `gestnow.demo@example.invalid`, sem credencial, para não reutilizar a identidade nominal do Padrão. | D1, ISSUE-001 |
 | Decisão da execução (ISSUE-001), pendente de revisão do dono | Acesso local à rede | O servidor escuta apenas em `127.0.0.1`; ISSUE-001 exige execução local e não pede exposição à rede local. | ISSUE-001 |
+| Decisão da execução (ISSUE-002), pendente de revisão do dono | Views e diretórios ainda vazios | A view vazia de Início foi realocada para `app/_views/inicio/home.html`, com os caminhos de entrada atualizados; diretórios sem artefatos funcionais usam `.gitkeep` para a estrutura D4 permanecer versionada. | D3, D4, ISSUE-002 |
+| Decisão da execução (ISSUE-002), pendente de revisão do dono | Local do catálogo PT/EN | O catálogo central do servidor será `api/src/core/translations.py`, implementado nas ISSUE-087/088; a spec exige catálogo no servidor, mas não fixa o nome do arquivo. | D13, ISSUE-087, ISSUE-088 |
+| Decisão da execução (ISSUE-002), pendente de revisão do dono | Nomes de fórmulas nos LEIA-ME iniciais | Os identificadores ingleses dos cálculos nos LEIA-ME são nomes previstos com base nas definições existentes; a issue dona confirma/ajusta o nome junto com a fórmula e seu teste. | D1, D4, ISSUE-002 |
 
 ---
 

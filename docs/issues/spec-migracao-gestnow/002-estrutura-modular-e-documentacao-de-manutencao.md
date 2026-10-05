@@ -1,7 +1,7 @@
 ---
 id: ISSUE-002
 title: "Estrutura modular de pastas com LEIA-ME por módulo, mapa \"quero mudar X, abro Y\", ONDE-ESTA, CONTEXT unificado e ADR da convenção"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 1
@@ -64,13 +64,13 @@ lista existe em todas as camadas e tem `LEIA-ME.md`; a falta falha alto.
 
 ## Critérios de aceite
 
-- [ ] Os 12 módulos existem nas camadas de view, página, backend, template e teste, com o mesmo identificador.
-- [ ] Cada módulo tem `LEIA-ME.md` com: o que faz, telas, rotas, fórmulas (com o nome no código), fluxos, integrações, parâmetros e onde mexer.
-- [ ] `docs/MAPA-DE-MODULOS.md` responde "quero mudar X, abro Y" para os 12 tipos de alteração da D4.
-- [ ] O `CONTEXT.md` traz o glossário unificado, sem termo com dois sentidos (EAC é sempre Estrutura Analítica de Custos; o indicador é "Projeção no término").
-- [ ] O ADR da convenção de subpastas está em `docs/`, e o `ONDE-ESTA.md` aponta para a estrutura nova.
-- [ ] A checagem `estrutura-dos-modulos` reprova quando falta o `LEIA-ME.md` de um módulo ou a pasta de uma camada, nomeando o módulo.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] Os 12 módulos existem nas camadas de view, página, backend, template e teste, com o mesmo identificador.
+- [x] Cada módulo tem `LEIA-ME.md` com: o que faz, telas, rotas, fórmulas (com o nome no código), fluxos, integrações, parâmetros e onde mexer.
+- [x] `docs/MAPA-DE-MODULOS.md` responde "quero mudar X, abro Y" para os 12 tipos de alteração da D4.
+- [x] O `CONTEXT.md` traz o glossário unificado, sem termo com dois sentidos (EAC é sempre Estrutura Analítica de Custos; o indicador é "Projeção no término").
+- [x] O ADR da convenção de subpastas está em `docs/`, e o `ONDE-ESTA.md` aponta para a estrutura nova.
+- [x] A checagem `estrutura-dos-modulos` reprova quando falta o `LEIA-ME.md` de um módulo ou a pasta de uma camada, nomeando o módulo.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -87,3 +87,10 @@ Nenhuma.
 Árvore-alvo: D4 da spec. Python em inglês; pastas de módulo e rotas em
 português (D1). O LEIA-ME é documento vivo: toda issue de módulo atualiza o
 seu (definição de pronto).
+
+## Registro de execução
+
+- Decisão da execução (ISSUE-002), pendente de revisão do dono: diretórios de camada ainda sem arquivos funcionais usam `.gitkeep`; a view vazia de Início foi movida para `app/_views/inicio/home.html` e os caminhos do shell foram atualizados sem alterar seu conteúdo.
+- Decisão da execução (ISSUE-002), pendente de revisão do dono: o catálogo central PT/EN fica planejado em `api/src/core/translations.py`, a implementar nas ISSUE-087/088, pois a spec exige catálogo no servidor mas não nomeia seu arquivo.
+- Decisão da execução (ISSUE-002), pendente de revisão do dono: nomes ingleses nos mapas de fórmula dos `LEIA-ME.md` são propostas baseadas nas definições atuais; cada issue dona pode confirmá-las ou ajustá-las junto com a fórmula e seu teste.
+- Verificação manual: ocultar temporariamente o `LEIA-ME.md` de `riscos` e esvaziar a pasta de views de `qualidade` falhou com o nome do módulo; ambos foram restaurados. Três destinos do `MAPA-DE-MODULOS.md` existem; a verificação final passou.

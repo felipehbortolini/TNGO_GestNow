@@ -22,7 +22,7 @@ bp = func.Blueprint()
 SECTION_TITLE = "Timenow GestNow"
 
 NAV_ITEMS = [
-    {"href": "/_views/home.html", "rotulo": "Início", "icone": "layers"},
+    {"href": "/_views/inicio/home.html", "rotulo": "Início", "icone": "layers"},
 ]
 
 

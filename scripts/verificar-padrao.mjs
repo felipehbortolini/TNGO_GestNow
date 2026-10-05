@@ -16,7 +16,40 @@ import { fileURLToPath } from "node:url";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const APP = join(RAIZ, "app");
-const TEMPLATES = join(RAIZ, "api", "src", "templates");
+const API = join(RAIZ, "api");
+const TEMPLATES = join(API, "src", "templates");
+
+const MODULOS = [
+  "inicio",
+  "central_acoes",
+  "planejamento",
+  "programacao_semanal",
+  "financeiro",
+  "suprimentos",
+  "riscos",
+  "qualidade",
+  "hse",
+  "governanca",
+  "configuracoes",
+  "relatorio",
+];
+
+const CAMADAS_MODULOS = [
+  ["views", join(APP, "_views")],
+  ["paginas", join(APP, "paginas")],
+  ["backend", join(API, "src", "modulos")],
+  ["templates", TEMPLATES],
+  ["testes", join(API, "tests")],
+];
+
+const ARQUIVOS_MODULO = [
+  "routes.py",
+  "service.py",
+  "calculations.py",
+  "validation.py",
+  "export.py",
+  "models.py",
+];
 
 const falhas = [];
 const avisos = [];
@@ -160,11 +193,42 @@ for (let i = 0; i < arquivosCss.length; i++) {
   }
 }
 
+// ── 10. Estrutura dos módulos ────────────────────────────────────────
+const functionApp = ler(join(API, "function_app.py"));
+for (const modulo of MODULOS) {
+  for (const [camada, raizCamada] of CAMADAS_MODULOS) {
+    const pasta = join(raizCamada, modulo);
+    if (!existsSync(pasta) || readdirSync(pasta).length === 0) {
+      reportar("estrutura-dos-modulos", pasta, `módulo ${modulo}: pasta da camada ${camada} ausente ou vazia`);
+    }
+  }
+
+  const pastaBackend = join(API, "src", "modulos", modulo);
+  for (const arquivo of ARQUIVOS_MODULO) {
+    if (!existsSync(join(pastaBackend, arquivo))) {
+      reportar("estrutura-dos-modulos", join(pastaBackend, arquivo), `módulo ${modulo}: arquivo ${arquivo} ausente`);
+    }
+  }
+
+  const leiaMe = join(pastaBackend, "LEIA-ME.md");
+  if (!existsSync(leiaMe)) {
+    reportar("estrutura-dos-modulos", leiaMe, `módulo ${modulo}: LEIA-ME.md ausente`);
+  }
+
+  const blueprint = `${modulo}_bp`;
+  if (
+    !functionApp.includes(`from src.modulos.${modulo}.routes import bp as ${blueprint}`) ||
+    !functionApp.includes(`app.register_functions(${blueprint})`)
+  ) {
+    reportar("estrutura-dos-modulos", join(API, "function_app.py"), `módulo ${modulo}: blueprint não importado e registrado`);
+  }
+}
+
 // ── Relatório ───────────────────────────────────────────────────────
 const REGRAS = [
   "sem-cdn", "sem-tailwind-daisyui", "fragmento-limpo", "recurso-existe",
   "sem-uuid", "sem-prefixo-de-app", "raiz-do-fragmento", "contrato-visual",
-  "colisao-css",
+  "colisao-css", "estrutura-dos-modulos",
 ];
 
 console.log("\nVerificação do padrão Timenow\n" + "─".repeat(52));

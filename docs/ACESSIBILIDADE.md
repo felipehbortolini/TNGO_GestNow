@@ -134,7 +134,7 @@ Havia regra só para `.sidebar__item`, `.sidebar__logo-link`, `.kpi`, `.linha` e
 ### Nenhum item de navegação marcado na carga inicial
 
 Na primeira carga a rota é `/`, enquanto o item de início aponta para
-`/_views/home.html`. Sem equivalência entre os dois, nenhum item nascia com
+`/_views/inicio/home.html`. Sem equivalência entre os dois, nenhum item nascia com
 `aria-current="page"` e leitor de tela não sabia informar onde a pessoa estava.
 Corrigido em `nav/sidebar.html`.
 

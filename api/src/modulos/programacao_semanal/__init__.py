@@ -1,0 +1,1 @@
+"""Weekly scheduling module."""

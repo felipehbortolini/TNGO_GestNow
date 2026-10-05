@@ -80,7 +80,7 @@
             const rota = location.pathname;
             const inicial = (rota !== '/' && rota !== '/index.html')
               ? rota
-              : '/_views/home.html';
+              : '/_views/inicio/home.html';
             await $ajax(inicial, { target: 'app-shell' });
             pronto = true;
           })();

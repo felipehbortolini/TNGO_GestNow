@@ -8,7 +8,7 @@ Sem bundler, sem etapa de build e sem CDN.
 
 ## Estado desta entrega
 
-O repositório contém o shell inicial do GestNow, a navegação lateral do Padrão e uma tela inicial vazia. As telas de demonstração e suas rotas foram removidas. Banco de dados e módulos de negócio ainda não fazem parte desta issue; o preparo do Postgres está previsto para a ISSUE-005.
+O repositório contém o shell inicial do GestNow, a navegação lateral do Padrão e a estrutura documentada dos 12 módulos. As telas de demonstração e suas rotas foram removidas; a tela de Início permanece vazia. Os stubs ainda não implementam regras nem persistência de negócio; o modelo de dados e o preparo do Postgres chegam nas ISSUE-003 a ISSUE-005.
 
 ## Rodar localmente
 
@@ -41,7 +41,7 @@ As cinco etapas obrigatórias são `ruff check`, `ruff format --check`, `ty chec
 | Procurando | Está em |
 |---|---|
 | Shell e carregamento do Design System | `app/index.html` |
-| Tela inicial vazia | `app/_views/home.html` |
+| Tela inicial vazia | `app/_views/inicio/home.html` |
 | Design System | `app/ds/` |
 | Navegação e rota de saúde | `api/src/blueprints/` |
 | Templates da navegação | `api/src/templates/nav/` |
@@ -50,6 +50,7 @@ As cinco etapas obrigatórias são `ruff check`, `ruff format --check`, `ty chec
 | Especificação e execução das issues | `docs/SPEC-MIGRACAO-GESTNOW.md` e `docs/issues/` |
 | Referências preservadas das fontes | `docs/referencia/` |
 | Skills de agente | `.agents/skills/` e `.claude/skills/` |
+| Mapa “quero mudar X, abro Y” | [docs/MAPA-DE-MODULOS.md](docs/MAPA-DE-MODULOS.md) |
 
 O mapa detalhado está em [docs/ONDE-ESTA.md](docs/ONDE-ESTA.md). As referências em `docs/referencia/` são cópias de consulta; as pastas de origem não são alteradas por esta execução.
 
