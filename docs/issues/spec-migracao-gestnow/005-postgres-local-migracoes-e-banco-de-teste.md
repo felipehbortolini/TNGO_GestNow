@@ -1,7 +1,7 @@
 ---
 id: ISSUE-005
 title: "Postgres local preparado pelo run.bat, migrações Alembic e banco de teste isolado"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2
@@ -55,13 +55,13 @@ desfeita no fim. Nenhum teste toca o banco `gestnow`.
 
 ## Critérios de aceite
 
-- [ ] Num Postgres sem os bancos, o `run.bat` cria `gestnow` e `gestnow_teste`, aplica as migrações e sobe o app; na segunda vez, não recria nada.
-- [ ] Com o serviço parado ou sem a variável de administração, o `run.bat` para com a instrução de como resolver, sem traceback.
-- [ ] Um banco vazio sobe até a última migração sem erro, e o esquema resultante bate com os modelos (teste de migrações da spec).
-- [ ] `/api/health` mostra o estado do banco e a revisão da migração.
-- [ ] Os testes rodam no `gestnow_teste`, cada um isolado por transação desfeita.
-- [ ] Nenhuma senha fica em arquivo versionado nem aparece na saída do `run.bat` ou dos testes.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] Num Postgres sem os bancos, o `run.bat` cria `gestnow` e `gestnow_teste`, aplica as migrações e sobe o app; na segunda vez, não recria nada.
+- [x] Com o serviço parado ou sem a variável de administração, o `run.bat` para com a instrução de como resolver, sem traceback.
+- [x] Um banco vazio sobe até a última migração sem erro, e o esquema resultante bate com os modelos (teste de migrações da spec).
+- [x] `/api/health` mostra o estado do banco e a revisão da migração.
+- [x] Os testes rodam no `gestnow_teste`, cada um isolado por transação desfeita.
+- [x] Nenhuma senha fica em arquivo versionado nem aparece na saída do `run.bat` ou dos testes.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -79,3 +79,14 @@ Pré-requisito do dono, antes da execução: Postgres instalado pelo instalador
 oficial e a variável `GESTNOW_PG_ADMIN_URL` criada (ver `PROMPT-EXECUCAO.md`).
 Dependências novas (`sqlalchemy`, `alembic` e o driver `psycopg`) entram no
 `pyproject` e no `requirements.txt`, como manda o Padrão.
+
+## Registro de execução
+
+- Decisão da execução (ISSUE-005), pendente de revisão do dono: o papel da aplicação chama-se `gestnow`, com a mesma senha da URL de administração; a URL da aplicação é gravada em `api/local.settings.json` (fora do git, o mesmo arquivo que o host do Functions lê) e carregada para o ambiente por `dev_local.py` e pelo `conftest` dos testes. A URL de administração é lida de forma tolerante: a senha é tudo o que fica antes do último `@` antes do host, aceitando caracteres especiais não codificados (a variável desta máquina tem `@` e `#` sem codificar); a URL gravada sai com a senha codificada. Anotado no Histórico de decisões da spec.
+- Decisão da execução (ISSUE-005), pendente de revisão do dono: os testes derivam a URL do banco de teste da URL da aplicação com o sufixo `_teste` e recriam o schema `public` pelas migrações a cada rodada, sem exigir a URL de administração nem privilégio de cluster; um guarda recusa qualquer URL de banco de teste que não termine em `_teste`, para nenhum teste tocar o `gestnow`. Anotado no Histórico de decisões da spec.
+- Decisão da execução (ISSUE-005), pendente de revisão do dono: a URL `postgresql://` é normalizada para `postgresql+psycopg://` no código, para a mesma variável valer no local e no Azure com o driver psycopg 3; o `/api/health` mantém `status` e ganha `banco: {situacao, revisao}` (banco fora do ar devolve `situacao: erro` sem derrubar a rota). Anotado no Histórico de decisões da spec.
+- Decisão da execução (ISSUE-005), pendente de revisão do dono: as tabelas da plataforma ficam em `api/src/core/models.py` e o projeto e os cadastros de apoio em `api/src/modulos/configuracoes/models.py`, conforme o dono de cada tabela no `MODELO-DE-DADOS.md`; o metadata do `Base` usa convenção de nomes de restrição para as migrações ficarem comparáveis com os modelos. Anotado no Histórico de decisões da spec.
+- Verificação: `scripts/prepare_database.py` criou o papel e os bancos na primeira execução (migração `0001_plataforma` aplicada) e, repetido, reportou "ja existia" sem recriar nada; o `run.bat` subiu o app duas vezes (portas 4282 e 4283) com `/api/health` devolvendo `{"banco":{"situacao":"ok","revisao":"0001"}}`; com `GESTNOW_PG_ADMIN_URL` ausente e com o serviço simulado como parado, o `run.bat` parou com a instrução, sem traceback.
+- Testes: `api/.venv/Scripts/python.exe -m pytest` — 6 testes passaram (migrações, esquema contra os modelos, isolamento por transação e `/api/health`).
+- Porta de qualidade: `npm run verificar` passou nas cinco etapas, sem regra desligada.
+- Divergência com o protótipo: nenhuma; esta issue não porta fórmula.

@@ -54,9 +54,9 @@ Este módulo é dono do versionamento e dos grupos gerais: financeiro, supriment
 | Derivação própria | Não há KPI próprio; cálculos permanecem nos módulos consumidores |
 | Regras de entrada | `validation.py` |
 | Exportação | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-003 |
+| Persistência | `models.py`; projeto e cadastros de apoio criados pela revisão `0001_plataforma` (ISSUE-005); plataforma em `src/core/models.py` |
 | Fragmentos | `api/src/templates/configuracoes/` |
 | Tela, estilo e comportamento | `app/_views/configuracoes/` e `app/paginas/configuracoes/` |
 | Testes | `api/tests/configuracoes/` |
 
-Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-076 a ISSUE-078 completam este documento e acrescentam testes de validação, acesso e versionamento.
+As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. As ISSUE-076 a ISSUE-078 completam este documento com rotas, telas, validação, versionamento e os testes de acesso.

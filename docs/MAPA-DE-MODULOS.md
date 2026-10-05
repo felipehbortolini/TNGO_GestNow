@@ -12,6 +12,8 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | Gráfico | `app/ds/graficos/<visual>.js` (biblioteca compartilhada, nas ISSUE-014 a ISSUE-016); aplicação e dados no `<tela>.js` do módulo; original de referência em `docs/referencia/graficos/` |
 | Fórmula ou cálculo | `api/src/modulos/<modulo>/calculations.py`; teste de fronteira em `api/tests/<modulo>/` |
 | Regra de fluxo | `api/src/modulos/<modulo>/service.py` e o teste correspondente em `api/tests/<modulo>/` |
+| Banco, sessão e URL de conexão | `api/src/core/database.py` (`GESTNOW_DATABASE_URL`) e `api/src/core/config.py` |
+| Tabela ou migração | `api/src/modulos/<modulo>/models.py` (tabelas de domínio), `api/src/core/models.py` e `api/src/modulos/configuracoes/models.py` (plataforma e cadastros); revisão nova em `api/migrations/versions/` |
 | Permissão | `api/src/modulos/<modulo>/service.py` e `api/src/core/rbac.py` (plataforma a chegar na ISSUE-011). A tela nunca é a autoridade de acesso |
 | Parâmetro | `api/src/modulos/configuracoes/` e a validação/consumo em `api/src/modulos/<modulo>/validation.py`; Configurações versiona o valor, o módulo consumidor valida seu domínio |
 | Exportação | `api/src/modulos/<modulo>/export.py`; exportador comum e impressão são introduzidos na ISSUE-017 |
@@ -43,4 +45,4 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 - Uma tela segue o mesmo identificador nas camadas: fragmento em `app/_views/<modulo>/<tela>.html`, CSS/JS em `app/paginas/<modulo>/<tela>.css` e `.js`, e fragmentos Jinja em `api/src/templates/<modulo>/`.
 - Rotas e fachadas ficam em `api/src/modulos/<modulo>/`; um módulo lê ou grava dados de outro somente pela fachada dona, nunca por acesso direto ao modelo.
 - O escopo dos dados é um projeto ou o Portfólio. “Ambiente” técnico significa implantação; o seletor multi-ambiente do app de origem não é portado.
-- A persistência não é implementada nesta issue. O modelo geral está nas ISSUE-003/004 e o Postgres nas issues seguintes.
+- A persistência nasceu na ISSUE-005: Postgres com SQLAlchemy 2, migrações Alembic por fatia de módulo e testes isolados no banco `gestnow_teste`. Cada módulo é dono das próprias tabelas e um módulo só lê ou grava tabela de outro pela fachada do dono (D5).

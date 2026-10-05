@@ -32,20 +32,26 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Rotas de plataforma | `api/src/blueprints/` | Saúde e navegação global |
 | Rotas e fachada de um módulo | `api/src/modulos/<modulo>/routes.py` e `service.py` | HTTP no blueprint; fluxo, permissões e integrações na fachada |
 | Fórmulas, validação e exportação | `api/src/modulos/<modulo>/calculations.py`, `validation.py`, `export.py` | Regra pura, entrada e saídas do módulo |
-| Modelos do módulo | `api/src/modulos/<modulo>/models.py` | Dono das entidades; stubs nesta issue, modelo completo nas ISSUE-003/004 |
+| Modelos do módulo | `api/src/modulos/<modulo>/models.py` | Dono das entidades; as tabelas de plataforma e dos cadastros nasceram na ISSUE-005, as de domínio em cada fatia de módulo |
 | LEIA-ME do módulo | `api/src/modulos/<modulo>/LEIA-ME.md` | Referência de manutenção sem depender do código ou de IA |
+| Sessão, base dos modelos e relatório do banco | `api/src/core/database.py` | `GESTNOW_DATABASE_URL`, engine SQLAlchemy, `Base` dos modelos e revisão da migração |
+| Configuração local | `api/src/core/config.py` | Carrega `api/local.settings.json` (fora do git) para o ambiente |
+| Modelos da plataforma | `api/src/core/models.py` | Cliente, sequência, auditoria, anexo e notificação |
+| Migrações Alembic | `api/migrations/` | Uma revisão por fatia de módulo, a partir de `0001_plataforma` |
 | Fragmentos de domínio | `api/src/templates/<modulo>/` | Jinja2 devolvido pelas rotas do módulo |
 | Fragmento da sidebar | `api/src/templates/nav/sidebar.html` | Navegação global do shell |
-| Testes | `api/tests/<modulo>/` | Testes de cálculo, serviço, integração e rota do módulo |
+| Testes | `api/tests/<modulo>/` e `api/tests/conftest.py` | Testes por módulo; o conftest recria `gestnow_teste` e isola cada teste numa transação |
 | Renderização de fragmentos | `api/src/core/responses.py` | `AlpineAjaxResponse` e gate Alpine AJAX |
 
-As pastas existem antes das funcionalidades. Rotas de módulo são blueprints sem endpoints até as respectivas issues; não há banco nem comportamento de negócio novo nesta fundação. Postgres começa na ISSUE-005.
+As pastas existem antes das funcionalidades. Rotas de módulo são blueprints sem endpoints até as respectivas issues. O Postgres nasceu na ISSUE-005: o `run.bat` prepara o banco local e as migrações por módulo são aplicadas na mesma fatia que cria as tabelas.
 
 ## Execução e qualidade
 
 | Procurando | Está em |
 |---|---|
 | Executar localmente | `run.bat` e `scripts/dev_local.py` |
+| Preparar o banco local (papel, bancos e migrações) | `scripts/prepare_database.py` e `GESTNOW_PG_ADMIN_URL` |
+| Rodar os testes | `api/.venv/Scripts/python.exe -m pytest` (dentro de `api/`) |
 | Instalar dependências | `scripts/instalar.ps1` |
 | Porta de qualidade | `npm run verificar` → `scripts/verificar.mjs` |
 | Verificações do Design System e estrutura | `scripts/verificar-padrao.mjs` |

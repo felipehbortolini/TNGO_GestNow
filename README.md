@@ -8,11 +8,13 @@ Sem bundler, sem etapa de build e sem CDN.
 
 ## Estado desta entrega
 
-O repositório contém o shell inicial do GestNow, a navegação lateral do Padrão e a estrutura documentada dos 12 módulos. As telas de demonstração e suas rotas foram removidas; a tela de Início permanece vazia. Os stubs ainda não implementam regras nem persistência de negócio; o modelo de dados e o preparo do Postgres chegam nas ISSUE-003 a ISSUE-005.
+O repositório contém o shell inicial do GestNow, a navegação lateral do Padrão e a estrutura documentada dos 12 módulos. As telas de demonstração e suas rotas foram removidas; a tela de Início permanece vazia. Os stubs de módulo ainda não implementam regras de negócio; o modelo de dados está em `docs/MODELO-DE-DADOS.md` e a camada de banco (Postgres com SQLAlchemy 2 e Alembic) nasceu na ISSUE-005.
 
 ## Rodar localmente
 
-Dê dois cliques em `run.bat`. Na primeira execução, ele cria `api/.venv`, instala as dependências da API e inicia `scripts/dev_local.py`. O app abre em `http://localhost:4280` e não depende do Azure Functions Core Tools.
+Pré-requisitos: PostgreSQL instalado pelo instalador oficial do Windows (serviço na porta 5432) e a variável de usuário `GESTNOW_PG_ADMIN_URL` com a URL de administração do banco. O passo a passo está em [`docs/issues/spec-migracao-gestnow/PROMPT-EXECUCAO.md`](docs/issues/spec-migracao-gestnow/PROMPT-EXECUCAO.md), item 2.
+
+Dê dois cliques em `run.bat`. Na primeira execução, ele cria `api/.venv`, instala as dependências da API, cria o papel `gestnow` e os bancos `gestnow` e `gestnow_teste`, grava a URL da aplicação em `api/local.settings.json` (fora do git), aplica as migrações e inicia `scripts/dev_local.py`. O app abre em `http://localhost:4280` e não depende do Azure Functions Core Tools. `/api/health` mostra o estado do banco e a revisão da migração.
 
 Também é possível escolher outra porta pelo terminal:
 
@@ -36,6 +38,12 @@ npm run verificar
 
 As cinco etapas obrigatórias são `ruff check`, `ruff format --check`, `ty check`, ESLint e as verificações do padrão Timenow. Nenhuma regra deve ser desligada para fazer a porta passar.
 
+Os testes rodam no banco `gestnow_teste`, recriado pelas migrações a cada execução; cada teste fica numa transação desfeita no fim:
+
+```powershell
+api\.venv\Scripts\python.exe -m pytest  # dentro de api/
+```
+
 ## Onde está o quê
 
 | Procurando | Está em |
@@ -46,6 +54,9 @@ As cinco etapas obrigatórias são `ruff check`, `ruff format --check`, `ty chec
 | Navegação e rota de saúde | `api/src/blueprints/` |
 | Templates da navegação | `api/src/templates/nav/` |
 | Servidor local sem Functions Core Tools | `scripts/dev_local.py` e `run.bat` |
+| Preparo do banco local | `scripts/prepare_database.py` |
+| Camada de banco e modelos | `api/src/core/database.py`, `api/src/core/models.py` e `api/migrations/` |
+| Testes e banco de teste | `api/tests/conftest.py` |
 | Padrões herdados e documentação | `docs/` |
 | Especificação e execução das issues | `docs/SPEC-MIGRACAO-GESTNOW.md` e `docs/issues/` |
 | Referências preservadas das fontes | `docs/referencia/` |

@@ -18,6 +18,10 @@ sys.path.insert(0, str(ROOT_DIR / "api"))
 
 import azure.functions as func  # noqa: E402
 
+from src.core.config import load_local_settings  # noqa: E402
+
+load_local_settings()
+
 from src.blueprints import health, nav  # noqa: E402
 
 DEMO_USER = {

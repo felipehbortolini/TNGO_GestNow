@@ -5,8 +5,11 @@ description = "Timenow GestNow — Azure SWA + Alpine.js with Python Azure Funct
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.18.0",
     "azure-functions>=2.2.0",
     "jinja2>=3.1.6",
+    "psycopg[binary]>=3.2.0",
+    "sqlalchemy>=2.0.0",
 ]
 # Removido em 13/08/2026: "httpx2>=2.9.1".
 # Nenhum código do projeto importa cliente HTTP, e o pacote (publicado em
@@ -17,9 +20,25 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.2",
     "ty>=0.0.69",
 ]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# pytest — as regras que o linter não vê
+#
+# O conftest recria o banco gestnow_teste pelas migrações e roda cada teste
+# dentro de uma transação desfeita no fim. Exige o Postgres local preparado
+# pelo run.bat e a variável GESTNOW_DATABASE_URL (gravada em
+# api/local.settings.json, fora do git).
+#
+#   api/.venv/Scripts/python.exe -m pytest
+# ═══════════════════════════════════════════════════════════════════════════
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
 
 [tool.azure-functions]
 # The directory where function_app.py lives (relative to project root).
