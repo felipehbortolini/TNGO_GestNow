@@ -709,12 +709,18 @@ def test_vinculo_cliente_com_perfil_de_gestor_abre_configuracoes(sessao_das_rota
 ROTAS_PUBLICAS_POR_NATUREZA = {"health"}
 
 
-def test_toda_rota_registrada_declara_a_politica_de_acesso() -> None:
+@pytest.fixture(scope="module")
+def funcoes_registradas() -> list:
+    """The functions the Azure Functions host would index; ``get_functions`` runs once per process."""
     import function_app
 
+    return function_app.app.get_functions()
+
+
+def test_toda_rota_registrada_declara_a_politica_de_acesso(funcoes_registradas: list) -> None:
     sem_politica = [
         funcao.get_function_name()
-        for funcao in function_app.app.get_functions()
+        for funcao in funcoes_registradas
         if funcao.get_function_name() not in ROTAS_PUBLICAS_POR_NATUREZA
         and not isinstance(
             funcao.get_user_function().__dict__.get(routing.ACCESS_ATTRIBUTE), Access
@@ -724,10 +730,10 @@ def test_toda_rota_registrada_declara_a_politica_de_acesso() -> None:
     assert sem_politica == []
 
 
-def test_a_assinatura_que_o_azure_functions_enxerga_de_cada_rota_e_so_o_req() -> None:
-    import function_app
-
-    for funcao in function_app.app.get_functions():
+def test_a_assinatura_que_o_azure_functions_enxerga_de_cada_rota_e_so_o_req(
+    funcoes_registradas: list,
+) -> None:
+    for funcao in funcoes_registradas:
         parametros = list(inspect.signature(funcao.get_user_function()).parameters)
         assert parametros == ["req"], funcao.get_function_name()
 
