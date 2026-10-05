@@ -19,6 +19,14 @@ Tokens, rampas e regras de uso. Referência de componentes em
 existiam nos dois primeiros com valores diferentes, e qual valia dependia da ordem
 de carga.
 
+A biblioteca de gráficos (`ds/graficos/`, D11) traz um quarto CSS, `graficos.css`,
+carregado pelo shell logo depois de `patterns.css`. Todas as classes dele começam
+com `.graf`, e ele não entra na verificação de colisão: essa verificação trata os
+`from`, `to` e `0%` de um `@keyframes` como seletores, e obrigaria as animações dos
+gráficos a morar em `tokens.css`. Cores, espaçamento e raio saem de `var(--token)`,
+como nos outros três. Uso em [COMPONENTES.md](COMPONENTES.md) e
+[styleguide-graficos.html](styleguide-graficos.html).
+
 ---
 
 ## Cor

@@ -240,6 +240,20 @@ estilo; fragmento nunca traz `<link>` nem `<script src>`.
 Design System não carregar, o app falha com mensagem visível em vez de servir
 uma tela sem estilo.
 
+**Biblioteca de gráficos** — `app/ds/graficos/`. Um arquivo por tipo de visual
+(curva S, Pareto, relógios...), em SVG e JavaScript puro, sobre um motor comum
+(dica, legenda, botões de ano, animação, cores lidas dos tokens). O gráfico nasce
+do elemento com `data-grafico` e `data-dados` que o servidor manda; nenhum
+fragmento traz `<script>`. Contrato e exemplo de cada visual em
+`docs/styleguide-graficos.html`.
+
+**Drill** — o aprofundamento de um gráfico de série temporal: os botões de ano
+filtram, o mês mostra o resumo das suas semanas e o clique no nome do mês abre as
+semanas. Resumir não é sempre somar: a quantidade do período soma, o acumulado
+fica com o último valor e a taxa (aderência) divide a soma do numerador pela soma
+do denominador. Por isso o servidor manda a quantidade de cada semana, nunca o
+percentual pronto.
+
 ---
 
 ## Backend

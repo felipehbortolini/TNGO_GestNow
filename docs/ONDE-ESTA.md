@@ -22,6 +22,9 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | CSS e JavaScript de página | `app/paginas/<modulo>/<tela>.css` e `.js` | Trio por tela (D3, ISSUE-010): vinculado em `app/index.html`, CSS escopado por `.pagina--<modulo>-<tela>` e só com tokens, JS registrado em `TN.paginas` (definido em `app/ds/ui.js`) |
 | Design System | `app/ds/` | `tokens.css`, `shell.css`, `patterns.css`, ícones, UI e assets |
 | Biblioteca de gráficos | `app/ds/graficos/` | Destino dos visuais portados nas ISSUE-014 a ISSUE-016 |
+| Motor dos gráficos: cores dos tokens, dica, legenda, botões de ano e montagem por `data-grafico` + `data-dados` | `app/ds/graficos/motor.js` e `graficos.css` | `TN.graficos` (`registrar`, `montarTudo`, `criar`); nenhuma cor no código; classes `.graf*` |
+| Agregação por período e drill ano, mês e semana | `app/ds/graficos/periodos.js` | Soma, último e razão por período; base de `curva-s-linha.js` e `curva-s-barra-linha.js` |
+| Styleguide dos gráficos | `docs/styleguide-graficos.html` e `docs/styleguide-graficos.js` | Cada visual com dados de exemplo, contrato de dados e uso; abre direto do disco |
 | Alpine.js e Alpine AJAX | `app/lib/` | Bibliotecas vendorizadas; não editar |
 | Barra lateral, trilho, roteador e escopo no navegador | `app/ds/shell.js` e `app/ds/shell.css` | Trilho de ícones (ISSUE-009), troca de tela por `/<modulo>/<tela>?projeto=`, `TN.escopo` e o mecanismo de inclusão no Portfólio |
 | Dica (tooltip) e hover das siglas | `app/ds/dica.js` e `.dica` em `app/ds/tokens.css` | `data-dica`, `data-dica-trilho` e o significado de sigla lido de `#glossario` |

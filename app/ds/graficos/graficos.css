@@ -1,0 +1,525 @@
+/* ============================================================
+   graficos/graficos.css — Estilo da biblioteca de gráficos
+
+   Tudo o que o JavaScript de graficos/*.js não desenha em SVG: moldura,
+   botões de ano, legenda, dica escura, e o miolo em HTML do Pareto, do
+   Comparativo de barras e dos Relógios. As cores dos traços e das barras
+   vêm dos tokens, lidos pelo JavaScript em tempo de execução (ver
+   graficos/motor.js); aqui só há var(--token).
+
+   Carrega pelo shell (index.html), nunca por fragmento. Todas as classes
+   começam com .graf para não colidir com tokens.css, shell.css e
+   patterns.css. As animações são deste arquivo; as que a biblioteca pega de
+   tokens.css (fadeIn) vêm de lá.
+
+   Origem do visual: docs/referencia/graficos/. A paleta da coletânea já é a
+   do Design System; onde o original usava um tom sem token (cinzas, brancos
+   translúcidos) entrou o token mais próximo.
+   ============================================================ */
+
+/* ============================================================
+   Moldura comum
+   O elemento [data-grafico] vira .graf (ver motor.js). A altura padrão é a
+   do quadro dos originais; `altura` no JSON a troca.
+   ============================================================ */
+.graf {
+  display: flex; flex-direction: column;
+  height: var(--graf-altura, 520px);
+  font-family: var(--font); color: var(--text-primary);
+}
+.graf--pareto { height: var(--graf-altura, 560px); }
+.graf--comparativo-barras, .graf--relogios { height: auto; }
+
+.graf__vazio {
+  margin: 0; padding: var(--space-xxl) var(--space-lg);
+  text-align: center; font-size: 13px; color: var(--text-secondary);
+}
+
+/* ---------- Barra de cima: botões de ano e legenda ----------
+   Os botões ficam no centro e a legenda à direita, por cima da barra, como no
+   original. Quando a tela é estreita demais para os dois lados (is-estreito,
+   marcado pelo JavaScript) ou não há botões (um ano só), a legenda entra no
+   fluxo: embaixo dos botões, ou sozinha à direita. */
+.graf__topo {
+  position: relative; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--neutro-100);
+}
+.graf__topo--sem-anos { justify-content: flex-end; }
+.graf__anos { display: flex; flex-wrap: wrap; gap: 6px; }
+.graf__ano {
+  border: none; border-radius: var(--r-sm); cursor: pointer;
+  padding: var(--space-xs) 14px;
+  background: var(--verde-50); color: var(--brand-title);
+  font-family: var(--font-label); font-size: 12px; font-weight: 600; letter-spacing: .4px;
+  transition: background .15s;
+}
+.graf__ano:hover { background: var(--verde-100); }
+.graf__ano.is-ativo { background: var(--brand-title); color: var(--branco); }
+.graf__ano:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+.graf__leg {
+  position: absolute; right: var(--space-md); top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 14px;
+}
+.graf__topo--sem-anos .graf__leg, .graf__topo.is-estreito .graf__leg {
+  position: static; transform: none; flex-wrap: wrap; gap: var(--space-xs) 14px;
+}
+.graf__topo.is-estreito .graf__leg { width: 100%; justify-content: center; }
+.graf__leg-item {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+.graf__leg-linha { display: inline-block; width: 20px; height: 3px; border-radius: 2px; }
+.graf__leg-linha.is-tracejada { height: 0; border-radius: 0; border-top: 2px dashed; }
+.graf__leg-barra { display: inline-block; width: 8px; height: 10px; border-radius: 2px; margin-right: 1px; }
+.graf__leg-barra + .graf__leg-linha { width: 14px; }
+
+/* ---------- Tela do SVG ---------- */
+.graf__tela { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.graf__svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  user-select: none;
+  animation: fadeIn .35s ease;
+}
+/* O redesenho por mudança de tamanho não repete a entrada. */
+.graf__svg--parado { animation: none; }
+.graf__mes { cursor: pointer; }
+.graf__mes:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+/* ---------- Dica escura ----------
+   Segue o ponteiro dentro da tela. É o mesmo balão escuro da .dica do
+   tokens.css, com linhas de valor em colunas. */
+.graf__tip {
+  position: absolute; z-index: 10; pointer-events: none;
+  min-width: 155px; max-width: 270px;
+  padding: 9px 11px; border-radius: var(--r-md);
+  background: var(--neutro-800); color: var(--branco);
+  font-size: 11px; line-height: 1.55; box-shadow: var(--shadow-hover);
+}
+.graf__tip[hidden] { display: none; }
+.graf__tip--larga { min-width: 210px; max-width: 300px; }
+.graf__tip-tit { font-size: 12px; }
+.graf__tip-div { margin: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--branco) 22%, transparent); }
+.graf__tip-linha { display: flex; justify-content: space-between; gap: 18px; }
+.graf__tip-rot { flex: 1; }
+.graf__tip-ponto { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; }
+.graf__tip--larga .graf__tip-linha { gap: 10px; }
+.graf__tip--larga .graf__tip-val { width: 52px; text-align: right; }
+.graf__tip-cab {
+  margin: 3px 0 4px; padding-bottom: 3px;
+  border-bottom: 1px solid color-mix(in srgb, var(--branco) 22%, transparent);
+  font-size: 10px; color: var(--neutro-300);
+}
+.graf__tip-cab .graf__tip-val { font-weight: 400; }
+
+/* ============================================================
+   Comparativo de barras entre períodos
+   ============================================================ */
+.graf-comp { display: grid; gap: 12px; padding: 18px 16px 16px; }
+.graf-comp__titulo-geral {
+  font-size: 23px; font-weight: 900; line-height: 1; letter-spacing: 1.7px;
+  text-transform: uppercase; color: var(--brand-title);
+}
+.graf-comp__pilha { display: grid; gap: 13px; }
+.graf-comp__painel {
+  display: grid; padding: 0 0 10px;
+  border-bottom: 2px solid color-mix(in srgb, var(--brand-title) 18%, transparent);
+}
+.graf-comp__painel:last-child { padding-bottom: 0; border-bottom: none; }
+.graf-comp__cab { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 0 11px; }
+.graf-comp__titulo {
+  font-size: 13px; font-weight: 900; line-height: 1.1; letter-spacing: .85px;
+  text-transform: uppercase; color: var(--brand-title);
+}
+.graf-comp__legenda { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; }
+.graf-comp__leg { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.graf-comp__ponto { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; }
+.graf-comp__leg-texto { font-size: 10px; font-weight: 700; line-height: 1; color: var(--text-secondary); }
+
+.graf-comp__linhas { display: grid; gap: 9px; align-items: center; }
+.graf-comp__linha { display: flex; align-items: center; gap: 9px; }
+.graf-comp__rotulo {
+  flex: 0 0 78px; width: 78px;
+  font-size: 11px; font-weight: 900; line-height: 1.15; letter-spacing: .8px;
+  text-transform: uppercase; overflow-wrap: break-word; color: var(--text-secondary);
+}
+.graf-comp__fundo { flex: 1 1 auto; min-width: 0; height: 46px; border-radius: 10px; background: var(--frio-50); overflow: hidden; }
+.graf-comp__trilho { display: flex; width: 100%; height: 100%; border-radius: 10px; overflow: hidden; }
+.graf-comp__seg {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 27px; height: 100%; padding: 0 3px; overflow: hidden;
+  border-right: 2px solid color-mix(in srgb, var(--branco) 72%, transparent);
+}
+.graf-comp__seg:last-child { border-right: none; }
+.graf-comp__seg-num {
+  font-size: 17px; font-weight: 900; line-height: 1; white-space: nowrap; color: var(--branco);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--neutro-800) 25%, transparent);
+}
+.graf-comp__total { flex: 0 0 43px; width: 43px; font-size: 20px; font-weight: 900; line-height: 1; text-align: right; color: var(--text-primary); }
+
+.graf-comp__deltas { display: grid; align-items: stretch; gap: 7px; width: 100%; min-height: 0; }
+.graf-comp__delta {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-width: 0; padding: 6px 3px; border-radius: var(--r-md);
+}
+.graf-comp__delta-rotulo {
+  width: 100%; font-size: 9px; font-weight: 900; line-height: 1; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary);
+}
+.graf-comp__delta-base { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; }
+.graf-comp__delta-icone {
+  flex: 0 0 20px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 11px; font-weight: 900; line-height: 1; color: var(--branco);
+}
+.graf-comp__delta-valor { font-size: 11px; font-weight: 900; line-height: 1; white-space: nowrap; }
+.graf-comp__delta.is-bom { background: var(--verde-soft); }
+.graf-comp__delta.is-bom .graf-comp__delta-icone { background: var(--verde-500); }
+.graf-comp__delta.is-bom .graf-comp__delta-valor { color: var(--verde-700); }
+.graf-comp__delta.is-ruim { background: color-mix(in srgb, var(--erro-500) 10%, transparent); }
+.graf-comp__delta.is-ruim .graf-comp__delta-icone { background: var(--erro-500); }
+.graf-comp__delta.is-ruim .graf-comp__delta-valor { color: var(--erro-700); }
+.graf-comp__delta.is-neutro { background: color-mix(in srgb, var(--frio-500) 11%, transparent); }
+.graf-comp__delta.is-neutro .graf-comp__delta-icone { background: var(--frio-500); }
+.graf-comp__delta.is-neutro .graf-comp__delta-valor { color: var(--frio-700); }
+
+/* ============================================================
+   Relógios de indicadores
+   O estado (.is-ok, .is-alerta, .is-erro, .is-neutro) só define --est; arco,
+   número, pílula e legenda leem dele.
+   ============================================================ */
+.graf-relogios { display: flex; flex-wrap: wrap; gap: var(--space-lg); }
+.graf-relogio {
+  flex: 1 1 260px; max-width: 320px;
+  padding: var(--space-lg) var(--space-xl);
+  background: var(--branco); border: 1px solid var(--borda);
+  border-radius: var(--r-md); box-shadow: var(--shadow);
+}
+.graf-relogio.is-ok { --est: var(--ok-500); }
+.graf-relogio.is-alerta { --est: var(--laranja-500); }
+.graf-relogio.is-erro { --est: var(--erro-500); }
+.graf-relogio.is-neutro { --est: var(--frio-500); }
+
+.graf-relogio__titulo { margin: 0 0 2px; font-size: 14px; font-weight: 600; letter-spacing: .3px; color: var(--brand-title); }
+.graf-relogio__sub { margin: 0 0 12px; font-size: 12px; color: var(--text-secondary); }
+.graf-relogio__corpo { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 4px 8px; }
+.graf-relogio__corpo > * { animation: graf-sobe .5s ease both; }
+.graf-relogio__corpo > :nth-child(2) { animation-delay: .08s; }
+.graf-relogio__corpo > :nth-child(3) { animation-delay: .16s; }
+
+.graf-relogio__mostrador { flex-shrink: 0; width: 140px; height: 140px; }
+.graf-relogio__miolo { fill: var(--branco); }
+.graf-relogio__trilho { stroke: var(--neutro-100); }
+.graf-relogio__arco { stroke: var(--est); }
+.graf-relogio__marca-meta { stroke: var(--text-primary); }
+.graf-relogio__valor { fill: var(--est); font-size: 25px; font-weight: 400; }
+.graf-relogio__meta-texto { fill: var(--text-secondary); font-size: 13px; }
+
+.graf-relogio__pilula-linha { display: flex; justify-content: center; }
+.graf-relogio__pilula {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 9999px;
+  font-family: var(--font-label); font-size: 12px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--est);
+  background: color-mix(in srgb, var(--est) 8%, var(--branco));
+  border: 1px solid color-mix(in srgb, var(--est) 45%, var(--branco));
+}
+.graf-relogio__pilula-ponto { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--est); }
+
+.graf-relogio__base { display: flex; align-items: stretch; gap: 6px; width: 100%; }
+.graf-relogio__leg { display: flex; flex-direction: column; flex: 1; gap: 5px; min-width: 0; }
+.graf-relogio__leg-linha {
+  display: flex; align-items: center; justify-content: space-between; flex: 1; padding: 5px 8px;
+  border-radius: var(--r-sm); background: var(--neutro-50); border: 1px solid var(--neutro-100);
+}
+.graf-relogio__leg-ponto { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; }
+.graf-relogio__leg-ponto.is-estado { background: var(--est); }
+.graf-relogio__leg-ponto.is-meta { background: var(--text-primary); }
+.graf-relogio__leg-rotulo { flex: 1; margin-left: 6px; font-size: 12px; color: var(--text-secondary); }
+.graf-relogio__leg-valor { font-size: 14px; font-weight: 600; letter-spacing: .3px; }
+.graf-relogio__leg-valor.is-estado { color: var(--est); }
+.graf-relogio__leg-valor.is-meta { color: var(--text-primary); }
+
+.graf-relogio__delta {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  flex-shrink: 0; width: 72px; padding: 0 var(--space-xs); border-radius: var(--r-md);
+  color: var(--delta);
+  background: color-mix(in srgb, var(--delta) 8%, var(--branco));
+  border: 1px solid color-mix(in srgb, var(--delta) 45%, var(--branco));
+}
+.graf-relogio__delta.is-bom { --delta: var(--ok-500); }
+.graf-relogio__delta.is-ruim { --delta: var(--erro-500); }
+.graf-relogio__delta-icone { font-size: 16px; }
+.graf-relogio__delta-rotulo {
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: .6px;
+  text-align: center; text-transform: uppercase;
+}
+.graf-relogio__delta-numero { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+
+/* ============================================================
+   Pareto
+   Tamanho de fonte, espaço e traço são múltiplos de --u, a unidade que
+   pareto.js calcula pelo tamanho do gráfico (--graf-u). Os trechos que o
+   original escondia em janela estreita ou baixa estão no fim da seção, por
+   atributo data-faixa-larg / data-faixa-alt.
+   ============================================================ */
+.graf-pareto {
+  --u: var(--graf-u, 8px);
+  --gl: max(calc(var(--u) * 7.2), 30px);
+  --gr: max(calc(var(--u) * 7.4), 30px);
+  --pt: calc(var(--u) * 5.6);
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+  padding: calc(var(--u) * 1.5) calc(var(--u) * 1.2);
+}
+
+/* Cabeçalho: título e cartões */
+.graf-pareto__cab { display: flex; align-items: flex-start; flex: 0 0 auto; gap: calc(var(--u) * 1.8); }
+.graf-pareto__tit { flex: 1 1 auto; min-width: 0; }
+.graf-pareto__eb {
+  font-family: var(--font-label); font-size: calc(var(--u) * 1.8); font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; white-space: nowrap; color: var(--verde-500);
+}
+.graf-pareto__h1 {
+  margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 4); font-weight: 600; line-height: 1.1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--brand-title);
+}
+.graf-pareto__sb {
+  margin-top: calc(var(--u) * .4); font-size: calc(var(--u) * 1.85);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary);
+}
+.graf-pareto__fio {
+  width: calc(var(--u) * 9.6); height: calc(var(--u) * .5); margin-top: calc(var(--u) * .9);
+  border-radius: 9999px; background: var(--verde-500);
+}
+.graf-pareto__kpis { display: flex; flex: 1 1 auto; max-width: 62%; gap: calc(var(--u) * 1.2); }
+.graf-pareto__kpi {
+  flex: 1 1 0; min-width: 0; padding: calc(var(--u) * 1.4) calc(var(--u) * 1.7);
+  border-top: calc(var(--u) * .5) solid; border-radius: calc(var(--u) * .8);
+  background: var(--branco); box-shadow: var(--shadow);
+}
+.graf-pareto__kpi-rot {
+  font-family: var(--font-label); font-size: calc(var(--u) * 1.4); font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--verde-500);
+}
+.graf-pareto__kpi-val { margin-top: calc(var(--u) * .4); font-size: calc(var(--u) * 4.2); font-weight: 600; line-height: 1.2; }
+.graf-pareto__kpi-sub {
+  font-size: calc(var(--u) * 1.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary);
+}
+
+/* Frase de leitura */
+.graf-pareto__frase {
+  display: flex; align-items: center; flex: 0 0 auto; gap: calc(var(--u) * 1.1);
+  margin-top: calc(var(--u) * 1.4); font-size: calc(var(--u) * 2);
+}
+.graf-pareto__frase > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-pareto__frase b { font-weight: 600; }
+.graf-pareto__frase-ponto {
+  flex: 0 0 auto; width: calc(var(--u) * 1.2); height: calc(var(--u) * 1.2);
+  border-radius: 50%; background: var(--laranja-500);
+}
+
+/* Área do gráfico: eixos, zona vital, barras e curva */
+.graf-pareto__plot { position: relative; flex: 1 1 auto; min-height: 0; margin-top: calc(var(--u) * 1.2); }
+.graf-pareto__area { position: absolute; left: var(--gl); right: var(--gr); top: var(--pt); bottom: 0; }
+.graf-pareto__grade { position: absolute; left: 0; right: 0; border-top: 1px solid var(--neutro-100); }
+.graf-pareto__grade.is-base { border-top-width: 2px; }
+.graf-pareto__eixo-esq, .graf-pareto__eixo-dir {
+  position: absolute; transform: translateY(50%);
+  font-size: calc(var(--u) * 1.8); font-weight: 600; line-height: 1; white-space: nowrap;
+}
+.graf-pareto__eixo-esq { right: calc(100% + var(--u) * 1.3); color: var(--neutro-400); }
+.graf-pareto__eixo-dir { left: calc(100% + var(--u) * 1.3); color: var(--verde-500); }
+.graf-pareto__titulo-eixo {
+  position: absolute; top: 50%; writing-mode: vertical-rl;
+  font-family: var(--font-label); font-size: calc(var(--u) * 1.5); font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.graf-pareto__titulo-eixo.is-esq { left: 0; transform: translateY(-50%) rotate(180deg); color: var(--neutro-400); }
+.graf-pareto__titulo-eixo.is-dir { right: 0; transform: translateY(-50%); color: var(--verde-500); }
+
+.graf-pareto__zona {
+  position: absolute; left: 0; top: calc(-1 * var(--pt)); bottom: 0; overflow: hidden;
+  border-radius: calc(var(--u) * 1.2); background: linear-gradient(var(--verde-soft), transparent);
+}
+.graf-pareto__zona::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: calc(var(--u) * 15);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--branco) 67%, transparent), transparent);
+  animation: graf-varre 4.5s ease-in-out 1.6s infinite;
+}
+.graf-pareto__zona-rotulo {
+  position: absolute; left: 0; top: 0; padding: calc(var(--u) * .45) calc(var(--u) * 1.3);
+  border-radius: 9999px; background: var(--verde-500); color: var(--branco);
+  font-family: var(--font-label); font-size: calc(var(--u) * 1.5); font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.graf-pareto__divisa {
+  position: absolute; top: calc(-1 * var(--pt)); bottom: 0; width: 2px; opacity: .8;
+  background: repeating-linear-gradient(180deg, var(--laranja-500) 0 8px, transparent 8px 15px);
+  animation: graf-desce 1.4s linear infinite;
+}
+.graf-pareto__corte {
+  position: absolute; left: 0; right: 0; height: 2px; opacity: .85;
+  background: repeating-linear-gradient(90deg, var(--laranja-500) 0 11px, transparent 11px 19px);
+  animation: graf-corre 1.4s linear infinite;
+}
+.graf-pareto__corte-selo {
+  position: absolute; right: 0; transform: translateY(50%);
+  padding: calc(var(--u) * .3) var(--u); border-radius: calc(var(--u) * .8);
+  background: var(--laranja-500); color: var(--branco);
+  font-size: calc(var(--u) * 1.7); font-weight: 600; line-height: 1.3;
+}
+
+.graf-pareto__colunas { position: absolute; inset: 0; display: flex; align-items: flex-end; }
+.graf-pareto__coluna {
+  position: relative; flex: 1 1 0; min-width: 0; height: 100%;
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+}
+.graf-pareto__pilha {
+  position: relative; z-index: 1; display: flex; flex-direction: column;
+  width: 58%; min-width: 3px; max-width: calc(var(--u) * 11.2); overflow: hidden;
+  border-radius: var(--u) var(--u) 0 0; box-shadow: var(--shadow-hover);
+  transform-origin: 50% 100%;
+  animation: graf-cresce .8s cubic-bezier(.17, .84, .28, 1) var(--graf-atraso, 0ms) both;
+}
+.graf-pareto__trecho {
+  display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden;
+  font-size: calc(var(--u) * 1.55); font-style: normal; font-weight: 600; line-height: 1; color: var(--branco);
+}
+.graf-pareto__trecho + .graf-pareto__trecho { box-shadow: inset 0 1.6px 0 var(--branco); }
+
+.graf-pareto__valor {
+  position: absolute; z-index: 4; left: 50%; transform: translateX(-50%);
+  margin-bottom: calc(var(--u) * 1.4);
+  font-size: calc(var(--u) * 2.7); font-weight: 600; line-height: 1; white-space: nowrap;
+  text-shadow: 0 0 4px var(--branco), 0 0 4px var(--branco), 0 0 8px var(--branco);
+  animation: fadeIn .5s ease-out var(--graf-atraso, 0ms) both;
+}
+.graf-pareto__valor.is-dentro { color: var(--brand-title); }
+.graf-pareto__valor.is-fora { color: var(--text-secondary); }
+.graf-pareto__pilula {
+  position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
+  margin-bottom: calc(var(--u) * 1.6); padding: calc(var(--u) * .35) var(--u);
+  border: 1.4px solid; border-radius: 9999px;
+  font-size: calc(var(--u) * 1.7); font-weight: 600; line-height: 1.25; white-space: nowrap;
+  animation: fadeIn .5s ease-out var(--graf-atraso, 0ms) both;
+}
+.graf-pareto__pilula.is-alta { margin-bottom: calc(var(--u) * 5.4); }
+.graf-pareto__pilula.is-dentro { background: var(--brand-title); border-color: var(--brand-title); color: var(--branco); }
+.graf-pareto__pilula.is-fora { background: var(--branco); border-color: var(--neutro-200); color: var(--text-secondary); }
+.graf-pareto__ponto {
+  position: absolute; z-index: 3; left: 50%; transform: translate(-50%, 50%);
+  width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8);
+  border: calc(var(--u) * .3) solid var(--brand-title); border-radius: 50%;
+  animation: graf-pop .5s cubic-bezier(.2, 1.5, .4, 1) var(--graf-atraso, 0ms) both;
+}
+.graf-pareto__ponto.is-dentro { background: var(--brand-title); }
+.graf-pareto__ponto.is-fora { background: var(--branco); }
+.graf-pareto__ponto.is-corte { border-color: var(--laranja-500); }
+.graf-pareto__halo {
+  position: absolute; z-index: 2; left: 50%; transform: translate(-50%, 50%);
+  width: calc(var(--u) * 2); height: calc(var(--u) * 2);
+  border: 3px solid var(--laranja-500); border-radius: 50%;
+  animation: graf-halo 2.2s ease-out 2s infinite;
+}
+.graf-pareto__guia {
+  position: absolute; z-index: 0; left: 50%; transform: translateX(-50%); width: 2px; opacity: .45;
+  background: repeating-linear-gradient(180deg, var(--brand-title) 0 3px, transparent 3px 8px);
+  animation: fadeIn .5s ease-out var(--graf-atraso, 0ms) both;
+}
+
+.graf-pareto__curva { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.graf-pareto__curva-fundo { stroke: var(--branco); stroke-opacity: .92; stroke-width: calc(var(--u) * .9); }
+.graf-pareto__curva-linha {
+  stroke-width: calc(var(--u) * .45); stroke-dasharray: 6000;
+  animation: graf-risca 1.5s cubic-bezier(.3, .7, .2, 1) .55s both;
+}
+
+/* Nomes das categorias e legenda dos status */
+.graf-pareto__x { display: flex; flex: 0 0 auto; padding: var(--u) var(--gr) 0 var(--gl); }
+.graf-pareto__xc {
+  flex: 1 1 0; min-width: 0; padding: 0 calc(var(--u) * .3); text-align: center;
+  animation: fadeIn .5s ease-out var(--graf-atraso, 0ms) both;
+}
+.graf-pareto__xu {
+  width: 58%; max-width: calc(var(--u) * 11.2); height: calc(var(--u) * .42);
+  margin: 0 auto calc(var(--u) * .8); border-radius: 9999px;
+}
+.graf-pareto__xc.is-dentro .graf-pareto__xu { background: var(--verde-500); }
+.graf-pareto__xc.is-fora .graf-pareto__xu { background: var(--neutro-200); }
+.graf-pareto__xn {
+  max-height: calc(var(--u) * 1.7 * 1.14 * 2); overflow: hidden;
+  font-size: calc(var(--u) * 1.7); font-weight: 600; line-height: 1.14; overflow-wrap: break-word;
+}
+.graf-pareto__xc.is-dentro .graf-pareto__xn { color: var(--brand-title); }
+.graf-pareto__xc.is-fora .graf-pareto__xn { color: var(--text-secondary); }
+.graf-pareto__xs {
+  font-size: calc(var(--u) * 1.45); font-weight: 600; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--neutro-400);
+}
+.graf-pareto__leg { display: flex; align-items: flex-start; flex: 0 0 auto; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.1) var(--gr) 0 var(--gl); }
+.graf-pareto__leg-item { display: flex; flex: 1 1 0; min-width: 0; gap: calc(var(--u) * .8); }
+.graf-pareto__leg-cor {
+  flex: 0 0 auto; width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6);
+  margin-top: calc(var(--u) * .3); border-radius: calc(var(--u) * .4);
+}
+.graf-pareto__leg-txt { min-width: 0; }
+.graf-pareto__leg-nome {
+  font-size: calc(var(--u) * 1.85); font-weight: 600; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-pareto__leg-val { font-size: calc(var(--u) * 1.6); line-height: 1.4; white-space: nowrap; color: var(--text-secondary); }
+
+/* O que o original esconde em janela estreita ou baixa */
+.graf-pareto[data-faixa-larg~="900"] .graf-pareto__titulo-eixo,
+.graf-pareto[data-faixa-larg~="900"] .graf-pareto__kpi--4 { display: none; }
+.graf-pareto[data-faixa-larg~="900"] .graf-pareto__kpis { max-width: 52%; }
+.graf-pareto[data-faixa-larg~="680"] .graf-pareto__kpi--3 { display: none; }
+.graf-pareto[data-faixa-larg~="622"] .graf-pareto__trecho { font-size: 0; }
+.graf-pareto[data-faixa-larg~="622"] .graf-pareto__zona-rotulo { display: none; }
+.graf-pareto[data-faixa-larg~="480"] .graf-pareto__kpis,
+.graf-pareto[data-faixa-larg~="480"] .graf-pareto__leg-val,
+.graf-pareto[data-faixa-larg~="480"] .graf-pareto__xs { display: none; }
+.graf-pareto[data-faixa-larg~="434"] .graf-pareto__pilula,
+.graf-pareto[data-faixa-larg~="434"] .graf-pareto__guia { display: none; }
+.graf-pareto[data-faixa-larg~="280"] .graf-pareto__valor { display: none; }
+.graf-pareto[data-faixa-alt~="520"] .graf-pareto__sb { display: none; }
+.graf-pareto[data-faixa-alt~="520"] .graf-pareto__frase { margin-top: calc(var(--u) * .8); }
+.graf-pareto[data-faixa-alt~="400"] .graf-pareto__frase,
+.graf-pareto[data-faixa-alt~="400"] .graf-pareto__kpi-sub,
+.graf-pareto[data-faixa-alt~="400"] .graf-pareto__xs { display: none; }
+.graf-pareto[data-faixa-alt~="300"] .graf-pareto__leg,
+.graf-pareto[data-faixa-alt~="300"] .graf-pareto__fio { display: none; }
+
+/* ============================================================
+   Animações
+   ============================================================ */
+@keyframes graf-cresce { 0% { transform: scaleY(0); } 100% { transform: scaleY(1); } }
+@keyframes graf-pop {
+  0% { transform: translate(-50%, 50%) scale(0); }
+  100% { transform: translate(-50%, 50%) scale(1); }
+}
+@keyframes graf-risca { 0% { stroke-dashoffset: 6000; } 100% { stroke-dashoffset: 0; } }
+@keyframes graf-halo {
+  0% { opacity: .7; transform: translate(-50%, 50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, 50%) scale(3.4); }
+}
+@keyframes graf-desce { 0% { background-position: 0 0; } 100% { background-position: 0 15px; } }
+@keyframes graf-corre { 0% { background-position: 0 0; } 100% { background-position: 19px 0; } }
+@keyframes graf-varre { 0% { left: -25%; } 100% { left: 115%; } }
+@keyframes graf-sobe {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Sem animação: o estado-base de cada elemento já é o final, então basta
+   desligar. Vale para o pedido da pessoa (prefers-reduced-motion) e para
+   data-animar="nao" (a biblioteca põe .graf--parado; ver motor.js). */
+.graf--parado *, .graf--parado *::after { animation: none; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .graf *, .graf *::after { animation: none; transition: none; }
+}
+/* No papel o gráfico já sai no estado final (ISSUE-017). */
+@media print {
+  .graf *, .graf *::after { animation: none; transition: none; }
+}

@@ -12,6 +12,7 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | Comportamento de uma tela (JavaScript da página) | `app/paginas/<modulo>/<tela>.js`: registra `TN.paginas["<modulo>/<tela>"]` com `iniciar(raiz)`, acionado pelo `x-init` da view |
 | Estilo de uma tela | `app/paginas/<modulo>/<tela>.css`; regra comum do Design System fica em `app/ds/tokens.css`, `shell.css` ou `patterns.css`, conforme `docs/ONDE-ESTA.md` |
 | Gráfico | `app/ds/graficos/<visual>.js` (biblioteca compartilhada, nas ISSUE-014 a ISSUE-016); aplicação e dados no `<tela>.js` do módulo; original de referência em `docs/referencia/graficos/` |
+| O que o servidor manda para um gráfico (`data-grafico` + `data-dados`) | Contrato e exemplo de cada visual em `docs/styleguide-graficos.html`; o servidor manda quantidades e o gráfico soma, acumula ou divide por período (`app/ds/graficos/periodos.js`) |
 | Fórmula ou cálculo | `api/src/modulos/<modulo>/calculations.py`; teste de fronteira em `api/tests/<modulo>/` |
 | Regra de fluxo | `api/src/modulos/<modulo>/service.py` e o teste correspondente em `api/tests/<modulo>/` |
 | Banco, sessão e URL de conexão | `api/src/core/database.py` (`GESTNOW_DATABASE_URL`) e `api/src/core/config.py` |

@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Styleguide dos gráficos</title>
+    <link rel="icon" type="image/png" href="../app/ds/assets/favicon-timenow.png" />
+
+    <!-- Carrega o Design System e a biblioteca do próprio app, por caminho
+         relativo: abrir este arquivo direto do disco já mostra os gráficos.
+         Visual novo (ISSUE-015 e 016): o script dele entra na lista abaixo e
+         uma seção entra na página. -->
+    <link rel="stylesheet" href="../app/ds/tokens.css" />
+    <link rel="stylesheet" href="../app/ds/shell.css" />
+    <link rel="stylesheet" href="../app/ds/patterns.css" />
+    <link rel="stylesheet" href="../app/ds/graficos/graficos.css" />
+
+    <style>
+      /* Só o que é desta página de documentação; tudo por token. */
+      .sg-nav { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: 0 0 var(--space-xl); padding: 0; list-style: none; }
+      .sg-nav a {
+        display: inline-block; padding: var(--space-xs) var(--space-md); border-radius: 9999px;
+        background: var(--verde-50); color: var(--brand-title);
+        font-size: 13px; font-weight: 600; text-decoration: none;
+      }
+      .sg-nav a:hover { background: var(--verde-100); }
+      .sg-intro { padding: var(--space-lg) var(--space-xl); font-size: 13px; line-height: 1.6; }
+      .sg-intro h2 { margin-bottom: var(--space-sm); }
+      .sg-intro ul { margin: var(--space-sm) 0 0; padding-left: var(--space-xl); }
+      .sg-intro li + li { margin-top: var(--space-xs); }
+      .sg-secao { margin-top: var(--space-xxl); }
+      .sg-secao__cab { margin-bottom: var(--space-lg); }
+      .sg-secao__uso, .sg-dica { margin: var(--space-xs) 0 0; font-size: 13px; color: var(--text-secondary); }
+      .sg-dica { margin-top: var(--space-sm); }
+      .sg-quadro { overflow: hidden; }
+      .sg-quadro--estreito { max-width: 640px; }
+      .sg-detalhes { margin-top: var(--space-lg); border: 1px solid var(--borda); border-radius: var(--r-md); background: var(--branco); }
+      .sg-detalhes > summary { padding: var(--space-md) var(--space-lg); font-weight: 600; color: var(--brand-title); cursor: pointer; }
+      .sg-detalhes__corpo { padding: 0 var(--space-lg) var(--space-lg); font-size: 13px; line-height: 1.6; }
+      .sg-detalhes__corpo p { margin: var(--space-md) 0 var(--space-sm); }
+      .sg-rolagem { overflow-x: auto; }
+      .sg-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .sg-tabela th, .sg-tabela td { padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--neutro-100); text-align: left; vertical-align: top; }
+      .sg-tabela th {
+        background: var(--neutro-50); color: var(--text-secondary);
+        font-family: var(--font-label); font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+      }
+      .sg-tabela--num td:not(:first-child), .sg-tabela--num th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+      .sg-tabela tr.sg-total td { background: var(--neutro-50); font-weight: 600; }
+      .sg-tabela tr.sg-errado td { color: var(--erro-700); }
+      .sg-tabela tr.sg-certo td { color: var(--ok-800); font-weight: 600; }
+      .sg-codigo {
+        margin: 0; padding: var(--space-md) var(--space-lg); overflow-x: auto;
+        border: 1px solid var(--neutro-100); border-radius: var(--r-md); background: var(--neutro-50);
+        font: 12px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+      }
+      .sg-amostra { display: inline-block; width: 28px; height: 16px; border: 1px solid var(--borda); border-radius: var(--r-sm); vertical-align: middle; }
+      .sg-nota { margin: var(--space-xl) 0 0; font-size: 13px; color: var(--text-secondary); }
+      code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; }
+    </style>
+
+    <script defer src="../app/ds/icons.js"></script>
+    <script defer src="../app/ds/ui.js"></script>
+    <script defer src="../app/ds/graficos/motor.js"></script>
+    <script defer src="../app/ds/graficos/periodos.js"></script>
+    <script defer src="../app/ds/graficos/curva-s-linha.js"></script>
+    <script defer src="../app/ds/graficos/curva-s-barra-linha.js"></script>
+    <script defer src="../app/ds/graficos/comparativo-barras.js"></script>
+    <script defer src="../app/ds/graficos/pareto.js"></script>
+    <script defer src="../app/ds/graficos/relogios.js"></script>
+    <script defer src="styleguide-graficos.js"></script>
+  </head>
+
+  <body>
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <h1 class="h-dash">Styleguide dos gráficos</h1>
+          <p class="page-head__sub">
+            Biblioteca de gráficos do Design System (<code>app/ds/graficos/</code>): SVG e JavaScript puro, sem
+            dependência externa. Os números desta página são de exemplo e fictícios.
+          </p>
+        </div>
+      </div>
+
+      <noscript><p class="aviso aviso--warn">Esta página precisa de JavaScript para desenhar os gráficos.</p></noscript>
+
+      <ul class="sg-nav" aria-label="Visuais">
+        <li><a href="#curva-s-linha">Curva S Linha</a></li>
+        <li><a href="#curva-s-barra-linha">Curva S Barra e Linha</a></li>
+        <li><a href="#comparativo-barras">Comparativo de barras</a></li>
+        <li><a href="#pareto">Pareto</a></li>
+        <li><a href="#relogios">Relógios de indicadores</a></li>
+        <li><a href="#agregacao">Agregação por período</a></li>
+        <li><a href="#cores">Papéis de cor</a></li>
+        <li><a href="#conferencias">Conferências</a></li>
+      </ul>
+
+      <div class="card sg-intro">
+        <h2 class="h-card4">Como um gráfico entra numa tela</h2>
+        <ul>
+          <li>
+            O fragmento do servidor traz só o elemento, <strong>nunca um <code>&lt;script&gt;</code></strong>:
+            <code>data-grafico</code> diz o tipo e <code>data-dados</code> leva o JSON.
+          </li>
+          <li>
+            No Jinja, o atributo vai entre <strong>aspas simples</strong> (<code>tojson</code> não escapa aspas
+            duplas) ou com <code>| tojson | forceescape</code>.
+          </li>
+          <li>
+            O motor (<code>motor.js</code>, carregado pelo shell) vê o elemento chegar, desenha, e redesenha se o
+            <code>data-dados</code> mudar ou a tela mudar de tamanho. Pelo JavaScript da tela:
+            <code>TN.graficos.criar("pareto", elemento, dados)</code>.
+          </li>
+          <li>
+            O servidor manda <strong>quantidades</strong>; o gráfico soma, acumula ou divide por período (ver
+            Agregação). Texto de interface (Todos, Atual, Meta...) tem padrão em português e o servidor troca por
+            <code>rotulos</code> no JSON.
+          </li>
+          <li>
+            <strong>Nenhuma cor no código.</strong> Traços e barras usam <em>papéis</em> (<code>realizado</code>,
+            <code>previsto</code>, <code>erro</code>...) ou o nome de um token (<code>--roxo-500</code>), lidos do
+            <code>:root</code> na hora de desenhar. O resto é <code>var(--token)</code> em <code>graficos.css</code>.
+          </li>
+          <li>
+            <code>data-animar="nao"</code> no elemento (ou <code>prefers-reduced-motion</code>) desliga a animação de
+            entrada. Aqui, <code>?animar=nao</code> na URL desliga em todos.
+          </li>
+          <li>
+            Para acrescentar um visual: o arquivo <code>app/ds/graficos/&lt;visual&gt;.js</code> chama
+            <code>TN.graficos.registrar(tipo, fabrica)</code>; o script entra no bloco da biblioteca de
+            <code>app/index.html</code> e nesta página, com uma seção copiada de uma existente e um item no índice.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ===== Curva S Linha ===== -->
+      <section class="sg-secao" id="curva-s-linha">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Curva S Linha</h2>
+          <p class="sg-secao__uso">
+            Curva S física e financeira, avanço da programação e Curva S do MAS. Original:
+            <code>docs/referencia/graficos/Curva S Linha.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="curva-s-linha" data-exemplo="curva-s-linha"></div>
+        </div>
+        <p class="sg-dica">
+          Clique no nome de um mês (ou use Enter) para abrir as semanas e de novo para fechar; os botões de ano filtram;
+          passe o ponteiro para a dica. Este exemplo manda o acumulado (<code>modo: "acumulado"</code>), o realizado
+          para na semana 39 e a tendência sai dele.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <p>Este contrato é o das duas curvas (<code>periodos.js</code>).</p>
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr>
+                    <td><code>modo</code></td>
+                    <td><code>"periodo"</code> (padrão) ou <code>"acumulado"</code></td>
+                    <td>O que <code>valores</code> quer dizer: a quantidade da semana ou o acumulado até ela. O motor deriva o outro.</td>
+                  </tr>
+                  <tr>
+                    <td><code>formato</code></td>
+                    <td><code>"pct"</code> (padrão) ou <code>"numero"</code></td>
+                    <td><code>pct</code>: eixo de 0 a 100, que só cresce se o dado passar de 100. <code>numero</code>: escala livre com passos redondos.</td>
+                  </tr>
+                  <tr>
+                    <td><code>unidade</code>, <code>casas</code>, <code>casas_dica</code></td>
+                    <td>texto, inteiros</td>
+                    <td>Sufixo dos valores (<code>%</code> em <code>pct</code>), casas dos rótulos e casas da dica (1 na Linha, 2 na Barra e Linha).</td>
+                  </tr>
+                  <tr><td><code>eixo_max</code></td><td>número</td><td>Força o topo do eixo.</td></tr>
+                  <tr>
+                    <td><code>series</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>papel</code> (ou <code>cor</code>), <code>traco</code> (<code>"6,4"</code>),
+                      <code>largura</code>, <code>raio</code>, <code>destaque</code> (linha que se desenha na entrada e leva as etiquetas),
+                      <code>tipo</code> (<code>"valor"</code> ou <code>"razao"</code>). Sem estilo, o papel define o traço.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>periodos</code></td>
+                    <td>lista</td>
+                    <td>
+                      Uma semana por item: <code>ano</code>, <code>mes</code> (1 a 12), <code>semana</code> (número; <code>rotulo</code> troca o "S39")
+                      e <code>valores</code> por <code>id</code> de série; nulo é o que ainda não aconteceu. A que mês a semana
+                      pertence é decisão do servidor (calendário da plataforma). Série <code>"razao"</code>: cada semana traz
+                      <code>{ "num": 18, "den": 20 }</code>.
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>todos</code>, <code>ano</code>, <code>periodo</code>, <code>acumulado</code>, <code>vazio</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 520).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="curva-s-linha" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="curva-s-linha"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Curva S Barra e Linha ===== -->
+      <section class="sg-secao" id="curva-s-barra-linha">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Curva S Barra e Linha</h2>
+          <p class="sg-secao__uso">
+            Desembolso previsto x realizado, contratação acumulada, avanço por período com acumulado. Original:
+            <code>docs/referencia/graficos/Curva S Barra e Linha.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="curva-s-barra-linha" data-exemplo="curva-s-barra-linha"></div>
+        </div>
+        <p class="sg-dica">
+          As barras são o avanço do período (a semana, ou a soma no mês fechado) e as linhas, o acumulado (no mês
+          fechado, o último). A dica mostra as duas colunas. Este exemplo manda só a quantidade da semana
+          (<code>modo: "periodo"</code>) e o acumulado sai da soma corrida.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <p>O mesmo da Curva S Linha. Série <code>"razao"</code> aparece só como linha, sem barra.</p>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="curva-s-barra-linha" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="curva-s-barra-linha"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Comparativo de barras entre períodos ===== -->
+      <section class="sg-secao" id="comparativo-barras">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Comparativo de barras entre períodos</h2>
+          <p class="sg-secao__uso">
+            Avanço por período, real x previsto, comparação entre meses. Original:
+            <code>docs/referencia/graficos/Comparativo de Barras Entre periodos.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro sg-quadro--estreito">
+          <div data-grafico="comparativo-barras" data-exemplo="comparativo-barras"></div>
+        </div>
+        <p class="sg-dica">
+          Duas barras empilhadas por painel (a referência e a posição atual) e, entre elas, a variação de cada categoria:
+          verde se favorável, vermelho se não.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Título geral, opcional.</td></tr>
+                  <tr>
+                    <td><code>paineis</code></td>
+                    <td>lista</td>
+                    <td>Cada painel tem <code>titulo</code>, <code>categorias</code> e <code>linhas</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>categorias</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>papel</code> (ou <code>cor</code>) e <code>favoravel</code>:
+                      <code>"sobe"</code> se subir é bom, <code>"desce"</code> se cair é bom. Sem <code>favoravel</code> a
+                      variação fica neutra.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista de duas</td>
+                    <td>
+                      <code>rotulo</code> e <code>valores</code> por <code>id</code> de categoria. A primeira é a referência; a
+                      segunda, a posição atual. A variação é (atual − referência) ÷ referência; categoria zerada na referência
+                      não tem variação.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="comparativo-barras" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="comparativo-barras"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Pareto ===== -->
+      <section class="sg-secao" id="pareto">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Pareto</h2>
+          <p class="sg-secao__uso">
+            Pareto de RNC, de origem de mudanças e de motivos de parada. Original:
+            <code>docs/referencia/graficos/Pareto.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="pareto" data-exemplo="pareto"></div>
+        </div>
+        <p class="sg-dica">
+          Barras em ordem decrescente, empilhadas por status, com a curva do percentual acumulado e a zona vital (as
+          categorias que reúnem os primeiros 80%). O tamanho de tudo acompanha o tamanho do gráfico; em largura estreita
+          partes somem, como no original.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>eyebrow</code>, <code>titulo</code>, <code>subtitulo</code></td><td>textos</td><td>Cabeçalho, opcional.</td></tr>
+                  <tr><td><code>eixo_esquerdo</code>, <code>eixo_direito</code></td><td>textos</td><td>Títulos dos eixos.</td></tr>
+                  <tr><td><code>corte</code></td><td>número</td><td>Percentual que define a zona vital (padrão 80).</td></tr>
+                  <tr>
+                    <td><code>status</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code>, <code>papel</code> (ou <code>cor</code>). A ordem é a da pilha, de baixo para cima.</td>
+                  </tr>
+                  <tr>
+                    <td><code>categorias</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>rotulo</code> e <code>valores</code> (quantidade por <code>id</code> de status). O gráfico ordena e
+                      calcula total, percentual, acumulado e zona vital: o servidor manda só as quantidades.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>kpis</code></td>
+                    <td>lista</td>
+                    <td>Opcional: <code>rotulo</code>, <code>valor</code>, <code>sub</code>, <code>papel</code>. Texto pronto do servidor.</td>
+                  </tr>
+                  <tr>
+                    <td><code>insight</code></td>
+                    <td>lista</td>
+                    <td>Opcional: a frase em trechos, cada um um texto ou <code>["trecho", "papel"]</code> para destacar.</td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 560).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="pareto" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="pareto"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Relógios de indicadores ===== -->
+      <section class="sg-secao" id="relogios">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Relógios de indicadores</h2>
+          <p class="sg-secao__uso">
+            SPI, CPI, aderência, conformidade, índice do MAS. Original:
+            <code>docs/referencia/graficos/Relogios de Indicadores.html</code>.
+          </p>
+        </div>
+        <div data-grafico="relogios" data-exemplo="relogios"></div>
+        <p class="sg-dica">
+          O arco enche até valor ÷ máximo e o número sobe junto. O marcador preto é a meta. O estado vem dos limites; a
+          diferença para a meta é verde quando a alcança, mesmo no estado de atenção.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>relogios</code></td>
+                    <td>lista</td>
+                    <td>
+                      Um relógio por item: <code>titulo</code>, <code>subtitulo</code>, <code>valor</code>, <code>meta</code>,
+                      <code>max</code> (padrão 100), <code>casas</code>, <code>unidade</code>, <code>limites</code>
+                      (<code>{ "ok": 70, "alerta": 60 }</code>) e, se o servidor já decidiu, <code>estado</code>
+                      (<code>"ok"</code>, <code>"alerta"</code> ou <code>"erro"</code>). Sem <code>relogios</code>, o próprio
+                      objeto é um relógio.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Estado</td>
+                    <td>calculado</td>
+                    <td>
+                      A partir de <code>limites.ok</code> é ok; a partir de <code>limites.alerta</code>, atenção; abaixo, erro.
+                      Sem limites vale a meta e, sem meta, o relógio fica neutro. Limites e meta vêm dos parâmetros do projeto.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td><code>atual</code>, <code>meta</code>, <code>vsMeta</code>, <code>ok</code>, <code>alerta</code>, <code>erro</code>.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="relogios" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="relogios"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Agregação por período ===== -->
+      <section class="sg-secao" id="agregacao">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Agregação por período</h2>
+          <p class="sg-secao__uso">
+            Resumir um mês <strong>não é sempre somar</strong>. O servidor manda a quantidade de cada semana e o motor de
+            períodos (<code>periodos.js</code>) resume:
+          </p>
+        </div>
+        <div class="card sg-intro">
+          <ul>
+            <li>quantidade do período (avanço da semana): <strong>soma</strong>;</li>
+            <li>valor acumulado (curva S): o <strong>último</strong> do mês;</li>
+            <li>taxa (aderência, PPC): <strong>soma do numerador ÷ soma do denominador</strong>, nunca a média das taxas.</li>
+          </ul>
+          <p class="sg-nota">
+            A tabela é calculada pela biblioteca (<code>TN.graficos.periodos.resumir</code>): quatro semanas de um mês, em
+            que a média das taxas dá a uma semana de 20 o mesmo peso de uma de 100.
+          </p>
+          <div id="sg-agregacao" class="sg-rolagem"></div>
+        </div>
+      </section>
+
+      <!-- ===== Papéis de cor ===== -->
+      <section class="sg-secao" id="cores">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Papéis de cor</h2>
+          <p class="sg-secao__uso">
+            O servidor fala em papel; o motor lê o token do <code>:root</code> na hora de desenhar. A tabela abaixo é
+            gerada de <code>TN.graficos.papeis</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div class="sg-rolagem">
+            <table class="sg-tabela">
+              <thead>
+                <tr><th>Cor</th><th>Papel</th><th>Token</th></tr>
+              </thead>
+              <tbody id="sg-papeis"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Conferências das contas ===== -->
+      <section class="sg-secao" id="conferencias">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Conferências das contas</h2>
+          <p class="sg-secao__uso" id="sg-conferencias-resumo"></p>
+        </div>
+        <details class="sg-detalhes">
+          <summary>Casos de fronteira da escala, do resumo por período e do formato</summary>
+          <div class="sg-detalhes__corpo">
+            <p>
+              O repositório não tem executor de teste de JavaScript, então a página roda estes casos ao abrir: a linha que
+              falha fica vermelha e vai para o console.
+            </p>
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>O que se confere</th><th>Esperado</th><th>Obtido</th><th>Resultado</th></tr>
+                </thead>
+                <tbody id="sg-conferencias"></tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <p class="sg-nota">
+        Próximos visuais (ISSUE-015 e ISSUE-016) entram aqui como novas seções, com o mesmo formato: o gráfico, a dica de
+        uso e o contrato de dados.
+      </p>
+    </main>
+  </body>
+</html>

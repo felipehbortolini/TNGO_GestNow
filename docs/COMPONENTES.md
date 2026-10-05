@@ -280,6 +280,41 @@ TN.pill("Ativo", "ok")     // markup da pill
 
 ---
 
+## Gráficos — `ds/graficos/`
+
+Biblioteca de gráficos em SVG e JavaScript puro, sem dependência externa (D11):
+um arquivo por tipo de visual sobre um motor comum (`motor.js`, mais `periodos.js`
+para as curvas). Cada visual, o contrato de dados e o exemplo estão em
+[`docs/styleguide-graficos.html`](styleguide-graficos.html), que abre direto do
+disco. **O fragmento traz só o elemento; nunca `<script>`:**
+
+```html
+<div data-grafico="curva-s-linha" data-dados='{{ grafico | tojson }}'></div>
+```
+
+`data-grafico` diz o tipo (`curva-s-linha`, `curva-s-barra-linha`,
+`comparativo-barras`, `pareto`, `relogios`) e `data-dados` leva o JSON. O atributo
+vai entre aspas simples (o `tojson` do Jinja não escapa aspas duplas) ou com
+`| tojson | forceescape`. O motor desenha quando o elemento chega e redesenha se o
+`data-dados` mudar ou a tela mudar de tamanho; do JavaScript da tela:
+`TN.graficos.criar("pareto", elemento, dados)`.
+
+- O servidor manda **quantidades**; o gráfico soma, acumula ou divide por período.
+  Resumir um mês não é sempre somar (ver **Drill** no `CONTEXT.md`).
+- **Nenhuma cor no código.** Série e categoria dizem o papel (`realizado`,
+  `previsto`, `linha-base`, `tendencia`, `ok`, `alerta`, `erro`...) ou o token
+  (`--roxo-500`); o motor lê o valor do `:root` na hora de desenhar.
+- Texto de interface (Todos, Atual, Meta...) tem padrão em português; o servidor
+  o troca em `rotulos` no JSON.
+- O estilo é `ds/graficos/graficos.css` (classes `.graf*`), carregado pelo shell
+  depois de `patterns.css`. `data-animar="nao"` e `prefers-reduced-motion`
+  desligam a animação de entrada.
+- Visual novo: `app/ds/graficos/<visual>.js` chama `TN.graficos.registrar(tipo,
+  fabrica)`, o script entra no bloco da biblioteca de `app/index.html` e uma seção
+  entra no styleguide.
+
+---
+
 ## Dica (tooltip) — `ds/dica.js` e `.dica`
 
 Balão de texto curto que aparece ao passar o mouse **e ao focar pelo teclado**.
