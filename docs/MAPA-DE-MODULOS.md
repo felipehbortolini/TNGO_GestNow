@@ -13,6 +13,8 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | Fórmula ou cálculo | `api/src/modulos/<modulo>/calculations.py`; teste de fronteira em `api/tests/<modulo>/` |
 | Regra de fluxo | `api/src/modulos/<modulo>/service.py` e o teste correspondente em `api/tests/<modulo>/` |
 | Banco, sessão e URL de conexão | `api/src/core/database.py` (`GESTNOW_DATABASE_URL`) e `api/src/core/config.py` |
+| Transação da requisição, trilha, versão, numeração e dinheiro | `api/src/core/database.py` (`unidade_de_trabalho`), `recording.py`, `audit.py`, `versioning.py`, `numbering.py` e `money.py` |
+| Erros de domínio e resposta de erro de rota | `api/src/core/errors.py`, `api/src/core/routing.py` e `api/src/templates/comum/erro.html` |
 | Tabela ou migração | `api/src/modulos/<modulo>/models.py` (tabelas de domínio), `api/src/core/models.py` e `api/src/modulos/configuracoes/models.py` (plataforma e cadastros); revisão nova em `api/migrations/versions/` |
 | Permissão | `api/src/modulos/<modulo>/service.py` e `api/src/core/rbac.py` (plataforma a chegar na ISSUE-011). A tela nunca é a autoridade de acesso |
 | Parâmetro | `api/src/modulos/configuracoes/` e a validação/consumo em `api/src/modulos/<modulo>/validation.py`; Configurações versiona o valor, o módulo consumidor valida seu domínio |

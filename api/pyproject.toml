@@ -112,12 +112,12 @@ ignore = [
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-# AlpineAjaxResponse.__init__ tem 6 parâmetros, e é assim de propósito:
+# AlpineAjaxResponse.__init__ tem 8 parâmetros, e é assim de propósito:
 # depois do `*` são todos KEYWORD-ONLY (request, target_id, root_class,
-# status_code). A regra dos "2 argumentos, idealmente" do clean code
-# existe porque parâmetro posicional cria ordem que se erra na chamada —
-# problema que argumento nomeado não tem. Reduzir aqui significaria criar
-# um objeto de opções, que é a mesma coisa com mais indireção.
+# status_code, toast, toast_tipo). A regra dos "2 argumentos, idealmente" do
+# clean code existe porque parâmetro posicional cria ordem que se erra na
+# chamada — problema que argumento nomeado não tem. Reduzir aqui significaria
+# criar um objeto de opções, que é a mesma coisa com mais indireção.
 "src/core/responses.py" = ["PLR0913"]
 # O modelo de programação V2 do Azure Functions EXIGE o parâmetro `req` na
 # assinatura de todo handler, mesmo quando a rota não lê nada da requisição
@@ -127,6 +127,12 @@ max-complexity = 10
 
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
+
+# process_bind_param e process_result_value recebem o dialect por contrato do
+# SQLAlchemy (TypeDecorator) e não o usam: o tipo só converte centavos. O
+# parâmetro não pode ser renomeado para `_dialect` porque o ty exige o nome
+# do método sobrescrito — é falso positivo estrutural, não argumento esquecido.
+"src/core/money.py" = ["ARG002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

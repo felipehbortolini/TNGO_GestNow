@@ -1,0 +1,15 @@
+{% extends "base_fragment.html" %}
+{#
+  Falha de operação, mostrada onde a ação aconteceu.
+
+  Bloco e não toast: mensagem que some em três segundos não serve para
+  quem precisa corrigir dado. Espera: mensagens (lista).
+#}
+{% block fragment %}
+<div class="aviso aviso--erro" role="alert">
+  <strong>Não foi possível concluir.</strong>
+  {% for mensagem in mensagens %}
+  <span>{{ mensagem }}</span>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -34,7 +34,9 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Fórmulas, validação e exportação | `api/src/modulos/<modulo>/calculations.py`, `validation.py`, `export.py` | Regra pura, entrada e saídas do módulo |
 | Modelos do módulo | `api/src/modulos/<modulo>/models.py` | Dono das entidades; as tabelas de plataforma e dos cadastros nasceram na ISSUE-005, as de domínio em cada fatia de módulo |
 | LEIA-ME do módulo | `api/src/modulos/<modulo>/LEIA-ME.md` | Referência de manutenção sem depender do código ou de IA |
-| Sessão, base dos modelos e relatório do banco | `api/src/core/database.py` | `GESTNOW_DATABASE_URL`, engine SQLAlchemy, `Base` dos modelos e revisão da migração |
+| Sessão, base dos modelos e relatório do banco | `api/src/core/database.py` | `GESTNOW_DATABASE_URL`, engine SQLAlchemy, `Base` dos modelos, revisão da migração e a unidade de trabalho (`unidade_de_trabalho`) |
+| Gravação segura (trilha, versão, numeração e dinheiro) | `api/src/core/recording.py`, `audit.py`, `versioning.py`, `numbering.py` e `money.py` | A forma única de gravar registro editável com trilha, o 409 de edição simultânea, a numeração por projeto e os centavos formatados só na apresentação (ISSUE-006) |
+| Erros de domínio e decorador de rota | `api/src/core/errors.py` e `routing.py` | `AccessDeniedError`/`InvalidDataError`/`VersionConflictError`; `fragment_route` com gate, transação e o mapa 403/409/422 |
 | Configuração local | `api/src/core/config.py` | Carrega `api/local.settings.json` (fora do git) para o ambiente |
 | Modelos da plataforma | `api/src/core/models.py` | Cliente, sequência, auditoria, anexo e notificação |
 | Migrações Alembic | `api/migrations/` | Uma revisão por fatia de módulo, a partir de `0001_plataforma` |

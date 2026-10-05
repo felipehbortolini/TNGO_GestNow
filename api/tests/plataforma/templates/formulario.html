@@ -1,0 +1,12 @@
+{# Formulário de apoio do teste de rota: faz o papel do formulário de um
+   módulo, que volta preenchido no 422 e no 409. #}
+{% extends "base_fragment.html" %}
+{% block fragment %}
+<form id="formulario" method="post" action="/api/teste">
+  {% if mensagem %}
+  <p class="aviso aviso--erro" role="alert">{{ mensagem }}</p>
+  {% endif %}
+  <input name="nome" value="{{ valores.nome }}" />
+  <input name="versao" type="hidden" value="{{ valores.versao }}" />
+</form>
+{% endblock %}

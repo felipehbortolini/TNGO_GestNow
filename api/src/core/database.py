@@ -11,6 +11,8 @@ from __future__ import annotations
 import importlib
 import os
 import pkgutil
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 
 from sqlalchemy import MetaData, create_engine, make_url, text
@@ -90,6 +92,23 @@ def reset_engine() -> None:
 def new_session() -> Session:
     """Open a session bound to the application engine."""
     return Session(bind=get_engine(), expire_on_commit=False)
+
+
+@contextmanager
+def unidade_de_trabalho() -> Iterator[Session]:
+    """One transaction per request: everything writes together or nothing does (D5).
+
+    The route opens it; the facade of the module receives the session and
+    performs the whole flow — including integrations between modules —
+    with it. Leaving the block commits; an exception rolls everything back
+    and propagates.
+    """
+    session = new_session()
+    try:
+        with session.begin():
+            yield session
+    finally:
+        session.close()
 
 
 def import_all_models() -> None:

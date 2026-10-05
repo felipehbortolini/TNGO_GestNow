@@ -1,10 +1,21 @@
 import logging
+from urllib.parse import quote
 
 import azure.functions as func
 
 from .jinja_env import jinja_env
 
 logger = logging.getLogger(__name__)
+
+# Headers that ds/ui.js turns into a toast. Percent-encoded because HTTP
+# headers do not carry accents, and every message here is Portuguese.
+CABECALHO_TOAST = "X-TN-Toast"
+CABECALHO_TOAST_TIPO = "X-TN-Toast-Tipo"
+
+
+def cabecalhos_de_toast(mensagem: str, tipo: str = "ok") -> dict[str, str]:
+    """Headers that turn into a toast on the client. ``tipo``: ok|erro|aviso."""
+    return {CABECALHO_TOAST: quote(mensagem), CABECALHO_TOAST_TIPO: tipo}
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +91,12 @@ class AlpineAjaxResponse(func.HttpResponse):
         Ignored when a template overrides ``{% block root %}``.
     status_code:
         HTTP status code (default 200).
+    toast:
+        Message shown to the user by ``ds/ui.js``.  Travels in a response
+        header so the page never has to carry a slot for it — the same
+        fragment serves a silent reload and a "saved" confirmation.
+    toast_tipo:
+        ``ok`` | ``erro`` | ``aviso``.
     """
 
     def __init__(
@@ -91,6 +108,8 @@ class AlpineAjaxResponse(func.HttpResponse):
         target_id: str | None = None,
         root_class: str | None = None,
         status_code: int = 200,
+        toast: str | None = None,
+        toast_tipo: str = "ok",
     ):
         context = dict(context or {})
 
@@ -110,6 +129,8 @@ class AlpineAjaxResponse(func.HttpResponse):
         html_content = jinja_env.get_template(template_name).render(**context)
 
         headers = {"Content-Type": "text/html", "Cache-Control": "no-cache"}
+        if toast:
+            headers.update(cabecalhos_de_toast(toast, toast_tipo))
 
         super().__init__(
             body=html_content,

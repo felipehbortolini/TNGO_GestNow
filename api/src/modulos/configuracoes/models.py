@@ -26,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core import models as plataforma
 from src.core.database import ACTIVE_SERVER_DEFAULT, VERSION_SERVER_DEFAULT, Base
+from src.core.money import Centavos
 
 
 class Project(Base):
@@ -45,7 +46,7 @@ class Project(Base):
     risk_appetite: Mapped[str | None] = mapped_column("apetite_risco", Text)
     start_date: Mapped[date | None] = mapped_column("inicio", Date)
     expected_end_date: Mapped[date | None] = mapped_column("termino_previsto", Date)
-    budget_cents: Mapped[int | None] = mapped_column("orcamento_centavos", BigInteger)
+    budget_cents: Mapped[int | None] = mapped_column("orcamento_centavos", Centavos)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 
