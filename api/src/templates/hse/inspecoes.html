@@ -1,0 +1,185 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Inspeções e observações: quatro indicadores proativos, e uma aba por registro: o
+  consolidado mensal (um por mês, com importação de planilha; o nível 5 da pirâmide, os
+  desvios, vem daqui), as inspeções de segurança por checklist, as observações comportamentais
+  e os DDS. A aba, a página e o Excel são links do servidor com x-target no próprio fragmento; a
+  página (inspecoes.js) abre os modais; o formulário e a importação chegam do servidor.
+
+  O nome da pessoa observada é dado pessoal (Q35): a coluna só existe para quem pode ler.
+
+  Espera: kpis, abas, aba, linhas, total, pagina, pagina_total, link_anterior, link_proximo,
+  url_excel, url_pdf, pode_gravar, portfolio, consulta, ver_observado, rotulo_novo e url_novo.
+#}
+{% macro botao_editar(aba, registro_id, consulta, titulo, subtitulo) %}
+<button type="button" class="iconbtn" data-hse-modal-url="/api/hse/inspecoes/{{ aba }}/{{ registro_id }}/editar?{{ consulta }}"
+  data-hse-modal-titulo="{{ titulo }}" data-hse-modal-subtitulo="{{ subtitulo }}"
+  aria-label="Editar: {{ subtitulo }}" title="Editar">
+  <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+</button>
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis inspecoes__kpis" style="--kpis-colunas: 4">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--estatico kpi--{{ kpi.tom }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="inspecoes__kpi-texto">
+      <span class="kpi__label">{{ kpi.rotulo }}</span>
+      <span class="hint">{{ kpi.referencia }}{% if kpi.rodape %} · {{ kpi.rodape }}{% endif %}</span>
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Registros do HSE">
+        {% for item in abas %}
+        <a class="seg__btn{% if item.chave == aba %} is-active{% endif %}" href="{{ item.url }}"
+          x-target="{{ target_id }}"{% if item.chave == aba %} aria-current="true"{% endif %}>{{ item.rotulo }} <span class="pill pill--neutral">{{ item.total }}</span></a>
+        {% endfor %}
+      </div>
+      <div class="inspecoes__barra">
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="novo-{{ aba }}"
+          data-hse-modal-url="{{ url_novo }}?{{ consulta }}" data-hse-modal-titulo="{{ rotulo_novo }}"
+          data-hse-modal-subtitulo="{{ subtitulo_novo }}">{{ rotulo_novo }}</button>
+        {% if aba == 'mensal' %}
+        <button type="button" class="btn btn--secondary" data-tn-incluir="importar"
+          data-hse-modal-url="/api/importacao/hse-mensal" data-hse-modal-titulo="Importar fechamento mensal"
+          data-hse-modal-subtitulo="Planilha Excel conferida linha a linha antes de gravar" data-hse-modal-largura="820"
+          data-hse-atualiza>Importar planilha</button>
+        {% endif %}
+        {% endif %}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+
+    <p class="hint inspecoes__contagem" role="status">{{ total }} {{ 'registro' if total == 1 else 'registros' }} nesta aba</p>
+
+    {% if not total %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Nenhum registro nesta aba</h2>
+      <p>{{ texto_vazio }}</p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        {% if aba == 'mensal' %}
+        <caption class="sr-only">Registros mensais</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Mês</th><th scope="col">DDS</th><th scope="col">Inspeções</th>
+          <th scope="col">Observações</th><th scope="col">Desvios</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">{{ linha.month_text }}</td>
+            <td>{{ numero(linha.held_dds) }} / {{ numero(linha.planned_dds) }}{% if linha.dds_rate is not none %} <small class="muted">({{ percentual(linha.dds_rate, 0) }})</small>{% endif %}</td>
+            <td>{{ numero(linha.conforming_items) }} / {{ numero(linha.inspected_items) }}{% if linha.conformity_rate is not none %} <small class="muted">({{ percentual(linha.conformity_rate, 0) }})</small>{% endif %}</td>
+            <td class="num">{{ numero(linha.observations) }}</td>
+            <td class="num">{{ numero(linha.deviations) }}</td>
+            {% if pode_gravar %}<td class="inspecoes__acoes">{{ botao_editar('mensal', linha.id, consulta, 'Registrar mês', linha.month_text) }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% elif aba == 'inspecao' %}
+        <caption class="sr-only">Inspeções de segurança</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Data</th><th scope="col">Área</th><th scope="col">Empresa</th><th scope="col">Responsável</th>
+          <th scope="col">Conformes / itens</th><th scope="col">Não conformes</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          {% set nao_conformes = linha['items']|length - linha.conforming %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">{{ data(linha.inspected_on) }}</td>
+            <td>{{ linha.area }}</td>
+            <td>{{ linha.company_name }}</td>
+            <td>{{ linha.responsible_name }}</td>
+            <td>{{ linha.conforming }} / {{ linha['items']|length }}{% if linha.conformity_rate is not none %} <small class="muted">({{ percentual(linha.conformity_rate, 0) }})</small>{% endif %}</td>
+            <td>
+              {% if nao_conformes %}
+              <details><summary><span class="pill pill--erro">{{ nao_conformes }}</span></summary>
+                <ul class="lista-simples">
+                  {% for item in linha['items'] if not item.conforming %}
+                  <li>{{ item.description }}{% if item.note %} <span class="hint">· {{ item.note }}</span>{% endif %}</li>
+                  {% endfor %}
+                </ul>
+              </details>
+              {% else %}<span class="pill pill--ok">0</span>{% endif %}
+            </td>
+            {% if pode_gravar %}<td class="inspecoes__acoes">{{ botao_editar('inspecao', linha.id, consulta, 'Registrar inspeção', linha.area ~ ' · ' ~ data(linha.inspected_on)) }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% elif aba == 'observacao' %}
+        <caption class="sr-only">Observações comportamentais</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Data</th><th scope="col">Área</th><th scope="col">Tipo</th><th scope="col">Descrição</th>
+          <th scope="col">Empresa</th><th scope="col">Responsável</th>
+          {% if ver_observado %}<th scope="col">Pessoa observada</th>{% endif %}
+          <th scope="col">Situação</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">{{ data(linha.observed_on) }}</td>
+            <td>{{ linha.area }}</td>
+            <td>{{ linha.kind }}</td>
+            <td>{{ linha.description }}</td>
+            <td>{{ linha.company_name }}</td>
+            <td>{{ linha.responsible_name }}</td>
+            {% if ver_observado %}<td>{{ linha.observed_name }}</td>{% endif %}
+            <td><span class="pill {{ 'pill--ok' if linha.status == 'Tratada' else 'pill--fix' }}">{{ linha.status }}</span></td>
+            {% if pode_gravar %}<td class="inspecoes__acoes">{{ botao_editar('observacao', linha.id, consulta, 'Registrar observação', linha.area ~ ' · ' ~ data(linha.observed_on)) }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% else %}
+        <caption class="sr-only">DDS</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Data</th><th scope="col">Tema</th><th scope="col">Empresa</th>
+          <th scope="col">Responsável</th><th scope="col">Participantes</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">{{ data(linha.held_on) }}</td>
+            <td>{{ linha.topic }}</td>
+            <td>{{ linha.company_name }}</td>
+            <td>{{ linha.responsible_name }}</td>
+            <td class="num">{{ numero(linha.participants) }}</td>
+            {% if pode_gravar %}<td class="inspecoes__acoes">{{ botao_editar('dds', linha.id, consulta, 'Registrar DDS', linha.topic) }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% endif %}
+      </table>
+    </div>
+    <nav class="inspecoes__paginas" aria-label="Páginas da tabela">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+      <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

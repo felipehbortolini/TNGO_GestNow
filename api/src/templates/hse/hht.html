@@ -1,0 +1,101 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Horas trabalhadas (HHT): quatro indicadores, a tabela de HHT por mês e empresa (um registro
+  por mês e empresa; editar reabre o mesmo registro, com mês e empresa bloqueados), a importação
+  de planilha e o histograma de mão de obra previsto. A página (hht.js) abre os modais; o
+  formulário e a importação chegam do servidor.
+
+  Os cinco estados: carregando, erro e sem permissão (a view); vazio de origem (aqui).
+
+  Espera: kpis, linhas, pagina, total, pagina_total, link_anterior, link_proximo, url_excel, url_pdf,
+  pode_gravar, portfolio, consulta, pontos e maximo.
+#}
+{% from "hse/_histograma.html" import histograma %}
+{% block fragment %}
+<div class="kpis hht__kpis" style="--kpis-colunas: 4">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--estatico kpi--{{ kpi.tom }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="hht__kpi-texto">
+      <span class="kpi__label">{{ kpi.rotulo }}</span>
+      <span class="hint">{{ kpi.referencia }}{% if kpi.rodape %} · {{ kpi.rodape }}{% endif %}</span>
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <p class="hint hht__contagem" role="status">{{ total }} {{ 'registro encontrado' if total == 1 else 'registros encontrados' }}</p>
+      <div class="hht__barra-acoes">
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="novo"
+          data-hse-modal-url="/api/hse/hht/novo?{{ consulta }}" data-hse-modal-titulo="Registrar HHT do mês"
+          data-hse-modal-subtitulo="Grava (ou atualiza) o mês e a empresa informados">Registrar HHT</button>
+        <button type="button" class="btn btn--secondary" data-tn-incluir="importar"
+          data-hse-modal-url="/api/importacao/hht" data-hse-modal-titulo="Importar HHT"
+          data-hse-modal-subtitulo="Planilha Excel conferida linha a linha antes de gravar" data-hse-modal-largura="820"
+          data-hse-atualiza>Importar planilha</button>
+        {% endif %}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+
+    {% if not total %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Nenhum registro de HHT</h2>
+      <p>Registre as horas-homem trabalhadas e o efetivo médio de cada mês e empresa: elas são a base de todas as taxas.</p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">HHT por mês e empresa</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Mês</th>
+            <th scope="col">Empresa</th>
+            <th scope="col">Efetivo médio</th>
+            <th scope="col">HHT</th>
+            <th scope="col">Média horas / pessoa</th>
+            {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">{{ linha.month_text }}</td>
+            <td>{{ linha.company_name }}</td>
+            <td class="num">{{ numero(linha.headcount) }}</td>
+            <td class="num">{{ numero(linha.hours) }}</td>
+            <td class="num">{{ numero(linha.hours_per_person) if linha.hours_per_person else '·' }}</td>
+            {% if pode_gravar %}
+            <td class="hht__acoes">
+              <button type="button" class="iconbtn" data-hse-modal-url="/api/hse/hht/{{ linha.id }}/editar?{{ consulta }}"
+                data-hse-modal-titulo="Registrar HHT do mês" data-hse-modal-subtitulo="{{ linha.company_name }} · {{ linha.month_text }}"
+                aria-label="Editar o registro de {{ linha.company_name }} em {{ linha.month_text }}" title="Editar">
+                <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+              </button>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="hht__paginas" aria-label="Páginas da tabela">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+      <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+{{ histograma(pontos, maximo, portfolio, target_id ~ '-histograma') }}
+{% endblock %}

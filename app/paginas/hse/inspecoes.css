@@ -1,16 +1,50 @@
 /* ============================================================
    inspecoes.css — Estilo da tela Inspeções e observações (hse/inspecoes)
 
-   Inspeções de segurança por checklist, observações comportamentais e DDS.
-
    Escopo: tudo que morar aqui começa por .pagina--hse-inspecoes, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-072.
+   O que a tela acrescenta ao Design System: o texto de duas linhas do indicador, a barra de
+   ferramentas, a contagem, a coluna de ações e a paginação (ISSUE-072). O fragmento é
+   desenhado pelo servidor (api/src/templates/hse/).
+
+   As abas (consolidado mensal, inspeções, observações e DDS) são o seletor segmentado do Design
+   System; a barra de ferramentas leva o botão de inclusão, a importação e as exportações.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--hse-inspecoes .inspecoes__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--hse-inspecoes .inspecoes__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-inspecoes .inspecoes__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--hse-inspecoes .inspecoes__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--hse-inspecoes .inspecoes__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}

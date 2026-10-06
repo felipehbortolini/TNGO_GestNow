@@ -1,0 +1,94 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do HSE no modal das telas HHT e Inspeções e observações. Um só desenho para todos os
+  registros: o servidor manda os campos (nome, rótulo, tipo, valor, opções, mensagem) e, na
+  inspeção, as linhas do checklist. Responde com a tela atualizada (alvo = o conteúdo da tela);
+  uma recusa (422, 409, 403) volta o próprio formulário, preenchido, com a mensagem sob o campo
+  (alvo do modal).
+
+  Espera: acao (endereço do POST), alvo (id do conteúdo da tela), campos, erros_gerais, versao,
+  consulta, checklist (linhas ou nada), rotulo_salvar, rotulo_cancelar e texto_de_apoio.
+#}
+{% macro campo(item, prefixo) %}
+{% set identificador = prefixo ~ '-' ~ item.name %}
+<div class="field{% if item.full %} field--full{% endif %}">
+  <label for="{{ identificador }}">{{ item.label }}</label>
+  {% if item.locked %}
+  <input type="hidden" name="{{ item.name }}" value="{{ item.value }}" />
+  {% endif %}
+  {% set erro_attrs %}{% if item.error %} aria-invalid="true" aria-describedby="{{ identificador }}-erro"{% endif %}{% endset %}
+  {% if item.kind == 'select' %}
+  <select id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}"
+    {% if not item.locked %}name="{{ item.name }}"{% else %}disabled{% endif %}
+    {% if item.required %}required{% endif %}{{ erro_attrs }}>
+    <option value="">{{ 'Escolha' if item.required else 'Nenhuma' }}</option>
+    {% for valor, texto in item.options %}
+    <option value="{{ valor }}"{% if valor == item.value %} selected{% endif %}>{{ texto }}</option>
+    {% endfor %}
+  </select>
+  {% elif item.kind == 'textarea' %}
+  <textarea id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}"
+    name="{{ item.name }}" rows="3" maxlength="300" {% if item.required %}required{% endif %}{{ erro_attrs }}>{{ item.value }}</textarea>
+  {% else %}
+  {% set tipo = {'month': 'month', 'date': 'date', 'number': 'number'}.get(item.kind, 'text') %}
+  <input id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}" type="{{ tipo }}"
+    {% if not item.locked %}name="{{ item.name }}"{% else %}disabled{% endif %}
+    value="{{ item.value }}" {% if item.required %}required{% endif %}
+    {% if tipo == 'number' %}min="0" step="any" inputmode="decimal"{% endif %}
+    {% if item.maximum %}max="{{ item.maximum }}"{% endif %}
+    {% if item.kind == 'text' %}maxlength="300"{% endif %}{{ erro_attrs }} />
+  {% endif %}
+  {% if item.hint %}<span class="hint">{{ item.hint }}</span>{% endif %}
+  {% if item.error %}<span class="field__erro" id="{{ identificador }}-erro" role="alert">{{ item.error }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{% block fragment %}
+<form method="post" action="{{ acao }}"
+  x-target="{{ alvo }}" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando...">
+  {% if versao %}<input type="hidden" name="versao" value="{{ versao }}" />{% endif %}
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+  {% if texto_de_apoio %}<p class="body-txt mb-16">{{ texto_de_apoio }}</p>{% endif %}
+  <div class="fgrid">
+    {% for item in campos %}
+    {{ campo(item, target_id) }}
+    {% endfor %}
+  </div>
+  {% if checklist is not none %}
+  <fieldset>
+    <legend class="h-card5">Itens do checklist</legend>
+    <p class="hint mb-16">Preencha só os itens inspecionados; as linhas em branco são ignoradas.</p>
+    {% for linha in checklist %}
+    <div class="fgrid mb-16">
+      <div class="field field--full">
+        <label for="{{ target_id }}-item-{{ linha.index }}">Item {{ linha.index }}</label>
+        <input id="{{ target_id }}-item-{{ linha.index }}" class="input" type="text" maxlength="300"
+          name="item_descricao_{{ linha.index }}" value="{{ linha.description }}" />
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-conforme-{{ linha.index }}">Situação do item {{ linha.index }}</label>
+        <select id="{{ target_id }}-conforme-{{ linha.index }}" class="input" name="item_conforme_{{ linha.index }}">
+          <option value="sim"{% if linha.conforming == 'sim' %} selected{% endif %}>Conforme</option>
+          <option value="nao"{% if linha.conforming == 'nao' %} selected{% endif %}>Não conforme</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-obs-{{ linha.index }}">Observação do item {{ linha.index }}</label>
+        <input id="{{ target_id }}-obs-{{ linha.index }}" class="input" type="text" maxlength="300"
+          name="item_observacao_{{ linha.index }}" value="{{ linha.note }}" />
+      </div>
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-hse-fechar-modal>{{ rotulo_cancelar or 'Cancelar' }}</button>
+    <button type="submit" class="btn btn--primary">{{ rotulo_salvar or 'Salvar' }}</button>
+  </div>
+</form>
+{% endblock %}
