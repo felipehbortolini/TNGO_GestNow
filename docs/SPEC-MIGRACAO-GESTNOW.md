@@ -1393,6 +1393,14 @@ do dono".
 | Decisão da execução (ISSUE-074), pendente de revisão do dono | sincronia da ação | concluir a ação fecha a recomendação na data da conclusão e replanejar a ação move o prazo da recomendação; fechar a recomendação conclui a ação | D9, ISSUE-074 |
 | Decisão da execução (ISSUE-074), pendente de revisão do dono | recomendação já fechada | criar a ação de uma recomendação fechada gera a ação já concluída (o protótipo permitia a ação aberta) | D9, ISSUE-074 |
 | Decisão da execução (ISSUE-074), pendente de revisão do dono | numeração | códigos APR-/HAZOP- com 4 dígitos pela numeração do projeto (`apr`, `hazop` em `core/numbering.py`); a carga mantém os códigos do protótipo | D5, ISSUE-074 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | modelo do punch_item | 4 colunas a mais (comentario_tratamento, comentario_verificacao, justificativa_cancelamento, reprovacoes); diagrama atualizado | D5, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | ação do item cancelado | a ação da Central é concluída junto (a Central não apaga ação), em vez de sumir como no protótipo | D9, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | Central e item | a Central ganhou `update_from_origin` (aditivo) para a ação repetir assunto, grupo, responsável e prazo do item | D9, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | verificador | é a pessoa logada (não um campo escolhido como no protótipo); 403 se for o responsável pelo item | D7, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | evidência | exigida ao enviar para verificação e de novo ao aprovar o fechamento (ao menos um anexo do item) | D5a, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | fotos de abertura e fechamento | são anexos do item (botão Anexos da linha), sem campo no formulário de abertura | D5a, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | carga | os 20 itens entram sem anexo; as ações vêm da carga da Central; item fechado da demonstração não tem a foto | D6, ISSUE-049 |
+| Decisão da execução (ISSUE-049), pendente de revisão do dono | sistemas na tela | a tabela "Sistemas e liberação por marco" fica na tela da lista, não na aba Painel | D11, ISSUE-049 |
 
 ---
 

@@ -17,6 +17,8 @@ Public API (stable; a change needs an issue of its own, a new field comes with a
   ``reopen_from_origin(session, *, user, origin, reference_date)``, where ``origin`` is an
   ``origin_links.OriginRef(kind, reference)``: the origin closed or reopened a record on its own
   screen, the Central follows;
+* ``update_from_origin(session, *, user, origin, changes)``: the origin edited its record and the
+  action repeats the fields it takes from it (the Punch list, ISSUE-049);
 * ``find_action``, ``list_actions``, ``replan_history``, ``count_by_status`` and
   ``count_actions_of_origin``: reading.
 
@@ -326,6 +328,48 @@ def reopen_from_origin(
         _update(session, user=user, action=action, changes={"completed_on": None})
         changed.append(_record_of(action, reference_date))
     return changed
+
+
+@dataclass(frozen=True)
+class OriginChanges:
+    """What the origin says about its record again: the fields its action repeats (D9)."""
+
+    subject: str
+    description: str | None
+    group: str | None
+    requester_id: int
+    responsible_id: int
+    planned_date: date
+
+
+def update_from_origin(
+    session: Session,
+    *,
+    user: User,
+    origin: origin_links.OriginRef,
+    changes: OriginChanges,
+) -> int:
+    """The origin edited its record on its own screen: the actions that point to it repeat it.
+
+    Only the fields the action takes from the record change; the status stays what the dates and
+    the completion say. The same transaction as the edit of the origin. Returns how many actions
+    were repeated.
+    """
+    rbac.require(user, Permission.WRITE)
+    values = {
+        "subject": changes.subject.strip(),
+        "description": (changes.description or "").strip() or None,
+        "group": changes.group,
+        "requester_id": changes.requester_id,
+        "responsible_id": changes.responsible_id,
+        "planned_date": changes.planned_date,
+    }
+    actions = _actions_of_origin(session, origin)
+    for action in actions:
+        recording.update(
+            session, user_id=user.id, record=action, changes=values, version=action.version
+        )
+    return len(actions)
 
 
 # ── Reading ──────────────────────────────────────────────────────────────────────────────────

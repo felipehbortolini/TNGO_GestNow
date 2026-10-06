@@ -972,6 +972,10 @@ erDiagram
         date prazo
         date fechamento
         text situacao
+        text comentario_tratamento
+        text comentario_verificacao
+        text justificativa_cancelamento
+        integer reprovacoes
         integer versao
     }
 ```
@@ -1988,7 +1992,7 @@ fachada, não por coluna.
 | `lookahead` | 6WLA: atividade do horizonte de seis semanas (código, atividade, área, disciplina, empresa e responsável). O início do horizonte é calculado da data de hoje. UK: projeto + código. | planejamento |
 | `lookahead_semana` | Marcação de cada uma das seis semanas (`indice`, `prevista`). Sem `versao` própria: protegida pela versão da atividade. | planejamento |
 | `lookahead_restricao` | Restrição da atividade (tipo, descrição, responsável, data necessária e remoção); a situação é calculada da data de remoção contra hoje. | planejamento |
-| `punch_item` | Item da punch list (sistema, subsistema, TAG, disciplina, categoria A/B/C, marco, origem, descrição, empresa, responsável, identificado por, abertura, prazo, verificação e fechamento). As evidências são `anexo`. O bloqueio do sistema por item A aberto é calculado. Fechamento exige verificador diferente do executante (D7). UK: projeto + código. | planejamento |
+| `punch_item` | Item da punch list (sistema, subsistema, TAG, disciplina, categoria A/B/C, marco, origem, descrição, empresa, responsável, identificado por, abertura, prazo, verificação e fechamento). As evidências são `anexo`. O bloqueio do sistema por item A aberto é calculado. Fechamento exige verificador diferente do executante (D7). Guarda o texto do tratamento (`comentario_tratamento`), o da verificação (`comentario_verificacao`), a `justificativa_cancelamento` e o número de `reprovacoes` (ISSUE-049). UK: projeto + código. | planejamento |
 | `produtividade_item` | Item de quantidade da LB (grupo, tipo, disciplina, unidade, casas, total, índice HH, perfil, situação, revisão vigente, aprovação e observações). SPI de quantidades, aderência e fator de produtividade são calculados. UK: projeto + código. | planejamento |
 | `produtividade_revisao` | **Exceção da D5b**: total congelado de cada revisão da LB (revisão, data, total, total anterior, desde, SM, autor e justificativa). Sem `versao`. | planejamento |
 | `produtividade_distribuicao` | **Exceção da D5b**: distribuição semanal da LB dentro da revisão (semana e previsto). UK: revisão + semana. Sem `versao`. | planejamento |

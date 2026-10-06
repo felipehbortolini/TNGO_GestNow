@@ -37,6 +37,28 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 **Fluxo:** a restrição nasce aberta; a remoção registra a data (e, opcional, o comentário) e a libera; remover duas vezes é recusado. Toda gravação passa por `service.py` (transação, trilha e versão). **Carga:** `seed.py` grava a coleção `lookahead` do protótipo com as datas deslocadas. **Oráculo:** `api/tests/oraculo/test_oraculo_6wla.py`. **Testes:** `api/tests/planejamento/test_6wla_*.py`, com o apoio em `api/tests/apoio_6wla.py`.
 
+## Punch list (ISSUE-049)
+
+Itens de completação numerados pelo padrão do projeto (`PL-TN-2026-0001`), com a hierarquia Área, Sistema, Subsistema e TAG, disciplina, categoria (A impede o marco seguinte; B fecha até o aceite definitivo; C conforme acordo), marco vinculado, origem, empresa executante, responsável, prazo, identificado por e abertura. Tabela `punch_item` (migração `m049_punch_list.py`; modelo em `docs/MODELO-DE-DADOS.md`). O painel (burndown, aging, % de liberados por marco) é a ISSUE-050.
+
+**Tela:** `planejamento/punch_list` (view `app/_views/planejamento/punch_list.html`, fragmentos `api/src/templates/planejamento/punch_*.html`, comportamento `app/paginas/planejamento/punch_list.js`). Cinco indicadores que filtram a lista (abertos, categoria A abertos, aguardando verificação, vencidos, fechados), alerta dos sistemas bloqueados, a tabela dos itens e a tabela "Sistemas e liberação por marco". Modais: Novo item e Editar, Enviar para verificação, Fechamento com verificação, Cancelar, Filtros, Anexos do item e a Importação de planilha (`/api/importacao/punch-list`, mecanismo da plataforma). No Portfólio entra a coluna Projeto (tela e exportações) e Novo item e Importar pedem o projeto antes.
+
+**Rotas** (`/api/planejamento/punch-list`, em `punch_routes.py`): `GET` tela (filtros `situacao`, `categoria`, `sistema`, `disciplina`, `empresa`, `busca`; `item=` abre a lista no código, o link de volta da Central); `GET /excel` e `GET /imprimivel`; `GET /filtros`; `GET`/`POST /novo`; `GET`/`POST /{id}/editar`; `POST /{id}/tratar`; `GET`/`POST /{id}/enviar`; `GET`/`POST /{id}/verificar`; `GET`/`POST /{id}/cancelar`. Recusas: 422 com a mensagem sob o campo, 409 em conflito de versão, 403 sem permissão de escrita, para o fornecedor e para o verificador igual ao executante.
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Item aberto | Nem Fechado nem Cancelado | `punch_calculations.is_open` |
+| Fluxo | Aberto vai a Em tratamento; este a Aguardando verificação; este a Fechado ou volta a Em tratamento; Cancelado sai de qualquer aberto | `punch_calculations.next_situations`, `can_move` |
+| Idade | Dias da abertura até hoje (aberto) ou até o fechamento | `punch_calculations.item_age_days` |
+| Vencido | Aberto com o prazo anterior à referência (o próprio dia não vence) | `punch_calculations.is_overdue` |
+| Bloqueio | Itens abertos que seguram um sistema num marco: item A cujo marco é o escolhido ou anterior; no Aceite definitivo, qualquer item aberto | `punch_calculations.blocking_count`, `is_system_blocked` |
+| Sistemas do alerta | Bloqueados para a Completação mecânica ou o Comissionamento | `punch_calculations.blocked_system_ids` |
+| Fechados sobre válidos | Fechados sobre os não cancelados, arredondado na metade para cima | `punch_calculations.closed_percentage` |
+
+**Fluxo e regras (fachada `punch_service.py`):** fechar exige evidência (ao menos um anexo do item, D5a) e verificador diferente do executante, o responsável pelo item (D7: 403 com a mensagem); sem anexo, 422. O verificador é a pessoa logada. Reprovar volta a Em tratamento, conta a reprovação e exige o motivo. Cancelar exige justificativa de 10 caracteres e conclui a ação. Item fechado ou cancelado não se edita. **Integração (D9):** todo item cria a sua ação na Central pela costura única (`central_acoes.create_action`, origem Punch list); cada passo do item repete na ação o assunto, o grupo, o responsável, o prazo e a situação (`central_acoes.update_from_origin`), e fechar ou cancelar conclui a ação (`close_from_origin`). A Central trata a ação da Punch list na origem (concluir e replanejar lá são recusados) e o link da ação volta para o item (`origin_links`, `?item=`). Importador (`punch_importers.py`): uma linha é um item aberto hoje, com a sua ação, pela fachada; linha inválida é recusada e as válidas só gravam na confirmação.
+
+**Carga:** `seed_punch.py` grava os 20 itens do protótipo (códigos e situações do mock, datas deslocadas); as ações vêm da carga da Central. **Oráculo:** `api/tests/oraculo/test_oraculo_punch.py`. **Testes:** `api/tests/planejamento/test_punch_*.py`, com o apoio em `api/tests/apoio_punch.py`.
+
 ## Trios das telas
 
 Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
@@ -91,11 +113,11 @@ Incluem critérios/modelos de medição e faixas de desvio da EAP, faixas de pro
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` |
-| Fluxo, permissões e integrações | `service.py` |
-| Medições, avanço e indicadores | `calculations.py` |
-| Validações | `validation.py` |
-| Exportação | `export.py` |
+| Rotas | `routes.py`; Punch list em `punch_routes.py` |
+| Fluxo, permissões e integrações | `service.py`; Punch list em `punch_service.py` |
+| Medições, avanço e indicadores | `calculations.py`; Punch list em `punch_calculations.py` |
+| Validações | `validation.py`; Punch list em `punch_validation.py` |
+| Exportação | `export.py`; Punch list em `punch_export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/planejamento/` |
 | Tela, estilo e comportamento | `app/_views/planejamento/` e `app/paginas/planejamento/` |

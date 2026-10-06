@@ -1,0 +1,239 @@
+{% extends "base_fragment.html" %}
+{#
+  Punch list (ISSUE-049): o conteúdo da tela, num fragmento só. Os cinco indicadores (cada um filtra
+  a lista), o alerta dos sistemas bloqueados, a barra de ferramentas, a tabela dos itens e a tabela
+  dos sistemas com a liberação por marco. A página (punch_list.js) abre os modais: o formulário
+  e a importação chegam do servidor.
+
+  Os cinco estados: carregando, erro e sem permissão (a view); vazio de origem e vazio por filtro (aqui).
+
+  Espera: board (punch_service.PunchBoard), filtros, consulta, api, links_kpi, situacoes, excel e pdf.
+#}
+{% macro tom_da_categoria(categoria) %}{{ {'A': 'erro', 'B': 'warn', 'C': 'neutral'}[categoria] }}{% endmacro %}
+{% macro tom_da_situacao(situacao) %}{{ {'Aberto': 'warn', 'Em tratamento': 'neutral', 'Aguardando verificação': 'neutral', 'Fechado': 'ok', 'Cancelado': 'neutral'}[situacao] }}{% endmacro %}
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, icone, codigo) %}
+<button type="button" class="iconbtn" data-punch-modal-url="{{ url }}" data-punch-modal-titulo="{{ titulo }}"
+  data-punch-modal-subtitulo="{{ subtitulo }}" aria-label="{{ rotulo }} {{ codigo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+</button>
+{% endmacro %}
+{% block fragment %}
+{% set figuras = board.figures %}
+<div id="punch-conteudo-aviso" role="status"></div>
+
+<div class="kpis punch__kpis" style="--kpis-colunas: 5">
+  <a class="kpi {{ 'kpi--warn' if figuras.open else 'kpi--ok' }}" href="{{ links_kpi.abertos }}" x-target="{{ target_id }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+    <span class="punch__kpi-texto">
+      <span class="kpi__label">Abertos</span>
+      <span class="hint">Esperado: 0</span>
+    </span>
+    <span class="kpi__value">{{ figuras.open }}</span>
+  </a>
+  <a class="kpi {{ 'kpi--erro' if figuras.open_a else 'kpi--ok' }}" href="{{ links_kpi.a }}" x-target="{{ target_id }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+    <span class="punch__kpi-texto">
+      <span class="kpi__label">Categoria A abertos</span>
+      <span class="hint">Esperado: 0 · impedem o marco seguinte</span>
+    </span>
+    <span class="kpi__value">{{ figuras.open_a }}</span>
+  </a>
+  <a class="kpi kpi--info" href="{{ links_kpi.aguardando }}" x-target="{{ target_id }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
+    <span class="punch__kpi-texto">
+      <span class="kpi__label">Aguardando verificação</span>
+      <span class="hint">Esperado: 0</span>
+    </span>
+    <span class="kpi__value">{{ figuras.awaiting }}</span>
+  </a>
+  <div class="kpi kpi--estatico {{ 'kpi--warn' if figuras.overdue else 'kpi--ok' }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+    <span class="punch__kpi-texto">
+      <span class="kpi__label">Vencidos</span>
+      <span class="hint">Esperado: 0 · o prazo passou e o item segue aberto</span>
+    </span>
+    <span class="kpi__value">{{ figuras.overdue }}</span>
+  </div>
+  <a class="kpi kpi--ok" href="{{ links_kpi.fechados }}" x-target="{{ target_id }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+    <span class="punch__kpi-texto">
+      <span class="kpi__label">Fechados</span>
+      <span class="hint">Meta: {{ figuras.valid }}{% if figuras.closed_percentage is not none %} · {{ figuras.closed_percentage }}% dos itens válidos{% endif %}</span>
+    </span>
+    <span class="kpi__value">{{ figuras.closed }}</span>
+  </a>
+</div>
+
+{% if board.blocked_systems %}
+<div class="aviso aviso--erro mb-16 punch__alerta" role="alert">
+  <strong>{{ board.blocked_systems|length }} {{ 'sistema bloqueado' if board.blocked_systems|length == 1 else 'sistemas bloqueados' }} por item A aberto:</strong>
+  <span>{{ board.blocked_systems|join(', ') }}.</span>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="punch__busca" method="get" action="{{ api }}" x-target="{{ target_id }}" role="search" aria-label="Buscar na punch list">
+        <input type="hidden" name="situacao" value="{{ filtros.situation }}" />
+        <input type="hidden" name="categoria" value="{{ filtros.category }}" />
+        <input type="hidden" name="sistema" value="{{ filtros.system_id if filtros.system_id is not none else '' }}" />
+        <input type="hidden" name="disciplina" value="{{ filtros.discipline }}" />
+        <input type="hidden" name="empresa" value="{{ filtros.company_id if filtros.company_id is not none else '' }}" />
+        <label class="sr-only" for="punch-busca">Buscar item, TAG ou sistema</label>
+        <input id="punch-busca" type="search" name="busca" class="input" placeholder="Buscar item, TAG ou sistema" value="{{ filtros.search }}" />
+        <button type="submit" class="btn btn--secondary">Buscar</button>
+      </form>
+      <p class="hint punch__contagem" role="status">{{ board.rows|length }} {{ 'item' if board.rows|length == 1 else 'itens' }} no filtro atual</p>
+      <div class="punch__barra-acoes">
+        <button type="button" class="btn btn--secondary" data-punch-modal-url="{{ api }}/filtros?{{ consulta }}"
+          data-punch-modal-titulo="Filtros da Punch list" data-punch-modal-subtitulo="Situação, categoria, sistema, disciplina e empresa"
+          data-punch-modal-largura="720">Filtros</button>
+        {% if board.can_write %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="novo" data-punch-modal-url="{{ api }}/novo?consulta={{ consulta | urlencode }}"
+          data-punch-modal-titulo="Novo item da Punch list" data-punch-modal-subtitulo="O item gera uma ação na Central" data-punch-modal-largura="820">Novo item</button>
+        <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-punch-modal-url="/api/importacao/punch-list"
+          data-punch-modal-titulo="Importar itens da Punch list" data-punch-modal-subtitulo="Planilha Excel conferida linha a linha antes de gravar"
+          data-punch-modal-largura="820" data-punch-atualiza>Importar planilha</button>
+        {% endif %}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ pdf }}">PDF</button>
+      </div>
+    </div>
+
+    {% if board.total == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há itens na punch list</h2>
+      <p>Abra o primeiro item com o botão Novo item, ou importe uma planilha de walkdown.</p>
+    </div>
+    {% elif not board.rows %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+      <p>Ajuste ou limpe os filtros para ver os itens.</p>
+      <a class="btn btn--secondary btn--sm" href="{{ api }}?situacao=" x-target="{{ target_id }}">Mostrar todos</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Itens da punch list</caption>
+        <thead>
+          <tr>
+            {% if board.portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Nº / Cat.</th>
+            <th scope="col">Sistema / TAG</th>
+            <th scope="col">Descrição</th>
+            <th scope="col">Responsável</th>
+            <th scope="col">Prazo</th>
+            <th scope="col">Situação</th>
+            {% if board.can_write %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in board.rows %}
+          <tr{% if item.is_overdue and item.category == 'A' %} class="punch__linha--alerta"{% endif %}>
+            {% if board.portfolio %}<td><span class="pill pill--neutral">{{ item.project_label }}</span></td>{% endif %}
+            <td class="nowrap">
+              <strong>{{ item.code }}</strong><br />
+              <span class="pill pill--{{ tom_da_categoria(item.category) }}">Categoria {{ item.category }}</span>
+            </td>
+            <td>
+              <strong>{{ item.system_label }}</strong>
+              <span class="punch__referencia">{{ item.tag }} · {{ item.discipline }}</span>
+            </td>
+            <td>
+              {{ item.description }}
+              <span class="punch__referencia">Marco: {{ item.milestone }} · origem {{ item.origin|lower }}</span>
+            </td>
+            <td>
+              {{ item.responsible_name }}
+              <span class="punch__referencia">{{ item.company_name }}</span>
+            </td>
+            <td class="nowrap">
+              {{ item.due_date.strftime('%d/%m/%Y') }}
+              <span class="punch__referencia">{{ 'aberto há ' if item.is_open else 'tratado em ' }}{{ item.age_days }} {{ 'dia' if item.age_days == 1 else 'dias' }}</span>
+            </td>
+            <td>
+              <span class="pill pill--{{ tom_da_situacao(item.situation) }}">{{ item.situation }}</span>
+              {% if item.is_overdue %}<span class="punch__referencia">vencido</span>{% endif %}
+            </td>
+            {% if board.can_write %}
+            <td class="punch__acoes">
+              {% if item.can_start %}
+              <form method="post" action="{{ api }}/{{ item.id }}/tratar" x-target="{{ target_id }}"
+                x-target.422="punch-conteudo-aviso" x-target.409="punch-conteudo-aviso" x-target.403="punch-conteudo-aviso">
+                <input type="hidden" name="versao" value="{{ item.version }}" />
+                <input type="hidden" name="situacao" value="{{ filtros.situation }}" />
+                <input type="hidden" name="consulta" value="{{ consulta }}" />
+                <button type="submit" class="iconbtn" aria-label="Tratar {{ item.code }}" title="Tratar">
+                  <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
+                </button>
+              </form>
+              {% endif %}
+              {% if item.can_submit %}{{ botao_do_modal(api ~ '/' ~ item.id ~ '/enviar?consulta=' ~ (consulta | urlencode), 'Enviar para verificação', item.code ~ ' · ' ~ item.description, 'Enviar para verificação', 'send', item.code) }}{% endif %}
+              {% if item.can_verify %}{{ botao_do_modal(api ~ '/' ~ item.id ~ '/verificar?consulta=' ~ (consulta | urlencode), 'Fechamento com verificação', item.code ~ ' · ' ~ item.description, 'Verificar', 'eye', item.code) }}{% endif %}
+              {{ botao_do_modal('/api/anexos?origem=punch_item&registro=' ~ item.id, 'Anexos do item', item.code, 'Anexos de', 'file', item.code) }}
+              {% if item.is_open %}
+              {{ botao_do_modal(api ~ '/' ~ item.id ~ '/editar?consulta=' ~ (consulta | urlencode), 'Editar item', item.code, 'Editar', 'edit', item.code) }}
+              {{ botao_do_modal(api ~ '/' ~ item.id ~ '/cancelar?consulta=' ~ (consulta | urlencode), 'Cancelar item', item.code, 'Cancelar', 'dismiss', item.code) }}
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if board.systems %}
+<section class="card mb-16" aria-labelledby="punch-sistemas-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="punch-sistemas-titulo">Sistemas e liberação por marco</h2>
+      <span class="hint">Sistema com item A aberto fica bloqueado para o marco vinculado; no Aceite definitivo qualquer item aberto bloqueia</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Sistemas e liberação por marco</caption>
+        <thead>
+          <tr>
+            {% if board.portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Sistema</th>
+            <th scope="col">Área</th>
+            <th scope="col" class="td-center">A abertos</th>
+            <th scope="col" class="td-center">B abertos</th>
+            <th scope="col" class="td-center">C abertos</th>
+            <th scope="col">Completação mecânica</th>
+            <th scope="col">Comissionamento</th>
+            <th scope="col">Aceite definitivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sistema in board.systems %}
+          <tr>
+            {% if board.portfolio %}<td><span class="pill pill--neutral">{{ sistema.project_label }}</span></td>{% endif %}
+            <td><strong>{{ sistema.label }}</strong></td>
+            <td>{{ sistema.area }}</td>
+            <td class="td-center">{{ sistema.open_a }}</td>
+            <td class="td-center">{{ sistema.open_b }}</td>
+            <td class="td-center">{{ sistema.open_c }}</td>
+            {% for bloqueio in sistema.blocks %}
+            <td>
+              {% if bloqueio %}<span class="pill pill--erro">Bloqueado ({{ bloqueio }})</span>
+              {% else %}<span class="pill pill--ok">Liberado</span>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

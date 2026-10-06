@@ -37,6 +37,7 @@ from src.modulos.configuracoes.models import (
     Person,
     PortfolioWeight,
     Project,
+    System,
     Unit,
 )
 
@@ -833,6 +834,28 @@ def list_person_options(session: Session) -> list[RegisterOption]:
     """Every person of the register, by name: what a responsible selector offers."""
     statement = select(Person.id, Person.name).order_by(Person.name, Person.id)
     return [RegisterOption(id=row.id, name=row.name) for row in session.execute(statement)]
+
+
+@dataclass(frozen=True)
+class SystemOption:
+    """A system of a project as a selector offers it: id, project, code, name and area."""
+
+    id: int
+    project_id: int
+    code: str
+    name: str
+    area: str | None
+
+
+def list_systems(session: Session) -> list[SystemOption]:
+    """Every system of the register, by project and code: what the Punch list selector offers."""
+    statement = select(System).order_by(System.project_id, System.code)
+    return [
+        SystemOption(
+            id=row.id, project_id=row.project_id, code=row.code, name=row.name, area=row.area
+        )
+        for row in session.scalars(statement)
+    ]
 
 
 def list_discipline_names(session: Session) -> list[str]:

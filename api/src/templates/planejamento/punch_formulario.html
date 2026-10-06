@@ -1,0 +1,74 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da Punch list, no modal: um só desenho para o item, o envio para verificação, o
+  Fechamento com verificação e o cancelamento. O servidor manda os campos (nome, rótulo, tipo,
+  valor, opções, mensagem). Responde com a tela atualizada (alvo = o conteúdo da tela); uma
+  recusa (422, 409, 403) volta o próprio formulário, preenchido, com a mensagem sob o campo
+  (alvo do modal). Nos passos que pedem evidência o servidor mostra os anexos do item acima do
+  formulário (o envio de arquivo é um formulário próprio).
+
+  Espera: formulario (routes.FormScreen), erros_gerais, erro_anexo, alvo e versao.
+#}
+{% macro campo(item, prefixo) %}
+{% set identificador = prefixo ~ '-' ~ item.name %}
+<div class="field{% if item.full %} field--full{% endif %}">
+  <label for="{{ identificador }}">{{ item.label }}</label>
+  {% set erro_attrs %}{% if item.error %} aria-invalid="true" aria-describedby="{{ identificador }}-erro"{% endif %}{% endset %}
+  {% if item.kind == 'select' %}
+  <select id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}" name="{{ item.name }}"
+    {% if item.required %}required{% endif %}{{ erro_attrs }}>
+    <option value="">Escolha</option>
+    {% for valor, texto in item.options %}
+    <option value="{{ valor }}"{% if valor == item.value %} selected{% endif %}>{{ texto }}</option>
+    {% endfor %}
+  </select>
+  {% elif item.kind == 'textarea' %}
+  <textarea id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}" name="{{ item.name }}" rows="3"
+    maxlength="300" {% if item.required %}required{% endif %}{{ erro_attrs }}>{{ item.value }}</textarea>
+  {% else %}
+  <input id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}" type="{{ 'date' if item.kind == 'date' else 'text' }}"
+    name="{{ item.name }}" value="{{ item.value }}" {% if item.required %}required{% endif %}
+    {% if item.kind == 'text' %}maxlength="300"{% endif %}{{ erro_attrs }} />
+  {% endif %}
+  {% if item.error %}<span class="field__erro" id="{{ identificador }}-erro" role="alert">{{ item.error }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{% block fragment %}
+{% set item = formulario.item %}
+{% if formulario.kind in ('enviar', 'verificar') and item %}
+<dl class="dl mb-16">
+  <dt>Item</dt><dd>{{ item.code }} · {{ item.description }}</dd>
+  <dt>Executante</dt><dd>{{ item.responsible_name }}{% if item.company_name %} · {{ item.company_name }}{% endif %}</dd>
+  {% if formulario.kind == 'verificar' %}
+  <dt>Tratamento</dt><dd>{{ item.treatment_comment or '·' }}</dd>
+  {% if item.rejections %}<dt>Reprovações</dt><dd>{{ item.rejections }}</dd>{% endif %}
+  {% endif %}
+</dl>
+<div id="punch-anexos" x-init="$ajax('/api/anexos?origem=punch_item&registro={{ item.id }}', { target: 'punch-anexos' })">
+  <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+</div>
+{% if erro_anexo %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erro_anexo }}</span></div>{% endif %}
+{% endif %}
+
+<form method="post" action="{{ formulario.action }}"
+  x-target="{{ alvo }}" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando...">
+  {% if versao %}<input type="hidden" name="versao" value="{{ versao }}" />{% endif %}
+  <input type="hidden" name="consulta" value="{{ formulario.query }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+  {% if formulario.support_text %}<p class="body-txt mb-16">{{ formulario.support_text }}</p>{% endif %}
+  <div class="fgrid">
+    {% for item_do_campo in formulario.fields %}
+    {{ campo(item_do_campo, target_id) }}
+    {% endfor %}
+  </div>
+  <div class="acoes-rodape mt-24">
+    <button type="button" class="btn btn--secondary" data-punch-fechar-modal>Fechar</button>
+    <button type="submit" class="btn {{ 'btn--danger' if formulario.danger else 'btn--primary' }}">{{ formulario.save_label }}</button>
+  </div>
+</form>
+{% endblock %}

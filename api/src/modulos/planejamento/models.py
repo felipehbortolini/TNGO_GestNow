@@ -28,6 +28,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -141,4 +142,36 @@ class LookaheadConstraint(Base):
     due_date: Mapped[date] = mapped_column("necessaria", Date)
     removal_date: Mapped[date | None] = mapped_column("remocao", Date)
     removal_comment: Mapped[str | None] = mapped_column("comentario_remocao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class PunchItem(Base):
+    """Item da punch list (ISSUE-049): sistema, TAG, categoria A/B/C, marco, fluxo e verificação."""
+
+    __tablename__ = "punch_item"
+    __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    system_id: Mapped[int] = mapped_column("sistema_id", ForeignKey("sistema.id"))
+    company_id: Mapped[int | None] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    responsible_id: Mapped[int] = mapped_column("responsavel_id", ForeignKey("pessoa.id"))
+    identified_by_id: Mapped[int] = mapped_column("identificado_por_id", ForeignKey("pessoa.id"))
+    verified_by_id: Mapped[int | None] = mapped_column("verificado_por_id", ForeignKey("pessoa.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    subsystem: Mapped[str] = mapped_column("subsistema", Text)
+    tag: Mapped[str] = mapped_column("tag", Text)
+    discipline: Mapped[str] = mapped_column("disciplina", Text)
+    category: Mapped[str] = mapped_column("categoria", Text)
+    milestone: Mapped[str] = mapped_column("marco", Text)
+    origin: Mapped[str] = mapped_column("origem", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    opened_on: Mapped[date] = mapped_column("abertura", Date)
+    due_date: Mapped[date] = mapped_column("prazo", Date)
+    closed_on: Mapped[date | None] = mapped_column("fechamento", Date)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    treatment_comment: Mapped[str | None] = mapped_column("comentario_tratamento", Text)
+    verification_comment: Mapped[str | None] = mapped_column("comentario_verificacao", Text)
+    cancellation_reason: Mapped[str | None] = mapped_column("justificativa_cancelamento", Text)
+    rejections: Mapped[int] = mapped_column("reprovacoes", Integer, server_default=text("0"))
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)

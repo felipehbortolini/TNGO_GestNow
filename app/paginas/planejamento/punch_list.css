@@ -8,9 +8,50 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-049 e ISSUE-050.
+   O que a tela acrescenta ao Design System: o texto de dois níveis dentro de um indicador,
+   a barra de busca e de ações, a linha de um item A vencido, a referência sob o texto de
+   uma célula e a coluna de ações da linha.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--planejamento-punch_list .punch__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.pagina--planejamento-punch_list .punch__busca {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.pagina--planejamento-punch_list .punch__contagem {
+  margin: 0;
+}
+.pagina--planejamento-punch_list .punch__barra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.pagina--planejamento-punch_list .punch__referencia {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.pagina--planejamento-punch_list .punch__linha--alerta td {
+  background: var(--erro-50);
+}
+.pagina--planejamento-punch_list .punch__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+}
+.pagina--planejamento-punch_list .punch__alerta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
