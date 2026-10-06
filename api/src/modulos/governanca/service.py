@@ -649,13 +649,19 @@ def _resolve_items(
 ) -> dict[str, int]:
     codes = _all_codes(new)
     found = financeiro.eac_item_ids_by_code(session, project_id=change.project_id, codes=codes)
+    levels = financeiro.eac_item_levels_by_code(session, project_id=change.project_id, codes=codes)
     messages: dict[str, str] = {}
     typed = set(new.item_codes)
     for code in codes:
-        if code in found:
+        if code not in found:
+            field = validation.FIELD_EAC_ITEMS if code in typed else validation.FIELD_TRANSFERS
+            messages.setdefault(field, ITEM_NOT_IN_EAC_MESSAGE.format(code=code))
             continue
-        field = validation.FIELD_EAC_ITEMS if code in typed else validation.FIELD_TRANSFERS
-        messages.setdefault(field, ITEM_NOT_IN_EAC_MESSAGE.format(code=code))
+        try:
+            financeiro.validation.check_impact_item(code=code, level=levels.get(code))
+        except InvalidDataError as error:
+            if isinstance(error.detail, Mapping):
+                messages.update(error.detail)
     if messages:
         raise InvalidDataError(messages)
     return found
@@ -710,7 +716,20 @@ def _replace_transfers(
     new: validation.ImpactInput,
     item_ids: Mapping[str, int],
 ) -> None:
-    """The proposed transfers of the change: the ones not yet applied are replaced by the new list."""
+    """The proposed transfers of the change: the ones not yet applied are replaced by the new list.
+
+    A destination created by the request (a new item) keeps its flag, so the transfers panel
+    still shows it as an item new after the analysis is revised.
+    """
+    current = session.scalars(
+        select(ChangeReallocation).where(
+            ChangeReallocation.change_id == change.id,
+            ChangeReallocation.applied.is_(False),
+        )
+    ).all()
+    new_items = {
+        (row.source_item_id, row.target_item_id, row.value_cents) for row in current if row.new_item
+    }
     session.execute(
         delete(ChangeReallocation).where(
             ChangeReallocation.change_id == change.id, ChangeReallocation.applied.is_(False)
@@ -722,6 +741,12 @@ def _replace_transfers(
             source_item_id=item_ids[transfer.source_code],
             target_item_id=item_ids[transfer.target_code],
             value_cents=transfer.value_cents,
+            new_item=(
+                item_ids[transfer.source_code],
+                item_ids[transfer.target_code],
+                transfer.value_cents,
+            )
+            in new_items,
             applied=False,
         )
         for transfer in new.transfers
@@ -1060,6 +1085,10 @@ def decide_change(
         if approved
         else ()
     )
+    if approved:
+        financeiro.apply_reallocations(
+            session, change=change, user=user, reference_date=reference_date
+        )
     decision = recording.create(
         session,
         user_id=user.id,
@@ -1160,6 +1189,8 @@ def close_change(
     problems = validation.closing_problems(data, impact=loaded.impact, open_actions=open_actions)
     if problems:
         raise InvalidDataError(problems)
+    if _pending_eac_revision(loaded):
+        raise InvalidDataError(validation.CLOSING_EAC_REVISION_PENDING)
     lesson_id = None
     lesson_code = None
     if data.lesson is not None:
@@ -1349,6 +1380,229 @@ def _closing_lesson_draft(
         cost_cents=facts.cost_cents,
         keywords=facts.keywords,
     )
+
+
+# ── The links with the EAC (ISSUE-030) ───────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ProposedTransfer:
+    """Uma transferência entre itens da EAC que a SM de remanejamento propõe."""
+
+    source_item_id: int
+    target_item_id: int
+    value_cents: int
+    new_item: bool = False
+
+
+@dataclass(frozen=True)
+class PendingReallocation:
+    """Uma transferência de SM aberta ainda não aplicada: a reserva de saldo da origem."""
+
+    transfer_id: int
+    change_id: int
+    change_code: str
+    project_id: int
+    situation: str
+    request_date: date
+    source_item_id: int
+    target_item_id: int
+    value_cents: int
+    new_item: bool
+    justification: str
+
+
+@dataclass(frozen=True)
+class ChangeEacSource:
+    """O que a revisão da EAC lê da SM que a origina: a situação, o custo e a incorporação."""
+
+    change_id: int
+    project_id: int
+    code: str
+    approved: bool
+    cost_cents: int
+    incorporated_revision: int | None
+
+
+@dataclass(frozen=True)
+class NewReallocation:
+    """A SM de remanejamento que a EAC abre: o projeto, o texto e as transferências propostas."""
+
+    project_id: int
+    title: str
+    justification: str
+    transfers: tuple[ProposedTransfer, ...]
+    priority: str = models.PRIORITY_NORMAL
+
+
+def create_reallocation_change(
+    session: Session,
+    *,
+    user: User,
+    proposal: NewReallocation,
+    reference_date: date,
+) -> CreatedChange:
+    """A SM de remanejamento de orçamento aberta pela EAC, com as transferências (HU-088, D9).
+
+    A SM nasce Registrada e segue o fluxo normal; as transferências ficam em
+    ``mudanca_remanejamento`` e só valem na aprovação. Quem escreve a tabela é este módulo,
+    o dono dela; a origem interna e a data de referência seguem o protótipo.
+    """
+    form: validation.Form = {
+        validation.FIELD_TITLE: proposal.title,
+        validation.FIELD_KIND: models.TYPE_REALLOCATION,
+        validation.FIELD_ORIGIN: "Interna",
+        validation.FIELD_PRIORITY: proposal.priority,
+        validation.FIELD_REQUEST_DATE: reference_date.isoformat(),
+        validation.FIELD_DESCRIPTION: proposal.justification,
+    }
+    created = create_change(
+        session,
+        user=user,
+        scope=Scope(project_id=proposal.project_id, source="url"),
+        form=form,
+        reference_date=reference_date,
+    )
+    session.add_all(
+        ChangeReallocation(
+            change_id=created.id,
+            source_item_id=transfer.source_item_id,
+            target_item_id=transfer.target_item_id,
+            value_cents=transfer.value_cents,
+            new_item=transfer.new_item,
+            applied=False,
+        )
+        for transfer in proposal.transfers
+    )
+    session.flush()
+    return created
+
+
+def pending_change_transfers(session: Session, *, change_id: int) -> tuple[ProposedTransfer, ...]:
+    """As transferências ainda não aplicadas de uma SM, na ordem em que foram propostas."""
+    rows = session.scalars(
+        select(ChangeReallocation)
+        .where(
+            ChangeReallocation.change_id == change_id,
+            ChangeReallocation.applied.is_(False),
+        )
+        .order_by(ChangeReallocation.id)
+    ).all()
+    return tuple(
+        ProposedTransfer(
+            source_item_id=row.source_item_id,
+            target_item_id=row.target_item_id,
+            value_cents=row.value_cents,
+            new_item=row.new_item,
+        )
+        for row in rows
+    )
+
+
+def pending_reallocations(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> tuple[PendingReallocation, ...]:
+    """As transferências propostas em SMs abertas e não aplicadas: a reserva do saldo livre.
+
+    A SM terminal (rejeitada, encerrada ou cancelada) não reserva mais nada, e a SM informada
+    em ``exclude_change_id`` fica de fora quando o próprio saldo dela está sendo conferido.
+    """
+    statement = (
+        select(ChangeReallocation, ChangeRequest)
+        .join(ChangeRequest, ChangeRequest.id == ChangeReallocation.change_id)
+        .where(
+            ChangeReallocation.applied.is_(False),
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.situation.not_in(models.TERMINAL_SITUATIONS),
+        )
+        .order_by(ChangeReallocation.id)
+    )
+    if exclude_change_id is not None:
+        statement = statement.where(ChangeRequest.id != exclude_change_id)
+    return tuple(
+        PendingReallocation(
+            transfer_id=row.id,
+            change_id=change.id,
+            change_code=change.code,
+            project_id=change.project_id,
+            situation=change.situation,
+            request_date=change.request_date,
+            source_item_id=row.source_item_id,
+            target_item_id=row.target_item_id,
+            value_cents=row.value_cents,
+            new_item=row.new_item,
+            justification=change.title,
+        )
+        for row, change in session.execute(statement)
+    )
+
+
+def mark_reallocations_applied(
+    session: Session,
+    *,
+    change_id: int,
+    applied_by_id: int,
+    applied_on: date,
+    revision: int,
+) -> int:
+    """Marca as transferências da SM como aplicadas, com o autor, a data e a revisão da EAC."""
+    rows = session.scalars(
+        select(ChangeReallocation)
+        .where(
+            ChangeReallocation.change_id == change_id,
+            ChangeReallocation.applied.is_(False),
+        )
+        .order_by(ChangeReallocation.id)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        row.applied = True
+        row.applied_by_id = applied_by_id
+        row.applied_on = applied_on
+        row.eac_revision = revision
+    session.flush()
+    return len(rows)
+
+
+def change_eac_source(session: Session, *, change_id: int) -> ChangeEacSource | None:
+    """A SM como a revisão da EAC a lê: aprovada, custo, incorporação e projeto."""
+    change = session.get(ChangeRequest, change_id)
+    if change is None:
+        return None
+    impact = _latest(session, ChangeImpact, [change.id]).get(change.id)
+    return ChangeEacSource(
+        change_id=change.id,
+        project_id=change.project_id,
+        code=change.code,
+        approved=calculations.is_approved(change.situation),
+        cost_cents=impact.cost_cents if impact else 0,
+        incorporated_revision=change.eac_revision,
+    )
+
+
+def incorporate_eac_revision(
+    session: Session, *, user: User, change_id: int, revision: int
+) -> None:
+    """Grava em ``eac_revisao_incorporada`` a revisão da EAC que incorporou o custo da SM."""
+    change = session.get(ChangeRequest, change_id)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes={"eac_revision": revision},
+        version=change.version,
+    )
+
+
+def change_codes(session: Session, *, change_ids: Sequence[int]) -> dict[int, str]:
+    """O código de cada SM por id, para uma tela que lista transferências ou revisões."""
+    wanted = {change_id for change_id in change_ids if change_id}
+    if not wanted:
+        return {}
+    statement = select(ChangeRequest.id, ChangeRequest.code).where(ChangeRequest.id.in_(wanted))
+    return {row.id: row.code for row in session.execute(statement)}
 
 
 # ── The demonstration load (ISSUE-023, D6) ───────────────────────────────

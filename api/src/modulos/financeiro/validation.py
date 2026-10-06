@@ -116,6 +116,8 @@ def _length_error(text: str, minimum: int, maximum: int, ask: str) -> str:
 FIELD_REALLOCATION_VALUE = "remanejamento_valor"
 FIELD_NEW_ITEM_VALUE = "item_novo_valor"
 FIELD_REVISION_CHANGE = "mudanca_id"
+FIELD_REVISION_JUSTIFICATION = "justificativa"
+FIELD_REVISION_ITEMS = "itens"
 FIELD_EAC_ITEMS = "itens_eac"
 
 REALLOCATION_OVER_BALANCE = (

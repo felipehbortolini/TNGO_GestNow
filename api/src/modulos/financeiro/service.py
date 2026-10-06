@@ -13,17 +13,18 @@ Nothing here reads the clock: the routes pass the reference date.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.core import audit, calendario, rbac, recording
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry
+from src.core.money import format_brl
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
@@ -36,12 +37,21 @@ from src.modulos.financeiro.calculations import (
     WeightCriterion,
     WeightInput,
 )
-from src.modulos.financeiro.models import EacItem
+from src.modulos.financeiro.models import (
+    EacItem,
+    EacReallocation,
+    EacRevision,
+    EacRevisionItem,
+)
+
+if TYPE_CHECKING:
+    from src.modulos.governanca.service import ProposedTransfer
 
 MODULE = "financeiro"
 REGISTRY_ENTITY = "eac_item.cadastro"
 PORTFOLIO_LABEL = "Portfólio"
 PORTFOLIO_ROOT_DESCRIPTION = "Portfólio de projetos"
+COMMITTED_CENTS = 0
 
 PORTFOLIO_READ_ONLY_MESSAGE = (
     "A EAC do Portfólio é somente leitura. Abra o projeto para editar um item."
@@ -50,6 +60,7 @@ OTHER_PROJECT_MESSAGE = "O item pertence a outro projeto. Abra o projeto dele pa
 NOT_FOUND_MESSAGE = "Item da EAC não encontrado."
 UNKNOWN_PROJECT_MESSAGE = "O projeto escolhido não existe."
 ONLY_ITEMS_MESSAGE = "Só os itens de custo (nível 3) têm cadastro editável."
+REVISION_DENIED_MESSAGE = "A revisão da EAC exige papel Gestor."
 
 DEFAULT_CRITERIA = (WeightCriterion(id="valor", weight=Decimal(100), source="orcamento"),)
 
@@ -233,32 +244,101 @@ def _portfolio_summary(
 
 
 def _lines_by_project(session: Session, project_ids: Sequence[int]) -> dict[int, list[ItemLine]]:
-    """The items of the projects, with the names of the unit and the responsible resolved."""
+    """The items of the projects, with the names resolved and the base in force of each one.
+
+    An item of a project with a revision takes the frozen base of the latest revision plus the
+    reallocations applied and not yet consolidated; without a revision, quantity x unit price.
+    """
     if not project_ids:
         return {}
     people = {person.id: person.name for person in configuracoes.list_people(session)}
     units = {unit.id: unit.code for unit in configuracoes.list_measure_units(session)}
     statement = select(EacItem).where(EacItem.project_id.in_(project_ids)).order_by(EacItem.id)
-    grouped: dict[int, list[ItemLine]] = {}
+    records: dict[int, list[EacItem]] = {}
     for item in session.scalars(statement):
-        grouped.setdefault(item.project_id, []).append(
-            ItemLine(
-                id=item.id,
-                parent_id=item.parent_id,
-                code=item.code,
-                description=item.description,
-                level=item.level,
-                cost_type=item.cost_type,
-                unit=units.get(item.unit_id) if item.unit_id else None,
-                quantity=item.quantity,
-                unit_price_cents=item.unit_price_cents,
-                capex=item.capex,
-                cost_center=item.cost_center,
-                responsible=people.get(item.responsible_id) if item.responsible_id else None,
-                version=item.version,
-            )
-        )
+        records.setdefault(item.project_id, []).append(item)
+    grouped: dict[int, list[ItemLine]] = {}
+    for project_id, project_records in records.items():
+        plain = [_item_line(record, people=people, units=units) for record in project_records]
+        bases = _current_bases(session, project_id=project_id, items=plain)
+        grouped[project_id] = [replace(line, base_cents=bases.get(line.id, 0)) for line in plain]
     return grouped
+
+
+def _item_line(
+    item: EacItem,
+    *,
+    people: Mapping[int, str],
+    units: Mapping[int, str],
+    base_cents: int | None = None,
+) -> ItemLine:
+    return ItemLine(
+        id=item.id,
+        parent_id=item.parent_id,
+        code=item.code,
+        description=item.description,
+        level=item.level,
+        cost_type=item.cost_type,
+        unit=units.get(item.unit_id) if item.unit_id else None,
+        quantity=item.quantity,
+        unit_price_cents=item.unit_price_cents,
+        base_cents=base_cents,
+        capex=item.capex,
+        cost_center=item.cost_center,
+        responsible=people.get(item.responsible_id) if item.responsible_id else None,
+        version=item.version,
+    )
+
+
+def _latest_revision(session: Session, *, project_id: int) -> int | None:
+    statement = (
+        select(EacRevision.revision)
+        .where(EacRevision.project_id == project_id)
+        .order_by(EacRevision.revision.desc())
+        .limit(1)
+    )
+    return session.scalars(statement).one_or_none()
+
+
+def _revision_bases(session: Session, *, project_id: int, revision: int) -> dict[int, int]:
+    statement = (
+        select(EacRevisionItem.item_id, EacRevisionItem.base_cents)
+        .join(EacRevision, EacRevision.id == EacRevisionItem.revision_id)
+        .where(EacRevision.project_id == project_id, EacRevision.revision == revision)
+    )
+    return {row.item_id: row.base_cents for row in session.execute(statement)}
+
+
+def _current_bases(
+    session: Session, *, project_id: int, items: Sequence[ItemLine]
+) -> dict[int, int]:
+    """Orçado atual of every item of the project, in cents (frozen revision plus reallocations)."""
+    latest = _latest_revision(session, project_id=project_id)
+    revision_bases = (
+        _revision_bases(session, project_id=project_id, revision=latest)
+        if latest is not None
+        else {}
+    )
+    statement = (
+        select(EacReallocation)
+        .where(EacReallocation.project_id == project_id)
+        .order_by(EacReallocation.id)
+    )
+    reallocations = [
+        calculations.ReallocationLine(
+            source_item_id=row.source_item_id,
+            target_item_id=row.target_item_id,
+            value_cents=row.value_cents,
+            revision=row.revision,
+        )
+        for row in session.scalars(statement)
+    ]
+    return calculations.current_base_cents(
+        items,
+        revision_bases=revision_bases,
+        latest_revision=latest,
+        reallocations=reallocations,
+    )
 
 
 # ── Orçamento vigente e ponderação da carteira ───────────────────────────
@@ -580,3 +660,713 @@ def eac_item_codes(session: Session, item_ids: Sequence[int]) -> dict[int, str]:
         return {}
     statement = select(EacItem.id, EacItem.code).where(EacItem.id.in_(set(item_ids)))
     return {row.id: row.code for row in session.execute(statement)}
+
+
+def eac_item_levels_by_code(
+    session: Session, *, project_id: int, codes: Sequence[str]
+) -> dict[str, int]:
+    """The level of each EAC item of the project named by its code; a code absent is left out."""
+    wanted = {code.strip() for code in codes if code.strip()}
+    if not wanted:
+        return {}
+    statement = select(EacItem.code, EacItem.level).where(
+        EacItem.project_id == project_id, EacItem.code.in_(wanted)
+    )
+    return {row.code: row.level for row in session.execute(statement)}
+
+
+# ── Remanejamento por SM (ISSUE-030) ─────────────────────────────────────
+
+
+REALLOCATION_FIELD = "remanejamentos"
+REALLOCATION_EMPTY_MESSAGE = "Inclua ao menos uma transferência (origem, destino e valor)."
+REALLOCATION_SAME_ITEM_MESSAGE = "O destino precisa ser diferente da origem."
+REALLOCATION_VALUE_MESSAGE = "Informe um valor maior que zero."
+REALLOCATION_SOURCE_MESSAGE = "A origem {code} precisa ser item de custo (nível 3) da EAC."
+REALLOCATION_TARGET_MESSAGE = "O destino {code} precisa ser item de custo (nível 3) da EAC."
+REALLOCATION_TARGET_UNKNOWN_MESSAGE = "O item de destino {code} não existe na EAC do projeto."
+NEW_ITEM_CODE_MESSAGE = "Já existe item com o código {code} na EAC."
+REVISION_CHANGE_UNKNOWN_MESSAGE = "A SM informada não é do projeto desta revisão."
+REVISION_ALREADY_INCORPORATED_MESSAGE = (
+    "O custo desta SM já foi incorporado por uma revisão da EAC."
+)
+REVISION_JUSTIFICATION_MESSAGE = "Informe a justificativa da revisão."
+REVISION_ITEM_UNKNOWN_MESSAGE = "O item {code} não é item de custo (nível 3) da EAC."
+REVISION_NEW_ITEM_DUPLICATE_MESSAGE = "Item novo repetido: {code}."
+REVISION_NEW_ITEM_VALUE_MESSAGE = "O item novo {code} precisa de um valor maior ou igual a zero."
+
+DEFAULT_REALLOCATION_PRIORITY = "Normal"
+
+
+@dataclass(frozen=True)
+class NewItemRequest:
+    """O item novo que um remanejamento cria, com o lugar na árvore e os atributos cadastrais."""
+
+    code: str
+    description: str
+    parent_id: int | None = None
+    unit_id: int | None = None
+    cost_type: str | None = None
+    capex: bool | None = None
+    cost_center: str | None = None
+    responsible_id: int | None = None
+
+
+@dataclass(frozen=True)
+class TransferRequest:
+    """Uma transferência da SM: origem, destino, valor e o item novo do destino, quando é o caso."""
+
+    source_code: str
+    target_code: str
+    value_cents: int
+    new_item: NewItemRequest | None = None
+
+
+@dataclass(frozen=True)
+class ReallocationRequest:
+    """O remanejamento pedido pela tela da EAC: o título, a justificativa e as transferências."""
+
+    justification: str
+    transfers: tuple[TransferRequest, ...]
+    title: str = ""
+    priority: str = DEFAULT_REALLOCATION_PRIORITY
+
+
+@dataclass(frozen=True)
+class CreatedReallocation:
+    """A SM de remanejamento criada: o que a tela da EAC precisa para abri-la."""
+
+    id: int
+    code: str
+    project_id: int
+
+
+class ReallocationChange(Protocol):
+    """A SM que aplica transferências, como a fachada do Financeiro a lê (dona: Governança)."""
+
+    id: int
+    project_id: int
+    title: str
+
+
+def reallocate(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    request: ReallocationRequest,
+    reference_date: date,
+) -> CreatedReallocation:
+    """Open the SM of a budget reallocation with its transfers, as the EAC screen asks (HU-088).
+
+    The origin needs the free balance (the current budget less the committed and the balance
+    reserved by other open SMs); the destination is an item of level 3 or an item new, which is
+    born here with base zero because ``mudanca_remanejamento`` points at it (its value only
+    arrives with the approval). The transfers are written by the Governança facade, the owner of
+    the table.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    project_id = scope.require_project()
+    if not request.transfers:
+        raise InvalidDataError({REALLOCATION_FIELD: REALLOCATION_EMPTY_MESSAGE})
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    _check_transfer_requests(request.transfers, items)
+    new_ids = _create_new_items(session, user_id=user.id, project_id=project_id, request=request)
+    transfers = _proposed_transfers(request.transfers, items, new_ids)
+    _check_sources_free(session, project_id=project_id, items=items, transfers=transfers)
+    from src.modulos.governanca import service as governanca
+
+    created = governanca.create_reallocation_change(
+        session,
+        user=user,
+        proposal=governanca.NewReallocation(
+            project_id=project_id,
+            title=_reallocation_title(request),
+            justification=request.justification,
+            transfers=transfers,
+            priority=request.priority,
+        ),
+        reference_date=reference_date,
+    )
+    return CreatedReallocation(id=created.id, code=created.code, project_id=created.project_id)
+
+
+def _check_transfer_requests(
+    transfers: Sequence[TransferRequest], items: Sequence[ItemLine]
+) -> None:
+    by_code = {item.code: item for item in items}
+    new_codes: set[str] = set()
+    for transfer in transfers:
+        if not isinstance(transfer.value_cents, int) or transfer.value_cents <= 0:
+            raise InvalidDataError({REALLOCATION_FIELD: REALLOCATION_VALUE_MESSAGE})
+        if transfer.source_code == transfer.target_code:
+            raise InvalidDataError({REALLOCATION_FIELD: REALLOCATION_SAME_ITEM_MESSAGE})
+        source = by_code.get(transfer.source_code)
+        if source is None or source.level < calculations.LEAF_LEVEL:
+            raise InvalidDataError(
+                {REALLOCATION_FIELD: REALLOCATION_SOURCE_MESSAGE.format(code=transfer.source_code)}
+            )
+        if transfer.new_item is None:
+            target = by_code.get(transfer.target_code)
+            if target is None or target.level < calculations.LEAF_LEVEL:
+                raise InvalidDataError(
+                    {
+                        REALLOCATION_FIELD: REALLOCATION_TARGET_MESSAGE.format(
+                            code=transfer.target_code
+                        )
+                    }
+                )
+            continue
+        if (
+            transfer.new_item.code != transfer.target_code
+            or transfer.target_code in by_code
+            or transfer.target_code in new_codes
+        ):
+            raise InvalidDataError(
+                {REALLOCATION_FIELD: NEW_ITEM_CODE_MESSAGE.format(code=transfer.target_code)}
+            )
+        new_codes.add(transfer.target_code)
+
+
+def _create_new_items(
+    session: Session, *, user_id: int, project_id: int, request: ReallocationRequest
+) -> dict[str, int]:
+    created: dict[str, int] = {}
+    for transfer in request.transfers:
+        spec = transfer.new_item
+        if spec is None:
+            continue
+        created[spec.code] = create_item(
+            session,
+            user_id=user_id,
+            new=NewItem(
+                project_id=project_id,
+                code=spec.code,
+                description=spec.description,
+                level=calculations.LEAF_LEVEL,
+                parent_id=spec.parent_id,
+                unit_id=spec.unit_id,
+                responsible_id=spec.responsible_id,
+                cost_type=spec.cost_type,
+                capex=spec.capex,
+                cost_center=spec.cost_center,
+            ),
+        )
+    return created
+
+
+def _proposed_transfers(
+    transfers: Sequence[TransferRequest],
+    items: Sequence[ItemLine],
+    new_ids: Mapping[str, int],
+) -> tuple[ProposedTransfer, ...]:
+    from src.modulos.governanca.service import ProposedTransfer
+
+    by_code = {item.code: item for item in items}
+    proposed: list[ProposedTransfer] = []
+    for transfer in transfers:
+        if transfer.new_item is not None:
+            target_id = new_ids[transfer.target_code]
+        else:
+            target_id = by_code[transfer.target_code].id
+        proposed.append(
+            ProposedTransfer(
+                source_item_id=by_code[transfer.source_code].id,
+                target_item_id=target_id,
+                value_cents=transfer.value_cents,
+                new_item=transfer.new_item is not None,
+            )
+        )
+    return tuple(proposed)
+
+
+def _check_sources_free(
+    session: Session,
+    *,
+    project_id: int,
+    items: Sequence[ItemLine],
+    transfers: Sequence[ProposedTransfer],
+) -> None:
+    bases = _current_bases(session, project_id=project_id, items=items)
+    reservations = _reservations(session, project_id=project_id)
+    codes = {item.id: item.code for item in items}
+    values: dict[int, int] = {}
+    for transfer in transfers:
+        values[transfer.source_item_id] = (
+            values.get(transfer.source_item_id, 0) + transfer.value_cents
+        )
+    for source_id, value_cents in values.items():
+        free = calculations.free_balance_cents(
+            source_id,
+            base_cents=bases.get(source_id, 0),
+            committed_cents=COMMITTED_CENTS,
+            reservations=reservations,
+        )
+        validation.check_reallocation_balance(
+            item_code=codes.get(source_id, ""), value_cents=value_cents, free_cents=free
+        )
+
+
+def _reservations(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> tuple[calculations.ReservationLine, ...]:
+    """The balance reserved by other open SMs: their transfers not yet applied to the EAC."""
+    from src.modulos.governanca import service as governanca
+
+    return tuple(
+        calculations.ReservationLine(
+            source_item_id=line.source_item_id, value_cents=line.value_cents
+        )
+        for line in governanca.pending_reallocations(
+            session, project_id=project_id, exclude_change_id=exclude_change_id
+        )
+    )
+
+
+def _reallocation_title(request: ReallocationRequest) -> str:
+    title = request.title.strip()
+    if title:
+        return title
+    if len(request.transfers) == 1:
+        transfer = request.transfers[0]
+        return (
+            f"Remanejamento de {format_brl(transfer.value_cents)} do item "
+            f"{transfer.source_code} para o item {transfer.target_code}"
+        )
+    total = sum(transfer.value_cents for transfer in request.transfers)
+    return f"Remanejamento de {format_brl(total)} na EAC"
+
+
+def apply_reallocations(
+    session: Session,
+    *,
+    change: ReallocationChange,
+    user: User,
+    reference_date: date,
+) -> int:
+    """Apply the approved transfers to the EAC, inside the decision transaction (HU-088, D9).
+
+    The free balance is checked again, now without the reserve of the own SM, because other
+    SMs may have entered the queue since the request. Each applied line lands in
+    ``eac_remanejamento`` pointing at the next revision (the one that will consolidate it; zero
+    without any revision), and the transfers of the SM are marked applied in the same
+    transaction. The committed part enters with the control map (ISSUE-031).
+    """
+    from src.modulos.governanca import service as governanca
+
+    transfers = governanca.pending_change_transfers(session, change_id=change.id)
+    if not transfers:
+        return 0
+    items = _lines_by_project(session, [change.project_id]).get(change.project_id, [])
+    bases = _current_bases(session, project_id=change.project_id, items=items)
+    codes = {item.id: item.code for item in items}
+    latest = _latest_revision(session, project_id=change.project_id)
+    revision = 0 if latest is None else latest + 1
+    reservations = _reservations(session, project_id=change.project_id, exclude_change_id=change.id)
+    values: dict[int, int] = {}
+    for transfer in transfers:
+        values[transfer.source_item_id] = (
+            values.get(transfer.source_item_id, 0) + transfer.value_cents
+        )
+    for source_id, value_cents in values.items():
+        free = calculations.free_balance_cents(
+            source_id,
+            base_cents=bases.get(source_id, 0),
+            committed_cents=COMMITTED_CENTS,
+            reservations=reservations,
+        )
+        validation.check_reallocation_balance(
+            item_code=codes.get(source_id, ""), value_cents=value_cents, free_cents=free
+        )
+    for transfer in transfers:
+        if transfer.target_item_id not in bases:
+            raise InvalidDataError(
+                {
+                    REALLOCATION_FIELD: REALLOCATION_TARGET_UNKNOWN_MESSAGE.format(
+                        code=transfer.target_item_id
+                    )
+                }
+            )
+        recording.create(
+            session,
+            user_id=user.id,
+            record=EacReallocation(
+                project_id=change.project_id,
+                source_item_id=transfer.source_item_id,
+                target_item_id=transfer.target_item_id,
+                applied_by_id=user.person_id,
+                change_id=change.id,
+                revision=revision,
+                applied_on=reference_date,
+                value_cents=transfer.value_cents,
+                new_item=transfer.new_item,
+                justification=change.title,
+            ),
+        )
+    governanca.mark_reallocations_applied(
+        session,
+        change_id=change.id,
+        applied_by_id=user.person_id,
+        applied_on=reference_date,
+        revision=revision,
+    )
+    return len(transfers)
+
+
+# ── Revisões da EAC (ISSUE-030) ──────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class AdjustmentRequest:
+    """O ajuste de valor de um item da EAC na revisão: o código e o delta em centavos."""
+
+    code: str
+    delta_cents: int
+
+
+@dataclass(frozen=True)
+class RevisionItemRequest:
+    """O item novo que a revisão cria, com o valor que a SM aprovada financia."""
+
+    code: str
+    description: str
+    base_cents: int
+    parent_id: int | None = None
+    unit_id: int | None = None
+    cost_type: str | None = None
+    capex: bool | None = None
+    cost_center: str | None = None
+    responsible_id: int | None = None
+
+
+@dataclass(frozen=True)
+class RevisionRequest:
+    """A revisão pedida pela tela da EAC: a SM que a origina, a justificativa e o que muda."""
+
+    change_id: int
+    justification: str
+    adjustments: tuple[AdjustmentRequest, ...] = ()
+    new_items: tuple[RevisionItemRequest, ...] = ()
+
+
+@dataclass(frozen=True)
+class RevisionView:
+    """Uma revisão da EAC como a tela e os exports a leem, com o total das linhas congeladas."""
+
+    id: int
+    project_id: int
+    revision: int
+    change_id: int | None
+    change_code: str
+    approved_by: str
+    revision_date: date
+    justification: str
+    total_cents: int
+
+
+@dataclass(frozen=True)
+class ReallocationView:
+    """Um remanejamento aplicado ou pendente, como a tela da EAC o lista."""
+
+    id: int
+    change_id: int
+    change_code: str
+    situation: str
+    source_code: str
+    target_code: str
+    value_cents: int
+    new_item: bool
+    applied: bool
+    applied_on: date | None
+    revision: int
+    justification: str
+    free_balance_cents: int | None = None
+
+
+@dataclass(frozen=True)
+class ReallocationList:
+    """Os remanejamentos da EAC: os aplicados (da revisão pedida) e os pendentes de decisão."""
+
+    applied: tuple[ReallocationView, ...]
+    pending: tuple[ReallocationView, ...]
+
+
+def revisions(session: Session, *, project_id: int) -> tuple[RevisionView, ...]:
+    """The revisions of the project, oldest first, each with the frozen total of its items."""
+    records = session.scalars(
+        select(EacRevision)
+        .where(EacRevision.project_id == project_id)
+        .order_by(EacRevision.revision)
+    ).all()
+    if not records:
+        return ()
+    totals = {
+        row[0]: int(row[1] or 0)
+        for row in session.execute(
+            select(EacRevisionItem.revision_id, func.sum(EacRevisionItem.base_cents))
+            .where(EacRevisionItem.revision_id.in_([record.id for record in records]))
+            .group_by(EacRevisionItem.revision_id)
+        )
+    }
+    from src.modulos.governanca import service as governanca
+
+    codes = governanca.change_codes(
+        session, change_ids=[record.change_id for record in records if record.change_id]
+    )
+    names = configuracoes.person_names(session, [record.approved_by_id for record in records])
+    return tuple(
+        RevisionView(
+            id=record.id,
+            project_id=record.project_id,
+            revision=record.revision,
+            change_id=record.change_id,
+            change_code=codes.get(record.change_id or 0, ""),
+            approved_by=names.get(record.approved_by_id, ""),
+            revision_date=record.revision_date,
+            justification=record.justification,
+            total_cents=totals.get(record.id, 0),
+        )
+        for record in records
+    )
+
+
+def reallocations(
+    session: Session, *, project_id: int, revision: int | None = None
+) -> ReallocationList:
+    """The reallocations of the project: the applied ones (optionally of one revision) and the pending.
+
+    A pending line carries the free balance of its origin as it stands without the reserve of its
+    own SM, so the screen shows how much still fits.
+    """
+    from src.modulos.governanca import service as governanca
+
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    codes = {item.id: item.code for item in items}
+    statement = (
+        select(EacReallocation)
+        .where(EacReallocation.project_id == project_id)
+        .order_by(EacReallocation.id)
+    )
+    applied_rows = [
+        row for row in session.scalars(statement) if revision is None or row.revision == revision
+    ]
+    change_codes = governanca.change_codes(
+        session, change_ids=[row.change_id for row in applied_rows if row.change_id]
+    )
+    applied = tuple(
+        ReallocationView(
+            id=row.id,
+            change_id=row.change_id or 0,
+            change_code=change_codes.get(row.change_id or 0, ""),
+            situation="",
+            source_code=codes.get(row.source_item_id, ""),
+            target_code=codes.get(row.target_item_id, ""),
+            value_cents=row.value_cents,
+            new_item=row.new_item,
+            applied=True,
+            applied_on=row.applied_on,
+            revision=row.revision,
+            justification=row.justification or "",
+        )
+        for row in applied_rows
+    )
+    pending_lines = governanca.pending_reallocations(session, project_id=project_id)
+    bases = _current_bases(session, project_id=project_id, items=items)
+    pending = tuple(
+        ReallocationView(
+            id=line.transfer_id,
+            change_id=line.change_id,
+            change_code=line.change_code,
+            situation=line.situation,
+            source_code=codes.get(line.source_item_id, ""),
+            target_code=codes.get(line.target_item_id, ""),
+            value_cents=line.value_cents,
+            new_item=line.new_item,
+            applied=False,
+            applied_on=None,
+            revision=0,
+            justification=line.justification,
+            free_balance_cents=calculations.free_balance_cents(
+                line.source_item_id,
+                base_cents=bases.get(line.source_item_id, 0),
+                committed_cents=COMMITTED_CENTS,
+                reservations=tuple(
+                    calculations.ReservationLine(
+                        source_item_id=other.source_item_id, value_cents=other.value_cents
+                    )
+                    for other in pending_lines
+                    if other.change_id != line.change_id
+                ),
+            ),
+        )
+        for line in pending_lines
+    )
+    return ReallocationList(applied=applied, pending=pending)
+
+
+def create_revision(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    request: RevisionRequest,
+    reference_date: date,
+) -> RevisionView:
+    """Create the revision of the EAC from an approved SM with cost (HU-087, Gestor only).
+
+    The revision only exists from an approved SM whose cost is not incorporated yet; the sum of
+    the increases (the adjustments plus the new items) cannot exceed the approved cost. The
+    revision consolidates the reallocations already applied and freezes the baseline of every
+    item of level 3, including the items new, which are born here. Writing
+    ``eac_revisao_incorporada`` on the SM belongs to the Governança facade.
+    """
+    rbac.require_module(user, MODULE)
+    if not rbac.can(user, Permission.MANAGE):
+        raise AccessDeniedError(REVISION_DENIED_MESSAGE)
+    project_id = scope.require_project()
+    from src.modulos.governanca import service as governanca
+
+    source = governanca.change_eac_source(session, change_id=request.change_id)
+    if source is None or source.project_id != project_id:
+        raise InvalidDataError({validation.FIELD_REVISION_CHANGE: REVISION_CHANGE_UNKNOWN_MESSAGE})
+    if source.incorporated_revision is not None:
+        raise InvalidDataError(
+            {validation.FIELD_REVISION_CHANGE: REVISION_ALREADY_INCORPORATED_MESSAGE}
+        )
+    validation.check_revision_source(
+        validation.RevisionSource(
+            change_id=source.change_id, approved=source.approved, cost_cents=source.cost_cents
+        )
+    )
+    justification = request.justification.strip()
+    if not justification:
+        raise InvalidDataError(
+            {validation.FIELD_REVISION_JUSTIFICATION: REVISION_JUSTIFICATION_MESSAGE}
+        )
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    deltas = _adjustment_deltas(items, request.adjustments)
+    _check_new_items(items, request.new_items)
+    increase = sum(item.base_cents for item in request.new_items) + sum(
+        adjustment.delta_cents for adjustment in request.adjustments
+    )
+    validation.check_new_item_cost(value_cents=increase, approved_cents=source.cost_cents)
+    new_ids = _create_revision_items(
+        session, user_id=user.id, project_id=project_id, request=request
+    )
+    bases = _current_bases(session, project_id=project_id, items=items)
+    latest = _latest_revision(session, project_id=project_id)
+    revision = 0 if latest is None else latest + 1
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=EacRevision(
+            project_id=project_id,
+            change_id=source.change_id,
+            approved_by_id=user.person_id,
+            revision=revision,
+            revision_date=reference_date,
+            justification=justification,
+        ),
+    )
+    frozen = [
+        EacRevisionItem(
+            revision_id=record.id,
+            item_id=item.id,
+            base_cents=bases.get(item.id, 0) + deltas.get(item.id, 0),
+        )
+        for item in items
+        if item.level >= calculations.LEAF_LEVEL
+    ]
+    frozen.extend(
+        EacRevisionItem(
+            revision_id=record.id, item_id=new_ids[item.code], base_cents=item.base_cents
+        )
+        for item in request.new_items
+    )
+    session.add_all(frozen)
+    session.flush()
+    governanca.incorporate_eac_revision(
+        session, user=user, change_id=source.change_id, revision=revision
+    )
+    return RevisionView(
+        id=record.id,
+        project_id=project_id,
+        revision=revision,
+        change_id=source.change_id,
+        change_code=source.code,
+        approved_by=user.name,
+        revision_date=reference_date,
+        justification=justification,
+        total_cents=sum(line.base_cents for line in frozen),
+    )
+
+
+def _adjustment_deltas(
+    items: Sequence[ItemLine], adjustments: Sequence[AdjustmentRequest]
+) -> dict[int, int]:
+    leaves = {item.code: item for item in items if item.level >= calculations.LEAF_LEVEL}
+    deltas: dict[int, int] = {}
+    for adjustment in adjustments:
+        item = leaves.get(adjustment.code)
+        if item is None:
+            raise InvalidDataError(
+                {
+                    validation.FIELD_REVISION_ITEMS: REVISION_ITEM_UNKNOWN_MESSAGE.format(
+                        code=adjustment.code
+                    )
+                }
+            )
+        deltas[item.id] = deltas.get(item.id, 0) + adjustment.delta_cents
+    return deltas
+
+
+def _check_new_items(items: Sequence[ItemLine], new_items: Sequence[RevisionItemRequest]) -> None:
+    codes = {item.code for item in items}
+    seen: set[str] = set()
+    for item in new_items:
+        if item.code in codes:
+            raise InvalidDataError(
+                {validation.FIELD_REVISION_ITEMS: NEW_ITEM_CODE_MESSAGE.format(code=item.code)}
+            )
+        if item.code in seen:
+            raise InvalidDataError(
+                {
+                    validation.FIELD_REVISION_ITEMS: REVISION_NEW_ITEM_DUPLICATE_MESSAGE.format(
+                        code=item.code
+                    )
+                }
+            )
+        if item.base_cents < 0:
+            raise InvalidDataError(
+                {
+                    validation.FIELD_REVISION_ITEMS: REVISION_NEW_ITEM_VALUE_MESSAGE.format(
+                        code=item.code
+                    )
+                }
+            )
+        seen.add(item.code)
+
+
+def _create_revision_items(
+    session: Session, *, user_id: int, project_id: int, request: RevisionRequest
+) -> dict[str, int]:
+    created: dict[str, int] = {}
+    for item in request.new_items:
+        created[item.code] = create_item(
+            session,
+            user_id=user_id,
+            new=NewItem(
+                project_id=project_id,
+                code=item.code,
+                description=item.description,
+                level=calculations.LEAF_LEVEL,
+                parent_id=item.parent_id,
+                unit_id=item.unit_id,
+                responsible_id=item.responsible_id,
+                cost_type=item.cost_type,
+                capex=item.capex,
+                cost_center=item.cost_center,
+            ),
+        )
+    return created

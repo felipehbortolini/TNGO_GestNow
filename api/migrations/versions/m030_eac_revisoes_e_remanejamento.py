@@ -3,7 +3,8 @@
 As três tabelas que a ISSUE-029 deixou para esta fatia, como em ``docs/MODELO-DE-DADOS.md``: a
 revisão, a linha de base congelada de cada item em cada revisão e o remanejamento aplicado. Os
 vínculos da Governança com ``eac_item``, abertos sem chave estrangeira na ISSUE-023/024, entram
-aqui: o dono da tabela chegou (D9).
+aqui: o dono da tabela chegou (D9). ``mudanca_remanejamento`` ganha ``novo_item``, que diz se o
+destino da transferência nasceu do próprio remanejamento.
 
 Revision ID: m030
 Revises: m025
@@ -77,6 +78,7 @@ def upgrade() -> None:
         sa.Column("revisao", sa.Integer(), nullable=False),
         sa.Column("data", sa.Date(), nullable=False),
         sa.Column("valor_centavos", sa.BigInteger(), nullable=False),
+        sa.Column("novo_item", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("justificativa", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(
             ["destino_item_id"], ["eac_item.id"], name=op.f("fk_eac_remanejamento_destino_item_id")
@@ -94,6 +96,10 @@ def upgrade() -> None:
             ["projeto_id"], ["projeto.id"], name=op.f("fk_eac_remanejamento_projeto_id")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_eac_remanejamento")),
+    )
+    op.add_column(
+        "mudanca_remanejamento",
+        sa.Column("novo_item", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
     op.create_foreign_key(
         op.f("fk_mudanca_remanejamento_origem_item_id"),
@@ -135,6 +141,7 @@ def downgrade() -> None:
         "mudanca_remanejamento",
         type_="foreignkey",
     )
+    op.drop_column("mudanca_remanejamento", "novo_item")
     op.drop_table("eac_remanejamento")
     op.drop_table("eac_revisao_item")
     op.drop_table("eac_revisao")

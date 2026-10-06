@@ -540,6 +540,10 @@ CLOSING_SCHEDULE_REQUIRED = (
 CLOSING_CONTRACT_REQUIRED = "Confirme que o aditivo contratual foi formalizado."
 CLOSING_RISKS_REQUIRED = "Confirme que os riscos afetados foram revisados no registro."
 CLOSING_DATE_REQUIRED = "Informe a data do encerramento."
+CLOSING_EAC_REVISION_PENDING = (
+    "O custo aprovado desta SM ainda não foi incorporado a uma revisão da EAC: "
+    "registre a revisão em Financeiro antes de encerrar."
+)
 REOPEN_NOT_POSTPONED = "Só uma solicitação Adiada volta à pauta."
 
 

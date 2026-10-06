@@ -453,6 +453,7 @@ erDiagram
         bigint destino_item_id FK
         bigint aplicado_por_id FK
         bigint valor_centavos
+        boolean novo_item
         boolean aplicado
         date aplicado_em
         integer revisao_eac
@@ -589,6 +590,7 @@ erDiagram
         integer revisao
         date data
         bigint valor_centavos
+        boolean novo_item
         text justificativa
     }
     eac_projecao {
@@ -1940,7 +1942,7 @@ fachada, não por coluna.
 | `mudanca_analise` | Análise em andamento: responsável, início, prazo e conclusão; cada reapresentação gera uma nova rodada. | governanca |
 | `mudanca_impacto` | Análise de impacto obrigatória: custo (centavos, negativo para redução), prazo (dias no caminho crítico), escopo, qualidade, riscos, SMS, contrato, marco contratual e atividades; na SM de Liberação de reserva, a reserva (`liberacao_reserva`: Contingência ou Gerencial) e o valor (`liberacao_valor_centavos`), pois o custo é zero; a versão vigente é a última. | governanca |
 | `mudanca_impacto_eac_item` | Itens da EAC afetados pela análise, validados contra a EAC de nível 3. Sem `versao` própria. | governanca |
-| `mudanca_remanejamento` | Transferência proposta entre itens da EAC (origem, destino, valor) e a sua aplicação: `aplicado`, data, autor e revisão da EAC. Aprovação aplica a transferência. Sem `versao` própria. | governanca |
+| `mudanca_remanejamento` | Transferência proposta entre itens da EAC (origem, destino, valor, `novo_item` quando o destino é item novo) e a sua aplicação: `aplicado`, data, autor e revisão da EAC. Aprovação aplica a transferência. Sem `versao` própria. | governanca |
 | `mudanca_decisao` | Cada decisão registrada (data, resultado, condições, justificativa, a ata opcional do comitê e o `reapresentar_em` da adiada), inclusive as adiadas em `decisoesAnteriores`. | governanca |
 | `mudanca_decisao_participante` | Participantes da decisão, para conferir o quórum. Sem `versao` própria. | governanca |
 | `licao` | Lição aprendida com origem rastreável (`origem` + `origem_ref`), tipo (A repetir/A evitar), fase, área, disciplina, causa, impactos, recomendação, aplicabilidade (Projeto/Corporativa) e situação do fluxo. `reusos` não é coluna: é a contagem de `licao_aplicacao`. | governanca |
@@ -1955,7 +1957,7 @@ fachada, não por coluna.
 | `eac_item` | Estrutura Analítica de Custos em três níveis (`pai_id` + `nivel`): descrição, tipo de custo, unidade, quantidade, preço unitário, CAPEX/OPEX, centro de custo e responsável. **Nenhum valor agregado é coluna**: base vem de `eac_revisao_item`, remanejamento de `eac_remanejamento`, comprometido/realizado dos fatos dos módulos donos, projeção de `eac_projecao`. UK: projeto + código. | financeiro |
 | `eac_revisao` | Revisão da EAC (Rev 0 = linha de base) com data, justificativa, SM de origem e aprovador. O total não é coluna: é a soma de `eac_revisao_item.base_centavos`. UK: projeto + revisão. | financeiro |
 | `eac_revisao_item` | Linha de base congelada de cada item em cada revisão, em centavos. **Exceção da D5b** (fato histórico): é o que permite comparar revisões. UK: revisão + item. Sem `versao`. | financeiro |
-| `eac_remanejamento` | Remanejamento aplicado na EAC: item de origem, item de destino, valor, autor, SM e revisão. Fato imutável, sem `versao`. | financeiro |
+| `eac_remanejamento` | Remanejamento aplicado na EAC: item de origem, item de destino, valor, autor, SM, revisão e `novo_item` quando o destino nasceu do remanejamento. Fato imutável, sem `versao`. | financeiro |
 | `eac_projecao` | Histórico da projeção no término por item: data, valor, autor, origem (manual ou ERP) e justificativa. A projeção vigente é a última linha; fato imutável, sem `versao`. | financeiro |
 | `custo_erp` | Custos do ERP por item e mês (comprometido, realizado e projeção), com quem e quando importou. UK: item + mês. | financeiro |
 | `reserva` | Reserva de contingência ou gerencial do projeto (uma linha por tipo), com a base de cálculo da constituição. O saldo não é coluna: é a soma dos movimentos. UK: projeto + tipo. | financeiro |

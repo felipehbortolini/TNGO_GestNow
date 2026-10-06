@@ -19,13 +19,11 @@ def _cenario(session: Session):
     projeto = apoio.projeto_com_orcamento(session)
     membro = apoio.colaborador(session, apoio.MEMBRO)
     usuario = apoio.usuario_de(membro)
-    for codigo in ("1", "2", "3"):
+    for codigo in ("1.1.1", "1.1.2", "2.1.1"):
         financeiro.create_item(
             session,
             user_id=membro.id,
-            new=NewItem(
-                project_id=projeto.id, code=codigo, description=f"Pacote {codigo}", level=1
-            ),
+            new=NewItem(project_id=projeto.id, code=codigo, description=f"Item {codigo}", level=3),
         )
     return projeto, membro, usuario
 
@@ -62,7 +60,7 @@ def analise_valida(mudanca: models.ChangeRequest, **campos: str) -> dict[str, st
         "contrato": "Sem impacto",
         "alcada": "Gerente do projeto",
         "fonte_recurso": "Aditivo de orçamento",
-        "itens_eac": "1, 2",
+        "itens_eac": "1.1.1, 1.1.2",
         "versao": str(mudanca.version),
     }
     base.update(campos)
@@ -156,7 +154,7 @@ def test_concluir_leva_a_aguardando_comite_e_a_ficha_mostra_a_analise(sessao: Se
     assert ficha.impact.cost_cents == 100_000
     assert ficha.impact.term_days == 5
     assert ficha.impact.analysis_date == HOJE
-    assert ficha.eac_item_codes == ("1", "2")
+    assert ficha.eac_item_codes == ("1.1.1", "1.1.2")
     assert ficha.required_authority == models.AUTHORITY_MANAGER
     assert ficha.analysis is not None
     assert ficha.analysis.concluded_on == HOJE
@@ -249,7 +247,7 @@ def test_item_da_eac_que_nao_existe_e_recusado_no_campo(sessao: Session) -> None
     mudanca = _registrar(sessao, usuario, projeto)
     _iniciar(sessao, usuario, mudanca)
     with pytest.raises(InvalidDataError) as erro:
-        _concluir(sessao, usuario, mudanca, itens_eac="1, 9.9.9")
+        _concluir(sessao, usuario, mudanca, itens_eac="1.1.1, 9.9.9")
     assert "9.9.9" in erro.value.detail["itens_eac"]
 
 
@@ -265,11 +263,11 @@ def test_revisao_antes_da_decisao_mantem_a_situacao_e_atualiza_o_mesmo_impacto(
     formulario = service.impact_form(sessao, user=usuario, code=mudanca.code, reference_date=HOJE)
     assert formulario.is_review
     assert formulario.values["custo"] == "1.000,00"
-    assert formulario.values["itens_eac"] == "1, 2"
+    assert formulario.values["itens_eac"] == "1.1.1, 1.1.2"
     revisao = analise_valida(
         ficha.change,
         custo="2.000,00",
-        itens_eac="3",
+        itens_eac="2.1.1",
         versao_impacto=str(ficha.impact.version),
     )
     service.conclude_analysis(
@@ -278,7 +276,7 @@ def test_revisao_antes_da_decisao_mantem_a_situacao_e_atualiza_o_mesmo_impacto(
     depois = _ficha(sessao, usuario, mudanca)
     assert depois.change.situation == models.SITUATION_AWAITING
     assert depois.impact.cost_cents == 200_000
-    assert depois.eac_item_codes == ("3",)
+    assert depois.eac_item_codes == ("2.1.1",)
     quantidade = len(
         sessao.scalars(
             select(models.ChangeImpact).where(models.ChangeImpact.change_id == mudanca.id)
@@ -298,18 +296,18 @@ def test_remanejamento_tem_custo_zero_transferencias_e_alcada_pelo_total(sessao:
         "custo": "0",
         "fonte_recurso": "",
         "itens_eac": "",
-        "remanejamento_origem_1": "1",
-        "remanejamento_destino_1": "2",
+        "remanejamento_origem_1": "1.1.1",
+        "remanejamento_destino_1": "1.1.2",
         "remanejamento_valor_1": "150.000,00",
     }
     _concluir(sessao, usuario, mudanca, **transferencia)
     ficha = _ficha(sessao, usuario, mudanca)
     assert ficha.change.authority == models.AUTHORITY_MANAGER
     assert [(t.source_code, t.target_code, t.value_cents) for t in ficha.transfers] == [
-        ("1", "2", 15_000_000)
+        ("1.1.1", "1.1.2", 15_000_000)
     ]
     assert ficha.total_transferred_cents == 15_000_000
-    assert ficha.eac_item_codes == ("1", "2")
+    assert ficha.eac_item_codes == ("1.1.1", "1.1.2")
     assert ficha.impact.cost_cents == 0
 
 
@@ -321,8 +319,8 @@ def test_remanejamento_acima_do_limite_vai_ao_comite_e_recusa_o_gerente(sessao: 
         "custo": "0",
         "fonte_recurso": "",
         "itens_eac": "",
-        "remanejamento_origem_1": "1",
-        "remanejamento_destino_1": "2",
+        "remanejamento_origem_1": "1.1.1",
+        "remanejamento_destino_1": "1.1.2",
         "remanejamento_valor_1": "446.000,01",
     }
     with pytest.raises(InvalidDataError) as erro:

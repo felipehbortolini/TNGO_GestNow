@@ -20,6 +20,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -106,4 +107,5 @@ class EacReallocation(Base):
     revision: Mapped[int] = mapped_column("revisao", Integer)
     applied_on: Mapped[date] = mapped_column("data", Date)
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    new_item: Mapped[bool] = mapped_column("novo_item", Boolean, server_default=text("false"))
     justification: Mapped[str | None] = mapped_column("justificativa", Text)

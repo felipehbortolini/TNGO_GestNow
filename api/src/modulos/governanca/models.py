@@ -220,6 +220,7 @@ class ChangeReallocation(Base):
     target_item_id: Mapped[int] = mapped_column("destino_item_id", ForeignKey("eac_item.id"))
     applied_by_id: Mapped[int | None] = mapped_column("aplicado_por_id", ForeignKey("pessoa.id"))
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    new_item: Mapped[bool] = mapped_column("novo_item", Boolean, server_default=text("false"))
     applied: Mapped[bool] = mapped_column("aplicado", Boolean, server_default=text("false"))
     applied_on: Mapped[date | None] = mapped_column("aplicado_em", Date)
     eac_revision: Mapped[int | None] = mapped_column("revisao_eac", Integer)
