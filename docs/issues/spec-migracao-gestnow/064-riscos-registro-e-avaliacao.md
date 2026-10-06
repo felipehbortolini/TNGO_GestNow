@@ -1,7 +1,7 @@
 ---
 id: ISSUE-064
 title: "Registro e avaliação de riscos"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 6
