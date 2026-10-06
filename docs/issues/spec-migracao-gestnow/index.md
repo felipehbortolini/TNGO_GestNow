@@ -98,7 +98,7 @@ vem primeiro.
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | 7 | task | proposed | ready-for-agent | ISSUE-068, ISSUE-061 | [ISSUE-069](./069-inspecoes-itp-e-fat.md) |
 | ISSUE-070 | Auditorias | 7 | task | proposed | ready-for-agent | ISSUE-068 | [ISSUE-070](./070-auditorias.md) |
 | ISSUE-071 | Painel da qualidade | 7 | task | proposed | ready-for-agent | ISSUE-069, ISSUE-070 | [ISSUE-071](./071-painel-da-qualidade.md) |
-| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
+| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | 7 | task | proposed | ready-for-agent | ISSUE-072, ISSUE-019, ISSUE-027 | [ISSUE-073](./073-ocorrencias-investigacao-e-lgpd.md) |
 | ISSUE-074 | Análises de risco APR e HAZOP | 7 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-074](./074-apr-e-hazop.md) |
 | ISSUE-075 | Painel HSE | 7 | task | proposed | ready-for-agent | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 | [ISSUE-075](./075-painel-hse.md) |

@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 27 de 93 -->
+<!-- Progresso da migração: 28 de 93 -->
 
 # Progresso da migração
 
-**27 de 93 issues concluídas** (última fechada: ISSUE-051). Atualizado em 06/10/2026 17:35 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**28 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 06/10/2026 17:36 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 27 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 029, 044, 045, 051 |
-| em andamento | 3 | 027, 064, 072 |
+| concluída | 28 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 029, 044, 045, 051, 072 |
+| em andamento | 2 | 027, 064 |
 | na fila | 63 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
@@ -33,7 +33,7 @@
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | `128eb77` |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | `f332a9a` |
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | `b3da731` |
-| ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | - |
+| ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | `fd0378a` |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | `04bcdb5` |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | `faf834f` |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | `8e833b8` |
@@ -41,6 +41,7 @@
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
+| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | - |
 
 ## Em andamento, bloqueadas e na fila
 
@@ -90,7 +91,6 @@
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | na fila | ISSUE-068, ISSUE-061 |
 | ISSUE-070 | Auditorias | na fila | ISSUE-068 |
 | ISSUE-071 | Painel da qualidade | na fila | ISSUE-069, ISSUE-070 |
-| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | na fila | ISSUE-072, ISSUE-019, ISSUE-027 |
 | ISSUE-074 | Análises de risco APR e HAZOP | na fila | ISSUE-019 |
 | ISSUE-075 | Painel HSE | na fila | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 |

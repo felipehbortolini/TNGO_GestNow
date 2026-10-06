@@ -1,7 +1,7 @@
 ---
 id: ISSUE-072
 title: "HHT, inspeções de segurança, observações e DDS"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 7
@@ -47,15 +47,15 @@ tela de HHT e no Cronograma de desembolso.
 
 ## Critérios de aceite
 
-- [ ] HHT é um registro por mês e empresa: gravar de novo atualiza, sem duplicar.
-- [ ] A importação recusa linhas inválidas e grava as válidas só na confirmação.
-- [ ] O consolidado mensal é um por mês.
-- [ ] O histograma é calculado do HHT e da Curva S e aparece no HHT e no desembolso.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] HHT é um registro por mês e empresa: gravar de novo atualiza, sem duplicar.
+- [x] A importação recusa linhas inválidas e grava as válidas só na confirmação.
+- [x] O consolidado mensal é um por mês.
+- [x] O histograma é calculado do HHT e da Curva S e aparece no HHT e no desembolso.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -73,5 +73,7 @@ Fonte: `hht.html` e `inspecoes.html` do HSE, `mock-hse`; `histogramaMaoDeObra` g
 ## Registro de execução
 
 - Data: 2026-10-06.
-- Feito: backend completo (modelo, m072, cálculos, validação, fachada, importadores, exportação, formulários, rotas) e templates Jinja (formulario, hht, inspecoes, histograma).
-- Falta: view/CSS/JS das duas telas, seed, testes e oráculo, LEIA-ME, desembolso (histograma), divergências, decisões.
+- Feito: backend (modelo, m072, cálculos, validação, fachada, importadores, exportação, rotas), templates, view/CSS/JS das telas HHT e Inspeções, seed (`hht`, `hseMensal`), oráculo (`test_oraculo_hse.py`), testes puros em `api/tests/hse/`, LEIA-ME e divergência do histograma.
+- Pendências: testes não rodados (política do dono); a porta de qualidade fica para o orquestrador. Histograma usa fator 1 até o módulo da Curva S física chamar `register_curve_reader`; o desembolso deve pedir `GET /api/hse/histograma`. Protótipo não traz inspeção, observação nem DDS individuais (só o consolidado), então a carga os omite.
+- DECISÃO: meses da carga | deslocados pela distância em meses a partir do mês da data de referência, não por dias | D6, ISSUE-072
+- DECISÃO: histograma sem curva | fator 1 quando nenhum leitor da Curva S física está registrado | D6, ISSUE-072

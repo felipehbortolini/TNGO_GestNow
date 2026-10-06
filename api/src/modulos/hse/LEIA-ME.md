@@ -77,4 +77,18 @@ Prazo de comunicação (24h), investigação preliminar (48h), relatório final 
 | Tela, estilo e comportamento | `app/_views/hse/` e `app/paginas/hse/` |
 | Testes | `api/tests/hse/` |
 
-Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-072 a ISSUE-075 completam este documento e acrescentam testes de fronteira e autorização.
+As ISSUE-073 a ISSUE-075 completam este documento (ocorrências, análises de risco e painel).
+
+## ISSUE-072: HHT, inspeções, observações e DDS
+
+**Telas.** HHT (`hht`): indicadores, tabela paginada, formulário mensal (mês e empresa bloqueados ao editar), importação Excel e histograma de mão de obra. Inspeções e observações (`inspecoes`): inspeção por checklist (itens conformes e não conformes), observação comportamental, DDS (tema, data, participantes) e o consolidado mensal (um por mês), com importação Excel e Excel/PDF pelos mecanismos da plataforma.
+
+**Rotas** (`/api/hse/`): `hht`, `hht/excel`, `hht/imprimivel`, `hht/novo` e `hht/{id}/editar` (GET/POST); `histograma` (fragmento para o Cronograma de desembolso); `inspecoes`, `inspecoes/excel`, `inspecoes/imprimivel`, `inspecoes/{tipo}/novo` e `inspecoes/{tipo}/{id}/editar` (GET/POST). Importadores registrados em `importers.py`.
+
+**Fórmulas** (`calculations.py`): `hours_per_person` (HHT ÷ efetivo médio), `expected_months` (meses esperados com registro), `summarize_hours`, `histogram_factor` (avanço previsto ÷ real do mês na Curva S física, entre 0,85 e 1,20), `labour_histogram` (HHT e efetivo do mês vezes o fator; horas em centenas, efetivo em unidades), `rate_percent` (taxa de DDS e de conformidade, 1 casa), `proactive_target` (meta por 10 mil HHT).
+
+**Fluxos.** Gravar de novo o mesmo mês e empresa atualiza (`service.save_hours`), nunca duplica; o consolidado é um por mês (`save_closing`); a importação recusa as linhas inválidas e grava as válidas só na confirmação. Nome e dados pessoais de observações seguem a restrição de Q35.
+
+**Integração pendente.** O histograma lê a Curva S física por `service.register_curve_reader`; enquanto o módulo dono da curva (EAP) não registra o leitor, o fator vale 1. O desembolso pede o fragmento `GET /api/hse/histograma`.
+
+**Carga e oráculo.** `seed.py` grava `hht` e `hseMensal` do protótipo (meses deslocados pela distância em meses). O protótipo não traz inspeção, observação nem DDS individuais. Oráculo em `api/tests/oraculo/test_oraculo_hse.py`; testes puros em `api/tests/hse/`.
