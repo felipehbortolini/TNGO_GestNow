@@ -307,12 +307,795 @@
     };
   }
 
+  /* ============================================================
+     Exemplos da ISSUE-015: cards, faixa de KPI, severidade, mapas de calor,
+     matrizes, Mapa 52 semanas, quantitativos e etapas. Tudo fictício e gerado
+     aqui; no app, as faixas, os limites e os estados chegam do servidor.
+     ============================================================ */
+
+  /* ---------- Datas e calendário ---------- */
+
+  function msDeIso(iso) {
+    const partes = iso.split("-").map(Number);
+    return Date.UTC(partes[0], partes[1] - 1, partes[2]);
+  }
+
+  function isoDeMs(ms) {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+
+  function somarDias(iso, dias) {
+    return isoDeMs(msDeIso(iso) + dias * DIA_MS);
+  }
+
+  function dataBr(iso) {
+    const partes = iso.split("-");
+    return partes[2] + "/" + partes[1] + "/" + partes[0];
+  }
+
+  function diaMes(iso) {
+    return iso.slice(8, 10) + "/" + iso.slice(5, 7);
+  }
+
+  /* A semana ISO de uma data: a do ano da quinta-feira dela. */
+  function semanaIsoDe(iso) {
+    const instante = msDeIso(iso);
+    const diaDaSemana = (new Date(instante).getUTCDay() + 6) % 7;
+    const quinta = instante + (3 - diaDaSemana) * DIA_MS;
+    const ano = new Date(quinta).getUTCFullYear();
+    const diaDoAno = Math.floor((quinta - Date.UTC(ano, 0, 1)) / DIA_MS) + 1;
+    return { ano: ano, semana: Math.ceil(diaDoAno / 7) };
+  }
+
+  /* As semanas de um ano, de segunda a domingo, cada uma no mês da sua
+     quinta-feira: o calendário que, no app, o servidor entrega. */
+  function calendarioDoAno(ano) {
+    const semanas = [];
+    for (let segunda = primeiraSegunda(ano); ; segunda += 7 * DIA_MS) {
+      const quinta = new Date(segunda + 3 * DIA_MS);
+      if (quinta.getUTCFullYear() !== ano) return semanas;
+      semanas.push({
+        semana: semanas.length + 1,
+        mes: quinta.getUTCMonth() + 1,
+        inicio: isoDeMs(segunda),
+        fim: isoDeMs(segunda + 6 * DIA_MS),
+      });
+    }
+  }
+
+  /* Hoje, fixo, para o exemplo sair igual em toda abertura. */
+  const HOJE = { ano: 2026, semana: 41, inicio: "2026-10-05" };
+
+  /* ---------- Cards, faixa de KPI e severidade ---------- */
+
+  const CARDS = {
+    ok: {
+      id: "avanco",
+      rotulo: "Avanço físico acumulado",
+      valor: 62.8,
+      casas: 1,
+      unidade: "%",
+      meta: 60,
+      limites: { ok: 60, alerta: 50 },
+      referencias: [
+        { rotulo: "Previsto", valor: 61.5 },
+        { rotulo: "Meta", valor: 60 },
+        { rotulo: "Linha de base", valor: 58 },
+      ],
+      unidade_delta: " pp",
+      detalhe: "Média de 1,6 pp por semana no último mês",
+      base: "Corte na semana 41",
+      progresso: 62.8,
+      selecionavel: true,
+    },
+    alerta: {
+      id: "aderencia",
+      rotulo: "Aderência da programação",
+      valor: 71.4,
+      casas: 1,
+      unidade: "%",
+      meta: 80,
+      limites: { ok: 80, alerta: 60 },
+      referencias: [
+        { rotulo: "Previsto", valor: 78 },
+        { rotulo: "Meta", valor: 80 },
+        { rotulo: "Linha de base", valor: 75 },
+      ],
+      unidade_delta: " pp",
+      detalhe: "12 pacotes abaixo do plano da semana",
+      base: "30 de 42 pacotes",
+      progresso: 71.4,
+      selecionavel: true,
+    },
+    erro: {
+      id: "conformidade",
+      rotulo: "Conformidade das medições",
+      valor: 54,
+      casas: 1,
+      unidade: "%",
+      meta: 80,
+      limites: { ok: 80, alerta: 60 },
+      referencias: [
+        { rotulo: "Previsto", valor: 72 },
+        { rotulo: "Meta", valor: 80 },
+        { rotulo: "Linha de base", valor: 70 },
+      ],
+      unidade_delta: " pp",
+      detalhe: "23 medições com pendência",
+      base: "27 de 50 medições",
+      progresso: 54,
+      selecionavel: true,
+    },
+    prazo: {
+      id: "prazo-resposta",
+      rotulo: "Prazo médio de resposta",
+      valor: 6.2,
+      casas: 1,
+      unidade: " dias",
+      tom: "alerta",
+      favoravel: "desce",
+      referencias: [
+        { rotulo: "Previsto", valor: 5 },
+        { rotulo: "Meta", valor: 5 },
+        { rotulo: "Linha de base", valor: 7 },
+      ],
+      unidade_delta: " dias",
+      detalhe: "Maior prazo: 14 dias",
+      base: "18 solicitações",
+      selecionavel: true,
+    },
+  };
+
+  function exemploKpiStatus() {
+    return {
+      titulo: "Status dos pacotes",
+      itens: [
+        { id: "estavel", rotulo: "Estável", valor: 18, tom: "ok" },
+        { id: "alerta", rotulo: "Alerta", valor: 7, tom: "alerta" },
+        { id: "critico", rotulo: "Crítico", valor: 3, tom: "erro" },
+      ],
+      total: 28,
+      casas_pct: 1,
+      selecionavel: true,
+    };
+  }
+
+  function exemploSeveridade() {
+    return {
+      titulo: "Severidade dos riscos",
+      itens: [
+        { id: "critico", rotulo: "Crítico", valor: 6, tom: "erro" },
+        { id: "alto", rotulo: "Alto", valor: 11, tom: "atencao" },
+        { id: "moderado", rotulo: "Moderado", valor: 18, tom: "alerta" },
+        { id: "baixo", rotulo: "Baixo", valor: 9, tom: "ok" },
+        { id: "sem_avaliacao", rotulo: "Sem avaliação", valor: 3, tom: "cinza" },
+      ],
+      total: 47,
+      casas_pct: 0,
+      selecionavel: true,
+    };
+  }
+
+  /* ---------- Tabela Heatmap ---------- */
+
+  /* Os números são os do original (Tabela Heatmap.html), para a conferência
+     lado a lado. As faixas são do servidor: cada uma leva tom (família do
+     Design System), nível de intensidade, ícone e nome, de modo que a cor não
+     é o único sinal. */
+  const COLUNAS_DO_HEATMAP = [
+    "Escopo Pendente",
+    "Aprovação Técnica",
+    "Sem Restrição",
+    "HOLD",
+    "Aguard. Proposta",
+    "Sem SSE",
+    "Em Desenvolvimento",
+    "Rec. Propostas",
+    "Entend. Técnico",
+  ];
+
+  const LINHAS_DO_HEATMAP = [
+    ["Alfa", [3, 7, 12, 0, 2, 15, 0, 5, 1]],
+    ["Beta", [14, 0, 6, 20, 0, 3, 30, 0, 4]],
+    ["Gama", [0, 2, 9, 1, 5, 0, 11, 24, 0]],
+  ];
+
+  function exemploHeatmap() {
+    return {
+      titulo: "Distribuição por área e restrição",
+      rotulo_linhas: "Área",
+      casas: 0,
+      colunas: COLUNAS_DO_HEATMAP.map(function (rotulo, i) {
+        return { id: "c" + (i + 1), rotulo: rotulo };
+      }),
+      linhas: LINHAS_DO_HEATMAP.map(function (linha) {
+        const valores = {};
+        linha[1].forEach(function (valor, i) {
+          valores["c" + (i + 1)] = valor;
+        });
+        return { id: linha[0].toLowerCase(), rotulo: linha[0], valores: valores };
+      }),
+      total: { linha: "Total geral", coluna: "Total" },
+      faixas: {
+        padrao: [
+          { ate: 0, tom: "cinza", vazia: true, rotulo: "Nenhuma" },
+          { ate: 3, tom: "neutro", nivel: 1, icone: "ponto", rotulo: "1 a 3" },
+          { ate: 9, tom: "ok", nivel: 2, icone: "ok", rotulo: "4 a 9" },
+          { ate: 19, tom: "alerta", nivel: 2, icone: "alerta", rotulo: "10 a 19" },
+          { ate: 29, tom: "atencao", nivel: 2, icone: "atencao", rotulo: "20 a 29" },
+          { tom: "erro", nivel: 3, icone: "erro", rotulo: "30 ou mais" },
+        ],
+        total: [
+          { ate: 49, tom: "ok", nivel: 2, icone: "ok" },
+          { ate: 99, tom: "alerta", nivel: 2, icone: "alerta" },
+          { tom: "erro", nivel: 3, icone: "erro" },
+        ],
+      },
+      selecionavel: true,
+    };
+  }
+
+  /* O mapa de controle: valores em R$ mil sem pintar e o desvio da projeção
+     sobre o orçado, pintado pelas faixas do prototipo (limites 1, 5 e 10). O
+     total do desvio não é soma: é a conta sobre os totais. */
+  const PACOTES_DO_MAPA = [
+    ["Terraplenagem", 1250, 1342],
+    ["Fundações", 3480, 3706],
+    ["Estrutura metálica", 5210, 5221],
+    ["Montagem eletromecânica", 4120, 3897],
+    ["Elétrica e instrumentação", 2760, 2698],
+    ["Comissionamento", 980, 1109],
+  ];
+
+  function desvioPct(orcado, projecao) {
+    return arredondar(((projecao - orcado) / orcado) * 100, 1);
+  }
+
+  function exemploHeatmapDesvio() {
+    const orcado = soma(PACOTES_DO_MAPA.map(function (p) { return p[1]; }));
+    const projecao = soma(PACOTES_DO_MAPA.map(function (p) { return p[2]; }));
+    return {
+      titulo: "Desvio da projeção sobre o orçado atual",
+      rotulo_linhas: "Pacote",
+      cabecalho: "horizontal",
+      casas: 1,
+      unidade: "%",
+      sinal: true,
+      colunas: [
+        { id: "orcado", rotulo: "Orçado atual (R$ mil)", calor: false, casas: 0, unidade: "", sinal: false },
+        { id: "projecao", rotulo: "Projeção (R$ mil)", calor: false, casas: 0, unidade: "", sinal: false },
+        { id: "desvio", rotulo: "Desvio", somar: false, total: desvioPct(orcado, projecao) },
+      ],
+      linhas: PACOTES_DO_MAPA.map(function (p) {
+        return {
+          id: p[0],
+          rotulo: p[0],
+          valores: { orcado: p[1], projecao: p[2], desvio: desvioPct(p[1], p[2]) },
+        };
+      }),
+      total: { linha: "Total geral", coluna: false },
+      faixas: [
+        { maior_que: 10, tom: "erro", nivel: 3, icone: "sobe", rotulo: "Sobrecusto acima de 10%" },
+        { maior_que: 5, tom: "erro", nivel: 2, icone: "sobe", rotulo: "Sobrecusto de 5% a 10%" },
+        { de: 1, tom: "erro", nivel: 1, icone: "sobe", rotulo: "Sobrecusto de 1% a 5%" },
+        { maior_que: -1, menor_que: 1, tom: "neutro", nivel: 1, icone: "igual", rotulo: "Desvio abaixo de 1%" },
+        { menor_que: -10, tom: "ok", nivel: 3, icone: "desce", rotulo: "Economia acima de 10%" },
+        { menor_que: -5, tom: "ok", nivel: 2, icone: "desce", rotulo: "Economia de 5% a 10%" },
+        { ate: -1, tom: "ok", nivel: 1, icone: "desce", rotulo: "Economia de 1% a 5%" },
+      ],
+      selecionavel: true,
+    };
+  }
+
+  /* ---------- Matriz Formatada ---------- */
+
+  /* As semanas de um mês como o original as conta: de segunda a sexta, da
+     semana do dia 1 à do último dia. */
+  function semanasDoMes(ano, mes) {
+    const primeira = Date.UTC(ano, mes - 1, 1);
+    const ultima = Date.UTC(ano, mes, 0);
+    const segundaDe = function (ms) {
+      return ms - ((new Date(ms).getUTCDay() + 6) % 7) * DIA_MS;
+    };
+    const semanas = [];
+    for (let segunda = segundaDe(primeira); segunda <= segundaDe(ultima); segunda += 7 * DIA_MS) {
+      semanas.push({ inicio: isoDeMs(segunda), fim: isoDeMs(segunda + 4 * DIA_MS) });
+    }
+    return semanas;
+  }
+
+  const MESES_DA_MATRIZ = [
+    { ano: 2026, mes: 9, rotulo: "SET/26", de: "01/09", ate: "30/09" },
+    { ano: 2026, mes: 10, rotulo: "OUT/26", de: "01/10", ate: "31/10" },
+  ];
+
+  /* Horas por semana de cada projeto: uma base e uma variação fixa. */
+  const COLABORADORES = [
+    ["Ana Beatriz Rocha", [["PJ-0001 · Ampliação da talha de içamento", 1900], ["PJ-0002 · Retrofit do forno de calcinação", 1700]], 1200],
+    ["Carlos Andrade", [["PJ-0003 · Automação da esteira portuária", 2300], ["PJ-0004 · Novo silo de armazenagem", 2150]], 900],
+    ["Fernanda Lima", [["PJ-0005 · Reposição de bombas de recalque", 1500], ["PJ-0006 · Modernização do alimentador", 1650]], 1500],
+  ];
+
+  function horasDaSemana(base, indicePessoa, indiceProjeto, indiceMes, indiceSemana) {
+    const variacao = ((indiceMes * 13 + indiceSemana * 7 + indicePessoa * 5 + indiceProjeto * 3) % 9) - 4;
+    return base + variacao * 100;
+  }
+
+  function exemploMatrizHoras() {
+    const colunas = MESES_DA_MATRIZ.map(function (m) {
+      return {
+        id: "m" + m.mes,
+        rotulo: m.rotulo,
+        faixas: "mes",
+        resumo: { rotulo: "Mês", sub: m.de + " a " + m.ate },
+        filhas: semanasDoMes(m.ano, m.mes).map(function (semana, i) {
+          return {
+            id: "m" + m.mes + "s" + (i + 1),
+            rotulo: "S" + (i + 1),
+            sub: diaMes(semana.inicio) + " a " + diaMes(semana.fim),
+            faixas: "semana",
+          };
+        }),
+      };
+    });
+    const linhas = COLABORADORES.map(function (pessoa, p) {
+      return {
+        id: "col-" + p,
+        rotulo: pessoa[0],
+        selo: pessoa[1].length + " proj",
+        fixas: { indiretas: pessoa[2] },
+        filhos: pessoa[1].map(function (projeto, j) {
+          const valores = {};
+          let total = 0;
+          colunas.forEach(function (coluna, m) {
+            coluna.filhas.forEach(function (filha, s) {
+              const horas = horasDaSemana(projeto[1], p, j, m, s);
+              valores[filha.id] = horas;
+              total += horas;
+            });
+          });
+          return { id: "proj-" + p + "-" + j, rotulo: projeto[0], sem_faixa: true, valores: valores, fixas: { horas: total } };
+        }),
+      };
+    });
+    return {
+      titulo: "Horas por semana",
+      subtitulo: "Colaborador e projeto",
+      variante: "pilulas",
+      rotulo_linhas: "Colaborador / Projeto",
+      casas: 0,
+      unidade: "",
+      zero_como_vazio: true,
+      colunas_fixas: [
+        { id: "horas", rotulo: "Horas em projeto", tom: "ok" },
+        { id: "indiretas", rotulo: "Horas indiretas", tom: "neutro" },
+      ],
+      colunas: colunas,
+      coluna_total: { titulo: "Total", rotulo: "Geral", sub: "período", faixas: "total" },
+      linhas: linhas,
+      rodape: { rotulo: "Total geral" },
+      faixas: {
+        semana: [
+          { menor_que: 3200, tom: "atencao", nivel: 1, icone: "desce", rotulo: "Semana abaixo do esperado" },
+          { maior_que: 4800, tom: "roxo", nivel: 1, icone: "sobe", rotulo: "Semana acima do esperado" },
+          { tom: "cinza", nivel: 1, icone: false, rotulo: "Semana dentro do esperado" },
+        ],
+        mes: [
+          { menor_que: 17000, tom: "erro", nivel: 1, icone: "desce", rotulo: "Mês abaixo da referência" },
+          { maior_que: 21000, tom: "ok", nivel: 1, icone: "sobe", rotulo: "Mês acima da referência" },
+          { tom: "cinza", nivel: 1, icone: false, rotulo: "Mês na referência" },
+        ],
+        total: [{ tom: "ok", nivel: 1, icone: false }],
+      },
+      expandir: 1,
+      altura: 520,
+    };
+  }
+
+  /* A matriz P x I 5 x 5: a cor é da posição (probabilidade x impacto), então
+     a célula manda o id da faixa. Escala de 4 faixas do prototipo: baixo a
+     partir de 1, moderado de 5, alto de 10 e crítico de 15. */
+  const NIVEIS_DA_MATRIZ = ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"];
+  const PROBABILIDADES = ["Muito baixa", "Baixa", "Média", "Alta", "Muito alta"];
+
+  function faixaDoScore(score) {
+    if (score >= 15) return "critico";
+    if (score >= 10) return "alto";
+    if (score >= 5) return "moderado";
+    return "baixo";
+  }
+
+  /* `contagem[p - 1][i - 1]` é a quantidade de riscos na probabilidade p e no
+     impacto i. */
+  function matrizPxI(subtitulo, contagem, faixas) {
+    const linhas = [];
+    for (let p = 5; p >= 1; p -= 1) {
+      const valores = {};
+      for (let i = 1; i <= 5; i += 1) {
+        valores["i" + i] = {
+          valor: contagem[p - 1][i - 1],
+          faixa: faixaDoScore(p * i),
+          apoio: p + " x " + i + " = " + p * i,
+          id: "p" + p + "|i" + i,
+        };
+      }
+      linhas.push({ id: "p" + p, rotulo: p + " · " + PROBABILIDADES[p - 1], valores: valores });
+    }
+    return {
+      titulo: "Matriz P x I residual",
+      subtitulo: subtitulo,
+      variante: "grade",
+      rotulo_linhas: "Probabilidade x Impacto",
+      casas: 0,
+      colunas: NIVEIS_DA_MATRIZ.map(function (nome, i) {
+        return { id: "i" + (i + 1), rotulo: String(i + 1), sub: nome };
+      }),
+      linhas: linhas,
+      faixas: faixas,
+      selecionavel: true,
+    };
+  }
+
+  function exemploMatrizAmeacas() {
+    return matrizPxI(
+      "Ameaças",
+      [[0, 1, 0, 0, 0], [1, 0, 1, 0, 0], [0, 1, 2, 1, 0], [0, 1, 0, 2, 0], [0, 0, 1, 0, 1]],
+      [
+        { id: "baixo", tom: "ok", nivel: 2, icone: "ok", rotulo: "Baixo" },
+        { id: "moderado", tom: "alerta", nivel: 2, icone: "alerta", rotulo: "Moderado" },
+        { id: "alto", tom: "atencao", nivel: 2, icone: "atencao", rotulo: "Alto" },
+        { id: "critico", tom: "erro", nivel: 3, icone: "erro", rotulo: "Crítico" },
+      ],
+    );
+  }
+
+  /* Nas oportunidades a escala se inverte: quanto maior, melhor, e as
+     famílias são as frias e o verde. */
+  function exemploMatrizOportunidades() {
+    return matrizPxI(
+      "Oportunidades",
+      [[0, 0, 1, 0, 0], [1, 0, 0, 0, 1], [0, 1, 0, 1, 0], [0, 0, 1, 0, 0], [0, 0, 0, 0, 0]],
+      [
+        { id: "baixo", tom: "neutro", nivel: 2, icone: "ponto", rotulo: "Baixo" },
+        { id: "moderado", tom: "info", nivel: 2, icone: "info", rotulo: "Moderado" },
+        { id: "alto", tom: "roxo", nivel: 2, icone: "sobe", rotulo: "Alto" },
+        { id: "critico", tom: "ok", nivel: 3, icone: "ok", rotulo: "Crítico" },
+      ],
+    );
+  }
+
+  /* ---------- Mapa 52 semanas ---------- */
+
+  const PACOTES_DO_MAS = [
+    { id: "A", nome: "Estrutura metálica", inicio: "2026-06-01" },
+    { id: "B", nome: "Subestação principal", inicio: "2026-07-13" },
+    { id: "C", nome: "Sistema de ventilação", inicio: "2026-08-17" },
+  ];
+
+  const MARCOS_DO_MAS = [
+    "Requisição",
+    "RFx",
+    "Propostas",
+    "Equalização técnica",
+    "Equalização comercial",
+    "Adjudicação",
+    "Pedido",
+    "Documentos",
+    "Fabricação",
+    "Inspeção",
+    "Embarque",
+    "Entrega",
+  ];
+
+  const SITUACOES_DO_MAS = [
+    { id: "concluido", rotulo: "Concluído", rotulo_total: "Concluídos", tom: "ok" },
+    { id: "em_dia", rotulo: "Em dia", rotulo_total: "Em dia", tom: "info" },
+    { id: "atencao", rotulo: "Em atenção", rotulo_total: "Em atenção", tom: "alerta" },
+    { id: "atrasado", rotulo: "Atrasado", rotulo_total: "Atrasados", tom: "erro" },
+  ];
+
+  /* A situação de um marco: o que já passou concluiu, salvo alguns atrasados;
+     o da semana de hoje pede atenção. No app, é regra do servidor. */
+  function situacaoDoMarco(data, indicePacote, indiceMarco) {
+    if (data < HOJE.inicio) return (indiceMarco * 3 + indicePacote) % 7 === 5 ? "atrasado" : "concluido";
+    return data < somarDias(HOJE.inicio, 7) ? "atencao" : "em_dia";
+  }
+
+  function itensDoMas() {
+    const itens = [];
+    PACOTES_DO_MAS.forEach(function (pacote, p) {
+      MARCOS_DO_MAS.forEach(function (marco, m) {
+        const data = somarDias(pacote.inicio, m * 16);
+        const semana = semanaIsoDe(data);
+        const situacao = SITUACOES_DO_MAS.find(function (s) { return s.id === situacaoDoMarco(data, p, m); });
+        const chips = (m + p) % 5 === 0 ? [{ texto: "Replano", tom: "alerta", depois_da_data: true }] : [];
+        itens.push({
+          id: "mas-" + pacote.id + "-" + (m + 1),
+          ano: semana.ano,
+          semana: semana.semana,
+          titulo: pacote.nome,
+          subtitulo: "Marco " + (m + 1) + " · " + marco,
+          etiqueta: { texto: "Pacote " + pacote.id, tom: "info" },
+          estado: situacao.id,
+          chips: chips,
+          data: data,
+          atributos: { pacote: pacote.id, marco: marco },
+          detalhe: {
+            titulo: pacote.nome,
+            subtitulo: "Marco " + (m + 1) + " · " + marco,
+            chips: [{ texto: situacao.rotulo, tom: situacao.tom, icone: true }],
+            blocos: [
+              {
+                tipo: "campos",
+                titulo: "Resumo",
+                itens: [
+                  { rotulo: "Pacote", valor: "Pacote " + pacote.id },
+                  { rotulo: "Marco", valor: marco },
+                  { rotulo: "Data prevista", valor: dataBr(data) },
+                  { rotulo: "Semana", valor: "S" + semana.semana + " de " + semana.ano },
+                  { rotulo: "Situação", valor: situacao.rotulo, tom: situacao.tom },
+                ],
+              },
+            ],
+          },
+        });
+      });
+    });
+    /* Itens sem semana contam em "Sem data" e não ganham coluna. */
+    itens.push({ id: "mas-D-1", titulo: "Painéis de comando", subtitulo: "Marco 1 · Requisição", etiqueta: { texto: "Pacote D", tom: "info" }, estado: "em_dia", atributos: { pacote: "D", marco: "Requisição" } });
+    return itens;
+  }
+
+  function exemploMapa52() {
+    return {
+      titulo: "Marcos do MAS",
+      subtitulo: "Pacote x Marco",
+      ano: HOJE.ano,
+      hoje: { ano: HOJE.ano, semana: HOJE.semana },
+      por_pagina: 6,
+      anos: [2026, 2027].map(function (ano) {
+        return { ano: ano, semanas: calendarioDoAno(ano) };
+      }),
+      legenda: SITUACOES_DO_MAS,
+      filtros: [
+        {
+          id: "pacote",
+          rotulo: "Pacote",
+          opcoes: ["A", "B", "C", "D"].map(function (id) { return { id: id, rotulo: "Pacote " + id }; }),
+        },
+        {
+          id: "marco",
+          rotulo: "Marco",
+          opcoes: MARCOS_DO_MAS.map(function (nome) { return { id: nome, rotulo: nome }; }),
+        },
+      ],
+      itens: itensDoMas(),
+    };
+  }
+
+  /* ---------- Tabela Quantitativos por entregável ---------- */
+
+  const MESES_DO_PLANO = [
+    { mes: 9, rotulo: "Setembro" },
+    { mes: 10, rotulo: "Outubro" },
+  ];
+
+  const ENTREGAVEIS = [
+    ["Fundações", "Pacote A", ["Bloco 1", "Bloco 2", "Bloco 3"]],
+    ["Estrutura metálica", "Pacote B", ["Colunas", "Vigas", "Contraventos", "Cobertura"]],
+    ["Tubulação", "Pacote C", ["Linha de processo", "Linha de utilidades"]],
+    ["Elétrica e instrumentação", "Pacote D", ["Painéis", "Cabos", "Instrumentos"]],
+    ["Comissionamento", "Pacote E", ["Pré-operação", "Partida"]],
+  ];
+
+  /* Itens planejados por semana: de 0 a 11, fixo por posição. */
+  function itensDaSemana(entregavel, filho, semana) {
+    return Math.max(0, ((entregavel * 5 + filho * 3 + semana * 7) % 14) - 2);
+  }
+
+  function exemploQuantitativos() {
+    const calendario = calendarioDoAno(2026);
+    const grupos = MESES_DO_PLANO.map(function (m) {
+      return {
+        id: "mes-" + m.mes,
+        rotulo: m.rotulo,
+        colunas: calendario
+          .filter(function (semana) {
+            return semana.mes === m.mes && semana.semana >= 36 && semana.semana <= 44;
+          })
+          .map(function (semana) {
+            return { id: "s" + semana.semana, rotulo: "S" + semana.semana, dica: diaMes(semana.inicio) + " a " + diaMes(semana.fim) };
+          }),
+      };
+    });
+    const colunas = grupos.flatMap(function (grupo) { return grupo.colunas; });
+    const linhas = ENTREGAVEIS.map(function (entregavel, e) {
+      const filhos = entregavel[2].map(function (nome, f) {
+        const valores = {};
+        colunas.forEach(function (coluna) {
+          valores[coluna.id] = itensDaSemana(e, f, Number(coluna.id.slice(1)));
+        });
+        const planejado = soma(Object.values(valores));
+        return {
+          id: "ent-" + e + "-" + f,
+          rotulo: nome,
+          valores: valores,
+          metricas: { pendentes: (e + f) % 4 },
+          detalhe: {
+            titulo: nome,
+            subtitulo: entregavel[0] + " · " + entregavel[1],
+            blocos: [
+              {
+                tipo: "campos",
+                titulo: "Resumo",
+                itens: [
+                  { rotulo: "Entregável", valor: entregavel[0] },
+                  { rotulo: "Itens planejados", valor: String(planejado) },
+                ],
+              },
+              {
+                tipo: "tabela",
+                titulo: "Itens por semana",
+                colunas: ["Semana", { rotulo: "Itens", alinhar: "centro" }],
+                linhas: colunas.map(function (coluna) {
+                  return { celulas: [coluna.rotulo, String(valores[coluna.id])] };
+                }),
+              },
+            ],
+          },
+        };
+      });
+      return {
+        id: "ent-" + e,
+        rotulo: entregavel[0],
+        subtitulo: entregavel[1],
+        metricas: { pendentes: soma(filhos.map(function (filho) { return filho.metricas.pendentes; })) },
+        filhos: filhos,
+      };
+    });
+    return {
+      titulo: "Plano de quantidades por semana",
+      rotulo_linhas: "Entregável",
+      casas: 0,
+      unidade: "",
+      grupos: grupos,
+      coluna_total: { rotulo: "Total" },
+      metricas: [{ id: "pendentes", rotulo: "Pendentes", somar: true }],
+      linhas: linhas,
+      total: { rotulo: "Total geral", rotulo_raiz: "Entregáveis" },
+      faixas: {
+        padrao: [
+          { ate: 0, tom: "cinza", vazia: true, rotulo: "Sem itens" },
+          { ate: 4, tom: "neutro", nivel: 1, icone: "ponto", rotulo: "1 a 4 itens" },
+          { ate: 9, tom: "info", nivel: 2, icone: "info", rotulo: "5 a 9 itens" },
+          { tom: "roxo", nivel: 3, icone: "sobe", rotulo: "10 itens ou mais" },
+        ],
+        total: [{ tom: "neutro", nivel: 1, icone: false }],
+      },
+      selecionavel: true,
+      altura: 420,
+    };
+  }
+
+  /* ---------- Etapas ---------- */
+
+  const ETAPAS_DA_COMPRA = [
+    { id: "req", rotulo: "Requisição" },
+    { id: "rfx", rotulo: "RFx emitida" },
+    { id: "prop", rotulo: "Propostas" },
+    { id: "eqt", rotulo: "Equalização técnica" },
+    { id: "eqc", rotulo: "Equalização comercial" },
+    { id: "neg", rotulo: "Negociação" },
+    { id: "adj", rotulo: "Adjudicação" },
+  ];
+
+  const ESTADOS_DAS_ETAPAS = [
+    { id: "concluido", rotulo: "Concluído", tom: "ok" },
+    { id: "andamento", rotulo: "Em andamento", tom: "alerta" },
+    { id: "nao_iniciado", rotulo: "Não iniciado", tom: "atencao" },
+    { id: "na", rotulo: "N/A", tom: "cinza", padrao: true },
+  ];
+
+  /* Cada processo, com a quantidade de etapas já concluídas. */
+  const PROCESSOS_DE_COMPRA = [
+    ["PC-0012", "Painéis elétricos de média tensão", "Equipamento", 7],
+    ["PC-0013", "Transformador de potência", "Equipamento", 5],
+    ["PC-0014", "Montagem de tubulação", "Serviço", 4],
+    ["PC-0015", "Cabos de controle", "Material", 3],
+    ["PC-0016", "Válvulas de controle", "Equipamento", 2],
+    ["PC-0017", "Sistema de ventilação", "Equipamento", 1],
+    ["PC-0018", "Andaimes e acesso", "Serviço", 0],
+    ["PC-0019", "Eletrodutos e conexões", "Material", 6],
+  ];
+
+  function processoDeCompra(processo, indice) {
+    const concluidas = processo[3];
+    const inicio = somarDias("2026-06-01", indice * 9);
+    const etapas = {};
+    ETAPAS_DA_COMPRA.forEach(function (etapa, s) {
+      if (indice === 3 && etapa.id === "neg") return;
+      const data = somarDias(inicio, s * 12);
+      if (s < concluidas) {
+        etapas[etapa.id] = { estado: "concluido", data: data, quantidade: etapa.id === "prop" ? 3 : undefined };
+      } else if (s === concluidas && concluidas > 0) {
+        etapas[etapa.id] = { estado: "andamento", data: data, previsto: true };
+      } else {
+        etapas[etapa.id] = { estado: "nao_iniciado", data: data, previsto: true };
+      }
+    });
+    const prevista = somarDias(inicio, ETAPAS_DA_COMPRA.length * 12);
+    const estadoGeral = concluidas === ETAPAS_DA_COMPRA.length ? "concluido" : concluidas === 0 ? "nao_iniciado" : "andamento";
+    const nomeDoEstado = ESTADOS_DAS_ETAPAS.find(function (estado) { return estado.id === estadoGeral; });
+    return {
+      id: processo[0],
+      titulo: processo[0] + " · " + processo[1],
+      tags: [processo[2]],
+      estado: estadoGeral,
+      etapas: etapas,
+      datas: [prevista, somarDias(prevista, -5)],
+      detalhe: {
+        titulo: processo[0],
+        subtitulo: processo[1],
+        chips: [{ texto: nomeDoEstado.rotulo, tom: nomeDoEstado.tom, icone: true }],
+        blocos: [
+          {
+            tipo: "campos",
+            titulo: "Resumo",
+            itens: [
+              { rotulo: "Tipo", valor: processo[2] },
+              { rotulo: "Etapas concluídas", valor: concluidas + " de " + ETAPAS_DA_COMPRA.length },
+              { rotulo: "Conclusão prevista", valor: dataBr(prevista) },
+            ],
+          },
+          {
+            tipo: "tabela",
+            titulo: "Etapas",
+            colunas: ["Etapa", "Estado", { rotulo: "Data", alinhar: "centro" }],
+            linhas: ETAPAS_DA_COMPRA.filter(function (etapa) { return etapas[etapa.id]; }).map(function (etapa) {
+              const atual = etapas[etapa.id];
+              const estado = ESTADOS_DAS_ETAPAS.find(function (e) { return e.id === atual.estado; });
+              return { celulas: [etapa.rotulo, { texto: estado.rotulo, tom: estado.tom }, dataBr(atual.data)] };
+            }),
+          },
+        ],
+      },
+    };
+  }
+
+  function exemploEtapas() {
+    return {
+      titulo: "Processo de compra",
+      rotulo_linhas: "Processo",
+      etapas: ETAPAS_DA_COMPRA,
+      estados: ESTADOS_DAS_ETAPAS,
+      colunas_datas: ["Prevista", "Linha de base"],
+      linhas: PROCESSOS_DE_COMPRA.map(processoDeCompra),
+    };
+  }
+
   const EXEMPLOS = {
     "curva-s-linha": exemploCurvaLinha,
     "curva-s-barra-linha": exemploCurvaBarraLinha,
     "comparativo-barras": exemploComparativo,
     pareto: exemploPareto,
     relogios: exemploRelogios,
+    "card-indicador-ok": function () { return CARDS.ok; },
+    "card-indicador-alerta": function () { return CARDS.alerta; },
+    "card-indicador-erro": function () { return CARDS.erro; },
+    "card-detalhes-ok": function () { return CARDS.ok; },
+    "card-detalhes-alerta": function () { return CARDS.alerta; },
+    "card-detalhes-erro": function () { return CARDS.erro; },
+    "card-detalhes-prazo": function () { return CARDS.prazo; },
+    "kpi-status": exemploKpiStatus,
+    "severidade-riscos": exemploSeveridade,
+    "tabela-heatmap": exemploHeatmap,
+    "tabela-heatmap-desvio": exemploHeatmapDesvio,
+    "matriz-formatada": exemploMatrizHoras,
+    "matriz-ameacas": exemploMatrizAmeacas,
+    "matriz-oportunidades": exemploMatrizOportunidades,
+    "mapa-52-semanas": exemploMapa52,
+    "tabela-quantitativos": exemploQuantitativos,
+    etapas: exemploEtapas,
   };
 
   /* ---------- Exemplos da ISSUE-016 ---------- */
@@ -477,7 +1260,7 @@
   /* As nove linhas do original: colaborador, cargo, portfólio, tipo de rateio,
      horas em projeto e horas indiretas (em minutos), os dez percentuais por
      portfólio e o total. */
-  const COLABORADORES = [
+  const COLABORADORES_DO_RATEIO = [
     ["Ana Souza", "Engenheira de Planejamento", "Refinaria", "Específico", 8520, 720, [0, 0, 0, 20, 60, 0, 10, 10, 0, 0], 100],
     ["Carlos Lima", "Técnico de Manutenção", "Impoundment", "Geral", 9930, 270, [40, 35, 15, 0, 0, 0, 0, 0, 5, 5], 100],
     ["Mariana Costa", "Inspetora de Qualidade", "Smelter", "Timesheet", 10200, 0, [0, 0, 0, 0, 0, 100, 0, 0, 0, 0], 100],
@@ -511,7 +1294,7 @@
     ]
       .concat(percentuais)
       .concat([{ id: "total", rotulo: "Total", tipo: "percentual", esperado: 100 }]);
-    const linhas = COLABORADORES.map(function (c) {
+    const linhas = COLABORADORES_DO_RATEIO.map(function (c) {
       const linha = { nome: c[0], cargo: c[1], portfolio: c[2], tipo: c[3], horas: c[4], indiretas: c[5], total: c[7] };
       c[6].forEach(function (valor, i) {
         linha["p" + i] = valor;
@@ -858,6 +1641,23 @@
     });
   });
 
+  /* ---------- Seleção ---------- */
+
+  /* Os visuais clicáveis avisam a tela com grafico:selecionar. No app a tela o
+     ouve por Alpine, sem script no fragmento; aqui o último evento aparece na
+     linha de cima, para ver o que o servidor receberia. */
+  const saidaDaSelecao = document.getElementById("sg-selecao");
+  if (saidaDaSelecao) {
+    document.addEventListener("grafico:selecionar", function (evento) {
+      const d = evento.detail || {};
+      const partes = [d.tipo];
+      ["id", "linha", "coluna", "grupo", "valor"].forEach(function (chave) {
+        if (d[chave] !== undefined && d[chave] !== null) partes.push(chave + " " + d[chave]);
+      });
+      saidaDaSelecao.textContent = "Último clique: " + partes.join(", ");
+    });
+  }
+
   /* ---------- Conferências das contas ---------- */
 
   /* Os casos de fronteira das contas da biblioteca. O repositório não tem
@@ -889,6 +1689,42 @@
     }],
     ["mistura de preto e branco a 50%", "rgb(128, 128, 128)", function () { return G.misturar("#000000", "#FFFFFF", 0.5); }],
     ["nome do mês na língua do documento: setembro", "Set", function () { return G.nomeMes(9); }],
+    /* Peças da ISSUE-015 (pecas.js): faixa, estado, percentual, diferença, soma. */
+    ["faixa: maior_que é exclusivo (5 cai na faixa de baixo, 5,01 na de cima)", "alerta / erro", function () {
+      const faixas = [{ maior_que: 5, tom: "erro" }, { de: 1, tom: "alerta" }];
+      return G.pecas.faixaDe(5, faixas).tom + " / " + G.pecas.faixaDe(5.01, faixas).tom;
+    }],
+    ["faixa: ate é inclusivo e menor_que é exclusivo (10)", "ok / cinza", function () {
+      return G.pecas.faixaDe(10, [{ ate: 10, tom: "ok" }]).tom + " / " + G.pecas.faixaDe(10, [{ menor_que: 10, tom: "ok" }, { tom: "cinza" }]).tom;
+    }],
+    ["faixa: sem valor, ou fora de todas as faixas, é sem faixa", "null / null", function () {
+      return G.pecas.faixaDe(null, [{ tom: "ok" }]) + " / " + G.pecas.faixaDe(5, [{ de: 10, tom: "ok" }]);
+    }],
+    ["estado pelos limites: 80 é ok, 79,99 é alerta, 59,99 é erro", "ok / alerta / erro", function () {
+      const limites = { ok: 80, alerta: 60 };
+      return [80, 79.99, 59.99].map(function (valor) { return G.pecas.estadoPorLimites(valor, 80, limites); }).join(" / ");
+    }],
+    ["estado: sem limites vale a meta e, sem valor, é cinza", "erro / cinza", function () {
+      return G.pecas.estadoPorLimites(50, 60, undefined) + " / " + G.pecas.estadoPorLimites(null, 60, undefined);
+    }],
+    ["percentual do total: total zero dá 0, e 6 de 47 dá 12,8", "0 / 12.8", function () {
+      return G.pecas.percentualDe(1, 0) + " / " + G.pecas.percentualDe(6, 47).toFixed(1);
+    }],
+    ["diferença: 0,04 com uma casa é zero e fica neutra (não sobe)", "igual / neutro", function () {
+      const d = G.pecas.delta(0.04, "sobe", 1);
+      return d.sentido + " / " + d.tom;
+    }],
+    ["diferença: cair é bom quando o favorável é desce", "ok / erro", function () {
+      return G.pecas.delta(-0.5, "desce", 1).tom + " / " + G.pecas.delta(0.5, "desce", 1).tom;
+    }],
+    ["soma ignora o nulo, e só nulos dão nulo (sem dado não é zero)", "3 / null", function () {
+      return G.pecas.somar([1, null, 2]) + " / " + G.pecas.somar([null, null]);
+    }],
+    ["árvore: o pai sem valor soma os filhos; a folha sem valor é nula", "7 / null", function () {
+      const ler = function (no) { return no.v; };
+      const pai = { filhos: [{ v: 3 }, { v: 4 }] };
+      return G.pecas.valorDaArvore(pai, ler) + " / " + G.pecas.valorDaArvore({}, ler);
+    }],
   ];
 
   /* Casos de fronteira dos visuais da ISSUE-016. Os de cada fórmula com nome
@@ -1222,6 +2058,30 @@
           G.el("td", {}, [amostra]),
           G.el("td", {}, [G.el("code", { texto: papel })]),
           G.el("td", {}, [G.el("code", { texto: G.papeis[papel] })]),
+        ]),
+      );
+    });
+  }
+
+  /* ---------- Tons dos cards, matrizes e tabelas ---------- */
+
+  const tabelaDeTons = document.getElementById("sg-tons");
+  if (tabelaDeTons) {
+    [
+      ["ok", "ok"],
+      ["alerta", "warn"],
+      ["atencao", "laranja"],
+      ["erro", "erro"],
+      ["info", "azul"],
+      ["neutro", "frio"],
+      ["roxo", "roxo"],
+      ["cinza", "neutro"],
+    ].forEach(function (par) {
+      tabelaDeTons.appendChild(
+        G.el("tr", {}, [
+          G.el("td", {}, [G.pecas.chip(par[0], par[0], { icone: true })]),
+          G.el("td", {}, [G.el("code", { texto: par[0] })]),
+          G.el("td", {}, [G.el("code", { texto: par[1] })]),
         ]),
       );
     });

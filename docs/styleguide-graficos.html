@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="../app/ds/shell.css" />
     <link rel="stylesheet" href="../app/ds/patterns.css" />
     <link rel="stylesheet" href="../app/ds/graficos/graficos.css" />
+    <link rel="stylesheet" href="../app/ds/graficos/graficos-cartoes-e-tabelas.css" />
 
     <style>
       /* Só o que é desta página de documentação; tudo por token. */
@@ -34,6 +35,9 @@
       .sg-dica { margin-top: var(--space-sm); }
       .sg-quadro { overflow: hidden; }
       .sg-quadro--estreito { max-width: 640px; }
+      .sg-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-lg); }
+      .sg-par { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--space-lg); margin-top: var(--space-lg); }
+      @media (max-width: 480px) { .sg-par { grid-template-columns: minmax(0, 1fr); } }
       .sg-detalhes { margin-top: var(--space-lg); border: 1px solid var(--borda); border-radius: var(--r-md); background: var(--branco); }
       .sg-detalhes > summary { padding: var(--space-md) var(--space-lg); font-weight: 600; color: var(--brand-title); cursor: pointer; }
       .sg-detalhes__corpo { padding: 0 var(--space-lg) var(--space-lg); font-size: 13px; line-height: 1.6; }
@@ -84,6 +88,18 @@
     <script defer src="../app/ds/graficos/rosca.js"></script>
     <script defer src="../app/ds/graficos/linhas-multiplas.js"></script>
     <script defer src="../app/ds/graficos/relogios.js"></script>
+    <script defer src="../app/ds/graficos/pecas.js"></script>
+    <script defer src="../app/ds/graficos/cards.js"></script>
+    <script defer src="../app/ds/graficos/detalhe.js"></script>
+    <script defer src="../app/ds/graficos/card-indicador.js"></script>
+    <script defer src="../app/ds/graficos/card-indicador-detalhes.js"></script>
+    <script defer src="../app/ds/graficos/kpi-status.js"></script>
+    <script defer src="../app/ds/graficos/severidade-riscos.js"></script>
+    <script defer src="../app/ds/graficos/matriz-formatada.js"></script>
+    <script defer src="../app/ds/graficos/tabela-heatmap.js"></script>
+    <script defer src="../app/ds/graficos/mapa-52-semanas.js"></script>
+    <script defer src="../app/ds/graficos/tabela-quantitativos.js"></script>
+    <script defer src="../app/ds/graficos/etapas.js"></script>
     <script defer src="styleguide-graficos.js"></script>
   </head>
 
@@ -107,8 +123,18 @@
         <li><a href="#comparativo-barras">Comparativo de barras</a></li>
         <li><a href="#pareto">Pareto</a></li>
         <li><a href="#relogios">Relógios de indicadores</a></li>
+        <li><a href="#card-indicador">Card Indicador Único</a></li>
+        <li><a href="#card-indicador-detalhes">Card com detalhes</a></li>
+        <li><a href="#kpi-status">KPI Status</a></li>
+        <li><a href="#severidade-riscos">Severidade de riscos</a></li>
+        <li><a href="#tabela-heatmap">Tabela Heatmap</a></li>
+        <li><a href="#matriz-formatada">Matriz Formatada</a></li>
+        <li><a href="#mapa-52-semanas">Mapa 52 semanas</a></li>
+        <li><a href="#tabela-quantitativos">Quantitativos</a></li>
+        <li><a href="#etapas">Etapas</a></li>
         <li><a href="#agregacao">Agregação por período</a></li>
         <li><a href="#cores">Papéis de cor</a></li>
+        <li><a href="#tons">Tons</a></li>
         <li><a href="#gantt">Gráfico Gantt</a></li>
         <li><a href="#calendario">HTML Calendário</a></li>
         <li><a href="#galeria">Galeria</a></li>
@@ -162,6 +188,11 @@
           </li>
         </ul>
       </div>
+
+      <p class="sg-dica" id="sg-selecao" aria-live="polite">
+        Cartões, células e linhas clicáveis avisam a tela com <code>grafico:selecionar</code>. Clique em um deles: o
+        que o servidor receberia aparece aqui.
+      </p>
 
       <!-- ===== Curva S Linha ===== -->
       <section class="sg-secao" id="curva-s-linha">
@@ -446,6 +477,568 @@
             <pre class="sg-codigo">&lt;div data-grafico="relogios" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
             <p>Começo do JSON deste exemplo:</p>
             <pre class="sg-codigo" data-previa="relogios"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Card Indicador Único ===== -->
+      <section class="sg-secao" id="card-indicador">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Card Indicador Único</h2>
+          <p class="sg-secao__uso">
+            Indicador-chave de cada módulo no Início e nos painéis, clicável. Original:
+            <code>docs/referencia/graficos/Card Indicador Unico.html</code>.
+          </p>
+        </div>
+        <div class="sg-cards">
+          <div data-grafico="card-indicador" data-exemplo="card-indicador-ok"></div>
+          <div data-grafico="card-indicador" data-exemplo="card-indicador-alerta"></div>
+          <div data-grafico="card-indicador" data-exemplo="card-indicador-erro"></div>
+        </div>
+        <p class="sg-dica">
+          O valor vai na cor do estado, com o selo ao lado, a faixa colorida à esquerda e o trilho fino de progresso. A
+          <strong>referência de gestão</strong> (previsto, meta e linha de base) fica logo abaixo do valor, cada uma com a
+          diferença do card para ela: seta e sinal além da cor, verde se a diferença é favorável e vermelha se não. O estado
+          sai dos limites ou da meta (a regra dos Relógios) e o selo traz o nome dele.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <p>O contrato é o dos dois cards (<code>cards.js</code>), um card por elemento.</p>
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>rotulo</code></td><td>texto</td><td>O que o indicador mede.</td></tr>
+                  <tr>
+                    <td><code>valor</code>, <code>casas</code>, <code>unidade</code></td>
+                    <td>número, inteiro, texto</td>
+                    <td><code>texto</code> no lugar de <code>valor</code> é o valor já formatado pelo servidor.</td>
+                  </tr>
+                  <tr>
+                    <td><code>tom</code> ou <code>estado</code></td>
+                    <td><code>ok</code>, <code>alerta</code>, <code>atencao</code>, <code>erro</code>, <code>info</code>, <code>neutro</code>, <code>roxo</code>, <code>cinza</code></td>
+                    <td>
+                      Sem nenhum dos dois, o estado sai de <code>valor</code>, <code>meta</code> e <code>limites</code>
+                      (<code>{ "ok": 80, "alerta": 60 }</code>): a partir de <code>ok</code> é ok, a partir de
+                      <code>alerta</code> é atenção, abaixo é erro; sem limites vale a meta.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>selo</code></td>
+                    <td>texto, <code>{ texto, tom, icone }</code> ou <code>false</code></td>
+                    <td>Sem ele vale o nome do estado (Dentro da meta, Atenção, Abaixo da meta).</td>
+                  </tr>
+                  <tr>
+                    <td><code>referencias</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>rotulo</code>, <code>valor</code>, <code>favoravel</code> (<code>"sobe"</code>, padrão, ou
+                      <code>"desce"</code>) e <code>unidade_delta</code> (<code>" pp"</code>). A diferença sai de
+                      valor do card − valor da referência.
+                    </td>
+                  </tr>
+                  <tr><td><code>progresso</code> ou <code>max</code></td><td>número</td><td>O trilho de baixo (0 a 100, ou <code>valor</code> ÷ <code>max</code>).</td></tr>
+                  <tr><td><code>base</code></td><td>texto</td><td>A linha de base do indicador (por exemplo, "30 de 42 pacotes").</td></tr>
+                  <tr>
+                    <td><code>href</code>, <code>selecionavel</code></td>
+                    <td>texto, booleano</td>
+                    <td>O card vira link, ou botão que dispara <code>grafico:selecionar</code> com <code>{ id, item }</code>.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="card-indicador" data-dados='{{ card | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON do segundo exemplo:</p>
+            <pre class="sg-codigo" data-previa="card-indicador-alerta"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Card Indicador Único com detalhes ===== -->
+      <section class="sg-secao" id="card-indicador-detalhes">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Card Indicador Único com detalhes</h2>
+          <p class="sg-secao__uso">
+            O mesmo indicador com a linha de detalhe e a linha de base. Original:
+            <code>docs/referencia/graficos/Card Indicador Unico com detalhes.html</code>.
+          </p>
+        </div>
+        <div class="sg-cards">
+          <div data-grafico="card-indicador-detalhes" data-exemplo="card-detalhes-ok"></div>
+          <div data-grafico="card-indicador-detalhes" data-exemplo="card-detalhes-alerta"></div>
+          <div data-grafico="card-indicador-detalhes" data-exemplo="card-detalhes-erro"></div>
+          <div data-grafico="card-indicador-detalhes" data-exemplo="card-detalhes-prazo"></div>
+        </div>
+        <p class="sg-dica">
+          O selo leva o ícone do estado (o crítico leva o triângulo, como no original), a referência de gestão aparece
+          abaixo do valor e o card entra com uma subida suave. Num card estreito ele perde o detalhe (abaixo de 260 px) e
+          a linha de base (abaixo de 200 px). O último exemplo é um indicador em que cair é bom
+          (<code>favoravel: "desce"</code>): a diferença para a meta aparece em vermelho quando sobe.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <p>
+              O mesmo da seção anterior, com <code>detalhe</code> (texto da linha de detalhe) no lugar do trilho de
+              progresso.
+            </p>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="card-indicador-detalhes" data-dados='{{ card | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON do quarto exemplo:</p>
+            <pre class="sg-codigo" data-previa="card-detalhes-prazo"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== HTML KPI Status ===== -->
+      <section class="sg-secao" id="kpi-status">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">HTML KPI Status</h2>
+          <p class="sg-secao__uso">
+            Faixa de KPIs com estado nos painéis. Original: <code>docs/referencia/graficos/HTML KPI Status.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="kpi-status" data-exemplo="kpi-status"></div>
+        </div>
+        <p class="sg-dica">
+          Um cartão por estado, com a faixa colorida, o ícone, a contagem e o percentual do total com a barra. O estado
+          aparece pelo ícone e pelo nome, não só pela cor.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível da faixa.</td></tr>
+                  <tr>
+                    <td><code>itens</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>valor</code> (a contagem), <code>tom</code> e, se for outro
+                      que o do tom, <code>icone</code> (<code>"ok"</code>, <code>"alerta"</code>, <code>"atencao"</code>,
+                      <code>"erro"</code>, <code>"info"</code>). <code>href</code> ou <code>selecionavel</code> tornam o item clicável.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>total</code>, <code>casas_pct</code></td>
+                    <td>número, inteiro</td>
+                    <td>O percentual de cada item é <code>valor</code> ÷ <code>total</code> (a soma, quando <code>total</code> não vem).</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="kpi-status" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="kpi-status"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Separação Severidade Riscos ===== -->
+      <section class="sg-secao" id="severidade-riscos">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Separação Severidade Riscos</h2>
+          <p class="sg-secao__uso">
+            Separação dos riscos por severidade. Original:
+            <code>docs/referencia/graficos/Separação Severidade Riscos.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="severidade-riscos" data-exemplo="severidade-riscos"></div>
+        </div>
+        <p class="sg-dica">
+          Um cartão por faixa, lado a lado, com o nome em maiúsculas, a quantidade e o percentual do total (6 | 13%). O
+          último, em cinza, é o que ainda não foi avaliado. As faixas vêm da escala de riscos ativa dos parâmetros. O
+          cartão tem fundo suave e faixa forte em cima, porque só o vermelho e o roxo do Design System passam de 4,5:1 com
+          texto branco.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <p>O mesmo contrato do KPI Status (<code>itens</code>, <code>total</code>, <code>casas_pct</code>). Em cada item:</p>
+            <ul>
+              <li><code>tom</code> da faixa da escala ativa (<code>erro</code>, <code>atencao</code>, <code>alerta</code>, <code>ok</code>, <code>cinza</code>), nunca fixo no código;</li>
+              <li><code>icone</code> (opcional) acrescenta um ícone ao lado do nome;</li>
+              <li><code>href</code> ou <code>selecionavel</code> fazem o cartão filtrar o registro (<code>grafico:selecionar</code> com <code>{ id, item }</code>).</li>
+            </ul>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="severidade-riscos" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="severidade-riscos"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Tabela Heatmap ===== -->
+      <section class="sg-secao" id="tabela-heatmap">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tabela Heatmap</h2>
+          <p class="sg-secao__uso">
+            Mapa de calor do desvio da EAC, dia x frente e aging. Original:
+            <code>docs/referencia/graficos/Tabela Heatmap.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-heatmap" data-exemplo="tabela-heatmap"></div>
+        </div>
+        <p class="sg-dica">
+          Os números são os do original. A faixa de cada valor vem do servidor (os limites são parâmetros) e traz o tom,
+          o nível de intensidade, o <strong>ícone</strong> e o nome: a célula mostra o ícone e o número, e o nome fica na dica e
+          para o leitor de tela. A legenda mostra as mesmas amostras com ícone. Valor zero fica esmaecido.
+        </p>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-heatmap" data-exemplo="tabela-heatmap-desvio"></div>
+        </div>
+        <p class="sg-dica">
+          O mapa de controle: orçado e projeção em R$ mil sem pintar (<code>calor: false</code>), o desvio pintado, com
+          sinal, e só a linha de total (<code>total.coluna: false</code>). O total do desvio não é soma
+          (<code>somar: false</code> com o <code>total</code> pronto). As faixas são as do protótipo (limites 1, 5 e 10): o
+          sobrecusto em erro, a economia em ok, com seta para cima ou para baixo.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>titulo</code>, <code>rotulo_linhas</code>, <code>cabecalho</code></td>
+                    <td>textos</td>
+                    <td>O cabeçalho das colunas é na vertical (padrão, como no original) ou <code>"horizontal"</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>casas</code>, <code>unidade</code>, <code>sinal</code></td>
+                    <td>inteiro, texto, booleano</td>
+                    <td>Formato dos valores; cada coluna pode trazer o seu.</td>
+                  </tr>
+                  <tr>
+                    <td><code>colunas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>calor</code> (<code>false</code>: número sem pintar, e o total
+                      também), <code>somar</code> e <code>total</code> (<code>false</code> e um número, quando o total não é soma),
+                      <code>faixas</code> (nome do conjunto).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code> e <code>valores</code> por <code>id</code> de coluna: um número,
+                      nulo ou <code>{ valor, texto, faixa, id, href }</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>total</code></td>
+                    <td>objeto</td>
+                    <td>
+                      <code>linha</code> e <code>coluna</code> (os nomes; <code>coluna: false</code> deixa só a linha de total).
+                      Os totais usam o conjunto <code>total</code> das faixas, ou <code>padrao</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>faixas</code></td>
+                    <td>lista, ou objeto de listas</td>
+                    <td>
+                      Cada faixa: <code>de</code> (≥), <code>maior_que</code> (&gt;), <code>ate</code> (≤), <code>menor_que</code> (&lt;),
+                      <code>tom</code> (<code>ok</code>, <code>alerta</code>, <code>atencao</code>, <code>erro</code>, <code>info</code>, <code>neutro</code>, <code>roxo</code>, <code>cinza</code>),
+                      <code>nivel</code> (1 a 3), <code>icone</code> (<code>sobe</code>, <code>desce</code>, <code>igual</code> ou o de um estado),
+                      <code>rotulo</code> e <code>vazia</code>. A primeira que vale ganha: da mais específica para a mais geral.
+                    </td>
+                  </tr>
+                  <tr><td><code>legenda</code>, <code>selecionavel</code>, <code>altura</code></td><td>lista, booleano, número</td><td>Sem legenda, vale a das faixas. Célula clicável dispara <code>grafico:selecionar</code> com <code>{ id, linha, coluna, valor, item }</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="tabela-heatmap" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON do segundo exemplo:</p>
+            <pre class="sg-codigo" data-previa="tabela-heatmap-desvio"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Matriz Formatada ===== -->
+      <section class="sg-secao" id="matriz-formatada">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Matriz Formatada</h2>
+          <p class="sg-secao__uso">
+            Matriz P x I e severidade de riscos, e qualquer matriz de valores por linha e coluna. Original:
+            <code>docs/referencia/graficos/Matriz Formatada.html</code>.
+          </p>
+        </div>
+        <div data-grafico="matriz-formatada" data-exemplo="matriz-formatada"></div>
+        <p class="sg-dica">
+          Linhas em árvore que abrem e fecham, colunas em grupo (clique no mês para abrir as semanas e ganhar a coluna de
+          total), valores em pílulas pintadas pela faixa de cada coluna, cabeçalho e coluna de rótulos fixos na rolagem e a
+          linha de total fixa embaixo. Cada faixa leva ícone e nome, e a legenda os mostra. Expandir tudo e Recolher tudo
+          abrem e fecham as linhas e as colunas.
+        </p>
+        <div class="sg-par">
+          <div data-grafico="matriz-formatada" data-exemplo="matriz-ameacas"></div>
+          <div data-grafico="matriz-formatada" data-exemplo="matriz-oportunidades"></div>
+        </div>
+        <p class="sg-dica">
+          A variante <code>"grade"</code> é a matriz P x I 5 x 5: o miolo é a própria célula, com o número de riscos e o
+          apoio (<code>5 x 4 = 20</code>), e <strong>a célula filtra o registro</strong>. A cor é da posição, então a célula manda o
+          id da faixa. A escala é a de quatro faixas do protótipo (baixo a partir de 1, moderado de 5, alto de 10 e crítico
+          de 15), cada uma com ícone de silhueta própria. Nas oportunidades a escala se inverte, nas famílias frias e no verde.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>titulo</code>, <code>subtitulo</code>, <code>rotulo_linhas</code></td>
+                    <td>textos</td>
+                    <td>Cabeçalho e o nome da coluna de rótulos.</td>
+                  </tr>
+                  <tr>
+                    <td><code>variante</code></td>
+                    <td><code>"pilulas"</code> (padrão) ou <code>"grade"</code></td>
+                    <td><code>grade</code>: células cheias, para a matriz P x I. <code>zero_como_vazio</code> mostra o zero como traço (padrão: sim nas pílulas, não na grade).</td>
+                  </tr>
+                  <tr>
+                    <td><code>colunas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>sub</code>, <code>faixas</code> (nome do conjunto). Com
+                      <code>filhas</code> vira grupo: fechado, uma coluna de <code>resumo</code>; aberto, as filhas e a coluna de total do grupo.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>colunas_fixas</code>, <code>coluna_total</code></td>
+                    <td>lista, objeto</td>
+                    <td>Colunas de medida (<code>id</code>, <code>rotulo</code>, <code>tom</code>) e a coluna de total geral (<code>titulo</code>, <code>rotulo</code>, <code>sub</code>, <code>faixas</code>).</td>
+                  </tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>selo</code>, <code>valores</code> por <code>id</code> de coluna (número, nulo ou
+                      <code>{ valor, texto, faixa, apoio, id, href }</code>), <code>fixas</code>, <code>filhos</code>, <code>aberta</code> e
+                      <code>sem_faixa</code>. O que o servidor não manda soma sozinho: o pai soma os filhos, o grupo soma as semanas,
+                      o total soma tudo e o rodapé soma as linhas de cima. Taxa e resumo que não é soma vêm prontos.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>faixas</code></td>
+                    <td>lista, ou objeto de listas</td>
+                    <td>Como no Heatmap. Em objeto, cada coluna escolhe o conjunto (a semana e o mês têm limites diferentes); sem nome vale <code>padrao</code>. A célula pode mandar <code>faixa</code> (o <code>id</code> de uma faixa).</td>
+                  </tr>
+                  <tr>
+                    <td><code>rodape</code>, <code>legenda</code>, <code>expandir</code>, <code>altura</code></td>
+                    <td>objeto, lista, inteiro, número</td>
+                    <td><code>expandir</code>: as linhas de nível menor que ele começam abertas. <code>altura</code> fixa o quadro e a matriz rola por dentro.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento (a tela ouve o clique da célula por Alpine, sem script):</p>
+            <pre class="sg-codigo">&lt;div data-grafico="matriz-formatada" data-dados='{{ grafico | tojson }}'
+     @grafico:selecionar.prevent="$ajax('/riscos/registro?celula=' + $event.detail.id)"&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON da matriz de ameaças:</p>
+            <pre class="sg-codigo" data-previa="matriz-ameacas"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Mapa 52 semanas ===== -->
+      <section class="sg-secao" id="mapa-52-semanas">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Mapa 52 semanas</h2>
+          <p class="sg-secao__uso">
+            MAS (12 marcos por pacote) e plano de quantidades. Original:
+            <code>docs/referencia/graficos/Mapa 52 semanas.html</code>.
+          </p>
+        </div>
+        <div data-grafico="mapa-52-semanas" data-exemplo="mapa-52-semanas"></div>
+        <p class="sg-dica">
+          Uma coluna por semana (seis na tela), com os cartões dos itens da semana, a faixa colorida do estado, a etiqueta,
+          os chips e a data. Em cima, os totais por estado e os botões de ano; embaixo, a busca, os filtros, as setas, o
+          botão Hoje e a contagem. O clique no cartão abre o detalhe. Os itens sem semana contam em "Sem data". As semanas e
+          o mês de cada uma vêm do calendário da plataforma (aqui, gerado pela página).
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code>, <code>subtitulo</code>, <code>ano</code>, <code>por_pagina</code></td><td>texto, número</td><td>Cabeçalho, ano aberto e quantas semanas cabem na tela (padrão 6).</td></tr>
+                  <tr>
+                    <td><code>anos</code></td>
+                    <td>lista</td>
+                    <td>Um ano por entrada, com <code>semanas</code>: <code>semana</code>, <code>mes</code> (1 a 12), <code>inicio</code> e <code>fim</code> (ISO). Vem do servidor, com 52 ou 53 semanas.</td>
+                  </tr>
+                  <tr><td><code>hoje</code></td><td><code>{ ano, semana }</code></td><td>A semana de hoje, também do servidor.</td></tr>
+                  <tr>
+                    <td><code>legenda</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code>, <code>rotulo_total</code> (o nome nos totais do topo, no plural) e <code>tom</code>, que pinta a faixa do cartão.</td>
+                  </tr>
+                  <tr>
+                    <td><code>filtros</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code> e <code>opcoes</code> (<code>id</code>, <code>rotulo</code>); o item responde por <code>atributos[id]</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>itens</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>ano</code> e <code>semana</code>, <code>titulo</code>, <code>subtitulo</code>, <code>etiqueta</code>
+                      (<code>{ texto, tom }</code>), <code>estado</code> (um <code>id</code> da legenda), <code>chips</code>
+                      (<code>depois_da_data: true</code> põe o chip depois da data), <code>data</code> (ISO), <code>quantidade</code>,
+                      <code>atributos</code>, <code>busca</code> e <code>detalhe</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>detalhe</code></td>
+                    <td>objeto</td>
+                    <td>O painel do clique, feito de blocos (<code>campos</code>, <code>textos</code>, <code>tabela</code>, <code>cartoes</code>), o mesmo dos Quantitativos e das Etapas (<code>detalhe.js</code>). Todo texto entra como texto.</td>
+                  </tr>
+                  <tr><td><code>kpis_extras</code></td><td>lista</td><td>Totais a mais ao lado dos estados (<code>rotulo</code>, <code>valor</code>, <code>tom</code>).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="mapa-52-semanas" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="mapa-52-semanas"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Tabela Quantitativos por entregável ===== -->
+      <section class="sg-secao" id="tabela-quantitativos">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tabela Quantitativos por entregável</h2>
+          <p class="sg-secao__uso">
+            Plano de quantidades por semana e quadro do MAS por pacote. Original:
+            <code>docs/referencia/graficos/Tabela Quantitativos por entregavel.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-quantitativos" data-exemplo="tabela-quantitativos"></div>
+        </div>
+        <p class="sg-dica">
+          Uma linha por entregável, as colunas em grupos com o nome em cima, o valor numa pílula pintada pela faixa (com
+          ícone e nome), o total da linha, as colunas de medida e o total geral fixo embaixo. Clique numa linha para
+          descer aos itens dela (caminho, Voltar e busca); a folha abre o detalhe. A tabela rola por dentro, com cabeçalho e
+          total fixos.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code>, <code>rotulo_linhas</code>, <code>casas</code>, <code>unidade</code></td><td>textos, inteiro</td><td>Cabeçalho e formato dos valores.</td></tr>
+                  <tr>
+                    <td><code>grupos</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code> e <code>colunas</code> (<code>id</code>, <code>rotulo</code>, <code>dica</code>). <code>selecionavel</code> ou <code>href</code> fazem do nome do grupo um item clicável.</td>
+                  </tr>
+                  <tr><td><code>coluna_total</code>, <code>metricas</code></td><td>objeto, lista</td><td>O total da linha e as colunas de números prontos, sem faixa (<code>id</code>, <code>rotulo</code>, <code>somar</code>).</td></tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>subtitulo</code>, <code>valores</code> (número, nulo ou
+                      <code>{ valor, texto, faixa, id, href }</code>), <code>metricas</code>, <code>busca</code>, <code>filhos</code>
+                      (descem ao clicar) e <code>detalhe</code>. O que falta soma sozinho; taxa e medida que não é soma vêm
+                      prontas (a chave <code>total</code> é a do total da linha).
+                    </td>
+                  </tr>
+                  <tr><td><code>total</code></td><td>objeto</td><td><code>rotulo</code>, <code>rotulo_raiz</code> (o nome do nível de cima no caminho), <code>valores</code> e <code>metricas</code> prontos.</td></tr>
+                  <tr><td><code>faixas</code>, <code>legenda</code></td><td>lista, ou objeto com <code>padrao</code> e <code>total</code></td><td>Como no Heatmap: tom, nível, ícone e nome por valor.</td></tr>
+                  <tr><td><code>selecionavel</code>, <code>altura</code></td><td>booleano, número</td><td>Linha, célula e grupo disparam <code>grafico:selecionar</code> (quem cancela o evento assume o clique).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="tabela-quantitativos" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="tabela-quantitativos"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Etapas ===== -->
+      <section class="sg-secao" id="etapas">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Etapas</h2>
+          <p class="sg-secao__uso">
+            Etapas do processo de compra, fluxo da SM e ciclo da RNC. Original:
+            <code>docs/referencia/graficos/Etapas.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="etapas" data-exemplo="etapas"></div>
+        </div>
+        <p class="sg-dica">
+          Uma linha por processo, com a faixa colorida do estado geral, o nome e as etiquetas, a régua das etapas (barra,
+          estado, data e quantidade) e as datas de referência. No cabeçalho, cada etapa traz os filtros por estado com a
+          contagem: dentro da etapa valem como "ou" e entre etapas como "e". O clique na linha abre o detalhe. Como no
+          original, o estado aparece pelo nome (a legenda é de pontos), sem ícone.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code>, <code>rotulo_linhas</code></td><td>textos</td><td>Cabeçalho e o nome da primeira coluna.</td></tr>
+                  <tr><td><code>etapas</code></td><td>lista</td><td><code>id</code> e <code>rotulo</code> de cada etapa da régua.</td></tr>
+                  <tr>
+                    <td><code>estados</code></td>
+                    <td>lista</td>
+                    <td>O vocabulário: <code>id</code>, <code>rotulo</code> e <code>tom</code>, que pintam a barra e o texto da etapa, a faixa da linha, a legenda e os filtros. O de <code>padrao: true</code> (ou o último) vale para a etapa que a linha não traz.</td>
+                  </tr>
+                  <tr><td><code>colunas_datas</code></td><td>lista de textos</td><td>Os nomes das datas de referência à direita (<code>datas</code> da linha acompanha).</td></tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>titulo</code>, <code>tags</code>, <code>estado</code> (o geral, regra do servidor; sem ele a faixa fica cinza),
+                      <code>etapas</code> por <code>id</code> de etapa (<code>estado</code>, <code>data</code>, <code>previsto</code>,
+                      <code>quantidade</code>, <code>texto</code>), <code>datas</code> (ISO) e <code>detalhe</code>.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="etapas" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="etapas"></pre>
           </div>
         </details>
       </section>
@@ -1391,6 +1984,28 @@
           </div>
         </div>
         <p class="sg-nota" id="sg-cobertura"></p>
+      </section>
+
+      <!-- ===== Tons dos cards, matrizes e tabelas ===== -->
+      <section class="sg-secao" id="tons">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tons</h2>
+          <p class="sg-secao__uso">
+            Os visuais de cartões, matrizes e tabelas falam em <em>tom</em>, que é uma família do Design System. O tom
+            não leva cor no código: a classe <code>.graf-tom.is-&lt;tom&gt;</code> lê os tokens, e cada tom leva um ícone de
+            silhueta própria, para a cor nunca ser o único sinal. A tabela é gerada por <code>TN.graficos.pecas</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div class="sg-rolagem">
+            <table class="sg-tabela">
+              <thead>
+                <tr><th>Tom</th><th>Nome no JSON</th><th>Família do Design System</th></tr>
+              </thead>
+              <tbody id="sg-tons"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- ===== Conferências das contas ===== -->

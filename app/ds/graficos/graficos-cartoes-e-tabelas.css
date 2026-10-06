@@ -1,0 +1,799 @@
+/* ============================================================
+   graficos/graficos-cartoes-e-tabelas.css — Estilo dos visuais da ISSUE-015
+
+   Card Indicador Único, Card Indicador Único com detalhes, HTML KPI Status,
+   Separação Severidade Riscos, Tabela Heatmap, Matriz Formatada, Mapa 52
+   semanas, Tabela Quantitativos por entregável e Etapas, mais as peças que
+   eles dividem (tom, chip, célula, legenda, painel de detalhe). Carrega depois
+   de graficos.css, pelo shell (index.html), nunca por fragmento.
+
+   O original é o padrão (docs/referencia/graficos/): fonte, espaço, raio e
+   animação são os dele. O que muda é só o que o Design System manda: toda cor
+   é var(--token) (a paleta da coletânea já é a do Design System), o vw do
+   original vira a unidade --graf-u do contêiner (1cqw, como a ISSUE-014 fez
+   com o Pareto) e a letra que o original pintava com a cor forte da família
+   usa o token escuro da mesma família, para fechar 4,5:1.
+
+   O servidor fala em tom (ok, alerta, atencao, erro, info, neutro, roxo,
+   cinza); a classe .graf-tom.is-<tom> lê os tokens e define quatro variáveis:
+     --tom-forte  faixa, barra, traço e ponto
+     --tom-fundo  fundo suave
+     --tom-texto  letra e ícone
+     --tom-borda  contorno
+   O nível de intensidade do mapa de calor (.is-nivel-1 a 3) mistura o tom
+   forte com branco: quanto maior o nível, mais cheio o fundo.
+   ============================================================ */
+
+/* ============================================================
+   Moldura
+   O elemento [data-grafico] vira .graf (graficos.css, altura de 520px). Estes
+   visuais têm a altura do conteúdo, e `altura` no JSON a fixa (a tabela ou a
+   matriz passa a rolar por dentro, com cabeçalho e total fixos). Etapas e o
+   Mapa 52 semanas têm a altura do quadro do original.
+   ============================================================ */
+.graf--card-indicador, .graf--card-indicador-detalhes, .graf--kpi-status, .graf--severidade-riscos,
+.graf--tabela-heatmap, .graf--matriz-formatada, .graf--tabela-quantitativos { height: var(--graf-altura, auto); }
+.graf--etapas { height: var(--graf-altura, 640px); }
+.graf--mapa-52-semanas { height: var(--graf-altura, 700px); }
+
+/* Contêiner das consultas @container e da unidade --graf-u (1cqw). */
+.graf--card-indicador-detalhes, .graf--severidade-riscos, .graf--etapas { container-type: inline-size; }
+
+/* Foco visível em tudo que se clica ou se digita */
+.graf a:focus-visible, .graf button:focus-visible, .graf select:focus-visible, .graf input:focus-visible,
+.graf [role="button"]:focus-visible, .graf [tabindex="0"]:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf .is-interativo { cursor: pointer; }
+
+/* ============================================================
+   Peças comuns
+   ============================================================ */
+
+/* ---------- Tom ---------- */
+.graf-tom {
+  --tom-forte: var(--frio-500);
+  --tom-fundo: var(--frio-50);
+  --tom-texto: var(--frio-700);
+  --tom-borda: color-mix(in srgb, var(--tom-forte) 45%, var(--branco));
+}
+.graf-tom.is-ok { --tom-forte: var(--ok-500); --tom-fundo: var(--ok-50); --tom-texto: var(--ok-800); }
+.graf-tom.is-alerta { --tom-forte: var(--warn-500); --tom-fundo: var(--warn-50); --tom-texto: var(--warn-800); }
+.graf-tom.is-atencao {
+  --tom-forte: var(--laranja-500);
+  --tom-fundo: color-mix(in srgb, var(--laranja-500) 8%, var(--branco));
+  --tom-texto: color-mix(in srgb, var(--warn-700) 80%, var(--neutro-800));
+}
+.graf-tom.is-erro { --tom-forte: var(--erro-500); --tom-fundo: var(--erro-50); --tom-texto: var(--erro-700); }
+.graf-tom.is-info { --tom-forte: var(--azul-500); --tom-fundo: var(--azul-50); --tom-texto: var(--azul-800); }
+.graf-tom.is-neutro { --tom-forte: var(--frio-500); --tom-fundo: var(--frio-50); --tom-texto: var(--frio-700); }
+.graf-tom.is-roxo { --tom-forte: var(--roxo-500); --tom-fundo: var(--roxo-50); --tom-texto: var(--roxo-700); }
+.graf-tom.is-cinza { --tom-forte: var(--neutro-400); --tom-fundo: var(--neutro-100); --tom-texto: var(--neutro-600); }
+
+/* Intensidade do mapa de calor: a letra é a escura do Design System nos três
+   níveis, que passam de 4,5:1 em todas as famílias. */
+.graf-tom.is-nivel-1 { background: color-mix(in srgb, var(--tom-forte) 14%, var(--branco)); color: var(--text-primary); }
+.graf-tom.is-nivel-2 { background: color-mix(in srgb, var(--tom-forte) 32%, var(--branco)); color: var(--text-primary); }
+.graf-tom.is-nivel-3 { background: color-mix(in srgb, var(--tom-forte) 54%, var(--branco)); color: var(--text-primary); }
+
+/* Texto só para o leitor de tela */
+.graf-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.graf-icone { display: block; flex: 0 0 auto; }
+
+/* ---------- Chip ---------- */
+.graf-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  padding: 3px 8px; border: 1px solid var(--tom-borda); border-radius: 9999px;
+  background: var(--tom-fundo); color: var(--tom-texto);
+  font-size: 11px; font-weight: 700; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-chip .graf-icone { color: var(--tom-texto); }
+
+/* ---------- Diferença para a referência (seta e sinal além da cor) ---------- */
+.graf-delta {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 9999px;
+  background: var(--tom-fundo); color: var(--tom-texto);
+  font-size: 10px; font-weight: 700; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.graf-delta .graf-icone { color: var(--tom-texto); }
+
+/* ---------- Célula de valor (pílula do mapa de calor) ---------- */
+.graf-celula {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 32px; padding: 0 4px; border: 1px solid var(--tom-borda); border-radius: 4px;
+  background: var(--tom-fundo); color: var(--tom-texto);
+  font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.graf-celula .graf-icone { color: var(--tom-texto); }
+.graf-celula.is-interativo:hover, a.graf-celula:hover { box-shadow: 0 0 0 2px var(--tom-forte); }
+/* Sem valor ou na faixa vazia: sem pílula, esmaecida */
+.graf-tom.graf-celula.is-vazia { border-color: transparent; background: transparent; color: var(--text-hint); font-weight: 400; }
+
+/* ---------- Legenda ---------- */
+.graf-legenda { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--text-secondary); }
+.graf-legenda__item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.graf-legenda__amostra {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 16px; height: 16px; border: 1px solid var(--tom-borda); border-radius: var(--r-sm);
+  background: var(--tom-fundo); color: var(--tom-texto);
+}
+.graf-legenda__amostra .graf-icone { color: var(--tom-texto); }
+.graf-legenda__amostra.is-vazia { border-style: dashed; background: transparent; }
+/* O ponto do original: só a cor */
+.graf-legenda__amostra.is-ponto { width: 8px; height: 8px; border: 0; border-radius: 50%; background: var(--tom-forte); }
+
+/* ============================================================
+   Card Indicador Único e Card Indicador Único com detalhes
+   O valor grande na cor do estado, o selo ao lado e a faixa colorida de 3px à
+   esquerda; a referência de gestão (previsto, meta, linha de base) fica logo
+   abaixo do valor. O card com detalhes entra com uma subida suave e, num card
+   estreito, perde o detalhe (abaixo de 260px) e a linha de base (abaixo de
+   200px), como o original.
+   ============================================================ */
+.graf-card {
+  position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  min-width: 0; min-height: 88px; padding: 10px 14px; overflow: hidden;
+  background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-md); box-shadow: var(--shadow);
+  font-family: var(--font); color: var(--text-primary); text-decoration: none;
+  transition: box-shadow .15s, border-color .15s;
+}
+.graf-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--tom-forte); }
+.graf-card.is-interativo:hover, a.graf-card:hover { border-color: var(--tom-borda); box-shadow: var(--shadow-hover); }
+.graf-card--card-indicador-detalhes { gap: 4px; animation: graf-entra-5 .35s cubic-bezier(.22, 1, .36, 1) both; }
+
+.graf-card__rotulo {
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-card__topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.graf-card__valor {
+  font-family: var(--font-label); font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: -.8px;
+  color: var(--tom-texto); font-variant-numeric: tabular-nums;
+}
+.graf-card--card-indicador-detalhes .graf-card__valor { font-size: 34px; }
+.graf-card__selo { flex: 0 0 auto; }
+.graf-card--card-indicador .graf-card__selo { border-color: transparent; }
+.graf-card--card-indicador-detalhes .graf-card__selo { border-color: color-mix(in srgb, var(--tom-forte) 65%, var(--branco)); }
+
+/* Referência de gestão: o valor de cada referência e a diferença do card */
+.graf-card__refs { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.graf-ref { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.graf-ref__val { color: var(--text-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.graf-card__detalhe { max-width: 100%; font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-card__base { max-width: 100%; font-size: 11px; color: var(--text-hint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-card--card-indicador-detalhes .graf-card__base { font-size: 10.5px; }
+.graf-card__trilho { width: 100%; height: 3px; border-radius: 9999px; background: var(--neutro-100); overflow: hidden; }
+.graf-card__preenchimento { height: 100%; border-radius: 9999px; background: var(--tom-forte); }
+
+@container (max-width: 259px) { .graf-card--card-indicador-detalhes .graf-card__detalhe { display: none; } }
+@container (max-width: 199px) { .graf-card--card-indicador-detalhes .graf-card__base { display: none; } }
+
+/* ============================================================
+   HTML KPI Status
+   Um cartão por estado: faixa colorida de 4px à esquerda, ícone num quadrado
+   suave, o nome, a contagem numa pílula e o percentual do total com a barra.
+   ============================================================ */
+.graf-kstatus { display: flex; flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 8px; padding: 6px; }
+.graf-kstatus__card {
+  flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 14px; border-left: 4px solid var(--tom-forte); border-radius: 10px;
+  background: var(--branco); box-shadow: var(--shadow-hover);
+  font-family: var(--font); color: var(--text-primary); text-decoration: none;
+  animation: graf-entra-5 .4s ease both;
+}
+.graf-kstatus__card:nth-child(2) { animation-delay: .06s; }
+.graf-kstatus__card:nth-child(3) { animation-delay: .12s; }
+.graf-kstatus__card.is-interativo:hover, a.graf-kstatus__card:hover { box-shadow: var(--shadow-hover), 0 0 0 1px var(--tom-borda); }
+.graf-kstatus__topo { display: flex; align-items: center; gap: 8px; }
+.graf-kstatus__icone {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 8px; background: var(--tom-fundo); color: var(--tom-forte);
+}
+.graf-kstatus__textos { display: flex; flex-direction: row; align-items: baseline; gap: 10px; min-width: 0; }
+.graf-kstatus__rotulo { font-size: 25px; font-weight: 500; color: var(--text-secondary); }
+.graf-kstatus__valor {
+  padding: 2px 12px; border-radius: 9999px; font-size: 28px; font-weight: 700; line-height: 1;
+  background: color-mix(in srgb, var(--tom-forte) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tom-forte) 33%, transparent);
+  color: var(--tom-texto);
+}
+.graf-kstatus__linha { display: flex; align-items: center; gap: 6px; }
+.graf-kstatus__trilho { flex: 1; height: 4px; border-radius: 9999px; background: var(--neutro-100); overflow: hidden; }
+.graf-kstatus__preenchimento { height: 100%; border-radius: 9999px; background: var(--tom-forte); }
+.graf-kstatus__pct { font-family: var(--font-label); font-size: 25px; font-weight: 600; color: var(--tom-texto); }
+
+/* ============================================================
+   Separação Severidade Riscos
+   Um cartão por faixa, lado a lado: nome, quantidade, barra e percentual, com
+   o círculo suave no canto. O tamanho de tudo acompanha a largura do visual
+   (--graf-u, o 1vw do original). O fundo é suave, com a faixa forte em cima e
+   o texto escuro; o último cartão, cinza, é o que ainda não foi avaliado.
+   ============================================================ */
+.graf-sev {
+  --graf-u: 1cqw;
+  display: flex; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: stretch;
+  gap: clamp(6px, calc(var(--graf-u) * 1), 16px); width: 100%;
+  padding: clamp(4px, calc(var(--graf-u) * 1), 8px);
+  font-family: var(--font);
+}
+.graf-sev__card {
+  position: relative; flex: 1 1 96px; min-width: 0; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: clamp(10px, calc(var(--graf-u) * 1.6), 20px);
+  border: 1px solid var(--tom-borda); border-top: 4px solid var(--tom-forte);
+  border-radius: clamp(6px, calc(var(--graf-u) * 1.2), 12px);
+  background: var(--tom-fundo); box-shadow: var(--shadow);
+  color: var(--text-primary); text-align: center; text-decoration: none;
+}
+.graf-sev__card.is-cinza { border-top-width: 1px; border-color: var(--borda); background: var(--surface-hover-suave); }
+.graf-sev__card.is-interativo:hover, a.graf-sev__card:hover { box-shadow: var(--shadow-hover); }
+.graf-sev__rotulo {
+  position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 5px;
+  margin-bottom: clamp(4px, calc(var(--graf-u) * .8), 8px);
+  font-size: clamp(12px, calc(var(--graf-u) * 1.6), 18px); font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  white-space: nowrap; text-align: center; color: var(--tom-texto);
+}
+.graf-sev__numeros { position: relative; z-index: 2; display: flex; align-items: baseline; gap: 4px; line-height: 1; }
+.graf-sev__valor { font-size: clamp(18px, calc(var(--graf-u) * 3), 42px); font-weight: 600; color: var(--text-primary); }
+.graf-sev__sep { font-size: clamp(14px, calc(var(--graf-u) * 2), 28px); font-weight: 300; color: color-mix(in srgb, var(--tom-texto) 45%, transparent); }
+.graf-sev__pct { font-size: clamp(14px, calc(var(--graf-u) * 2), 28px); font-weight: 500; color: var(--tom-texto); }
+.graf-sev__brilho {
+  position: absolute; z-index: 1; top: -20px; right: -20px; width: 100px; height: 100px; border-radius: 50%;
+  background: color-mix(in srgb, var(--tom-forte) 10%, transparent); pointer-events: none;
+}
+
+/* ============================================================
+   Tabela Heatmap
+   Cabeçalho escuro com o nome das colunas na vertical, célula pintada pela
+   faixa do valor (tom, nível, ícone e nome), coluna de total e linha de total
+   com filete verde. Cada linha entra com uma subida suave, uma após a outra.
+   ============================================================ */
+.graf-heat { font-family: var(--font); }
+.graf-heat__titulo { margin-bottom: 16px; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--brand-title); }
+.graf-heat__rolagem { overflow-x: auto; border-radius: var(--r-md); }
+.graf-heat__tabela {
+  width: 100%; min-width: 420px; table-layout: fixed; border-collapse: separate; border-spacing: 0;
+  font-size: 11px; background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-md); overflow: hidden;
+}
+.graf-heat__th { position: sticky; top: 0; z-index: 10; padding: 0; background: var(--brand-title); color: var(--branco); font-weight: 700; text-align: center; vertical-align: middle; }
+.graf-heat__th.is-area { width: 14%; min-width: 110px; padding: 8px 10px; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; text-align: left; }
+.graf-heat__th.is-coluna { height: 160px; padding: 12px 2px; }
+.graf-heat__th.is-total { width: 6.4%; min-width: 48px; }
+.graf-heat__th-texto {
+  display: block; max-height: 150px; margin: 0 auto; overflow: hidden; text-overflow: ellipsis;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-size: 10px; font-weight: 700; letter-spacing: .4px; line-height: 1.15; text-transform: uppercase;
+  text-align: center; white-space: normal; word-break: break-word;
+}
+.graf-heat__th.is-total .graf-heat__th-texto { white-space: nowrap; }
+.graf-heat.is-horizontal .graf-heat__th.is-coluna { height: auto; padding: 8px 4px; }
+.graf-heat.is-horizontal .graf-heat__th-texto { writing-mode: horizontal-tb; transform: none; max-height: none; }
+
+.graf-heat__linha { animation: graf-entra-8 .35s ease both; animation-delay: var(--atraso, 0ms); }
+.graf-heat__rotulo {
+  padding: 8px 10px; border-bottom: 1px solid var(--neutro-100); background: var(--branco);
+  font-size: 11px; font-weight: 700; color: var(--brand-title); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-heat__td { padding: 5px 2px; border-bottom: 1px solid var(--neutro-100); text-align: center; vertical-align: middle; }
+.graf-heat__celula { height: 28px; margin: 0 auto; }
+.graf-heat__celula.is-total { min-width: 34px; font-size: 12px; }
+.graf-heat__numero { font-size: 11px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.graf-heat__numero.is-vazio { color: var(--text-hint); }
+.graf-heat__linha.is-total .graf-heat__rotulo, .graf-heat__linha.is-total .graf-heat__td { border-top: 2px solid var(--verde-500); border-bottom: 0; font-weight: 700; }
+.graf-heat__linha.is-total .graf-heat__td { background: var(--surface-hover-suave); }
+.graf-heat .graf-legenda { margin-top: 12px; }
+
+/* ============================================================
+   Matriz Formatada
+   Cabeçalho com barra de título, legenda e botões; corpo que rola com o
+   cabeçalho e a coluna de rótulos fixos; linhas em árvore com o recuo de 14px
+   por nível; pílulas pintadas pela faixa; linha de total fixa embaixo. A
+   variante "grade" (matriz P x I) enche a célula inteira.
+   ============================================================ */
+.graf-matriz { display: flex; flex-direction: column; flex: 1 1 auto; gap: 8px; min-height: 0; padding: 8px; overflow: hidden; font-family: var(--font); }
+.graf-matriz__cab {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; flex-shrink: 0; gap: 16px;
+  padding: 12px 20px; background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.graf-matriz__tit { display: flex; align-items: center; gap: 12px; }
+.graf-matriz__barra { flex-shrink: 0; width: 4px; height: 32px; border-radius: 9999px; background: var(--verde-500); }
+.graf-matriz__titulo { font-size: 16px; font-weight: 600; line-height: 1.25; color: var(--brand-title); }
+.graf-matriz__subtitulo { margin-top: 2px; font-size: 11px; color: var(--text-secondary); }
+.graf-matriz__acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.graf-matriz__acoes .graf-legenda { gap: 6px; }
+.graf-matriz__acoes .graf-legenda__item {
+  gap: 5px; padding: 3px 10px; border: 1px solid var(--neutro-100); border-radius: 9999px;
+  background: var(--neutro-50); font-size: 10px; color: var(--text-primary);
+}
+.graf-matriz__acoes .graf-legenda__amostra { width: 14px; height: 14px; }
+.graf-matriz__botoes { display: flex; gap: 10px; }
+.graf-matriz__botao {
+  padding: 5px 12px; border: 1px solid var(--verde-500); border-radius: var(--r-md); background: var(--branco);
+  font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--brand-title); white-space: nowrap; cursor: pointer;
+}
+.graf-matriz__botao:hover { background: var(--verde-50); }
+
+.graf-matriz__corpo {
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-lg); box-shadow: var(--shadow);
+}
+.graf-matriz__tabela { width: 100%; border-collapse: separate; border-spacing: 0; }
+.graf-matriz__tabela th, .graf-matriz__tabela td { border-bottom: 1px solid var(--neutro-100); }
+
+/* Cabeçalho: duas linhas fixas no alto; o canto também fica à esquerda */
+.graf-matriz__th {
+  position: sticky; top: 0; z-index: 5; height: 38px; padding: 0 8px; background: var(--branco);
+  text-align: center; vertical-align: middle;
+}
+.graf-matriz__th.is-canto { left: 0; z-index: 8; min-width: 260px; padding: 0 12px; text-align: left; box-shadow: 3px 0 6px -4px color-mix(in srgb, var(--neutro-800) 10%, transparent); }
+.graf-matriz__th.is-fixa { min-width: 80px; }
+.graf-matriz__th.is-grupo { min-width: 90px; padding: 0; }
+.graf-matriz__th.is-grupo.is-aberto { box-shadow: inset 0 -2px 0 0 var(--verde-500); }
+.graf-matriz__th.is-total-cab {
+  border-left: 2px solid var(--verde-100); min-width: 84px;
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: .6px; color: var(--brand-title);
+}
+.graf-matriz__h2 .graf-matriz__th { top: 38px; height: auto; min-width: 80px; padding: 4px 6px; }
+.graf-matriz__h2 .graf-matriz__th.is-subtotal { background: var(--frio-50); }
+.graf-matriz__h2 .graf-matriz__th.is-total-cab { background: var(--branco); }
+.graf-matriz__th-nome {
+  display: block; font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: .8px; line-height: 1.35;
+  text-transform: uppercase; color: var(--text-secondary); white-space: normal; word-break: break-word;
+}
+.graf-matriz__h2 .graf-matriz__th-nome { letter-spacing: .6px; line-height: 1.4; color: var(--brand-title); }
+.graf-matriz__th.is-total-cab .graf-matriz__th-nome { color: var(--brand-title); }
+.graf-matriz__th-sub { display: block; font-size: 9px; line-height: 1.4; color: var(--text-secondary); white-space: nowrap; }
+
+/* Botão que abre e fecha a linha ou o mês */
+.graf-matriz__alternar {
+  display: inline-flex; align-items: center; max-width: 100%; padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; cursor: pointer;
+}
+.graf-matriz__th.is-grupo .graf-matriz__alternar {
+  width: 100%; min-height: 38px; justify-content: center; gap: 0;
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: .6px; color: var(--brand-title);
+}
+.graf-matriz__caret {
+  display: inline-block; flex: 0 0 auto; width: 0; height: 0; margin-right: 6px;
+  border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 4px solid var(--neutro-300);
+}
+.graf-matriz__caret.is-aberto { border-top: 4px solid var(--verde-500); border-right: 3px solid transparent; border-bottom: 0; border-left: 3px solid transparent; }
+.graf-matriz__ponto { display: inline-block; flex: 0 0 auto; width: 4px; height: 4px; margin-right: 6px; border-radius: 9999px; background: var(--neutro-200); }
+.graf-matriz__folha { display: inline-flex; align-items: center; }
+.graf-matriz__texto { word-break: break-word; }
+
+/* Rótulo da linha: fixo à esquerda, com o recuo (14px por nível) no estilo */
+.graf-matriz__rotulo {
+  position: sticky; left: 0; z-index: 3; min-width: 260px; max-width: 320px; padding: 6px 12px;
+  background: var(--branco); box-shadow: 3px 0 6px -4px color-mix(in srgb, var(--neutro-800) 10%, transparent);
+  line-height: 1.4; text-align: left; vertical-align: middle; word-break: break-word; white-space: normal;
+}
+.graf-matriz__selo {
+  margin-left: 5px; padding: 1px 7px; border-radius: 9999px; background: var(--verde-100);
+  font-size: 9px; font-weight: 600; color: var(--brand-title); vertical-align: middle;
+}
+.graf-matriz__linha.is-prof-0 > td, .graf-matriz__linha.is-prof-0 > th { background: var(--neutro-100); }
+.graf-matriz__linha.is-prof-0 > .graf-matriz__rotulo { border-left: 3px solid var(--brand-title); font-size: 15px; font-weight: 600; color: var(--brand-title); }
+.graf-matriz__linha.is-prof-1 > td, .graf-matriz__linha.is-prof-1 > th { background: var(--surface-hover-suave); }
+.graf-matriz__linha.is-prof-1 > .graf-matriz__rotulo {
+  border-left: 3px solid var(--verde-500); font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--verde-700);
+}
+.graf-matriz__linha.is-prof-2 > .graf-matriz__rotulo { border-left: 3px solid transparent; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.graf-matriz__linha.is-prof-3 > .graf-matriz__rotulo { border-left: 3px solid transparent; font-size: 13px; color: var(--text-secondary); }
+
+/* Células */
+.graf-matriz__td { min-width: 80px; padding: 5px 6px; text-align: center; vertical-align: middle; }
+.graf-matriz__td.is-total { border-left: 2px solid var(--verde-100); }
+.graf-matriz__valor {
+  min-width: 56px; padding: 3px 10px; border-color: transparent; border-radius: 9999px;
+  font-weight: 600; letter-spacing: .2px; line-height: 1;
+}
+.graf-matriz__valor.is-rodape { background: var(--verde-50); color: var(--brand-title); font-weight: 700; }
+.graf-matriz__apoio { display: block; margin-top: 2px; font-size: 9px; line-height: 1.3; color: var(--text-secondary); }
+
+/* Linha de total: fixa embaixo, com o filete verde em cima */
+.graf-matriz__linha.is-rodape-linha > td, .graf-matriz__linha.is-rodape-linha > th {
+  position: sticky; bottom: 0; z-index: 4; background: var(--branco); box-shadow: inset 0 2px 0 0 var(--verde-500);
+}
+.graf-matriz__linha.is-rodape-linha > .graf-matriz__rotulo {
+  z-index: 6; border-left: 3px solid var(--verde-500);
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--brand-title);
+}
+
+/* Variante grade (matriz P x I): a célula é a própria faixa */
+.graf-matriz--grade .graf-matriz__td { min-width: 76px; padding: 3px; }
+.graf-matriz--grade .graf-matriz__valor {
+  display: flex; flex-direction: row; width: 100%; min-width: 0; min-height: 52px; border-radius: var(--r-sm); font-size: 18px; letter-spacing: 0;
+}
+.graf-matriz--grade .graf-matriz__valor .graf-icone { margin-right: 2px; }
+.graf-matriz--grade .graf-tom.graf-matriz__valor.is-zero {
+  background: color-mix(in srgb, var(--tom-forte) 8%, var(--branco)); color: var(--text-secondary); font-weight: 400;
+}
+.graf-matriz--grade .graf-matriz__apoio { margin-top: 3px; text-align: center; }
+.graf-matriz--grade .graf-matriz__rotulo { min-width: 150px; font-size: 12px; }
+
+/* ============================================================
+   Mapa 52 semanas
+   Cabeçalho com título, totais por estado e botões de ano; barra de busca,
+   filtros, setas, Hoje e contagem; seis colunas de semana por vez, cada uma
+   com os cartões das semanas (faixa de 3px do estado); legenda e situação no
+   pé. Num quadro estreito o subtítulo, depois o título e a contagem, somem,
+   como no original.
+   ============================================================ */
+.graf-mapa {
+  --mapa-espaco: 6px;
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 10px 14px; overflow: hidden;
+  background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-md); box-shadow: var(--shadow);
+  font-family: var(--font); font-size: 13px; color: var(--text-primary); container-type: inline-size;
+}
+.graf-mapa__cab { display: flex; align-items: center; flex-wrap: wrap; flex: 0 0 auto; gap: 10px 14px; }
+.graf-mapa__titulo { font-size: 20px; font-weight: 600; line-height: 1.15; color: var(--brand-title); white-space: nowrap; }
+.graf-mapa__subtitulo {
+  margin-top: 2px; font-family: var(--font-label); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--verde-700); white-space: nowrap;
+}
+.graf-mapa__kpis { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 13px; margin-left: auto; }
+.graf-mapa__kpi { text-align: right; }
+.graf-mapa__kpi b { display: block; font-size: 21px; font-weight: 600; line-height: 1; color: var(--tom-texto); }
+.graf-mapa__kpi span {
+  display: block; margin-top: 3px; font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--text-secondary); white-space: nowrap;
+}
+.graf-mapa__anos { display: flex; flex: 0 0 auto; gap: 2px; margin-left: 12px; padding: 3px; border-radius: 9999px; background: var(--neutro-100); }
+.graf-mapa__ano {
+  padding: 5px 12px; border: 0; border-radius: 9999px; background: transparent; cursor: pointer;
+  font-family: var(--font-label); font-size: 10.5px; font-weight: 600; letter-spacing: 1px; color: var(--text-secondary);
+}
+.graf-mapa__ano.is-ativo { background: var(--brand-primary); color: var(--branco); }
+.graf-mapa__ano i { margin-left: 5px; font-size: 9.5px; font-style: normal; }
+
+.graf-mapa__barra {
+  display: flex; align-items: center; flex-wrap: wrap; flex: 0 0 auto; gap: 6px;
+  margin-top: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--neutro-100);
+}
+.graf-mapa__busca, .graf-mapa__filtro {
+  flex: 1 1 120px; min-width: 0; height: 28px; padding: 5px 9px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); color: var(--neutro-600); outline: none; text-overflow: ellipsis;
+  font-family: var(--font-label); font-size: 10.5px; font-weight: 600;
+}
+.graf-mapa__busca { flex: 1.6 1 160px; padding-left: 11px; font-family: var(--font); font-weight: 400; letter-spacing: 0; }
+.graf-mapa__busca:focus, .graf-mapa__filtro:focus { border-color: var(--verde-500); }
+.graf-mapa__busca::placeholder { color: var(--text-hint); }
+.graf-mapa__filtro.is-ativo { background: var(--verde-50); border-color: var(--verde-500); color: var(--brand-title); }
+.graf-mapa__filtro option { font-family: var(--font); font-size: 11px; font-weight: 400; color: var(--text-primary); text-transform: none; }
+.graf-mapa__navegacao { display: flex; align-items: center; flex: 0 0 auto; gap: 3px; }
+.graf-mapa__nav {
+  min-width: 28px; height: 28px; padding: 0 9px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); color: var(--neutro-600); cursor: pointer;
+  font-family: var(--font-label); font-size: 10.5px; font-weight: 600; letter-spacing: .6px;
+}
+.graf-mapa__nav:hover { background: var(--verde-50); color: var(--brand-title); }
+.graf-mapa__contagem-total { flex: 0 0 auto; padding-left: 2px; font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; }
+.graf-mapa__contagem-total b { color: var(--brand-title); }
+
+/* Corpo: as semanas em colunas, `--mapa-por-pagina` por vez */
+.graf-mapa__corpo {
+  display: grid; grid-auto-flow: column;
+  grid-auto-columns: calc((100% - (var(--mapa-por-pagina, 6) - 1) * var(--mapa-espaco)) / var(--mapa-por-pagina, 6));
+  flex: 1 1 auto; min-height: 0; gap: var(--mapa-espaco); margin-top: 6px; padding-bottom: 4px;
+  overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity;
+}
+.graf .graf-mapa__corpo:focus-visible { outline-offset: -2px; }
+.graf-mapa__semana { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: var(--r-md); background: var(--branco); scroll-snap-align: start; }
+.graf-mapa__semana.is-alt { background: var(--neutro-50); }
+.graf-mapa__semana.is-hoje { background: var(--verde-50); box-shadow: inset 0 0 0 1px var(--verde-200); }
+.graf-mapa__cab-semana { flex: 0 0 auto; padding: 5px 6px 4px; border-bottom: 1px solid var(--neutro-100); }
+.graf-mapa__semana-nome {
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--brand-title);
+}
+.graf-mapa__mes { font-size: 8.5px; font-style: normal; letter-spacing: .6px; color: var(--text-secondary); }
+.graf-mapa__contagem {
+  margin-left: auto; padding: 1px 6px; border-radius: 9999px; background: var(--verde-50);
+  font-size: 9px; line-height: 1.5; color: var(--brand-title);
+}
+.graf-mapa__semana.is-hoje .graf-mapa__contagem { background: var(--brand-primary); color: var(--branco); }
+.graf-mapa__periodo { margin-top: 2px; font-size: 9.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-mapa__lista { display: flex; flex-direction: column; flex: 1 1 auto; gap: 4px; min-height: 0; padding: 4px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+
+/* Cartão do item */
+.graf-mapa__cartao {
+  position: relative; display: block; flex: 0 0 auto; min-width: 0; width: 100%; padding: 5px 7px 5px 9px;
+  border: 1px solid var(--neutro-100); border-radius: 6px; background: var(--branco);
+  font: inherit; color: inherit; text-align: left; text-decoration: none;
+}
+.graf-mapa__cartao::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 6px 0 0 6px; background: var(--tom-forte); }
+.graf-mapa__cartao.is-interativo:hover { border-color: var(--tom-borda); box-shadow: var(--shadow-hover); }
+.graf-mapa__qtd {
+  position: absolute; top: 4px; right: 5px; padding: 1px 5px; border-radius: 9999px; background: var(--verde-50);
+  font-size: 9px; font-weight: 600; line-height: 1.5; color: var(--brand-title);
+}
+.graf-mapa__nome {
+  display: block; padding-right: 28px; font-size: 13px; font-weight: 600; line-height: 1.2; color: var(--brand-title);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-mapa__linha2 { display: flex; align-items: center; gap: 4px; min-width: 0; margin-top: 3px; }
+.graf-mapa__linha3 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; margin-top: 4px; }
+.graf-mapa__etiqueta, .graf-mapa__chip {
+  flex: 0 0 auto; padding: 1px 6px; border-color: transparent; line-height: 1.6;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase;
+}
+.graf-mapa__chip { letter-spacing: .5px; }
+.graf-mapa__sub { flex: 1 1 auto; min-width: 0; font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-mapa__data { flex: 0 0 auto; font-size: 11px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.graf-mapa__vazio { padding: 8px 0; font-size: 11px; text-align: center; color: var(--text-hint); }
+.graf-mapa__nada {
+  grid-column: 1 / span var(--mapa-por-pagina, 6); display: flex; align-items: center; justify-content: center; height: 100%;
+  padding: 36px; font-size: 14px; color: var(--text-secondary);
+}
+.graf-mapa__pe { display: flex; align-items: center; flex-wrap: wrap; flex: 0 0 auto; gap: 12px; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--neutro-100); }
+.graf-mapa .graf-legenda { gap: 4px 12px; font-size: 10.5px; }
+.graf-mapa__situacao { margin-left: auto; font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@container (max-width: 1100px) {
+  .graf-mapa__subtitulo { display: none; }
+  .graf-mapa__kpis { gap: 9px; }
+  .graf-mapa__kpi b { font-size: 18px; }
+}
+@container (max-width: 860px) {
+  .graf-mapa__titulo { font-size: 17px; }
+  .graf-mapa__ano { padding: 5px 8px; letter-spacing: 0; }
+  .graf-mapa__kpis { gap: 7px; }
+  .graf-mapa__contagem-total { display: none; }
+}
+@container (max-width: 640px) {
+  .graf-mapa__titulos, .graf-mapa__sub { display: none; }
+}
+
+/* ============================================================
+   Tabela Quantitativos por entregável
+   Cabeçalho de duas linhas fixas no alto (grupo e coluna), colunas separadas
+   por vãos de 4px, pílulas pintadas pela faixa, total da linha, colunas de
+   medida e total geral fixo embaixo. As variáveis --quant-* são a escala
+   maior do original (linha de 12px, fonte de 15px, célula de 28px); dentro de
+   uma linha (.is-itens) a tabela fica mais compacta.
+   ============================================================ */
+.graf-quant {
+  --quant-rp: 12px; --quant-rf: 15px; --quant-cp: 4px; --quant-ch: 28px; --quant-hh: 44px; --quant-hf: 14px; --quant-sf: 13px;
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding-top: 2px; background: var(--branco);
+  font-family: var(--font); color: var(--text-primary);
+}
+.graf-quant__titulo { padding: 0 4px 8px; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--brand-title); }
+.graf-quant__barra { display: flex; align-items: center; flex: 0 0 auto; gap: 12px; padding: 2px 4px 4px; border-bottom: 1px solid var(--neutro-100); }
+.graf-quant__barra[hidden] { display: none; }
+.graf-quant__caminho { display: flex; align-items: center; flex: 1 1 auto; gap: 8px; min-width: 0; font-size: 11px; color: var(--text-secondary); }
+.graf-quant__caminho-botao {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap;
+}
+.graf-quant__caminho-botao:hover { color: var(--brand-title); }
+.graf-quant__caminho-botao.is-voltar {
+  padding: 6px 12px; border: 1px solid var(--neutro-200); border-radius: 9999px; background: var(--branco);
+  font-size: 10px; color: var(--brand-title);
+}
+.graf-quant__caminho-botao.is-voltar:hover { background: var(--verde-50); }
+.graf-quant__separador { color: var(--neutro-300); }
+.graf-quant__atual { font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--brand-title); white-space: nowrap; }
+.graf-quant__contagem { font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-quant__busca {
+  flex: 0 0 auto; width: 220px; padding: 6px 12px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); color: var(--text-primary); outline: none; font-family: var(--font); font-size: 11px;
+}
+.graf-quant__busca::placeholder { color: var(--text-hint); }
+.graf-quant__busca:focus { border-color: var(--verde-500); }
+
+.graf-quant__rolagem { flex: 1 1 auto; min-height: 0; max-width: 100%; padding-top: 2px; overflow-x: auto; overflow-y: auto; }
+.graf-quant__tabela { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: var(--branco); }
+
+.graf-quant__th { position: sticky; z-index: 10; text-align: center; white-space: normal; word-break: break-word; line-height: 1.2; font-family: var(--font-label); font-weight: 600; }
+.graf-quant__h1 .graf-quant__th {
+  top: 0; z-index: 11; height: var(--quant-hh); padding: 4px; background: var(--frio-50); color: var(--brand-title);
+  font-size: var(--quant-hf); letter-spacing: .4px; text-transform: uppercase;
+}
+.graf-quant__th.is-canto { width: 17%; text-align: left; padding-left: 8px; }
+.graf-quant__h2 .graf-quant__th {
+  top: var(--quant-hh); padding: 5px 2px; overflow: hidden; border-bottom: 2px solid var(--verde-500);
+  background: var(--neutro-50); color: var(--neutro-600); font-size: var(--quant-sf); letter-spacing: .2px;
+}
+.graf-quant__grupo-botao { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.graf-quant__grupo-botao:hover { text-decoration: underline; }
+th.graf-quant__espaco { position: sticky; top: 0; z-index: 11; width: 4px; padding: 0; background: var(--frio-50); }
+td.graf-quant__espaco { width: 4px; padding: 0; border: 0; background: transparent; }
+
+.graf-quant__rotulo {
+  padding: var(--quant-rp) 2px var(--quant-rp) 8px; border-bottom: 1px solid var(--neutro-100);
+  font-size: calc(var(--quant-rf) + 1px); font-weight: 600; color: var(--brand-title); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-quant__nome { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
+.graf-quant__nome.is-acionavel { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.graf-quant__texto { overflow: hidden; text-overflow: ellipsis; }
+.graf-quant__sub { font-size: 10px; font-weight: 400; color: var(--text-secondary); }
+.graf-quant__seta {
+  display: inline-block; flex: 0 0 auto; width: 6px; height: 6px; margin-left: 2px; align-self: center;
+  border-top: 2px solid var(--verde-500); border-right: 2px solid var(--verde-500); transform: rotate(45deg);
+}
+.graf-quant__linha.is-acionavel { cursor: pointer; }
+.graf-quant__linha.is-acionavel:hover > td, .graf-quant__linha.is-acionavel:hover > th { background: var(--verde-50); }
+.graf-quant__td { padding: var(--quant-rp) 2px; border-bottom: 1px solid var(--neutro-100); font-size: var(--quant-rf); text-align: center; overflow: hidden; }
+.graf-quant__td.is-vazio { color: var(--text-hint); }
+.graf-quant__td.is-total { border-left: 2px solid var(--verde-100); }
+.graf-quant__celula {
+  min-width: min(24px, 100%); max-width: 100%; min-height: var(--quant-ch); padding: var(--quant-cp) min(8px, 7%);
+  border-radius: 9999px; font-size: var(--quant-rf); font-weight: 600;
+}
+.graf-quant__medida {
+  display: inline-flex; align-items: center; justify-content: center; max-width: 100%; padding: var(--quant-cp) min(8px, 7%);
+  border-radius: 4px; background: var(--neutro-50); color: var(--brand-title);
+  font-size: var(--quant-rf); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.graf-quant__medida.is-vazio { background: transparent; color: var(--text-hint); font-weight: 400; }
+.graf-quant__nada { padding: 36px 20px; font-size: 12px; text-align: center; color: var(--text-secondary); }
+
+/* Total geral: fixo embaixo, com o filete verde */
+.graf-quant__linha.is-total-linha > td, .graf-quant__linha.is-total-linha > th {
+  position: sticky; bottom: 0; z-index: 9; border-top: 2px solid var(--verde-500); border-bottom: 0; background: var(--branco); font-weight: 600;
+}
+.graf-quant__linha.is-total-linha > .graf-quant__rotulo { font-family: var(--font-label); letter-spacing: .6px; text-transform: uppercase; }
+.graf-quant .graf-legenda { margin-top: 8px; padding: 0 4px; }
+
+/* Dentro de uma linha: a vista dos itens, mais compacta */
+.graf-quant.is-itens { --quant-rp: 6px; --quant-rf: 13px; --quant-cp: 3px; }
+.graf-quant.is-itens .graf-quant__rotulo { font-size: 13px; }
+.graf-quant.is-itens .graf-quant__celula { min-height: 0; font-size: 11.5px; line-height: 1.15; white-space: normal; word-break: break-word; }
+
+/* ============================================================
+   Etapas
+   Uma linha por item: faixa de 4px na cor do estado, nome e etiquetas, a
+   régua de etapas (barra de 5px, estado, data) e as datas de referência. O
+   cabeçalho fica fixo no alto e leva, em cada etapa, os filtros por estado
+   com a contagem. Num quadro estreito a régua e as datas encolhem.
+   ============================================================ */
+.graf-etapas { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 14px 16px 10px; font-family: var(--font); color: var(--text-primary); }
+.graf-etapas__topo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; }
+.graf-etapas__titulo { font-size: 16px; font-weight: 600; color: var(--brand-title); }
+.graf-etapas__topo-dir { display: flex; flex-direction: row; align-items: center; gap: 22px; margin-left: auto; }
+.graf-etapas__kpi { text-align: right; }
+.graf-etapas__kpi b { display: block; font-size: 24px; line-height: 1; color: var(--brand-title); }
+.graf-etapas__kpi span { display: block; margin-top: 5px; font-size: 8.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-secondary); }
+.graf-etapas__legenda { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 11px; }
+.graf-etapas__legenda .graf-legenda { gap: 11px; font-size: 9.5px; font-weight: 600; color: var(--frio-700); }
+.graf-etapas__limpar {
+  padding: 4px 11px; border: 1px solid var(--neutro-200); border-radius: 9999px; background: var(--branco); color: var(--frio-700);
+  font-family: var(--font); font-size: 9.5px; font-weight: 700; line-height: 1.2; cursor: pointer;
+}
+.graf-etapas__limpar[hidden] { display: none; }
+.graf-etapas__limpar:hover { background: var(--neutro-50); color: var(--brand-title); }
+
+/* Quadro: o cabeçalho e as linhas rolam juntos, o cabeçalho fica no alto */
+.graf-etapas__quadro { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.graf-etapas__cab {
+  position: sticky; top: 0; z-index: 3; display: flex; align-items: flex-end; gap: 14px; min-width: 760px;
+  padding: 12px 16px 7px 19px; background: var(--branco); border-bottom: 1px solid var(--neutro-100);
+}
+.graf-etapas__cab-id { flex: 0 0 190px; min-width: 0; font-size: 9px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--text-secondary); }
+.graf-etapas__regua { display: flex; flex: 1; gap: 10px; min-width: 330px; }
+.graf-etapas__cab-etapa {
+  display: flex; flex-direction: column; flex: 1; justify-content: flex-end; min-width: 0;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .45px; line-height: 1.25; text-align: center; text-transform: uppercase; color: var(--frio-700);
+}
+.graf-etapas__indice { display: block; margin-bottom: 2px; font-size: 8px; font-style: normal; color: var(--text-secondary); }
+.graf-etapas__filtros { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.graf-etapas__filtro {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); color: var(--text-secondary); cursor: pointer;
+  font-family: var(--font); font-size: 9px; font-weight: 700; letter-spacing: 0; line-height: 1.2;
+}
+.graf-etapas__ponto { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; margin: 0; border-radius: 50%; background: var(--tom-forte); }
+.graf-etapas__filtro:hover { background: var(--neutro-50); border-color: var(--verde-100); }
+.graf-etapas__filtro.is-ativo { background: var(--verde-50); border-color: var(--verde-500); color: var(--brand-title); box-shadow: 0 0 0 1.5px var(--verde-soft-forte); }
+.graf-etapas__filtro.is-zero { opacity: .5; }
+.graf-etapas__datas { display: flex; flex: 0 0 calc(var(--etapas-datas, 2) * 88px); gap: 8px; }
+.graf-etapas__cab-data { flex: 1; font-size: 9px; font-weight: 700; letter-spacing: .7px; text-align: center; text-transform: uppercase; color: var(--text-secondary); }
+
+.graf-etapas__lista { display: flex; flex-direction: column; gap: 7px; padding: 9px 2px 2px; }
+.graf-etapas__linha {
+  display: flex; align-items: center; flex: 0 0 auto; gap: 14px; width: 100%; min-width: 760px; padding: 9px 15px;
+  border: 1px solid var(--neutro-100); border-left: 4px solid var(--tom-forte); border-radius: 9px; background: var(--branco);
+  color: inherit; text-decoration: none;
+}
+.graf-etapas__linha.is-interativo:hover, a.graf-etapas__linha:hover { background: var(--neutro-50); border-color: var(--verde-100); border-left-color: var(--tom-forte); }
+.graf-etapas__id { flex: 0 0 190px; min-width: 0; }
+.graf-etapas__projeto { font-size: 13.5px; font-weight: 700; color: var(--brand-title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-etapas__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.graf-etapas__tag {
+  max-width: 110px; padding: 3px 8px; border-radius: 9999px; background: var(--frio-50);
+  font-size: 8px; font-weight: 700; letter-spacing: .35px; text-transform: uppercase; color: var(--frio-700);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.graf-etapas__etapa { display: flex; flex-direction: column; flex: 1; align-items: center; gap: 4px; min-width: 0; }
+.graf-etapas__barra { width: 100%; height: 5px; border-radius: 9999px; background: var(--tom-forte); }
+.graf-etapas__etapa.is-cinza .graf-etapas__barra { background: var(--neutro-100); }
+.graf-etapas__estado { max-width: 100%; font-size: 11.5px; font-weight: 700; line-height: 1.1; color: var(--tom-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graf-etapas__qtd { margin-left: 4px; padding: 1px 5px; border-radius: 9999px; background: var(--ok-50); font-size: 8.5px; font-weight: 700; color: var(--brand-title); }
+.graf-etapas__data { font-size: 10.5px; line-height: 1.15; color: var(--text-secondary); white-space: nowrap; }
+.graf-etapas__data.is-previsto { color: var(--warn-700); }
+.graf-etapas__data-caixa { flex: 1; min-width: 0; padding: 6px 4px; border: 1px solid var(--neutro-100); border-radius: 7px; background: var(--neutro-50); text-align: center; }
+.graf-etapas__data-rot { display: block; font-size: 8.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-secondary); }
+.graf-etapas__data-val { display: block; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--brand-title); white-space: nowrap; }
+.graf-etapas__nada { padding: 45px 20px; font-size: 12px; text-align: center; color: var(--text-secondary); }
+
+@container (max-width: 860px) {
+  .graf-etapas__topo-dir { gap: 14px; }
+  .graf-etapas__cab, .graf-etapas__linha { min-width: 590px; }
+  .graf-etapas__cab-id, .graf-etapas__id { flex-basis: 130px; }
+  .graf-etapas__datas { flex-basis: calc(var(--etapas-datas, 2) * 70px); }
+  .graf-etapas__regua { min-width: 250px; }
+}
+@container (max-width: 620px) {
+  .graf-etapas { padding: 10px 8px 8px; }
+  .graf-etapas__cab { gap: 8px; min-width: 410px; padding: 10px 10px 6px 14px; }
+  .graf-etapas__linha { gap: 8px; min-width: 410px; padding: 8px 9px; }
+  .graf-etapas__cab-id, .graf-etapas__id { flex-basis: 96px; }
+  .graf-etapas__datas { flex-basis: calc(var(--etapas-datas, 2) * 52px); }
+  .graf-etapas__regua { gap: 6px; min-width: 160px; }
+  .graf-etapas__tag { max-width: 80px; }
+  .graf-etapas__data-val { font-size: 11px; }
+  .graf-etapas__estado { font-size: 10px; }
+  .graf-etapas__data { font-size: 9.5px; }
+}
+
+/* ============================================================
+   Painel de detalhe
+   O que abre ao clicar no cartão, na linha ou no item: o modal do Design System
+   (TN.modal) com blocos de campos, textos, tabela e cartões. O corpo do modal
+   não é um .graf, então estas classes não dependem do contêiner.
+   ============================================================ */
+.graf-det { display: flex; flex-direction: column; gap: 14px; font-family: var(--font); font-size: 13px; color: var(--text-primary); }
+.graf-det__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.graf-det__bloco { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.graf-det__titulo { margin: 0; font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: .9px; text-transform: uppercase; color: var(--brand-title); }
+.graf-det__rot { margin-bottom: 3px; font-family: var(--font-label); font-size: 9px; font-weight: 700; letter-spacing: .85px; text-transform: uppercase; color: var(--text-secondary); }
+.graf-det__val { font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--text-primary); word-break: break-word; }
+.graf-det__campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.graf-det__campo { min-width: 0; padding: 6px 10px; border: 1px solid var(--neutro-100); border-radius: var(--r-md); background: var(--neutro-50); }
+.graf-det__textos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.graf-det__texto { min-width: 0; min-height: 52px; padding: 8px 11px; border: 1px solid var(--neutro-100); border-radius: var(--r-md); background: var(--neutro-50); }
+.graf-det__texto .graf-det__val { font-size: 12px; font-weight: 400; line-height: 1.4; color: var(--neutro-600); }
+
+.graf-det__rolagem { max-height: 50vh; overflow: auto; border: 1px solid var(--neutro-100); border-radius: var(--r-md); }
+.graf-det__tabela { width: 100%; border-collapse: collapse; }
+.graf-det__th {
+  position: sticky; top: 0; padding: 6px 8px; border-bottom: 1px solid var(--verde-50); background: var(--neutro-50);
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: .6px; text-align: left; text-transform: uppercase; color: var(--brand-title);
+}
+.graf-det__td { padding: 6px 8px; border-bottom: 1px solid var(--neutro-100); font-size: 12.5px; line-height: 1.3; vertical-align: top; }
+.graf-det__linha:last-child .graf-det__td { border-bottom: 0; }
+.graf-det__linha > .graf-det__td:first-child { padding-left: 9px; border-left: 3px solid var(--tom-forte); font-weight: 600; }
+.graf-det__th.is-centro, .graf-det__td.is-centro { text-align: center; }
+.graf-det__th.is-direita, .graf-det__td.is-direita { text-align: right; }
+.graf-det__td.is-vazio { color: var(--text-hint); }
+
+.graf-det__cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: start; gap: 8px; }
+.graf-det__cartoes.is-aninhados { grid-template-columns: 1fr; margin-top: 8px; gap: 6px; }
+.graf-det__cartao {
+  min-width: 0; padding: 9px 11px; border: 1px solid var(--neutro-100); border-left: 4px solid var(--tom-forte);
+  border-radius: var(--r-md); background: var(--branco);
+}
+.graf-det__cartoes.is-aninhados .graf-det__cartao { padding: 7px 9px; border-left-width: 3px; border-radius: 6px; }
+.graf-det__cartao-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.graf-det__cartao-tit { font-size: 12.5px; font-weight: 700; color: var(--text-primary); }
+.graf-det__cartao-sub { margin-top: 2px; font-size: 11px; color: var(--text-secondary); }
+.graf-det__cartao .graf-det__campos { margin-top: 6px; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+.graf-det__cartao-texto { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--neutro-200); font-size: 11.5px; line-height: 1.4; color: var(--neutro-600); word-break: break-word; }
+
+@media (max-width: 640px) {
+  .graf-det__textos { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Animações
+   A subida suave de 5 e de 8px dos originais. Sem animação, o estado-base de
+   cada elemento já é o final (graficos.css desliga a animação do .graf quando
+   a pessoa pede menos movimento, em data-animar="nao" e no papel).
+   ============================================================ */
+@keyframes graf-entra-5 { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes graf-entra-8 { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
