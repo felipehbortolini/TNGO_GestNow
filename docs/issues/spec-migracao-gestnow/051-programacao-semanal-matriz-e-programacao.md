@@ -1,7 +1,7 @@
 ---
 id: ISSUE-051
 title: "Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 5

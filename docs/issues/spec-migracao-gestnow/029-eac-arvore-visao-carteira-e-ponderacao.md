@@ -1,7 +1,7 @@
 ---
 id: ISSUE-029
 title: "EAC em árvore com itens, visão carteira e ponderação da carteira"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 4

@@ -1,7 +1,7 @@
 ---
 id: ISSUE-019
 title: "Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3

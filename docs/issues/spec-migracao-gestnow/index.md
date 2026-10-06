@@ -45,17 +45,17 @@ vem primeiro.
 | ISSUE-016 | Biblioteca de gráficos 3: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os visuais novos | 2 | task | done | ready-for-agent | ISSUE-015 | [ISSUE-016](./016-graficos-3-cronogramas-galerias-e-novos-visuais.md) |
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | 2 | task | done | ready-for-agent | ISSUE-011, ISSUE-014 | [ISSUE-017](./017-exportacao-excel-e-versao-imprimivel.md) |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | 2 | task | in-progress | ready-for-agent | ISSUE-017 | [ISSUE-018](./018-importacao-de-planilha-em-passos.md) |
-| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | 3 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-019](./019-acoes-costura-status-e-lista.md) |
+| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | 3 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-019](./019-acoes-costura-status-e-lista.md) |
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | 3 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-020](./020-pdf-das-acoes-follow-up-e-painel.md) |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | 3 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-021](./021-atas-lista-nova-ata-e-presenca.md) |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | 3 | task | proposed | ready-for-agent | ISSUE-021 | [ISSUE-022](./022-anotacoes-acoes-e-revisoes-da-ata.md) |
-| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | 3 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-023](./023-solicitacao-de-mudanca-registro-e-ficha.md) |
+| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | 3 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-023](./023-solicitacao-de-mudanca-registro-e-ficha.md) |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | 3 | task | proposed | ready-for-agent | ISSUE-023 | [ISSUE-024](./024-analise-de-impacto-e-alcada.md) |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | 3 | task | proposed | ready-for-agent | ISSUE-024, ISSUE-019 | [ISSUE-025](./025-decisao-implementacao-e-encerramento-da-sm.md) |
 | ISSUE-026 | Painel de mudanças | 3 | task | proposed | ready-for-agent | ISSUE-025 | [ISSUE-026](./026-painel-de-mudancas.md) |
 | ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | 3 | task | proposed | ready-for-agent | ISSUE-019, ISSUE-023 | [ISSUE-027](./027-licoes-acervo-fluxo-e-aplicacao.md) |
 | ISSUE-028 | Painel de lições | 3 | task | proposed | ready-for-agent | ISSUE-027 | [ISSUE-028](./028-painel-de-licoes.md) |
-| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | 4 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-029](./029-eac-arvore-visao-carteira-e-ponderacao.md) |
+| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | 4 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-029](./029-eac-arvore-visao-carteira-e-ponderacao.md) |
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | 4 | task | proposed | ready-for-agent | ISSUE-029, ISSUE-025 | [ISSUE-030](./030-revisoes-da-eac-e-remanejamento-por-sm.md) |
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | 4 | task | proposed | ready-for-agent | ISSUE-030 | [ISSUE-031](./031-mapa-de-controle-projecao-e-erp.md) |
 | ISSUE-032 | Ficha do contrato: cascata de valor, medições e aditivos | 4 | task | proposed | ready-for-agent | ISSUE-031 | [ISSUE-032](./032-ficha-do-contrato-medicoes-e-aditivos.md) |
@@ -71,13 +71,13 @@ vem primeiro.
 | ISSUE-042 | Curva S financeira e KPIs de custo | 4 | task | proposed | ready-for-agent | ISSUE-041 | [ISSUE-042](./042-curva-s-financeira-e-kpis-de-custo.md) |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | 4 | task | proposed | ready-for-agent | ISSUE-031, ISSUE-033 | [ISSUE-043](./043-cronograma-de-desembolso.md) |
 | ISSUE-044 | Relato do período | 5 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-044](./044-relato-do-periodo.md) |
-| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | 5 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-045](./045-6wla.md) |
+| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | 5 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-045](./045-6wla.md) |
 | ISSUE-046 | Produtividade: plano de quantidades, ciclo da linha de base e apontamento semanal | 5 | task | proposed | ready-for-agent | ISSUE-025 | [ISSUE-046](./046-produtividade-quantidades-lb-e-apontamento.md) |
 | ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | 5 | task | proposed | ready-for-agent | ISSUE-046 | [ISSUE-047](./047-produtividade-horas-efetivas-amostragem-e-paralisacoes.md) |
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | 5 | task | proposed | ready-for-agent | ISSUE-046, ISSUE-047, ISSUE-019 | [ISSUE-048](./048-produtividade-kpis-e-plano-de-acao.md) |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | 5 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-049](./049-punch-list-itens-verificacao-e-bloqueio.md) |
 | ISSUE-050 | Punch list: painel de completação | 5 | task | proposed | ready-for-agent | ISSUE-049 | [ISSUE-050](./050-punch-list-painel.md) |
-| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | 5 | task | proposed | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-051](./051-programacao-semanal-matriz-e-programacao.md) |
+| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | 5 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-051](./051-programacao-semanal-matriz-e-programacao.md) |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | 5 | task | proposed | ready-for-agent | ISSUE-051 | [ISSUE-052](./052-programacao-semanal-fluxo-de-cinco-passos.md) |
 | ISSUE-053 | Pedidos de alteração e governança da programação | 5 | task | proposed | ready-for-agent | ISSUE-052 | [ISSUE-053](./053-programacao-semanal-pedidos-de-alteracao-e-governanca.md) |
 | ISSUE-054 | Subpágina de configuração da programação, uma por projeto | 5 | task | proposed | ready-for-agent | ISSUE-051 | [ISSUE-054](./054-programacao-semanal-configuracao-por-projeto.md) |

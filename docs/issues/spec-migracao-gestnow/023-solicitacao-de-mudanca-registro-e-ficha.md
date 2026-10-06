@@ -1,7 +1,7 @@
 ---
 id: ISSUE-023
 title: "Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
