@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exemplo de exportação</title>
+    <link rel="icon" type="image/png" href="/ds/assets/favicon-timenow.png" />
+
+    <!-- ============================================================
+         Página de exemplo do Excel e da versão imprimível (D12, ISSUE-017).
+
+         Carrega o Design System como o shell carrega (caminho absoluto, sem
+         CDN) e mais nada: os botões são só atributos, data-tn-excel e
+         data-tn-pdf, e quem os trata é ds/ui.js. Os dados vêm da API
+         (blueprints/exports.py, só no modo demonstração) e são fictícios.
+         Uma tela de módulo faz o mesmo no seu page-head e aponta os atributos
+         para as rotas do seu módulo. Como usar: api/README.md, seção Exportação.
+         ============================================================ -->
+    <link rel="stylesheet" href="/ds/tokens.css" />
+    <link rel="stylesheet" href="/ds/shell.css" />
+    <link rel="stylesheet" href="/ds/patterns.css" />
+    <link rel="stylesheet" href="/ds/print.css" media="print" />
+    <link rel="stylesheet" href="/ds/graficos/graficos.css" />
+
+    <script defer src="/ds/icons.js"></script>
+    <script defer src="/ds/ui.js"></script>
+    <script defer src="/ds/graficos/motor.js"></script>
+    <script defer src="/ds/graficos/comparativo-barras.js"></script>
+  </head>
+
+  <body>
+    <div class="app">
+      <div class="app__coluna">
+        <main id="app-shell" class="content">
+          <div class="page">
+            <div class="page-head">
+              <div>
+                <h1 class="h-dash">Exemplo de exportação</h1>
+                <p class="page-head__sub">Os dois botões que toda tabela e todo painel têm: Excel e PDF.</p>
+              </div>
+              <div class="page-head__actions">
+                <button type="button" class="btn btn--secondary" data-tn-excel="/api/exportacao/exemplo/excel">Excel</button>
+                <button type="button" class="btn btn--secondary" data-tn-pdf="/api/exportacao/exemplo/imprimivel">PDF</button>
+                <button type="button" class="btn btn--secondary" data-tn-pdf="/api/exportacao/exemplo/imprimivel?papel=a3">PDF em A3 paisagem</button>
+              </div>
+            </div>
+
+            <div class="aviso aviso--info" role="note">
+              <strong>Dados de exemplo</strong>
+              <span>Os números são fictícios e esta demonstração só existe no modo demonstração.</span>
+            </div>
+
+            <div class="card mt-16">
+              <div class="card__body">
+                <h2 class="h-card4">O que cada botão faz</h2>
+                <p class="body-txt"><strong>Excel.</strong> Baixa um arquivo .xlsx montado no servidor, com o logo, o título, o escopo (Portfólio ou projeto), a data de geração, os indicadores com a referência de gestão e a tabela com filtro. No Portfólio a coluna Projeto entra sempre. As cores das células vêm dos tokens do Design System.</p>
+                <p class="body-txt"><strong>PDF.</strong> Abre a versão imprimível da tela e aciona a impressão do navegador. Na janela de impressão escolha "Salvar como PDF": o navegador lembra a escolha. A folha sai em A4 paisagem, sem a navegação, com o cabeçalho da tabela repetido em cada página e sem partir linha. A tela pode pedir A3 paisagem, como o botão ao lado faz.</p>
+                <p class="body-txt"><strong>Escopo.</strong> Vale o último que a pessoa escolheu no app. Para ver outro, acrescente ?projeto=portfolio ou ?projeto=&lt;id do projeto&gt; ao endereço desta página.</p>
+              </div>
+            </div>
+
+            <div class="card mt-16">
+              <div class="card__body">
+                <h2 class="h-card4">Como usar numa tela</h2>
+                <p class="body-txt">No <code>page-head__actions</code> da view, dois botões com o endereço das rotas do módulo. O servidor monta o conteúdo; a tela não carrega biblioteca nenhuma.</p>
+<pre class="body-txt">&lt;button type="button" class="btn btn--secondary"
+  data-tn-excel="/api/&lt;modulo&gt;/&lt;tela&gt;/excel"&gt;Excel&lt;/button&gt;
+&lt;button type="button" class="btn btn--secondary"
+  data-tn-pdf="/api/&lt;modulo&gt;/&lt;tela&gt;/imprimivel"&gt;PDF&lt;/button&gt;</pre>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div id="toast-root" class="toast-root" role="status" aria-live="polite"></div>
+  </body>
+</html>

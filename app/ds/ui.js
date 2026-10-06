@@ -364,4 +364,177 @@
   /* ajax:sent é o último a disparar, inclusive quando dá erro */
   document.addEventListener("ajax:sent", function () { TN.loading(false); });
   document.addEventListener("ajax:error", function () { TN.loading(false); });
+
+  /* ============================================================
+     Exportação: Excel e versão imprimível (D12, ISSUE-017)
+
+     Uma tela tem os dois botões e mais nada; o servidor monta o conteúdo:
+
+       <button type="button" class="btn btn--secondary"
+         data-tn-excel="/api/<modulo>/<tela>/excel">Excel</button>
+       <button type="button" class="btn btn--secondary"
+         data-tn-pdf="/api/<modulo>/<tela>/imprimivel">PDF</button>
+
+     Excel  baixa o arquivo da rota (resposta de arquivo, a exceção de download
+            do Padrão). Se o servidor recusar, o motivo vira toast.
+     PDF    busca a versão imprimível (comum/imprimivel.html), monta no fim do
+            <body>, espera os gráficos desenharem e chama window.print(). A
+            pessoa escolhe "Salvar como PDF" e o navegador lembra a escolha. O
+            papel é o de ds/print.css (A4 paisagem; A3 quando o documento pede;
+            sem navegação, com o cabeçalho de tabela repetido, linha que não
+            parte e fundos preservados). Não há biblioteca de PDF.
+
+     O escopo (D8) vai junto, como o shell faz com as chamadas do Alpine AJAX:
+     o parâmetro projeto da tela, quando o endereço do botão não o traz.
+     ============================================================ */
+
+  const ID_FOLHA = "folha-impressao";
+  const CLASSE_IMPRIMINDO = "imprimindo";
+  const ARQUIVO_PADRAO = "exportacao.xlsx";
+  const VALIDADE_DO_LINK_MS = 1000;
+
+  let exportando = false;
+
+  function comEscopo(endereco) {
+    const alvo = new URL(endereco, window.location.href);
+    const daTela = (TN.escopo && TN.escopo.parametro) ||
+      new URLSearchParams(window.location.search).get("projeto");
+    if (daTela && !alvo.searchParams.has("projeto")) alvo.searchParams.set("projeto", daTela);
+    return alvo.pathname + alvo.search;
+  }
+
+  function decodificar(texto) {
+    try {
+      return decodeURIComponent(texto);
+    } catch {
+      return texto; /* não estava codificado: vale como veio */
+    }
+  }
+
+  /* O motivo da recusa: o cabeçalho do toast (fragmento) ou o texto simples da
+     resposta de arquivo (file_route); sem nenhum dos dois, a mensagem padrão. */
+  async function motivoDaRecusa(resposta, padrao) {
+    const cabecalho = resposta.headers.get("X-TN-Toast");
+    if (cabecalho) return decodificar(cabecalho);
+    const tipo = resposta.headers.get("Content-Type") || "";
+    if (!tipo.startsWith("text/plain")) return padrao;
+    return (await resposta.text()).trim() || padrao;
+  }
+
+  /* Content-Disposition: attachment; filename="x.xlsx"; filename*=UTF-8''x.xlsx
+     O nome em UTF-8 (RFC 5987), com acento, vale mais que o simples. */
+  function nomeDoArquivo(resposta) {
+    const cabecalho = resposta.headers.get("Content-Disposition") || "";
+    const utf8 = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cabecalho);
+    if (utf8) return decodificar(utf8[1].trim());
+    const simples = /filename\s*=\s*"([^"]+)"/i.exec(cabecalho);
+    return simples ? simples[1] : ARQUIVO_PADRAO;
+  }
+
+  function salvarArquivo(conteudo, nome) {
+    const endereco = URL.createObjectURL(conteudo);
+    const link = document.createElement("a");
+    link.href = endereco;
+    link.download = nome;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(endereco); }, VALIDADE_DO_LINK_MS);
+  }
+
+  TN.baixar = async function (endereco) {
+    if (exportando) return;
+    exportando = true;
+    TN.loading(true, "Gerando o arquivo...");
+    try {
+      const resposta = await fetch(comEscopo(endereco), { credentials: "same-origin" });
+      if (!resposta.ok) {
+        TN.toast(await motivoDaRecusa(resposta, "Não foi possível gerar o arquivo."), "erro");
+        return;
+      }
+      salvarArquivo(await resposta.blob(), nomeDoArquivo(resposta));
+    } catch {
+      TN.toast("Não foi possível gerar o arquivo. Tente novamente.", "erro");
+    } finally {
+      TN.loading(false);
+      exportando = false;
+    }
+  };
+
+  function descartarFolha() {
+    const folha = document.getElementById(ID_FOLHA);
+    if (folha) folha.remove();
+  }
+
+  function quadroSeguinte() {
+    return new Promise(function (resolver) { window.requestAnimationFrame(resolver); });
+  }
+
+  /* O que precisa estar pronto antes do papel: o motor de gráficos desenha ao
+     ver a folha entrar (e redesenha no quadro seguinte se o tamanho mudar), as
+     imagens decodificam e as fontes carregam. */
+  async function aguardarFolha(folha) {
+    await quadroSeguinte();
+    await quadroSeguinte();
+    const imagens = Array.from(folha.querySelectorAll("img")).map(function (imagem) {
+      return imagem.decode().catch(function () { /* sem a imagem, imprime sem ela */ });
+    });
+    await Promise.all(imagens);
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  }
+
+  /* No papel só a folha sai (print.css, pela classe do <body>). O título da
+     página enquanto imprime é o nome que o navegador sugere para o PDF; a tela
+     volta ao que era quando a impressão termina. */
+  function imprimirFolha(folha) {
+    const tituloAnterior = document.title;
+    function concluir() {
+      window.removeEventListener("afterprint", concluir);
+      document.body.classList.remove(CLASSE_IMPRIMINDO);
+      document.title = tituloAnterior;
+      folha.remove();
+    }
+    window.addEventListener("afterprint", concluir);
+    document.title = folha.dataset.titulo || tituloAnterior;
+    document.body.classList.add(CLASSE_IMPRIMINDO);
+    window.print();
+  }
+
+  TN.imprimir = async function (endereco) {
+    if (exportando) return;
+    exportando = true;
+    TN.loading(true, "Preparando a impressão...");
+    try {
+      const resposta = await fetch(comEscopo(endereco), {
+        credentials: "same-origin",
+        headers: { "X-Alpine-Request": "true", "X-Alpine-Target": ID_FOLHA }
+      });
+      if (!resposta.ok) {
+        TN.toast(await motivoDaRecusa(resposta, "Não foi possível preparar a impressão."), "erro");
+        return;
+      }
+      descartarFolha();
+      document.body.insertAdjacentHTML("beforeend", await resposta.text());
+      const folha = document.getElementById(ID_FOLHA);
+      if (!folha) throw new Error("a resposta não traz a folha " + ID_FOLHA);
+      await aguardarFolha(folha);
+      TN.loading(false);
+      imprimirFolha(folha);
+    } catch (erro) {
+      descartarFolha();
+      console.error("[exportar] " + erro.message);
+      TN.toast("Não foi possível preparar a impressão. Tente novamente.", "erro");
+    } finally {
+      TN.loading(false);
+      exportando = false;
+    }
+  };
+
+  document.addEventListener("click", function (e) {
+    const botao = e.target.closest ? e.target.closest("[data-tn-excel], [data-tn-pdf]") : null;
+    if (!botao) return;
+    e.preventDefault();
+    if (botao.hasAttribute("data-tn-pdf")) TN.imprimir(botao.getAttribute("data-tn-pdf"));
+    else TN.baixar(botao.getAttribute("data-tn-excel"));
+  });
 })();

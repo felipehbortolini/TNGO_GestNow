@@ -333,5 +333,22 @@
   .app__coluna { display: block; }
   .content { overflow: visible; }
 }
+
+/* ---------- Folha de impressão (D12) ----------
+   A versão imprimível que o botão PDF monta (ds/ui.js, comum/imprimivel.html)
+   espera na tela fora da vista, já com a largura do papel: os gráficos medem
+   o tamanho em que vão sair (desenhados com a folha escondida, sairiam no
+   tamanho errado). O que ela é no papel está em ds/print.css, ligado só para
+   a impressão: lá ela entra no fluxo e o resto da tela sai. */
+@media screen {
+  .folha {
+    --folha-largura: 277mm;
+    position: fixed; top: 0; left: 0;
+    width: var(--folha-largura);
+    transform: translateX(-100%);
+    visibility: hidden; pointer-events: none;
+  }
+  .folha--a3 { --folha-largura: 400mm; }
+}
 /* O bloco de movimento reduzido para .modal/.modal-backdrop foi para
    tokens.css, junto das classes que ele afeta. */

@@ -1,0 +1,147 @@
+/* ============================================================
+   print.css — Folha de impressão do Timenow Design System (D12)
+
+   O PDF do GestNow é a impressão do navegador, sem biblioteca de PDF. O
+   servidor entrega a versão imprimível da tela (comum/imprimivel.html, a
+   classe .folha); o botão PDF (data-tn-pdf, em ds/ui.js) a monta no fim do
+   <body> e chama window.print(); a pessoa escolhe "Salvar como PDF".
+
+   Este arquivo é ligado por app/index.html com media="print": tudo o que há
+   aqui só vale no papel. A espera da folha na tela, fora da vista e já com a
+   largura do papel (para os gráficos medirem o tamanho em que vão sair), está
+   em shell.css, na seção "Folha de impressão".
+
+     @page      A4 paisagem; A3 paisagem quando a tela pede (a folha com
+                .folha--a3, que o servidor põe quando o documento é Paper.A3)
+     papel      a navegação fora, o cabeçalho de tabela repetido, a linha que
+                não parte e os fundos preservados
+
+   Imprimir uma tela comum (Ctrl+P) segue as mesmas regras de papel; a barra
+   lateral, as abas e o "pular para o conteúdo" já saem em shell.css.
+
+   Só tokens: nenhuma cor, espaço ou raio escrito aqui. As medidas do papel
+   (mm) são o que o Design System ainda não tinha.
+   ============================================================ */
+
+/* ---------- Página ----------
+   Margem de 10 mm: sobram 277 mm de largura em A4 e 400 mm em A3. */
+@page { size: A4 landscape; margin: 10mm; }
+@page folha-a3 { size: A3 landscape; margin: 10mm; }
+
+.folha {
+  background: var(--branco); color: var(--text-primary);
+  font-family: var(--font); font-size: 13px; line-height: 1.4;
+}
+
+/* ============================================================
+   A folha — cabeçalho, indicadores, gráficos e tabelas
+   A folha tem a largura do papel também na tela (shell.css), então o que o
+   gráfico mediu ali é o que sai.
+   ============================================================ */
+
+/* ---------- Cabeçalho: marca, emissão, título e contexto ---------- */
+.folha__cab {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-lg);
+  padding-bottom: var(--space-md); margin-bottom: var(--space-lg);
+  border-bottom: 2px solid var(--verde-500);
+}
+.folha__marca { display: flex; align-items: center; gap: var(--space-md); }
+.folha__logo { display: block; width: 36px; height: auto; }
+.folha__produto { font-family: var(--font-label); font-size: 15px; font-weight: 700; color: var(--brand-title); }
+.folha__emissao { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.folha__titulo { margin: 0 0 var(--space-sm); font-size: 24px; font-weight: 700; line-height: 1.2; color: var(--brand-title); }
+.folha__contexto { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-xl); margin: 0 0 var(--space-lg); }
+.folha__item { display: flex; gap: var(--space-sm); font-size: 12px; }
+.folha__item dt { font-weight: 700; color: var(--text-secondary); }
+.folha__item dd { margin: 0; }
+
+/* ---------- Indicadores com a referência de gestão ---------- */
+.folha__kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md); margin: 0 0 var(--space-lg);
+}
+.folha__kpi {
+  display: flex; flex-direction: column; gap: var(--space-xxs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--borda); border-left: 4px solid var(--neutro-300);
+  border-radius: var(--r-sm);
+  break-inside: avoid; page-break-inside: avoid;
+}
+.folha__kpi--ok { border-left-color: var(--ok-500); }
+.folha__kpi--warn { border-left-color: var(--warn-500); }
+.folha__kpi--erro { border-left-color: var(--erro-500); }
+.folha__kpi--info { border-left-color: var(--azul-500); }
+.folha__kpi--neutro { border-left-color: var(--frio-500); }
+.folha__kpi-rotulo {
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+}
+.folha__kpi-valor { font-size: 20px; font-weight: 700; color: var(--brand-title); font-variant-numeric: tabular-nums; }
+.folha__kpi-situacao { font-size: 11px; font-weight: 700; }
+.folha__kpi--ok .folha__kpi-situacao { color: var(--ok-800); }
+.folha__kpi--warn .folha__kpi-situacao { color: var(--warn-800); }
+.folha__kpi--erro .folha__kpi-situacao { color: var(--erro-700); }
+.folha__kpi--info .folha__kpi-situacao { color: var(--azul-800); }
+.folha__kpi--neutro .folha__kpi-situacao { color: var(--frio-700); }
+.folha__kpi-referencia { font-size: 11px; color: var(--text-secondary); }
+
+/* ---------- Gráficos ---------- */
+.folha__grafico { margin: 0 0 var(--space-lg); break-inside: avoid; page-break-inside: avoid; }
+.folha__grafico-titulo { margin: 0 0 var(--space-sm); font-size: 14px; font-weight: 700; color: var(--brand-title); }
+
+/* ---------- Tabelas ----------
+   O thead repete em toda página, a linha não parte e a linha de totais sai
+   uma vez, no fim da tabela (o tfoot padrão repetiria em toda página). */
+.folha__secao { margin: 0 0 var(--space-xl); }
+.folha__secao-titulo {
+  margin: 0 0 var(--space-sm); font-size: 15px; font-weight: 700; color: var(--brand-title);
+  break-after: avoid; page-break-after: avoid;
+}
+.folha__tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+.folha__tbl thead { display: table-header-group; }
+.folha__tbl tfoot { display: table-row-group; }
+.folha__tbl tr { break-inside: avoid; page-break-inside: avoid; }
+.folha__th, .folha__td { padding: var(--space-xs) var(--space-sm); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.folha__th {
+  background: var(--neutro-50); border-bottom: 1px solid var(--borda);
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+}
+.folha__td { border-bottom: 1px solid var(--neutro-100); }
+.folha__th--direita, .folha__td--direita { text-align: right; font-variant-numeric: tabular-nums; }
+.folha__th--centro, .folha__td--centro { text-align: center; }
+.folha__td--total { border-top: 1px solid var(--borda); background: var(--neutro-50); font-weight: 700; }
+.folha__td--ok { background: var(--ok-50); color: var(--ok-800); font-weight: 600; }
+.folha__td--warn { background: var(--warn-50); color: var(--warn-800); font-weight: 600; }
+.folha__td--erro { background: var(--erro-50); color: var(--erro-700); font-weight: 600; }
+.folha__td--info { background: var(--azul-50); color: var(--azul-800); font-weight: 600; }
+.folha__td--neutro { background: var(--frio-50); color: var(--frio-700); font-weight: 600; }
+.folha__vazio { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }
+
+/* ============================================================
+   No papel
+   ============================================================ */
+@media print {
+  /* tokens.css fixa html e body na altura da janela; no papel o conteúdo flui. */
+  html, body { height: auto; overflow: visible; }
+  /* Os fundos e as cores saem como na tela (o padrão do navegador os apagaria). */
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Interface que não tem função no papel (a barra lateral e as abas já saem
+     em shell.css). A classe .nao-imprimir é a saída para o que for só da tela. */
+  .page-head__actions, .acoes-rodape, .filtro-panel, .toast-root,
+  .modal-backdrop, .overlay, .dica, .nao-imprimir { display: none; }
+  .page { max-width: none; padding: 0; }
+
+  /* Tabelas do Design System numa tela impressa com Ctrl+P: o cabeçalho
+     repete, a linha não parte e a rolagem horizontal não corta a tabela. */
+  .tbl-wrap { overflow: visible; }
+  .tbl thead { display: table-header-group; }
+  .tbl thead th { position: static; }
+  .tbl tr, .kpi { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Com uma folha montada (classe posta por ds/ui.js), só ela sai. */
+  body.imprimindo > :not(.folha) { display: none; }
+  /* A3 paisagem quando o documento pede (Paper.A3 no servidor). */
+  .folha--a3 { page: folha-a3; }
+}

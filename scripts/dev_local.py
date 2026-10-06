@@ -24,7 +24,7 @@ from src.core.config import load_local_settings  # noqa: E402
 
 load_local_settings()
 
-from src.blueprints import acesso, attachments, health, nav  # noqa: E402
+from src.blueprints import acesso, attachments, exports, health, nav  # noqa: E402
 
 # Only tells the shell that someone is signed in. In demonstration the API does
 # not take the identity from here: it comes from the profile selector in the
@@ -70,6 +70,8 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
     ("GET", re.compile(r"^/api/glossario$"), nav.glossary),
     ("GET", re.compile(r"^/api/acesso-negado$"), acesso.denied_screen),
     ("POST", re.compile(r"^/api/demonstracao/perfil$"), acesso.switch_demo_profile),
+    ("GET", re.compile(r"^/api/exportacao/exemplo/excel$"), exports.example_excel),
+    ("GET", re.compile(r"^/api/exportacao/exemplo/imprimivel$"), exports.example_printable),
     ("GET", re.compile(r"^/api/anexos$"), attachments.list_attachments),
     ("POST", re.compile(r"^/api/anexos/enviar$"), attachments.upload_attachment),
     (

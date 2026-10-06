@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 14 de 93 -->
+<!-- Progresso da migração: 15 de 93 -->
 
 # Progresso da migração
 
-**14 de 93 issues concluídas** (última fechada: ISSUE-014). Atualizado em 06/10/2026 02:41 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**15 de 93 issues concluídas** (última fechada: ISSUE-017). Atualizado em 06/10/2026 02:43 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 14 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014 |
-| em andamento | 4 | 015, 016, 017, 018 |
+| concluída | 15 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 017 |
+| em andamento | 3 | 015, 016, 018 |
 | na fila | 75 | 019 a 093 |
 
 ## Concluídas
@@ -28,6 +28,7 @@
 | ISSUE-012 | Anexos de verdade: pasta local ou Blob, limites por parâmetro e download com a permissão do registro de origem | `155d35e` |
 | ISSUE-013 | Porta de notificação: e-mail via Microsoft Graph escrito e desligado, envio simulado registrado na trilha | `3662b49` |
 | ISSUE-014 | Biblioteca de gráficos 1: motor comum com drill e curvas, barras, Pareto e relógios | `263d5c0` |
+| ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | - |
 
 ## Em andamento, bloqueadas e na fila
 
@@ -35,7 +36,6 @@
 |---|---|---|---|
 | ISSUE-015 | Biblioteca de gráficos 2: cards, faixa de KPI, matrizes, heatmap, mapa de 52 semanas, quantitativos e etapas | em andamento | ISSUE-014 |
 | ISSUE-016 | Biblioteca de gráficos 3: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os visuais novos | em andamento | ISSUE-015 |
-| ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | em andamento | ISSUE-011, ISSUE-014 |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | em andamento | ISSUE-017 |
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |

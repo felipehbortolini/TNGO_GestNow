@@ -1,4 +1,6 @@
 import logging
+import re
+import unicodedata
 from urllib.parse import quote
 
 import azure.functions as func
@@ -148,3 +150,38 @@ class AlpineAjaxResponse(func.HttpResponse):
             return AlpineAjaxResponse.redirect("/some/page")
         """
         return redirect_to(location, status_code=status_code)
+
+
+# ---------------------------------------------------------------------------
+# Downloads: a file, not a fragment
+# ---------------------------------------------------------------------------
+
+# What a plain ``filename=`` may carry: the characters of an ASCII name, nothing that breaks a header.
+_UNSAFE_FILENAME_CHARACTERS = re.compile(r"[^A-Za-z0-9._ -]")
+
+
+def file_response(content: bytes, *, filename: str, content_type: str) -> func.HttpResponse:
+    """A file the browser saves: the download exception of the Padrão (D14).
+
+    A download answers with the file itself and no fragment, so it is the one
+    kind of route that does not go through the Alpine gate (the browser asks
+    for a file without that header); the access is still checked by
+    ``routing.file_route``. ``filename`` may carry accents: the header gives an
+    ASCII name for old clients and the UTF-8 one (RFC 5987) for the others.
+    ``private, no-store`` because what is inside is data of the project.
+    """
+    ascii_name = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii")
+    fallback = _UNSAFE_FILENAME_CHARACTERS.sub("_", ascii_name) or "arquivo"
+    disposition = (
+        f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
+    )
+    return func.HttpResponse(
+        body=content,
+        mimetype=content_type,
+        headers={
+            "Content-Type": content_type,
+            "Content-Disposition": disposition,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

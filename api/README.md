@@ -15,8 +15,10 @@ O backend contém as rotas de plataforma necessárias ao shell e a camada de ban
 | `attachments.py` | `GET /api/anexos` | Fragmento dos anexos de um registro: o componente de envio do Design System e a lista (nome, tamanho, quem enviou, quando) |
 | `attachments.py` | `POST /api/anexos/enviar` | Recebe o arquivo (`multipart/form-data`) e devolve o mesmo fragmento atualizado; 422 com a mensagem sob o campo quando passa do limite ou o tipo está fora da lista |
 | `attachments.py` | `GET /api/anexos/{anexo_id}/baixar` | Download do arquivo com o nome original, depois de checar a permissão do registro de origem (a exceção de download do Padrão: resposta de arquivo, não fragmento) |
+| `exports.py` | `GET /api/exportacao/exemplo/excel` | Exemplo do Excel de uma tela (download do `.xlsx`, a exceção de download do Padrão); dados fictícios, só no modo demonstração (403 em produção) |
+| `exports.py` | `GET /api/exportacao/exemplo/imprimivel` | Exemplo da versão imprimível (fragmento que o botão PDF monta e imprime); `?papel=a3` pede A3 paisagem; só no modo demonstração |
 
-As telas e rotas de exemplo do Padrão foram removidas. Os módulos de domínio ainda não têm endpoints; o banco Postgres é preparado pelo `run.bat` desde a ISSUE-005.
+As telas e rotas de exemplo do Padrão foram removidas; ficam só as duas de exportação acima, o exemplo que um módulo copia (seção "Exportação"). Os módulos de domínio ainda não têm endpoints; o banco Postgres é preparado pelo `run.bat` desde a ISSUE-005.
 
 ## Banco de dados
 
@@ -221,6 +223,86 @@ def save_contract(req: func.HttpRequest, session: Session, context: RequestConte
 
 O fornecedor não tem permissão geral nenhuma (`rbac.can` é sempre falso para ele): na Programação Semanal a fachada decide pelos papéis por projeto e pelo `company_scope`. O cadastro de Colaboradores é lido pela fachada de Configurações (`find_access_by_email`, `find_access`, `list_active_access`); a tela que o mantém é da ISSUE-077.
 
+## Exportação
+
+Toda tela exporta para **Excel** e para **PDF** pelos mesmos dois mecanismos genéricos (D12, ISSUE-017); o módulo só descreve o conteúdo. O Excel é gerado no servidor com openpyxl (o pillow entra só porque o openpyxl precisa dele para inserir o logo). O PDF **é a impressão do navegador**: o servidor renderiza a versão imprimível e a pessoa escolhe "Salvar como PDF". Não há biblioteca de PDF, nem no servidor nem no navegador.
+
+A tela monta **um `Document`** (`src/core/export_document.py`) e dele saem as duas saídas, de modo que o que o Excel exporta não falta no papel e o contrário ("nem uma coluna a menos"). O documento guarda **dados, nunca pixels**: uma célula é um valor com um `Tone` opcional (as cores de situação do Design System), e cada saída o desenha com os tokens de `app/ds/tokens.css`.
+
+### API pública (estável)
+
+Estes nomes e assinaturas são o contrato que os módulos e a importação (ISSUE-018) usam; mudar um deles exige issue própria, e campo novo entra sempre com valor padrão.
+
+| Termo de negócio | Nome no código |
+|---|---|
+| O que a tela entrega à exportação | `export_document.Document(title, scope_label, generated_on, portfolio=False, context=(), kpis=(), charts=(), tables=(), paper=Paper.A4)` |
+| Escopo e linha de escopo do cabeçalho | `describe_scope(scope, projects)` (`Portfólio` ou `TN-001 · Nome`), `project_label(project)`; `portfolio=scope.is_portfolio` |
+| Data de geração | argumento `generated_on`; só a rota lê o relógio (`calendario.today()`) |
+| Indicador com a referência de gestão | `Kpi(label, value, reference, kind=TEXT, digits=2, tone=None, status="")`; `reference` vem escrita como na tela (`Meta: 95%`) e `status` é a situação em palavras |
+| Tabela | `Table(title, columns, rows=(), totals=None, per_project=True)`; `Column(header, kind=TEXT, digits=2, width=None)` |
+| Linha e célula | `row(*valores, project=None)` e `Cell(value, tone=None)`; `Row(cells, project)` |
+| Coluna Projeto (HU-016) | no Portfólio (`portfolio=True`) toda tabela com `per_project=True` abre com `Projeto`, preenchida por `row(..., project=project_label(p))`; tabela que não é por projeto diz `per_project=False` |
+| Tipo do valor | `ValueKind`: `TEXT`, `INTEGER`, `DECIMAL`, `PERCENT` (pontos percentuais: `45.3` é `45,3%`), `MONEY` (**centavos inteiros**, sempre em reais cheios), `DATE` (`datetime.date`) |
+| Cor de situação | `Tone`: `OK`, `WARN`, `ERROR`, `INFO`, `NEUTRAL` |
+| Gráfico da versão imprimível | `Chart(title, kind, data)`: o `data-grafico` e o `data-dados` do motor de gráficos; o Excel não leva gráfico (quem quer os números põe uma tabela) |
+| Papel | `Paper.A4` (padrão, paisagem) ou `Paper.A3` (paisagem, a tela pede no `Document`, como o MAS) |
+| Texto como a pessoa lê | `export_document.format_value(kind, value, digits)` (`1.234,50`, `45,3%`, `R$ 1.234,56`, `05/10/2026`) |
+| Documento fora do contrato | `InvalidDocumentError` (linha com o número errado de células, linha sem projeto no Portfólio, texto em coluna numérica): erro da tela que montou, achado no teste dela |
+| Bytes do `.xlsx` | `excel.build_workbook(document) -> bytes` |
+| Resposta de download do Excel | `excel.excel_response(document)`; nome do arquivo `excel.file_name(document)` (`mapa-de-controle-2026-10-05.xlsx`) |
+| Versão imprimível | `printable.printable_response(document, req)` (fragmento `comum/imprimivel.html`); o que o template imprime é `printable.build_sheet(document)` |
+| Resposta de arquivo | `responses.file_response(content, filename=..., content_type=...)` (acentos no nome pelo RFC 5987; `private, no-store`) |
+| Rota de download | `routing.file_route(access=Access(...))`: usuário, escopo e permissão como na rota de fragmento, sem o gate do Alpine e com a recusa em texto simples |
+| Botões da tela | `data-tn-excel="/api/<modulo>/<tela>/excel"` e `data-tn-pdf="/api/<modulo>/<tela>/imprimivel"` (tratados por `app/ds/ui.js`) |
+
+### O que o Excel tem
+
+* Em toda planilha: o logo, o título, `Escopo: ...`, `Gerado em: dd/mm/aaaa` e as linhas de `context` (`Período: S39/2026`).
+* A planilha **Resumo**, quando o documento tem KPIs: um indicador por linha, com o valor, a **referência de gestão** e a situação em palavras.
+* Uma planilha por tabela, com o nome limpo para o Excel (31 caracteres, sem `\ / ? * [ ] :`, sem repetir). Dentro dela, de cima para baixo: logo (`A1`), título, escopo, data, contexto, uma linha em branco, o título da tabela, o **cabeçalho** (com filtro ligado em `auto_filter` e painel congelado), as linhas e a linha de totais abaixo do filtro. Quem lê o arquivo de volta acha o cabeçalho por `sheet.auto_filter.ref`.
+* Número e data são **células de verdade** (ordenam, filtram e somam): dinheiro em reais cheios (`"R$" #,##0.00`), percentual como fração com formato de percentual, data com `DD/MM/YYYY`. Texto entra como texto: o que começa com `=` nunca vira fórmula, e os caracteres que a planilha recusa são descartados.
+* **Cores só pelos tokens**: cabeçalho, bordas, título e as cinco situações vêm de `app/ds/tokens.css` (`src/core/design_tokens.py`). Como só `api/` vai para o Azure, as cores e o logo viajam em cópias geradas (`src/core/tokens_ds.json` e `src/core/logo_timenow.png`) por `scripts/generate_ds_assets.py`; um teste falha se a cópia defasar. Cor nova: acrescente o token no `tokens.css` e rode o script.
+* Impressão da planilha: paisagem, uma página de largura, A4 ou o papel do documento, cabeçalho da tabela repetido em cada página.
+
+Um **modelo de importação** (ISSUE-018) é um `Document` com uma `Table` de colunas e sem linhas: `build_workbook(Document(title=..., scope_label=..., generated_on=hoje, tables=(Table(titulo, colunas),)))` devolve o `.xlsx` com o cabeçalho pronto, sem planilha Resumo.
+
+### O que a versão imprimível tem
+
+O fragmento `comum/imprimivel.html` (sem `<link>`, `<style>` nem `<script>`) traz o cabeçalho com o logo e o contexto, os KPIs com a referência, os gráficos e as tabelas (cabeçalho num `thead`, totais num `tfoot`). O papel é a folha `app/ds/print.css`, ligada em `index.html` com `media="print"`: `@page` A4 paisagem (A3 paisagem quando o documento é `Paper.A3`), só a folha sai no papel (sem barra lateral nem navegação), o cabeçalho de tabela se repete em cada página, a linha não parte entre páginas e os fundos são preservados. O botão PDF (`TN.imprimir` em `app/ds/ui.js`) busca o fragmento, monta no fim do `<body>`, espera os gráficos desenharem e as fontes carregarem, chama `window.print()` e desfaz tudo em `afterprint`; o título da página enquanto imprime (`Título - Escopo - data`) é o nome que o navegador sugere para o PDF.
+
+### Receita de uma tela
+
+A rota monta o documento e entrega às duas respostas. Cada rota declara o `Access` da própria tela (exportar é ler: quem pode ver pode exportar):
+
+```python
+@bp.route(route="financeiro/desembolso/excel", methods=["GET"])
+@file_route(access=Access(module="financeiro"))
+def disbursement_excel(req: func.HttpRequest, session: Session, context: RequestContext):
+    return excel_response(_document(session, context))
+
+
+@bp.route(route="financeiro/desembolso/imprimivel", methods=["GET"])
+@fragment_route(access=Access(module="financeiro"))
+def disbursement_printable(req: func.HttpRequest, session: Session, context: RequestContext):
+    return printable_response(_document(session, context), req)
+
+
+def _document(session: Session, context: RequestContext) -> Document:
+    data = service.disbursement(session, user=context.user, scope=context.scope)  # a fachada do módulo
+    return Document(
+        title="Desembolso",
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+        portfolio=context.scope.is_portfolio,
+        kpis=(Kpi("Desembolso", data.total_cents, "Orçado: R$ 1.500.000,00", ValueKind.MONEY),),
+        tables=(Table("Parcelas", (Column("Parcela"), Column("Valor", ValueKind.MONEY)), rows=data.rows),),
+    )
+```
+
+Na tela, os dois botões e mais nada: `<button type="button" class="btn btn--secondary" data-tn-excel="/api/financeiro/desembolso/excel">Excel</button>` e o mesmo com `data-tn-pdf` e a rota `imprimivel`. O botão leva o escopo (`?projeto=`) como o shell faz com as chamadas do Alpine AJAX; se o servidor recusar, o motivo vira toast. As rotas de exemplo (`src/blueprints/exports.py`) e a página `app/exemplos/exportacao.html` mostram os dois botões com todos os tipos de valor, tons, KPIs, um gráfico e a coluna Projeto no Portfólio.
+
+Uma `Table` com `rows=()` é válida (planilha só com o cabeçalho); um documento sem KPIs e sem tabelas gera só a planilha Resumo, vazia.
+
 ## Testes
 
 O `tests/conftest.py` recria o `gestnow_teste` pelas migrações a cada execução — um banco vazio sobe até a última revisão — e roda cada teste dentro de uma transação desfeita no fim. Nenhum teste toca o banco `gestnow`.
@@ -232,7 +314,7 @@ cd api
 
 ## Desenvolvimento local
 
-Na raiz do repositório, use `run.bat`. Ele prepara `api/.venv` na primeira execução, prepara o banco e inicia `scripts/dev_local.py`, que serve `app/`, simula a sessão local e encaminha `/api/health`, `/api/nav` e as demais rotas de plataforma (`/api/escopo/projetos`, `/api/glossario`, `/api/acesso-negado`, `/api/demonstracao/perfil` e as três de `/api/anexos`) aos blueprints reais. Rota nova de plataforma entra na lista `ROUTES` desse script. Esse caminho não depende do SWA CLI nem do Azure Functions Core Tools. Localmente quem está logado é escolhido no seletor de perfil da barra lateral (modo demonstração); o `/.auth/me` simulado só avisa o shell de que há sessão.
+Na raiz do repositório, use `run.bat`. Ele prepara `api/.venv` na primeira execução, prepara o banco e inicia `scripts/dev_local.py`, que serve `app/`, simula a sessão local e encaminha `/api/health`, `/api/nav` e as demais rotas de plataforma (`/api/escopo/projetos`, `/api/glossario`, `/api/acesso-negado`, `/api/demonstracao/perfil` as três de `/api/anexos` e as duas de `/api/exportacao/exemplo`) aos blueprints reais. Rota nova de plataforma entra na lista `ROUTES` desse script. Esse caminho não depende do SWA CLI nem do Azure Functions Core Tools. Localmente quem está logado é escolhido no seletor de perfil da barra lateral (modo demonstração); o `/.auth/me` simulado só avisa o shell de que há sessão.
 
 Para ver o **login de verdade** localmente, defina `GESTNOW_DEV_PRINCIPAL` com o e-mail de uma conta Microsoft (variável de ambiente, ou em `api/local.settings.json`, fora do git) antes de subir o `run.bat`: o servidor local passa a mandar o cabeçalho do principal que o Static Web Apps mandaria, o seletor de perfil some, e-mail que está no cadastro de Colaboradores entra com o perfil dele e qualquer outro vê a tela de acesso negado.
 
@@ -262,4 +344,4 @@ O template Jinja2 estende `base_fragment.html` e usa `{{ target_id }}` na raiz. 
 
 ## Dependências e configuração local
 
-`pyproject.toml` é a fonte das dependências Python e `uv.lock` registra suas versões. `requirements.txt` contém apenas as dependências de produção usadas pelo deploy do Azure. Configurações locais, inclusive `local.settings.json`, não devem ser versionadas.
+`pyproject.toml` é a fonte das dependências Python e `uv.lock` registra suas versões. `requirements.txt` contém apenas as dependências de produção usadas pelo deploy do Azure. O Excel usa `openpyxl` (e o `pillow`, que ele exige para inserir o logo); não há biblioteca de PDF. Configurações locais, inclusive `local.settings.json`, não devem ser versionadas.

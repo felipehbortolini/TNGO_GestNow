@@ -19,6 +19,8 @@ azure-core==1.41.0
     # via azure-storage-blob
 azure-functions==2.2.0
     # via timenow-gestnow-api
+et-xmlfile==2.0.0
+    # via openpyxl
 azure-storage-blob==12.31.0
     # via timenow-gestnow-api
 certifi==2026.7.22
@@ -42,6 +44,10 @@ markupsafe==3.0.3
     #   jinja2
     #   mako
     #   werkzeug
+openpyxl==3.1.5
+    # via timenow-gestnow-api
+pillow==12.3.0
+    # via timenow-gestnow-api
 psycopg==3.3.6
     # via timenow-gestnow-api
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'

@@ -2,6 +2,7 @@ import azure.functions as func
 
 from src.blueprints.acesso import bp as acesso_bp
 from src.blueprints.attachments import bp as attachments_bp
+from src.blueprints.exports import bp as exports_bp
 from src.blueprints.health import bp as health_bp
 from src.blueprints.nav import bp as nav_bp
 from src.modulos.central_acoes.routes import bp as central_acoes_bp
@@ -22,6 +23,7 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 app.register_functions(health_bp)
 app.register_functions(nav_bp)
 app.register_functions(acesso_bp)
+app.register_functions(exports_bp)
 app.register_functions(attachments_bp)
 app.register_functions(inicio_bp)
 app.register_functions(central_acoes_bp)
