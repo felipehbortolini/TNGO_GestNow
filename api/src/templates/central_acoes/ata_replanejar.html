@@ -1,0 +1,48 @@
+{% extends "base_fragment.html" %}
+{#
+  Replanejamento de um item da ata (HU-053), no modal da ficha: a nova data e a justificativa
+  obrigatória, com as mesmas regras da Central. O sucesso responde a ficha atualizada (alvo
+  ata-ficha), com a aba de itens; uma recusa (422, 409) volta este formulário, preenchido.
+
+  Espera: ficha, aba, item (ItemRow), versao, valores, erros, hoje e target_id.
+#}
+{% block fragment %}
+<form method="post" action="/api/central-acoes/ata/itens/{{ item.id }}/replanejar"
+  x-target="ata-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando o replanejamento...">
+  <input type="hidden" name="id" value="{{ ficha.record.id }}" />
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  <input type="hidden" name="aba" value="{{ aba }}" />
+  {% if erros.geral %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>
+  {% endif %}
+  <p class="body-txt mb-16">
+    Prazo vigente: <strong>{{ formatar_data(item.replanned_date or item.planned_date) }}</strong>.
+    A data prevista original ({{ formatar_data(item.planned_date) }}) é mantida; a justificativa fica no histórico do item.
+  </p>
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="{{ target_id }}-data">Nova data</label>
+      <input id="{{ target_id }}-data" class="input{% if erros.get('data') %} input--erro{% endif %}" type="date"
+        name="data" min="{{ hoje }}" value="{{ valores.get('data') or '' }}" required
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="{{ target_id }}-data-erro"{% endif %} />
+      {% if erros.get('data') %}<span class="field__erro" id="{{ target_id }}-data-erro" role="alert">{{ erros.data }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-justificativa">Justificativa</label>
+      <textarea id="{{ target_id }}-justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+        name="justificativa" rows="4" maxlength="300" required
+        aria-describedby="{{ target_id }}-justificativa-dica{% if erros.get('justificativa') %} {{ target_id }}-justificativa-erro{% endif %}"
+        {% if erros.get('justificativa') %}aria-invalid="true"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint" id="{{ target_id }}-justificativa-dica">Obrigatória (mínimo de 10 e máximo de 300 caracteres).</span>
+      {% if erros.get('justificativa') %}<span class="field__erro" id="{{ target_id }}-justificativa-erro" role="alert">{{ erros.justificativa }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar replanejamento</button>
+  </div>
+</form>
+{% endblock %}

@@ -180,7 +180,7 @@ Empresas e participantes não têm versão própria: a versão da ata os protege
 
 ### API pública (fachada `minutes_service`)
 
-`create_minutes`, `list_minutes`, `find_minutes`, `set_companies`, `add_guests`, `remove_attendee` e `guest_candidates`. A ISSUE-022 cria as revisões novas pela mesma fachada (`NewMinutes.revision`).
+`create_minutes`, `list_minutes`, `find_minutes`, `set_companies`, `add_guests`, `remove_attendee` e `guest_candidates`. A ISSUE-022 acrescenta `list_items`, `find_item`, `next_item_number`, `save_item`, `replan_item`, `item_justifications`, `generate_revision` e `revision_history` (fachada `minutes_service`).
 
 ### Integrações
 
@@ -189,3 +189,26 @@ O link de origem **Ata** está registrado (`origin_links`, no fim de `minutes_se
 ### Carga e oráculo
 
 `seed.py` grava as 9 revisões do protótipo antes das ações (número, revisão, empresas e presença como no mock) e continua a sequência de numeração de cada projeto (a próxima ata do TN-2026-014 é a 0039). `api/tests/oraculo/test_oraculo_atas.py` afirma 8 atas vigentes (5, 2 e 1 por projeto), as ações abertas e atrasadas de cada uma e o tamanho de cada lista de presença em 25/09/2026.
+
+## O que a ISSUE-022 trouxe
+
+**Telas.** Na ficha da ata, a aba **Anotações e Ações**: itens por grupo / área, numerados 1 / 1.1 na ordem, com as colunas Item, Tipo, Assunto / Descrição, Solicitante, Responsável, Prevista, Replanejada, Conclusão e Status (a linha atrasada sai destacada), o modal **Colunas da tabela** (alterna as colunas opcionais sem ir ao servidor) e os KPIs Itens, Em dia, Atrasadas, Concluídas e Informações no rodapé. Na faixa, **Gerar nova revisão** (só na vigente) e **Histórico da ata**. Os modais **Nova anotação/ação**, **Registrar replanejamento** e **Justificativas** completam a rastreabilidade.
+
+**Rotas** (`/api/central-acoes`, `minutes_routes.py`):
+
+| Rota | Uso |
+|---|---|
+| `GET/POST ata/itens/novo` e `ata/itens` | Formulário e gravação de uma anotação ou ação; a ação nasce pela costura da Central (origem `Ata`) |
+| `GET/POST ata/itens/{item_id}/editar` | Edição do item; mudar o grupo renumera |
+| `GET/POST ata/itens/{item_id}/replanejar` | Replanejamento com justificativa, pelas mesmas regras da Central (HU-053) |
+| `GET ata/itens/{item_id}/justificativas` | Os replanejamentos do item, com autor e data |
+| `GET ata/historico` | As revisões da linhagem, da mais nova para a mais antiga |
+| `GET/POST ata/revisao` | Nova revisão: copia listas e itens e redireciona para a ficha nova |
+
+**Fórmulas e nomes no código** (`minutes_service.py`): `next_item_number` (próximo número do grupo: `1.1` quando o grupo é novo, senão um a mais no grupo), `list_items` (agrupa e ordena pelo número do item; KPIs), `save_item` (cria pela costura `service.create_action` ou edita por `recording.update`), `generate_revision` (nova linha de `ata` com a mesma linhagem, cópia das empresas, da presença e dos itens com os replans) e `revision_history`. O status de cada item continua sendo o do motor único (`calculations.action_status`).
+
+**Fluxos.** A anotação (`Informação`) é um item da ata e não entra na lista da Central; a ação (`Ação`) entra na lista com origem `Ata`, referência no número da ata e o link de volta para a ficha. Só a revisão vigente se altera: a nova revisão leva as listas e os itens, a anterior fica somente leitura, e a lista de atas passa a mostrar só a nova. O replanejamento de um item guarda autor, data, de/para e justificativa em `acao_replanejamento`; a edição do item não muda a data vigente quando já há replanejamento.
+
+**Carga e oráculo.** A carga da ISSUE-019 já trazia os itens das atas (a coleção `acoes` do protótipo tem 28 itens com `ataId`, todos de origem `Ata`), então nada novo entrou no `seed.py`. `api/tests/oraculo/test_oraculo_atas_itens.py` afirma os 28 itens, a numeração 1.1 a 3.1 e os grupos da ata TN-2026-0028.
+
+**Testes.** `api/tests/central_acoes/test_atas_itens.py`: numeração por grupo e renumeração ao mudar o grupo, a ação na lista da Central com link de volta (e a anotação fora dela), a nova revisão com linhagem, cópia e somente leitura, o histórico com a vigente marcada, o replanejamento com autor e justificativa, a validação (data prevista e pessoa da presença) e as rotas da aba e do formulário.

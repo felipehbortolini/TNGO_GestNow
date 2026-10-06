@@ -9,7 +9,7 @@ calls the facade.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -345,3 +345,138 @@ def parse_minutes_filters(params: Mapping[str, str]) -> MinutesFilters:
     return MinutesFilters(
         search=(params.get("busca") or "").strip()[:MAX_SEARCH_LENGTH], page=parse_page(params)
     )
+
+
+# ── The items of the minutes (ISSUE-022) ─────────────────────────────────────────────────────
+
+
+MAX_GROUP_LENGTH = 100
+MAX_ITEM_DESCRIPTION_LENGTH = 500
+
+ITEM_KIND_REQUIRED = "Informe se é uma anotação ou uma ação."
+ITEM_GROUP_REQUIRED = "Informe o grupo / área."
+ITEM_GROUP_TOO_LONG = f"O grupo aceita até {MAX_GROUP_LENGTH} caracteres."
+ITEM_SUBJECT_REQUIRED = "Informe o assunto."
+ITEM_SUBJECT_TOO_LONG = f"O assunto aceita até {MAX_SUBJECT_LENGTH} caracteres."
+ITEM_DESCRIPTION_REQUIRED = "Informe a descrição."
+ITEM_DESCRIPTION_TOO_LONG = f"A descrição aceita até {MAX_ITEM_DESCRIPTION_LENGTH} caracteres."
+ITEM_REQUESTER_REQUIRED = "Escolha o solicitante."
+ITEM_RESPONSIBLE_REQUIRED = "Escolha o responsável."
+ITEM_PERSON_NOT_ATTENDING = "A pessoa precisa estar na lista de presença desta ata."
+ITEM_PLANNED_REQUIRED = "Informe a data prevista da ação."
+ITEM_COMPLETION_ONLY_FOR_ACTION = "Só uma ação tem data de conclusão."
+ITEM_COMPLETION_IN_THE_FUTURE = "A data de conclusão não pode ser posterior à data de referência."
+REVISION_BEFORE_CURRENT = "A data não pode ser anterior à revisão atual."
+
+
+@dataclass(frozen=True)
+class ItemInput:
+    """An annotation or action of the minutes, as the form sends it."""
+
+    kind: str
+    group: str
+    subject: str
+    description: str
+    requester_id: int | None
+    responsible_id: int | None
+    planned_date: date | None
+    completed_on: date | None
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class RevisionInput:
+    """A new revision of the minutes: the date of the meeting and the version the screen opened."""
+
+    meeting_date: date | None
+    version: int | str | None
+
+
+def parse_item(form: Mapping[str, str]) -> ItemInput:
+    """The item the form sends: kind, group, texts, the two people and the two dates."""
+    return ItemInput(
+        kind=(form.get("tipo") or "").strip(),
+        group=(form.get("grupo") or "").strip(),
+        subject=(form.get("assunto") or "").strip(),
+        description=(form.get("descricao") or "").strip(),
+        requester_id=parse_id(form.get("solicitante")),
+        responsible_id=parse_id(form.get("responsavel")),
+        planned_date=parse_date(form.get("prevista")),
+        completed_on=parse_date(form.get("conclusao")),
+        version=form.get("versao"),
+    )
+
+
+def parse_revision(form: Mapping[str, str]) -> RevisionInput:
+    """The new revision the form sends: the date of the meeting."""
+    return RevisionInput(meeting_date=parse_date(form.get("data")), version=form.get("versao"))
+
+
+def item_problems(
+    data: ItemInput, *, participant_ids: Collection[int], reference_date: date
+) -> dict[str, str]:
+    """The messages of an item by field; empty when it may be saved (HU-052)."""
+    problems: dict[str, str] = {}
+    if data.kind not in KINDS:
+        problems["tipo"] = ITEM_KIND_REQUIRED
+    problems.update(_item_text_problems(data))
+    problems.update(_item_people_problems(data, participant_ids))
+    if data.kind == ACTION and data.planned_date is None:
+        problems["prevista"] = ITEM_PLANNED_REQUIRED
+    if data.completed_on is not None:
+        if data.kind != ACTION:
+            problems["conclusao"] = ITEM_COMPLETION_ONLY_FOR_ACTION
+        elif data.completed_on > reference_date:
+            problems["conclusao"] = ITEM_COMPLETION_IN_THE_FUTURE
+    return problems
+
+
+def _item_text_problems(data: ItemInput) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    checks = (
+        ("grupo", data.group.strip(), MAX_GROUP_LENGTH, ITEM_GROUP_REQUIRED, ITEM_GROUP_TOO_LONG),
+        (
+            "assunto",
+            data.subject,
+            MAX_SUBJECT_LENGTH,
+            ITEM_SUBJECT_REQUIRED,
+            ITEM_SUBJECT_TOO_LONG,
+        ),
+        (
+            "descricao",
+            data.description,
+            MAX_ITEM_DESCRIPTION_LENGTH,
+            ITEM_DESCRIPTION_REQUIRED,
+            ITEM_DESCRIPTION_TOO_LONG,
+        ),
+    )
+    for field, text, maximum, required_message, too_long_message in checks:
+        if not text:
+            problems[field] = required_message
+        elif len(text) > maximum:
+            problems[field] = too_long_message
+    return problems
+
+
+def _item_people_problems(data: ItemInput, participant_ids: Collection[int]) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    checks = (
+        ("solicitante", data.requester_id, ITEM_REQUESTER_REQUIRED),
+        ("responsavel", data.responsible_id, ITEM_RESPONSIBLE_REQUIRED),
+    )
+    for field, person_id, required_message in checks:
+        if person_id is None:
+            problems[field] = required_message
+        elif person_id not in participant_ids:
+            problems[field] = ITEM_PERSON_NOT_ATTENDING
+    return problems
+
+
+def revision_problems(data: RevisionInput, *, current_date: date) -> dict[str, str]:
+    """The messages of a new revision: the date is required, never before the current one."""
+    problems: dict[str, str] = {}
+    if data.meeting_date is None:
+        problems["data"] = MINUTES_DATE_REQUIRED
+    elif data.meeting_date < current_date:
+        problems["data"] = REVISION_BEFORE_CURRENT
+    return problems

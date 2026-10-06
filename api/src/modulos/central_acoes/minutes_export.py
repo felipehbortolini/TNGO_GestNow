@@ -25,6 +25,8 @@ from src.core.export_document import (
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.central_acoes.minutes_service import (
+    ItemListing,
+    ItemRow,
     MinutesListing,
     MinutesRow,
     MinutesSheet,
@@ -36,6 +38,7 @@ COUNT_LABEL = "Atas no filtro"
 SEARCH_LABEL = "Busca"
 SHEET_COMPANIES_TITLE = "Empresas executoras"
 SHEET_ATTENDANCE_TITLE = "Lista de Presença"
+SHEET_ITEMS_TITLE = "Anotações e Ações"
 
 
 def build_list_document(
@@ -92,8 +95,8 @@ def _list_row(line: MinutesRow) -> Row:
     )
 
 
-def build_sheet_document(*, sheet: MinutesSheet, today: date) -> Document:
-    """The document of the ficha: the data of the meeting, the companies and the attendance."""
+def build_sheet_document(*, sheet: MinutesSheet, items: ItemListing, today: date) -> Document:
+    """The document of the ficha: the data, the companies, the attendance and the items."""
     record = sheet.record
     counts = sheet.counts
     return Document(
@@ -144,5 +147,37 @@ def build_sheet_document(*, sheet: MinutesSheet, today: date) -> Document:
                 ),
                 per_project=False,
             ),
+            _items_table(items),
         ),
+    )
+
+
+def _items_table(items: ItemListing) -> Table:
+    return Table(
+        title=SHEET_ITEMS_TITLE,
+        columns=(
+            Column("Item", width=8),
+            Column("Grupo", width=18),
+            Column("Tipo", width=12),
+            Column("Assunto / Descrição", width=56),
+            Column("Responsável", width=24),
+            Column("Prevista", ValueKind.DATE),
+            Column("Replanejada", ValueKind.DATE),
+            Column("Status", width=14),
+        ),
+        rows=tuple(_item_row(item) for group in items.groups for item in group.items),
+        per_project=False,
+    )
+
+
+def _item_row(item: ItemRow) -> Row:
+    return row(
+        item.item,
+        item.group,
+        item.kind,
+        f"{item.subject} · {item.description}" if item.description else item.subject,
+        item.responsible_name,
+        item.planned_date,
+        item.replanned_date,
+        item.status_label,
     )

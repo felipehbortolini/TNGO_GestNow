@@ -1,7 +1,7 @@
 ---
 id: ISSUE-022
 title: "Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -63,3 +63,11 @@ Nenhuma.
 
 Fonte: `ata.html` e `js/pages/central-acoes/ata.js` do protótipo (modais da
 ata listados no README).
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: fachada (`minutes_service`: `list_items`, `find_item`, `next_item_number`, `save_item`, `replan_item`, `item_justifications`, `generate_revision`, `revision_history` e `ItemRef`), validação (`ItemInput`/`RevisionInput`), rotas (`minutes_routes.py`: itens, replanejamento, justificativas, histórico e revisão), a aba **Anotações e Ações** com as colunas configuráveis e os modais (fragmentos `ata_item`, `ata_replanejar`, `ata_justificativas`, `ata_historico`, `ata_revisao`), a exportação da ficha com a tabela dos itens, o comportamento da página (`ata.js`) e os testes (`api/tests/central_acoes/test_atas_itens.py` e `api/tests/oraculo/test_oraculo_atas_itens.py`).
+- Carga: nada novo no `seed.py`; a carga da ISSUE-019 já trazia os 28 itens das atas (coleção `acoes` com `ataId`), conferidos pelo oráculo.
+- Migração: nenhuma tabela nova — os itens usam `acao` (`tipo`, `item`, `grupo`, `ata_id`) e os replans usam `acao_replanejamento`, como o `docs/MODELO-DE-DADOS.md` já descrevia; o diagrama não mudou.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.

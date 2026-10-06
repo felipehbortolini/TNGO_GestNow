@@ -1,0 +1,45 @@
+{% extends "base_fragment.html" %}
+{#
+  Histórico da ata (HU-052), no modal da ficha: todas as revisões da linhagem, da mais nova para a
+  mais antiga, com data, assunto, situação (Vigente ou Histórico) e o link para abrir cada uma.
+
+  Espera: revisoes (RevisionLine), atual_id, endereco_da_revisao e formatar_data.
+#}
+{% block fragment %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Revisões da ata</caption>
+    <thead>
+      <tr>
+        <th scope="col">Revisão</th>
+        <th scope="col">Data</th>
+        <th scope="col">Assunto</th>
+        <th scope="col">Situação</th>
+        <th scope="col"><span class="sr-only">Abrir</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for revisao in revisoes %}
+      <tr>
+        <td class="nowrap"><b>Rev {{ revisao.revision }}</b></td>
+        <td class="nowrap">{{ formatar_data(revisao.meeting_date) }}</td>
+        <td>{{ revisao.subject }}</td>
+        <td>
+          <span class="pill {{ 'pill--ok' if revisao.is_latest else 'pill--neutral' }}">{{ 'Vigente' if revisao.is_latest else 'Histórico' }}</span>
+          {% if revisao.id == atual_id %}<span class="pill pill--fix">Aberta agora</span>{% endif %}
+        </td>
+        <td>
+          {% if revisao.id != atual_id %}
+          <a class="btn btn--ghost btn--sm" href="{{ endereco_da_revisao(revisao.id) }}" data-tn-tela>Abrir</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--secondary"
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+</div>
+{% endblock %}

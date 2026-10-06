@@ -1,19 +1,26 @@
 {% extends "base_fragment.html" %}
 {#
-  Ficha da ata (HU-051, HU-054): a faixa (número, revisão, contexto e a contagem das ações), a barra de
-  exportação e as abas Dados da Reunião e Lista de Presença. Anotações e Ações chegam na ISSUE-022.
+  Ficha da ata (HU-051, HU-052, HU-054): a faixa (número, revisão, contexto e a contagem das ações), a
+  barra de exportação, as abas Dados da Reunião, Lista de Presença e Anotações e Ações, e os modais
+  (empresas, convidados, retirar, item, replanejamento, justificativas, histórico e nova revisão).
   Só a revisão vigente se altera; uma revisão anterior abre em leitura, com o link para a vigente.
 
   A troca de aba é estado local do Alpine, nascido do data-aba (a aba que o servidor devolve depois de
-  um modal). Os modais (empresas, convidados, retirar) abrem pela página (ata.js) a partir dos
-  data-ata-modal-*; o corpo de cada um é um fragmento do servidor.
+  um modal). Os modais abrem pela página (ata.js) a partir dos data-ata-modal-*; o corpo de cada um é
+  um fragmento do servidor. Os itens saem numerados 1 / 1.1 por grupo, na ordem; as colunas
+  configuráveis são alternadas pela página a partir do <template> do fim, que o modal de colunas usa.
 
-  Espera: ficha (MinutesSheet), aba, pode_editar, url_excel, url_pdf, url_empresas, url_convidados,
-  endereco_de_retirada, url_vigente e formatar_data.
+  Espera: ficha (MinutesSheet), aba, pode_editar, itens (ItemListing), url_excel, url_pdf, url_empresas,
+  url_convidados, url_novo_item, url_historico, url_revisao, endereco_de_retirada, endereco_do_item,
+  endereco_de_replanejar, endereco_de_justificativas, url_vigente e formatar_data.
 #}
 {% macro linha(rotulo, valor) %}
 <div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
 {% endmacro %}
+{% macro celula_coluna(chave, oculta) %}
+{% if oculta %} hidden{% endif %} data-coluna="{{ chave }}"
+{% endmacro %}
+{% set pill_do_status = {'andamento': 'pill--fix', 'atrasada': 'pill--erro', 'concluida': 'pill--ok', 'info': 'pill--neutral'} %}
 {% block fragment %}
 {% set ata = ficha.record %}
 {% set titulo = 'Ata ' ~ ata.number ~ ' Rev ' ~ ata.revision %}
@@ -44,17 +51,34 @@
   </div>
 </section>
 
-<div class="toolbar mt-16 mb-16" role="group" aria-label="Exportar a ata">
-  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">Gerar PDF</button>
+<div class="toolbar mt-16 mb-16" role="group" aria-label="Ações e exportação da ata">
+  {% if pode_editar %}
+  <button type="button" class="btn btn--primary" data-ata-modal-url="{{ url_revisao }}?id={{ ata.id }}"
+    data-ata-modal-titulo="Gerar nova revisão" data-ata-modal-subtitulo="{{ ata.number }} · próxima: Rev {{ ata.revision + 1 }}">
+    <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+    Gerar nova revisão
+  </button>
+  {% endif %}
+  <button type="button" class="btn btn--secondary" data-ata-modal-url="{{ url_historico }}"
+    data-ata-modal-titulo="Histórico da ata" data-ata-modal-subtitulo="{{ ata.number }}">
+    <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+    Histórico da ata
+  </button>
+  <div class="ata-faixa__exportar">
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">Gerar PDF</button>
+  </div>
 </div>
 
 <div x-data="{ aba: $el.dataset.aba }" data-aba="{{ aba }}">
   <div class="tabs" role="tablist" aria-label="Seções da ata">
-    {% for chave, nome in [('dados', 'Dados da Reunião'), ('presenca', 'Lista de Presença')] %}
+    {% for chave, nome in [('dados', 'Dados da Reunião'), ('presenca', 'Lista de Presença'), ('itens', 'Anotações e Ações')] %}
     <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
       :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
-      @click="aba = '{{ chave }}'">{{ nome }}{% if chave == 'presenca' %} <span class="pill pill--neutral">{{ ficha.attendees | length }}</span>{% endif %}</button>
+      @click="aba = '{{ chave }}'">{{ nome }}
+      {% if chave == 'presenca' %} <span class="pill pill--neutral">{{ ficha.attendees | length }}</span>
+      {% elif chave == 'itens' %} <span class="pill pill--neutral">{{ itens.summary.total }}</span>{% endif %}
+    </button>
     {% endfor %}
   </div>
 
@@ -146,6 +170,150 @@
       </div>
       {% endif %}
     </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-itens" aria-labelledby="aba-itens" x-show="aba === 'itens'">
+    <div class="toolbar mb-16" role="group" aria-label="Itens da ata">
+      {% if pode_editar %}
+      <button type="button" class="btn btn--primary" data-ata-modal-url="{{ url_novo_item }}"
+        data-ata-modal-titulo="Nova anotação/ação" data-ata-modal-subtitulo="{{ ata.number }} Rev {{ ata.revision }}">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Nova anotação/ação
+      </button>
+      {% endif %}
+      <button type="button" class="btn btn--secondary" data-ata-colunas>
+        <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+        Colunas da tabela
+      </button>
+    </div>
+
+    {% if itens.groups %}
+    {% for grupo in itens.groups %}
+    <section class="card mb-16" aria-labelledby="grupo-{{ loop.index }}">
+      <div class="card__head">
+        <h3 class="h-card4" id="grupo-{{ loop.index }}"><span class="ata-grupo__numero">{{ grupo.number }}</span> {{ grupo.name }}</h3>
+      </div>
+      <div class="card__body">
+        <div class="tbl-wrap">
+          <table class="tbl ata-itens">
+            <caption class="sr-only">Itens do grupo {{ grupo.name }}</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="num">Item</th>
+                <th scope="col"{{ celula_coluna('tipo', false) }}>Tipo</th>
+                <th scope="col">Assunto / Descrição</th>
+                <th scope="col"{{ celula_coluna('solicitante', true) }}>Solicitante</th>
+                <th scope="col"{{ celula_coluna('responsavel', false) }}>Responsável</th>
+                <th scope="col"{{ celula_coluna('prevista', false) }}>Prevista</th>
+                <th scope="col"{{ celula_coluna('replanejada', false) }}>Replanejada</th>
+                <th scope="col"{{ celula_coluna('conclusao', true) }}>Conclusão</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="sr-only">Ações da linha</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in grupo.items %}
+              <tr class="{{ 'ata-itens__linha--atrasada' if item.status == 'atrasada' }}">
+                <td class="num nowrap"><b>{{ item.item }}</b></td>
+                <td{{ celula_coluna('tipo', false) }}><span class="pill {{ 'pill--fix' if item.is_action else 'pill--neutral' }}">{{ item.kind }}</span></td>
+                <td>
+                  <span class="fw-600">{{ item.subject }}</span><br />
+                  <span class="hint">{{ item.description }}</span>
+                </td>
+                <td{{ celula_coluna('solicitante', true) }}>{{ item.requester_name }}</td>
+                <td{{ celula_coluna('responsavel', false) }}>{{ item.responsible_name }}</td>
+                <td class="nowrap"{{ celula_coluna('prevista', false) }}>{{ formatar_data(item.planned_date) }}</td>
+                <td class="nowrap"{{ celula_coluna('replanejada', false) }}>{{ formatar_data(item.replanned_date) }}</td>
+                <td class="nowrap"{{ celula_coluna('conclusao', true) }}>{{ formatar_data(item.completed_on) }}</td>
+                <td>
+                  <span class="pill {{ pill_do_status.get(item.status, 'pill--neutral') }}">{{ item.status_label }}</span>
+                  {% if item.status == 'atrasada' %}<br /><span class="hint">há {{ item.days_overdue }} {{ 'dia' if item.days_overdue == 1 else 'dias' }}</span>{% endif %}
+                </td>
+                <td class="ata-cabeca__acoes">
+                  {% if pode_editar %}
+                  <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_do_item(item.id) }}"
+                    data-ata-modal-titulo="Editar item {{ item.item }}" data-ata-modal-subtitulo="{{ item.subject }}"
+                    aria-label="Editar item {{ item.item }}" title="Editar">
+                    <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+                  </button>
+                  {% endif %}
+                  {% if pode_editar and item.is_action and item.status != 'concluida' %}
+                  <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_replanejar(item.id) }}"
+                    data-ata-modal-titulo="Registrar replanejamento" data-ata-modal-subtitulo="Item {{ item.item }} · {{ item.subject }}"
+                    aria-label="Registrar replanejamento do item {{ item.item }}" title="Registrar replanejamento">
+                    <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+                  </button>
+                  {% endif %}
+                  {% if item.has_replans %}
+                  <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_justificativas(item.id) }}"
+                    data-ata-modal-titulo="Justificativas" data-ata-modal-subtitulo="Item {{ item.item }} · {{ item.subject }}"
+                    aria-label="Justificativas do item {{ item.item }}" title="Justificativas">
+                    <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+                  </button>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+    {% else %}
+    <div class="card">
+      <div class="card__body">
+        <div class="empty" data-estado="vazio-origem">
+          <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+          <h2 class="h-card4">Esta ata ainda não tem anotações nem ações</h2>
+          <p>Use "Nova anotação/ação" para registrar o primeiro item; as ações aparecem na Central.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="kpis" style="--kpis-colunas: 5" role="group" aria-label="Resumo dos itens">
+      <div class="kpi kpi--neutro kpi--estatico">
+        <span class="kpi__label">Itens</span>
+        <span class="kpi__value">{{ itens.summary.total }}</span>
+      </div>
+      <div class="kpi kpi--info kpi--estatico">
+        <span class="kpi__label">Em dia</span>
+        <span class="kpi__value">{{ itens.summary.on_time }}</span>
+      </div>
+      <div class="kpi kpi--erro kpi--estatico">
+        <span class="kpi__label">Atrasadas</span>
+        <span class="kpi__value">{{ itens.summary.overdue }}</span>
+      </div>
+      <div class="kpi kpi--ok kpi--estatico">
+        <span class="kpi__label">Concluídas · previsto {{ itens.summary.due_by_reference }}</span>
+        <span class="kpi__value">{{ itens.summary.completed }}</span>
+      </div>
+      <div class="kpi kpi--neutro kpi--estatico">
+        <span class="kpi__label">Informações</span>
+        <span class="kpi__value">{{ itens.summary.information }}</span>
+      </div>
+    </div>
+
+    <template data-ata-colunas-modelo>
+      <form data-ata-colunas-form>
+        <p class="hint mb-16">Item, Assunto / Descrição e Status são sempre visíveis.</p>
+        <div class="fgrid">
+          {% for chave, rotulo, oculta in [('tipo', 'Tipo', false), ('solicitante', 'Solicitante', true), ('responsavel', 'Responsável', false), ('prevista', 'Prevista', false), ('replanejada', 'Replanejada', false), ('conclusao', 'Conclusão', true)] %}
+          <div class="field">
+            <label class="ata-coluna__opcao">
+              <input type="checkbox" name="colunas" value="{{ chave }}"{% if not oculta %} checked{% endif %} />
+              <span>{{ rotulo }}</span>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--secondary" data-ata-colunas-cancelar>Cancelar</button>
+          <button type="submit" class="btn btn--primary">Aplicar</button>
+        </div>
+      </form>
+    </template>
   </section>
 </div>
 {% endblock %}

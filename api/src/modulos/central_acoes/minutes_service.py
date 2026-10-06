@@ -22,9 +22,10 @@ minutes opens the ficha of its minutes. Nothing here reads the clock; the routes
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,7 +34,7 @@ from src.core import audit, numbering, origin_links, rbac, recording
 from src.core.errors import InvalidDataError
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
-from src.modulos.central_acoes import calculations, validation
+from src.modulos.central_acoes import calculations, service, validation
 from src.modulos.central_acoes.calculations import (
     ACTION,
     INFORMATION,
@@ -44,16 +45,22 @@ from src.modulos.central_acoes.calculations import (
 )
 from src.modulos.central_acoes.models import (
     Action,
+    ActionReplan,
     Minutes,
     MinutesCompany,
     MinutesParticipant,
 )
-from src.modulos.central_acoes.service import normalize_text
+from src.modulos.central_acoes.service import ReplanLine, normalize_text, replan_history
 from src.modulos.central_acoes.validation import (
     AttendanceRequest,
     CompaniesRequest,
+    ItemInput,
     MinutesFilters,
+    NewAction,
     NewMinutes,
+    ReplanEntry,
+    ReplanRequest,
+    RevisionInput,
 )
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.service import PersonDetail
@@ -63,6 +70,7 @@ NUMBER_KIND = "ata"
 MINUTES_ORIGIN = "Ata"
 MINUTES_SCREEN = "central_acoes/ata"
 WITHOUT_COMPANY_LABEL = "Timenow / cliente"
+GENERAL_GROUP = "Geral"
 
 NOT_FOUND_MESSAGE = "A ata pedida não existe ou foi removida."
 READ_ONLY_MESSAGE = "Esta é uma revisão anterior, somente leitura: abra a revisão vigente."
@@ -441,6 +449,298 @@ def guest_candidates(
     ]
 
 
+# ── Items and revisions of the minutes (ISSUE-022) ───────────────────────────────────────────
+
+ITEM_NOT_FOUND_MESSAGE = "O item informado não pertence a esta ata."
+
+
+@dataclass(frozen=True)
+class ItemRow:
+    """One annotation or action of the minutes, as the tab, the modals and the exports read it."""
+
+    id: int
+    kind: str
+    group: str
+    item: str
+    subject: str
+    description: str
+    requester_id: int
+    requester_name: str
+    responsible_id: int
+    responsible_name: str
+    planned_date: date | None
+    replanned_date: date | None
+    completed_on: date | None
+    status: ActionStatus
+    status_label: str
+    days_overdue: int
+    has_replans: bool
+
+    @property
+    def is_action(self) -> bool:
+        """Whether the item is an action (an annotation is never replanned nor completed)."""
+        return self.kind == ACTION
+
+
+@dataclass(frozen=True)
+class ItemGroup:
+    """One group / area of the minutes with its items, in the order of the numbering."""
+
+    number: str
+    name: str
+    items: tuple[ItemRow, ...]
+
+
+@dataclass(frozen=True)
+class ItemSummary:
+    """The KPIs of the tab: total, em dia, atrasadas, concluídas, informações e previstas."""
+
+    total: int
+    on_time: int
+    overdue: int
+    completed: int
+    information: int
+    due_by_reference: int
+
+
+@dataclass(frozen=True)
+class ItemListing:
+    """The items of the minutes grouped by group / area, with the KPIs of the tab."""
+
+    groups: tuple[ItemGroup, ...]
+    summary: ItemSummary
+
+
+@dataclass(frozen=True)
+class RevisionLine:
+    """One revision of the lineage of the minutes, as the Histórico da ata modal lists it."""
+
+    id: int
+    revision: int
+    meeting_date: date
+    subject: str
+    is_latest: bool
+
+
+@dataclass(frozen=True)
+class ItemRef:
+    """Which item of which minutes: the pair every write of an item receives."""
+
+    minutes_id: int
+    item_id: int | None = None
+
+
+def list_items(
+    session: Session, *, user: User, minutes_id: int, reference_date: date
+) -> ItemListing:
+    """The items of the minutes: groups in the order of the numbering and the KPIs of the tab."""
+    rbac.require_module(user, MODULE)
+    rows = _item_rows(session, minutes_id, reference_date)
+    return ItemListing(groups=_item_groups(rows), summary=_item_summary(rows, reference_date))
+
+
+def find_item(
+    session: Session, *, user: User, minutes_id: int, item_id: int, reference_date: date
+) -> ItemRow | None:
+    """One item of the minutes, or ``None`` when it does not belong to it."""
+    rbac.require_module(user, MODULE)
+    action = _item_of(session, minutes_id, item_id)
+    if action is None:
+        return None
+    return _item_row(
+        action, _names_of(session, [action]), _replan_ids(session, [action.id]), reference_date
+    )
+
+
+def next_item_number(session: Session, minutes_id: int, group: str) -> str:
+    """The next number of the group: ``1.1`` when the group is new, else one more in the group."""
+    wanted = group.strip()
+    pairs = session.execute(
+        select(Action.group, Action.item).where(Action.ata_id == minutes_id)
+    ).all()
+    known: dict[str, list[tuple[int, int]]] = {}
+    for name, item in pairs:
+        key = (name or "").strip() or GENERAL_GROUP
+        known.setdefault(key, []).append(_item_key(item))
+    if wanted not in known:
+        highest = max((first for items in known.values() for first, _ in items), default=0)
+        return f"{highest + 1}.1"
+    leading = min(first for first, _ in known[wanted])
+    second = max(second for _, second in known[wanted])
+    return f"{leading}.{second + 1}"
+
+
+def save_item(
+    session: Session,
+    *,
+    user: User,
+    ref: ItemRef,
+    data: ItemInput,
+    reference_date: date,
+) -> ItemRow:
+    """Create or edit an item of the minutes; an action is born by the seam of the Central (D9)."""
+    rbac.require(user, Permission.WRITE)
+    minutes = _latest_minutes(session, ref.minutes_id)
+    participants = {row.person_id for row in _participant_rows(session, minutes.id)}
+    problems = validation.item_problems(
+        data, participant_ids=participants, reference_date=reference_date
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    if ref.item_id is None:
+        created = service.create_action(
+            session,
+            user=user,
+            new=_new_action(minutes, data, item=next_item_number(session, minutes.id, data.group)),
+            reference_date=reference_date,
+        )
+        action = _item_of(session, minutes.id, created.id)
+        if action is None:  # pragma: no cover - o registro acabou de ser criado
+            raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+        return _item_row(
+            action, _names_of(session, [action]), _replan_ids(session, [action.id]), reference_date
+        )
+    action = _item_of(session, minutes.id, ref.item_id)
+    if action is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    changes: dict[str, object] = {
+        "kind": data.kind,
+        "group": data.group.strip(),
+        "subject": data.subject,
+        "description": data.description,
+        "requester_id": data.requester_id,
+        "responsible_id": data.responsible_id,
+        "completed_on": data.completed_on,
+    }
+    if action.replanned_date is None:
+        changes["planned_date"] = data.planned_date
+    if (action.group or "").strip() != data.group.strip():
+        changes["item"] = next_item_number(session, minutes.id, data.group)
+    recording.update(session, user_id=user.id, record=action, changes=changes, version=data.version)
+    return _item_row(
+        action, _names_of(session, [action]), _replan_ids(session, [action.id]), reference_date
+    )
+
+
+def replan_item(
+    session: Session,
+    *,
+    user: User,
+    ref: ItemRef,
+    request: ReplanRequest,
+    reference_date: date,
+) -> ItemRow:
+    """Register the replan of an item of the minutes through the rules of the Central (HU-053)."""
+    rbac.require(user, Permission.WRITE)
+    minutes = _latest_minutes(session, ref.minutes_id)
+    if ref.item_id is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    action = _item_of(session, minutes.id, ref.item_id)
+    if action is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    if action.kind != ACTION:
+        raise InvalidDataError(service.NOT_AN_ACTION_MESSAGE)
+    service.replan_action(
+        session,
+        user=user,
+        request=ReplanRequest(
+            action_id=action.id,
+            new_date=request.new_date,
+            justification=request.justification,
+            version=request.version,
+        ),
+        reference_date=reference_date,
+    )
+    return _item_row(
+        action, _names_of(session, [action]), _replan_ids(session, [action.id]), reference_date
+    )
+
+
+def item_justifications(
+    session: Session, *, user: User, minutes_id: int, item_id: int
+) -> tuple[ReplanLine, ...]:
+    """The replans of one item of the minutes, newest first (the Justificativas modal)."""
+    rbac.require_module(user, MODULE)
+    action = _item_of(session, minutes_id, item_id)
+    if action is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    return tuple(replan_history(session, user=user, action_id=action.id))
+
+
+def generate_revision(
+    session: Session,
+    *,
+    user: User,
+    minutes_id: int,
+    data: RevisionInput,
+    reference_date: date,
+) -> MinutesRecord:
+    """Open the next revision of the lineage, carrying the lists and the items (HU-052).
+
+    The current revision stays as history (read only); the new one receives the companies, the
+    attendance and a copy of every item, with its replans, and starts feeding the Central.
+    """
+    rbac.require(user, Permission.WRITE)
+    minutes = _latest_minutes(session, minutes_id)
+    problems = validation.revision_problems(data, current_date=minutes.meeting_date)
+    if problems:
+        raise InvalidDataError(problems)
+    if data.meeting_date is None:  # pragma: no cover - a validação acima exige a data
+        raise InvalidDataError({"data": validation.MINUTES_DATE_REQUIRED})
+    recording.update(session, user_id=user.id, record=minutes, changes={}, version=data.version)
+    new = Minutes(
+        project_id=minutes.project_id,
+        unit_id=minutes.unit_id,
+        prepared_by_id=minutes.prepared_by_id,
+        main_company_id=minutes.main_company_id,
+        number=minutes.number,
+        revision=minutes.revision + 1,
+        meeting_date=data.meeting_date,
+        meeting_type=minutes.meeting_type,
+        board=minutes.board,
+        subject=minutes.subject,
+    )
+    recording.create(session, user_id=user.id, record=new)
+    for row in _company_rows(session, minutes.id):
+        _add_company(session, user=user, minutes_id=new.id, company_id=row.company_id)
+    for row in _participant_rows(session, minutes.id):
+        _add_participant(session, user=user, minutes_id=new.id, person_id=row.person_id)
+    for action in _item_actions(session, minutes.id):
+        service.create_action(
+            session,
+            user=user,
+            new=_copied_action(session, new, action),
+            reference_date=reference_date,
+        )
+    return _record_of(new)
+
+
+def revision_history(session: Session, *, user: User, minutes_id: int) -> tuple[RevisionLine, ...]:
+    """Every revision of the lineage, newest first, marking the one in force."""
+    rbac.require_module(user, MODULE)
+    minutes = session.get(Minutes, minutes_id)
+    if minutes is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    lineage = list(
+        session.scalars(
+            select(Minutes)
+            .where(Minutes.project_id == minutes.project_id, Minutes.number == minutes.number)
+            .order_by(Minutes.revision.desc())
+        ).all()
+    )
+    latest_id = max((item.id for item in lineage), default=minutes.id)
+    return tuple(
+        RevisionLine(
+            id=item.id,
+            revision=item.revision,
+            meeting_date=item.meeting_date,
+            subject=item.subject,
+            is_latest=item.id == latest_id,
+        )
+        for item in lineage
+    )
+
+
 # ── Internals ────────────────────────────────────────────────────────────────────────────────
 
 
@@ -604,6 +904,165 @@ def _status_counts_by_minutes(
 def _information_count(session: Session, minutes_id: int) -> int:
     statement = select(Action.id).where(Action.ata_id == minutes_id, Action.kind == INFORMATION)
     return len(session.scalars(statement).all())
+
+
+def _item_of(session: Session, minutes_id: int, item_id: int) -> Action | None:
+    return session.scalars(
+        select(Action).where(Action.id == item_id, Action.ata_id == minutes_id)
+    ).one_or_none()
+
+
+def _item_actions(session: Session, minutes_id: int) -> list[Action]:
+    """Every item of the minutes, in the order of the numbering."""
+    statement = select(Action).where(Action.ata_id == minutes_id)
+    return sorted(session.scalars(statement).all(), key=lambda action: _item_key(action.item))
+
+
+def _item_rows(session: Session, minutes_id: int, reference_date: date) -> list[ItemRow]:
+    actions = _item_actions(session, minutes_id)
+    names = _names_of(session, actions)
+    with_replans = _replan_ids(session, [action.id for action in actions])
+    return [_item_row(action, names, with_replans, reference_date) for action in actions]
+
+
+def _names_of(session: Session, actions: Sequence[Action]) -> dict[int, str]:
+    ids = {action.requester_id for action in actions}
+    ids.update(action.responsible_id for action in actions)
+    return configuracoes.person_names(session, ids)
+
+
+def _replan_ids(session: Session, action_ids: Sequence[int]) -> set[int]:
+    if not action_ids:
+        return set()
+    statement = select(ActionReplan.action_id).where(ActionReplan.action_id.in_(action_ids))
+    return set(session.scalars(statement).all())
+
+
+def _replan_rows(session: Session, action_id: int) -> list[ActionReplan]:
+    statement = (
+        select(ActionReplan).where(ActionReplan.action_id == action_id).order_by(ActionReplan.id)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _item_row(
+    action: Action,
+    names: Mapping[int, str],
+    with_replans: Collection[int],
+    reference_date: date,
+) -> ItemRow:
+    dates = ActionDates(
+        kind=action.kind,
+        planned_date=action.planned_date,
+        replanned_date=action.replanned_date,
+        completed_on=action.completed_on,
+    )
+    status = calculations.action_status(dates, reference_date)
+    return ItemRow(
+        id=action.id,
+        kind=action.kind,
+        group=(action.group or "").strip() or GENERAL_GROUP,
+        item=action.item or "",
+        subject=action.subject,
+        description=action.description or "",
+        requester_id=action.requester_id,
+        requester_name=names.get(action.requester_id, UNKNOWN_PERSON_NAME),
+        responsible_id=action.responsible_id,
+        responsible_name=names.get(action.responsible_id, UNKNOWN_PERSON_NAME),
+        planned_date=action.planned_date,
+        replanned_date=action.replanned_date,
+        completed_on=action.completed_on,
+        status=status,
+        status_label=calculations.STATUS_LABELS[status],
+        days_overdue=calculations.days_overdue(dates, reference_date),
+        has_replans=action.id in with_replans,
+    )
+
+
+def _item_groups(rows: Sequence[ItemRow]) -> tuple[ItemGroup, ...]:
+    grouped: dict[str, list[ItemRow]] = {}
+    for row in rows:
+        grouped.setdefault(row.group, []).append(row)
+    return tuple(
+        ItemGroup(
+            number=group_rows[0].item.split(".")[0] or str(position + 1),
+            name=name,
+            items=tuple(group_rows),
+        )
+        for position, (name, group_rows) in enumerate(grouped.items())
+    )
+
+
+def _item_summary(rows: Sequence[ItemRow], reference_date: date) -> ItemSummary:
+    return ItemSummary(
+        total=len(rows),
+        on_time=sum(1 for row in rows if row.status is ActionStatus.IN_PROGRESS),
+        overdue=sum(1 for row in rows if row.status is ActionStatus.OVERDUE),
+        completed=sum(1 for row in rows if row.status is ActionStatus.COMPLETED),
+        information=sum(1 for row in rows if row.status is ActionStatus.INFORMATION),
+        due_by_reference=sum(
+            1
+            for row in rows
+            if row.is_action and row.planned_date is not None and row.planned_date <= reference_date
+        ),
+    )
+
+
+def _item_key(item: str | None) -> tuple[int, int]:
+    """``1.10`` as ``(1, 10)``; what is not a number counts as zero, so the order never breaks."""
+    parts = (item or "").split(".")
+    first = int(parts[0]) if parts[0].isdigit() else 0
+    second = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+    return first, second
+
+
+def _new_action(minutes: Minutes, data: ItemInput, *, item: str) -> NewAction:
+    return NewAction(
+        project_id=minutes.project_id,
+        origin=MINUTES_ORIGIN,
+        origin_ref=minutes.number,
+        subject=data.subject,
+        requester_id=cast(int, data.requester_id),
+        responsible_id=cast(int, data.responsible_id),
+        planned_date=data.planned_date,
+        kind=data.kind,
+        description=data.description,
+        group=data.group.strip(),
+        item=item,
+        ata_id=minutes.id,
+        completed_on=data.completed_on,
+    )
+
+
+def _copied_action(session: Session, new: Minutes, action: Action) -> NewAction:
+    """One item of the current revision as the seam of the next revision receives it."""
+    return NewAction(
+        project_id=new.project_id,
+        origin=MINUTES_ORIGIN,
+        origin_ref=new.number,
+        subject=action.subject,
+        requester_id=action.requester_id,
+        responsible_id=action.responsible_id,
+        planned_date=action.planned_date,
+        kind=action.kind,
+        description=action.description,
+        group=action.group,
+        item=action.item,
+        ata_id=new.id,
+        contributes_probability=action.contributes_probability,
+        contributes_impact=action.contributes_impact,
+        completed_on=action.completed_on,
+        replans=tuple(
+            ReplanEntry(
+                author_id=row.author_id,
+                registered_on=row.registered_on,
+                from_date=row.from_date,
+                to_date=row.to_date,
+                justification=row.justification,
+            )
+            for row in _replan_rows(session, action.id)
+        ),
+    )
 
 
 def _build_minutes_link(reference: origin_links.OriginRef) -> str | None:

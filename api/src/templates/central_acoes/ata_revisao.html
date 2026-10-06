@@ -1,0 +1,37 @@
+{% extends "base_fragment.html" %}
+{#
+  Gerar nova revisão da ata (HU-052), no modal da ficha: a data da nova reunião. A revisão atual
+  fica guardada como histórico (somente leitura) e os itens, as empresas e a presença são copiados
+  para a nova revisão, que passa a alimentar a Central de Ações. O sucesso redireciona para a ficha
+  da nova revisão; o 422 devolve este formulário preenchido.
+
+  Espera: ficha, versao, valores (data), erros, hoje e target_id.
+#}
+{% block fragment %}
+<form method="post" action="/api/central-acoes/ata/revisao" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Gerando a revisão...">
+  <input type="hidden" name="id" value="{{ ficha.record.id }}" />
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>{% endif %}
+  {% endfor %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>A revisão atual fica guardada como histórico (somente leitura). Os itens, as empresas e a lista de presença são copiados para a nova revisão, que passa a alimentar a Central de Ações.</span>
+  </div>
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="{{ target_id }}-data">Data da nova revisão</label>
+      <input id="{{ target_id }}-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        min="{{ ficha.record.meeting_date.isoformat() }}" max="{{ hoje }}" value="{{ valores.get('data') or '' }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="{{ target_id }}-data-erro"{% endif %} />
+      <span class="hint">A data não pode ser anterior à revisão atual ({{ formatar_data(ficha.record.meeting_date) }}).</span>
+      {% if erros.get('data') %}<span class="field__erro" id="{{ target_id }}-data-erro" role="alert">{{ erros.data }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Gerar revisão</button>
+  </div>
+</form>
+{% endblock %}

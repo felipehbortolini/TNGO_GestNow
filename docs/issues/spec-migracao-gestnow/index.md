@@ -48,7 +48,7 @@ vem primeiro.
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | 3 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-019](./019-acoes-costura-status-e-lista.md) |
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | 3 | task | done | ready-for-agent | ISSUE-019 | [ISSUE-020](./020-pdf-das-acoes-follow-up-e-painel.md) |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | 3 | task | done | ready-for-agent | ISSUE-019 | [ISSUE-021](./021-atas-lista-nova-ata-e-presenca.md) |
-| ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | 3 | task | proposed | ready-for-agent | ISSUE-021 | [ISSUE-022](./022-anotacoes-acoes-e-revisoes-da-ata.md) |
+| ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | 3 | task | done | ready-for-agent | ISSUE-021 | [ISSUE-022](./022-anotacoes-acoes-e-revisoes-da-ata.md) |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | 3 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-023](./023-solicitacao-de-mudanca-registro-e-ficha.md) |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | 3 | task | done | ready-for-agent | ISSUE-023 | [ISSUE-024](./024-analise-de-impacto-e-alcada.md) |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | 3 | task | proposed | ready-for-agent | ISSUE-024, ISSUE-019 | [ISSUE-025](./025-decisao-implementacao-e-encerramento-da-sm.md) |

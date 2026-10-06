@@ -1,0 +1,49 @@
+{% extends "base_fragment.html" %}
+{#
+  Justificativas dos replanejamentos de um item da ata (HU-052), no modal da ficha: cada mudança
+  de prazo com quando foi registrada, de, para, por quem e por quê. Somente leitura.
+
+  Espera: item (ItemRow), replans (ReplanLine) e formatar_data.
+#}
+{% block fragment %}
+<p class="body-txt mb-16">
+  Item {{ item.item }} · {{ item.subject }}<br />
+  Prevista original: <strong>{{ formatar_data(item.planned_date) }}</strong>
+</p>
+{% if replans %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Replanejamentos do item</caption>
+    <thead>
+      <tr>
+        <th scope="col">Registrado em</th>
+        <th scope="col">De</th>
+        <th scope="col">Para</th>
+        <th scope="col">Por</th>
+        <th scope="col">Justificativa</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for replan in replans %}
+      <tr>
+        <td class="nowrap">{{ formatar_data(replan.registered_on) }}</td>
+        <td class="nowrap">{{ formatar_data(replan.from_date) }}</td>
+        <td class="nowrap">{{ formatar_data(replan.to_date) }}</td>
+        <td>{{ replan.author_name }}</td>
+        <td>{{ replan.justification }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty" data-estado="vazio-origem">
+  <h2 class="h-card4">Nenhum replanejamento registrado</h2>
+  <p>O item mantém a data prevista original.</p>
+</div>
+{% endif %}
+<div class="modal__actions">
+  <button type="button" class="btn btn--secondary"
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+</div>
+{% endblock %}

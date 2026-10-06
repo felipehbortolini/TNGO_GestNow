@@ -22,7 +22,7 @@ The rules are in ``minutes_service``; the routes only read the request, call it 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from urllib.parse import urlencode
 
@@ -43,12 +43,14 @@ from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse, redirect_to
 from src.core.routing import Access, RequestContext, file_route, fragment_route
 from src.modulos.central_acoes import minutes_export, minutes_service, validation
+from src.modulos.central_acoes.calculations import ACTION
 from src.modulos.central_acoes.minutes_service import MinutesSheet
 from src.modulos.central_acoes.validation import (
     AttendanceRequest,
     CompaniesRequest,
     MinutesFilters,
     NewMinutes,
+    ReplanRequest,
 )
 from src.modulos.configuracoes import service as configuracoes
 
@@ -65,6 +67,7 @@ SHEET_MODAL_TARGET = "ata-modal-corpo"
 
 LIST_ROUTE = "/api/central-acoes/atas"
 SHEET_ROUTE = "/api/central-acoes/ata"
+ITEM_ROUTE = "/api/central-acoes/ata/itens"
 SHEET_SCREEN = "central_acoes/ata"
 
 LIST_TEMPLATE = "central_acoes/atas.html"
@@ -74,15 +77,24 @@ NOT_FOUND_TEMPLATE = "central_acoes/ata_nao_encontrada.html"
 COMPANIES_TEMPLATE = "central_acoes/ata_empresas.html"
 GUESTS_TEMPLATE = "central_acoes/ata_convidados.html"
 WITHDRAW_TEMPLATE = "central_acoes/ata_retirar.html"
+ITEM_TEMPLATE = "central_acoes/ata_item.html"
+REPLAN_TEMPLATE = "central_acoes/ata_replanejar.html"
+JUSTIFICATIONS_TEMPLATE = "central_acoes/ata_justificativas.html"
+HISTORY_TEMPLATE = "central_acoes/ata_historico.html"
+REVISION_TEMPLATE = "central_acoes/ata_revisao.html"
 
 TAB_DATA = "dados"
 TAB_ATTENDANCE = "presenca"
-TABS = (TAB_DATA, TAB_ATTENDANCE)
+TAB_ITEMS = "itens"
+TABS = (TAB_DATA, TAB_ATTENDANCE, TAB_ITEMS)
 
 CREATED_NOTICE = "Ata gerada."
 COMPANIES_NOTICE = "Empresas atualizadas."
 GUESTS_NOTICE = "Convidados adicionados."
 WITHDRAWN_NOTICE = "Participante retirado."
+ITEM_NOTICE = "Item salvo."
+REPLAN_NOTICE = "Replanejamento registrado."
+REVISION_NOTICE = "Revisão gerada."
 INVALID_MINUTES_MESSAGE = "Informe a ata."
 GUEST_LIST_LIMIT = 100
 
@@ -155,6 +167,7 @@ def _sheet_address(minutes_id: int, project_id: int | None = None) -> str:
 
 def _id_of(req: func.HttpRequest, name: str = "id") -> int:
     raw = req.form.get(name) if req.method == "POST" else req.params.get(name)
+    raw = raw or req.route_params.get(name)
     parsed = validation.parse_id(raw)
     if parsed is None:
         raise InvalidDataError(INVALID_MINUTES_MESSAGE)
@@ -376,7 +389,9 @@ def _sheet_of(session: Session, context: RequestContext, minutes_id: int) -> Min
     )
 
 
-def _sheet_context(sheet: MinutesSheet, context: RequestContext, *, tab: str) -> dict[str, object]:
+def _sheet_context(
+    session: Session, sheet: MinutesSheet, context: RequestContext, *, tab: str
+) -> dict[str, object]:
     minutes_id = sheet.record.id
     can_write = rbac.can(context.user, Permission.WRITE)
     query = urlencode({"id": minutes_id})
@@ -384,14 +399,33 @@ def _sheet_context(sheet: MinutesSheet, context: RequestContext, *, tab: str) ->
         "ficha": sheet,
         "aba": tab,
         "pode_editar": can_write and sheet.is_latest,
+        "itens": minutes_service.list_items(
+            session, user=context.user, minutes_id=minutes_id, reference_date=calendario.today()
+        ),
         "url_excel": f"{SHEET_ROUTE}/excel?{query}",
         "url_pdf": f"{SHEET_ROUTE}/imprimivel?{query}",
         "url_empresas": f"{SHEET_ROUTE}/empresas?{urlencode({'id': minutes_id, 'aba': TAB_DATA})}",
         "url_convidados": f"{SHEET_ROUTE}/convidados?"
         + urlencode({"id": minutes_id, "aba": TAB_ATTENDANCE}),
+        "url_novo_item": f"{SHEET_ROUTE}/itens/novo?"
+        + urlencode({"id": minutes_id, "aba": TAB_ITEMS}),
+        "url_historico": f"{SHEET_ROUTE}/historico?" + urlencode({"id": minutes_id}),
+        "url_revisao": f"{SHEET_ROUTE}/revisao",
         "endereco_de_retirada": lambda person_id: (
             f"{SHEET_ROUTE}/retirar?"
             + urlencode({"id": minutes_id, "pessoa": person_id, "aba": TAB_ATTENDANCE})
+        ),
+        "endereco_do_item": lambda item_id: (
+            f"{SHEET_ROUTE}/itens/{item_id}/editar?"
+            + urlencode({"id": minutes_id, "aba": TAB_ITEMS})
+        ),
+        "endereco_de_replanejar": lambda item_id: (
+            f"{SHEET_ROUTE}/itens/{item_id}/replanejar?"
+            + urlencode({"id": minutes_id, "aba": TAB_ITEMS})
+        ),
+        "endereco_de_justificativas": lambda item_id: (
+            f"{SHEET_ROUTE}/itens/{item_id}/justificativas?"
+            + urlencode({"id": minutes_id, "aba": TAB_ITEMS})
         ),
         "url_vigente": _sheet_address(sheet.latest_id),
         "formatar_data": _format_date,
@@ -417,7 +451,7 @@ def _sheet_response(
         )
     return AlpineAjaxResponse(
         template_name=SHEET_TEMPLATE,
-        context=_sheet_context(sheet, context, tab=state.tab),
+        context=_sheet_context(session, sheet, context, tab=state.tab),
         request=req,
         target_id=SHEET_TARGET,
         toast=notice,
@@ -436,10 +470,14 @@ def minutes_sheet(
 
 
 def _sheet_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
-    sheet = _sheet_of(session, context, _id_of(req))
+    minutes_id = _id_of(req)
+    sheet = _sheet_of(session, context, minutes_id)
     if sheet is None:
         raise InvalidDataError(minutes_service.NOT_FOUND_MESSAGE)
-    return minutes_export.build_sheet_document(sheet=sheet, today=calendario.today())
+    items = minutes_service.list_items(
+        session, user=context.user, minutes_id=minutes_id, reference_date=calendario.today()
+    )
+    return minutes_export.build_sheet_document(sheet=sheet, items=items, today=calendario.today())
 
 
 @bp.route(route="central-acoes/ata/excel", methods=["GET"])
@@ -694,3 +732,330 @@ def withdraw_save(
         page = _ModalPage(WITHDRAW_TEMPLATE, state, extra, error)
         return _modal_form(req, session, context, page)
     return _saved(req, session, context, state=state, notice=WITHDRAWN_NOTICE)
+
+
+# ── Items and revisions of the ficha (ISSUE-022) ─────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _ItemForm:
+    """What the item form remembers: the ata, the item (empty for a new one) and what was typed."""
+
+    minutes_id: int
+    item_id: int | None
+    tab: str
+    values: Mapping[str, object]
+    version: int | str | None = None
+    error: DomainError | None = None
+
+
+def _item_values(row: minutes_service.ItemRow | None) -> dict[str, object]:
+    if row is None:
+        return {
+            "tipo": ACTION,
+            "grupo": "",
+            "assunto": "",
+            "descricao": "",
+            "solicitante": "",
+            "responsavel": "",
+            "prevista": "",
+            "conclusao": "",
+        }
+    return {
+        "tipo": row.kind,
+        "grupo": row.group,
+        "assunto": row.subject,
+        "descricao": row.description,
+        "solicitante": str(row.requester_id),
+        "responsavel": str(row.responsible_id),
+        "prevista": row.planned_date.isoformat() if row.planned_date else "",
+        "conclusao": row.completed_on.isoformat() if row.completed_on else "",
+    }
+
+
+def _item_form_response(
+    req: func.HttpRequest, session: Session, context: RequestContext, form: _ItemForm
+) -> func.HttpResponse:
+    """The form of an annotation or action, empty or filled in with the messages of a refusal."""
+    sheet = _open_sheet(session, context, form.minutes_id)
+    row = (
+        minutes_service.find_item(
+            session,
+            user=context.user,
+            minutes_id=form.minutes_id,
+            item_id=form.item_id,
+            reference_date=calendario.today(),
+        )
+        if form.item_id is not None
+        else None
+    )
+    if form.item_id is not None and row is None:
+        form = replace(form, error=InvalidDataError(minutes_service.ITEM_NOT_FOUND_MESSAGE))
+    listing = minutes_service.list_items(
+        session, user=context.user, minutes_id=form.minutes_id, reference_date=calendario.today()
+    )
+    stale = isinstance(form.error, VersionConflictError)
+    version = sheet.record.version if stale or form.version is None else form.version
+    action = ITEM_ROUTE if form.item_id is None else f"{ITEM_ROUTE}/{form.item_id}/editar"
+    return AlpineAjaxResponse(
+        template_name=ITEM_TEMPLATE,
+        context={
+            "ficha": sheet,
+            "aba": form.tab,
+            "item": row,
+            "versao": version,
+            "valores": dict(form.values) or _item_values(row),
+            "erros": _field_errors(form.error),
+            "participantes": [attendee.person for attendee in sheet.attendees],
+            "grupos": [group.name for group in listing.groups],
+            "hoje": calendario.today().isoformat(),
+            "formatar_data": _format_date,
+            "action": action,
+        },
+        request=req,
+        target_id=SHEET_MODAL_TARGET,
+        status_code=200 if form.error is None else _error_status(form.error),
+    )
+
+
+def _item_saved(
+    req: func.HttpRequest, session: Session, context: RequestContext, form: _ItemForm
+) -> func.HttpResponse:
+    data = validation.parse_item(req.form)
+    error = _attempt(
+        session,
+        lambda: minutes_service.save_item(
+            session,
+            user=context.user,
+            ref=minutes_service.ItemRef(form.minutes_id, form.item_id),
+            data=data,
+            reference_date=calendario.today(),
+        ),
+    )
+    if error is not None:
+        return _item_form_response(req, session, context, replace(form, error=error))
+    state = _ModalState(form.minutes_id, TAB_ITEMS, {})
+    return _saved(req, session, context, state=state, notice=ITEM_NOTICE)
+
+
+@bp.route(route="central-acoes/ata/itens/novo", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_new_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of a new annotation or action of the ata."""
+    return _item_form_response(
+        req, session, context, _ItemForm(_id_of(req), None, _tab_of(req), {})
+    )
+
+
+@bp.route(route="central-acoes/ata/itens", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save a new item: an annotation is a row of the ata, an action is born by the seam (D9)."""
+    form = _ItemForm(_id_of(req), None, _tab_of(req), dict(req.form), req.form.get("versao"))
+    return _item_saved(req, session, context, form)
+
+
+@bp.route(route="central-acoes/ata/itens/{item_id}/editar", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_edit_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The item of the ata, to edit."""
+    return _item_form_response(
+        req, session, context, _ItemForm(_id_of(req), _id_of(req, "item_id"), _tab_of(req), {})
+    )
+
+
+@bp.route(route="central-acoes/ata/itens/{item_id}/editar", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_edit_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the item; a change of group renumbers it, and the replanned date is kept."""
+    form = _ItemForm(
+        _id_of(req), _id_of(req, "item_id"), _tab_of(req), dict(req.form), req.form.get("versao")
+    )
+    return _item_saved(req, session, context, form)
+
+
+# Replan
+
+
+def _replan_extra(session: Session, context: RequestContext, form: _ItemForm) -> dict[str, object]:
+    row = minutes_service.find_item(
+        session,
+        user=context.user,
+        minutes_id=form.minutes_id,
+        item_id=form.item_id or 0,
+        reference_date=calendario.today(),
+    )
+    if row is None:
+        raise InvalidDataError(minutes_service.ITEM_NOT_FOUND_MESSAGE)
+    return {"item": row, "hoje": calendario.today().isoformat(), "formatar_data": _format_date}
+
+
+@bp.route(route="central-acoes/ata/itens/{item_id}/replanejar", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_replan_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The replan of an item, with the same rules of the Central (HU-053)."""
+    form = _ItemForm(_id_of(req), _id_of(req, "item_id"), _tab_of(req), {})
+    extra = _replan_extra(session, context, form)
+    page = _ModalPage(REPLAN_TEMPLATE, _ModalState(form.minutes_id, form.tab, {}), extra)
+    return _modal_form(req, session, context, page)
+
+
+@bp.route(route="central-acoes/ata/itens/{item_id}/replanejar", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def item_replan_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Register the replan and answer the ficha with the items tab."""
+    form = req.form
+    minutes_id = _id_of(req)
+    item_id = _id_of(req, "item_id")
+    request = ReplanRequest(
+        action_id=item_id,
+        new_date=validation.parse_date(form.get("data")),
+        justification=(form.get("justificativa") or "").strip(),
+        version=form.get("versao"),
+    )
+    state = _ModalState(minutes_id, TAB_ITEMS, {}, version=request.version)
+    error = _attempt(
+        session,
+        lambda: minutes_service.replan_item(
+            session,
+            user=context.user,
+            ref=minutes_service.ItemRef(minutes_id, item_id),
+            request=request,
+            reference_date=calendario.today(),
+        ),
+    )
+    if error is not None:
+        extra = _replan_extra(session, context, _ItemForm(minutes_id, item_id, TAB_ITEMS, {}))
+        page = _ModalPage(REPLAN_TEMPLATE, state, extra, error)
+        return _modal_form(req, session, context, page)
+    return _saved(req, session, context, state=state, notice=REPLAN_NOTICE)
+
+
+# Justifications and history
+
+
+@bp.route(route="central-acoes/ata/itens/{item_id}/justificativas", methods=["GET"])
+@fragment_route(access=READ)
+def item_justifications_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The replans of one item, newest first, with author and date."""
+    minutes_id = _id_of(req)
+    item_id = _id_of(req, "item_id")
+    row = minutes_service.find_item(
+        session,
+        user=context.user,
+        minutes_id=minutes_id,
+        item_id=item_id,
+        reference_date=calendario.today(),
+    )
+    if row is None:
+        raise InvalidDataError(minutes_service.ITEM_NOT_FOUND_MESSAGE)
+    replans = minutes_service.item_justifications(
+        session, user=context.user, minutes_id=minutes_id, item_id=item_id
+    )
+    return AlpineAjaxResponse(
+        template_name=JUSTIFICATIONS_TEMPLATE,
+        context={"item": row, "replans": replans, "formatar_data": _format_date},
+        request=req,
+        target_id=SHEET_MODAL_TARGET,
+    )
+
+
+@bp.route(route="central-acoes/ata/historico", methods=["GET"])
+@fragment_route(access=READ)
+def minutes_history_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The revisions of the lineage of the ata, newest first."""
+    minutes_id = _id_of(req)
+    revisions = minutes_service.revision_history(session, user=context.user, minutes_id=minutes_id)
+    return AlpineAjaxResponse(
+        template_name=HISTORY_TEMPLATE,
+        context={
+            "revisoes": revisions,
+            "atual_id": minutes_id,
+            "endereco_da_revisao": lambda revision_id: _sheet_address(revision_id),
+            "formatar_data": _format_date,
+        },
+        request=req,
+        target_id=SHEET_MODAL_TARGET,
+    )
+
+
+# New revision
+
+
+@bp.route(route="central-acoes/ata/revisao", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def revision_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of the next revision of the ata."""
+    sheet = _open_sheet(session, context, _id_of(req))
+    return AlpineAjaxResponse(
+        template_name=REVISION_TEMPLATE,
+        context={
+            "ficha": sheet,
+            "versao": sheet.record.version,
+            "valores": {"data": calendario.today().isoformat()},
+            "erros": {},
+            "hoje": calendario.today().isoformat(),
+            "formatar_data": _format_date,
+        },
+        request=req,
+        target_id=SHEET_MODAL_TARGET,
+    )
+
+
+@bp.route(route="central-acoes/ata/revisao", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_modal_error(SHEET_MODAL_TARGET))
+def revision_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Generate the next revision and go to its ficha; 422 devolve o formulário."""
+    form = req.form
+    minutes_id = _id_of(req)
+    data = validation.parse_revision(form)
+    outcome: list[minutes_service.MinutesRecord] = []
+    error = _attempt(
+        session,
+        lambda: outcome.append(
+            minutes_service.generate_revision(
+                session,
+                user=context.user,
+                minutes_id=minutes_id,
+                data=data,
+                reference_date=calendario.today(),
+            )
+        ),
+    )
+    if error is not None or not outcome:
+        sheet = _open_sheet(session, context, minutes_id)
+        return AlpineAjaxResponse(
+            template_name=REVISION_TEMPLATE,
+            context={
+                "ficha": sheet,
+                "versao": form.get("versao"),
+                "valores": {"data": form.get("data") or ""},
+                "erros": _field_errors(error),
+                "hoje": calendario.today().isoformat(),
+                "formatar_data": _format_date,
+            },
+            request=req,
+            target_id=SHEET_MODAL_TARGET,
+            status_code=200 if error is None else _error_status(error),
+        )
+    return redirect_to(_sheet_address(outcome[0].id))
