@@ -29,6 +29,8 @@ from src.modulos.financeiro.calculations import LEAF_LEVEL, TreeRow
 from src.modulos.financeiro.service import (
     PORTFOLIO_LABEL,
     EacView,
+    MapaControleView,
+    MapaRow,
     ReallocationRow,
     RevisionRow,
 )
@@ -40,6 +42,14 @@ REVISIONS_TITLE = "Revisões do orçamento"
 REALLOCATIONS_TITLE = "Remanejamentos"
 BUDGET_REFERENCE = "Quantidade x preço unitário dos itens"
 APPLIED_SITUATION = "Aplicado"
+
+MAP_TITLE = "Mapa de controle da EAC"
+MAP_PORTFOLIO_TITLE = "Mapa de controle da carteira"
+MAP_TABLE_TITLE = "Mapa de controle"
+MAP_DEVIATION_REFERENCE = "Projeção no término menos orçado atual; positivo é sobrecusto"
+MAP_CURRENT_REFERENCE = "Linha de base mais remanejamentos"
+MAP_PROJECTION_REFERENCE = "Estimativa vigente da equipe ou do fechamento"
+ERP_REFERENCE = "Fechamento do mês do ERP"
 
 
 def eac_document(
@@ -237,3 +247,112 @@ def _reallocations_table(lines: Sequence[ReallocationRow]) -> Table:
 
 def _item_label(code: str, description: str) -> str:
     return f"{code} · {description}" if description else code
+
+
+# ── Mapa de controle (ISSUE-031) ─────────────────────────────────────────
+
+
+def mapa_document(view: MapaControleView, *, scope_label: str, generated_on: date) -> Document:
+    """O mapa de controle como documento: os KPIs do escopo e a tabela item a item.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. No Portfólio
+    cada linha é um projeto e a coluna Projeto entra pelo mecanismo genérico (HU-016).
+    """
+    return Document(
+        title=MAP_PORTFOLIO_TITLE if view.is_portfolio else MAP_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        kpis=_mapa_kpis(view),
+        tables=(_mapa_table(view),),
+    )
+
+
+def _mapa_kpis(view: MapaControleView) -> tuple[Kpi, ...]:
+    total = view.total
+    tone = _deviation_tone(total.deviation_cents)
+    return (
+        Kpi("Orçado atual", total.current_cents, MAP_CURRENT_REFERENCE, ValueKind.MONEY),
+        Kpi("Comprometido", total.committed_cents, ERP_REFERENCE, ValueKind.MONEY, tone=Tone.INFO),
+        Kpi("Realizado", total.actual_cents, ERP_REFERENCE, ValueKind.MONEY, tone=Tone.INFO),
+        Kpi(
+            "Projeção no término",
+            total.projection_cents,
+            MAP_PROJECTION_REFERENCE,
+            ValueKind.MONEY,
+            tone=tone,
+            status=total.band.label,
+        ),
+        Kpi(
+            "Desvio no término",
+            total.deviation_cents,
+            MAP_DEVIATION_REFERENCE,
+            ValueKind.MONEY,
+            tone=tone,
+            status=total.band.label,
+        ),
+    )
+
+
+def _mapa_table(view: MapaControleView) -> Table:
+    return Table(
+        title=MAP_TABLE_TITLE,
+        columns=(
+            Column("Código", width=14),
+            Column("Descrição", width=44),
+            Column("Orçado", ValueKind.MONEY),
+            Column("Remanejamentos", ValueKind.MONEY),
+            Column("Orçado atual", ValueKind.MONEY),
+            Column("Comprometido", ValueKind.MONEY),
+            Column("Realizado", ValueKind.MONEY),
+            Column("Saldo a comprometer", ValueKind.MONEY),
+            Column("Projeção no término", ValueKind.MONEY),
+            Column("Desvio", ValueKind.MONEY),
+            Column("Desvio %", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(_mapa_row(line) for line in view.rows),
+        totals=_mapa_totals(view.total),
+    )
+
+
+def _mapa_row(line: MapaRow) -> Row:
+    tone = _deviation_tone(line.deviation_cents)
+    return row(
+        line.code,
+        line.description,
+        line.baseline_cents,
+        line.reallocation_cents,
+        line.current_cents,
+        line.committed_cents,
+        line.actual_cents,
+        line.saldo_cents,
+        line.projection_cents,
+        Cell(line.deviation_cents, tone),
+        Cell(line.deviation_percent, tone),
+        project=line.project_label or PORTFOLIO_LABEL,
+    )
+
+
+def _mapa_totals(total: MapaRow) -> tuple[Cell, ...]:
+    tone = _deviation_tone(total.deviation_cents)
+    return (
+        Cell(),
+        Cell(total.description),
+        Cell(total.baseline_cents),
+        Cell(total.reallocation_cents),
+        Cell(total.current_cents),
+        Cell(total.committed_cents),
+        Cell(total.actual_cents),
+        Cell(total.saldo_cents),
+        Cell(total.projection_cents),
+        Cell(total.deviation_cents, tone),
+        Cell(total.deviation_percent, tone),
+    )
+
+
+def _deviation_tone(deviation_cents: int) -> Tone:
+    if deviation_cents > 0:
+        return Tone.ERROR
+    if deviation_cents < 0:
+        return Tone.OK
+    return Tone.NEUTRAL

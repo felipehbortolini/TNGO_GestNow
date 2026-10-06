@@ -1,0 +1,14 @@
+{% extends "base_fragment.html" %}
+{#
+  O resultado da confirmação da importação dos custos do ERP (ISSUE-031): o que entrou e o que
+  ficou de fora, e o mapa de controle atualizado com os fatos do mês. A raiz do resultado leva o
+  id que o Alpine pediu ({{ target_id }}); a do mapa tem id fixo.
+
+  Espera: resultado (core.importing.ImportResult), importador, alvo_conteudo e o contexto do mapa.
+#}
+{% block root %}
+{% include "comum/importacao_resultado.html" %}
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_mapa_conteudo.html" %}
+</div>
+{% endblock %}

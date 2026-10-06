@@ -42,6 +42,7 @@ PARTS = [
     "plataforma",
     "central_acoes",
     "financeiro",
+    "financeiro-custos",
     "governanca",
     "governanca-licoes",
     "governanca-eac",

@@ -2029,6 +2029,15 @@ def _erp_totals(
     return calculations.erp_totals_until(facts, cutoff=cutoff)
 
 
+def projection_cents_by_item(session: Session, *, item_ids: Sequence[int]) -> dict[int, int]:
+    """A projeção no término vigente de cada item, em centavos: a do fato mais recente."""
+    facts = _projection_facts(session, item_ids=item_ids)
+    return {
+        item_id: fact.value_cents
+        for item_id, fact in calculations.latest_projections(facts).items()
+    }
+
+
 def _projection_facts(
     session: Session, *, item_ids: Sequence[int]
 ) -> tuple[calculations.ProjectionFact, ...]:

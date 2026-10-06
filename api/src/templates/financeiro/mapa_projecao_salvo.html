@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta da atualização da projeção: duas raízes irmãs, porque o formulário declara os dois
+  alvos. O formulário volta vazio (fechado) e o mapa volta atualizado, com a linha do item já
+  com a projeção vigente e o desvio recalculado.
+#}
+{% block root %}
+<div id="{{ alvo_formulario }}"></div>
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_mapa_conteudo.html" %}
+</div>
+{% endblock %}

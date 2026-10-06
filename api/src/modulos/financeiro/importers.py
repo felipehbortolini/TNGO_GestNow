@@ -1,22 +1,26 @@
-"""The spreadsheet importer of the EAC: the new cost items of a revision (D12, ISSUE-030).
+"""The spreadsheet importers of the Financeiro module (D12).
 
-The generic flow of ISSUE-018 has one writer per line, but a line of the EAC is not written on its
-own: the imported items enter together in a **revision** bound to an approved SM, and the revision
-is created by ``financeiro.service.create_revision`` from the checked lines. So this importer
-registers its columns and its per-line validation (the model download and the check work through
-the generic routes) and its ``save`` refuses: the confirmation belongs to the EAC screen, which
-carries the SM and the justification and creates the revision all at once. The alternative — a
-``save`` that writes an item — would let the generic confirmation put items in the EAC without a
-revision, against the rule that every change of value passes through the management of changes.
+The EAC importer (``eac-itens``, ISSUE-030): the generic flow of ISSUE-018 has one writer per
+line, but a line of the EAC is not written on its own: the imported items enter together in a
+**revision** bound to an approved SM, and the revision is created by
+``financeiro.service.create_revision`` from the checked lines. So this importer registers its
+columns and its per-line validation (the model download and the check work through the generic
+routes) and its ``save`` refuses: the confirmation belongs to the EAC screen, which carries the
+SM and the justification and creates the revision all at once. The alternative — a ``save`` that
+writes an item — would let the generic confirmation put items in the EAC without a revision,
+against the rule that every change of value passes through the management of changes.
 
-The module's routes (``routes.py``) do the two steps with ``core.importing``: the check renders
-the preview and the confirmation checks again and calls ``create_revision`` with the writable
-lines converted by :func:`revision_items`.
+The ERP closing importer (``custos-erp``, ISSUE-031): the monthly closing of one item per line
+(item, month, committed, actual and projection), validated by ``validation.erp_cost_problems``
+and written line by line through ``service.import_erp_costs``, which replaces the reimported
+month. Nothing is written before the confirmation; the module's routes (``routes.py``) do the two
+steps with ``core.importing``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -31,6 +35,7 @@ from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import calculations, service, validation
 
 EAC_ITEMS_KEY = "eac-itens"
+ERP_COSTS_KEY = "custos-erp"
 MODULE = service.MODULE
 
 CODE_HEADER = "Código"
@@ -55,6 +60,20 @@ HEADERS = {
     validation.FIELD_RESPONSIBLE: RESPONSIBLE_HEADER,
 }
 
+ERP_ITEM_HEADER = "Código do item"
+ERP_MONTH_HEADER = "Mês (1º dia)"
+ERP_COMMITTED_HEADER = "Comprometido (R$)"
+ERP_ACTUAL_HEADER = "Realizado (R$)"
+ERP_PROJECTION_HEADER = "Projeção no término (R$)"
+
+ERP_HEADERS = {
+    validation.FIELD_ERP_ITEM: ERP_ITEM_HEADER,
+    validation.FIELD_ERP_MONTH: ERP_MONTH_HEADER,
+    validation.FIELD_ERP_COMMITTED: ERP_COMMITTED_HEADER,
+    validation.FIELD_ERP_ACTUAL: ERP_ACTUAL_HEADER,
+    validation.FIELD_ERP_PROJECTION: ERP_PROJECTION_HEADER,
+}
+
 PARENT_MESSAGE = "o subpacote {code} não existe na EAC do projeto"
 DUPLICATE_MESSAGE = "o código {code} já existe na EAC do projeto"
 UNIT_MESSAGE = "a unidade {code} não está no cadastro"
@@ -67,9 +86,9 @@ CONFIRMATION_MESSAGE = (
 )
 
 
-def _messages(problems: Mapping[str, str]) -> tuple[str, ...]:
+def _messages(problems: Mapping[str, str], headers: Mapping[str, str]) -> tuple[str, ...]:
     return tuple(
-        f"{HEADERS.get(field, field)}: {message}" for field, message in problems.items() if message
+        f"{headers.get(field, field)}: {message}" for field, message in problems.items() if message
     )
 
 
@@ -107,7 +126,7 @@ def _validate(session: Session, *, values: Mapping[str, Any], context: ImportCon
             else RESPONSIBLE_MESSAGE.format(name=values.get(validation.FIELD_RESPONSIBLE) or "")
         ),
     }
-    return RowCheck(errors=_messages(problems))
+    return RowCheck(errors=_messages(problems, HEADERS))
 
 
 def _code_problem(code: str, *, parent: str, levels: Mapping[str, int]) -> str:
@@ -275,8 +294,112 @@ def eac_items_importer() -> Importer:
     )
 
 
+def _erp_line(
+    session: Session, values: Mapping[str, Any], context: ImportContext
+) -> service.ErpCostLine:
+    """A linha do ERP como a fachada a lê: o item do projeto e os três valores, em centavos."""
+    project_id = context.scope.require_project()
+    code = str(values.get(validation.FIELD_ERP_ITEM) or "").strip()
+    item_id = service.eac_item_ids_by_code(session, project_id=project_id, codes=[code]).get(code)
+    if item_id is None:
+        raise InvalidDataError(validation.ERP_ITEM_UNKNOWN.format(code=code))
+    month = values.get(validation.FIELD_ERP_MONTH)
+    if not isinstance(month, date):
+        raise InvalidDataError(validation.ERP_MONTH_REQUIRED)
+    return service.ErpCostLine(
+        item_id=item_id,
+        month=month,
+        committed_cents=values.get(validation.FIELD_ERP_COMMITTED),
+        actual_cents=values.get(validation.FIELD_ERP_ACTUAL),
+        projection_cents=values.get(validation.FIELD_ERP_PROJECTION),
+    )
+
+
+def _validate_erp_line(
+    session: Session, *, values: Mapping[str, Any], context: ImportContext
+) -> RowCheck:
+    """Check one line against the ERP rules: item of level 3, month in the past and the values."""
+    project_id = context.scope.require_project()
+    code = str(values.get(validation.FIELD_ERP_ITEM) or "").strip()
+    levels = service.eac_item_levels_by_code(session, project_id=project_id, codes=[code])
+    item_id = service.eac_item_ids_by_code(session, project_id=project_id, codes=[code]).get(code)
+    current = (
+        service.projection_cents_by_item(session, item_ids=[item_id]).get(item_id)
+        if item_id is not None
+        else None
+    )
+    data = validation.ErpCostInput(
+        code=code,
+        month=values.get(validation.FIELD_ERP_MONTH),
+        committed_cents=values.get(validation.FIELD_ERP_COMMITTED),
+        actual_cents=values.get(validation.FIELD_ERP_ACTUAL),
+        projection_cents=values.get(validation.FIELD_ERP_PROJECTION),
+    )
+    problems = validation.erp_cost_problems(
+        data,
+        item_levels=levels,
+        reference_date=context.reference_date,
+        current_projection_cents=current,
+    )
+    return RowCheck(errors=_messages(problems, ERP_HEADERS))
+
+
+def _save_erp_line(session: Session, *, values: Mapping[str, Any], context: ImportContext) -> None:
+    """Grava a linha do fechamento pela fachada, substituindo o mês reimportado do item."""
+    line = _erp_line(session, values, context)
+    service.import_erp_costs(
+        session,
+        projeto_id=context.scope.require_project(),
+        linhas=(line,),
+        importado_por_id=context.user.person_id,
+        hoje=context.reference_date,
+    )
+
+
+def erp_costs_importer() -> Importer:
+    """The ERP closing importer: item, month and the committed, actual and projected values."""
+    return Importer(
+        key=ERP_COSTS_KEY,
+        title="Custos do ERP (fechamento mensal)",
+        module=MODULE,
+        columns=(
+            ImportColumn(
+                validation.FIELD_ERP_ITEM, ERP_ITEM_HEADER, required=True, example="1.1.1"
+            ),
+            ImportColumn(
+                validation.FIELD_ERP_MONTH,
+                ERP_MONTH_HEADER,
+                ValueKind.DATE,
+                required=True,
+                example="01/09/2026",
+            ),
+            ImportColumn(
+                validation.FIELD_ERP_COMMITTED,
+                ERP_COMMITTED_HEADER,
+                ValueKind.MONEY,
+                example="3.550.000,00",
+            ),
+            ImportColumn(
+                validation.FIELD_ERP_ACTUAL,
+                ERP_ACTUAL_HEADER,
+                ValueKind.MONEY,
+                example="3.100.000,00",
+            ),
+            ImportColumn(
+                validation.FIELD_ERP_PROJECTION,
+                ERP_PROJECTION_HEADER,
+                ValueKind.MONEY,
+                example="3.700.000,00",
+            ),
+        ),
+        validate=_validate_erp_line,
+        save=_save_erp_line,
+        unique=(validation.FIELD_ERP_ITEM, validation.FIELD_ERP_MONTH),
+    )
+
+
 def register_importers() -> None:
-    """Register the EAC importer once; calling again keeps the one already registered."""
-    importer = eac_items_importer()
-    if importing.find(importer.key) is None:
-        importing.register(importer)
+    """Register the importers of the module once; calling again keeps the ones already registered."""
+    for importer in (eac_items_importer(), erp_costs_importer()):
+        if importing.find(importer.key) is None:
+            importing.register(importer)

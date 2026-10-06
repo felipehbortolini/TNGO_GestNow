@@ -1,17 +1,21 @@
-"""Part of the Financeiro module in the demonstration load (ISSUE-029, ISSUE-030, D6).
+"""Part of the Financeiro module in the demonstration load (ISSUE-029 a ISSUE-031, D6).
 
 Reads the ``eac`` collection of the prototype and writes the tree of each project through the
 facade. The quantity and the unit price of the prototype are kept as they are, and the budgeted
 value is their product, as in the product (the prototype also stored a ``base`` that rounded the
 last cents; see ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``). The items carry no date, so there is
-nothing to shift with ``shift_date``; the commitments, the realized values and the projections of
-the prototype belong to the issues that own them.
+nothing to shift with ``shift_date``.
 
 :func:`load_revisions` is the part of ISSUE-030: it writes the revisions of ``eacRevisoes`` with
 the frozen baseline of every item, and the applied reallocations of ``eacRemanejamentos``. It is
 called by the ``governanca-eac`` part (``governanca/seed.py``), which runs after ``governanca``:
 the revisions point at the SMs that originated them and the applied reallocations at the SMs that
 were decided, and those only exist after the changes are loaded.
+
+:func:`load_erp_costs` is the part of ISSUE-031: the commitments, the realized values and the
+projections of the prototype enter as the monthly closing of the ERP, one fact per cost item in
+the month of the run's reference date. The prototype has no ``historicoProjecao``, so the load
+writes no ``eac_projecao``.
 """
 
 from __future__ import annotations
@@ -27,13 +31,19 @@ from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
-from src.core import recording
+from src.core import calendario, recording
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service
-from src.modulos.financeiro.calculations import CODE_SEPARATOR, code_key
-from src.modulos.financeiro.models import EacReallocation, EacRevision, EacRevisionItem
+from src.modulos.financeiro.calculations import CODE_SEPARATOR, LEAF_LEVEL, code_key
+from src.modulos.financeiro.models import (
+    EacReallocation,
+    EacRevision,
+    EacRevisionItem,
+    ErpCost,
+)
 
 PART_NAME = "financeiro"
+ERP_PART_NAME = "financeiro-custos"
 
 
 def load(session: Session, _reference_date: date) -> None:
@@ -287,4 +297,47 @@ def _impact_deltas() -> dict[str, dict[str, int]]:
     return deltas
 
 
+# ── Custos do ERP (ISSUE-031) ────────────────────────────────────────────
+
+
+def load_erp_costs(session: Session, reference_date: date) -> None:
+    """Grava o fechamento do ERP do protótipo: um fato por item de custo, no mês da data de corte.
+
+    O mock guarda comprometido, realizado e projeção por item; as datas da carga são deslocadas
+    pela âncora, então todos os fatos caem no mês da data de referência e a projeção no término do
+    projeto 1 fecha ``4.525.500.000`` centavos (os R$ 45,26 mi do oráculo).
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    project_ids = {project.code: project.id for project in configuracoes.list_projects(session)}
+    mock_codes = {project["id"]: project["codigo"] for project in prototype_collection("projetos")}
+    month = reference_date.replace(day=1)
+    imported_at = calendario.now()
+    for source in prototype_collection("eac"):
+        if source["nivel"] != LEAF_LEVEL:
+            continue
+        project_id = project_ids[mock_codes[source["projetoId"]]]
+        item_id = service.eac_item_ids_by_code(
+            session, project_id=project_id, codes=[source["codigo"]]
+        ).get(source["codigo"])
+        if item_id is None:
+            continue
+        recording.create(
+            session,
+            user_id=admin.id,
+            record=ErpCost(
+                project_id=project_id,
+                item_id=item_id,
+                imported_by_id=admin.person_id,
+                month=month,
+                committed_cents=int(source["comprometido"]),
+                actual_cents=int(source["realizado"]),
+                projection_cents=int(source["projecao"]),
+                imported_at=imported_at,
+            ),
+        )
+
+
 register(PART_NAME, load)
+register(ERP_PART_NAME, load_erp_costs)

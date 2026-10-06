@@ -1,0 +1,128 @@
+{#
+  Miolo do mapa de controle (ISSUE-031): os KPIs do escopo e a tabela item a item, com a
+  linha do projeto (ou do portfólio) no rodapé. Sem <link>, <style> nem <script src>.
+
+  O desvio positivo é sobrecusto e usa a família erro; a economia usa a família ok. O sinal
+  acompanha o valor e a faixa tem o rótulo em texto, para a informação não depender da cor.
+  A projeção de um item é atualizada pelo botão (a tela final abre o formulário no alvo).
+
+  Espera: mapa (MapaControleView), linhas (MapaLineView), total (MapaLineView), carteira,
+  pode_gravar, alvo_conteudo, alvo_formulario e erro.
+#}
+<span hidden data-mapa="{{ 'carteira' if carteira else 'projeto' }}"></span>
+{% set colunas = 11 + (1 if carteira else 0) + (1 if pode_gravar else 0) %}
+{% if erro %}
+<div class="aviso aviso--erro" role="alert">
+  <strong>Não foi possível concluir.</strong>
+  <span>{{ erro }}</span>
+</div>
+{% endif %}
+<div class="kpis" style="--kpis-colunas: 5">
+  <div class="kpi kpi--neutro kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Orçado atual</span>
+    <span class="kpi__value">{{ total.current }}</span>
+  </div>
+  <div class="kpi kpi--info kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Comprometido</span>
+    <span class="kpi__value">{{ total.committed }}</span>
+  </div>
+  <div class="kpi kpi--info kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Realizado</span>
+    <span class="kpi__value">{{ total.actual }}</span>
+  </div>
+  <div class="kpi kpi--{{ 'erro' if total.row.deviation_cents > 0 else 'ok' if total.row.deviation_cents < 0 else 'neutro' }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Projeção no término · {{ total.row.band.label }}</span>
+    <span class="kpi__value">{{ total.projection }}</span>
+  </div>
+  <div class="kpi kpi--{{ 'erro' if total.row.deviation_cents > 0 else 'ok' if total.row.deviation_cents < 0 else 'neutro' }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Desvio no término · {{ total.row.band.label }}</span>
+    <span class="kpi__value">{{ total.deviation }}</span>
+  </div>
+</div>
+
+<p class="hint mb-16">Valores em R$ integral · desvio = projeção no término menos orçado atual (positivo = sobrecusto).</p>
+
+<div class="tbl-wrap">
+  <table class="tbl" data-mapa>
+    <caption class="sr-only">Mapa de controle</caption>
+    <thead>
+      <tr>
+        {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+        <th scope="col">Código</th>
+        <th scope="col">Descrição</th>
+        <th scope="col" class="td-num">Orçado</th>
+        <th scope="col" class="td-num">Remanejamentos</th>
+        <th scope="col" class="td-num">Orçado atual</th>
+        <th scope="col" class="td-num">Comprometido</th>
+        <th scope="col" class="td-num">Realizado</th>
+        <th scope="col" class="td-num">Saldo a comprometer</th>
+        <th scope="col" class="td-num">Projeção no término</th>
+        <th scope="col" class="td-num">Desvio</th>
+        <th scope="col" class="td-num">Desvio %</th>
+        {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in linhas %}
+      <tr data-codigo="{{ linha.row.code }}" data-item="{{ linha.row.item_id or '' }}"
+        data-faixa="{{ linha.row.band.key }}"
+        class="{{ 'mapa-linha--nivel-' ~ linha.row.level }}">
+        {% if carteira %}<td>{{ linha.row.project_label or '' }}</td>{% endif %}
+        <td class="nowrap num">{{ linha.row.code }}</td>
+        <td{% if linha.row.level < 3 %} class="fw-600"{% endif %}>{{ linha.row.description }}</td>
+        <td class="td-num">{{ linha.baseline }}</td>
+        <td class="td-num">{{ linha.reallocation }}</td>
+        <td class="td-num">{{ linha.current }}</td>
+        <td class="td-num">{{ linha.committed }}</td>
+        <td class="td-num">{{ linha.actual }}</td>
+        <td class="td-num">{{ linha.saldo }}</td>
+        <td class="td-num fw-600">{{ linha.projection }}</td>
+        <td class="td-num">
+          <span class="pill pill--{{ 'neutral' if linha.row.band.tone == 'neutro' else linha.row.band.tone }}"
+            title="{{ linha.row.band.label }}">{{ linha.deviation }}</span>
+        </td>
+        <td class="td-num" title="{{ linha.row.band.label }}">{{ linha.deviation_percent }}</td>
+        {% if pode_gravar %}
+        <td class="td-center nowrap">
+          {% if linha.can_project %}
+          <button type="button" class="iconbtn" data-projecao="{{ linha.row.item_id }}"
+            aria-label="Atualizar a projeção de {{ linha.row.code }}" title="Atualizar projeção">
+            <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+          </button>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="{{ colunas }}" class="muted">Nenhum item de custo no escopo.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="mapa-linha--total">
+        {% if carteira %}<td></td>{% endif %}
+        <td class="nowrap num"></td>
+        <td class="fw-600">{{ total.row.description }}</td>
+        <td class="td-num">{{ total.baseline }}</td>
+        <td class="td-num">{{ total.reallocation }}</td>
+        <td class="td-num">{{ total.current }}</td>
+        <td class="td-num">{{ total.committed }}</td>
+        <td class="td-num">{{ total.actual }}</td>
+        <td class="td-num">{{ total.saldo }}</td>
+        <td class="td-num fw-600">{{ total.projection }}</td>
+        <td class="td-num">
+          <span class="pill pill--{{ 'neutral' if total.row.band.tone == 'neutro' else total.row.band.tone }}"
+            title="{{ total.row.band.label }}">{{ total.deviation }}</span>
+        </td>
+        <td class="td-num">{{ total.deviation_percent }}</td>
+        {% if pode_gravar %}<td></td>{% endif %}
+      </tr>
+    </tfoot>
+  </table>
+</div>

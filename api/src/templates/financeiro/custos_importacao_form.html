@@ -1,0 +1,33 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da importação dos custos do ERP (ISSUE-031): o fechamento do mês com o
+  comprometido, o realizado e a projeção por item. A tela abre este fragmento no modal; a
+  conferência e a confirmação vão para as rotas do módulo, que gravam só na confirmação.
+  O modelo é o do importador ``custos-erp``, pelo mecanismo genérico.
+
+  Espera: campo_arquivo, limite_mb e limite_linhas.
+#}
+{% block fragment %}
+<form method="post" enctype="multipart/form-data" action="/api/financeiro/custos/importar/conferir"
+  x-target="custos-importacao-resultado mapa-conteudo" x-target.error="custos-importacao-resultado"
+  data-tn-loading="Processando a planilha...">
+  <p class="hint">Fechamento do mês: comprometido, realizado e projeção no término por item. Reimportar o mesmo mês substitui o fato. Nada é gravado antes da sua confirmação.</p>
+  <div class="upload">
+    <button type="button" class="btn btn--secondary" data-tn-excel="/api/importacao/custos-erp/modelo">
+      <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+      Baixar o modelo (.xlsx)
+    </button>
+    <div class="field upload__campo">
+      <label for="custos-importacao-arquivo">Planilha preenchida</label>
+      <input id="custos-importacao-arquivo" class="input upload__arquivo" type="file"
+        name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="custos-importacao-dica" />
+      <span class="hint" id="custos-importacao-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
+    </div>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Conferir a planilha
+    </button>
+  </div>
+  <div id="custos-importacao-resultado" aria-live="polite"></div>
+</form>
+{% endblock %}

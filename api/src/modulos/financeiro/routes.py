@@ -18,6 +18,18 @@ The EAC screen (ISSUE-029, ISSUE-030) and what hangs from it, all under ``/api/f
   two panels), and the confirmation checks again and creates the revision bound to the SM;
 * ``GET /eac/excel`` and ``GET /eac/imprimivel`` are the two exports of the platform, with the
   same filters and the same tables the screen shows.
+
+The map of ISSUE-031 lives under ``/api/financeiro/mapa-de-controle`` and ``/api/financeiro/custos``:
+
+* ``GET /mapa-de-controle`` is the content of the map (KPIs and the lines of the scope) for one
+  project or the Portfólio; ``GET /mapa-de-controle/excel`` and ``GET /mapa-de-controle/imprimivel``
+  are its two exports, in full reais and with the ``Projeto`` column in the Portfólio;
+* ``GET /mapa-de-controle/projecao/{item_id}/formulario`` is the projection form of an item and
+  ``POST /mapa-de-controle/projecao/{item_id}`` saves it: justification required, the history of
+  the item grows by one fact, and the refusal comes back in the form with 422;
+* ``GET /custos/importar/formulario`` is the import form of the ERP closing; the check
+  (``POST .../conferir``) reads and never writes and the confirmation (``POST .../confirmar``)
+  checks the file again and writes one fact per item and month, replacing a reimported month.
 """
 
 from __future__ import annotations
@@ -31,7 +43,12 @@ import azure.functions as func
 from sqlalchemy.orm import Session
 
 from src.core import attachments, calendario, database, importing, rbac
-from src.core.errors import DomainError, InvalidDataError, VersionConflictError
+from src.core.errors import (
+    AccessDeniedError,
+    DomainError,
+    InvalidDataError,
+    VersionConflictError,
+)
 from src.core.excel import excel_response
 from src.core.export_document import (
     Document,
@@ -98,6 +115,33 @@ IMPORT_CONFIRMED_MESSAGE = "Rev {revision} criada: {items} ({total})."
 IMPORT_ITEM = "1 item novo"
 IMPORT_ITEMS = "{count} itens novos"
 ITEM_PARAMETER = "item_id"
+
+MAP_ROUTE = "financeiro/mapa-de-controle"
+MAP_PROJECTION_FORM_ROUTE = "financeiro/mapa-de-controle/projecao/{item_id}/formulario"
+MAP_PROJECTION_SAVE_ROUTE = "financeiro/mapa-de-controle/projecao/{item_id}"
+MAP_EXCEL_ROUTE = "financeiro/mapa-de-controle/excel"
+MAP_PRINTABLE_ROUTE = "financeiro/mapa-de-controle/imprimivel"
+ERP_IMPORT_FORM_ROUTE = "financeiro/custos/importar/formulario"
+ERP_IMPORT_CHECK_ROUTE = "financeiro/custos/importar/conferir"
+ERP_IMPORT_CONFIRM_ROUTE = "financeiro/custos/importar/confirmar"
+
+MAP_TEMPLATE = "financeiro/mapa_controle.html"
+MAP_PROJECTION_FORM_TEMPLATE = "financeiro/mapa_projecao_form.html"
+MAP_PROJECTION_SAVED_TEMPLATE = "financeiro/mapa_projecao_salvo.html"
+ERP_IMPORT_FORM_TEMPLATE = "financeiro/custos_importacao_form.html"
+ERP_IMPORT_CHECK_TEMPLATE = "financeiro/custos_importacao_conferencia.html"
+ERP_IMPORT_RESULT_TEMPLATE = "financeiro/custos_importacao_resultado.html"
+
+MAP_TARGET = "mapa-conteudo"
+PROJECTION_FORM_TARGET = "mapa-projecao-formulario"
+
+PROJECTION_SAVED_MESSAGE = "Projeção de {code} atualizada."
+PROJECTION_PORTFOLIO_MESSAGE = (
+    "A projeção no término é de um item de um projeto. Abra o projeto para atualizá-la."
+)
+ERP_IMPORTED_MESSAGE = "{count} itens atualizados no mapa de controle."
+ERP_IMPORTED_ONE_MESSAGE = "1 item atualizado no mapa de controle."
+ERP_SKIPPED_SUFFIX = " {count} com erro não entraram."
 
 # Reading the EAC is reading the module; the edit asks to write (a supplier reaches neither).
 READ_ACCESS = Access(module=service.MODULE, permission=Permission.VIEW)
@@ -883,3 +927,312 @@ def _check_context(preview: importing.ImportPreview) -> dict[str, object]:
         "valor_ciente": validation.IMPORT_ACKNOWLEDGED_VALUE,
         "confirmar_url": f"/api/{IMPORT_CONFIRM_ROUTE}",
     }
+
+
+# ── Mapa de controle, projeção e custos do ERP (ISSUE-031) ───────────────
+
+
+@dataclass(frozen=True)
+class MapaLineView:
+    """Uma linha do mapa como os fragmentos a imprimem: a linha e o texto de cada coluna."""
+
+    row: service.MapaRow
+    baseline: str
+    reallocation: str
+    current: str
+    committed: str
+    actual: str
+    saldo: str
+    projection: str
+    deviation: str
+    deviation_percent: str
+    can_project: bool
+
+
+@dataclass(frozen=True)
+class ProjectionFormView:
+    """O formulário da projeção no término: a linha do item e os valores vigentes."""
+
+    row: service.MapaRow
+    current: str
+    committed: str
+    actual: str
+    projection: str
+
+
+@bp.route(route=MAP_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def mapa_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O mapa de controle do escopo: item a item no projeto, um registro por projeto na carteira."""
+    return AlpineAjaxResponse(
+        template_name=MAP_TEMPLATE, context=_mapa_context(session, context), request=req
+    )
+
+
+@bp.route(route=MAP_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def mapa_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel do mapa de controle: as colunas da tela em R$ integral; no Portfólio com Projeto."""
+    del req
+    return excel_response(_mapa_document_of(session, context))
+
+
+@bp.route(route=MAP_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def mapa_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível do mapa de controle: o mesmo documento que o Excel imprime."""
+    return printable_response(_mapa_document_of(session, context), req)
+
+
+@bp.route(route=MAP_PROJECTION_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def mapa_projection_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da projeção no término de um item, com os valores vigentes do mapa."""
+    row = _projection_row(session, context, _item_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=MAP_PROJECTION_FORM_TEMPLATE,
+        context=_projection_context(row, values={}, problems={}),
+        request=req,
+    )
+
+
+def _render_projection_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário da projeção de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            row = _projection_row(session, context, _item_id_of(req))
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=MAP_PROJECTION_FORM_TEMPLATE,
+        context=_projection_context(row, values=_posted_projection(req.form), problems=problems),
+        request=req,
+        target_id=PROJECTION_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=MAP_PROJECTION_SAVE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_projection_error)
+def mapa_projection_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Atualiza a projeção no término do item: justificativa obrigatória e fato no histórico."""
+    item_id = _item_id_of(req)
+    row = _projection_row(session, context, item_id)
+    form = validation.parse_projection_form(req.form)
+    service.update_projection(
+        session,
+        item_id=item_id,
+        valor_centavos=form.value_cents,
+        justificativa=form.justification,
+        autor_id=context.user.person_id,
+        hoje=calendario.today(),
+    )
+    return AlpineAjaxResponse(
+        template_name=MAP_PROJECTION_SAVED_TEMPLATE,
+        context=_mapa_context(session, context),
+        request=req,
+        toast=PROJECTION_SAVED_MESSAGE.format(code=row.code),
+        toast_tipo="ok",
+    )
+
+
+@bp.route(route=ERP_IMPORT_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def erp_import_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da importação dos custos do ERP, aberto no modal do mapa de controle."""
+    del session
+    context.scope.require_project()
+    return AlpineAjaxResponse(
+        template_name=ERP_IMPORT_FORM_TEMPLATE,
+        context={
+            "campo_arquivo": attachments.FILE_FIELD,
+            "limite_mb": MAX_FILE_BYTES // MEGABYTE,
+            "limite_linhas": MAX_DATA_ROWS,
+        },
+        request=req,
+    )
+
+
+@bp.route(route=ERP_IMPORT_CHECK_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def erp_import_check(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Lê a planilha do fechamento e responde o que cada linha vai gravar; nada é escrito."""
+    context.scope.require_project()
+    preview = importing.check(
+        session,
+        importer=importers.erp_costs_importer(),
+        upload=_upload_of(req),
+        context=_import_context(context),
+    )
+    data = _erp_check_context(preview)
+    data |= _mapa_context(session, context)
+    return AlpineAjaxResponse(template_name=ERP_IMPORT_CHECK_TEMPLATE, context=data, request=req)
+
+
+@bp.route(route=ERP_IMPORT_CONFIRM_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def erp_import_confirm(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Checa a planilha de novo e grava o fechamento do mês por item e mês: só na confirmação."""
+    context.scope.require_project()
+    importer = importers.erp_costs_importer()
+    result = importing.confirm(
+        session,
+        importer=importer,
+        upload=_upload_of(req),
+        context=_import_context(context),
+        confirmation=importing.Confirmation(
+            checked_digest=(req.form.get(validation.FIELD_IMPORT_CHECKED) or "").strip() or None,
+            acknowledged=req.form.get(validation.FIELD_IMPORT_ACKNOWLEDGED)
+            == validation.IMPORT_ACKNOWLEDGED_VALUE,
+        ),
+    )
+    data: dict[str, object] = {
+        "resultado": result,
+        "importador": importer.title,
+        "alvo_conteudo": MAP_TARGET,
+    }
+    data |= _mapa_context(session, context)
+    return AlpineAjaxResponse(
+        template_name=ERP_IMPORT_RESULT_TEMPLATE,
+        context=data,
+        request=req,
+        toast=_erp_imported_notice(result),
+        toast_tipo="aviso" if result.skipped else "ok",
+    )
+
+
+def _projection_row(session: Session, context: RequestContext, item_id: int) -> service.MapaRow:
+    """A linha do item no mapa do escopo; no Portfólio ou fora do item do projeto, a rota recusa."""
+    if context.scope.is_portfolio:
+        raise AccessDeniedError(PROJECTION_PORTFOLIO_MESSAGE)
+    view = service.mapa_controle(session, scope=context.scope, reference_date=calendario.today())
+    row = next((line for line in view.rows if line.item_id == item_id), None)
+    if row is None:
+        raise InvalidDataError(service.NOT_FOUND_MESSAGE)
+    return row
+
+
+def _projection_context(
+    row: service.MapaRow, *, values: Mapping[str, str | None], problems: Mapping[str, str]
+) -> dict[str, object]:
+    return {
+        "formulario": ProjectionFormView(
+            row=row,
+            current=_money(row.current_cents),
+            committed=_money(row.committed_cents),
+            actual=_money(row.actual_cents),
+            projection=_money(row.projection_cents),
+        ),
+        "valores": values,
+        "erros": problems,
+        "alvo_conteudo": MAP_TARGET,
+    }
+
+
+def _posted_projection(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    return {
+        validation.FIELD_PROJECTION: form.get(validation.FIELD_PROJECTION),
+        validation.FIELD_JUSTIFICATION: form.get(validation.FIELD_JUSTIFICATION),
+    }
+
+
+def _mapa_document_of(session: Session, context: RequestContext) -> Document:
+    view = service.mapa_controle(session, scope=context.scope, reference_date=calendario.today())
+    return export.mapa_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _mapa_context(
+    session: Session, context: RequestContext, *, erro: str = ""
+) -> dict[str, object]:
+    view = service.mapa_controle(session, scope=context.scope, reference_date=calendario.today())
+    pode_gravar = not view.is_portfolio and rbac.can(context.user, Permission.WRITE)
+    return {
+        "mapa": view,
+        "linhas": [_mapa_line(line, pode_gravar=pode_gravar) for line in view.rows],
+        "total": _mapa_line(view.total, pode_gravar=False),
+        "carteira": view.is_portfolio,
+        "pode_gravar": pode_gravar,
+        "alvo_conteudo": MAP_TARGET,
+        "alvo_formulario": PROJECTION_FORM_TARGET,
+        "erro": erro,
+    }
+
+
+def _mapa_line(row: service.MapaRow, *, pode_gravar: bool) -> MapaLineView:
+    return MapaLineView(
+        row=row,
+        baseline=_money(row.baseline_cents),
+        reallocation=_delta_money(row.reallocation_cents),
+        current=_money(row.current_cents),
+        committed=_money(row.committed_cents),
+        actual=_money(row.actual_cents),
+        saldo=_money(row.saldo_cents),
+        projection=_money(row.projection_cents),
+        deviation=_signed_money(row.deviation_cents),
+        deviation_percent=_percent(row.deviation_percent),
+        can_project=pode_gravar and row.item_id is not None,
+    )
+
+
+def _signed_money(cents: int) -> str:
+    return f"+{_money(cents)}" if cents > 0 else _money(cents)
+
+
+def _delta_money(cents: int) -> str:
+    return "" if cents == 0 else _signed_money(cents)
+
+
+def _erp_check_context(preview: importing.ImportPreview) -> dict[str, object]:
+    return {
+        "arquivo": preview.file_name,
+        "preview": preview,
+        "colunas": [
+            {"cabecalho": column.header, "numerica": column.kind in _NUMERIC_KINDS}
+            for column in preview.columns
+        ],
+        "lidas": len(preview.rows),
+        "vao_gravar": len(preview.writable_rows),
+        "com_aviso": len(preview.warning_rows),
+        "com_erro": len(preview.error_rows),
+        "campo_conferido": validation.FIELD_IMPORT_CHECKED,
+        "campo_ciente": validation.FIELD_IMPORT_ACKNOWLEDGED,
+        "valor_ciente": validation.IMPORT_ACKNOWLEDGED_VALUE,
+        "confirmar_url": f"/api/{ERP_IMPORT_CONFIRM_ROUTE}",
+        "alvo_conteudo": MAP_TARGET,
+    }
+
+
+def _erp_imported_notice(result: importing.ImportResult) -> str:
+    written = len(result.written)
+    notice = (
+        ERP_IMPORTED_ONE_MESSAGE if written == 1 else ERP_IMPORTED_MESSAGE.format(count=written)
+    )
+    if result.skipped:
+        return notice + ERP_SKIPPED_SUFFIX.format(count=len(result.skipped))
+    return notice
