@@ -8,9 +8,42 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-074.
+   Os indicadores, o filtro e a tabela usam os padrões do Design System; aqui moram só o texto
+   do indicador, a barra de ferramentas, a contagem, a coluna de ações e a paginação. O modal do
+   estudo mora fora da raiz (o Design System o anexa ao fim do <body>) e usa só padrões.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--hse-analises_risco .analises__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--hse-analises_risco .analises__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-analises_risco .analises__contagem {
+  margin: 0;
+}
+
+.pagina--hse-analises_risco .analises__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--hse-analises_risco .analises__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}

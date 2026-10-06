@@ -1,7 +1,7 @@
 ---
 id: ISSUE-074
 title: "Análises de risco APR e HAZOP"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 7
@@ -34,14 +34,14 @@ recomendações fechadas ÷ emitidas fica disponível para o painel.
 
 ## Critérios de aceite
 
-- [ ] A recomendação cria a ação na Central com link de volta ao estudo.
-- [ ] Recomendação e ação ficam sincronizadas.
-- [ ] Recomendações fechadas ÷ emitidas tem teste da fórmula.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] A recomendação cria a ação na Central com link de volta ao estudo.
+- [x] Recomendação e ação ficam sincronizadas.
+- [x] Recomendações fechadas ÷ emitidas tem teste da fórmula.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -55,3 +55,14 @@ Nenhuma.
 ## Notas
 
 Fonte: `analises-risco.html` e `js/pages/hse/analises-risco.js`.
+
+## Registro de execução
+
+Data: 2026-10-06.
+Feito: modelo e migração m074 (down_revision m072); fachada `analysis_service` e cálculos; costura com a Central (criar ação, sincronia nos dois sentidos, link de volta); rotas, templates e tela; Excel e PDF; seed; oráculo (`test_oraculo_analises_risco.py`); testes de cálculo, validação, fachada e rotas; LEIA-ME e MODELO-DE-DADOS.
+Pendências: "A porta de qualidade passa" (o orquestrador marca); nada foi executado (política de testes).
+DECISÃO: colunas da recomendação | `analise_risco_recomendacao` ganha `concluida_em` (date) e `evidencia` (text), que o protótipo grava ao fechar; diagrama atualizado | D5, ISSUE-074
+DECISÃO: origem HSE compartilhada | uma só reação e um só link por origem na Central; `hse/origins.py` despacha por tratadores, para a ISSUE-073 registrar o dela | D9, ISSUE-074
+DECISÃO: sincronia da ação | concluir a ação fecha a recomendação na data da conclusão e replanejar a ação move o prazo da recomendação; fechar a recomendação conclui a ação | D9, ISSUE-074
+DECISÃO: recomendação já fechada | criar a ação de uma recomendação fechada gera a ação já concluída (o protótipo permitia a ação aberta) | D9, ISSUE-074
+DECISÃO: numeração | códigos APR-/HAZOP- com 4 dígitos pela numeração do projeto (`apr`, `hazop` em `core/numbering.py`); a carga mantém os códigos do protótipo | D5, ISSUE-074

@@ -1,0 +1,12 @@
+{#
+  Os dois blocos que o formulário de filtros da tela Análises de risco substitui: os indicadores e
+  a tabela. Raízes irmãs, sem base_fragment, com os ids fixos de propósito: a resposta se destina
+  aos lugares que o formulário declarou (docs/PADROES-DE-PAGINA.md, "Resposta que atualiza vários
+  blocos").
+#}
+<div id="analises-kpis">
+  {% include "hse/_analises_kpis.html" %}
+</div>
+<div id="analises-tabela">
+  {% include "hse/_analises_tabela.html" %}
+</div>

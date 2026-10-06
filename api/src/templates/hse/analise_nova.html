@@ -1,0 +1,97 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do novo estudo (APR/JSA ou HAZOP) no modal da tela Análises de risco: tipo, área, data,
+  título, participantes e as recomendações (descrição, responsável e prazo). Responde com a tela
+  atualizada (alvo = o conteúdo da tela); uma recusa (422, 403) volta o próprio formulário,
+  preenchido, com a mensagem sob o campo (alvo do modal). As linhas de recomendação em branco são
+  ignoradas; o botão "Adicionar recomendação" mostra a próxima linha.
+
+  Espera: acao, alvo, valores, erros, erros_gerais, tipos, pessoas, linhas (número de linhas),
+  visiveis, hoje, rotulo_salvar.
+#}
+{% block fragment %}
+<form method="post" action="{{ acao }}"
+  x-data="{ n: {{ visiveis }} }"
+  x-target="{{ alvo }}" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando...">
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+  <div class="fgrid">
+    <div class="field">
+      <label for="{{ target_id }}-tipo">Tipo de estudo</label>
+      <select id="{{ target_id }}-tipo" name="tipo" class="input{% if erros.tipo %} input--erro{% endif %}" required>
+        {% for valor, texto in tipos %}
+        <option value="{{ valor }}"{% if valores.get('tipo', 'APR') == valor %} selected{% endif %}>{{ texto }}</option>
+        {% endfor %}
+      </select>
+      {% if erros.tipo %}<span class="field__erro" role="alert">{{ erros.tipo }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ target_id }}-data">Data do estudo</label>
+      <input id="{{ target_id }}-data" name="data" type="date" class="input{% if erros.data %} input--erro{% endif %}"
+        value="{{ valores.get('data', hoje) }}" max="{{ hoje }}" required />
+      {% if erros.data %}<span class="field__erro" role="alert">{{ erros.data }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ target_id }}-area">Área</label>
+      <input id="{{ target_id }}-area" name="area" type="text" class="input{% if erros.area %} input--erro{% endif %}"
+        value="{{ valores.get('area', '') }}" maxlength="80" required />
+      {% if erros.area %}<span class="field__erro" role="alert">{{ erros.area }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ target_id }}-titulo">Título do estudo</label>
+      <input id="{{ target_id }}-titulo" name="titulo" type="text" class="input{% if erros.titulo %} input--erro{% endif %}"
+        value="{{ valores.get('titulo', '') }}" maxlength="150" required />
+      {% if erros.titulo %}<span class="field__erro" role="alert">{{ erros.titulo }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-participantes">Participantes</label>
+      <select id="{{ target_id }}-participantes" name="participantes" class="input{% if erros.participantes %} input--erro{% endif %}" multiple size="6" required
+        aria-describedby="{{ target_id }}-participantes-dica">
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if pessoa.id|string in valores.get('participantes', []) %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint" id="{{ target_id }}-participantes-dica">Segure Ctrl (ou Cmd) para marcar mais de uma pessoa.</span>
+      {% if erros.participantes %}<span class="field__erro" role="alert">{{ erros.participantes }}</span>{% endif %}
+    </div>
+  </div>
+
+  <fieldset>
+    <legend class="h-card5">Recomendações</legend>
+    <p class="hint mb-16">Preencha só as recomendações do estudo; as linhas sem descrição são ignoradas.</p>
+    {% if erros.recomendacoes %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.recomendacoes }}</span></div>{% endif %}
+    {% for linha in range(1, linhas + 1) %}
+    <div class="fgrid mb-16" x-show="n >= {{ linha }}"{% if linha > visiveis %} x-cloak{% endif %}>
+      <div class="field field--full">
+        <label for="{{ target_id }}-rec-{{ linha }}">Recomendação {{ linha }}</label>
+        <textarea id="{{ target_id }}-rec-{{ linha }}" class="input" name="rec_descricao_{{ linha }}" rows="2" maxlength="300">{{ valores.get('rec_descricao_' ~ linha, '') }}</textarea>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-resp-{{ linha }}">Responsável pela recomendação {{ linha }}</label>
+        <select id="{{ target_id }}-resp-{{ linha }}" class="input" name="rec_responsavel_{{ linha }}">
+          <option value="">Escolha</option>
+          {% for pessoa in pessoas %}
+          <option value="{{ pessoa.id }}"{% if valores.get('rec_responsavel_' ~ linha) == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-prazo-{{ linha }}">Prazo da recomendação {{ linha }}</label>
+        <input id="{{ target_id }}-prazo-{{ linha }}" class="input" type="date" name="rec_prazo_{{ linha }}"
+          value="{{ valores.get('rec_prazo_' ~ linha, '') }}" />
+      </div>
+      {% if erros.get('recomendacao_' ~ linha) %}<span class="field__erro" role="alert">{{ erros.get('recomendacao_' ~ linha) }}</span>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="button" class="btn btn--secondary btn--sm" x-show="n < {{ linhas }}" @click="n++">Adicionar recomendação</button>
+  </fieldset>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-hse-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">{{ rotulo_salvar }}</button>
+  </div>
+</form>
+{% endblock %}

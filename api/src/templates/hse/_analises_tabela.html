@@ -1,0 +1,87 @@
+{#
+  A tabela de estudos da tela Análises de risco, com a barra de inclusão e de exportação, a contagem
+  e a paginação. Os estados vazio de origem e vazio por filtro moram aqui (data-estado), porque os
+  indicadores e o filtro continuam na tela. O botão oculto data-hse-auto abre o estudo quando a tela
+  veio do link de uma ação da Central (?busca=código exato).
+
+  Espera: linhas, total, universo, pagina, pagina_total, link_anterior, link_proximo, url_excel,
+  url_pdf, pode_gravar, portfolio, auto_abrir e os apresentadores numero e data.
+#}
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <p class="hint analises__contagem" role="status">{{ total }} {{ 'estudo encontrado' if total == 1 else 'estudos encontrados' }}</p>
+      <div class="analises__barra">
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="novo"
+          data-hse-modal-url="/api/hse/analises-de-risco/novo" data-hse-modal-titulo="Novo estudo (APR/JSA ou HAZOP)"
+          data-hse-modal-subtitulo="Estudo com participantes e recomendações" data-hse-modal-largura="820">Novo estudo</button>
+        {% endif %}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+    {% if auto_abrir %}
+    <button type="button" class="sr-only" tabindex="-1" data-hse-auto data-hse-atualiza
+      data-hse-modal-url="/api/hse/analises-de-risco/{{ auto_abrir.code }}" data-hse-modal-titulo="{{ auto_abrir.code }} · {{ auto_abrir.title }}"
+      data-hse-modal-subtitulo="{{ auto_abrir.kind }} · {{ auto_abrir.area }}" data-hse-modal-largura="900">Abrir o estudo {{ auto_abrir.code }}</button>
+    {% endif %}
+
+    {% if not universo %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Nenhum estudo registrado</h2>
+      <p>Registre os estudos APR/JSA e HAZOP com as recomendações de cada um.</p>
+    </div>
+    {% elif not total %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+      <p>Ajuste ou limpe os filtros para ver os estudos.</p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Análises de risco</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Nº</th><th scope="col">Tipo</th><th scope="col">Área</th><th scope="col">Título</th>
+          <th scope="col">Data</th><th scope="col">Participantes</th><th scope="col">Recomendações</th>
+          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap">
+              <a href="#" data-hse-modal-url="/api/hse/analises-de-risco/{{ linha.code }}" data-hse-modal-titulo="{{ linha.code }} · {{ linha.title }}"
+                data-hse-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}" data-hse-modal-largura="900" data-hse-atualiza>{{ linha.code }}</a>
+            </td>
+            <td><span class="pill {{ 'pill--fix' if linha.kind == 'HAZOP' else 'pill--neutral' }}">{{ 'HAZOP' if linha.kind == 'HAZOP' else 'APR / JSA' }}</span></td>
+            <td>{{ linha.area }}</td>
+            <td>{{ linha.title }}</td>
+            <td class="nowrap">{{ data(linha.studied_on) }}</td>
+            <td class="num">{{ numero(linha.participant_ids|length) }}</td>
+            <td>
+              <span class="pill {{ 'pill--erro' if linha.counts.overdue else ('pill--warn' if linha.counts.open else 'pill--ok') }}">{{ linha.counts.open }} {{ 'aberta' if linha.counts.open == 1 else 'abertas' }}{% if linha.counts.overdue %} ({{ linha.counts.overdue }} {{ 'atrasada' if linha.counts.overdue == 1 else 'atrasadas' }}){% endif %}</span>
+              <span class="pill pill--neutral">{{ linha.counts.closed }} {{ 'fechada' if linha.counts.closed == 1 else 'fechadas' }}</span>
+            </td>
+            <td class="analises__acoes">
+              <button type="button" class="iconbtn" data-hse-modal-url="/api/hse/analises-de-risco/{{ linha.code }}"
+                data-hse-modal-titulo="{{ linha.code }} · {{ linha.title }}" data-hse-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}"
+                data-hse-modal-largura="900" data-hse-atualiza aria-label="Ver o estudo {{ linha.code }}" title="Ver estudo">
+                <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="analises__paginas" aria-label="Páginas da tabela">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="analises-tabela">Anterior</a>{% endif %}
+      <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="analises-tabela">Próxima</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>

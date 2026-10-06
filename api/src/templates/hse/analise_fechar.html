@@ -1,0 +1,36 @@
+{% extends "base_fragment.html" %}
+{#
+  Fechar uma recomendação: a data de conclusão e a evidência (opcional). Salvar fecha a recomendação
+  e conclui a ação da Central, e responde o corpo do estudo atualizado no próprio modal; uma recusa
+  (422, 409, 403) volta este formulário, preenchido, com a mensagem sob o campo.
+
+  Espera: estudo, recomendacao, valores, erros, erros_gerais, versao, hoje.
+#}
+{% block fragment %}
+<form method="post" action="/api/hse/analises-de-risco/{{ estudo.code }}/recomendacoes/{{ recomendacao.position }}/fechar"
+  x-target="{{ target_id }}" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  data-tn-loading="Fechando...">
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+  <p class="body-txt mb-16">{{ estudo.code }}, recomendação {{ recomendacao.position }}: {{ recomendacao.description }}</p>
+  <div class="fgrid">
+    <div class="field">
+      <label for="{{ target_id }}-conclusao">Data de conclusão</label>
+      <input id="{{ target_id }}-conclusao" name="data" type="date" class="input{% if erros.data %} input--erro{% endif %}"
+        value="{{ valores.get('data', hoje) }}" max="{{ hoje }}" required />
+      {% if erros.data %}<span class="field__erro" role="alert">{{ erros.data }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-evidencia">Evidência (opcional)</label>
+      <textarea id="{{ target_id }}-evidencia" name="evidencia" class="input{% if erros.evidencia %} input--erro{% endif %}" rows="3" maxlength="300">{{ valores.get('evidencia', '') }}</textarea>
+      {% if erros.evidencia %}<span class="field__erro" role="alert">{{ erros.evidencia }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <a class="btn btn--secondary" href="/api/hse/analises-de-risco/{{ estudo.code }}" x-target="{{ target_id }}">Voltar ao estudo</a>
+    <button type="submit" class="btn btn--primary">Fechar recomendação</button>
+  </div>
+</form>
+{% endblock %}

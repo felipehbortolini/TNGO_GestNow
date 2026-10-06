@@ -336,3 +336,130 @@ def talk_problems(
         ),
     }
     return {name: message for name, message in found.items() if message}
+
+
+# ── Risk analyses (ISSUE-074) ────────────────────────────────────────────────────────────────
+
+RECOMMENDATION_STATUSES = (calculations.RECOMMENDATION_OPEN, calculations.RECOMMENDATION_CLOSED)
+ANALYSIS_KINDS = ("APR", "HAZOP")
+MAX_AREA = 80
+MAX_TITLE = 150
+MIN_TITLE = 5
+KIND_REQUIRED = "Escolha o tipo de estudo."
+TITLE_REQUIRED = f"Informe o título do estudo (mínimo de {MIN_TITLE} caracteres)."
+TITLE_TOO_LONG = f"O título aceita até {MAX_TITLE} caracteres."
+AREA_TOO_LONG = f"A área aceita até {MAX_AREA} caracteres."
+PARTICIPANTS_REQUIRED = "Escolha ao menos um participante."
+RECOMMENDATIONS_REQUIRED = "Inclua ao menos uma recomendação."
+CODE_TAKEN = "Já existe um estudo com este código."
+CLOSING_DATE_REQUIRED = "Informe a data de conclusão."
+CLOSING_DATE_IN_THE_FUTURE = "A data não pode ser posterior à referência."
+ALREADY_CLOSED = "Recomendação já fechada."
+
+
+@dataclass(frozen=True)
+class RecommendationInput:
+    """One recommendation of a study: what to do, who does it and by when.
+
+    ``status``, ``closed_on`` and ``evidence`` are for the load of the demonstration and the import
+    of old studies, which arrive with their history; a person registering a study leaves them out.
+    """
+
+    description: str
+    responsible_id: int | None
+    due_date: date | None
+    status: str = calculations.RECOMMENDATION_OPEN
+    closed_on: date | None = None
+    evidence: str = ""
+
+
+@dataclass(frozen=True)
+class AnalysisInput:
+    """One risk analysis (APR/JSA or HAZOP) with its participants and recommendations.
+
+    ``code`` is for the demonstration load and the import of old studies; a person registering a
+    study leaves it out and the project numbering gives it.
+    """
+
+    project_id: int
+    kind: str
+    area: str
+    title: str
+    studied_on: date | None
+    participant_ids: tuple[int, ...]
+    recommendations: tuple[RecommendationInput, ...]
+    code: str | None = None
+
+
+@dataclass(frozen=True)
+class ClosingRecommendationInput:
+    """Closing one recommendation: the day it was done, the evidence and the version opened."""
+
+    closed_on: date | None
+    evidence: str = ""
+    version: int | str | None = None
+
+
+def analysis_problems(
+    data: AnalysisInput, choices: RegisterChoices, *, reference_date: date
+) -> dict[str, str]:
+    """The messages of a risk analysis by field of the form; a recommendation says its number."""
+    title = data.title.strip()
+    found = {
+        "tipo": None if data.kind in ANALYSIS_KINDS else KIND_REQUIRED,
+        "area": text_problem(data.area, required_message=AREA_REQUIRED)
+        or (AREA_TOO_LONG if len(data.area.strip()) > MAX_AREA else None),
+        "titulo": _title_problem(title),
+        "data": day_problem(data.studied_on, reference_date),
+        "participantes": _participants_problem(data.participant_ids, choices),
+        "recomendacoes": None if data.recommendations else RECOMMENDATIONS_REQUIRED,
+    }
+    problems = {name: message for name, message in found.items() if message}
+    for number, item in enumerate(data.recommendations, start=1):
+        message = _recommendation_problem(item, choices)
+        if message:
+            problems[f"recomendacao_{number}"] = f"Recomendação {number}: {message}"
+    return problems
+
+
+def _title_problem(title: str) -> str | None:
+    if len(title) < MIN_TITLE:
+        return TITLE_REQUIRED
+    return TITLE_TOO_LONG if len(title) > MAX_TITLE else None
+
+
+def _participants_problem(person_ids: tuple[int, ...], choices: RegisterChoices) -> str | None:
+    if not person_ids:
+        return PARTICIPANTS_REQUIRED
+    return None if all(item in choices.person_ids for item in person_ids) else UNKNOWN_PERSON
+
+
+def _recommendation_problem(item: RecommendationInput, choices: RegisterChoices) -> str | None:
+    if item.responsible_id is None:
+        return "escolha o responsável."
+    if item.responsible_id not in choices.person_ids:
+        return "o responsável não está no cadastro."
+    if item.due_date is None:
+        return "informe o prazo."
+    if item.status not in RECOMMENDATION_STATUSES:
+        return "a situação deve ser Aberta ou Fechada."
+    if not item.description.strip():
+        return DESCRIPTION_REQUIRED
+    return TOO_LONG if len(item.description.strip()) > MAX_TEXT else None
+
+
+def recommendation_closing_problems(
+    data: ClosingRecommendationInput, *, reference_date: date
+) -> dict[str, str]:
+    """The messages for closing a recommendation: the date is required and not in the future."""
+    found = {
+        "data": _closing_date_problem(data.closed_on, reference_date),
+        "evidencia": TOO_LONG if len(data.evidence.strip()) > MAX_TEXT else None,
+    }
+    return {name: message for name, message in found.items() if message}
+
+
+def _closing_date_problem(closed_on: date | None, reference_date: date) -> str | None:
+    if closed_on is None:
+        return CLOSING_DATE_REQUIRED
+    return CLOSING_DATE_IN_THE_FUTURE if closed_on > reference_date else None

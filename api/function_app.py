@@ -13,6 +13,7 @@ from src.modulos.configuracoes.routes import bp as configuracoes_bp
 from src.modulos.financeiro.routes import bp as financeiro_bp
 from src.modulos.governanca.lessons_routes import bp as governanca_licoes_bp
 from src.modulos.governanca.routes import bp as governanca_bp
+from src.modulos.hse.analysis_routes import bp as hse_analysis_bp
 from src.modulos.hse.routes import bp as hse_bp
 from src.modulos.inicio.routes import bp as inicio_bp
 from src.modulos.planejamento.routes import bp as planejamento_bp
@@ -41,6 +42,7 @@ app.register_functions(suprimentos_bp)
 app.register_functions(riscos_bp)
 app.register_functions(qualidade_bp)
 app.register_functions(hse_bp)
+app.register_functions(hse_analysis_bp)
 app.register_functions(governanca_bp)
 app.register_functions(governanca_licoes_bp)
 app.register_functions(configuracoes_bp)

@@ -1,6 +1,6 @@
 # HSE
 
-Módulo `hse` (saúde, segurança e meio ambiente). Registra HHT, ocorrências, inspeções/observações, DDS e estudos APR/HAZOP. As funcionalidades entram nas ISSUE-072 a ISSUE-075.
+Módulo `hse` (saúde, segurança e meio ambiente). Registra HHT, ocorrências, inspeções/observações, DDS e estudos APR/HAZOP. As funcionalidades entram nas ISSUE-072 a ISSUE-075 (a ISSUE-074, Análises de risco, está descrita na seção própria abaixo).
 
 ## Telas previstas
 
@@ -9,7 +9,7 @@ Módulo `hse` (saúde, segurança e meio ambiente). Registra HHT, ocorrências, 
 | Painel HSE | Taxas reativas/proativas, pirâmides, dias sem afastamento e evolução | ISSUE-075 |
 | Ocorrências | Registro, investigação, ações, encerramento e anexos | ISSUE-073 |
 | Inspeções e observações | Checklists, observações comportamentais e DDS | ISSUE-072 |
-| Análises de risco | APR/JSA, HAZOP e recomendações | ISSUE-074 |
+| Análises de risco | APR/JSA, HAZOP e recomendações (entregue, ver abaixo) | ISSUE-074 |
 | HHT | Horas-homem trabalhadas por mês e empresa | ISSUE-072 |
 
 Nome e dados médicos ficam restritos segundo Q35; o formulário pode coletar esses dados, mas só Gestor e Admin podem lê-los.
@@ -92,3 +92,42 @@ As ISSUE-073 a ISSUE-075 completam este documento (ocorrências, análises de ri
 **Integração pendente.** O histograma lê a Curva S física por `service.register_curve_reader`; enquanto o módulo dono da curva (EAP) não registra o leitor, o fator vale 1. O desembolso pede o fragmento `GET /api/hse/histograma`.
 
 **Carga e oráculo.** `seed.py` grava `hht` e `hseMensal` do protótipo (meses deslocados pela distância em meses). O protótipo não traz inspeção, observação nem DDS individuais. Oráculo em `api/tests/oraculo/test_oraculo_hse.py`; testes puros em `api/tests/hse/`.
+
+## Análises de risco (ISSUE-074, HU-123)
+
+Tela `hse/analises_risco` (`app/_views/hse/analises_risco.html`, `app/paginas/hse/analises_risco.{css,js}`): quatro indicadores (estudos registrados, recomendações abertas, atrasadas e fechadas ÷ emitidas, cada um com o esperado), filtro (busca por número, título ou área; tipo; só estudos com recomendação aberta) e a tabela de estudos com a coluna Projeto no Portfólio. O estudo abre num modal com as recomendações; ali a pessoa fecha uma recomendação (data de conclusão e evidência opcional) ou cria a ação dela na Central. Excel e PDF pelos mecanismos genéricos, com o mesmo conteúdo do protótipo (indicadores e tabela de estudos, respeitando o filtro). Vinda do link de uma ação (`?busca=<código>`), a tela abre o estudo sozinha. No Portfólio o botão "Novo estudo" pede o projeto antes.
+
+### Arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `models.py` | `RiskAnalysis` (`analise_risco`), `RiskAnalysisParticipant`, `RiskRecommendation` (inclui `concluida_em` e `evidencia`) |
+| `analysis_service.py` | A fachada: `save_analysis`, `list_analyses`, `find_analysis`, `close_recommendation`, `create_recommendation_action`, `react_to_action` |
+| `calculations.py` | `count_recommendations`, `is_recommendation_overdue`, `recommendations_closed_rate` |
+| `validation.py` | `AnalysisInput`, `RecommendationInput`, `analysis_problems`, `recommendation_closing_problems` |
+| `analysis_routes.py` e `analysis_export.py` | Rotas e documento de exportação |
+| `origins.py` | A reação e o link da origem `HSE` na Central, compartilhados pelas partes do HSE |
+| `api/src/templates/hse/` | `analises_risco.html`, `analises_risco_partes.html`, `_analises_kpis.html`, `_analises_tabela.html`, `analise_nova.html`, `analise_ver.html`, `analise_fechar.html` |
+
+### Rotas (prefixo `/api/hse/analises-de-risco`)
+
+`GET` tela (`busca`, `tipo`, `situacao=abertas`, `pagina`); `GET excel` e `GET imprimivel`; `GET` e `POST novo` (estudo do projeto no escopo); `GET {codigo}` (estudo e recomendações); `GET` e `POST {codigo}/recomendacoes/{ordem}/fechar`; `POST {codigo}/recomendacoes/{ordem}/acao`. Escrever exige o papel de Membro ou acima; ler, o acesso ao módulo.
+
+### Fórmulas
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Recomendação atrasada | Situação Aberta e prazo anterior à data de referência (prazo no dia da referência não está atrasado) | `calculations.is_recommendation_overdue` |
+| Recomendações emitidas, abertas, atrasadas e fechadas | Contagem das recomendações de um ou mais estudos | `calculations.count_recommendations` |
+| Recomendações fechadas ÷ emitidas | Fechadas × 100 ÷ emitidas, uma casa decimal, meio para cima; vazio sem recomendação emitida. Alimenta o painel (ISSUE-075) | `calculations.recommendations_closed_rate` |
+
+### Fluxos e integração com a Central (D9)
+
+* Novo estudo: tipo (APR ou HAZOP), área, data (não posterior à referência), título (5 a 150 caracteres), ao menos um participante e ao menos uma recomendação (responsável e prazo obrigatórios; linhas sem descrição são ignoradas; até 10 por estudo no formulário). O código vem da numeração do projeto (`APR-<padrão>-0001`, `HAZOP-<padrão>-0001`; o próximo é o maior sufixo existente mais um).
+* "Criar ação": `central_acoes.service.create_action` com origem `HSE`, referência o código do estudo e item o número da recomendação, responsável e prazo da recomendação; a ação aponta de volta ao estudo pelo link da origem (`origins.py` registra o tipo `HSE`). Uma recomendação tem no máximo uma ação.
+* Sincronia, na mesma transação, nos dois sentidos: fechar a recomendação conclui a ação dela (`close_from_origin` com o item); concluir a ação na Central fecha a recomendação na data da conclusão; replanejar a ação move o prazo da recomendação (`react_to_action`, reação da origem `HSE`).
+* Ocorrências (ISSUE-073) usam a mesma origem `HSE`: registram o tratador da referência em `origins.register_action_handler` e `origins.register_link_builder`, sem registrar uma segunda reação.
+
+### Onde mexer
+
+Nova regra de estudo: `validation.py` e `analysis_service.py`. Novo indicador: `calculations.py` e `analysis_export.py`. Aparência da tabela: `_analises_tabela.html`. Carga de demonstração: `seed.py` (lê `analisesRisco`, mantém o código do protótipo e a situação de cada recomendação).

@@ -1,4 +1,4 @@
-"""Parte do módulo HSE na carga de demonstração (ISSUE-072, D6).
+"""Parte do módulo HSE na carga de demonstração (ISSUE-072 e ISSUE-074, D6).
 
 Lê as coleções ``hht`` e ``hseMensal`` do protótipo e grava pela fachada do módulo, uma linha por
 mês e empresa (HHT) e uma por mês (consolidado). O protótipo não traz inspeções, observações nem DDS
@@ -6,6 +6,10 @@ individuais (só o consolidado mensal), então nenhum desses registros nasce aqu
 deslocados pela distância em meses até setembro de 2026 (a âncora do protótipo, ``DEMO_ANCHOR``),
 contada a partir do mês da data de referência: ``shift_date`` de dias poderia levar dois meses ao
 mesmo mês. O histograma de mão de obra não é gravado: é calculado do HHT e da Curva S.
+
+Lê também a coleção ``analisesRisco`` (ISSUE-074): cada estudo entra pela fachada com o código do
+protótipo, as datas deslocadas por ``shift_date`` e as recomendações com a situação do protótipo; o
+protótipo não traz data de conclusão nem ação criada nas recomendações, então nenhuma nasce aqui.
 """
 
 from __future__ import annotations
@@ -20,8 +24,13 @@ from src.carga.plataforma import ADMIN_EMAIL
 from src.carga.registro import DEMO_ANCHOR, shift_date
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.hse import service
-from src.modulos.hse.validation import ClosingInput, HoursInput
+from src.modulos.hse import analysis_service, service
+from src.modulos.hse.validation import (
+    AnalysisInput,
+    ClosingInput,
+    HoursInput,
+    RecommendationInput,
+)
 
 PART_NAME = "hse"
 
@@ -82,6 +91,45 @@ def load(session: Session, reference_date: date) -> None:
                 held_dds=source["ddsRealizados"],
                 inspected_items=source["itensInspecionados"],
                 conforming_items=source["itensConformes"],
+            ),
+            reference_date=reference_date,
+        )
+    _load_analyses(session, user=user, reference_date=reference_date, project_ids=project_ids)
+
+
+def _load_analyses(
+    session: Session, *, user: User, reference_date: date, project_ids: dict[str, int]
+) -> None:
+    """Grava os estudos APR/HAZOP do protótipo com as recomendações e a situação de cada uma."""
+    mock_codes = {item["id"]: item["codigo"] for item in prototype_collection("projetos")}
+    ids_by_email = {
+        person.email.lower(): person.id for person in configuracoes.list_people(session)
+    }
+    people = {
+        person["id"]: ids_by_email[person["email"].lower()]
+        for person in prototype_collection("pessoas")
+    }
+    for source in prototype_collection("analisesRisco"):
+        analysis_service.save_analysis(
+            session,
+            user=user,
+            data=AnalysisInput(
+                project_id=project_ids[mock_codes[source["projetoId"]]],
+                kind=source["tipo"],
+                area=source["area"],
+                title=source["titulo"],
+                studied_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+                participant_ids=tuple(people[item] for item in source["participantesIds"]),
+                recommendations=tuple(
+                    RecommendationInput(
+                        description=item["descricao"],
+                        responsible_id=people[item["responsavelId"]],
+                        due_date=shift_date(date.fromisoformat(item["prazo"]), reference_date),
+                        status=item["situacao"],
+                    )
+                    for item in source["recomendacoes"]
+                ),
+                code=source["codigo"],
             ),
             reference_date=reference_date,
         )

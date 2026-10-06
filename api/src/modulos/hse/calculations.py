@@ -324,3 +324,54 @@ def summarize_proactive(
             proactive_target(deviations_per_ten_thousand, closed_hours) if has_hours else None
         ),
     )
+
+
+# ── Risk analyses (APR/JSA and HAZOP, ISSUE-074) ─────────────────────────────────────────────
+
+RECOMMENDATION_OPEN = "Aberta"
+RECOMMENDATION_CLOSED = "Fechada"
+
+
+@dataclass(frozen=True)
+class RecommendationCounts:
+    """What a set of recommendations says: issued, open, overdue and closed."""
+
+    issued: int = 0
+    open: int = 0
+    overdue: int = 0
+    closed: int = 0
+
+    def plus(self, other: RecommendationCounts) -> RecommendationCounts:
+        """The sum of two counts, to total the recommendations of several studies."""
+        return RecommendationCounts(
+            issued=self.issued + other.issued,
+            open=self.open + other.open,
+            overdue=self.overdue + other.overdue,
+            closed=self.closed + other.closed,
+        )
+
+
+def is_recommendation_overdue(status: str, due_date: date, reference_date: date) -> bool:
+    """A recommendation is overdue when it is still open and its deadline is before the reference."""
+    return status == RECOMMENDATION_OPEN and due_date < reference_date
+
+
+def count_recommendations(
+    recommendations: Iterable[tuple[str, date]], reference_date: date
+) -> RecommendationCounts:
+    """Issued, open, overdue and closed from the ``(status, deadline)`` of each recommendation."""
+    issued = open_ = overdue = closed = 0
+    for status, due_date in recommendations:
+        issued += 1
+        if status == RECOMMENDATION_CLOSED:
+            closed += 1
+        else:
+            open_ += 1
+        if is_recommendation_overdue(status, due_date, reference_date):
+            overdue += 1
+    return RecommendationCounts(issued=issued, open=open_, overdue=overdue, closed=closed)
+
+
+def recommendations_closed_rate(closed: int, issued: int) -> Decimal | None:
+    """Closed recommendations over issued ones, in percentage points; ``None`` with none issued."""
+    return rate_percent(closed, issued)

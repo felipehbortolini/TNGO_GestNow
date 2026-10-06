@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 31 de 93 -->
+<!-- Progresso da migração: 32 de 93 -->
 
 # Progresso da migração
 
-**31 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 06/10/2026 17:47 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**32 de 93 issues concluídas** (última fechada: ISSUE-074). Atualizado em 06/10/2026 17:49 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 31 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 027, 029, 044, 045, 051, 052, 064, 072 |
-| na fila | 62 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 32 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 027, 029, 044, 045, 051, 052, 064, 072, 074 |
+| na fila | 61 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -41,9 +41,10 @@
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
-| ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | - |
+| ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | `c2a8e4c` |
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
+| ISSUE-074 | Análises de risco APR e HAZOP | - |
 
 ## Em andamento, bloqueadas e na fila
 
@@ -91,7 +92,6 @@
 | ISSUE-070 | Auditorias | na fila | ISSUE-068 |
 | ISSUE-071 | Painel da qualidade | na fila | ISSUE-069, ISSUE-070 |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | na fila | ISSUE-072, ISSUE-019, ISSUE-027 |
-| ISSUE-074 | Análises de risco APR e HAZOP | na fila | ISSUE-019 |
 | ISSUE-075 | Painel HSE | na fila | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 |
 | ISSUE-076 | Parâmetros: edição por grupo com justificativa, versões e histórico | na fila | ISSUE-066 |
 | ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | na fila | ISSUE-054 |

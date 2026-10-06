@@ -36,11 +36,16 @@ from src.core import navigation
 
 @dataclass(frozen=True)
 class OriginRef:
-    """What a builder receives: the kind of the origin, its reference and, when known, its id."""
+    """What a builder receives: the kind of the origin, its reference and, when known, its id.
+
+    ``item`` names one item of the record (the recommendation of a risk analysis) for the calls
+    that act on the actions of that item only.
+    """
 
     kind: str
     reference: str
     record_id: int | None = None
+    item: str | None = None
 
 
 @dataclass(frozen=True)

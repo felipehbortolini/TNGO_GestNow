@@ -1804,6 +1804,8 @@ erDiagram
         text descricao
         date prazo
         text situacao
+        date concluida_em
+        text evidencia
         integer versao
     }
 ```

@@ -40,6 +40,8 @@ KINDS: dict[str, tuple[str, int]] = {
     "claim": ("CLM-{ata}", 4),
     "eot": ("EOT-{ata}", 4),
     "licao": ("LA-{ata}", 4),
+    "apr": ("APR-{ata}", 4),
+    "hazop": ("HAZOP-{ata}", 4),
     "pedido": ("PED-{ano}", 3),
     "contrato": ("CT-{ano}", 3),
 }

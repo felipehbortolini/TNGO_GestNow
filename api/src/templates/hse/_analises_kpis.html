@@ -1,0 +1,17 @@
+{#
+  Os quatro indicadores da tela Análises de risco, cada um com a referência de gestão ao lado
+  (esperado), sobre os estudos que o filtro deixa ver. Espera: kpis (rotulo, valor, icone, tom,
+  referencia).
+#}
+<div class="kpis" style="--kpis-colunas: 4">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--estatico kpi--{{ kpi.tom }}">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="analises__kpi-texto">
+      <span class="kpi__label">{{ kpi.rotulo }}</span>
+      <span class="hint">{{ kpi.referencia }}</span>
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>

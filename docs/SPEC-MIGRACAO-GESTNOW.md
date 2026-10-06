@@ -1388,6 +1388,11 @@ do dono".
 | Decisão da execução (ISSUE-052), pendente de revisão do dono | justificativa do desvio | guardada em observações do fornecedor, como no app; no limite exato não exige; sem previsto não exige | D10, ISSUE-052 |
 | Decisão da execução (ISSUE-052), pendente de revisão do dono | publicar | atividade validada, com ou sem realizado aprovado (como no app); "Publicar a semana" publica só as validadas | D10, ISSUE-052 |
 | Decisão da execução (ISSUE-052), pendente de revisão do dono | ver detalhes | painel só de leitura (dias, observações, comentários), pois o botão "Ver" do app precisa de destino | D10, ISSUE-052 |
+| Decisão da execução (ISSUE-074), pendente de revisão do dono | colunas da recomendação | `analise_risco_recomendacao` ganha `concluida_em` (date) e `evidencia` (text), que o protótipo grava ao fechar; diagrama atualizado | D5, ISSUE-074 |
+| Decisão da execução (ISSUE-074), pendente de revisão do dono | origem HSE compartilhada | uma só reação e um só link por origem na Central; `hse/origins.py` despacha por tratadores, para a ISSUE-073 registrar o dela | D9, ISSUE-074 |
+| Decisão da execução (ISSUE-074), pendente de revisão do dono | sincronia da ação | concluir a ação fecha a recomendação na data da conclusão e replanejar a ação move o prazo da recomendação; fechar a recomendação conclui a ação | D9, ISSUE-074 |
+| Decisão da execução (ISSUE-074), pendente de revisão do dono | recomendação já fechada | criar a ação de uma recomendação fechada gera a ação já concluída (o protótipo permitia a ação aberta) | D9, ISSUE-074 |
+| Decisão da execução (ISSUE-074), pendente de revisão do dono | numeração | códigos APR-/HAZOP- com 4 dígitos pela numeração do projeto (`apr`, `hazop` em `core/numbering.py`); a carga mantém os códigos do protótipo | D5, ISSUE-074 |
 
 ---
 

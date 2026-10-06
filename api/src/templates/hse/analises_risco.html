@@ -1,0 +1,45 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Análises de risco (ISSUE-074, HU-123): quatro indicadores, o filtro (busca, tipo e só com
+  recomendação aberta) e a tabela de estudos APR/JSA e HAZOP. O formulário de filtros pede só os
+  blocos analises-kpis e analises-tabela (analises_risco_partes.html); como ele fica fora dos dois,
+  o campo de busca não perde o foco a cada tecla. O estudo e as recomendações abrem num modal
+  (analises_risco.js), cujo corpo o servidor entrega por GET em #hse-modal-corpo.
+
+  Espera: kpis, filtros, tipos, e tudo que _analises_tabela.html pede.
+#}
+{% block fragment %}
+<div id="analises-kpis">
+  {% include "hse/_analises_kpis.html" %}
+</div>
+
+<form class="card" method="get" action="/api/hse/analises-de-risco"
+  x-target="analises-kpis analises-tabela" @input.debounce.300ms="$el.requestSubmit()">
+  <div class="card__body fgrid">
+    <div class="field">
+      <label for="analises-busca">Buscar</label>
+      <input id="analises-busca" name="busca" type="search" class="input" value="{{ filtros.search }}"
+        placeholder="Número, título ou área" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="analises-tipo">Tipo</label>
+      <select id="analises-tipo" name="tipo" class="input">
+        <option value="">Tipo: todos</option>
+        {% for valor, texto in tipos %}
+        <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ texto }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field--full">
+      <label for="analises-abertas">
+        <input id="analises-abertas" name="situacao" type="checkbox" value="abertas"{% if filtros.only_open %} checked{% endif %} />
+        Só estudos com recomendação aberta
+      </label>
+    </div>
+  </div>
+</form>
+
+<div id="analises-tabela">
+  {% include "hse/_analises_tabela.html" %}
+</div>
+{% endblock %}

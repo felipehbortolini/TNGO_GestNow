@@ -1,0 +1,63 @@
+{% extends "base_fragment.html" %}
+{#
+  O estudo no modal: tipo, área, data, participantes e a tabela de recomendações, cada uma com a
+  situação, o prazo e a ação da Central (quando existe). "Fechar" abre o formulário de conclusão
+  no próprio modal; "Criar ação" gera a ação na Central com o link de volta ao estudo. Responde
+  de novo este mesmo corpo depois de cada gesto (alvo = o modal); a tela volta atualizada quando
+  o modal fecha (analises_risco.js).
+
+  Espera: estudo, pode_gravar, erros_gerais e os apresentadores numero e data.
+#}
+{% block fragment %}
+{% for mensagem in erros_gerais %}
+<div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+{% endfor %}
+<dl class="fgrid mb-16">
+  <div class="field"><dt class="hint">Tipo</dt><dd><span class="pill {{ 'pill--fix' if estudo.kind == 'HAZOP' else 'pill--neutral' }}">{{ 'HAZOP' if estudo.kind == 'HAZOP' else 'APR / JSA' }}</span></dd></div>
+  <div class="field"><dt class="hint">Área</dt><dd>{{ estudo.area }}</dd></div>
+  <div class="field"><dt class="hint">Data</dt><dd>{{ data(estudo.studied_on) }}</dd></div>
+  <div class="field"><dt class="hint">Participantes</dt><dd>{{ estudo.participant_names|join(', ') }}</dd></div>
+</dl>
+
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Recomendações do estudo {{ estudo.code }}</caption>
+    <thead><tr>
+      <th scope="col">Recomendação</th><th scope="col">Responsável</th><th scope="col">Prazo</th>
+      <th scope="col">Situação</th><th scope="col">Ação na Central</th>
+      {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+    </tr></thead>
+    <tbody>
+      {% for rec in estudo.recommendations %}
+      <tr>
+        <td>{{ rec.description }}{% if rec.evidence %}<br /><span class="hint">Evidência: {{ rec.evidence }}</span>{% endif %}</td>
+        <td>{{ rec.responsible_name }}</td>
+        <td class="nowrap">{{ data(rec.due_date) }}</td>
+        <td>
+          <span class="pill {{ 'pill--ok' if rec.status == 'Fechada' else ('pill--erro' if rec.overdue else 'pill--warn') }}">{{ rec.status }}{% if rec.overdue %} · atrasada{% endif %}</span>
+          {% if rec.closed_on %}<br /><span class="hint">Concluída em {{ data(rec.closed_on) }}</span>{% endif %}
+        </td>
+        <td>{% if rec.action_id %}<span class="pill pill--fix">{{ rec.action_status }}</span>{% else %}<span class="hint">Sem ação</span>{% endif %}</td>
+        {% if pode_gravar %}
+        <td class="nowrap">
+          {% if rec.status != 'Fechada' %}
+          <a class="btn btn--ghost btn--sm" href="/api/hse/analises-de-risco/{{ estudo.code }}/recomendacoes/{{ rec.position }}/fechar"
+            x-target="{{ target_id }}">Fechar</a>
+          {% endif %}
+          {% if not rec.action_id %}
+          <form method="post" action="/api/hse/analises-de-risco/{{ estudo.code }}/recomendacoes/{{ rec.position }}/acao"
+            x-target="{{ target_id }}" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}">
+            <button type="submit" class="btn btn--ghost btn--sm">Criar ação</button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--secondary" data-hse-fechar-modal>Fechar</button>
+</div>
+{% endblock %}

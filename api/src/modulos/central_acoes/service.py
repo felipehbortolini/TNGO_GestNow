@@ -301,7 +301,8 @@ def close_from_origin(
     """The origin closed its record on its own screen: complete the open actions that point to it.
 
     Does not tell the origin back (it is the one that moved); an action already completed stays
-    as it is. Returns the actions that were completed now.
+    as it is. The ``item`` of the origin narrows it to the actions of that item of the record (a
+    recommendation of a risk analysis). Returns the actions that were completed now.
     """
     rbac.require(user, Permission.WRITE)
     changed: list[ActionRecord] = []
@@ -422,6 +423,24 @@ def read_action_origin(session: Session, *, user: User, record_id: int) -> Origi
         return None
     rbac.require_module(user, MODULE)
     return OriginRecord(project_id=action.project_id)
+
+
+def list_actions_of_origin(
+    session: Session,
+    *,
+    user: User,
+    origin_kind: str,
+    reference: str,
+    reference_date: date,
+) -> list[ActionRecord]:
+    """The actions of one record of origin, by id: what its module reads to show and sync them."""
+    rbac.require_module(user, MODULE)
+    origin = origin_links.OriginRef(kind=origin_kind, reference=reference)
+    return [
+        _record_of(action, reference_date)
+        for action in _actions_of_origin(session, origin)
+        if not calculations.is_information(action.kind)
+    ]
 
 
 @dataclass(frozen=True)
@@ -575,6 +594,8 @@ def _actions_of_origin(session: Session, origin: origin_links.OriginRef) -> list
         .where(Action.origin == origin.kind, Action.origin_ref == origin.reference.strip())
         .order_by(Action.id)
     )
+    if origin.item is not None:
+        statement = statement.where(Action.item == origin.item)
     return list(session.scalars(statement).all())
 
 
