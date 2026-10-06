@@ -382,6 +382,8 @@ erDiagram
     pessoa ||--o{ licao : "autor"
     licao ||--o{ licao_palavra_chave : "indexa"
     licao ||--o{ licao_aplicacao : "reusa"
+    licao ||--o{ licao_historico : "registra"
+    pessoa ||--o{ licao_historico : "escreve"
     projeto ||--o{ licao_aplicacao : "recebe"
     acao |o--o{ licao_aplicacao : "gera"
     risco |o--o{ licao_aplicacao : "gera"
@@ -505,6 +507,13 @@ erDiagram
         bigint registrado_por_id FK
         date data
         text como
+    }
+    licao_historico {
+        bigint id PK
+        bigint licao_id FK
+        bigint pessoa_id FK
+        timestamptz data_hora
+        text texto
     }
 ```
 

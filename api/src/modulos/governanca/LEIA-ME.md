@@ -115,3 +115,17 @@ As ISSUE-024 a ISSUE-028 completam este documento (análise, decisão, painel e 
 **Fluxos** (`service.py`): `start_analysis` cria a análise em andamento e leva a SM a Em análise de impacto; `conclude_analysis` grava o impacto (uma linha por SM, atualizada nas revisões), troca os itens da EAC e as transferências não aplicadas, fecha a análise em andamento, grava fonte e alçada na SM e leva Em análise de impacto a Aguardando comitê (a revisão mantém a situação). A Próxima etapa diz quem decide.
 
 **Pontos para outros módulos.** Os itens vêm do Financeiro por `eac_item_ids_by_code` e `eac_item_codes` (que o item é de custo, nível 3, é conferido na ISSUE-030); o aviso de custo acima do saldo das reservas fica para a ISSUE-041. Migração `m024_analise_de_impacto.py`. Testes: `test_analise.py`, `test_validacao_analise.py`, `test_rotas_analise.py` e as fronteiras novas de `test_calculos.py`.
+
+## O que a ISSUE-027 trouxe (Lições aprendidas)
+
+**Telas.** Acervo de lições (`licoes`): cartões (situação, recomendação, aplicabilidade), busca por palavras, filtros (fase, área, disciplina, tipo, origem, aplicabilidade, situação) e o checklist de kickoff (botões por fase que filtram as publicadas). Fragmentos em `api/src/templates/governanca/licao*.html`: nova lição e edição (`licao_form`), ficha (`licao_ver`), validação (`licao_validar`), aplicação em projeto (`licao_aplicar`). No Portfólio o acervo traz a coluna Projeto (também no Excel e no PDF) e **Nova lição** pede o projeto antes do formulário.
+
+**Rotas** (prefixo `/api/`, `lessons_routes.py`): `governanca/licoes` (GET acervo, POST registra), `licoes/nova`, `licoes/ver?codigo=`, `licoes/editar`, `licoes/enviar`, `licoes/validar` (GET, POST), `licoes/publicar`, `licoes/aplicar` (GET, POST), `licoes/excel` e `licoes/imprimivel`. Escrita exige Membro; validar e publicar exigem Gestor.
+
+**Fórmulas** (`lessons_calculations.py`): `is_lesson_visible` (o projeto vê as próprias e as Corporativas publicadas dos outros; o Portfólio vê todas), `search_matches`, `lesson_order_key`, `lesson_actions`, `is_ready_to_send` (disciplina e recomendação de 20 caracteres), `origin_of_text`, `lesson_draft_for_change` (texto da lição que nasce no encerramento da SM), `acervo_counts`, `published_by_phase`.
+
+**Fluxo.** Rascunho, Em validação, Validada, Publicada. O validador é Gestor e não é o autor (403, `SELF_VALIDATION_MESSAGE`); a devolução volta a Rascunho com o comentário no histórico (`licao_historico`). Origem de módulo exige o número e a fachada do dono confere que existe (422); entram Ata e Mudança, mais Workshop, Encerramento e Registro direto; as demais são registradas com `register_origin` pelas issues dos módulos. `create_draft_lesson` é a fachada para os outros módulos abrirem lição em Rascunho com origem. `apply_lesson` registra o reuso e, quando pedido, cria a ação pela costura da Central (origem Lição); a opção de risco chega na ISSUE-067.
+
+**Carga e oráculo.** `seed.py` grava as 10 lições do protótipo (`load_demonstration_lesson`, número conferido, uma aplicação por reuso contado); `api/tests/governanca/test_oraculo_licoes.py`. **Testes:** `test_licoes.py`, `apoio_licoes.py`.
+
+**Onde mexer.** Regras em `lessons_calculations.py`, formulário em `lessons_validation.py`, fluxo em `lessons_service.py`, exportação em `lessons_export.py`, tabelas em `lessons_models.py` (migração `m027_licoes_aprendidas.py`).

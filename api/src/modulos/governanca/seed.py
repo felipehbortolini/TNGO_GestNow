@@ -23,7 +23,8 @@ from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core import calendario
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.governanca import service
+from src.modulos.governanca import lessons_calculations as lessons_calc
+from src.modulos.governanca import lessons_service, service
 from src.modulos.governanca.service import (
     SeedAnalysis,
     SeedChange,
@@ -52,6 +53,13 @@ def load(session: Session, reference_date: date) -> None:
         )
         service.load_demonstration_change(
             session, author_id=author.id, seed=seed, reference_date=reference_date
+        )
+    for source in prototype_collection("licoes"):
+        lessons_service.load_demonstration_lesson(
+            session,
+            author_id=author.id,
+            seed=_seed_lesson(source, lookup=lookup, reference_date=reference_date),
+            reference_date=reference_date,
         )
 
 
@@ -203,6 +211,37 @@ def _seed_decision(
         conditions=block.get("condicoes") or None,
         justification=block["justificativa"],
         participant_person_ids=tuple(lookup.people[pid] for pid in block["participantesIds"]),
+    )
+
+
+def _seed_lesson(
+    source: Mapping[str, Any], *, lookup: _Lookup, reference_date: date
+) -> lessons_service.SeedLesson:
+    """A lesson of ``mock-governanca``: the free text of the origin becomes origin and number."""
+    origin, reference = lessons_calc.origin_of_text(source["origem"])
+    return lessons_service.SeedLesson(
+        project_id=lookup.projects[source["projetoId"]],
+        code=source["codigo"],
+        author_person_id=lookup.people[source["autorId"]],
+        discipline=source["disciplina"],
+        registered_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+        reuses=int(source.get("reusos", 0)),
+        columns={
+            "title": source["titulo"],
+            "kind": source["tipo"],
+            "phase": source["fase"],
+            "area": source["area"],
+            "origin": origin,
+            "origin_ref": reference,
+            "what_happened": source["aconteceu"],
+            "cause": source["causa"],
+            "term_impact_days": source["impactoPrazoDias"],
+            "cost_impact_cents": source["impactoCustoCentavos"],
+            "recommendation": source["recomendacao"],
+            "applicability": source["aplicabilidade"],
+            "situation": source["situacao"],
+        },
+        keywords=tuple(source["palavrasChave"]),
     )
 
 

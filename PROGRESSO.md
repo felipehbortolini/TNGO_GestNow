@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 28 de 93 -->
+<!-- Progresso da migração: 29 de 93 -->
 
 # Progresso da migração
 
-**28 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 06/10/2026 17:36 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**29 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 06/10/2026 17:36 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 28 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 029, 044, 045, 051, 072 |
-| em andamento | 2 | 027, 064 |
+| concluída | 29 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 027, 029, 044, 045, 051, 072 |
+| em andamento | 1 | 064 |
 | na fila | 63 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
@@ -37,11 +37,12 @@
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | `04bcdb5` |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | `faf834f` |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | `8e833b8` |
+| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | - |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
-| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | - |
+| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
 ## Em andamento, bloqueadas e na fila
 
@@ -50,7 +51,6 @@
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | na fila | ISSUE-024, ISSUE-019 |
 | ISSUE-026 | Painel de mudanças | na fila | ISSUE-025 |
-| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | em andamento | ISSUE-019, ISSUE-023 |
 | ISSUE-028 | Painel de lições | na fila | ISSUE-027 |
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | na fila | ISSUE-029, ISSUE-025 |
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | na fila | ISSUE-030 |

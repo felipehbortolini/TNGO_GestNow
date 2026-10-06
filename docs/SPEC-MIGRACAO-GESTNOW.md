@@ -1381,6 +1381,8 @@ do dono".
 | Decisão da execução (ISSUE-021), pendente de revisão do dono | retirar empresa | bloqueada quando alguém dela é responsável por ação aberta da ata (regra 11.5 do protótipo) | D5, ISSUE-021 |
 | Decisão da execução (ISSUE-021), pendente de revisão do dono | revisão anterior | só leitura; empresas e presença só mudam na vigente, protegidas pela versão da ata | D5, ISSUE-021 |
 | Decisão da execução (ISSUE-021), pendente de revisão do dono | numeração na carga | a sequência do projeto continua depois do maior número do mock (`numbering.start_after`) | D6, ISSUE-021 |
+| Decisão da execução (ISSUE-027), pendente de revisão do dono | histórico da lição | tabela própria `licao_historico` (pessoa, data, texto) guarda registro, devolução e validação | D7, ISSUE-027 |
+| Decisão da execução (ISSUE-027), pendente de revisão do dono | risco a partir da lição | recusado com mensagem até a ISSUE-067 | D9, ISSUE-027 |
 
 ---
 
