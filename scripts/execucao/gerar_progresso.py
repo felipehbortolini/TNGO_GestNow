@@ -55,11 +55,7 @@ def main() -> None:
     for status in ("done", "in-progress", "blocked", "proposed"):
         group = by_status.get(status, [])
         if group:
-            ids = (
-                ", ".join(r[0] for r in group)
-                if status != "proposed"
-                else f"{group[0][0]} a {group[-1][0]}"
-            )
+            ids = ", ".join(r[0] for r in group)
             lines.append(f"| {STATUS_LABEL[status]} | {len(group)} | {ids} |")
     lines += ["", "## Concluídas", "", "| Issue | Título | Commit |", "|---|---|---|"]
     lines += [f"| ISSUE-{n} | {t} | {commit_of(n)} |" for n, t, _e, _s, _b in done]
