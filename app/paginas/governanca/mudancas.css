@@ -1,16 +1,79 @@
 /* ============================================================
    mudancas.css — Estilo da tela Gestão de mudanças (governanca/mudancas)
 
-   Solicitações de mudança com etapa, próxima decisão e indicadores.
-
-   Escopo: tudo que morar aqui começa por .pagina--governanca-mudancas, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-023 e ISSUE-026.
+   Escopo: tudo que mora aqui começa por .pagina--governanca-mudancas, a classe da raiz da
+   view. Só tokens do Design System: nenhum valor de cor, espaçamento, raio ou sombra
+   escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--governanca-mudancas .mudancas-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-md);
+}
+
+.pagina--governanca-mudancas .mudancas-filtros {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--governanca-mudancas .mudancas-filtros__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+.pagina--governanca-mudancas .mudancas-exportar {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.pagina--governanca-mudancas .mudancas-codigo {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.pagina--governanca-mudancas .mudancas-prazo--atraso {
+  color: var(--erro-700);
+  font-weight: 600;
+}
+
+.pagina--governanca-mudancas .mudancas-kpi__texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+  text-align: left;
+}
+
+.pagina--governanca-mudancas .mudancas-kpi__nota {
+  color: var(--text-hint);
+  font-size: 0.75rem;
+}
+
+.pagina--governanca-mudancas button.kpi {
+  cursor: pointer;
+  text-align: left;
+}
+
+.pagina--governanca-mudancas button.kpi.is-active {
+  outline: 2px solid var(--brand-primary);
+}
+
+.pagina--governanca-mudancas .mudancas-marcar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 640px) {
+  .pagina--governanca-mudancas .mudancas-acoes {
+    justify-content: stretch;
+  }
+  .pagina--governanca-mudancas .mudancas-exportar {
+    width: 100%;
+  }
+}

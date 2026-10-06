@@ -1,16 +1,102 @@
 /* ============================================================
    mudanca.css — Estilo da tela Solicitação de mudança (governanca/mudanca)
 
-   Solicitação, análise de impacto, decisão, implementação e histórico da mudança.
-
-   Escopo: tudo que morar aqui começa por .pagina--governanca-mudanca, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-023 a ISSUE-025.
+   Escopo: tudo que mora aqui começa por .pagina--governanca-mudanca, a classe da raiz da
+   view. Só tokens do Design System: nenhum valor de cor, espaçamento, raio ou sombra
+   escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--governanca-mudanca .mudanca-faixa__corpo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.pagina--governanca-mudanca .mudanca-faixa__codigo {
+  color: var(--brand-title);
+  font-weight: 600;
+}
+
+.pagina--governanca-mudanca .mudanca-faixa__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  color: var(--text-secondary);
+}
+
+.pagina--governanca-mudanca .mudanca-faixa__selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--governanca-mudanca .mudanca-etapas {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-dimmed);
+  text-align: center;
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__ponto {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--neutro-300);
+  border-radius: 50%;
+  background: var(--branco);
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__item--feita {
+  color: var(--text-secondary);
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__item--feita .mudanca-etapas__ponto {
+  border-color: var(--verde-500);
+  background: var(--verde-500);
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__item--atual {
+  color: var(--brand-title);
+  font-weight: 600;
+}
+
+.pagina--governanca-mudanca .mudanca-etapas__item--atual .mudanca-etapas__ponto {
+  border-color: var(--brand-primary);
+}
+
+.pagina--governanca-mudanca .mudanca-colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-lg);
+}
+
+.pagina--governanca-mudanca .mudancas-codigo {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .pagina--governanca-mudanca .mudanca-etapas {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+  .pagina--governanca-mudanca .mudanca-etapas__item {
+    flex-direction: row;
+    text-align: left;
+  }
+}

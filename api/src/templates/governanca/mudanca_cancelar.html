@@ -1,0 +1,32 @@
+{% extends "base_fragment.html" %}
+{#
+  Cancelamento de uma solicitação de mudança (ISSUE-023, HU-125): só o solicitante ou um Gestor, antes
+  da decisão, com justificativa. A justificativa vai para a ficha e para o histórico. O 422 e o 409
+  devolvem este formulário com o texto digitado e a mensagem; o sucesso volta para a ficha.
+
+  Espera: codigo, valores (justificativa, versao), erros (justificativa, versao, geral) e action.
+#}
+{% block fragment %}
+<form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Cancelando a solicitação...">
+  <input type="hidden" name="codigo" value="{{ codigo }}" />
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  <p class="muted mb-16">Cancelamento a pedido do solicitante. A solicitação fica no registro com a justificativa. Mudança já decidida não se cancela: registra-se nova SM para reverter.</p>
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+  <div class="field field--full">
+    <label for="cancelar-justificativa">Justificativa do cancelamento</label>
+    <textarea id="cancelar-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="3" maxlength="500" required
+      {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+    {% if erros.get('justificativa') %}<span id="erro-justificativa" class="field__erro">{{ erros['justificativa'] }}</span>{% endif %}
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
+    <button type="submit" class="btn btn--danger">Cancelar solicitação</button>
+  </div>
+</form>
+{% endblock %}

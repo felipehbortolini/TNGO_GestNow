@@ -14,7 +14,7 @@ type and the value as text (lists use the index in the path).
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -344,6 +344,64 @@ def list_projects(session: Session) -> list[ProjectSummary]:
         )
         for row in session.execute(statement)
     ]
+
+
+@dataclass
+class ProjectDetail:
+    """The fields of a project that other modules read: numbering patterns, budget and manager.
+
+    Not frozen on purpose: ``core.numbering.NumberedProject`` declares writable attributes, and a frozen
+    dataclass does not satisfy that protocol.
+    """
+
+    id: int
+    code: str
+    name: str
+    ata_pattern: str | None
+    risk_pattern: str | None
+    punch_pattern: str | None
+    budget_cents: int | None
+    manager_person_id: int
+
+
+def find_project(session: Session, project_id: int) -> ProjectDetail | None:
+    """The project with the id, or ``None``: what numbering and the budget readers need."""
+    project = session.get(Project, project_id)
+    return _project_detail(project) if project is not None else None
+
+
+def list_project_details(session: Session) -> list[ProjectDetail]:
+    """Every project with its patterns and budget, ordered by code."""
+    statement = select(Project).order_by(Project.code)
+    return [_project_detail(project) for project in session.scalars(statement)]
+
+
+def _project_detail(project: Project) -> ProjectDetail:
+    return ProjectDetail(
+        id=project.id,
+        code=project.code,
+        name=project.name,
+        ata_pattern=project.ata_pattern,
+        risk_pattern=project.risk_pattern,
+        punch_pattern=project.punch_pattern,
+        budget_cents=project.budget_cents,
+        manager_person_id=project.manager_id,
+    )
+
+
+def person_names(session: Session, person_ids: Iterable[int]) -> dict[int, str]:
+    """The names of the people of the register, by id; an unknown id is left out."""
+    wanted = {person_id for person_id in person_ids if person_id is not None}
+    if not wanted:
+        return {}
+    statement = select(Person.id, Person.name).where(Person.id.in_(wanted))
+    return {row.id: row.name for row in session.execute(statement)}
+
+
+def find_person_id_by_email(session: Session, email: str) -> int | None:
+    """The id of the person with the e-mail (compared without case), or ``None``."""
+    statement = select(Person.id).where(func.lower(Person.email) == email.strip().lower())
+    return session.scalars(statement).first()
 
 
 @dataclass(frozen=True)

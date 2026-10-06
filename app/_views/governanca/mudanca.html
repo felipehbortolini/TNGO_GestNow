@@ -1,15 +1,21 @@
 <main id="app-shell" class="content pagina--governanca-mudanca"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['governanca/mudanca'].iniciar($el)">
   <div class="page">
     <div class="page-head">
       <div>
         <h1 class="h-dash">Solicitação de mudança</h1>
-        <p class="page-head__sub">Solicitação, análise de impacto, decisão, implementação e histórico da mudança.</p>
+        <p class="page-head__sub">Ficha da SM: etapas, solicitação, análise de impacto, decisão, implementação e histórico.</p>
+      </div>
+      <div class="page-head__actions">
+        <a href="/governanca/mudancas" class="btn btn--secondary" data-tn-tela>Voltar ao registro</a>
       </div>
     </div>
 
-    <div class="card">
+    <div id="mudanca-ficha" x-show="estado === 'pronto'"
+      x-init="$ajax('/api/governanca/mudanca' + window.location.search, { target: 'mudanca-ficha' })"></div>
+
+    <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
@@ -18,8 +24,8 @@
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhuma solicitação aberta</h2>
-          <p>Abra uma solicitação pela Gestão de mudanças para ver a ficha aqui.</p>
+          <h2 class="h-card4">Solicitação não encontrada</h2>
+          <p>Confira o número no registro de mudanças.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">

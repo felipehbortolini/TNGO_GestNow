@@ -1,0 +1,90 @@
+{#
+  A tabela do Registro de mudanças com o Excel e o PDF (HU-016: no Portfólio a primeira coluna é o
+  Projeto). Os dois botões levam os filtros da tela. Vazio de origem (nenhuma SM no escopo) e vazio por
+  filtro (há SMs, mas nenhuma passa) são estados diferentes, com saídas diferentes.
+#}
+<div class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Solicitações de mudança</h2>
+    <span class="hint" role="status">{{ contagem }}</span>
+    <div class="mudancas-exportar">
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}{{ consulta }}">PDF</button>
+    </div>
+  </div>
+  <div class="card__body">
+    {% if total_no_escopo == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3 class="h-card4">Nenhuma solicitação de mudança ainda</h3>
+      <p>{% if portfolio %}Nenhum projeto do portfólio tem solicitações registradas.{% else %}Este projeto ainda não tem solicitações registradas.{% endif %}
+        {% if pode_registrar %}Use "Nova solicitação" para formalizar a primeira.{% endif %}</p>
+    </div>
+    {% elif not linhas %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h3 class="h-card4">Nenhum resultado para os filtros aplicados</h3>
+      <p>Ajuste ou limpe os filtros para ver as solicitações.</p>
+      <a class="btn btn--secondary" href="/api/governanca/mudancas" x-target="mudancas-kpis mudancas-tabela">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Solicitações de mudança</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Nº</th>
+            <th scope="col">Título</th>
+            <th scope="col">Tipo · origem</th>
+            <th scope="col" class="td-num">Custo</th>
+            <th scope="col" class="td-num">Prazo</th>
+            <th scope="col">Situação</th>
+            <th scope="col">Próxima etapa</th>
+            <th scope="col"><span class="sr-only">Abrir</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          {% set endereco = '/governanca/mudanca?codigo=' ~ (linha.code | urlencode) ~ '&projeto=' ~ linha.project_id %}
+          <tr{% if linha.is_alert %} class="is-alert"{% endif %}>
+            {% if portfolio %}<td>{{ linha.project_label }}</td>{% endif %}
+            <td class="mudancas-codigo"><a href="{{ endereco }}" data-tn-tela>{{ linha.code }}</a></td>
+            <td>
+              <div class="fw-600">{{ linha.title }}</div>
+              <div class="muted">{{ linha.request_date.strftime('%d/%m/%Y') }}</div>
+              {% if linha.priority != 'Normal' %}
+              <span class="pill {{ pill_prioridade(linha.priority) }}">{{ linha.priority }}</span>
+              {% endif %}
+              {% if linha.emergency_pending %}
+              <span class="pill {{ 'pill--erro' if linha.ratification_overdue else 'pill--warn' }}">Ratificação pendente{% if linha.ratification_overdue %} (vencida){% endif %}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div>{{ linha.kind }}</div>
+              <div class="muted">{{ linha.origin }}</div>
+            </td>
+            <td class="td-num">{{ texto_custo(linha.cost_cents) }}</td>
+            <td class="td-num{% if linha.term_days and linha.term_days > 0 %} mudancas-prazo--atraso{% endif %}">{{ texto_prazo(linha.term_days) }}</td>
+            <td><span class="pill {{ pill_situacao(linha.situation) }}">{{ linha.situation }}</span></td>
+            <td>
+              {% if linha.next_step %}
+              {{ linha.next_step }}
+              {% elif linha.closing_date %}
+              <span class="muted">encerrada em {{ linha.closing_date.strftime('%d/%m/%Y') }}</span>
+              {% else %}
+              <span class="muted">·</span>
+              {% endif %}
+              {% if linha.analysis_overdue %}<span class="pill pill--erro">Análise vencida</span>{% endif %}
+            </td>
+            <td>
+              <a class="iconbtn" href="{{ endereco }}" data-tn-tela aria-label="Abrir a ficha de {{ linha.code }}"
+                x-init="$el.innerHTML = window.icon('arrowRight', 16)"></a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>

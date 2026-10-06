@@ -71,4 +71,28 @@ Limite de alçada do Gerente (até 1% do orçamento e sem impacto contratual ini
 | Tela, estilo e comportamento | `app/_views/governanca/` e `app/paginas/governanca/` |
 | Testes | `api/tests/governanca/` |
 
-Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-023 a ISSUE-028 completam este documento e acrescentam testes de fronteira/segregação.
+As ISSUE-024 a ISSUE-028 completam este documento (análise, decisão, painel e lições).
+
+## O que a ISSUE-023 trouxe (Registro e ficha da mudança)
+
+**Telas.** Registro de mudanças (`mudancas`): barra de ações, seis KPIs (os três primeiros filtram a lista pela situação), filtros (busca, situação, tipo, origem, prioridade, alçada) e tabela com Excel e PDF; no Portfólio a primeira coluna é Projeto e "Nova solicitação" pede o projeto antes. Ficha (`mudanca`): alertas, faixa de identificação, barra de etapas e as cinco abas em leitura (Solicitação, Análise de impacto, Decisão, Implementação, Histórico), anexos e cancelamento. O trio de cada tela está na tabela acima.
+
+**Rotas** (prefixo `/api/`, `routes.py`):
+
+| Rota | Método | Uso |
+|---|---|---|
+| `governanca/mudancas` | GET | Registro (ou só os blocos `mudancas-kpis` e `mudancas-tabela` quando o filtro pede) |
+| `governanca/mudancas` | POST | Registra a SM; 302 para a ficha; 422 devolve o formulário preenchido |
+| `governanca/mudancas/nova` | GET | Formulário da nova solicitação (Portfólio sem projeto: 422) |
+| `governanca/mudancas/excel` e `/imprimivel` | GET | Exportação do registro com os filtros da tela |
+| `governanca/mudanca?codigo=` | GET | Ficha (404 se o número não existe) |
+| `governanca/mudanca/excel` e `/imprimivel` | GET | Exportação da ficha |
+| `governanca/mudanca/cancelar` | GET, POST | Formulário e cancelamento com justificativa (403, 422, 409) |
+
+**Fórmulas** (`calculations.py`, todas recebem a data de referência): `change_stage` (etapa 0 a 4), `minimum_change_authority` (limite em centavos arredondado meio para cima; valor absoluto; marco contratual vai ao Comitê), `emergency_ratification_due_date`, `is_analysis_overdue`, `is_emergency_pending`, `is_ratification_overdue`, `next_step`, `summarize_changes` (KPIs), `percent_of` (uma casa, meio para cima, nulo sem orçamento), `mean_decision_days` (média arredondada meio para cima sobre as SMs com decisão), `change_history`.
+
+**Fluxos.** Nova SM: número `SM-<padrão do projeto>-NNNN` pela sequência do projeto (`numbering.next_number`, tipo `mudanca`), situação Registrada; prioridade Emergencial com execução antecipada grava início (`data_inicio_implementacao`) e justificativa e abre a ratificação pendente. Cancelamento: só solicitante ou Gestor, só em Registrada, Em análise, Aguardando comitê ou Adiada; SM aprovada é recusada com a orientação de registrar nova SM.
+
+**Carga e oráculo.** `seed.py` lê `prototype_collection("mudancas")` e grava pela fachada (`load_demonstration_change`), conferindo o número do protótipo; `remanejamentos` e `eacItens` esperam o Financeiro (D9). Oráculo em `api/tests/governanca/test_oraculo_mudancas.py` (11 SMs, 5 aprovadas, R$ 1.200.000,00 = 2,7%, +42 dias, 33 dias de decisão). Migração `m023_solicitacao_de_mudanca.py`.
+
+**Testes.** `api/tests/governanca/`: `test_calculos.py`, `test_validacao.py`, `test_fachada.py`, `test_rotas.py`, `test_oraculo_mudancas.py`; `conftest.py` e `apoio.py` dão a sessão do teste às rotas.

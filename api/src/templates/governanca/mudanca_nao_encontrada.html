@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha pedida não existe: o código da tela não aponta para nenhuma solicitação de mudança.
+#}
+{% block fragment %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-aviso.png" alt="" />
+  <h2 class="h-card4">Mudança não encontrada</h2>
+  <p>Solicitação de mudança não encontrada. Confira o número ou volte ao registro.</p>
+  <a class="btn btn--primary" href="/governanca/mudancas" data-tn-tela>Voltar ao registro de mudanças</a>
+</div>
+{% endblock %}

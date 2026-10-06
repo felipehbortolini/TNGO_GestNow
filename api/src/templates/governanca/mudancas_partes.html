@@ -1,0 +1,12 @@
+{#
+  Os dois blocos que o formulário de filtros do Registro de mudanças substitui: os KPIs (a situação
+  escolhida fica marcada) e a tabela. Raízes irmãs, sem base_fragment, com os ids fixos de propósito:
+  a resposta se destina aos lugares que o formulário declarou (docs/PADROES-DE-PAGINA.md, "Resposta
+  que atualiza vários blocos").
+#}
+<div id="mudancas-kpis" class="kpis">
+  {% include "governanca/_mudancas_kpis.html" %}
+</div>
+<div id="mudancas-tabela">
+  {% include "governanca/_mudancas_tabela.html" %}
+</div>

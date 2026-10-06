@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 20 de 93 -->
+<!-- Progresso da migração: 21 de 93 -->
 
 # Progresso da migração
 
-**20 de 93 issues concluídas** (última fechada: ISSUE-029). Atualizado em 06/10/2026 12:36 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**21 de 93 issues concluídas** (última fechada: ISSUE-029). Atualizado em 06/10/2026 12:39 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 20 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 029 |
-| em andamento | 4 | 023, 044, 045, 051 |
+| concluída | 21 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 029 |
+| em andamento | 3 | 044, 045, 051 |
 | na fila | 69 | 020 a 093 |
 
 ## Concluídas
@@ -32,7 +32,8 @@
 | ISSUE-016 | Biblioteca de gráficos 3: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os visuais novos | `c0e3a90` |
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | `128eb77` |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | `f332a9a` |
-| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | - |
+| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | `b3da731` |
+| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | - |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
 
 ## Em andamento, bloqueadas e na fila
@@ -42,7 +43,6 @@
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | na fila | ISSUE-019 |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
-| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | na fila | ISSUE-023 |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | na fila | ISSUE-024, ISSUE-019 |
 | ISSUE-026 | Painel de mudanças | na fila | ISSUE-025 |

@@ -1,0 +1,29 @@
+{#
+  Os seis KPIs do Registro de mudanças. Os números vêm contados do servidor. Os três primeiros são
+  botões que filtram a lista pela situação (o JS da tela os liga ao formulário); os outros só informam.
+  Cada cartão traz a referência de gestão e uma nota, e o estado nunca é só a cor: o texto acompanha.
+#}
+{% for cartao in cartoes %}
+{% set classe = 'kpi kpi--' ~ cartao.tone.value %}
+{% if cartao.filter_value %}
+{% set ativo = filtros.situation == cartao.filter_value %}
+<button type="button" class="{{ classe }}{% if ativo %} is-active{% endif %}"
+  data-filtro-situacao="{{ cartao.filter_value }}" aria-pressed="{{ 'true' if ativo else 'false' }}">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>
+  <span class="mudancas-kpi__texto">
+    <span class="kpi__label">{{ cartao.label }}</span>
+    <span class="mudancas-kpi__nota">{{ cartao.reference }} · {{ cartao.footer }}</span>
+  </span>
+  <span class="kpi__value">{{ cartao.value }}{% if cartao.unit %} <small>{{ cartao.unit }}</small>{% endif %}</span>
+</button>
+{% else %}
+<div class="{{ classe }} kpi--estatico">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>
+  <span class="mudancas-kpi__texto">
+    <span class="kpi__label">{{ cartao.label }}</span>
+    <span class="mudancas-kpi__nota">{{ cartao.reference }} · {{ cartao.footer }}</span>
+  </span>
+  <span class="kpi__value">{{ cartao.value }}{% if cartao.unit %} <small>{{ cartao.unit }}</small>{% endif %}</span>
+</div>
+{% endif %}
+{% endfor %}

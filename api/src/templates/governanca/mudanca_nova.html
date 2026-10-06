@@ -1,0 +1,118 @@
+{% extends "base_fragment.html" %}
+{#
+  Nova solicitação de mudança (ISSUE-023, HU-125): o formulário do modal. O número SM-... nasce na
+  gravação, pela sequência do projeto, e a SM nasce Registrada. A validação é do servidor: o 422 devolve
+  este formulário preenchido, com a mensagem sob cada campo; o sucesso redireciona para a ficha.
+
+  Prioridade Emergencial pergunta se a execução já começou antes da decisão do Comitê (então pede o
+  início e a justificativa; a ratificação passa a ser obrigatória). O estado local do Alpine (qual
+  prioridade, se há execução antecipada) nasce dos data-* do formulário, nunca de texto interpolado numa
+  expressão (docs/PADROES-DE-PAGINA.md, "Interpolar dado em expressão Alpine").
+
+  Espera: valores, erros, tipos, origens, prioridades, prioridade_emergencial, hoje e action.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Registrando a solicitação..."
+  x-data="{ prioridade: $el.dataset.prioridade, antecipada: $el.dataset.antecipada === 'sim' }"
+  data-prioridade="{{ valores.get('prioridade') or 'Normal' }}"
+  data-antecipada="{{ valores.get('execucao_antecipada') or '' }}">
+  <input type="hidden" name="projeto_rotulo" value="{{ valores.get('projeto_rotulo') or '' }}" />
+  {% if valores.get('projeto_rotulo') %}
+  <p class="muted mb-16">Projeto: <strong>{{ valores.get('projeto_rotulo') }}</strong></p>
+  {% endif %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Toda mudança de escopo, prazo, custo, qualidade ou contrato nasce como solicitação formal; nada altera linha de base sem SM aprovada. Fluxo: Registrada &rarr; Em análise de impacto &rarr; Aguardando comitê &rarr; Aprovada, Aprovada com condições, Rejeitada ou Adiada &rarr; Em implementação &rarr; Encerrada.</span>
+  </div>
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="nova-titulo">Título</label>
+      <input id="nova-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}" maxlength="150" required
+        value="{{ valores.get('titulo') or '' }}"{% if erros.get('titulo') %} aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
+      {{ campo_erro(erros, 'titulo') }}
+    </div>
+    <div class="field">
+      <label for="nova-tipo">Tipo</label>
+      <select id="nova-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required
+        {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if valores.get('tipo') == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'tipo') }}
+    </div>
+    <div class="field">
+      <label for="nova-origem">Origem</label>
+      <select id="nova-origem" name="origem" class="input{% if erros.get('origem') %} input--erro{% endif %}" required
+        {% if erros.get('origem') %}aria-invalid="true" aria-describedby="erro-origem"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for origem in origens %}
+        <option value="{{ origem }}"{% if valores.get('origem') == origem %} selected{% endif %}>{{ origem }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'origem') }}
+    </div>
+    <div class="field">
+      <label for="nova-prioridade">Prioridade</label>
+      <select id="nova-prioridade" name="prioridade" class="input{% if erros.get('prioridade') %} input--erro{% endif %}" required
+        @change="prioridade = $event.target.value"
+        {% if erros.get('prioridade') %}aria-invalid="true" aria-describedby="erro-prioridade"{% endif %}>
+        {% for prioridade in prioridades %}
+        <option value="{{ prioridade }}"{% if (valores.get('prioridade') or 'Normal') == prioridade %} selected{% endif %}>{{ prioridade }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Normal: fluxo completo. Urgente: próxima reunião do comitê. Emergencial: pode executar antes, com ratificação.</span>
+      {{ campo_erro(erros, 'prioridade') }}
+    </div>
+    <div class="field">
+      <label for="nova-data">Data da solicitação</label>
+      <input id="nova-data" name="data_solicitacao" type="date" class="input{% if erros.get('data_solicitacao') %} input--erro{% endif %}"
+        max="{{ hoje }}" required value="{{ valores.get('data_solicitacao') or hoje }}"
+        {% if erros.get('data_solicitacao') %}aria-invalid="true" aria-describedby="erro-data_solicitacao"{% endif %} />
+      {{ campo_erro(erros, 'data_solicitacao') }}
+    </div>
+    <div class="field field--full">
+      <label for="nova-descricao">Descrição e justificativa</label>
+      <textarea id="nova-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}" rows="4" maxlength="1000" required
+        {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
+      <span class="hint">O que muda, por que e o que acontece se a mudança não for feita.</span>
+      {{ campo_erro(erros, 'descricao') }}
+    </div>
+
+    <div class="field field--full" x-show="prioridade === '{{ prioridade_emergencial }}'">
+      <label class="mudancas-marcar">
+        <input type="checkbox" name="execucao_antecipada" value="sim" x-model="antecipada"{% if valores.get('execucao_antecipada') == 'sim' %} checked{% endif %} />
+        A execução começou antes da decisão do comitê (emergência)
+      </label>
+    </div>
+    <div class="field" x-show="prioridade === '{{ prioridade_emergencial }}' &amp;&amp; antecipada">
+      <label for="nova-inicio">Início da execução</label>
+      <input id="nova-inicio" name="inicio_emergencia" type="date" class="input{% if erros.get('inicio_emergencia') %} input--erro{% endif %}"
+        max="{{ hoje }}" value="{{ valores.get('inicio_emergencia') or hoje }}"
+        {% if erros.get('inicio_emergencia') %}aria-invalid="true" aria-describedby="erro-inicio_emergencia"{% endif %} />
+      {{ campo_erro(erros, 'inicio_emergencia') }}
+    </div>
+    <div class="field field--full" x-show="prioridade === '{{ prioridade_emergencial }}' &amp;&amp; antecipada">
+      <label for="nova-emergencia">Justificativa da emergência</label>
+      <textarea id="nova-emergencia" name="justificativa_emergencia" class="input{% if erros.get('justificativa_emergencia') %} input--erro{% endif %}" rows="2" maxlength="500"
+        {% if erros.get('justificativa_emergencia') %}aria-invalid="true" aria-describedby="erro-justificativa_emergencia"{% endif %}>{{ valores.get('justificativa_emergencia') or '' }}</textarea>
+      <span class="hint">Risco à segurança, ao meio ambiente ou à continuidade que impedia esperar o comitê.</span>
+      {{ campo_erro(erros, 'justificativa_emergencia') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar solicitação</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,282 @@
+{% extends "base_fragment.html" %}
+{#
+  Ficha da solicitação de mudança (ISSUE-023, HU-125): alertas, identificação, barra de etapas e as
+  cinco abas em leitura (Solicitação, Análise de impacto, Decisão, Implementação e Histórico). Os
+  fluxos de análise e de decisão chegam nas ISSUE-024 e ISSUE-025; o cancelamento é daqui.
+
+  A troca de aba é estado local do Alpine (nenhum texto de dado entra numa expressão). Os anexos vêm do
+  fragmento genérico da plataforma. As ações vinculadas, o risco de origem e os itens da EAC aparecem
+  quando os módulos donos forem ligados (D9): este fragmento não os inventa.
+
+  Espera: ficha (ChangeSheet), etapas, excel_url, pdf_url, cancelar_url, eac_url, anexos_url,
+  tipo_emergencial e os apresentadores (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
+#}
+{% macro linha(rotulo, valor) %}
+<div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
+{% endmacro %}
+{% block fragment %}
+{% set m = ficha.change %}
+{% set data = '%d/%m/%Y' %}
+
+{% if ficha.row.emergency_pending %}
+<div class="aviso {{ 'aviso--erro' if ficha.row.ratification_overdue else 'aviso--warn' }} mb-16" role="alert">
+  <strong>Mudança emergencial em execução desde {{ ficha.emergency_start.strftime(data) }}.</strong>
+  <span>Ratificação pelo Comitê obrigatória até {{ ficha.ratification_due.strftime(data) }}{% if ficha.row.ratification_overdue %} (vencida){% endif %}.</span>
+</div>
+{% endif %}
+{% if ficha.row.analysis_overdue %}
+<div class="aviso aviso--warn mb-16" role="alert">
+  <strong>Análise de impacto vencida</strong>
+  <span>desde {{ ficha.analysis.deadline.strftime(data) }}. Responsável: {{ ficha.analysis_responsible }}.</span>
+</div>
+{% endif %}
+{% if m.situation == 'Adiada' and ficha.decision %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Decisão adiada</strong>
+  <span>em {{ ficha.decision.decision.decision_date.strftime(data) }}.</span>
+</div>
+{% endif %}
+{% if ficha.decision and ficha.decision.decision.conditions and ficha.is_open %}
+<div class="aviso aviso--info mb-16" role="note">
+  <strong>Condições da aprovação:</strong> <span>{{ ficha.decision.decision.conditions }}</span>
+</div>
+{% endif %}
+{% if ficha.pending_eac_revision %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Custo aprovado ainda não incorporado à EAC.</strong>
+  <span>Gere a nova revisão do orçamento em <a href="{{ eac_url }}" data-tn-tela>03 Gestão Financeira &gt; EAC</a>.</span>
+</div>
+{% endif %}
+{% if m.situation == 'Cancelada' %}
+<div class="aviso aviso--info mb-16" role="status">
+  <strong>Solicitação cancelada</strong>
+  <span>em {{ m.closing_date.strftime(data) }}{% if ficha.closed_by_name %} por {{ ficha.closed_by_name }}{% endif %}{% if m.closing_note %}: {{ m.closing_note }}{% endif %}</span>
+</div>
+{% endif %}
+{% if ficha.possible_duplicate_code %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Possível duplicidade.</strong>
+  <span>Já existe solicitação aberta com o mesmo título ({{ ficha.possible_duplicate_code }}). Verifique se não é a mesma mudança.</span>
+</div>
+{% endif %}
+
+<section class="card mudanca-faixa" aria-label="Identificação da mudança">
+  <div class="card__body mudanca-faixa__corpo">
+    <div>
+      <p class="mudanca-faixa__codigo">{{ m.code }} · {{ m.kind }}</p>
+      <p class="mudanca-faixa__meta">
+        <span>Origem: {{ m.origin }}</span>
+        <span>Solicitada em {{ m.request_date.strftime(data) }} por {{ ficha.requester_name }}</span>
+        {% if m.authority %}<span>Alçada: {{ m.authority }}</span>{% endif %}
+      </p>
+    </div>
+    <div class="mudanca-faixa__selos">
+      <span class="pill {{ pill_prioridade(m.priority) }}">Prioridade {{ m.priority | lower }}</span>
+      <span class="pill {{ pill_situacao(m.situation) }}">{{ m.situation }}</span>
+    </div>
+  </div>
+</section>
+
+<div class="mb-16">
+  <h2 class="h-card4">{{ m.title }}</h2>
+  <p class="muted">Projeto {{ ficha.project_label }}{% if ficha.row.next_step %} · Próxima etapa: <strong>{{ ficha.row.next_step }}</strong>{% endif %}</p>
+</div>
+
+<ol class="mudanca-etapas" aria-label="Etapas da mudança">
+  {% for etapa in etapas %}
+  <li class="mudanca-etapas__item mudanca-etapas__item--{{ etapa.state }}"{% if etapa.state == 'atual' %} aria-current="step"{% endif %}>
+    <span class="mudanca-etapas__ponto" aria-hidden="true"></span>
+    <span class="mudanca-etapas__nome">{{ etapa.name }}</span>
+    <span class="sr-only">{{ 'concluída' if etapa.state == 'feita' else ('etapa atual' if etapa.state == 'atual' else 'a fazer') }}</span>
+  </li>
+  {% endfor %}
+</ol>
+
+<div class="toolbar mb-16" role="group" aria-label="Ações da mudança">
+  {% if ficha.can_cancel %}
+  <button type="button" class="btn btn--danger" data-mudanca-cancelar="{{ cancelar_url }}" data-codigo="{{ m.code }}">Cancelar solicitação</button>
+  {% endif %}
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ excel_url }}">Excel</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ pdf_url }}">PDF</button>
+</div>
+
+<div x-data="{ aba: 'solicitacao' }">
+  <div class="tabs" role="tablist" aria-label="Seções da mudança">
+    {% for chave, nome in [('solicitacao', 'Solicitação'), ('analise', 'Análise de impacto'), ('decisao', 'Decisão'), ('implementacao', 'Implementação'), ('historico', 'Histórico')] %}
+    <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
+      :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
+      @click="aba = '{{ chave }}'">{{ nome }}{% if chave == 'historico' %} <span class="pill pill--neutral">{{ ficha.history | length }}</span>{% endif %}</button>
+    {% endfor %}
+  </div>
+
+  <section class="mt-16" role="tabpanel" id="painel-solicitacao" aria-labelledby="aba-solicitacao" x-show="aba === 'solicitacao'">
+    <div class="card">
+      <div class="card__body det">
+        {{ linha('Número', m.code) }}
+        {{ linha('Título', m.title) }}
+        {{ linha('Tipo', m.kind) }}
+        {{ linha('Origem', m.origin) }}
+        {{ linha('Prioridade', m.priority) }}
+        {{ linha('Solicitante', ficha.requester_name) }}
+        {{ linha('Data da solicitação', m.request_date.strftime(data)) }}
+        {{ linha('Descrição e justificativa', m.description) }}
+        {% if ficha.emergency_start %}
+        {{ linha('Execução emergencial', 'Iniciada em ' ~ ficha.emergency_start.strftime(data) ~ '. ' ~ (m.emergency_justification or '')) }}
+        {% endif %}
+        {% if ficha.analysis %}
+        {{ linha('Análise de impacto', 'Responsável ' ~ ficha.analysis_responsible ~ '; prazo ' ~ ficha.analysis.deadline.strftime(data)) }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mt-16">
+      <div class="card__body">
+        <div id="anexos-mudanca" x-data x-init="$ajax($el.dataset.url, { target: 'anexos-mudanca' })" data-url="{{ anexos_url }}">
+          <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-analise" aria-labelledby="aba-analise" x-show="aba === 'analise'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">Análise de impacto</h3>
+        <span class="hint">
+          {% if ficha.impact %}Concluída em {{ ficha.impact.analysis_date.strftime(data) }}{% if ficha.analyst_name %} por {{ ficha.analyst_name }}{% endif %}
+          {% else %}Obrigatória antes da decisão{% endif %}
+        </span>
+      </div>
+      <div class="card__body">
+        {% if not ficha.impact %}
+        <div class="empty" data-estado="vazio-origem">
+          <h4 class="h-card5">Análise ainda não registrada</h4>
+          <p>{% if m.situation == 'Registrada' %}A análise de impacto avalia escopo, prazo, custo, qualidade, riscos, SMS e contrato antes da decisão.{% else %}Nenhuma análise de impacto foi registrada para esta solicitação.{% endif %}</p>
+        </div>
+        {% else %}
+        {% set im = ficha.impact %}
+        <div class="mudanca-colunas">
+          <div class="det">
+            {{ linha('Impacto em custo', texto_custo(im.cost_cents)) }}
+            {{ linha('Impacto em prazo', texto_prazo(im.term_days) ~ ' no caminho crítico') }}
+            {{ linha('Marco contratual', 'Afeta marco contratual' if im.affects_contract_milestone else 'Sem impacto em marco contratual') }}
+            {% set nota_alcada = (' (elevada pelo analista; mínima exigida: ' ~ ficha.required_authority ~ ')') if ficha.required_authority and ficha.required_authority != m.authority else ' (mínima exigida)' %}
+            {{ linha('Alçada de decisão', (m.authority ~ nota_alcada) if m.authority else none) }}
+            {{ linha('Limite do gerente do projeto', (ficha.manager_limit_cents | brl) if ficha.manager_limit_cents is not none else None) }}
+            {{ linha('Fonte do recurso', m.resource_source or ('a definir' if im.cost_cents > 0 else 'sem custo adicional')) }}
+          </div>
+          <div class="det">
+            {{ linha('Escopo', im.scope) }}
+            {{ linha('Qualidade e especificação', im.quality) }}
+            {{ linha('Riscos novos ou alterados', im.risks) }}
+            {{ linha('SMS', im.safety) }}
+            {{ linha('Contrato', im.contract) }}
+            {{ linha('Atividades do cronograma', im.activities) }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-decisao" aria-labelledby="aba-decisao" x-show="aba === 'decisao'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">{{ 'Decisão do gerente do projeto' if m.authority == 'Gerente do projeto' else 'Decisão do Comitê de Controle de Mudanças' }}</h3>
+        <span class="hint">
+          {% if ficha.decision %}Registrada em {{ ficha.decision.decision.decision_date.strftime(data) }}
+          {% elif m.situation == 'Aguardando comitê' %}Aguardando decisão
+          {% else %}Sem decisão{% endif %}
+        </span>
+      </div>
+      <div class="card__body">
+        {% if ficha.decision %}
+        {% set d = ficha.decision.decision %}
+        <div class="det">
+          <div class="det__row"><span class="det__label">Decisão</span><span class="det__valor"><span class="pill {{ pill_situacao(d.result) }}">{{ d.result }}</span></span></div>
+          {{ linha('Data', d.decision_date.strftime(data)) }}
+          {{ linha('Alçada', m.authority) }}
+          {{ linha('Participantes', ficha.decision.participants | join(', ')) }}
+          {{ linha('Justificativa', d.justification) }}
+          {% if d.conditions %}{{ linha('Condições', d.conditions) }}{% endif %}
+        </div>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem">
+          <h4 class="h-card5">Nenhuma decisão registrada</h4>
+          <p>{% if ficha.stage < 2 %}A decisão acontece depois da análise de impacto.{% else %}Ainda não há decisão registrada para esta solicitação.{% endif %}</p>
+        </div>
+        {% endif %}
+        {% if ficha.previous_decisions %}
+        <h4 class="h-card5 mt-24">Decisões anteriores</h4>
+        <ul class="lista-simples">
+          {% for anterior in ficha.previous_decisions %}
+          <li class="lista-simples__item">
+            <span class="pill pill--warn">{{ anterior.decision.decision_date.strftime(data) }}</span>
+            <span class="body-txt"><strong>{{ anterior.decision.result }}</strong> {{ anterior.decision.justification }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-implementacao" aria-labelledby="aba-implementacao" x-show="aba === 'implementacao'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">Implementação e linhas de base</h3>
+        <span class="hint">Nada altera linha de base sem SM aprovada; o encerramento confere as atualizações.</span>
+      </div>
+      <div class="card__body det">
+        {% set inicio = m.implementation_start if not ficha.emergency_start else none %}
+        {{ linha('Início da implementação', inicio.strftime(data) if inicio else 'não iniciada') }}
+        {% set custo_aprovado = ficha.impact and ficha.impact.cost_cents %}
+        {% if m.eac_revision is not none %}{% set texto_eac = 'Rev ' ~ m.eac_revision ~ ' (custo incorporado)' %}
+        {% elif not custo_aprovado %}{% set texto_eac = 'sem impacto em custo' %}
+        {% elif ficha.is_approved %}{% set texto_eac = 'pendente' %}
+        {% else %}{% set texto_eac = 'após a aprovação' %}{% endif %}
+        {{ linha('Nova revisão da EAC (03)', texto_eac) }}
+        {{ linha('Nova revisão da EAP (02)', ('Rev ' ~ m.eap_revision ~ ' (escopo incorporado)') if m.eap_revision is not none else 'sem revisão incorporada') }}
+        {% if m.situation == 'Encerrada' %}
+        {{ linha('Encerramento', m.closing_date.strftime(data) ~ (' por ' ~ ficha.closed_by_name if ficha.closed_by_name else '') ~ ('. ' ~ m.closing_note if m.closing_note else '')) }}
+        {{ linha('Linhas de base conferidas', ([('EAC Rev ' ~ m.eac_revision) if m.eac_revision is not none else '', ('EAP Rev ' ~ m.eap_revision) if m.eap_revision is not none else '', 'cronograma e Curva S' if m.closed_schedule else '', 'aditivo contratual' if m.closed_contract else '', 'riscos revisados' if m.closed_risks else ''] | select | join(', ')) or 'sem linha de base afetada') }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mt-16">
+      <div class="card__head">
+        <h3 class="h-card4">Ações vinculadas</h3>
+        <span class="hint">Registros da Central de Ações com origem Mudança; aparecem aqui quando a aprovação as cria.</span>
+      </div>
+      <div class="card__body">
+        <div class="empty" data-estado="vazio-origem">
+          <p>{% if ficha.is_approved %}Nenhuma ação vinculada.{% else %}As ações de implementação são criadas na aprovação.{% endif %}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-historico" aria-labelledby="aba-historico" x-show="aba === 'historico'">
+    <div class="card">
+      <div class="card__body">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">Histórico da mudança</caption>
+            <thead>
+              <tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr>
+            </thead>
+            <tbody>
+              {% for entrada in ficha.history %}
+              <tr>
+                <td class="mudancas-codigo">{{ entrada.moment.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ entrada.person_name or '·' }}</td>
+                <td>{{ entrada.text }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
