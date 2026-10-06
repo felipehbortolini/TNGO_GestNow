@@ -96,3 +96,22 @@ As ISSUE-024 a ISSUE-028 completam este documento (análise, decisão, painel e 
 **Carga e oráculo.** `seed.py` lê `prototype_collection("mudancas")` e grava pela fachada (`load_demonstration_change`), conferindo o número do protótipo; `remanejamentos` e `eacItens` esperam o Financeiro (D9). Oráculo em `api/tests/governanca/test_oraculo_mudancas.py` (11 SMs, 5 aprovadas, R$ 1.200.000,00 = 2,7%, +42 dias, 33 dias de decisão). Migração `m023_solicitacao_de_mudanca.py`.
 
 **Testes.** `api/tests/governanca/`: `test_calculos.py`, `test_validacao.py`, `test_fachada.py`, `test_rotas.py`, `test_oraculo_mudancas.py`; `conftest.py` e `apoio.py` dão a sessão do teste às rotas.
+
+## O que a ISSUE-024 trouxe (Análise de impacto e alçada)
+
+**Telas.** Na ficha (`mudanca`), a barra de ações ganha **Iniciar análise** (SM Registrada), **Concluir análise de impacto** (Em análise de impacto) e **Rever análise de impacto** (Aguardando comitê ou Adiada), cada um abrindo um modal com o formulário do servidor (`mudanca.js`, atributo `data-mudanca-modal`). A aba Análise de impacto mostra custo, prazo, marco contratual, alçada (elevada ou mínima), limite do gerente, fonte do recurso, as cinco dimensões, os itens da EAC, as transferências (Remanejamento) e a reserva liberada (Liberação de reserva).
+
+**Rotas** (prefixo `/api/`, `routes.py`; exigem Membro):
+
+| Rota | Método | Uso |
+|---|---|---|
+| `governanca/mudanca/analise/iniciar?codigo=` | GET, POST | Formulário e início: responsável e prazo (padrão: hoje mais `prazoAnaliseDias`); 422 devolve o formulário |
+| `governanca/mudanca/analise?codigo=` | GET, POST | Formulário (preenchido na revisão) e conclusão da análise; 302 para a ficha; 422 por campo |
+
+**Fórmulas** (`calculations.py`): `required_change_authority` (alçada exigida: o maior entre o custo absoluto e o total remanejado vai a `minimum_change_authority`; Liberação de reserva e fonte Reserva gerencial vão sempre ao Comitê), `is_authority_lowered` (só o Gerente abaixo do Comitê é rebaixar), `analysis_deadline` (início mais dias do parâmetro). A alçada é calculada no servidor, também dentro da validação (`validation.validate_impact`), para a mensagem sair no campo `alcada`.
+
+**Regras do formulário** (`validation.py`): custo em reais (centavos no banco; negativo é redução) e prazo em dias inteiros obrigatórios; marco contratual sim ou não; escopo, qualidade, riscos, SMS e contrato com 3 a 300 caracteres ("Sem impacto" vale); custo positivo exige a fonte do recurso (sem custo positivo a fonte não é guardada); Remanejamento tem custo zero e de 1 a 5 transferências (origem, destino, valor maior que zero, itens diferentes); Liberação de reserva tem custo zero, a reserva e o valor.
+
+**Fluxos** (`service.py`): `start_analysis` cria a análise em andamento e leva a SM a Em análise de impacto; `conclude_analysis` grava o impacto (uma linha por SM, atualizada nas revisões), troca os itens da EAC e as transferências não aplicadas, fecha a análise em andamento, grava fonte e alçada na SM e leva Em análise de impacto a Aguardando comitê (a revisão mantém a situação). A Próxima etapa diz quem decide.
+
+**Pontos para outros módulos.** Os itens vêm do Financeiro por `eac_item_ids_by_code` e `eac_item_codes` (que o item é de custo, nível 3, é conferido na ISSUE-030); o aviso de custo acima do saldo das reservas fica para a ISSUE-041. Migração `m024_analise_de_impacto.py`. Testes: `test_analise.py`, `test_validacao_analise.py`, `test_rotas_analise.py` e as fronteiras novas de `test_calculos.py`.

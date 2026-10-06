@@ -9,8 +9,12 @@ taken from ``core.calendario`` at the edge of the route.
 What this slice (ISSUE-023) writes is the request and its cancellation. The analysis, the decision and
 the implementation are written by ISSUE-024 and ISSUE-025; this slice only reads them for the ficha.
 The points where other modules enter are marked where they will be wired (D9): the open actions of the
-implementation (Central de Ações, ISSUE-025), the EAC items and reallocations (Financeiro) and the
-revision of the EAP (Planejamento).
+implementation (Central de Ações, ISSUE-025), the check of the EAC items against the cost level
+(Financeiro, ISSUE-030), the balance of the reserves (Financeiro, ISSUE-041) and the revision of the EAP
+(Planejamento).
+
+ISSUE-024 adds the analysis: ``start_analysis`` takes the change to Em análise de impacto and
+``conclude_analysis`` records the impact, the required authority and sends it to Aguardando comitê.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from src.core import attachment_origins, numbering, rbac, recording
@@ -30,6 +34,7 @@ from src.core.import_values import normalize_text
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.financeiro import service as financeiro
 from src.modulos.governanca import calculations, models, validation
 from src.modulos.governanca.calculations import (
     ChangeFigures,
@@ -43,6 +48,8 @@ from src.modulos.governanca.models import (
     ChangeDecision,
     ChangeDecisionParticipant,
     ChangeImpact,
+    ChangeImpactEacItem,
+    ChangeReallocation,
     ChangeRequest,
 )
 
@@ -142,6 +149,16 @@ class HistoryEntry:
 
 
 @dataclass(frozen=True)
+class TransferLine:
+    """A transfer between two EAC items as the ficha shows it: codes and amount."""
+
+    source_code: str
+    target_code: str
+    value_cents: int
+    applied: bool
+
+
+@dataclass(frozen=True)
 class ChangeSheet:
     """The ficha of a change: everything the five tabs read, ready to print."""
 
@@ -166,6 +183,14 @@ class ChangeSheet:
     can_cancel: bool
     possible_duplicate_code: str | None
     pending_eac_revision: bool
+    transfers: tuple[TransferLine, ...] = ()
+    eac_item_codes: tuple[str, ...] = ()
+    analysis_action: str | None = None
+
+    @property
+    def total_transferred_cents(self) -> int:
+        """The sum moved between EAC items by the reallocations of the change."""
+        return sum(line.value_cents for line in self.transfers)
 
     @property
     def is_open(self) -> bool:
@@ -248,7 +273,8 @@ def find_change_sheet(
     row = _row(loaded, projects=projects, parameters=parameters, reference_date=reference_date)
     decisions = _decision_views(session, change)
     names = _names(session, _sheet_person_ids(loaded))
-    required = _required_authority(loaded, projects, parameters)
+    transfers = _transfer_lines(session, change)
+    required = _required_authority(loaded, projects, parameters, transfers)
     return ChangeSheet(
         change=change,
         row=row,
@@ -273,6 +299,9 @@ def find_change_sheet(
         can_cancel=_may_cancel(user, change),
         possible_duplicate_code=_possible_duplicate(session, change),
         pending_eac_revision=_pending_eac_revision(loaded),
+        transfers=tuple(transfers),
+        eac_item_codes=_impact_item_codes(session, loaded.impact),
+        analysis_action=_analysis_action(user, change),
     )
 
 
@@ -331,6 +360,415 @@ def create_change(
     )
     recording.create(session, user_id=user.id, record=change)
     return CreatedChange(id=change.id, code=code, project_id=project.id)
+
+
+# ── The analysis (ISSUE-024, HU-126) ─────────────────────────────────────
+
+ANALYSIS_START_SITUATIONS = (models.SITUATION_REGISTERED,)
+ANALYSIS_IMPACT_SITUATIONS = (
+    models.SITUATION_ANALYSIS,
+    models.SITUATION_AWAITING,
+    models.SITUATION_POSTPONED,
+)
+ACTION_START = "iniciar"
+ACTION_CONCLUDE = "concluir"
+ACTION_REVIEW = "revisar"
+START_ONLY_REGISTERED_MESSAGE = "A análise só pode ser iniciada em solicitação Registrada."
+IMPACT_ONLY_IN_ANALYSIS_MESSAGE = (
+    "A análise de impacto só pode ser registrada com a solicitação em análise "
+    "(ou revista antes da decisão)."
+)
+ITEM_NOT_IN_EAC_MESSAGE = "O item {code} não existe na EAC do projeto."
+
+
+@dataclass(frozen=True)
+class AnalysisStartForm:
+    """What the form that starts the analysis shows: the people to choose from and the usual deadline."""
+
+    change: ChangeRequest
+    people: tuple[configuracoes.PersonSummary, ...]
+    suggested_deadline: date
+    analysis_days: int
+
+
+@dataclass(frozen=True)
+class ImpactForm:
+    """What the impact form shows: the change, the values it opens with and the references to read."""
+
+    change: ChangeRequest
+    values: dict[str, str]
+    impact_version: int | None
+    manager_limit_cents: int | None
+    manager_limit_percent: Decimal
+    is_review: bool
+
+    @property
+    def is_reallocation(self) -> bool:
+        """Whether the change is a reallocation of the budget: it asks for the transfers."""
+        return self.change.kind == models.TYPE_REALLOCATION
+
+    @property
+    def is_release(self) -> bool:
+        """Whether the change is a release of reserve: it asks for the reserve and the amount."""
+        return self.change.kind == models.TYPE_RESERVE_RELEASE
+
+
+def may_analyse(user: User, change: ChangeRequest) -> bool:
+    """Whether the user may start or write the analysis now: Membro and a situation that allows it."""
+    return _analysis_action(user, change) is not None
+
+
+def _analysis_action(user: User, change: ChangeRequest) -> str | None:
+    if not rbac.can(user, Permission.WRITE):
+        return None
+    if change.situation in ANALYSIS_START_SITUATIONS:
+        return ACTION_START
+    if change.situation == models.SITUATION_ANALYSIS:
+        return ACTION_CONCLUDE
+    if change.situation in ANALYSIS_IMPACT_SITUATIONS:
+        return ACTION_REVIEW
+    return None
+
+
+def analysis_start_form(
+    session: Session, *, user: User, code: str, reference_date: date
+) -> AnalysisStartForm:
+    """The form that starts the analysis, or the refusal that says why it cannot start now."""
+    change = _analysable_change(session, user=user, code=code, allowed=ANALYSIS_START_SITUATIONS)
+    days = int(_parameters(session, reference_date)["prazoAnaliseDias"])
+    return AnalysisStartForm(
+        change=change,
+        people=tuple(configuracoes.list_people(session)),
+        suggested_deadline=calculations.analysis_deadline(reference_date, days),
+        analysis_days=days,
+    )
+
+
+def start_analysis(
+    session: Session, *, user: User, code: str, form: validation.Form, reference_date: date
+) -> ChangeRequest:
+    """Start the analysis: Registrada goes to Em análise de impacto with the usual deadline (HU-126).
+
+    Refused with 403 without the Membro permission and with 422 when the change is not Registrada or
+    the responsible or the deadline break a rule. The deadline suggested to the form is the start plus
+    the days of the parameter ``prazoAnaliseDias``.
+    """
+    change = _analysable_change(session, user=user, code=code, allowed=ANALYSIS_START_SITUATIONS)
+    _require_versions(form, validation.FIELD_VERSION)
+    people_ids = frozenset(person.id for person in configuracoes.list_people(session))
+    start = validation.validate_analysis_start(
+        form, people_ids=people_ids, reference_date=reference_date
+    )
+    recording.create(
+        session,
+        user_id=user.id,
+        record=ChangeAnalysis(
+            change_id=change.id,
+            responsible_id=start.responsible_id,
+            start_date=reference_date,
+            deadline=start.deadline,
+        ),
+    )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes={"situation": models.SITUATION_ANALYSIS},
+        version=form.get(validation.FIELD_VERSION),
+    )
+    return change
+
+
+def impact_form(session: Session, *, user: User, code: str, reference_date: date) -> ImpactForm:
+    """The impact form with the values already recorded, or the refusal that says why not."""
+    change = _analysable_change(session, user=user, code=code, allowed=ANALYSIS_IMPACT_SITUATIONS)
+    loaded = _load_one(session, change)
+    parameters = _parameters(session, reference_date)
+    percent = Decimal(str(parameters["alcadaGerentePctOrcamento"]))
+    project = configuracoes.find_project(session, change.project_id)
+    budget = project.budget_cents if project else None
+    limit = calculations.minimum_change_authority(
+        value_cents=0,
+        budget_cents=budget,
+        affects_contract_milestone=False,
+        manager_limit_percent=percent,
+    ).limit_cents
+    return ImpactForm(
+        change=change,
+        values=_impact_values(session, loaded),
+        impact_version=loaded.impact.version if loaded.impact else None,
+        manager_limit_cents=limit if budget else None,
+        manager_limit_percent=percent,
+        is_review=loaded.impact is not None,
+    )
+
+
+def conclude_analysis(
+    session: Session, *, user: User, code: str, form: validation.Form, reference_date: date
+) -> ChangeRequest:
+    """Record the impact analysis and send the change to the decision (HU-126).
+
+    Everything is mandatory as ``validation.validate_impact`` says; the authority required is computed
+    here, from the cost or the amount moved, the contract milestone and the source of the resource, and
+    the analyst may raise it, never lower it. A change in analysis goes to Aguardando comitê; one
+    already waiting or postponed has its analysis revised and keeps its situation. The EAC items are
+    linked through Financeiro; checking that they are cost items (level 3) is ISSUE-030, and the
+    balance of the reserves that warns about a cost above it is ISSUE-041.
+    """
+    change = _analysable_change(session, user=user, code=code, allowed=ANALYSIS_IMPACT_SITUATIONS)
+    current = _latest(session, ChangeImpact, [change.id]).get(change.id)
+    fields = [validation.FIELD_VERSION]
+    if current is not None:
+        fields.append(validation.FIELD_IMPACT_VERSION)
+    _require_versions(form, *fields)
+    project = configuracoes.find_project(session, change.project_id)
+    parameters = _parameters(session, reference_date)
+    rules = validation.ImpactRules(
+        kind=change.kind,
+        budget_cents=project.budget_cents if project else None,
+        manager_limit_percent=Decimal(str(parameters["alcadaGerentePctOrcamento"])),
+    )
+    new = validation.validate_impact(form, rules=rules)
+    item_ids = _resolve_items(session, change, new)
+    impact = _write_impact(
+        session,
+        user=user,
+        change=change,
+        values=_impact_changes(new, person_id=user.person_id, day=reference_date),
+        version=form.get(validation.FIELD_IMPACT_VERSION),
+    )
+    _replace_items(session, impact, [item_ids[code] for code in _all_codes(new)])
+    _replace_transfers(session, change, new, item_ids)
+    _conclude_running_analysis(session, user=user, change=change, day=reference_date)
+    changes: dict[str, Any] = {
+        "resource_source": new.resource_source,
+        "authority": new.authority,
+    }
+    if change.situation == models.SITUATION_ANALYSIS:
+        changes["situation"] = models.SITUATION_AWAITING
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes=changes,
+        version=form.get(validation.FIELD_VERSION),
+    )
+    return change
+
+
+def _require_versions(form: validation.Form, *fields: str) -> None:
+    """Refuse with 422 before any write when the screen did not send the version it opened."""
+    missing = {
+        field: "A versão do registro não foi informada."
+        for field in fields
+        if not (form.get(field) or "").strip()
+    }
+    if missing:
+        raise InvalidDataError(missing)
+
+
+def _analysable_change(
+    session: Session, *, user: User, code: str, allowed: Sequence[str]
+) -> ChangeRequest:
+    rbac.require_module(user, MODULE)
+    change = _by_code(session, code)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    rbac.require(user, Permission.WRITE)
+    if change.situation not in allowed:
+        raise InvalidDataError(
+            START_ONLY_REGISTERED_MESSAGE
+            if allowed == ANALYSIS_START_SITUATIONS
+            else IMPACT_ONLY_IN_ANALYSIS_MESSAGE
+        )
+    return change
+
+
+def _all_codes(new: validation.ImpactInput) -> list[str]:
+    """The EAC items of the analysis: the ones typed and the ends of every transfer."""
+    codes = list(new.item_codes)
+    for transfer in new.transfers:
+        codes.extend([transfer.source_code, transfer.target_code])
+    return list(dict.fromkeys(codes))
+
+
+def _resolve_items(
+    session: Session, change: ChangeRequest, new: validation.ImpactInput
+) -> dict[str, int]:
+    codes = _all_codes(new)
+    found = financeiro.eac_item_ids_by_code(session, project_id=change.project_id, codes=codes)
+    messages: dict[str, str] = {}
+    typed = set(new.item_codes)
+    for code in codes:
+        if code in found:
+            continue
+        field = validation.FIELD_EAC_ITEMS if code in typed else validation.FIELD_TRANSFERS
+        messages.setdefault(field, ITEM_NOT_IN_EAC_MESSAGE.format(code=code))
+    if messages:
+        raise InvalidDataError(messages)
+    return found
+
+
+def _impact_changes(new: validation.ImpactInput, *, person_id: int, day: date) -> dict[str, Any]:
+    return {
+        "analyst_id": person_id,
+        "analysis_date": day,
+        "cost_cents": new.cost_cents,
+        "term_days": new.term_days,
+        "scope": new.scope,
+        "quality": new.quality,
+        "risks": new.risks,
+        "safety": new.safety,
+        "contract": new.contract,
+        "affects_contract_milestone": new.affects_contract_milestone,
+        "activities": new.activities or None,
+        "release_reserve": new.release_reserve,
+        "release_value_cents": new.release_cents,
+    }
+
+
+def _write_impact(
+    session: Session,
+    *,
+    user: User,
+    change: ChangeRequest,
+    values: dict[str, Any],
+    version: str | None,
+) -> ChangeImpact:
+    current = _latest(session, ChangeImpact, [change.id]).get(change.id)
+    if current is None:
+        record = ChangeImpact(change_id=change.id, **values)
+        recording.create(session, user_id=user.id, record=record)
+        return record
+    recording.update(session, user_id=user.id, record=current, changes=values, version=version)
+    return current
+
+
+def _replace_items(session: Session, impact: ChangeImpact, item_ids: Sequence[int]) -> None:
+    session.execute(delete(ChangeImpactEacItem).where(ChangeImpactEacItem.impact_id == impact.id))
+    session.add_all(
+        ChangeImpactEacItem(impact_id=impact.id, eac_item_id=item_id) for item_id in item_ids
+    )
+    session.flush()
+
+
+def _replace_transfers(
+    session: Session,
+    change: ChangeRequest,
+    new: validation.ImpactInput,
+    item_ids: Mapping[str, int],
+) -> None:
+    """The proposed transfers of the change: the ones not yet applied are replaced by the new list."""
+    session.execute(
+        delete(ChangeReallocation).where(
+            ChangeReallocation.change_id == change.id, ChangeReallocation.applied.is_(False)
+        )
+    )
+    session.add_all(
+        ChangeReallocation(
+            change_id=change.id,
+            source_item_id=item_ids[transfer.source_code],
+            target_item_id=item_ids[transfer.target_code],
+            value_cents=transfer.value_cents,
+            applied=False,
+        )
+        for transfer in new.transfers
+    )
+    session.flush()
+
+
+def _conclude_running_analysis(
+    session: Session, *, user: User, change: ChangeRequest, day: date
+) -> None:
+    running = _latest(session, ChangeAnalysis, [change.id]).get(change.id)
+    if running is None or running.concluded_on is not None:
+        return
+    recording.update(
+        session,
+        user_id=user.id,
+        record=running,
+        changes={"concluded_on": day},
+        version=running.version,
+    )
+
+
+def _transfer_lines(session: Session, change: ChangeRequest) -> list[TransferLine]:
+    rows = session.scalars(
+        select(ChangeReallocation)
+        .where(ChangeReallocation.change_id == change.id)
+        .order_by(ChangeReallocation.id)
+    ).all()
+    codes = financeiro.eac_item_codes(
+        session, [item for row in rows for item in (row.source_item_id, row.target_item_id)]
+    )
+    return [
+        TransferLine(
+            source_code=codes.get(row.source_item_id, ""),
+            target_code=codes.get(row.target_item_id, ""),
+            value_cents=row.value_cents,
+            applied=row.applied,
+        )
+        for row in rows
+    ]
+
+
+def _impact_item_codes(session: Session, impact: ChangeImpact | None) -> tuple[str, ...]:
+    if impact is None:
+        return ()
+    ids = session.scalars(
+        select(ChangeImpactEacItem.eac_item_id)
+        .where(ChangeImpactEacItem.impact_id == impact.id)
+        .order_by(ChangeImpactEacItem.id)
+    ).all()
+    codes = financeiro.eac_item_codes(session, list(ids))
+    return tuple(codes[item] for item in ids if item in codes)
+
+
+def _impact_values(session: Session, loaded: _Loaded) -> dict[str, str]:
+    """The values the impact form opens with: the ones recorded, as a person types them."""
+    change, impact = loaded.change, loaded.impact
+    values = {
+        validation.FIELD_VERSION: str(change.version),
+        validation.FIELD_SOURCE: change.resource_source or "",
+        validation.FIELD_AUTHORITY: change.authority or "",
+    }
+    if impact is None:
+        return values
+    values.update(
+        {
+            validation.FIELD_IMPACT_VERSION: str(impact.version),
+            validation.FIELD_COST: _money_input(impact.cost_cents),
+            validation.FIELD_TERM_DAYS: str(impact.term_days),
+            validation.FIELD_CONTRACT_MILESTONE: (
+                validation.CHECKED_VALUE
+                if impact.affects_contract_milestone
+                else validation.UNCHECKED_VALUE
+            ),
+            validation.FIELD_SCOPE: impact.scope,
+            validation.FIELD_QUALITY: impact.quality,
+            validation.FIELD_RISKS: impact.risks,
+            validation.FIELD_SAFETY: impact.safety,
+            validation.FIELD_CONTRACT: impact.contract,
+            validation.FIELD_ACTIVITIES: impact.activities or "",
+            validation.FIELD_EAC_ITEMS: ", ".join(_impact_item_codes(session, impact)),
+            validation.FIELD_RELEASE_RESERVE: impact.release_reserve or "",
+            validation.FIELD_RELEASE_VALUE: _money_input(impact.release_value_cents or 0)
+            if impact.release_value_cents
+            else "",
+        }
+    )
+    for number, line in enumerate(_transfer_lines(session, change), start=1):
+        values[f"{validation.TRANSFER_SOURCE}_{number}"] = line.source_code
+        values[f"{validation.TRANSFER_TARGET}_{number}"] = line.target_code
+        values[f"{validation.TRANSFER_VALUE}_{number}"] = _money_input(line.value_cents)
+    return values
+
+
+def _money_input(cents: int) -> str:
+    """Cents as the field of the form takes them: ``-1.234,56``."""
+    reais, rest = divmod(abs(cents), 100)
+    sign = "-" if cents < 0 else ""
+    return f"{sign}{reais:,}".replace(",", ".") + f",{rest:02d}"
 
 
 def cancel_change(
@@ -801,15 +1239,21 @@ def _required_authority(
     item: _Loaded,
     projects: Mapping[int, configuracoes.ProjectDetail],
     parameters: Mapping[str, Any],
+    transfers: Sequence[TransferLine],
 ) -> calculations.AuthorityLimit | None:
     """The minimum authority the rules ask for; ``None`` while there is no impact analysis."""
     if item.impact is None:
         return None
     project = projects.get(item.change.project_id)
-    return calculations.minimum_change_authority(
-        value_cents=item.impact.cost_cents,
-        budget_cents=project.budget_cents if project else None,
-        affects_contract_milestone=item.impact.affects_contract_milestone,
+    return calculations.required_change_authority(
+        calculations.AuthorityFacts(
+            kind=item.change.kind,
+            resource_source=item.change.resource_source,
+            cost_cents=item.impact.cost_cents,
+            transferred_cents=sum(line.value_cents for line in transfers),
+            budget_cents=project.budget_cents if project else None,
+            affects_contract_milestone=item.impact.affects_contract_milestone,
+        ),
         manager_limit_percent=Decimal(str(parameters["alcadaGerentePctOrcamento"])),
     )
 

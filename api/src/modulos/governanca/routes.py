@@ -11,7 +11,10 @@ the cancellation. Every route declares its ``Access`` (D14) and only reads the r
 * ``GET /api/governanca/mudancas/nova`` is the form of the new request and ``POST /api/governanca/mudancas``
   registers it (422 gives the form back filled, success goes to the ficha);
 * ``GET /api/governanca/mudanca?codigo=`` is the ficha, with ``/excel`` and ``/imprimivel``;
-* ``GET`` and ``POST /api/governanca/mudanca/cancelar`` are the cancellation with its justification.
+* ``GET`` and ``POST /api/governanca/mudanca/cancelar`` are the cancellation with its justification;
+* ``GET`` and ``POST /api/governanca/mudanca/analise/iniciar`` start the analysis (responsible and
+  deadline) and ``GET`` and ``POST /api/governanca/mudanca/analise`` conclude, or revise, the impact
+  analysis (ISSUE-024); a 422 gives the form back filled, success goes to the ficha.
 """
 
 from __future__ import annotations
@@ -49,6 +52,8 @@ SHEET_PAGE = "/governanca/mudanca"
 SHEET_EXCEL_ROUTE = "governanca/mudanca/excel"
 SHEET_PRINTABLE_ROUTE = "governanca/mudanca/imprimivel"
 CANCEL_ROUTE = "governanca/mudanca/cancelar"
+START_ANALYSIS_ROUTE = "governanca/mudanca/analise/iniciar"
+IMPACT_ROUTE = "governanca/mudanca/analise"
 
 REGISTER_TEMPLATE = "governanca/mudancas.html"
 REGISTER_PARTS_TEMPLATE = "governanca/mudancas_partes.html"
@@ -56,6 +61,8 @@ NEW_TEMPLATE = "governanca/mudanca_nova.html"
 SHEET_TEMPLATE = "governanca/mudanca.html"
 NOT_FOUND_TEMPLATE = "governanca/mudanca_nao_encontrada.html"
 CANCEL_TEMPLATE = "governanca/mudanca_cancelar.html"
+START_ANALYSIS_TEMPLATE = "governanca/mudanca_analise_iniciar.html"
+IMPACT_TEMPLATE = "governanca/mudanca_analise.html"
 
 # The two blocks the filter form replaces; their presence in the request header picks the short answer.
 FILTERED_BLOCKS = ("mudancas-kpis", "mudancas-tabela")
@@ -360,6 +367,8 @@ def _sheet_context(sheet: service.ChangeSheet, code: str) -> dict[str, Any]:
         "excel_url": f"/api/{SHEET_EXCEL_ROUTE}?{query}",
         "pdf_url": f"/api/{SHEET_PRINTABLE_ROUTE}?{query}",
         "cancelar_url": f"/api/{CANCEL_ROUTE}?{query}",
+        "iniciar_analise_url": f"/api/{START_ANALYSIS_ROUTE}?{query}",
+        "analise_url": f"/api/{IMPACT_ROUTE}?{query}",
         "eac_url": f"/financeiro/eac?projeto={sheet.change.project_id}",
         "anexos_url": f"/api/anexos?origem={service.ORIGIN_TABLE}&registro={sheet.change.id}",
         "tipo_emergencial": models.PRIORITY_EMERGENCY,
@@ -469,4 +478,144 @@ def cancel_change_request(
         form=req.form,
         reference_date=calendario.today(),
     )
+    return redirect_to(_sheet_address(change.code, change.project_id))
+
+
+# ── The analysis (ISSUE-024) ─────────────────────────────────────────────
+
+IMPACT_FORM_ROWS = tuple(range(1, validation.TRANSFER_ROWS + 1))
+
+
+def _start_form_response(
+    req: func.HttpRequest,
+    *,
+    form: service.AnalysisStartForm,
+    values: Mapping[str, str],
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    return AlpineAjaxResponse(
+        template_name=START_ANALYSIS_TEMPLATE,
+        context={
+            "codigo": form.change.code,
+            "valores": values,
+            "erros": errors or {},
+            "pessoas": form.people,
+            "prazo_dias": form.analysis_days,
+            "action": f"/api/{START_ANALYSIS_ROUTE}",
+        },
+        request=req,
+        status_code=status_code,
+    )
+
+
+@bp.route(route=START_ANALYSIS_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def start_analysis_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form that starts the analysis, with the usual deadline of the parameter."""
+    code = (req.params.get(CODE_PARAMETER) or "").strip()
+    form = service.analysis_start_form(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    values = {
+        validation.FIELD_DEADLINE: form.suggested_deadline.isoformat(),
+        validation.FIELD_VERSION: str(form.change.version),
+    }
+    return _start_form_response(req, form=form, values=values)
+
+
+@bp.route(route=START_ANALYSIS_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def start_analysis(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Start the analysis (HU-126) and go back to the ficha; a 422 gives the form back filled."""
+    code = (req.form.get(CODE_PARAMETER) or "").strip()
+    today = calendario.today()
+    try:
+        change = service.start_analysis(
+            session, user=context.user, code=code, form=req.form, reference_date=today
+        )
+    except InvalidDataError as error:
+        form = service.analysis_start_form(
+            session, user=context.user, code=code, reference_date=today
+        )
+        values = {
+            field: req.form.get(field) or ""
+            for field in (
+                validation.FIELD_RESPONSIBLE,
+                validation.FIELD_DEADLINE,
+                validation.FIELD_VERSION,
+            )
+        }
+        return _start_form_response(
+            req, form=form, values=values, errors=_field_messages(error), status_code=422
+        )
+    return redirect_to(_sheet_address(change.code, change.project_id))
+
+
+def _impact_form_response(
+    req: func.HttpRequest,
+    *,
+    form: service.ImpactForm,
+    values: Mapping[str, str],
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    return AlpineAjaxResponse(
+        template_name=IMPACT_TEMPLATE,
+        context={
+            "codigo": form.change.code,
+            "tipo": form.change.kind,
+            "valores": values,
+            "erros": errors or {},
+            "fontes": models.RESOURCE_SOURCES,
+            "alcadas": models.CHANGE_AUTHORITIES,
+            "reservas": models.RELEASE_RESERVES,
+            "linhas": IMPACT_FORM_ROWS,
+            "eh_remanejamento": form.is_reallocation,
+            "eh_liberacao": form.is_release,
+            "revisao": form.is_review,
+            "limite_gerente": form.manager_limit_cents,
+            "percentual_gerente": form.manager_limit_percent,
+            "action": f"/api/{IMPACT_ROUTE}",
+        },
+        request=req,
+        status_code=status_code,
+    )
+
+
+@bp.route(route=IMPACT_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def impact_analysis_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The impact analysis form, with what is already recorded when the analysis is being revised."""
+    code = (req.params.get(CODE_PARAMETER) or "").strip()
+    form = service.impact_form(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    return _impact_form_response(req, form=form, values=form.values)
+
+
+@bp.route(route=IMPACT_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def conclude_impact_analysis(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Conclude the impact analysis (HU-126) and go back to the ficha; a 422 gives the form back filled."""
+    code = (req.form.get(CODE_PARAMETER) or "").strip()
+    today = calendario.today()
+    try:
+        change = service.conclude_analysis(
+            session, user=context.user, code=code, form=req.form, reference_date=today
+        )
+    except InvalidDataError as error:
+        form = service.impact_form(session, user=context.user, code=code, reference_date=today)
+        values = {field: req.form.get(field) or "" for field in req.form}
+        return _impact_form_response(
+            req, form=form, values=values, errors=_field_messages(error), status_code=422
+        )
     return redirect_to(_sheet_address(change.code, change.project_id))

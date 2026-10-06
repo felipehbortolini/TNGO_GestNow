@@ -2,14 +2,14 @@
 {#
   Ficha da solicitação de mudança (ISSUE-023, HU-125): alertas, identificação, barra de etapas e as
   cinco abas em leitura (Solicitação, Análise de impacto, Decisão, Implementação e Histórico). Os
-  fluxos de análise e de decisão chegam nas ISSUE-024 e ISSUE-025; o cancelamento é daqui.
+  análise de impacto (ISSUE-024) e o cancelamento são daqui; a decisão chega na ISSUE-025.
 
   A troca de aba é estado local do Alpine (nenhum texto de dado entra numa expressão). Os anexos vêm do
   fragmento genérico da plataforma. As ações vinculadas, o risco de origem e os itens da EAC aparecem
   quando os módulos donos forem ligados (D9): este fragmento não os inventa.
 
   Espera: ficha (ChangeSheet), etapas, excel_url, pdf_url, cancelar_url, eac_url, anexos_url,
-  tipo_emergencial e os apresentadores (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
+  iniciar_analise_url, analise_url, tipo_emergencial e os apresentadores (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
 #}
 {% macro linha(rotulo, valor) %}
 <div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
@@ -93,6 +93,11 @@
 </ol>
 
 <div class="toolbar mb-16" role="group" aria-label="Ações da mudança">
+  {% if ficha.analysis_action == 'iniciar' %}
+  <button type="button" class="btn btn--primary" data-mudanca-modal="{{ iniciar_analise_url }}" data-titulo="Iniciar análise de impacto" data-codigo="{{ m.code }}">Iniciar análise</button>
+  {% elif ficha.analysis_action in ('concluir', 'revisar') %}
+  <button type="button" class="btn btn--primary" data-mudanca-modal="{{ analise_url }}" data-titulo="{{ 'Rever a análise de impacto' if ficha.analysis_action == 'revisar' else 'Concluir a análise de impacto' }}" data-codigo="{{ m.code }}">{{ 'Rever análise de impacto' if ficha.analysis_action == 'revisar' else 'Concluir análise de impacto' }}</button>
+  {% endif %}
   {% if ficha.can_cancel %}
   <button type="button" class="btn btn--danger" data-mudanca-cancelar="{{ cancelar_url }}" data-codigo="{{ m.code }}">Cancelar solicitação</button>
   {% endif %}
@@ -150,7 +155,7 @@
         {% if not ficha.impact %}
         <div class="empty" data-estado="vazio-origem">
           <h4 class="h-card5">Análise ainda não registrada</h4>
-          <p>{% if m.situation == 'Registrada' %}A análise de impacto avalia escopo, prazo, custo, qualidade, riscos, SMS e contrato antes da decisão.{% else %}Nenhuma análise de impacto foi registrada para esta solicitação.{% endif %}</p>
+          <p>{% if m.situation == 'Registrada' %}A análise de impacto avalia escopo, prazo, custo, qualidade, riscos, SMS e contrato antes da decisão.{% else %}Nenhuma análise de impacto foi registrada para esta solicitação.{% endif %}{% if m.situation == 'Em análise de impacto' and ficha.analysis %} Responsável {{ ficha.analysis_responsible }}, prazo {{ ficha.analysis.deadline.strftime(data) }}.{% endif %}</p>
         </div>
         {% else %}
         {% set im = ficha.impact %}
@@ -171,8 +176,31 @@
             {{ linha('SMS', im.safety) }}
             {{ linha('Contrato', im.contract) }}
             {{ linha('Atividades do cronograma', im.activities) }}
+            {{ linha('Itens da EAC afetados', ficha.eac_item_codes | join(', ')) }}
           </div>
         </div>
+        {% if m.kind == 'Liberação de reserva' and im.release_reserve %}
+        <h4 class="h-card5 mt-24">Liberação de reserva</h4>
+        <div class="det">
+          {{ linha('Reserva', 'Reserva ' ~ (im.release_reserve | lower)) }}
+          {{ linha('Valor a liberar', im.release_value_cents | brl) }}
+        </div>
+        {% endif %}
+        {% if ficha.transfers %}
+        <h4 class="h-card5 mt-24">Transferências entre itens da EAC</h4>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">Transferências propostas entre itens da EAC</caption>
+            <thead><tr><th scope="col">Origem</th><th scope="col">Destino</th><th scope="col">Valor</th><th scope="col">Aplicada</th></tr></thead>
+            <tbody>
+              {% for t in ficha.transfers %}
+              <tr><td>{{ t.source_code }}</td><td>{{ t.target_code }}</td><td class="td-num">{{ t.value_cents | brl }}</td><td>{{ 'Sim' if t.applied else 'Não' }}</td></tr>
+              {% endfor %}
+              <tr><th scope="row" colspan="2">Total remanejado</th><td class="td-num">{{ ficha.total_transferred_cents | brl }}</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
         {% endif %}
       </div>
     </div>

@@ -555,3 +555,28 @@ def _display_values(
             text = "" if value is None else str(value)
         shown[FIELD_LABELS[field]] = text
     return shown
+
+
+def eac_item_ids_by_code(
+    session: Session, *, project_id: int, codes: Sequence[str]
+) -> dict[str, int]:
+    """The id of each EAC item of the project named by its code; a code that is not there is left out.
+
+    What other modules read to link a record to an item (Governança, ISSUE-024). Whether the item is a
+    cost item (level 3) is checked by the EAC revisions (ISSUE-030).
+    """
+    wanted = {code.strip() for code in codes if code.strip()}
+    if not wanted:
+        return {}
+    statement = select(EacItem.code, EacItem.id).where(
+        EacItem.project_id == project_id, EacItem.code.in_(wanted)
+    )
+    return {row.code: row.id for row in session.execute(statement)}
+
+
+def eac_item_codes(session: Session, item_ids: Sequence[int]) -> dict[int, str]:
+    """The code of each EAC item by its id, for a screen that lists the items another module linked."""
+    if not item_ids:
+        return {}
+    statement = select(EacItem.id, EacItem.code).where(EacItem.id.in_(set(item_ids)))
+    return {row.id: row.code for row in session.execute(statement)}

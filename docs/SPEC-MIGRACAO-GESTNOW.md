@@ -1370,6 +1370,10 @@ do dono".
 | Decisão da execução (ISSUE-051), pendente de revisão do dono | datas da carga | o app não guarda aprovado em e publicado em; a carga usa a data de atualização, e as semanas são deslocadas pelo mesmo número de dias das datas | D6, ISSUE-051 |
 | Decisão da execução (ISSUE-051), pendente de revisão do dono | conflito de versão no painel | o 409 devolve o painel com o digitado e a versão antiga, pedindo para reabrir; não grava por cima | D5, ISSUE-051 |
 | Decisão da execução (ISSUE-051), pendente de revisão do dono | ações da linha | nesta fatia a linha só edita e exclui; o botão da próxima ação do fluxo e o menu chegam com a ISSUE-052 | D10, ISSUE-051 |
+| Decisão da execução (ISSUE-024), pendente de revisão do dono | análise salva só ao concluir | não há rascunho: concluir grava o impacto, define a alçada e envia; em Aguardando comitê ou Adiada a mesma ação revisa o impacto e mantém a situação | D7, ISSUE-024 |
+| Decisão da execução (ISSUE-024), pendente de revisão do dono | liberação de reserva | reserva (Contingência/Gerencial) e valor ficam em colunas novas de `mudanca_impacto` (`liberacao_reserva`, `liberacao_valor_centavos`), pois o custo é zero | D5, ISSUE-024 |
+| Decisão da execução (ISSUE-024), pendente de revisão do dono | itens da EAC | o formulário recebe códigos da EAC; a fachada do Financeiro (`eac_item_ids_by_code`, `eac_item_codes`) os resolve no projeto da SM e recusa o código inexistente | D9, ISSUE-024 |
+| Decisão da execução (ISSUE-024), pendente de revisão do dono | alçada exigida | maior entre o custo absoluto e o total remanejado; liberação de reserva e fonte Reserva gerencial vão sempre ao Comitê | D7, ISSUE-024 |
 
 ---
 

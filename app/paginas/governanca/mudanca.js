@@ -11,6 +11,8 @@
      ficha      a resposta traz o fragmento da ficha; o servidor responde 404 com o aviso de
                 solicitação não encontrada, e 403 vira sem-permissao
      cancelar   o botão da ficha abre o modal com o formulário de justificativa
+     análise    os botões de iniciar, concluir e rever a análise de impacto abrem o modal com o
+                formulário do servidor (data-mudanca-modal traz o endereço e data-titulo o título)
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
@@ -69,7 +71,20 @@
     });
   }
 
+  function aoClicarNoModal(evento) {
+    const botao = evento.target.closest("[data-mudanca-modal]");
+    if (!botao) return false;
+    evento.preventDefault();
+    abrirModal({
+      titulo: botao.dataset.titulo,
+      subtitulo: botao.dataset.codigo,
+      endereco: botao.dataset.mudancaModal
+    });
+    return true;
+  }
+
   function aoClicar(evento) {
+    if (!raizDaTela() || aoClicarNoModal(evento)) return;
     const botao = evento.target.closest("[data-mudanca-cancelar]");
     if (!botao || !raizDaTela()) return;
     evento.preventDefault();

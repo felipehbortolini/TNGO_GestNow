@@ -75,7 +75,9 @@ AUTHORITY_MANAGER = "Gerente do projeto"
 AUTHORITY_COMMITTEE = "Comitê"
 CHANGE_AUTHORITIES = (AUTHORITY_MANAGER, AUTHORITY_COMMITTEE)
 
-RESOURCE_SOURCES = ("Aditivo de orçamento", "Reserva de contingência", "Reserva gerencial")
+SOURCE_MANAGEMENT_RESERVE = "Reserva gerencial"
+RESOURCE_SOURCES = ("Aditivo de orçamento", "Reserva de contingência", SOURCE_MANAGEMENT_RESERVE)
+RELEASE_RESERVES = ("Contingência", "Gerencial")
 DECISION_RESULTS = (
     SITUATION_APPROVED,
     SITUATION_APPROVED_WITH_CONDITIONS,
@@ -170,6 +172,12 @@ class ChangeImpact(Base):
     """Análise de impacto: custo em centavos, prazo em dias e as demais dimensões; a última vale."""
 
     __tablename__ = "mudanca_impacto"
+    __table_args__ = (
+        CheckConstraint(
+            "liberacao_reserva IS NULL OR " + _in_list("liberacao_reserva", RELEASE_RESERVES),
+            name="liberacao_reserva",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     change_id: Mapped[int] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
@@ -184,6 +192,8 @@ class ChangeImpact(Base):
     contract: Mapped[str] = mapped_column("contrato", Text)
     affects_contract_milestone: Mapped[bool] = mapped_column("afeta_marco_contratual", Boolean)
     activities: Mapped[str | None] = mapped_column("atividades", Text)
+    release_reserve: Mapped[str | None] = mapped_column("liberacao_reserva", Text)
+    release_value_cents: Mapped[int | None] = mapped_column("liberacao_valor_centavos", Centavos)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 

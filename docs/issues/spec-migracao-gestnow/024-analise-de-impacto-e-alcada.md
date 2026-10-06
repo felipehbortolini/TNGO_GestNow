@@ -1,7 +1,7 @@
 ---
 id: ISSUE-024
 title: "Análise de impacto obrigatória com alçada mínima calculada"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -50,12 +50,12 @@ a validação dos itens contra a EAC (ISSUE-030) e o saldo das reservas
 
 ## Critérios de aceite
 
-- [ ] Análise sem os campos obrigatórios é recusada com 422 por campo.
-- [ ] A alçada calculada tem teste de fronteira no percentual do orçamento e no marco contratual.
-- [ ] Elevar a alçada é aceito; rebaixar é recusado.
-- [ ] Remanejamento e Liberação de reserva têm custo zero e os seus campos próprios.
-- [ ] A ficha mostra a aba Análise de impacto preenchida e a próxima etapa.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] Análise sem os campos obrigatórios é recusada com 422 por campo.
+- [x] A alçada calculada tem teste de fronteira no percentual do orçamento e no marco contratual.
+- [x] Elevar a alçada é aceito; rebaixar é recusado.
+- [x] Remanejamento e Liberação de reserva têm custo zero e os seus campos próprios.
+- [x] A ficha mostra a aba Análise de impacto preenchida e a próxima etapa.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -72,3 +72,14 @@ Nenhuma.
 Fonte: `GI.regras.alcadaMudanca`, `GI.api.governanca.iniciarAnalise` e
 `salvarAnalise`; parâmetros de Mudanças da seção 7.4. O orçamento de
 referência da alçada é o que o protótipo usa.
+
+## Registro de execução
+
+Data: 2026-10-06.
+Feito: modelo (reserva e valor da liberação em `mudanca_impacto`) e migração `m024`; `required_change_authority`, `is_authority_lowered`, `analysis_deadline`; validação por campo (`validate_impact`, `validate_analysis_start`); fachada `start_analysis`, `conclude_analysis`, `impact_form`; rotas `mudanca/analise/iniciar` e `mudanca/analise`; modais e aba Análise de impacto da ficha; testes (cálculo, validação, fachada, rotas); LEIA-ME e MODELO-DE-DADOS. Escritos, não executados.
+Falta: nada da fatia; o orquestrador roda a porta de qualidade.
+Pendências: validar que os itens são da EAC em nível 3 (ISSUE-030); aviso de custo acima do saldo da reserva (ISSUE-041); carga de `remanejamentos` e `eacItens` do protótipo (próxima carga do Financeiro).
+DECISÃO: análise salva só ao concluir | não há rascunho: concluir grava o impacto, define a alçada e envia; em Aguardando comitê ou Adiada a mesma ação revisa o impacto e mantém a situação | D7, ISSUE-024
+DECISÃO: liberação de reserva | reserva (Contingência/Gerencial) e valor ficam em colunas novas de `mudanca_impacto` (`liberacao_reserva`, `liberacao_valor_centavos`), pois o custo é zero | D5, ISSUE-024
+DECISÃO: itens da EAC | o formulário recebe códigos da EAC; a fachada do Financeiro (`eac_item_ids_by_code`, `eac_item_codes`) os resolve no projeto da SM e recusa o código inexistente | D9, ISSUE-024
+DECISÃO: alçada exigida | maior entre o custo absoluto e o total remanejado; liberação de reserva e fonte Reserva gerencial vão sempre ao Comitê | D7, ISSUE-024

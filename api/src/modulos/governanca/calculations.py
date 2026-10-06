@@ -96,6 +96,55 @@ def minimum_change_authority(
     return AuthorityLimit(authority=authority, limit_cents=limit)
 
 
+@dataclass(frozen=True)
+class AuthorityFacts:
+    """What decides the minimum authority of a change: its type, source, money and contract mark."""
+
+    kind: str
+    resource_source: str | None
+    cost_cents: int
+    transferred_cents: int
+    budget_cents: int | None
+    affects_contract_milestone: bool
+
+
+def required_change_authority(
+    facts: AuthorityFacts, *, manager_limit_percent: Decimal | int | float
+) -> AuthorityLimit:
+    """Alçada exigida da mudança: the minimum authority of the whole change, as the server computes it.
+
+    The value is the larger of the absolute cost and the total moved between EAC items. A release of
+    reserve and the source Reserva gerencial always go to the Comitê, whatever the value; any other
+    change follows ``minimum_change_authority``. The analyst may raise the authority, never lower it.
+    """
+    value = max(abs(facts.cost_cents), abs(facts.transferred_cents))
+    by_value = minimum_change_authority(
+        value_cents=value,
+        budget_cents=facts.budget_cents,
+        affects_contract_milestone=facts.affects_contract_milestone,
+        manager_limit_percent=manager_limit_percent,
+    )
+    always_committee = (
+        facts.kind == models.TYPE_RESERVE_RELEASE
+        or facts.resource_source == models.SOURCE_MANAGEMENT_RESERVE
+    )
+    if always_committee:
+        return AuthorityLimit(
+            authority=models.AUTHORITY_COMMITTEE, limit_cents=by_value.limit_cents
+        )
+    return by_value
+
+
+def is_authority_lowered(chosen: str, required: str) -> bool:
+    """Whether the chosen authority is below the required one: only the Gerente under the Comitê is."""
+    return required == models.AUTHORITY_COMMITTEE and chosen != models.AUTHORITY_COMMITTEE
+
+
+def analysis_deadline(start: date, analysis_days: int) -> date:
+    """Prazo padrão da análise: the start of the analysis plus the days of the parameter."""
+    return start + timedelta(days=analysis_days)
+
+
 def emergency_ratification_due_date(start: date, ratification_days: int) -> date:
     """Prazo de ratificação emergencial: the start of the execution plus the configured days."""
     return start + timedelta(days=ratification_days)

@@ -162,3 +162,81 @@ def test_indicadores_do_registro_vazio() -> None:
     assert resumo.total == 0
     assert resumo.approved_value_percent is None
     assert resumo.mean_decision_days is None
+
+
+# ── Alçada exigida e prazo da análise (ISSUE-024) ────────────────────────
+
+
+def _exigida(**fatos):
+    base = {
+        "kind": "Custo",
+        "resource_source": None,
+        "cost_cents": 0,
+        "transferred_cents": 0,
+        "budget_cents": 1_000_000,
+        "affects_contract_milestone": False,
+    }
+    base.update(fatos)
+    return calc.required_change_authority(calc.AuthorityFacts(**base), manager_limit_percent=1)
+
+
+def test_alcada_exigida_no_limite_do_percentual_e_do_gerente() -> None:
+    assert _exigida(cost_cents=10_000).authority == models.AUTHORITY_MANAGER
+    assert _exigida(cost_cents=10_001).authority == models.AUTHORITY_COMMITTEE
+
+
+def test_alcada_exigida_com_marco_contratual_e_do_comite_mesmo_sem_custo() -> None:
+    assert (
+        _exigida(cost_cents=0, affects_contract_milestone=True).authority
+        == models.AUTHORITY_COMMITTEE
+    )
+    assert (
+        _exigida(cost_cents=0, affects_contract_milestone=False).authority
+        == models.AUTHORITY_MANAGER
+    )
+
+
+def test_alcada_exigida_le_o_maior_entre_o_custo_e_o_remanejado() -> None:
+    assert (
+        _exigida(cost_cents=5_000, transferred_cents=10_000).authority == models.AUTHORITY_MANAGER
+    )
+    assert (
+        _exigida(cost_cents=5_000, transferred_cents=10_001).authority == models.AUTHORITY_COMMITTEE
+    )
+    assert _exigida(cost_cents=-10_001).authority == models.AUTHORITY_COMMITTEE
+
+
+def test_liberacao_de_reserva_vai_sempre_ao_comite() -> None:
+    resultado = _exigida(kind=models.TYPE_RESERVE_RELEASE, cost_cents=0)
+    assert resultado.authority == models.AUTHORITY_COMMITTEE
+    assert resultado.limit_cents == 10_000
+
+
+def test_reserva_gerencial_vai_sempre_ao_comite_e_a_de_contingencia_segue_o_valor() -> None:
+    assert (
+        _exigida(resource_source=models.SOURCE_MANAGEMENT_RESERVE, cost_cents=1).authority
+        == models.AUTHORITY_COMMITTEE
+    )
+    assert (
+        _exigida(resource_source="Reserva de contingência", cost_cents=1).authority
+        == models.AUTHORITY_MANAGER
+    )
+
+
+def test_sem_orcamento_so_custo_zero_cabe_ao_gerente() -> None:
+    assert _exigida(cost_cents=0, budget_cents=None).authority == models.AUTHORITY_MANAGER
+    assert _exigida(cost_cents=1, budget_cents=None).authority == models.AUTHORITY_COMMITTEE
+
+
+def test_so_rebaixar_e_recusado() -> None:
+    assert calc.is_authority_lowered(models.AUTHORITY_MANAGER, models.AUTHORITY_COMMITTEE)
+    assert not calc.is_authority_lowered(models.AUTHORITY_COMMITTEE, models.AUTHORITY_COMMITTEE)
+    assert not calc.is_authority_lowered(models.AUTHORITY_COMMITTEE, models.AUTHORITY_MANAGER)
+    assert not calc.is_authority_lowered(models.AUTHORITY_MANAGER, models.AUTHORITY_MANAGER)
+
+
+@pytest.mark.parametrize(
+    ("dias", "esperado"), [(0, HOJE), (10, date(2026, 10, 16)), (26, date(2026, 11, 1))]
+)
+def test_prazo_padrao_da_analise_soma_os_dias_do_parametro(dias: int, esperado: date) -> None:
+    assert calc.analysis_deadline(HOJE, dias) == esperado

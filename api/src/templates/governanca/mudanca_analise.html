@@ -1,0 +1,167 @@
+{% extends "base_fragment.html" %}
+{#
+  Análise de impacto (ISSUE-024, HU-126): o formulário do modal. Custo, prazo, marco contratual, as cinco
+  dimensões em texto ("Sem impacto" é resposta), os itens da EAC e as atividades do cronograma. Com custo
+  positivo pede a fonte do recurso. Remanejamento de orçamento tem custo zero e as transferências
+  (origem, destino, valor); Liberação de reserva tem custo zero, a reserva e o valor. A alçada mínima é
+  calculada no servidor: aqui só se escolhe a alçada, que pode ser elevada e nunca rebaixada, e o 422
+  devolve este formulário preenchido com a mensagem sob cada campo. O sucesso volta para a ficha.
+
+  Espera: codigo, tipo, valores, erros, fontes, alcadas, reservas, linhas, eh_remanejamento, eh_liberacao,
+  revisao, limite_gerente, percentual_gerente e action.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% macro texto(erros, valores, nome, rotulo, ajuda='') %}
+<div class="field field--full">
+  <label for="analise-{{ nome }}">{{ rotulo }}</label>
+  <textarea id="analise-{{ nome }}" name="{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" rows="2" maxlength="300" required
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="erro-{{ nome }}"{% endif %}>{{ valores.get(nome) or '' }}</textarea>
+  {% if ajuda %}<span class="hint">{{ ajuda }}</span>{% endif %}
+  {{ erro(erros, nome) }}
+</div>
+{% endmacro %}
+{% macro lista(erros, valores, nome, rotulo, opcoes, vazio='Escolha...') %}
+<div class="field">
+  <label for="analise-{{ nome }}">{{ rotulo }}</label>
+  <select id="analise-{{ nome }}" name="{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}"
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="erro-{{ nome }}"{% endif %}>
+    <option value="">{{ vazio }}</option>
+    {% for opcao in opcoes %}
+    <option value="{{ opcao }}"{% if valores.get(nome) == opcao %} selected{% endif %}>{{ opcao }}</option>
+    {% endfor %}
+  </select>
+  {{ erro(erros, nome) }}
+</div>
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Salvando a análise de impacto...">
+  <input type="hidden" name="codigo" value="{{ codigo }}" />
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  <input type="hidden" name="versao_impacto" value="{{ valores.get('versao_impacto') or '' }}" />
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>{{ 'Revisão da análise de impacto.' if revisao else 'Análise de impacto obrigatória antes da decisão.' }}
+    Valores em reais; custo negativo é redução e prazo negativo é antecipação.
+    {% if limite_gerente is not none %}O gerente do projeto decide até {{ limite_gerente | brl }} ({{ percentual_gerente }}% do orçamento), sem impacto em marco contratual; acima disso a decisão é do Comitê.{% endif %}</span>
+  </div>
+  {% for chave in ['geral', 'versao', 'versao_impacto'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="analise-custo">Impacto em custo (R$)</label>
+      <input id="analise-custo" name="custo" class="input{% if erros.get('custo') %} input--erro{% endif %}" inputmode="decimal" required
+        value="{{ valores.get('custo') or '' }}"
+        {% if eh_remanejamento or eh_liberacao %}placeholder="0,00" {% endif %}
+        {% if erros.get('custo') %}aria-invalid="true" aria-describedby="erro-custo"{% endif %} />
+      {{ erro(erros, 'custo') }}
+    </div>
+    <div class="field">
+      <label for="analise-prazo_dias">Impacto em prazo (dias no caminho crítico)</label>
+      <input id="analise-prazo_dias" name="prazo_dias" class="input{% if erros.get('prazo_dias') %} input--erro{% endif %}" inputmode="numeric" required
+        value="{{ valores.get('prazo_dias') or '' }}"
+        {% if erros.get('prazo_dias') %}aria-invalid="true" aria-describedby="erro-prazo_dias"{% endif %} />
+      {{ erro(erros, 'prazo_dias') }}
+    </div>
+    <div class="field">
+      <label for="analise-marco_contratual">Afeta marco contratual?</label>
+      <select id="analise-marco_contratual" name="marco_contratual" class="input{% if erros.get('marco_contratual') %} input--erro{% endif %}" required
+        {% if erros.get('marco_contratual') %}aria-invalid="true" aria-describedby="erro-marco_contratual"{% endif %}>
+        <option value="">Escolha...</option>
+        <option value="nao"{% if valores.get('marco_contratual') == 'nao' %} selected{% endif %}>Não afeta</option>
+        <option value="sim"{% if valores.get('marco_contratual') == 'sim' %} selected{% endif %}>Afeta marco contratual</option>
+      </select>
+      {{ erro(erros, 'marco_contratual') }}
+    </div>
+    {% if not eh_remanejamento and not eh_liberacao %}
+    <div class="field">
+      <label for="analise-fonte_recurso">Fonte do recurso (obrigatória com custo positivo)</label>
+      <select id="analise-fonte_recurso" name="fonte_recurso" class="input{% if erros.get('fonte_recurso') %} input--erro{% endif %}"
+        {% if erros.get('fonte_recurso') %}aria-invalid="true" aria-describedby="erro-fonte_recurso"{% endif %}>
+        <option value="">Sem custo adicional</option>
+        {% for fonte in fontes %}
+        <option value="{{ fonte }}"{% if valores.get('fonte_recurso') == fonte %} selected{% endif %}>{{ fonte }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'fonte_recurso') }}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if eh_liberacao %}
+  <h4 class="h-card5 mt-16">Liberação de reserva</h4>
+  <div class="fgrid">
+    {{ lista(erros, valores, 'liberacao_reserva', 'Reserva a liberar', reservas) }}
+    <div class="field">
+      <label for="analise-liberacao_valor">Valor a liberar (R$)</label>
+      <input id="analise-liberacao_valor" name="liberacao_valor" class="input{% if erros.get('liberacao_valor') %} input--erro{% endif %}" inputmode="decimal"
+        value="{{ valores.get('liberacao_valor') or '' }}"
+        {% if erros.get('liberacao_valor') %}aria-invalid="true" aria-describedby="erro-liberacao_valor"{% endif %} />
+      {{ erro(erros, 'liberacao_valor') }}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if eh_remanejamento %}
+  <h4 class="h-card5 mt-16">Transferências entre itens da EAC</h4>
+  <p class="hint mb-8">Informe o código do item de origem, o de destino e o valor. Linhas em branco são ignoradas.</p>
+  {% if erros.get('remanejamentos') %}
+  <div class="aviso aviso--erro mb-8" role="alert"><span id="erro-remanejamentos">{{ erros['remanejamentos'] }}</span></div>
+  {% endif %}
+  {% for numero in linhas %}
+  <div class="fgrid">
+    <div class="field">
+      <label for="analise-origem-{{ numero }}">Origem {{ numero }}</label>
+      <input id="analise-origem-{{ numero }}" name="remanejamento_origem_{{ numero }}" class="input" value="{{ valores.get('remanejamento_origem_' ~ numero) or '' }}" />
+    </div>
+    <div class="field">
+      <label for="analise-destino-{{ numero }}">Destino {{ numero }}</label>
+      <input id="analise-destino-{{ numero }}" name="remanejamento_destino_{{ numero }}" class="input" value="{{ valores.get('remanejamento_destino_' ~ numero) or '' }}" />
+    </div>
+    <div class="field">
+      <label for="analise-valor-{{ numero }}">Valor {{ numero }} (R$)</label>
+      <input id="analise-valor-{{ numero }}" name="remanejamento_valor_{{ numero }}" class="input" inputmode="decimal" value="{{ valores.get('remanejamento_valor_' ~ numero) or '' }}" />
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <h4 class="h-card5 mt-16">Dimensões do impacto</h4>
+  <div class="fgrid">
+    {{ texto(erros, valores, 'escopo', 'Escopo', 'Escreva "Sem impacto" quando não houver.') }}
+    {{ texto(erros, valores, 'qualidade', 'Qualidade') }}
+    {{ texto(erros, valores, 'riscos', 'Riscos novos ou alterados') }}
+    {{ texto(erros, valores, 'sms', 'SMS') }}
+    {{ texto(erros, valores, 'contrato', 'Contrato', 'Texto ou "Sem impacto".') }}
+    <div class="field field--full">
+      <label for="analise-itens_eac">Itens da EAC afetados (códigos separados por vírgula)</label>
+      <input id="analise-itens_eac" name="itens_eac" class="input{% if erros.get('itens_eac') %} input--erro{% endif %}" value="{{ valores.get('itens_eac') or '' }}"
+        {% if erros.get('itens_eac') %}aria-invalid="true" aria-describedby="erro-itens_eac"{% endif %} />
+      {{ erro(erros, 'itens_eac') }}
+    </div>
+    <div class="field field--full">
+      <label for="analise-atividades">Atividades do cronograma afetadas</label>
+      <textarea id="analise-atividades" name="atividades" class="input{% if erros.get('atividades') %} input--erro{% endif %}" rows="2" maxlength="300"
+        {% if erros.get('atividades') %}aria-invalid="true" aria-describedby="erro-atividades"{% endif %}>{{ valores.get('atividades') or '' }}</textarea>
+      {{ erro(erros, 'atividades') }}
+    </div>
+  </div>
+
+  <h4 class="h-card5 mt-16">Alçada de decisão</h4>
+  <div class="fgrid">
+    {{ lista(erros, valores, 'alcada', 'Alçada de decisão', alcadas) }}
+  </div>
+  <p class="hint">A alçada mínima é calculada pelo sistema. Você pode elevá-la ao Comitê; não pode rebaixá-la.</p>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
+    <button type="submit" class="btn btn--primary">{{ 'Salvar revisão da análise' if revisao else 'Concluir e enviar para decisão' }}</button>
+  </div>
+</form>
+{% endblock %}
