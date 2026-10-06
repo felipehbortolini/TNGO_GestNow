@@ -1,0 +1,14 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta das operações que abrem um remanejamento (SM de remanejamento e item novo com recurso
+  de outro item): duas raízes irmãs, porque a tela declara os dois alvos — a tabela de
+  remanejamentos volta com o pendente novo e o conteúdo da EAC volta com o item novo, quando há.
+#}
+{% block root %}
+<div id="{{ alvo_remanejamentos }}">
+{% include "financeiro/_eac_remanejamentos.html" %}
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_eac_conteudo.html" %}
+</div>
+{% endblock %}

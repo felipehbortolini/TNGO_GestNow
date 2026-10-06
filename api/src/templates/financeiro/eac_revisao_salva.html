@@ -1,0 +1,15 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta das operações que criam revisão (nova revisão, item novo por revisão e importação de
+  itens): duas raízes irmãs, porque a tela declara os dois alvos — a tabela de revisões volta com
+  a revisão nova e o conteúdo da EAC volta com a linha de base atualizada. O alvo do resultado da
+  importação, quando declarado, fica vazio (não vem na resposta) e o toast conta o que foi criado.
+#}
+{% block root %}
+<div id="{{ alvo_revisoes }}">
+{% include "financeiro/_eac_revisoes.html" %}
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_eac_conteudo.html" %}
+</div>
+{% endblock %}

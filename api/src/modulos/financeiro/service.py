@@ -675,6 +675,12 @@ def eac_item_levels_by_code(
     return {row.code: row.level for row in session.execute(statement)}
 
 
+def eac_item_levels(session: Session, *, project_id: int) -> dict[str, int]:
+    """The level of every EAC item of the project, by code: the places a new item can be born."""
+    statement = select(EacItem.code, EacItem.level).where(EacItem.project_id == project_id)
+    return {row.code: row.level for row in session.execute(statement)}
+
+
 # ── Remanejamento por SM (ISSUE-030) ─────────────────────────────────────
 
 
@@ -710,6 +716,8 @@ class NewItemRequest:
     capex: bool | None = None
     cost_center: str | None = None
     responsible_id: int | None = None
+    quantity: Decimal | None = None
+    unit_price_cents: int | None = None
 
 
 @dataclass(frozen=True)
@@ -851,6 +859,8 @@ def _create_new_items(
                 cost_type=spec.cost_type,
                 capex=spec.capex,
                 cost_center=spec.cost_center,
+                quantity=spec.quantity,
+                unit_price_cents=spec.unit_price_cents,
             ),
         )
     return created
@@ -1038,6 +1048,8 @@ class RevisionItemRequest:
     capex: bool | None = None
     cost_center: str | None = None
     responsible_id: int | None = None
+    quantity: Decimal | None = None
+    unit_price_cents: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1082,6 +1094,9 @@ class ReallocationView:
     revision: int
     justification: str
     free_balance_cents: int | None = None
+    source_description: str = ""
+    target_description: str = ""
+    author: str = ""
 
 
 @dataclass(frozen=True)
@@ -1143,6 +1158,7 @@ def reallocations(
 
     items = _lines_by_project(session, [project_id]).get(project_id, [])
     codes = {item.id: item.code for item in items}
+    descriptions = {item.id: item.description for item in items}
     statement = (
         select(EacReallocation)
         .where(EacReallocation.project_id == project_id)
@@ -1154,6 +1170,7 @@ def reallocations(
     change_codes = governanca.change_codes(
         session, change_ids=[row.change_id for row in applied_rows if row.change_id]
     )
+    applied_names = configuracoes.person_names(session, [row.applied_by_id for row in applied_rows])
     applied = tuple(
         ReallocationView(
             id=row.id,
@@ -1168,10 +1185,16 @@ def reallocations(
             applied_on=row.applied_on,
             revision=row.revision,
             justification=row.justification or "",
+            source_description=descriptions.get(row.source_item_id, ""),
+            target_description=descriptions.get(row.target_item_id, ""),
+            author=applied_names.get(row.applied_by_id, ""),
         )
         for row in applied_rows
     )
     pending_lines = governanca.pending_reallocations(session, project_id=project_id)
+    pending_names = configuracoes.person_names(
+        session, [line.requester_id for line in pending_lines]
+    )
     bases = _current_bases(session, project_id=project_id, items=items)
     pending = tuple(
         ReallocationView(
@@ -1199,6 +1222,9 @@ def reallocations(
                     if other.change_id != line.change_id
                 ),
             ),
+            source_description=descriptions.get(line.source_item_id, ""),
+            target_description=descriptions.get(line.target_item_id, ""),
+            author=pending_names.get(line.requester_id, ""),
         )
         for line in pending_lines
     )
@@ -1367,6 +1393,64 @@ def _create_revision_items(
                 cost_type=item.cost_type,
                 capex=item.capex,
                 cost_center=item.cost_center,
+                quantity=item.quantity,
+                unit_price_cents=item.unit_price_cents,
             ),
         )
     return created
+
+
+# ── As tabelas de revisões e remanejamentos da tela ──────────────────────
+
+
+@dataclass(frozen=True)
+class RevisionRow:
+    """Uma revisão como a tabela da tela e os exports a leem, com o projeto e a variação."""
+
+    view: RevisionView
+    project_label: str
+    variation_cents: int | None
+    is_current: bool
+
+
+@dataclass(frozen=True)
+class ReallocationRow:
+    """Um remanejamento como a tabela da tela e os exports o leem, com o projeto."""
+
+    view: ReallocationView
+    project_label: str
+
+
+def revision_rows(session: Session, *, project_ids: Sequence[int]) -> tuple[RevisionRow, ...]:
+    """As revisões dos projetos, cada uma com a variação sobre a revisão anterior do mesmo projeto."""
+    labels = {project.id: _label(project) for project in configuracoes.list_projects(session)}
+    rows: list[RevisionRow] = []
+    for project_id in project_ids:
+        views = revisions(session, project_id=project_id)
+        previous: int | None = None
+        for index, view in enumerate(views):
+            rows.append(
+                RevisionRow(
+                    view=view,
+                    project_label=labels.get(project_id, ""),
+                    variation_cents=None if previous is None else view.total_cents - previous,
+                    is_current=index == len(views) - 1,
+                )
+            )
+            previous = view.total_cents
+    return tuple(rows)
+
+
+def reallocation_rows(
+    session: Session, *, project_ids: Sequence[int]
+) -> tuple[ReallocationRow, ...]:
+    """Os remanejamentos aplicados e pendentes dos projetos, na ordem em que a tela os lista."""
+    labels = {project.id: _label(project) for project in configuracoes.list_projects(session)}
+    rows: list[ReallocationRow] = []
+    for project_id in project_ids:
+        listing = reallocations(session, project_id=project_id)
+        rows.extend(
+            ReallocationRow(view=view, project_label=labels.get(project_id, ""))
+            for view in (*listing.applied, *listing.pending)
+        )
+    return tuple(rows)

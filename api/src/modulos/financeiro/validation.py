@@ -9,9 +9,13 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 
 from src.core.errors import InvalidDataError
+from src.core.export_document import ValueKind
+from src.core.import_values import convert, normalize_text
 from src.core.money import format_brl
+from src.core.spreadsheet_reader import RawCell
 from src.modulos.financeiro import calculations
 
 COST_TYPES = ("Material", "Mão de obra", "Equipamento", "Serviço", "Indireto", "Contingência")
@@ -178,3 +182,317 @@ def check_impact_item(*, code: str, level: int | None) -> None:
         raise InvalidDataError({FIELD_EAC_ITEMS: IMPACT_ITEM_UNKNOWN.format(code=code)})
     if level != calculations.LEAF_LEVEL:
         raise InvalidDataError({FIELD_EAC_ITEMS: IMPACT_ITEM_NOT_LEAF.format(code=code)})
+
+
+# ── Formulários das rotas da ISSUE-030 ───────────────────────────────────
+
+
+FIELD_REALLOCATION_ORIGIN = "origem"
+FIELD_REALLOCATION_TARGET = "destino"
+FIELD_REALLOCATION_AMOUNT = "valor"
+FIELD_REALLOCATION_TITLE = "titulo"
+FIELD_REALLOCATION_PRIORITY = "prioridade"
+FIELD_REVISION_ITEM = "item"
+FIELD_NEW_ITEM_CODE = "codigo"
+FIELD_NEW_ITEM_PARENT = "pai"
+FIELD_NEW_ITEM_UNIT = "unidade"
+FIELD_NEW_ITEM_QUANTITY = "quantidade"
+FIELD_NEW_ITEM_PRICE = "preco"
+FIELD_NEW_ITEM_RECOURSE = "recurso"
+FIELD_IMPORT_CHECKED = "conferido"
+FIELD_IMPORT_ACKNOWLEDGED = "ciente"
+
+RECOURSE_REALLOCATION = "remanejamento"
+RECOURSE_REVISION = "revisao"
+RECOURSES = (RECOURSE_REALLOCATION, RECOURSE_REVISION)
+PRIORITIES = ("Normal", "Urgente")
+IMPORT_ACKNOWLEDGED_VALUE = "sim"
+DEFAULT_PRIORITY = "Normal"
+
+REALLOCATION_ORIGIN_MESSAGE = "Informe o item de origem."
+REALLOCATION_TARGET_MESSAGE = "Informe o item de destino."
+REALLOCATION_AMOUNT_MESSAGE = "Informe um valor maior que zero."
+REALLOCATION_PRIORITY_MESSAGE = "Escolha a prioridade: Normal ou Urgente."
+REALLOCATION_JUSTIFICATION_ASK = "Informe a justificativa do remanejamento"
+REVISION_CHANGE_MESSAGE = "Escolha a SM aprovada que origina a revisão."
+REVISION_ITEM_MESSAGE = "Escolha o item de custo que recebe o valor."
+REVISION_AMOUNT_MESSAGE = "Informe um valor maior que zero."
+REVISION_JUSTIFICATION_ASK = "Informe a justificativa da revisão"
+RECOURSE_MESSAGE = "Escolha a origem do recurso: remanejamento ou nova revisão."
+NEW_ITEM_CODE_MESSAGE = "Informe o código do item, com três níveis (ex.: 3.2.5)."
+NEW_ITEM_PARENT_MESSAGE = "O subpacote {code} não existe na EAC do projeto."
+NEW_ITEM_UNIT_MESSAGE = "A unidade {code} não está no cadastro."
+NEW_ITEM_QUANTITY_MESSAGE = "Informe uma quantidade maior que zero."
+NEW_ITEM_PRICE_MESSAGE = "Informe um preço unitário maior que zero."
+NEW_ITEM_RESPONSIBLE_MESSAGE = "O responsável {name} não está no cadastro."
+
+
+def parse_money(text: str) -> int | None:
+    """Cents of a value written in reais (``1.234,56``), or ``None`` when it is not one."""
+    if not text.strip():
+        return None
+    converted = convert(RawCell(value=text), ValueKind.MONEY)
+    return converted.value if converted.problem is None else None
+
+
+def parse_quantity(text: str) -> Decimal | None:
+    """The number of a quantity written by a person, or ``None`` when it is not one."""
+    if not text.strip():
+        return None
+    converted = convert(RawCell(value=text), ValueKind.DECIMAL)
+    return converted.value if converted.problem is None else None
+
+
+@dataclass(frozen=True)
+class NewItemInput:
+    """O item novo de um formulário: os atributos cadastrais e o valor orçado calculado."""
+
+    code: str
+    description: str
+    parent_code: str
+    cost_type: str
+    unit_code: str
+    quantity: Decimal
+    unit_price_cents: int
+    capex: bool
+    cost_center: str
+    responsible_name: str
+
+    @property
+    def budget_cents(self) -> int:
+        """Valor orçado do item novo: quantidade x preço unitário, em centavos."""
+        return calculations.budgeted_cents(self.quantity, self.unit_price_cents)
+
+
+@dataclass(frozen=True)
+class ReallocationForm:
+    """O remanejamento pedido pela tela: a transferência, a justificativa e a prioridade."""
+
+    title: str
+    justification: str
+    priority: str
+    origin_code: str
+    target_code: str
+    value_cents: int
+
+
+@dataclass(frozen=True)
+class NewItemForm:
+    """O item novo pedido pela tela: por remanejamento de outro item ou por nova revisão."""
+
+    item: NewItemInput
+    recourse: str
+    origin_code: str
+    change_id: int | None
+    justification: str
+    priority: str
+
+
+@dataclass(frozen=True)
+class RevisionForm:
+    """A revisão pedida pela tela: a SM aprovada, a justificativa e o ajuste que ela incorpora."""
+
+    change_id: int
+    justification: str
+    item_code: str
+    delta_cents: int
+
+
+def parse_reallocation_form(form: Mapping[str, str | None]) -> ReallocationForm:
+    """Check the remanejamento form; refuse with 422, one message per field."""
+    origin = _text(form, FIELD_REALLOCATION_ORIGIN)
+    target = _text(form, FIELD_REALLOCATION_TARGET)
+    value = parse_money(_text(form, FIELD_REALLOCATION_AMOUNT))
+    justification = _text(form, FIELD_JUSTIFICATION)
+    priority = _text(form, FIELD_REALLOCATION_PRIORITY) or DEFAULT_PRIORITY
+    _refuse(
+        {
+            FIELD_REALLOCATION_ORIGIN: "" if origin else REALLOCATION_ORIGIN_MESSAGE,
+            FIELD_REALLOCATION_TARGET: "" if target else REALLOCATION_TARGET_MESSAGE,
+            FIELD_REALLOCATION_AMOUNT: "" if value and value > 0 else REALLOCATION_AMOUNT_MESSAGE,
+            FIELD_REALLOCATION_PRIORITY: ""
+            if priority in PRIORITIES
+            else REALLOCATION_PRIORITY_MESSAGE,
+            FIELD_JUSTIFICATION: _length_error(
+                justification,
+                JUSTIFICATION_MIN,
+                JUSTIFICATION_MAX,
+                REALLOCATION_JUSTIFICATION_ASK,
+            ),
+        }
+    )
+    return ReallocationForm(
+        title=_text(form, FIELD_REALLOCATION_TITLE),
+        justification=justification,
+        priority=priority,
+        origin_code=origin,
+        target_code=target,
+        value_cents=value or 0,
+    )
+
+
+def parse_new_item_form(
+    form: Mapping[str, str | None],
+    *,
+    parent_codes: Collection[str],
+    unit_codes: Collection[str],
+    responsible_names: Collection[str],
+) -> NewItemForm:
+    """Check the new item form; the recourse says whether it is a remanejamento or a revisão."""
+    item = _parse_new_item(
+        form,
+        parent_codes=parent_codes,
+        unit_codes=unit_codes,
+        responsible_names=responsible_names,
+    )
+    recourse = _text(form, FIELD_NEW_ITEM_RECOURSE) or RECOURSE_REALLOCATION
+    justification = _text(form, FIELD_JUSTIFICATION)
+    origin = _text(form, FIELD_REALLOCATION_ORIGIN)
+    change_id = _digit(_text(form, FIELD_REVISION_CHANGE))
+    priority = _text(form, FIELD_REALLOCATION_PRIORITY) or DEFAULT_PRIORITY
+    _refuse(
+        {
+            FIELD_NEW_ITEM_RECOURSE: "" if recourse in RECOURSES else RECOURSE_MESSAGE,
+            FIELD_REALLOCATION_ORIGIN: (
+                "" if recourse == RECOURSE_REVISION or origin else REALLOCATION_ORIGIN_MESSAGE
+            ),
+            FIELD_REVISION_CHANGE: (
+                "" if recourse == RECOURSE_REALLOCATION or change_id else REVISION_CHANGE_MESSAGE
+            ),
+            FIELD_REALLOCATION_PRIORITY: ""
+            if priority in PRIORITIES
+            else REALLOCATION_PRIORITY_MESSAGE,
+            FIELD_JUSTIFICATION: _length_error(
+                justification,
+                JUSTIFICATION_MIN,
+                JUSTIFICATION_MAX,
+                REALLOCATION_JUSTIFICATION_ASK,
+            ),
+        }
+    )
+    return NewItemForm(
+        item=item,
+        recourse=recourse,
+        origin_code=origin,
+        change_id=change_id,
+        justification=justification,
+        priority=priority,
+    )
+
+
+def parse_revision_form(
+    form: Mapping[str, str | None], *, require_adjustment: bool = True
+) -> RevisionForm:
+    """Check the revision form; the import confirmation carries only the SM and the justification."""
+    change_id = _digit(_text(form, FIELD_REVISION_CHANGE))
+    justification = _text(form, FIELD_JUSTIFICATION)
+    item_code = _text(form, FIELD_REVISION_ITEM) if require_adjustment else ""
+    delta = parse_money(_text(form, FIELD_REALLOCATION_AMOUNT)) if require_adjustment else 0
+    _refuse(
+        {
+            FIELD_REVISION_CHANGE: "" if change_id else REVISION_CHANGE_MESSAGE,
+            FIELD_REVISION_ITEM: (
+                "" if not require_adjustment or _is_leaf_code(item_code) else REVISION_ITEM_MESSAGE
+            ),
+            FIELD_REALLOCATION_AMOUNT: (
+                "" if not require_adjustment or (delta and delta > 0) else REVISION_AMOUNT_MESSAGE
+            ),
+            FIELD_JUSTIFICATION: _length_error(
+                justification,
+                JUSTIFICATION_MIN,
+                JUSTIFICATION_MAX,
+                REVISION_JUSTIFICATION_ASK,
+            ),
+        }
+    )
+    return RevisionForm(
+        change_id=change_id or 0,
+        justification=justification,
+        item_code=item_code,
+        delta_cents=delta or 0,
+    )
+
+
+def _parse_new_item(
+    form: Mapping[str, str | None],
+    *,
+    parent_codes: Collection[str],
+    unit_codes: Collection[str],
+    responsible_names: Collection[str],
+) -> NewItemInput:
+    code = _text(form, FIELD_NEW_ITEM_CODE)
+    description = _text(form, FIELD_DESCRIPTION)
+    parent = _text(form, FIELD_NEW_ITEM_PARENT)
+    cost_type = _text(form, FIELD_COST_TYPE)
+    unit = _text(form, FIELD_NEW_ITEM_UNIT)
+    quantity = parse_quantity(_text(form, FIELD_NEW_ITEM_QUANTITY))
+    price = parse_money(_text(form, FIELD_NEW_ITEM_PRICE))
+    classification = _text(form, FIELD_CLASSIFICATION)
+    cost_center = _text(form, FIELD_COST_CENTER)
+    responsible = _text(form, FIELD_RESPONSIBLE)
+    _refuse(
+        {
+            FIELD_NEW_ITEM_CODE: "" if _is_leaf_code(code) else NEW_ITEM_CODE_MESSAGE,
+            FIELD_DESCRIPTION: _length_error(
+                description, DESCRIPTION_MIN, DESCRIPTION_MAX, "Informe a descrição"
+            ),
+            FIELD_NEW_ITEM_PARENT: (
+                "" if parent in parent_codes else NEW_ITEM_PARENT_MESSAGE.format(code=parent)
+            ),
+            FIELD_COST_TYPE: "" if cost_type in COST_TYPES else "Escolha o tipo de custo.",
+            FIELD_NEW_ITEM_UNIT: (
+                "" if _matches(unit, unit_codes) else NEW_ITEM_UNIT_MESSAGE.format(code=unit)
+            ),
+            FIELD_NEW_ITEM_QUANTITY: (
+                "" if quantity is not None and quantity > 0 else NEW_ITEM_QUANTITY_MESSAGE
+            ),
+            FIELD_NEW_ITEM_PRICE: "" if price and price > 0 else NEW_ITEM_PRICE_MESSAGE,
+            FIELD_CLASSIFICATION: (
+                ""
+                if classification in CLASSIFICATIONS
+                else "Escolha a classificação: CAPEX ou OPEX."
+            ),
+            FIELD_COST_CENTER: (
+                ""
+                if len(cost_center) <= COST_CENTER_MAX
+                else f"O centro de custo aceita até {COST_CENTER_MAX} caracteres."
+            ),
+            FIELD_RESPONSIBLE: (
+                ""
+                if _matches(responsible, responsible_names)
+                else NEW_ITEM_RESPONSIBLE_MESSAGE.format(name=responsible)
+            ),
+        }
+    )
+    return NewItemInput(
+        code=code,
+        description=description,
+        parent_code=parent,
+        cost_type=cost_type,
+        unit_code=unit,
+        quantity=quantity or Decimal(0),
+        unit_price_cents=price or 0,
+        capex=classification == "CAPEX",
+        cost_center=cost_center,
+        responsible_name=responsible,
+    )
+
+
+def _refuse(problems: Mapping[str, str]) -> None:
+    found = {field: message for field, message in problems.items() if message}
+    if found:
+        raise InvalidDataError(found)
+
+
+def _digit(text: str) -> int | None:
+    return int(text) if text.isdigit() else None
+
+
+def _is_leaf_code(code: str) -> bool:
+    parts = code.split(".")
+    return len(parts) == 3 and all(part.isdigit() for part in parts)
+
+
+def _matches(text: str, options: Collection[str]) -> bool:
+    wanted = normalize_text(text)
+    return any(normalize_text(option) == wanted for option in options)

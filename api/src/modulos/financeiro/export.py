@@ -3,10 +3,14 @@
 One ``Document`` per screen, and the two outputs come from it, so the paper never has less than
 the spreadsheet. The EAC exports the structure as the screen shows it: the lines the filters
 leave, the root line (code 0) with the total, and, in the Portfólio, the weight of each project.
+The revisions and the reallocations of ISSUE-030 come in the same document, as the screen shows
+them: the frozen baseline of each revision with its variation, and the applied and pending
+transfers with the free balance of the origin.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 
 from src.core.export_document import (
@@ -22,16 +26,31 @@ from src.core.export_document import (
     row,
 )
 from src.modulos.financeiro.calculations import LEAF_LEVEL, TreeRow
-from src.modulos.financeiro.service import PORTFOLIO_LABEL, EacView
+from src.modulos.financeiro.service import (
+    PORTFOLIO_LABEL,
+    EacView,
+    ReallocationRow,
+    RevisionRow,
+)
 
 PROJECT_TITLE = "EAC: estrutura analítica de custos"
 PORTFOLIO_TITLE = "EAC da carteira: projetos e pacotes principais"
 TABLE_TITLE = "Estrutura analítica de custos"
+REVISIONS_TITLE = "Revisões do orçamento"
+REALLOCATIONS_TITLE = "Remanejamentos"
 BUDGET_REFERENCE = "Quantidade x preço unitário dos itens"
+APPLIED_SITUATION = "Aplicado"
 
 
-def eac_document(view: EacView, *, scope_label: str, generated_on: date) -> Document:
-    """The EAC as a document: the KPIs of the screen and the tree, one line per row of the table.
+def eac_document(
+    view: EacView,
+    *,
+    scope_label: str,
+    generated_on: date,
+    revisions: Sequence[RevisionRow] = (),
+    reallocations: Sequence[ReallocationRow] = (),
+) -> Document:
+    """The EAC as a document: the KPIs of the screen, the tree, the revisions and the reallocations.
 
     ``scope_label`` is the line of the scope (``describe_scope``), made by the route.
     """
@@ -42,7 +61,11 @@ def eac_document(view: EacView, *, scope_label: str, generated_on: date) -> Docu
         portfolio=view.is_portfolio,
         context=_context(view),
         kpis=_kpis(view),
-        tables=(_tree_table(view),),
+        tables=(
+            _tree_table(view),
+            _revisions_table(revisions),
+            _reallocations_table(reallocations),
+        ),
     )
 
 
@@ -147,3 +170,70 @@ def _filtered_totals(view: EacView, column_count: int) -> tuple[Cell, ...] | Non
     cells[0] = Cell("Total filtrado")
     cells[6] = Cell(view.filtered_total_cents)
     return tuple(cells)
+
+
+# ── Revisões e remanejamentos (ISSUE-030) ────────────────────────────────
+
+
+def _revisions_table(lines: Sequence[RevisionRow]) -> Table:
+    return Table(
+        title=REVISIONS_TITLE,
+        columns=(
+            Column("Revisão", width=18),
+            Column("Data", ValueKind.DATE),
+            Column("Total", ValueKind.MONEY),
+            Column("Variação", ValueKind.MONEY),
+            Column("SM", width=20),
+            Column("Justificativa", width=60),
+            Column("Aprovado por", width=24),
+        ),
+        rows=tuple(
+            row(
+                f"Rev {line.view.revision}",
+                line.view.revision_date,
+                line.view.total_cents,
+                line.variation_cents,
+                line.view.change_code,
+                line.view.justification,
+                line.view.approved_by,
+                project=line.project_label,
+            )
+            for line in lines
+        ),
+    )
+
+
+def _reallocations_table(lines: Sequence[ReallocationRow]) -> Table:
+    return Table(
+        title=REALLOCATIONS_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Origem", width=34),
+            Column("Destino", width=34),
+            Column("Valor", ValueKind.MONEY),
+            Column("SM", width=20),
+            Column("Situação", width=22),
+            Column("Saldo livre da origem", ValueKind.MONEY),
+            Column("Justificativa", width=60),
+            Column("Registrado por", width=24),
+        ),
+        rows=tuple(
+            row(
+                line.view.applied_on,
+                _item_label(line.view.source_code, line.view.source_description),
+                _item_label(line.view.target_code, line.view.target_description),
+                line.view.value_cents,
+                line.view.change_code,
+                APPLIED_SITUATION if line.view.applied else line.view.situation,
+                line.view.free_balance_cents,
+                line.view.justification,
+                line.view.author,
+                project=line.project_label,
+            )
+            for line in lines
+        ),
+    )
+
+
+def _item_label(code: str, description: str) -> str:
+    return f"{code} · {description}" if description else code

@@ -414,7 +414,12 @@ def test_excel_do_projeto_tem_as_colunas_da_tela_e_a_arvore_inteira(cenario: Eac
 
     assert response.status_code == 200
     sheets = _sheets(response)
-    assert list(sheets) == ["Resumo", "Estrutura analítica de custos"]
+    assert list(sheets) == [
+        "Resumo",
+        "Estrutura analítica de custos",
+        "Revisões do orçamento",
+        "Remanejamentos",
+    ]
     sheet = sheets["Estrutura analítica de custos"]
     first_row, header = _header_row(sheet)
     assert header == [

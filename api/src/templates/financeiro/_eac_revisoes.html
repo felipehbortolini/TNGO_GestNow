@@ -1,0 +1,60 @@
+{#
+  Tabela das revisões do orçamento: a linha de base (Rev 0) e as seguintes, com a variação sobre
+  a anterior. No Portfólio cada linha diz o projeto. O aviso de erro aparece no topo quando a
+  operação que pediu a tabela foi recusada. Espera: revisoes, carteira, erro.
+#}
+{% if erro %}
+<div class="aviso aviso--erro" role="alert">
+  <strong>Não foi possível concluir.</strong>
+  <span>{{ erro }}</span>
+</div>
+{% endif %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Revisões do orçamento</caption>
+    <thead>
+      <tr>
+        {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+        <th scope="col">Revisão</th>
+        <th scope="col">Data</th>
+        <th scope="col" class="td-num">Total</th>
+        <th scope="col" class="td-num">Variação</th>
+        <th scope="col">SM</th>
+        <th scope="col">Justificativa</th>
+        <th scope="col">Aprovado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in revisoes %}
+      <tr data-revisao="{{ linha.view.revision }}" data-projeto="{{ linha.view.project_id }}">
+        {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
+        <td class="nowrap">
+          <span class="fw-600 num">Rev {{ linha.view.revision }}</span>
+          {% if linha.view.revision == 0 %}<span class="pill pill--info">Linha de base</span>{% endif %}
+          {% if linha.is_current %}<span class="pill pill--ok">Vigente</span>{% endif %}
+        </td>
+        <td class="nowrap">{{ linha.view.revision_date.strftime('%d/%m/%Y') }}</td>
+        <td class="td-num">{{ linha.view.total_cents | brl }}</td>
+        <td class="td-num">
+          {% if linha.variation_cents is not none %}
+          {{ '+' if linha.variation_cents > 0 }}{{ linha.variation_cents | brl }}
+          {% endif %}
+        </td>
+        <td class="nowrap">
+          {% if linha.view.change_code %}
+          <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
+          {% else %}
+          <span class="muted">sem SM</span>
+          {% endif %}
+        </td>
+        <td>{{ linha.view.justification }}</td>
+        <td>{{ linha.view.approved_by }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhuma revisão registrada.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

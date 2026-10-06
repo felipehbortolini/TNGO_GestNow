@@ -6,6 +6,12 @@ resto). Nos projetos 2 e 3 a soma de quantidade x preço difere do ``base`` do p
 centavos (R$ 0,02 e R$ 25,57), porque o protótipo guardava o valor arredondado; o GestNow
 calcula, e a diferença está em ``docs/DIVERGENCIAS-DO-PROTOTIPO.md`` como pendente de aceite.
 Os pesos saem iguais nos dois casos.
+
+Com a ISSUE-030 a demonstração passa a ter revisões: o orçamento vigente de um projeto com
+revisão é a linha de base da última revisão, e não a soma calculada dos itens. A carga parcial
+deste arquivo (sem a parte ``governanca-eac``) continua afirmando o valor calculado; a afirmação
+registrada no harness, que roda sobre a demonstração inteira, afirma o valor em vigor — no
+projeto 1 o mesmo número e nos projetos 2 e 3 o total congelado do mock.
 """
 
 from __future__ import annotations
@@ -33,13 +39,23 @@ def _projects(session: Session) -> list[Project]:
     return list(session.scalars(select(Project).order_by(Project.code)))
 
 
+def _budget_in_force(session: Session, project_id: int, calculated_cents: int) -> int:
+    """O orçamento vigente: a linha de base da última revisão, quando a demonstração tem revisão."""
+    revisions = service.revisions(session, project_id=project_id)
+    return revisions[-1].total_cents if revisions else calculated_cents
+
+
 def _afirmar_bac_do_projeto_1(context: OracleContext) -> None:
     first, second, third = _projects(context.session)[:3]
     budgets = service.current_budgets(context.session)
 
     assert budgets[first.id] == BAC_PROJECT_1, "BAC do projeto 1: R$ 44,6 mi"
-    assert budgets[second.id] == BAC_PROJECT_2, "BAC do projeto 2 (calculado, divergência)"
-    assert budgets[third.id] == BAC_PROJECT_3, "BAC do projeto 3 (calculado, divergência)"
+    assert budgets[second.id] == _budget_in_force(context.session, second.id, BAC_PROJECT_2), (
+        "BAC do projeto 2 (calculado sem revisão; congelado na demonstração)"
+    )
+    assert budgets[third.id] == _budget_in_force(context.session, third.id, BAC_PROJECT_3), (
+        "BAC do projeto 3 (calculado sem revisão; congelado na demonstração)"
+    )
 
 
 def _afirmar_pesos_da_carteira(context: OracleContext) -> None:

@@ -50,13 +50,24 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 * **Edição cadastral**: descrição, tipo de custo, classificação CAPEX/OPEX, centro de custo e responsável. Não muda valor, dispensa SM, exige justificativa e fica no histórico do item (`service.edit_item_registry`, `service.item_history`); controle de versão com 409.
 * **Ponderação da carteira**: `service.portfolio_weights` lê o orçamento vigente da EAC e as notas dos projetos e aplica `calculations.portfolio_weights` (critérios normalizados) fechado em 100,00 por `calculations.largest_remainder`. A edição da ponderação é da ISSUE-080.
 * **Carga e oráculo**: `seed.py` grava a EAC dos mocks; `tests/financeiro/test_eac_oraculo.py` afirma BAC de R$ 44,6 mi no projeto 1 e pesos 55,36 / 29,34 / 15,30.
-* **Fora desta fatia**: item novo, remanejamento, revisão e importação por planilha (ISSUE-030).
+
+## O que a ISSUE-030 trouxe
+
+* **Toda alteração de valor passa pela SM.** Remanejamento entre itens e item novo com recurso de outro item abrem uma SM do tipo "Remanejamento de orçamento" (`service.reallocate`); até a decisão o valor fica reservado na origem e aparece em "Remanejamentos" como pendente. A aprovação aplica as transferências na EAC, na mesma transação da decisão, conferindo o saldo livre de novo (`service.apply_reallocations`); a rejeição libera a reserva. O item novo nasce na abertura da SM com base zero e recebe o valor na aprovação.
+* **Acréscimo ao total só por revisão** a partir de SM aprovada com custo (papel Gestor): `service.create_revision` exige a SM, confere o custo aprovado, consolida os remanejamentos aplicados e congela a linha de base de todos os itens de nível 3 em `eac_revisao_item`. Rev 0 é a linha de base; `mudanca.eac_revisao_incorporada` guarda a revisão que incorporou o custo da SM e o encerramento da SM é recusado enquanto ela não existir.
+* **Painéis e rotas** (`routes.py`): `GET /eac/revisoes` e `GET /eac/remanejamentos` leem as tabelas (no Portfólio, com o projeto em cada linha); `POST /eac/remanejamentos` abre a SM, `POST /eac/revisoes` cria a revisão e `POST /eac/itens` cria o item novo (por remanejamento ou revisão). O erro volta no próprio painel, com 422 e a mensagem.
+* **Importação de itens por planilha**: o importador `eac-itens` (`importers.py`) confere linha a linha contra a EAC (código de três níveis, subpacote existente, código livre, unidade e responsável no cadastro); a confirmação da tela (`POST /eac/revisoes/importar/conferir` e `.../confirmar`) checa de novo e cria a revisão vinculada à SM com os itens novos. A confirmação genérica recusa a linha: item da EAC não entra sem revisão.
+* **Exportação**: o Excel e a versão imprimível da tela levam as tabelas "Revisões do orçamento" e "Remanejamentos" no mesmo documento da árvore.
+* **Carga e oráculo**: a parte `governanca-eac` (`governanca/seed.py`) grava as transferências do protótipo em `mudanca_remanejamento` e chama `financeiro/seed.py::load_revisions`, que grava as revisões com a linha de base congelada e os remanejamentos aplicados apontando para a próxima revisão; `tests/financeiro/test_eac_revisoes_oraculo.py` confere os números do mock.
 
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |
 |---|---|---|
 | Valor orçado do item | Quantidade x preço unitário, em centavos | `calculations.budgeted_cents` |
+| Orçado atual do item | Linha de base da última revisão mais os remanejamentos aplicados e ainda não consolidados | `calculations.current_base_cents` |
+| Saldo livre do item | Orçado atual menos comprometido menos o reservado em outras SMs abertas | `calculations.free_balance_cents` |
+| Variação da revisão | Total da revisão menos o total da revisão anterior do projeto | `service.revision_rows` |
 | Total de pacote e subpacote | Soma dos itens abaixo, no servidor | `calculations.item_totals` |
 | Árvore do projeto e da carteira | Linha 0, pacotes, subpacotes e itens; carteira em três níveis | `calculations.build_project_tree`, `calculations.build_portfolio_tree` |
 | Maior resto | Fecha os pesos em 100,00 (duas casas) | `calculations.largest_remainder` |
@@ -72,7 +83,7 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 
 ## Fluxos
 
-Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
+Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. A importação de itens por planilha passa pela conferência e gera uma revisão vinculada à SM aprovada. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
 
 ## Integrações
 

@@ -1,4 +1,4 @@
-"""Part of the Governança module in the demonstration load (ISSUE-023, D6).
+"""Part of the Governança module in the demonstration load (ISSUE-023, ISSUE-030, D6).
 
 Reads the changes (``mudancas``) of the prototype mocks, already converted (``prototype_collection``),
 and writes them through the facade of the module, in the name of the demonstration Admin, with every date
@@ -6,9 +6,11 @@ moved to the reference date of the run (``shift_date``). The code of each change
 sequence of its project and must be the prototype's (``DemonstrationNumberError`` otherwise), so the
 first real request continues the numbering (``SM-TN-2026-0012``).
 
-Two things of the prototype are not written yet because the table they point to belongs to a module
-that arrives later (D9): the transfers between EAC items (``remanejamentos``) and the EAC items of the
-impact (``eacItens``) wait for Financeiro, which owns ``eac_item``.
+The ``governanca-eac`` part completes what the ISSUE-023 left for Financeiro (D9): the transfers
+between EAC items (``remanejamentos``) enter ``mudanca_remanejamento`` — applied for the SMs the
+prototype applied, pending for the one still open — and then the part calls
+``financeiro.seed.load_revisions``, which writes the revisions with their frozen baselines and the
+applied reallocations. It runs after ``governanca`` because the transfers point at the changes.
 """
 
 from __future__ import annotations
@@ -17,15 +19,19 @@ from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core import calendario
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.financeiro import seed as financeiro_seed
+from src.modulos.financeiro import service as financeiro_service
 from src.modulos.governanca import lessons_models as lm
 from src.modulos.governanca import lessons_service, service
 from src.modulos.governanca.lessons_service import SeedLesson
+from src.modulos.governanca.models import ChangeReallocation, ChangeRequest
 from src.modulos.governanca.service import (
     SeedAnalysis,
     SeedChange,
@@ -38,6 +44,7 @@ type Mover = Callable[[str], date]
 
 PART_NAME = "governanca"
 LESSONS_PART_NAME = "governanca-licoes"
+EAC_PART_NAME = "governanca-eac"
 DEFAULT_ANALYSIS_DAYS = 10
 
 # The origin text of the prototype (``Claim CLM-...`` etc.) and the origin of the lesson model.
@@ -276,5 +283,67 @@ def _origin_of(text: str) -> tuple[str, str | None]:
     return lm.ORIGIN_DIRECT, None
 
 
+def load_eac(session: Session, reference_date: date) -> None:
+    """Write the EAC links of the demonstration: the transfers, then the revisions (ISSUE-030).
+
+    The transfers of ``mudancas[].remanejamentos`` enter ``mudanca_remanejamento`` with the state
+    of the prototype: the applied ones carry the author, the date and the next revision of the EAC
+    (the one that will consolidate them); the open one stays pending. Then Financeiro writes the
+    revisions, their frozen baselines and the applied reallocations.
+    """
+    author = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if author is None:
+        message = "O Admin da demonstração não está no cadastro: a parte da plataforma roda antes."
+        raise LookupError(message)
+    lookup = _Lookup.build(session)
+    _load_reallocations(session, lookup=lookup, reference_date=reference_date)
+    financeiro_seed.load_revisions(session, reference_date)
+
+
+def _load_reallocations(session: Session, *, lookup: _Lookup, reference_date: date) -> None:
+    changes = {change.code: change for change in session.scalars(select(ChangeRequest))}
+    next_revisions = _next_revisions()
+    for source in prototype_collection("mudancas"):
+        transfers = source.get("remanejamentos") or ()
+        if not transfers:
+            continue
+        change = changes[source["codigo"]]
+        applied = source.get("remanejamentoAplicado")
+        project_id = lookup.projects[source["projetoId"]]
+        codes = [transfer["origem"] for transfer in transfers] + [
+            transfer["destino"] for transfer in transfers
+        ]
+        items = financeiro_service.eac_item_ids_by_code(session, project_id=project_id, codes=codes)
+        for transfer in transfers:
+            session.add(
+                ChangeReallocation(
+                    change_id=change.id,
+                    source_item_id=items[transfer["origem"]],
+                    target_item_id=items[transfer["destino"]],
+                    value_cents=int(transfer["valorCentavos"]),
+                    new_item=bool(transfer.get("novoItem")),
+                    applied=bool(applied),
+                    applied_by_id=lookup.people.get(applied["porId"]) if applied else None,
+                    applied_on=(
+                        shift_date(date.fromisoformat(applied["data"]), reference_date)
+                        if applied
+                        else None
+                    ),
+                    eac_revision=next_revisions[source["projetoId"]] if applied else None,
+                )
+            )
+    session.flush()
+
+
+def _next_revisions() -> dict[int, int]:
+    """A próxima revisão de cada projeto do mock: a maior revisão mais uma (a que consolida)."""
+    grouped: dict[int, int] = {}
+    for source in prototype_collection("eacRevisoes"):
+        project_id = source["projetoId"]
+        grouped[project_id] = max(grouped.get(project_id, 0), int(source["revisao"]))
+    return {project_id: revision + 1 for project_id, revision in grouped.items()}
+
+
 register(PART_NAME, load)
 register(LESSONS_PART_NAME, load_lessons)
+register(EAC_PART_NAME, load_eac)

@@ -1410,6 +1410,7 @@ class PendingReallocation:
     value_cents: int
     new_item: bool
     justification: str
+    requester_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -1532,6 +1533,7 @@ def pending_reallocations(
             value_cents=row.value_cents,
             new_item=row.new_item,
             justification=change.title,
+            requester_id=change.requester_id,
         )
         for row, change in session.execute(statement)
     )
@@ -1603,6 +1605,15 @@ def change_codes(session: Session, *, change_ids: Sequence[int]) -> dict[int, st
         return {}
     statement = select(ChangeRequest.id, ChangeRequest.code).where(ChangeRequest.id.in_(wanted))
     return {row.id: row.code for row in session.execute(statement)}
+
+
+def change_ids_by_code(session: Session, *, codes: Sequence[str]) -> dict[str, int]:
+    """O id de cada SM pelo seu código; um código ausente fica de fora."""
+    wanted = {code.strip() for code in codes if code and code.strip()}
+    if not wanted:
+        return {}
+    statement = select(ChangeRequest.code, ChangeRequest.id).where(ChangeRequest.code.in_(wanted))
+    return {row.code: row.id for row in session.execute(statement)}
 
 
 # ── The demonstration load (ISSUE-023, D6) ───────────────────────────────

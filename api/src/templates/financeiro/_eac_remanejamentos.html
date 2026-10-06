@@ -1,0 +1,68 @@
+{#
+  Tabela dos remanejamentos da EAC: os aplicados e os pendentes de decisão, com o saldo livre da
+  origem nos pendentes. No Portfólio cada linha diz o projeto. O aviso de erro aparece no topo
+  quando a operação que pediu a tabela foi recusada. Espera: remanejamentos, carteira, erro.
+#}
+{% if erro %}
+<div class="aviso aviso--erro" role="alert">
+  <strong>Não foi possível concluir.</strong>
+  <span>{{ erro }}</span>
+</div>
+{% endif %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Remanejamentos da EAC</caption>
+    <thead>
+      <tr>
+        {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+        <th scope="col">Data</th>
+        <th scope="col">Origem</th>
+        <th scope="col">Destino</th>
+        <th scope="col" class="td-num">Valor</th>
+        <th scope="col">SM</th>
+        <th scope="col">Situação</th>
+        <th scope="col" class="td-num">Saldo livre da origem</th>
+        <th scope="col">Justificativa</th>
+        <th scope="col">Registrado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in remanejamentos %}
+      <tr data-sm="{{ linha.view.change_code }}" data-aplicado="{{ 'sim' if linha.view.applied else 'nao' }}">
+        {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
+        <td class="nowrap">
+          {% if linha.view.applied_on %}{{ linha.view.applied_on.strftime('%d/%m/%Y') }}
+          {% else %}<span class="muted">na aprovação</span>{% endif %}
+        </td>
+        <td>{{ linha.view.source_code }}{% if linha.view.source_description %} · {{ linha.view.source_description }}{% endif %}</td>
+        <td>{{ linha.view.target_code }}{% if linha.view.target_description %} · {{ linha.view.target_description }}{% endif %}</td>
+        <td class="td-num">{{ linha.view.value_cents | brl }}</td>
+        <td class="nowrap">
+          {% if linha.view.change_code %}
+          <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
+          {% else %}
+          <span class="muted">sem SM</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if linha.view.applied %}
+          <span class="pill pill--ok">Aplicado</span>
+          {% else %}
+          <span class="pill pill--warn">{{ linha.view.situation }}</span>
+          <br><small class="muted">aplica na aprovação</small>
+          {% endif %}
+        </td>
+        <td class="td-num">
+          {% if linha.view.free_balance_cents is not none %}{{ linha.view.free_balance_cents | brl }}{% endif %}
+        </td>
+        <td>{{ linha.view.justification }}</td>
+        <td>{{ linha.view.author }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="{{ 10 if carteira else 9 }}" class="muted">Nenhum remanejamento registrado.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -44,6 +44,7 @@ PARTS = [
     "financeiro",
     "governanca",
     "governanca-licoes",
+    "governanca-eac",
     "hse",
     "planejamento",
     "programacao_semanal",
