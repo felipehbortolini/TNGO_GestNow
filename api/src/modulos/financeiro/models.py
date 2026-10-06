@@ -2,24 +2,26 @@
 
 Class and attribute names are English (D1); tables and columns are Portuguese snake_case,
 as in ``docs/MODELO-DE-DADOS.md``. This module owns the cost breakdown item, its revisions with
-the frozen baseline of each item and the reallocations applied to it (ISSUE-029, ISSUE-030);
-the projections of the item arrive with the cost map (ISSUE-031).
+the frozen baseline of each item, the reallocations applied to it (ISSUE-029, ISSUE-030), the
+projection history of the item and the costs imported from the ERP (ISSUE-031).
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
     Text,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -109,3 +111,44 @@ class EacReallocation(Base):
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
     new_item: Mapped[bool] = mapped_column("novo_item", Boolean, server_default=text("false"))
     justification: Mapped[str | None] = mapped_column("justificativa", Text)
+
+
+class EacProjection(Base):
+    """Projeção no término de um item, com a justificativa e quem a informou (ISSUE-031).
+
+    A projeção vigente é a última linha do item; ``origem`` diz se ela veio do responsável ou do
+    fechamento do ERP. Fato histórico por definição (D5b): sem ``versao``.
+    """
+
+    __tablename__ = "eac_projecao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("eac_item.id"))
+    author_id: Mapped[int] = mapped_column("autor_id", ForeignKey("pessoa.id"))
+    projected_on: Mapped[date] = mapped_column("data", Date)
+    value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    origin: Mapped[str] = mapped_column("origem", Text)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
+
+
+class ErpCost(Base):
+    """Custos do ERP de um item em um mês: comprometido, realizado e projeção do fechamento.
+
+    Fato mensal por item e mês (ISSUE-031), sem ``versao``; alimenta o mapa de controle e a
+    Curva S financeira. Um mês reimportado atualiza a linha, nunca a duplica.
+    """
+
+    __tablename__ = "custo_erp"
+    __table_args__ = (UniqueConstraint("item_id", "mes"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("eac_item.id"))
+    imported_by_id: Mapped[int] = mapped_column("importado_por_id", ForeignKey("pessoa.id"))
+    month: Mapped[date] = mapped_column("mes", Date)
+    committed_cents: Mapped[int | None] = mapped_column("comprometido_centavos", Centavos)
+    actual_cents: Mapped[int | None] = mapped_column("realizado_centavos", Centavos)
+    projection_cents: Mapped[int | None] = mapped_column("projecao_centavos", Centavos)
+    imported_at: Mapped[datetime] = mapped_column(
+        "importado_em", DateTime(timezone=True), server_default=func.now()
+    )

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 from src.core.import_values import normalize_text
@@ -17,10 +18,21 @@ PORTFOLIO_MAIN_LEVEL = 2
 WEIGHT_TOTAL = Decimal(100)
 HUNDREDTHS = Decimal(100)
 TWO_PLACES = Decimal("0.01")
+ONE_PLACE = Decimal("0.1")
 BUDGET_SOURCE = "orcamento"
 EQUAL_SHARE_FALLBACK = Decimal(1)
 CODE_SEPARATOR = "."
 ROOT_CODE = "0"
+MANUAL_ORIGIN = "Manual"
+ERP_ORIGIN = "ERP"
+DEFAULT_DEVIATION_BANDS: tuple[int, int, int] = (1, 5, 10)
+NEUTRAL_KEY = "neutro"
+OVERCOST_KEY = "sobrecusto"
+SAVING_KEY = "economia"
+OVERCOST_TONE = "erro"
+SAVING_TONE = "ok"
+NEUTRAL_TONE = "neutro"
+DEVIATION_BANDS_MESSAGE = "As faixas do desvio precisam de três limites."
 
 
 # ── Valor orçado ─────────────────────────────────────────────────────────
@@ -480,3 +492,212 @@ def _value_of(project: WeightInput, criterion: WeightCriterion) -> Decimal:
     if criterion.source == BUDGET_SOURCE:
         return Decimal(project.budget_cents)
     return Decimal(project.grades.get(criterion.id, 0))
+
+
+# ── Projeção, desvio e faixas do mapa de calor (ISSUE-031) ───────────────
+
+
+def baseline_base_cents(
+    items: Sequence[ItemLine],
+    *,
+    revision_bases: Mapping[int, int],
+    latest_revision: int | None,
+) -> dict[int, int]:
+    """Linha de base de cada item: a base congelada da última revisão, ou quantidade x preço.
+
+    É o valor de antes dos remanejamentos aplicados e ainda não consolidados: sem revisão alguma
+    a base é quantidade x preço; com revisão, é a linha congelada de ``eac_revisao_item`` e zero
+    para o item que não está nela.
+    """
+    return current_base_cents(items, revision_bases=revision_bases, latest_revision=latest_revision)
+
+
+def reallocation_cents(current_cents: int, baseline_cents: int) -> int:
+    """Remanejamentos não consolidados: o orçado atual menos a linha de base do item."""
+    return current_cents - baseline_cents
+
+
+def saldo_a_comprometer_cents(current_cents: int, committed_cents: int) -> int:
+    """Saldo a comprometer: o orçado atual menos o comprometido; negativo é sobrecusto."""
+    return current_cents - committed_cents
+
+
+def deviation_cents(projection_cents: int, current_cents: int) -> int:
+    """Desvio do item: a projeção no término menos o orçado atual; positivo é sobrecusto."""
+    return projection_cents - current_cents
+
+
+def deviation_percent(deviation: int, current_cents: int) -> Decimal | None:
+    """Desvio percentual sobre o orçado atual, com uma casa; nenhum quando o orçado atual é zero."""
+    if current_cents == 0:
+        return None
+    return (Decimal(deviation) / Decimal(current_cents) * HUNDREDTHS).quantize(
+        ONE_PLACE, rounding=ROUND_HALF_UP
+    )
+
+
+@dataclass(frozen=True)
+class DeviationBand:
+    """A faixa do desvio no mapa de calor: chave, tom do Design System, nível e rótulo."""
+
+    key: str
+    tone: str
+    level: int
+    label: str
+
+
+def deviation_band(
+    percent: Decimal | None, bands: Sequence[Decimal | int | float] = DEFAULT_DEVIATION_BANDS
+) -> DeviationBand:
+    """Faixa do desvio pelas faixas vigentes dos parâmetros, na semântica do protótipo.
+
+    Dentro da primeira faixa o desvio é neutro; a partir dela o nível cresce com o segundo e o
+    terceiro limites: até o segundo é 1, até o terceiro é 2 e acima dele é 3. Sobrecusto usa a
+    família ``erro`` do Design System e economia a família ``ok``; o tom é acompanhado do sinal
+    no valor e do ícone na célula.
+    """
+    limits = tuple(_limit_of(band) for band in bands)
+    if len(limits) != 3:
+        raise ValueError(DEVIATION_BANDS_MESSAGE)
+    if percent is None:
+        return DeviationBand(key=NEUTRAL_KEY, tone=NEUTRAL_TONE, level=0, label="Sem desvio")
+    first, middle, last = limits
+    magnitude = abs(percent)
+    if magnitude < first:
+        return DeviationBand(
+            key=NEUTRAL_KEY, tone=NEUTRAL_TONE, level=0, label=f"Até {_limit_text(first)}%"
+        )
+    over = percent > 0
+    level = 3 if magnitude > last else 2 if magnitude > middle else 1
+    family = OVERCOST_KEY if over else SAVING_KEY
+    return DeviationBand(
+        key=f"{family}-{level}",
+        tone=OVERCOST_TONE if over else SAVING_TONE,
+        level=level,
+        label=_band_label(family, level, limits=limits),
+    )
+
+
+def _limit_of(band: Decimal | int | float) -> Decimal:
+    return band if isinstance(band, Decimal) else Decimal(str(band))
+
+
+def _limit_text(limit: Decimal) -> str:
+    return format(limit.normalize(), "f")
+
+
+def _band_label(family: str, level: int, *, limits: tuple[Decimal, Decimal, Decimal]) -> str:
+    name = "Sobrecusto" if family == OVERCOST_KEY else "Economia"
+    first, middle, last = limits
+    if level == 1:
+        return f"{name} de {_limit_text(first)}% a {_limit_text(middle)}%"
+    if level == 2:
+        return f"{name} de {_limit_text(middle)}% a {_limit_text(last)}%"
+    return f"{name} acima de {_limit_text(last)}%"
+
+
+@dataclass(frozen=True)
+class ProjectionFact:
+    """Uma projeção no término do item: o valor, a data do fato e de onde ele veio."""
+
+    item_id: int
+    value_cents: int
+    on: date
+    origin: str = MANUAL_ORIGIN
+
+
+def latest_projections(facts: Sequence[ProjectionFact]) -> dict[int, ProjectionFact]:
+    """A projeção vigente de cada item: o fato de data mais recente; no empate, o do ERP.
+
+    A projeção manual e a do fechamento do ERP convivem no histórico; o fato mais recente vence.
+    Data igual resolve para o ERP, porque o fechamento é o número oficial do mês; entre fatos de
+    mesma data e mesma origem fica o último da sequência, que é o último gravado.
+    """
+    latest: dict[int, ProjectionFact] = {}
+    for fact in facts:
+        current = latest.get(fact.item_id)
+        if current is None or _projection_order(fact) >= _projection_order(current):
+            latest[fact.item_id] = fact
+    return latest
+
+
+def _projection_order(fact: ProjectionFact) -> tuple[date, int]:
+    return (fact.on, 1 if fact.origin == ERP_ORIGIN else 0)
+
+
+@dataclass(frozen=True)
+class ProjectedTotal:
+    """A projeção no término por item e o total do projeto, como o mapa de controle os lê."""
+
+    by_item: Mapping[int, int]
+    total_cents: int
+
+
+def projected_total_cents(
+    items: Sequence[ItemLine],
+    *,
+    current_bases: Mapping[int, int],
+    facts: Sequence[ProjectionFact],
+) -> ProjectedTotal:
+    """Projeção no término de cada item e do projeto, em centavos.
+
+    A projeção vigente de um item é a do fato mais recente; sem fato algum vale o orçado atual,
+    que é o desvio zero de quem ainda não se pronunciou. Os pacotes e subpacotes somam os filhos
+    e o total do projeto é a soma dos pacotes (nível 1).
+    """
+    vigentes = {item_id: fact.value_cents for item_id, fact in latest_projections(facts).items()}
+    children: dict[int | None, list[ItemLine]] = {}
+    for item in items:
+        children.setdefault(item.parent_id, []).append(item)
+    by_item: dict[int, int] = {}
+
+    def total_of(item: ItemLine) -> int:
+        if item.level >= LEAF_LEVEL:
+            by_item[item.id] = vigentes.get(item.id, current_bases.get(item.id, 0))
+        else:
+            by_item[item.id] = sum(total_of(child) for child in children.get(item.id, ()))
+        return by_item[item.id]
+
+    for item in children.get(None, ()):
+        total_of(item)
+    return ProjectedTotal(
+        by_item=by_item,
+        total_cents=sum(by_item.get(item.id, 0) for item in items if item.level == 1),
+    )
+
+
+@dataclass(frozen=True)
+class ErpCostFact:
+    """Um mês de custo do ERP de um item: comprometido e realizado do mês e projeção do fechamento."""
+
+    item_id: int
+    month: date
+    committed_cents: int | None = None
+    actual_cents: int | None = None
+    projection_cents: int | None = None
+
+
+@dataclass(frozen=True)
+class ErpTotals:
+    """O acumulado de comprometido e realizado dos fatos do ERP até a data de corte."""
+
+    committed_cents: int
+    actual_cents: int
+
+
+def erp_totals_until(facts: Sequence[ErpCostFact], *, cutoff: date) -> dict[int, ErpTotals]:
+    """Custo do ERP por item até a data de corte: soma os fatos dos meses do corte para trás.
+
+    Cada fato é o movimento do mês, não o acumulado; o acumulado é a soma, como o protótipo
+    mostrava no mapa de controle. O mês do corte entra e os meses futuros ficam de fora.
+    """
+    totals: dict[int, ErpTotals] = {}
+    for fact in facts:
+        if fact.month > cutoff:
+            continue
+        previous = totals.get(fact.item_id, ErpTotals(committed_cents=0, actual_cents=0))
+        totals[fact.item_id] = ErpTotals(
+            committed_cents=previous.committed_cents + (fact.committed_cents or 0),
+            actual_cents=previous.actual_cents + (fact.actual_cents or 0),
+        )
+    return totals

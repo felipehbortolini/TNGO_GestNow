@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from src.core.errors import InvalidDataError
@@ -496,3 +497,140 @@ def _is_leaf_code(code: str) -> bool:
 def _matches(text: str, options: Collection[str]) -> bool:
     wanted = normalize_text(text)
     return any(normalize_text(option) == wanted for option in options)
+
+
+# ── Projeção no término e custos do ERP (ISSUE-031) ──────────────────────
+
+
+FIELD_PROJECTION = "projecao"
+FIELD_ERP_ITEM = "item"
+FIELD_ERP_MONTH = "mes"
+FIELD_ERP_COMMITTED = "comprometido"
+FIELD_ERP_ACTUAL = "realizado"
+FIELD_ERP_PROJECTION = "projecao"
+FIELD_ERP_VALUES = "valores"
+
+PROJECTION_REQUIRED = "Informe a projeção no término."
+PROJECTION_NEGATIVE = "A projeção no término não pode ser negativa."
+PROJECTION_BELOW_ACTUAL = "A projeção no término não pode ser menor que o realizado."
+PROJECTION_JUSTIFICATION_ASK = "Informe a justificativa da projeção."
+ERP_ITEM_UNKNOWN = "O item {code} não existe na EAC do projeto."
+ERP_ITEM_NOT_LEAF = "O item {code} não é item de custo (nível 3) da EAC do projeto."
+ERP_MONTH_REQUIRED = "Informe o mês (AAAA-MM)."
+ERP_MONTH_IN_THE_FUTURE = "Não é possível importar um mês futuro em relação à data de referência."
+ERP_VALUE_NEGATIVE = "O valor não pode ser negativo."
+ERP_VALUES_REQUIRED = "Preencha ao menos um valor: comprometido, realizado ou projeção."
+
+
+@dataclass(frozen=True)
+class ProjectionForm:
+    """A projeção pedida pela tela: o valor no término e a justificativa do responsável."""
+
+    value_cents: int
+    justification: str
+
+
+def parse_projection_form(
+    form: Mapping[str, str | None], *, actual_cents: int | None = None
+) -> ProjectionForm:
+    """Check the projection form; refused with 422, the message next to the field.
+
+    The prototype asks a filled justification (up to 300 characters, no character minimum) and
+    refuses a projection that is negative or below the realized cost of the item.
+    """
+    value = parse_money(_text(form, FIELD_PROJECTION))
+    justification = _text(form, FIELD_JUSTIFICATION)
+    _refuse(
+        {
+            FIELD_PROJECTION: _projection_problem(value, actual_cents),
+            FIELD_JUSTIFICATION: _projection_justification_problem(justification),
+        }
+    )
+    return ProjectionForm(value_cents=value or 0, justification=justification)
+
+
+def _projection_problem(value: int | None, actual_cents: int | None) -> str:
+    if value is None:
+        return PROJECTION_REQUIRED
+    if value < 0:
+        return PROJECTION_NEGATIVE
+    if actual_cents is not None and value < actual_cents:
+        return PROJECTION_BELOW_ACTUAL
+    return ""
+
+
+def _projection_justification_problem(justification: str) -> str:
+    if not justification:
+        return PROJECTION_JUSTIFICATION_ASK
+    if len(justification) > JUSTIFICATION_MAX:
+        return f"Use até {JUSTIFICATION_MAX} caracteres."
+    return ""
+
+
+@dataclass(frozen=True)
+class ErpCostInput:
+    """One line of the ERP import: the item, the month and the three closing values, in cents."""
+
+    code: str
+    month: date | None
+    committed_cents: int | None
+    actual_cents: int | None
+    projection_cents: int | None
+
+
+def erp_cost_problems(
+    line: ErpCostInput,
+    *,
+    item_levels: Mapping[str, int],
+    reference_date: date,
+    current_projection_cents: int | None = None,
+) -> dict[str, str]:
+    """The messages of one ERP line by field: the item, the month and the three values.
+
+    The item must exist in the EAC of the project and be a cost item (level 3); the month cannot
+    be in the future; no value is negative; at least one of the three is filled. The projection,
+    the line's own or the vigente that the line omits, cannot be below the realized of the line
+    (the rule of the prototype).
+    """
+    projection = (
+        line.projection_cents if line.projection_cents is not None else current_projection_cents
+    )
+    problems = {
+        FIELD_ERP_ITEM: _erp_item_problem(line.code, item_levels.get(line.code)),
+        FIELD_ERP_MONTH: _erp_month_problem(line.month, reference_date),
+        FIELD_ERP_COMMITTED: _erp_value_problem(line.committed_cents),
+        FIELD_ERP_ACTUAL: _erp_value_problem(line.actual_cents),
+        FIELD_ERP_PROJECTION: _erp_value_problem(line.projection_cents),
+    }
+    if all(
+        value is None for value in (line.committed_cents, line.actual_cents, line.projection_cents)
+    ):
+        problems[FIELD_ERP_VALUES] = ERP_VALUES_REQUIRED
+    elif (
+        line.actual_cents is not None
+        and projection is not None
+        and projection < line.actual_cents
+        and not problems[FIELD_ERP_PROJECTION]
+    ):
+        problems[FIELD_ERP_PROJECTION] = PROJECTION_BELOW_ACTUAL
+    return {field: message for field, message in problems.items() if message}
+
+
+def _erp_item_problem(code: str, level: int | None) -> str:
+    if level is None:
+        return ERP_ITEM_UNKNOWN.format(code=code)
+    if level != calculations.LEAF_LEVEL:
+        return ERP_ITEM_NOT_LEAF.format(code=code)
+    return ""
+
+
+def _erp_month_problem(month: date | None, reference_date: date) -> str:
+    if month is None:
+        return ERP_MONTH_REQUIRED
+    if (month.year, month.month) > (reference_date.year, reference_date.month):
+        return ERP_MONTH_IN_THE_FUTURE
+    return ""
+
+
+def _erp_value_problem(value: int | None) -> str:
+    return ERP_VALUE_NEGATIVE if value is not None and value < 0 else ""
