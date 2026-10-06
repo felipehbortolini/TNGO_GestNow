@@ -1,0 +1,26 @@
+{% extends "base_fragment.html" %}
+{#
+  Escolha do projeto antes do formulário de Novo risco (Portfólio, HU-016). O formulário é um GET
+  da mesma rota, agora com o projeto, e o resultado cai no corpo do modal.
+
+  Espera: projetos (código e nome) e consulta.
+#}
+{% block fragment %}
+<form method="get" action="/api/riscos/novo" x-target="{{ target_id }}">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <p class="muted mb-16">No Portfólio, o risco pertence a um projeto: a numeração e o apetite seguem o projeto escolhido.</p>
+  <div class="field field--full">
+    <label for="risco-projeto-escolha">Projeto do risco</label>
+    <select id="risco-projeto-escolha" name="projeto" class="input" required>
+      <option value="">Escolha o projeto</option>
+      {% for projeto in projetos %}
+      <option value="{{ projeto.id }}">{{ projeto.code }} · {{ projeto.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Continuar</button>
+  </div>
+</form>
+{% endblock %}

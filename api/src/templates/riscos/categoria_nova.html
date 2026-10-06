@@ -1,0 +1,32 @@
+{% extends "base_fragment.html" %}
+{#
+  Cadastro rápido de uma categoria da RBS, num segundo modal sobre o formulário do risco. O envio
+  devolve o campo Categoria do formulário com a nova categoria escolhida e fecha este modal.
+
+  Espera: grupos (existentes), valores (grupo, nome) e erros (grupo, nome, geral).
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/categorias" x-target="risco-categoria-campo risco-categoria-modal"
+  @ajax:success="TN.paginas['riscos/registro'].fecharDoFormulario($el)">
+  {% if erros.get('geral') %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>{% endif %}
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="categoria-grupo">Grupo</label>
+      <input id="categoria-grupo" name="grupo" class="input{% if erros.get('grupo') %} input--erro{% endif %}" type="text" list="categoria-grupos"
+        maxlength="80" required value="{{ valores.get('grupo') or '' }}" />
+      <datalist id="categoria-grupos">{% for grupo in grupos %}<option value="{{ grupo }}"></option>{% endfor %}</datalist>
+      {% if erros.get('grupo') %}<span class="field__erro">{{ erros['grupo'] }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="categoria-nome">Nome da categoria</label>
+      <input id="categoria-nome" name="nome" class="input{% if erros.get('nome') %} input--erro{% endif %}" type="text"
+        maxlength="80" required value="{{ valores.get('nome') or '' }}" />
+      {% if erros.get('nome') %}<span class="field__erro">{{ erros['nome'] }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Cadastrar</button>
+  </div>
+</form>
+{% endblock %}

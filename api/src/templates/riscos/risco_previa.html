@@ -1,0 +1,30 @@
+{% extends "base_fragment.html" %}
+{#
+  A prévia do score da avaliação. O servidor calcula tudo (impacto pelo pior caso, score,
+  severidade, cadência e VME); a tela só imprime.
+
+  Espera: previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia e tipo_atual.
+#}
+{% macro corpo(previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia) %}
+<div class="risco-previa" role="status" aria-live="polite">
+  {% if previa.score is none %}
+  <p class="muted">Escolha a probabilidade e avalie ao menos uma dimensão de impacto para ver o score.</p>
+  {% else %}
+  <div class="risco-previa__linha">
+    <span class="risco-previa__score">{{ previa.score }}</span>
+    <span class="pill {{ etiqueta_de_faixa(previa.severity) }}">{{ previa.severity.name }}</span>
+    <span class="hint">Escala {{ escala.name }}</span>
+  </div>
+  <ul class="risco-previa__lista">
+    <li>Impacto pelo pior caso: <b>{{ previa.minimum_impact }}</b>{% if previa.impact and previa.impact > previa.minimum_impact %} (elevado para {{ previa.impact }}){% endif %}</li>
+    {% if previa.mean_pct is not none %}<li>Probabilidade média da faixa: {{ previa.mean_pct }}%</li>{% endif %}
+    {% if previa.vme_cents is not none %}<li>VME: {{ formatar_moeda(previa.vme_cents) }}</li>{% endif %}
+    {% if previa.cadence_days %}<li>Revisão {{ texto_da_cadencia(previa.cadence_days) }}</li>{% endif %}
+  </ul>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block fragment %}
+{{ corpo(previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia) }}
+{% endblock %}

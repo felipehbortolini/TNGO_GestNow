@@ -1,0 +1,116 @@
+{% extends "base_fragment.html" %}
+{% from "riscos/risco_previa.html" import corpo as corpo_da_previa %}
+{#
+  Avaliação do risco (HU-107): probabilidade com as faixas percentuais, seis dimensões de impacto,
+  impacto pelo pior caso (pode ser elevado, nunca reduzido), custo e prazo para o VME, risco à
+  vida (CIPM) e a justificativa quando a severidade muda. A prévia do score vem do servidor a
+  cada alteração (GET previa). Troca de Inerente para Residual pede o formulário de novo, com os
+  valores do tipo escolhido; a residual só existe com plano de resposta.
+
+  Espera: risco, versao, consulta, valores, erros, parametros, dimensoes, oportunidade, previa,
+  escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia, tipo_atual, anterior e alvo_previa.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/avaliar" x-target="registro-conteudo {{ target_id }}"
+  @ajax:success="TN.paginas['riscos/registro'].fecharDoFormulario($el)" data-tn-loading="Registrando a avaliação..."
+  x-data @change.debounce.300ms="$ajax('/api/riscos/previa?' + new URLSearchParams(new FormData($el)), { target: '{{ alvo_previa }}' })">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <input type="hidden" name="versao" value="{{ versao if versao is not none else '' }}" />
+  <p class="hint mb-16"><b>{{ risco.code }}</b> · {{ risco.title }}{% if oportunidade %} · oportunidade{% endif %}</p>
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>{% endif %}
+  {% endfor %}
+
+  <div class="seg mb-16" role="group" aria-label="Tipo da avaliação">
+    <a class="seg__btn{% if tipo_atual == 'inerente' %} is-active{% endif %}" href="/api/riscos/{{ risco.code }}/avaliar?tipo=inerente&amp;consulta={{ consulta|urlencode }}"
+      x-target="{{ target_id }}">Inerente</a>
+    {% if risco.has_plan %}
+    <a class="seg__btn{% if tipo_atual == 'residual' %} is-active{% endif %}" href="/api/riscos/{{ risco.code }}/avaliar?tipo=residual&amp;consulta={{ consulta|urlencode }}"
+      x-target="{{ target_id }}">Residual</a>
+    {% else %}
+    <span class="seg__btn is-disabled" title="A residual só é habilitada depois que o plano de resposta existir">Residual</span>
+    {% endif %}
+  </div>
+  <input type="hidden" name="tipo" value="{{ tipo_atual }}" />
+  {% if erros.get('tipo') %}<span class="field__erro">{{ erros['tipo'] }}</span>{% endif %}
+
+  {% if anterior %}
+  <p class="hint mb-16">Avaliação atual: <span class="pill {{ etiqueta_de_faixa(anterior.severity) }}"><b>{{ anterior.score }}</b> {{ anterior.severity.name }}</span> (P{{ anterior.probability }} x I{{ anterior.impact }})</p>
+  {% endif %}
+
+  <fieldset class="field field--full risco-aval__grupo">
+    <legend>Probabilidade</legend>
+    {% for faixa in parametros.probabilities %}
+    <label class="risco-aval__opcao">
+      <input type="radio" name="p" value="{{ faixa.level }}"{% if valores.get('p') == faixa.level|string %} checked{% endif %} />
+      <span><b>{{ faixa.level }}</b> {{ faixa.name }} <span class="hint">{{ faixa.range_text }}</span></span>
+    </label>
+    {% endfor %}
+    {% if erros.get('p') %}<span class="field__erro">{{ erros['p'] }}</span>{% endif %}
+  </fieldset>
+
+  <fieldset class="field field--full">
+    <legend>Impacto por dimensão</legend>
+    <div class="fgrid">
+      {% for chave, rotulo in dimensoes %}
+      <div class="field">
+        <label for="aval-d-{{ chave }}">{{ rotulo }}</label>
+        <select id="aval-d-{{ chave }}" name="d_{{ chave }}" class="input">
+          <option value="">Não avaliada</option>
+          {% for nivel in range(1, 6) %}
+          <option value="{{ nivel }}"{% if valores.get('d_' ~ chave) == nivel|string %} selected{% endif %}>{{ nivel }}{% if parametros.impacts|length >= nivel %} · {{ parametros.impacts[nivel - 1] }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    {% if erros.get('dimensoes') %}<span class="field__erro">{{ erros['dimensoes'] }}</span>{% endif %}
+  </fieldset>
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="aval-i">Impacto adotado (pior caso ou maior)</label>
+      <select id="aval-i" name="i" class="input{% if erros.get('i') %} input--erro{% endif %}">
+        <option value="">Escolha o impacto</option>
+        {% for nivel in range(1, 6) %}
+        <option value="{{ nivel }}"{% if valores.get('i') == nivel|string %} selected{% endif %}>{{ nivel }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Pode ser elevado acima do pior caso, nunca reduzido.</span>
+      {% if erros.get('i') %}<span class="field__erro">{{ erros['i'] }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="aval-custo">Impacto em custo (R$)</label>
+      <input id="aval-custo" name="impactoCustoCentavos" class="input{% if erros.get('impactoCustoCentavos') %} input--erro{% endif %}" type="text" inputmode="decimal"
+        placeholder="1.850.000,00" value="{{ valores.get('impactoCustoCentavos') or '' }}" />
+      {% if erros.get('impactoCustoCentavos') %}<span class="field__erro">{{ erros['impactoCustoCentavos'] }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="aval-prazo">Impacto em prazo (dias)</label>
+      <input id="aval-prazo" name="impactoPrazoDias" class="input{% if erros.get('impactoPrazoDias') %} input--erro{% endif %}" type="number" min="0" max="999"
+        value="{{ valores.get('impactoPrazoDias') or '' }}" />
+      {% if erros.get('impactoPrazoDias') %}<span class="field__erro">{{ erros['impactoPrazoDias'] }}</span>{% endif %}
+    </div>
+    {% if escala.life_risk_is_high %}
+    <div class="field">
+      <label class="risco-aval__opcao">
+        <input type="checkbox" name="riscoVida" value="1"{% if valores.get('riscoVida') == '1' %} checked{% endif %} />
+        <span>Risco à vida (sempre na faixa mais alta)</span>
+      </label>
+    </div>
+    {% endif %}
+  </div>
+
+  <div id="{{ alvo_previa }}" class="risco-aval__previa">{{ corpo_da_previa(previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia) }}</div>
+
+  <div class="field field--full">
+    <label for="aval-justificativa">Justificativa (obrigatória quando a severidade muda)</label>
+    <textarea id="aval-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="2" maxlength="500">{{ valores.get('justificativa') or '' }}</textarea>
+    {% if erros.get('justificativa') %}<span class="field__erro">{{ erros['justificativa'] }}</span>{% endif %}
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar avaliação</button>
+  </div>
+</form>
+{% endblock %}

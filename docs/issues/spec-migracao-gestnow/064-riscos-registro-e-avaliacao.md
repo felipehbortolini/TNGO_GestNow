@@ -1,7 +1,7 @@
 ---
 id: ISSUE-064
 title: "Registro e avaliação de riscos"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 6
@@ -53,17 +53,17 @@ encerrado; grava motivo, autor e data; só o Admin vê e restaura. Numeração
 
 ## Critérios de aceite
 
-- [ ] Score e severidade têm testes nas duas escalas, inclusive o risco à vida na CIPM.
-- [ ] O impacto é a maior dimensão e não pode ser reduzido.
-- [ ] VME e exposição (só ameaças) têm teste da fórmula.
-- [ ] Exclusão com ação aberta ou de risco encerrado é recusada; só o Admin vê e restaura excluídos.
-- [ ] A numeração ignora sufixos não numéricos.
-- [ ] O oráculo afirma 7 riscos ativos, 2 críticos no residual e exposição de R$ 3,4 mi no projeto 1.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] Score e severidade têm testes nas duas escalas, inclusive o risco à vida na CIPM.
+- [x] O impacto é a maior dimensão e não pode ser reduzido.
+- [x] VME e exposição (só ameaças) têm teste da fórmula.
+- [x] Exclusão com ação aberta ou de risco encerrado é recusada; só o Admin vê e restaura excluídos.
+- [x] A numeração ignora sufixos não numéricos.
+- [x] O oráculo afirma 7 riscos ativos, 2 críticos no residual e exposição de R$ 3,4 mi no projeto 1.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -80,5 +80,7 @@ Fonte: `registro.html`, `js/pages/riscos/riscos.js` (modais 10, 11 e 17), `GI.ap
 
 ## Registro de execução
 
-- Feito: modelo, migração m064, MODELO-DE-DADOS (identificado_em).
-- Feito tb: calculations, validation, service (+ central_acoes.count_actions_of_origin, configuracoes.list_project_risk_contexts). Feito tb: presentation, export, seed, oráculo (test_oraculo_riscos). Feito tb: routes.py (sem templates). Falta: templates Jinja, view+css+js, testes, LEIA-ME.
+- Data: 2026-10-06.
+- Feito: modelo, migração m064 (`api/migrations/versions/m064_registro_de_riscos.py`), MODELO-DE-DADOS (identificado_em), calculations, validation, service (+ central_acoes.count_actions_of_origin, configuracoes.list_project_risk_contexts), presentation, export, seed, oráculo, routes.
+- Feito: 8 templates Jinja (`api/src/templates/riscos/`), view + css + js do trio `riscos/registro`, testes (`api/tests/riscos/`: cálculos, validação, fachada), LEIA-ME do módulo.
+- Pendências: nada executado (testes e porta de qualidade ficam para o orquestrador); critério "A porta de qualidade passa" aberto; recusa de exclusão com ação aberta só coberta pela regra, sem teste de fachada com risco e ação semeados.

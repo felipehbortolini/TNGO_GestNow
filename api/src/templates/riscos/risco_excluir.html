@@ -1,0 +1,40 @@
+{% extends "base_fragment.html" %}
+{#
+  Exclusão lógica de um risco (Gestor): motivo e, para "Outro", o detalhe. A exclusão é recusada
+  com ação aberta e para risco encerrado; a recusa volta aqui com a mensagem. Só o Admin vê e
+  restaura o risco excluído.
+
+  Espera: risco, consulta, valores (motivo, observacao), erros, versao, motivos e motivo_outro.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/excluir" x-target="registro-conteudo {{ target_id }}"
+  @ajax:success="TN.paginas['riscos/registro'].fecharDoFormulario($el)" data-tn-loading="Excluindo o risco...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <input type="hidden" name="versao" value="{{ versao if versao is not none else '' }}" />
+  <p class="muted mb-16">O risco <b>{{ risco.code }}</b> sai do registro, com motivo, autor e data. Só o Admin o vê e pode restaurá-lo. Risco com ação aberta ou já encerrado não se exclui.</p>
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>{% endif %}
+  {% endfor %}
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="excluir-motivo">Motivo</label>
+      <select id="excluir-motivo" name="motivo" class="input{% if erros.get('motivo') %} input--erro{% endif %}" required>
+        <option value="">Escolha o motivo</option>
+        {% for motivo in motivos %}
+        <option value="{{ motivo }}"{% if valores.get('motivo') == motivo %} selected{% endif %}>{{ motivo }}</option>
+        {% endfor %}
+      </select>
+      {% if erros.get('motivo') %}<span class="field__erro">{{ erros['motivo'] }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="excluir-observacao">Detalhe{% if valores.get('motivo') == motivo_outro %} (obrigatório para "{{ motivo_outro }}"){% endif %}</label>
+      <textarea id="excluir-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}" rows="3" maxlength="500">{{ valores.get('observacao') or '' }}</textarea>
+      {% if erros.get('observacao') %}<span class="field__erro">{{ erros['observacao'] }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Voltar</button>
+    <button type="submit" class="btn btn--danger">Excluir risco</button>
+  </div>
+</form>
+{% endblock %}

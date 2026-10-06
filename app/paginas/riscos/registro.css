@@ -1,16 +1,148 @@
 /* ============================================================
    registro.css — Estilo da tela Registro de riscos (riscos/registro)
 
-   Ameaças e oportunidades com avaliação, filtros e próximas revisões.
-
-   Escopo: tudo que morar aqui começa por .pagina--riscos-registro, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-064.
+   Escopo: tudo que mora aqui começa por .pagina--riscos-registro, a classe da raiz da
+   view, para não vazar entre telas. Os modais ficam fora da raiz, por isso a prévia e
+   os campos da avaliação têm o prefixo próprio risco-. Só tokens do Design System:
+   nenhum valor de cor, espaçamento, raio ou sombra escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--riscos-registro .registro__contexto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--riscos-registro .registro__kpis {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--riscos-registro .registro__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.pagina--riscos-registro .registro__barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-left: auto;
+  align-items: center;
+}
+
+.pagina--riscos-registro .registro__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.pagina--riscos-registro .registro__chip-remover {
+  display: inline-flex;
+  margin-left: var(--space-xs);
+}
+
+.pagina--riscos-registro .registro__contagem {
+  margin-bottom: var(--space-sm);
+}
+
+.pagina--riscos-registro .registro__tabela th,
+.pagina--riscos-registro .registro__tabela td {
+  vertical-align: top;
+}
+
+.pagina--riscos-registro .registro__destaque {
+  background: var(--frio-50);
+}
+
+.pagina--riscos-registro .registro__codigo {
+  white-space: nowrap;
+}
+
+.pagina--riscos-registro .registro__nota {
+  white-space: nowrap;
+}
+
+.pagina--riscos-registro .registro__linha--alerta {
+  background: var(--warn-50);
+}
+
+.pagina--riscos-registro .registro__linha--apagada {
+  opacity: 0.6;
+}
+
+.pagina--riscos-registro .registro__atrasada {
+  color: var(--erro-700);
+  font-weight: 600;
+}
+
+.pagina--riscos-registro .registro__acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  white-space: nowrap;
+}
+
+.pagina--riscos-registro .registro__restaurar {
+  display: inline;
+}
+
+.pagina--riscos-registro .registro__paginas {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+.registro__faixas,
+.registro__opcao,
+.risco-aval__opcao {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.registro__faixas {
+  flex-wrap: wrap;
+}
+
+.risco-form__categoria {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.risco-aval__grupo {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.risco-aval__previa {
+  margin: var(--space-md) 0;
+  padding: var(--space-md);
+  background: var(--frio-50);
+  border-radius: var(--r-md);
+}
+
+.risco-previa__linha {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.risco-previa__score {
+  font-weight: 700;
+}
+
+.risco-previa__lista {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-lg);
+}

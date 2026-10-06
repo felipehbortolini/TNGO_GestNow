@@ -1,0 +1,21 @@
+{% extends "base_fragment.html" %}
+{#
+  O campo Categoria (RBS) do formulário do risco, com o botão de cadastro rápido. É pedido de novo,
+  com a categoria recém-criada já escolhida, quando o cadastro rápido termina.
+
+  Espera: categorias (grupo e nome), valores (categoria) e erros (categoria).
+#}
+{% block fragment %}
+<label for="risco-categoria">Categoria (RBS)</label>
+<div class="risco-form__categoria">
+  <select id="risco-categoria" name="categoria" class="input{% if erros.get('categoria') %} input--erro{% endif %}" required
+    {% if erros.get('categoria') %}aria-invalid="true" aria-describedby="erro-categoria"{% endif %}>
+    <option value="">Escolha a categoria</option>
+    {% for categoria in categorias %}
+    <option value="{{ categoria.id }}"{% if valores.get('categoria') == categoria.id|string %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="button" class="btn btn--secondary btn--sm" data-registro-categoria-nova>Nova categoria</button>
+</div>
+{% if erros.get('categoria') %}<span id="erro-categoria" class="field__erro">{{ erros['categoria'] }}</span>{% endif %}
+{% endblock %}

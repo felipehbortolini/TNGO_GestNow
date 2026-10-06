@@ -58,9 +58,7 @@ def _version() -> sa.Column:
 
 
 def _fk(table: str, column: str, target: str) -> sa.ForeignKeyConstraint:
-    return sa.ForeignKeyConstraint(
-        [column], [f"{target}.id"], name=op.f(f"fk_{table}_{column}")
-    )
+    return sa.ForeignKeyConstraint([column], [f"{target}.id"], name=op.f(f"fk_{table}_{column}"))
 
 
 def upgrade() -> None:
