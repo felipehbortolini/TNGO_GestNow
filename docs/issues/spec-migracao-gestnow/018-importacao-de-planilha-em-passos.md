@@ -1,7 +1,7 @@
 ---
 id: ISSUE-018
 title: "Importação de planilha em passos com conferência linha a linha"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 2

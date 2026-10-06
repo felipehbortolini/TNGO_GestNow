@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const ORIGEM = join(RAIZ, "..", "Sistema", "data");
+const ORIGEM = join(RAIZ, "fontes", "Sistema", "data");
 const DESTINO = join(RAIZ, "api", "src", "carga", "dados", "plataforma.json");
 
 // Ordem de carga do protótipo; conferida no MODELO-DE-DADOS.md ("Verificação
