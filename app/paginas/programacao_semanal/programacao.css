@@ -8,9 +8,118 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-051 e ISSUE-052.
+   A matriz (oito colunas, grade dos sete dias com previsto e realizado), as
+   pastilhas de filtro, o painel de criar e editar e a distribuição diária.
+   Estados do dia: parado (programado sem produção), batido (meta atingida) e
+   extra (produção sem previsão). Cor marca a exceção, e o sinal textual
+   acompanha (título e legenda). Dependem dos tokens e da família de pílulas.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--programacao_semanal-programacao [x-cloak] { display: none; }
+.pagina--programacao_semanal-programacao .kpis { --kpis-colunas: 5; }
+.pagina--programacao_semanal-programacao .prog-janela { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
+.pagina--programacao_semanal-programacao .prog-semana { border: none; min-width: 190px; font-weight: 600; }
+
+/* Fundo do painel de refino: escurece o resto, para ficar claro que é uma camada. */
+.pagina--programacao_semanal-programacao .filtro-fundo { position: fixed; inset: 0; z-index: 80; background: var(--neutro-800); opacity: 0.25; }
+
+/* Pastilhas do que está filtrando */
+.pagina--programacao_semanal-programacao .filtros-ativos { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.pagina--programacao_semanal-programacao .filtros-ativos__rotulo { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .filtros-ativos__chip { cursor: pointer; border: none; }
+
+/* O quadro da matriz */
+.pagina--programacao_semanal-programacao .matriz-topo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .matriz-topo__contagem { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.pagina--programacao_semanal-programacao .matriz-legenda { display: flex; flex-wrap: wrap; gap: var(--space-lg); font-size: 11px; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .matriz-legenda__amostra { display: inline-block; width: 10px; height: 10px; margin-right: var(--space-xs); border-radius: var(--r-sm); border: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .matriz-legenda__amostra--parado { background: var(--erro-50); border-color: var(--erro-500); }
+.pagina--programacao_semanal-programacao .matriz-legenda__amostra--batido { background: var(--ok-50); border-color: var(--ok-500); }
+.pagina--programacao_semanal-programacao .matriz-legenda__amostra--extra { background: var(--azul-50); border-color: var(--azul-500); }
+.pagina--programacao_semanal-programacao .matriz-rolagem { overflow: auto; max-height: 70vh; }
+.pagina--programacao_semanal-programacao .matriz { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.pagina--programacao_semanal-programacao .matriz th { position: sticky; top: 0; z-index: 1; padding: var(--space-sm) var(--space-md); text-align: left; background: var(--neutro-50); border-bottom: 1px solid var(--borda); font-size: 12px; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .matriz td { padding: var(--space-sm) var(--space-md); vertical-align: top; border-bottom: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .matriz tbody tr.is-critica { background: var(--erro-50); }
+.pagina--programacao_semanal-programacao .matriz tbody tr.is-atencao { background: var(--warn-50); }
+.pagina--programacao_semanal-programacao .matriz__item { width: 56px; }
+.pagina--programacao_semanal-programacao .matriz__atividade { width: 22%; }
+.pagina--programacao_semanal-programacao .matriz__execucao { width: 16%; }
+.pagina--programacao_semanal-programacao .matriz__dias { width: 30%; }
+.pagina--programacao_semanal-programacao .matriz__situacao { width: 120px; }
+.pagina--programacao_semanal-programacao .matriz__semana { width: 96px; }
+.pagina--programacao_semanal-programacao .matriz__ppc { width: 88px; }
+.pagina--programacao_semanal-programacao .matriz__acoes { width: 148px; }
+.pagina--programacao_semanal-programacao .ordenar { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0; border: none; background: none; font: inherit; font-weight: 600; color: inherit; cursor: pointer; }
+.pagina--programacao_semanal-programacao .ordenar.is-ativa { color: var(--brand-primary); }
+.pagina--programacao_semanal-programacao .ordenar__seta { font-size: 11px; }
+
+.pagina--programacao_semanal-programacao .linha-item { font-weight: 600; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .linha-titulo { display: block; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.pagina--programacao_semanal-programacao .linha-empresa { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.pagina--programacao_semanal-programacao .linha-meta { display: block; font-size: 11px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.pagina--programacao_semanal-programacao .linha-meta__id { font-weight: 600; color: var(--brand-primary); }
+.pagina--programacao_semanal-programacao .linha-real { display: block; font-weight: 600; }
+.pagina--programacao_semanal-programacao .matriz__situacao .pill { display: flex; width: fit-content; margin-bottom: var(--space-xs); }
+
+/* A grade dos sete dias: um rótulo e sete dias, a mesma grade no cabeçalho e no corpo */
+.pagina--programacao_semanal-programacao .dias { display: grid; grid-template-columns: 40px repeat(7, minmax(0, 1fr)); gap: var(--space-xxs); align-items: center; }
+.pagina--programacao_semanal-programacao .dias--cabecalho { font-size: 11px; font-weight: 600; text-align: center; }
+.pagina--programacao_semanal-programacao .dias__rotulo { font-size: 10px; font-weight: 600; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .dias__rotulo em { display: block; font-style: normal; font-weight: 400; }
+.pagina--programacao_semanal-programacao .dia { position: relative; padding: var(--space-xs) var(--space-xxs); text-align: center; font-variant-numeric: tabular-nums; border-radius: var(--r-sm); }
+.pagina--programacao_semanal-programacao .dia.is-fds { background: var(--neutro-50); }
+.pagina--programacao_semanal-programacao .dia.is-nulo { color: var(--text-hint); }
+.pagina--programacao_semanal-programacao .dia--real { font-weight: 600; }
+.pagina--programacao_semanal-programacao .dia--real.is-parado { background: var(--erro-50); color: var(--erro-700); }
+.pagina--programacao_semanal-programacao .dia--real.is-batido { background: var(--ok-50); color: var(--ok-800); }
+.pagina--programacao_semanal-programacao .dia--real.is-extra { background: var(--azul-50); color: var(--azul-800); }
+.pagina--programacao_semanal-programacao .dia__noite { margin-left: var(--space-xxs); font-size: 9px; font-style: normal; font-weight: 700; color: var(--roxo-700); }
+
+/* PPC com medidor; a faixa dá a cor e o número dá o sinal */
+.pagina--programacao_semanal-programacao .ppc__valor { display: block; font-weight: 600; }
+.pagina--programacao_semanal-programacao .ppc__medidor { width: 100%; height: 6px; appearance: none; border: none; border-radius: var(--r-sm); background: var(--neutro-100); }
+.pagina--programacao_semanal-programacao .ppc__medidor::-webkit-progress-bar { background: var(--neutro-100); border-radius: var(--r-sm); }
+.pagina--programacao_semanal-programacao .ppc__medidor::-webkit-progress-value { background: var(--ok-500); border-radius: var(--r-sm); }
+.pagina--programacao_semanal-programacao .ppc__medidor::-moz-progress-bar { background: var(--ok-500); border-radius: var(--r-sm); }
+.pagina--programacao_semanal-programacao .ppc--media .ppc__medidor::-webkit-progress-value { background: var(--warn-500); }
+.pagina--programacao_semanal-programacao .ppc--media .ppc__medidor::-moz-progress-bar { background: var(--warn-500); }
+.pagina--programacao_semanal-programacao .ppc--baixa .ppc__medidor::-webkit-progress-value { background: var(--erro-500); }
+.pagina--programacao_semanal-programacao .ppc--baixa .ppc__medidor::-moz-progress-bar { background: var(--erro-500); }
+.pagina--programacao_semanal-programacao .acoes-linha { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+
+/* O painel de criar e editar a atividade */
+.pagina--programacao_semanal-programacao .painel-fundo { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; background: color-mix(in srgb, var(--neutro-800) 35%, transparent); }
+.pagina--programacao_semanal-programacao .painel { display: flex; flex-direction: column; width: 720px; max-width: 100%; height: 100%; background: var(--branco); box-shadow: var(--shadow-hover); }
+.pagina--programacao_semanal-programacao .painel__topo { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); padding: var(--space-lg) var(--space-xl); border-bottom: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .painel__sub { margin: var(--space-xs) 0 0; font-size: 12px; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .painel form { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.pagina--programacao_semanal-programacao .painel__corpo { flex: 1; overflow-y: auto; padding: var(--space-lg) var(--space-xl); }
+.pagina--programacao_semanal-programacao .painel__corpo .grupo-label { margin-top: var(--space-xl); }
+.pagina--programacao_semanal-programacao .painel__corpo .grupo-label:first-child { margin-top: 0; }
+.pagina--programacao_semanal-programacao .painel__rodape { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-xl); border-top: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .painel__atalhos { display: inline-flex; flex-wrap: wrap; gap: var(--space-sm); }
+.pagina--programacao_semanal-programacao .painel__distribuicao { margin-top: var(--space-lg); }
+.pagina--programacao_semanal-programacao .lancamento { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-sm); }
+.pagina--programacao_semanal-programacao .lancamento__dia { display: flex; flex-direction: column; gap: var(--space-xs); }
+.pagina--programacao_semanal-programacao .lancamento__rotulo { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .lancamento__data { display: block; font-weight: 400; }
+.pagina--programacao_semanal-programacao .lancamento__campo { text-align: center; padding-left: var(--space-xs); padding-right: var(--space-xs); }
+.pagina--programacao_semanal-programacao .lancamento-resumo { display: flex; flex-wrap: wrap; gap: var(--space-xl); margin: var(--space-lg) 0; }
+.pagina--programacao_semanal-programacao .lancamento-resumo__rotulo { display: block; font-size: 11px; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .lancamento-resumo__valor { font-size: 18px; font-weight: 600; }
+.pagina--programacao_semanal-programacao .lancamento-resumo__valor.is-erro { color: var(--erro-700); }
+
+@media (max-width: 1100px) {
+  .pagina--programacao_semanal-programacao .kpis { --kpis-colunas: 3; }
+}
+@media (max-width: 760px) {
+  .pagina--programacao_semanal-programacao .prog-janela { flex-direction: column; align-items: stretch; }
+  .pagina--programacao_semanal-programacao .matriz { table-layout: auto; min-width: 960px; }
+  .pagina--programacao_semanal-programacao .painel { width: 100%; }
+  .pagina--programacao_semanal-programacao .lancamento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pagina--programacao_semanal-programacao .painel__rodape { flex-direction: column; align-items: stretch; }
+}

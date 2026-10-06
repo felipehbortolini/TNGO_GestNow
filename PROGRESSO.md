@@ -1,14 +1,14 @@
-<!-- Progresso da migração: 23 de 93 -->
+<!-- Progresso da migração: 24 de 93 -->
 
 # Progresso da migração
 
-**23 de 93 issues concluídas** (última fechada: ISSUE-045). Atualizado em 06/10/2026 12:44 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**24 de 93 issues concluídas** (última fechada: ISSUE-051). Atualizado em 06/10/2026 12:48 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 23 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 029, 044, 045 |
-| em andamento | 3 | 021, 024, 051 |
-| na fila | 67 | 020 a 093 |
+| concluída | 24 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 029, 044, 045, 051 |
+| em andamento | 3 | 021, 024, 064 |
+| na fila | 66 | 020 a 093 |
 
 ## Concluídas
 
@@ -35,8 +35,9 @@
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | `b3da731` |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | `faf834f` |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
-| ISSUE-044 | Relato do período | - |
+| ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
+| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | - |
 
 ## Em andamento, bloqueadas e na fila
 
@@ -69,7 +70,6 @@
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | na fila | ISSUE-046, ISSUE-047, ISSUE-019 |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | na fila | ISSUE-019 |
 | ISSUE-050 | Punch list: painel de completação | na fila | ISSUE-049 |
-| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | na fila | ISSUE-051 |
 | ISSUE-053 | Pedidos de alteração e governança da programação | na fila | ISSUE-052 |
 | ISSUE-054 | Subpágina de configuração da programação, uma por projeto | na fila | ISSUE-051 |
@@ -82,7 +82,7 @@
 | ISSUE-061 | Diligenciamento e recebimento | na fila | ISSUE-060 |
 | ISSUE-062 | MAS: Mapa de Suprimentos | na fila | ISSUE-061 |
 | ISSUE-063 | Painel de suprimentos | na fila | ISSUE-062 |
-| ISSUE-064 | Registro e avaliação de riscos | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-064 | Registro e avaliação de riscos | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-065 | Ficha do risco: plano de resposta, revisões, encerramento e reabertura | na fila | ISSUE-064, ISSUE-019, ISSUE-023, ISSUE-027 |
 | ISSUE-066 | Matriz P x I e painel de riscos | na fila | ISSUE-065 |
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | na fila | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 |

@@ -1,0 +1,179 @@
+{% extends "base_fragment.html" %}
+{#
+  Painel de criar e editar uma atividade (#drawer). A distribuição diária é o
+  campo que mais dá trabalho: o painel reparte o previsto pelos dias e compara a
+  soma com o total enquanto se digita (a mesma tolerância do servidor, que é
+  quem decide). A versão da atividade viaja no formulário, para o 409.
+
+  Espera: o contexto de screen.form_context.
+#}
+{% block root %}
+<div id="drawer">
+  <div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()"
+    x-data="{
+      prevista: {{ prevista_texto }},
+      dias: {{ dias_json }},
+      get soma() { return this.dias.reduce((s, v) => s + (Number(v) || 0), 0); },
+      get diferenca() { return this.soma - (Number(this.prevista) || 0); },
+      get fecha() { return Math.abs(this.diferenca) <= 0.51; },
+      numero(v) { return (Number(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 }); },
+      distribuir(quantidade) {
+        const total = Number(this.prevista) || 0;
+        const parcela = Math.round((total / quantidade) * 10) / 10;
+        this.dias = this.dias.map((v, i) => (i < quantidade ? parcela : 0));
+        const resto = Math.round((total - this.dias.reduce((s, x) => s + x, 0)) * 10) / 10;
+        this.dias[quantidade - 1] = Math.round((this.dias[quantidade - 1] + resto) * 10) / 10;
+      }
+    }">
+    <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-atividade" @click.stop>
+      <div class="painel__topo">
+        <div>
+          <h2 class="h-card3" id="titulo-atividade">{{ titulo }}</h2>
+          <p class="painel__sub">Semana {{ semana }}{% if periodo %} · {{ periodo }}{% endif %}</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+          x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.closest('.painel-fundo').remove()"></button>
+      </div>
+      <form method="post" action="{{ salvar_url }}" x-target="drawer prog-resumo prog-tabela" data-tn-loading="Salvando...">
+        <input type="hidden" name="semana" value="{{ semana }}" />
+        <input type="hidden" name="atividade_id" value="{{ atividade_id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <div class="painel__corpo">
+          {% if erros._ or erros.semana %}
+          <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ or erros.semana }}</span></div>
+          {% endif %}
+
+          <p class="grupo-label">Identificação</p>
+          <div class="fgrid">
+            <div class="field">
+              <label for="campo-item">Item na semana</label>
+              <input id="campo-item" class="input" type="text" value="{{ item }}" disabled />
+              <span class="hint">Numerado pelo sistema, na ordem de entrada.</span>
+            </div>
+            <div class="field">
+              <label for="campo-id">ID exclusiva</label>
+              <input id="campo-id" class="input{{ ' input--erro' if erros.id_exclusiva }}" type="text" name="id_exclusiva"
+                value="{{ valores.unique_id }}" placeholder="Ex.: PS1-ARM-014" maxlength="40" autocomplete="off"
+                {% if erros.id_exclusiva %}aria-invalid="true" aria-describedby="erro-id"{% endif %} />
+              {% if erros.id_exclusiva %}<span id="erro-id" class="field__erro">{{ erros.id_exclusiva }}</span>
+              {% else %}<span class="hint">Não pode repetir dentro da mesma semana.</span>{% endif %}
+            </div>
+            <div class="field field--full">
+              <label for="campo-atividade">Atividade detalhada</label>
+              <textarea id="campo-atividade" class="input{{ ' input--erro' if erros.atividade }}" name="atividade" rows="2"
+                placeholder="Descreva o serviço como ele aparece no escopo"
+                {% if erros.atividade %}aria-invalid="true" aria-describedby="erro-atividade"{% endif %}>{{ valores.description }}</textarea>
+              {% if erros.atividade %}<span id="erro-atividade" class="field__erro">{{ erros.atividade }}</span>{% endif %}
+            </div>
+          </div>
+
+          <p class="grupo-label">Execução</p>
+          <div class="fgrid">
+            <div class="field">
+              <label for="campo-local">Frente / local</label>
+              <select id="campo-local" class="input{{ ' input--erro' if erros.local }}" name="local">
+                <option value="">Selecione...</option>
+                {% for o in opcoes.locations %}<option value="{{ o.id }}" {% if valores.location_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+              </select>
+              {% if erros.local %}<span class="field__erro">{{ erros.local }}</span>{% endif %}
+            </div>
+            <div class="field">
+              <label for="campo-empresa">Contratada</label>
+              {% if fornecedor %}
+              <input id="campo-empresa" class="input" type="text" value="{{ empresa_do_fornecedor }}" disabled />
+              <input type="hidden" name="empresa" value="{{ valores.company_id or '' }}" />
+              <span class="hint">Sua empresa. O escopo é fixo pelo vínculo.</span>
+              {% else %}
+              <select id="campo-empresa" class="input{{ ' input--erro' if erros.empresa }}" name="empresa">
+                <option value="">Selecione...</option>
+                {% for o in opcoes.companies %}<option value="{{ o.id }}" {% if valores.company_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+              </select>
+              {% if erros.empresa %}<span class="field__erro">{{ erros.empresa }}</span>{% endif %}
+              {% endif %}
+            </div>
+            <div class="field">
+              <label for="campo-encarregado">Encarregado</label>
+              <select id="campo-encarregado" class="input{{ ' input--erro' if erros.encarregado }}" name="encarregado">
+                <option value="">Selecione...</option>
+                {% for o in opcoes.foremen %}<option value="{{ o.id }}" {% if valores.foreman_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+              </select>
+              {% if erros.encarregado %}<span class="field__erro">{{ erros.encarregado }}</span>{% endif %}
+            </div>
+            {% if not fornecedor %}
+            <div class="field">
+              <label for="campo-fiscal">Fiscal responsável</label>
+              <select id="campo-fiscal" class="input{{ ' input--erro' if erros.responsavel }}" name="responsavel">
+                <option value="">Definir na validação</option>
+                {% for o in opcoes.inspectors %}<option value="{{ o.id }}" {% if valores.inspector_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+              </select>
+              {% if erros.responsavel %}<span class="field__erro">{{ erros.responsavel }}</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+
+          <p class="grupo-label">Produção prevista</p>
+          <div class="fgrid">
+            <div class="field">
+              <label for="campo-prevista">Produção prevista na semana</label>
+              <input id="campo-prevista" class="input{{ ' input--erro' if erros.prod_prevista }}" type="number"
+                inputmode="decimal" step="0.1" min="0" name="prod_prevista" x-model.number="prevista"
+                {% if erros.prod_prevista %}aria-invalid="true"{% endif %} />
+              {% if erros.prod_prevista %}<span class="field__erro">{{ erros.prod_prevista }}</span>{% endif %}
+            </div>
+            <div class="field">
+              <label for="campo-unidade">Unidade</label>
+              <select id="campo-unidade" class="input{{ ' input--erro' if erros.unidade }}" name="unidade">
+                <option value="">Selecione...</option>
+                {% for o in opcoes.units %}<option value="{{ o.id }}" {% if valores.unit_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+              </select>
+              {% if erros.unidade %}<span class="field__erro">{{ erros.unidade }}</span>{% endif %}
+            </div>
+          </div>
+
+          <div class="toolbar painel__distribuicao">
+            <span class="grupo-label">Distribuição diária</span>
+            <span class="painel__atalhos">
+              <button type="button" class="btn btn--ghost btn--sm" @click="distribuir(5)">Dividir em 5 dias úteis</button>
+              <button type="button" class="btn btn--ghost btn--sm" @click="distribuir(7)">Dividir nos 7 dias</button>
+            </span>
+          </div>
+          <div class="lancamento">
+            {% for dia in dias %}
+            <div class="lancamento__dia{{ ' is-fds' if dia.fim_de_semana }}">
+              <span class="lancamento__rotulo">{{ dia.rotulo }} <span class="lancamento__data">{{ dia.data }}</span></span>
+              <label class="sr-only" for="prev-{{ dia.indice }}">Previsto para {{ dia.nome }}</label>
+              <input id="prev-{{ dia.indice }}" class="input lancamento__campo" type="number" inputmode="decimal"
+                step="0.1" min="0" name="dias_previsto_{{ dia.indice }}" x-model.number="dias[{{ dia.indice }}]" />
+            </div>
+            {% endfor %}
+          </div>
+          {% if erros.dias_previsto %}<span class="field__erro">{{ erros.dias_previsto }}</span>{% endif %}
+          <div class="lancamento-resumo">
+            <div><span class="lancamento-resumo__rotulo">Soma dos dias</span>
+              <span class="lancamento-resumo__valor" :class="fecha ? '' : 'is-erro'" x-text="numero(soma)"></span></div>
+            <div><span class="lancamento-resumo__rotulo">Produção prevista</span>
+              <span class="lancamento-resumo__valor" x-text="numero(prevista)"></span></div>
+            <div><span class="lancamento-resumo__rotulo">Diferença</span>
+              <span class="lancamento-resumo__valor" :class="fecha ? '' : 'is-erro'"
+                x-text="(diferenca > 0 ? '+' : '') + numero(diferenca)"></span>
+              <span class="hint" x-show="!fecha">A soma dos dias precisa bater com a produção prevista.</span></div>
+          </div>
+
+          <div class="field">
+            <label for="campo-obs">Observações</label>
+            <textarea id="campo-obs" class="input" name="observacoes" rows="2"
+              placeholder="Condicionantes, liberações pendentes, equipamentos">{{ valores.notes }}</textarea>
+          </div>
+        </div>
+        <div class="painel__rodape">
+          <span class="hint">Total semanal, PPC e aderência são calculados pelo sistema.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--primary" :disabled="!fecha">{{ 'Criar atividade' if nova else 'Salvar alterações' }}</button>
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

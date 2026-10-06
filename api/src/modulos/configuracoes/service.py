@@ -30,6 +30,7 @@ from src.modulos.configuracoes.models import (
     CollaboratorScheduleRole,
     Company,
     Discipline,
+    Location,
     ParameterValue,
     ParameterVersion,
     Person,
@@ -801,3 +802,94 @@ def list_person_options(session: Session) -> list[RegisterOption]:
 def list_discipline_names(session: Session) -> list[str]:
     """The disciplines of the register, by name."""
     return list(session.scalars(select(Discipline.name).order_by(Discipline.name)))
+
+
+# ── Register writes for the demonstration load of other modules (ISSUE-051) ──
+#
+# The Weekly Scheduling demonstration brings its own companies, locations, units and
+# people. Configurações owns those tables, so the load asks for them here: each
+# ``ensure_*`` finds the row and creates it (with the trail) only when it is missing.
+
+
+def find_project_id(session: Session, code: str) -> int | None:
+    """The id of the project with the code, or ``None``."""
+    return session.scalar(select(Project.id).where(Project.code == code))
+
+
+def ensure_company(session: Session, *, author_id: int, name: str, kind: str) -> int:
+    """The id of the company with the name; created, with the trail, when missing."""
+    found = session.scalar(select(Company.id).where(Company.name == name))
+    if found is not None:
+        return found
+    return recording.create(session, user_id=author_id, record=Company(name=name, kind=kind)).id
+
+
+def ensure_measure_unit(session: Session, *, author_id: int, code: str, name: str) -> int:
+    """The id of the unit of measure with the code; created when missing."""
+    found = session.scalar(select(Unit.id).where(Unit.kind == "medida", Unit.code == code))
+    if found is not None:
+        return found
+    unit = Unit(kind="medida", code=code, name=name)
+    return recording.create(session, user_id=author_id, record=unit).id
+
+
+def ensure_location(session: Session, *, author_id: int, project_id: int, name: str) -> int:
+    """The id of the location of the project with the name; created when missing."""
+    found = session.scalar(
+        select(Location.id).where(Location.project_id == project_id, Location.name == name)
+    )
+    if found is not None:
+        return found
+    location = Location(project_id=project_id, code=name, name=name)
+    return recording.create(session, user_id=author_id, record=location).id
+
+
+def ensure_collaborator(
+    session: Session,
+    *,
+    author_id: int,
+    name: str,
+    email: str,
+    role: str,
+    company_id: int | None,
+    profile: str,
+    bond: str,
+) -> tuple[int, int]:
+    """The ``(person id, collaborator id)`` of the e-mail; both created when missing."""
+    person_id = session.scalar(select(Person.id).where(func.lower(Person.email) == email.lower()))
+    if person_id is None:
+        person = Person(name=name, role=role, email=email, company_id=company_id)
+        person_id = recording.create(session, user_id=author_id, record=person).id
+    collaborator_id = session.scalar(
+        select(Collaborator.id).where(Collaborator.person_id == person_id)
+    )
+    if collaborator_id is None:
+        collaborator = Collaborator(
+            person_id=person_id,
+            company_id=company_id,
+            general_profile=profile,
+            bond=bond,
+            active=True,
+        )
+        collaborator_id = recording.create(session, user_id=author_id, record=collaborator).id
+    return person_id, collaborator_id
+
+
+def grant_schedule_role(
+    session: Session, *, collaborator_id: int, project_id: int, role: str
+) -> None:
+    """Give the collaborator a Weekly Scheduling role in the project, once."""
+    given = session.scalar(
+        select(CollaboratorScheduleRole.id).where(
+            CollaboratorScheduleRole.collaborator_id == collaborator_id,
+            CollaboratorScheduleRole.project_id == project_id,
+            CollaboratorScheduleRole.role == role,
+        )
+    )
+    if given is None:
+        session.add(
+            CollaboratorScheduleRole(
+                collaborator_id=collaborator_id, project_id=project_id, role=role
+            )
+        )
+        session.flush()

@@ -1365,6 +1365,11 @@ do dono".
 | Decisão da execução (ISSUE-044), pendente de revisão do dono | carga de demonstração dos relatos | os períodos andam em períodos inteiros (semanas e meses) e não em dias, para a última semana e o último mês fechados continuarem os de hoje | D6, ISSUE-044 |
 | Decisão da execução (ISSUE-044), pendente de revisão do dono | copiar do período anterior | traz o relato mais recente do mesmo tipo antes do período (não só o vizinho) e não grava; sem anterior, avisa | D6, ISSUE-044 |
 | Decisão da execução (ISSUE-044), pendente de revisão do dono | projeto sem início cadastrado | a faixa de períodos começa no período corrente | D6, ISSUE-044 |
+| Decisão da execução (ISSUE-051), pendente de revisão do dono | demonstração da programação | só o ambiente `demo-obra` do app vira carga, no projeto `TN-2026-014`; o `demo-planta` (segundo ambiente) fica fora por ser multi-ambiente | D10, ISSUE-051 |
+| Decisão da execução (ISSUE-051), pendente de revisão do dono | cadastros da demonstração | empresas, frentes, unidades, fiscais, encarregados e fornecedores do app nascem pela fachada de Configurações (`ensure_*`), com perfil geral Membro e papel por projeto; Admin e visualizador do app não são trazidos | D7, ISSUE-051 |
+| Decisão da execução (ISSUE-051), pendente de revisão do dono | datas da carga | o app não guarda aprovado em e publicado em; a carga usa a data de atualização, e as semanas são deslocadas pelo mesmo número de dias das datas | D6, ISSUE-051 |
+| Decisão da execução (ISSUE-051), pendente de revisão do dono | conflito de versão no painel | o 409 devolve o painel com o digitado e a versão antiga, pedindo para reabrir; não grava por cima | D5, ISSUE-051 |
+| Decisão da execução (ISSUE-051), pendente de revisão do dono | ações da linha | nesta fatia a linha só edita e exclui; o botão da próxima ação do fluxo e o menu chegam com a ISSUE-052 | D10, ISSUE-051 |
 
 ---
 

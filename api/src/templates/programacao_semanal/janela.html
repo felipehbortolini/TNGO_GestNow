@@ -1,0 +1,30 @@
+{% extends "base_fragment.html" %}
+{#
+  Faixa da janela de programação (#prog-janela). Diz a quem a janela vale, se
+  está aberta e por quê. No Portfólio diz que a matriz é só de leitura e, para
+  quem pode programar em algum projeto, oferece escolher um. A equipe Timenow
+  vê o aviso de apoio, porque a janela não a prende.
+  Espera: janela (WindowStatus), semana, periodo.
+#}
+{% block root %}
+<div id="prog-janela">
+  {% if janela.is_portfolio %}
+  <div class="aviso aviso--info prog-janela" role="status">
+    <span>{{ janela.reason }}</span>
+    {% if janela.can_pick_project %}
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-incluir="nova">Escolher um projeto</button>
+    {% endif %}
+  </div>
+  {% elif janela.is_supplier %}
+  <div class="aviso {{ 'aviso--ok' if janela.is_open else 'aviso--warn' }} prog-janela" role="status">
+    {% if janela.is_open %}
+    <span><strong>Janela aberta para {{ janela.company }}.</strong> {{ janela.reason }} Você pode criar e editar a programação da semana {{ semana }}.</span>
+    {% else %}
+    <span><strong>Janela fechada para {{ janela.company }}.</strong> {{ janela.reason }} A consulta continua liberada; a edição, não.</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="aviso aviso--info prog-janela" role="status"><span>{{ janela.reason }}</span></div>
+  {% endif %}
+</div>
+{% endblock %}

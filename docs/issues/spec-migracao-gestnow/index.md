@@ -77,7 +77,7 @@ vem primeiro.
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | 5 | task | proposed | ready-for-agent | ISSUE-046, ISSUE-047, ISSUE-019 | [ISSUE-048](./048-produtividade-kpis-e-plano-de-acao.md) |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | 5 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-049](./049-punch-list-itens-verificacao-e-bloqueio.md) |
 | ISSUE-050 | Punch list: painel de completação | 5 | task | proposed | ready-for-agent | ISSUE-049 | [ISSUE-050](./050-punch-list-painel.md) |
-| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | 5 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-051](./051-programacao-semanal-matriz-e-programacao.md) |
+| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-051](./051-programacao-semanal-matriz-e-programacao.md) |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | 5 | task | proposed | ready-for-agent | ISSUE-051 | [ISSUE-052](./052-programacao-semanal-fluxo-de-cinco-passos.md) |
 | ISSUE-053 | Pedidos de alteração e governança da programação | 5 | task | proposed | ready-for-agent | ISSUE-052 | [ISSUE-053](./053-programacao-semanal-pedidos-de-alteracao-e-governanca.md) |
 | ISSUE-054 | Subpágina de configuração da programação, uma por projeto | 5 | task | proposed | ready-for-agent | ISSUE-051 | [ISSUE-054](./054-programacao-semanal-configuracao-por-projeto.md) |

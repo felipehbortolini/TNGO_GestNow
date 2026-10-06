@@ -1,0 +1,157 @@
+{#
+  A matriz da semana (#prog-tabela). Oito colunas, como no app: item, atividade,
+  execução, grade dos sete dias (previsto em cima, realizado embaixo), situação,
+  semana, PPC e ações. A única rolagem é a vertical, com o cabeçalho grudado.
+  Os três vazios (semana sem programação, filtro sem resultado) ficam aqui.
+  Espera: o contexto de screen.matrix_context.
+#}
+{% macro ordenar(campo) -%}
+{% set cabecalho = cabecalhos[campo] %}
+<button type="button" class="ordenar{{ ' is-ativa' if cabecalho.active }}"
+  aria-label="Ordenar por {{ cabecalho.label }}"
+  @click="$ajax('{{ cabecalho.url }}', { target: 'prog-resumo prog-tabela' })"
+>{{ cabecalho.label }}<span class="ordenar__seta" aria-hidden="true">{{ cabecalho.arrow }}</span></button>
+{%- endmacro %}
+<div id="prog-tabela">
+  {% if pastilhas %}
+  <div class="filtros-ativos" role="status">
+    <span class="filtros-ativos__rotulo">Mostrando só</span>
+    {% for pastilha in pastilhas %}
+    <button type="button" class="chip chip--info filtros-ativos__chip" title="Tirar este filtro"
+      @click="$ajax('{{ pastilha.url }}', { target: 'prog-resumo prog-tabela' });
+              $ajax('{{ pastilha.url | replace('/programacoes?', '/programacoes/filtros?') }}', { target: 'prog-filtros' })"
+    >{{ pastilha.label }}<span aria-hidden="true"> &times;</span><span class="sr-only"> — tirar este filtro</span></button>
+    {% endfor %}
+    <button type="button" class="btn btn--ghost btn--sm"
+      @click="$ajax('{{ limpar_url }}', { target: 'prog-resumo prog-tabela' });
+              $ajax('{{ limpar_url | replace('/programacoes?', '/programacoes/filtros?') }}', { target: 'prog-filtros' })"
+    >Limpar tudo</button>
+  </div>
+  {% endif %}
+
+  {% if linhas %}
+  <div class="card">
+    <div class="matriz-topo">
+      <span class="matriz-topo__contagem">
+        {{ linhas | length }} de {{ total_na_semana }} atividade(s) · {{ semana }}
+        {% if periodo %}<span class="txt-muted">· {{ periodo }}</span>{% endif %}
+      </span>
+      <span class="matriz-legenda">
+        <span><i class="matriz-legenda__amostra matriz-legenda__amostra--parado"></i>Programado sem produção</span>
+        <span><i class="matriz-legenda__amostra matriz-legenda__amostra--batido"></i>Meta do dia atingida</span>
+        <span><i class="matriz-legenda__amostra matriz-legenda__amostra--extra"></i>Produção sem previsão</span>
+      </span>
+    </div>
+    <div class="matriz-rolagem" tabindex="0" role="region" aria-label="Matriz da programação">
+      <table class="matriz">
+        <caption class="sr-only">Programação da semana {{ semana }}: previsto e realizado por dia, PPC e situação.</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="matriz__item">{{ ordenar('item') }}</th>
+            <th scope="col" class="matriz__atividade">{{ ordenar('atividade') }}</th>
+            <th scope="col" class="matriz__execucao">{{ ordenar('empresa') }}</th>
+            <th scope="col" class="matriz__dias">
+              <div class="dias dias--cabecalho">
+                <span class="dias__rotulo" aria-hidden="true"></span>
+                {% for dia in dias_rotulos %}
+                <span class="{{ 'is-fds' if dia.fim_de_semana }}" title="{{ dia.titulo }}">{{ dia.rotulo }}</span>
+                {% endfor %}
+              </div>
+            </th>
+            <th scope="col" class="matriz__situacao">{{ ordenar('situacao') }}</th>
+            <th scope="col" class="matriz__semana">{{ ordenar('realizado') }}</th>
+            <th scope="col" class="matriz__ppc">{{ ordenar('ppc') }}</th>
+            <th scope="col" class="matriz__acoes">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr class="{{ linha.row_class }}">
+            <td class="matriz__item"><span class="linha-item">{{ linha.item_text }}</span></td>
+            <td class="matriz__atividade" data-rotulo="Atividade">
+              <span class="linha-titulo">{{ linha.description }}</span>
+              <span class="linha-meta"><span class="linha-meta__id">{{ linha.unique_id }}</span> {{ linha.location }} · {{ linha.headline_text }}</span>
+            </td>
+            <td class="matriz__execucao" data-rotulo="Execução">
+              <span class="linha-empresa" title="{{ linha.company }}">{{ linha.company }}</span>
+              <span class="linha-meta" title="Encarregado: {{ linha.foreman }}"><b>Enc.</b> {{ linha.foreman }}</span>
+              <span class="linha-meta" title="Fiscal responsável: {{ linha.inspector }}"><b>Fiscal</b> {{ linha.inspector }}</span>
+            </td>
+            <td class="matriz__dias" data-rotulo="Previsto e realizado por dia">
+              <div class="dias">
+                <span class="dias__rotulo">Prev{% if linha.unit %} <em>{{ linha.unit }}</em>{% endif %}</span>
+                {% for celula in linha.days %}
+                <span class="{{ celula.planned_classes }}" title="{{ celula.planned_title }}">{{ celula.planned_text }}</span>
+                {% endfor %}
+                <span class="dias__rotulo dias__rotulo--real">Real</span>
+                {% for celula in linha.days %}
+                <span class="{{ celula.done_classes }}" title="{{ celula.done_title }}">{{ celula.done_text }}{% if celula.has_night %}<i class="dia__noite" aria-label="inclui turno noite">N</i>{% endif %}</span>
+                {% endfor %}
+              </div>
+            </td>
+            <td class="matriz__situacao" data-rotulo="Situação">
+              <span class="pill pill--{{ linha.situation_tone }}">{{ linha.situation_label }}</span>
+              <span class="pill pill--{{ linha.approval_tone }}">{{ linha.approval_label }}</span>
+            </td>
+            <td class="matriz__semana num" data-rotulo="Semana">
+              <span class="linha-real">{{ linha.done_text }}</span>
+              <span class="linha-meta">de {{ linha.planned_text }}</span>
+            </td>
+            <td class="matriz__ppc ppc ppc--{{ linha.band }}" data-rotulo="PPC">
+              <span class="ppc__valor">{{ linha.ppc_text }}</span>
+              <progress class="ppc__medidor" max="100" value="{{ linha.ppc_width }}">{{ linha.ppc_text }}</progress>
+            </td>
+            <td class="matriz__acoes" data-rotulo="Ações">
+              <div class="acoes-linha">
+                {% if linha.can_edit and not somente_leitura %}
+                <button type="button" class="btn btn--secondary btn--sm"
+                  title="Editar {{ linha.unique_id }}"
+                  @click="$ajax('{{ form_url }}?atividade={{ linha.id }}', { target: 'drawer' })">Editar</button>
+                {% endif %}
+                {% if linha.can_delete and not somente_leitura %}
+                <button type="button" class="btn btn--ghost btn--sm"
+                  data-id="{{ linha.unique_id }}" data-atividade="{{ linha.description }}" data-empresa="{{ linha.company }}"
+                  @click="TN.confirmarExclusao({
+                    mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.',
+                    rows: [
+                      { label: 'ID exclusiva', valor: $el.dataset.id },
+                      { label: 'Atividade', valor: $el.dataset.atividade },
+                      { label: 'Empresa', valor: $el.dataset.empresa }
+                    ]
+                  }).then(function (ok) {
+                    if (ok) $ajax('{{ excluir_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
+                      method: 'post', target: 'drawer prog-resumo prog-tabela'
+                    });
+                  })">Excluir</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif filtrando %}
+  <div class="card"><div class="card__body"><div class="empty" data-estado="vazio-filtro">
+    <img src="/ds/assets/ilustra-aviso.png" alt="" />
+    <h2 class="h-card4">Nenhuma atividade com esses filtros</h2>
+    <p>A semana {{ semana }} tem {{ total_na_semana }} atividade(s), mas nenhuma corresponde ao que você pediu. Limpe os filtros para ver todas.</p>
+    <button type="button" class="btn btn--secondary"
+      @click="$ajax('{{ limpar_url }}', { target: 'prog-resumo prog-tabela' });
+              $ajax('{{ limpar_url | replace('/programacoes?', '/programacoes/filtros?') }}', { target: 'prog-filtros' })">Limpar filtros</button>
+  </div></div></div>
+
+  {% else %}
+  <div class="card"><div class="card__body"><div class="empty" data-estado="vazio-origem">
+    <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+    <h2 class="h-card4">Semana {{ semana }} ainda sem programação</h2>
+    <p>
+      {% if janela.can_create %}Crie a primeira atividade da semana.
+      {% elif somente_leitura %}No Portfólio a matriz é só de leitura. Escolha um projeto para programar.
+      {% else %}Nenhuma atividade foi programada para esta semana até agora.{% endif %}
+    </p>
+  </div></div></div>
+  {% endif %}
+</div>

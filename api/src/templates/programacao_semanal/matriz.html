@@ -1,0 +1,14 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta multi-alvo de /api/programacao-semanal/programacoes: a faixa de
+  indicadores (#prog-resumo) e a matriz da semana (#prog-tabela) saem juntas,
+  do mesmo filtro e da mesma ordem, para nunca discordarem. Cada raiz tem id
+  fixo (exceção prevista para respostas multi-alvo), então sobrescreve
+  {% block root %}.
+
+  Espera: o contexto de screen.matrix_context.
+#}
+{% block root %}
+{% include "programacao_semanal/_resumo.html" %}
+{% include "programacao_semanal/_tabela.html" %}
+{% endblock %}

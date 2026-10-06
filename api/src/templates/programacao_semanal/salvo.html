@@ -1,0 +1,11 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta de uma gravação que deu certo: o painel (#drawer) volta vazio, o que
+  o fecha, e a faixa e a matriz são redesenhadas com a semana gravada.
+  Espera: o contexto de screen.matrix_context.
+#}
+{% block root %}
+<div id="drawer"></div>
+{% include "programacao_semanal/_resumo.html" %}
+{% include "programacao_semanal/_tabela.html" %}
+{% endblock %}

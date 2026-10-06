@@ -2,11 +2,11 @@
 
 Módulo `programacao_semanal`. É a aplicação `Timenow - Programação Semanal` adaptada ao escopo de projeto, aos cadastros e aos perfis do GestNow (D10). Não é a tela reduzida do protótipo.
 
-## Telas previstas
+## Telas
 
 | Tela | Conteúdo | Issue |
 |---|---|---|
-| Programação | Matriz de atividades de segunda a domingo, previsto e realizado | ISSUE-051, ISSUE-052 |
+| Programação | Matriz de atividades de segunda a domingo, previsto e realizado; criar, editar e excluir (051), lançar realizado e fluxo (052) | ISSUE-051, ISSUE-052 |
 | Governança da programação | Pedidos de alteração e histórico por empresa/semana | ISSUE-053 |
 | Configuração da programação | Parâmetros e janelas, por projeto | ISSUE-054 |
 | Importação e impressão | Conferência da planilha, exportação Excel e relatório imprimível | ISSUE-055 |
@@ -26,28 +26,36 @@ As cinco telas aparecem como abas do grupo Programação Semanal no módulo 02 P
 | Importação e impressão | `app/_views/programacao_semanal/importacao.html` | `app/paginas/programacao_semanal/importacao.css` | `app/paginas/programacao_semanal/importacao.js` |
 | Configuração da programação | `app/_views/programacao_semanal/configuracao.html` | `app/paginas/programacao_semanal/configuracao.css` | `app/paginas/programacao_semanal/configuracao.js` |
 
-## Rotas previstas
+## Rotas (ISSUE-051)
 
-Prefixo: `/api/programacao-semanal/`.
+Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_semanal")` (o fornecedor alcança o módulo; o recorte por empresa e o papel são da fachada) e respondem fragmento com alvos de id fixo: `prog-janela`, `prog-filtros`, `prog-resumo`, `prog-tabela` e `drawer`.
 
-| Grupo previsto | Uso | Issue |
+| Rota | Método | O que devolve |
 |---|---|---|
-| `programacoes` e `atividades` | Consultar/editar a semana e as atividades | ISSUE-051 |
-| `validacoes`, `realizados` e `publicacoes` | Fluxo de cinco passos com fiscal | ISSUE-052 |
-| `pedidos-de-alteracao` e `governanca` | Solicitar, aplicar/recusar e auditar alterações | ISSUE-053 |
-| `configuracoes` | Parâmetros e janelas de escrita do projeto | ISSUE-054 |
-| `importacoes` e `exportacoes` | Planilha e impressão | ISSUE-055 |
-| `dashboard` | Indicadores e séries da programação | ISSUE-056 |
+| `programacoes` | GET | Faixa de indicadores + matriz da semana (`semana`, `local`, `empresa`, `encarregado`, `responsavel`, `situacao`, `aprovacao`, `ppc`, `busca`, `ordena`, `ordem`) |
+| `programacoes/filtros` | GET | Barra de ferramentas: semana, busca e painel de refino |
+| `programacoes/janela` | GET | Faixa da janela (aberta, fechada e o motivo; no Portfólio, "só leitura") |
+| `atividades/formulario` | GET | Painel de nova atividade (`semana`) ou de edição (`atividade`) |
+| `atividades` | POST | Cria (sem `atividade_id`) ou salva; 422 e 409 devolvem o painel preenchido |
+| `atividades/excluir` | POST | Exclui (só Admin, e só sem pedidos de alteração) e redesenha a matriz |
 
-Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
+Previstos nas próximas issues: `validacoes`, `realizados` e `publicacoes` (052), `pedidos-de-alteracao` e `governanca` (053), `configuracoes` (054), `importacoes` e `exportacoes` (055), `dashboard` (056).
 
-## Fórmulas e nomes no código
+## Estrutura portada do app
 
-| Termo de negócio | Definição | Nome previsto |
+| Arquivo | O que tem | Origem no app |
 |---|---|---|
-| PPC da atividade | Realizado dividido pelo previsto de uma atividade; sem previsto, zero | `calculations.activity_ppc` |
-| Aderência da programação | Soma do realizado dividida pela soma do previsto no conjunto (semana, empresa ou frente); não é a média do PPC | `calculations.schedule_adherence` |
-| Faixa de desempenho | Classifica PPC ou aderência com os limites configurados para o projeto | `calculations.performance_band` |
+| `weeks.py` | Semana `S.30/2026`, segunda a domingo, ISO (2026 tem 53), `week_dates`, `shift`, `horizon` | `core/semanas.py` |
+| `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of` | `core/calculos.py` |
+| `window.py` | `decide`: extraordinária vence, depois semana liberada, depois dia e hora | `core/janela.py` |
+| `permissions.py` | Quem cria, edita, publica e exclui (papel por projeto, D7) | `core/rbac.py` |
+| `validation.py` | Formulário da atividade, obrigatórios, soma dos dias com tolerância de 0,51 | `blueprints/atividades.py` |
+| `service.py` | Fachada: recorte por empresa, janela, Portfólio somente leitura, gravação pelo `recording` | `core/registro.py`, `core/dados.py` |
+| `repository.py`, `models.py` | Consultas e tabelas `programacao_*` (migração `m051`) | `core/repositorio.py` (JSON) |
+| `views.py`, `presentation.py`, `screen.py` | Linha da matriz com os textos decididos no Python, grade dos dias, pastilhas, cabeçalhos | `templates/programacao/*` |
+| `seed.py`, `demonstracao.json` | Carga: o ambiente `demo-obra` do app no projeto `TN-2026-014`, datas e semanas deslocadas | `data/demo-obra` |
+
+Tradução de termos do app: ambiente = projeto, empresa = `company`, encarregado = `foreman`, responsável (fiscal) = `inspector`, atividade = `Activity`, `dias_previsto` = `planned_days`, `dias_realizado` = turno dia (`day_shift`), `dias_noite` = `night_shift`, `id_exclusiva` = `unique_id`, situação = `situation`, aprovação do realizado = `approval`.
 
 ## Fluxo de estado
 
@@ -65,14 +73,15 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` |
-| Fluxo, permissões e janela | `service.py` |
+| Rotas | `routes.py` (e `screen.py` para o que a tela imprime) |
+| Fluxo, recorte por empresa e janela | `service.py`, `window.py`, `permissions.py` |
 | PPC, aderência e faixas | `calculations.py` |
 | Validações da atividade/planilha | `validation.py` |
 | Planilha e impressão | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/programacao_semanal/` |
+| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel) |
+| Carga de demonstração | `seed.py` e `demonstracao.json` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. Os stubs Python desta issue não portam comportamento; ISSUE-051 a ISSUE-056 completam este documento e os testes.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; as ISSUE-052 a ISSUE-056 completam o resto do fluxo.

@@ -1,0 +1,36 @@
+{#
+  Faixa de indicadores da semana (#prog-resumo). Os números vêm contados do
+  servidor; os tiles que filtram são botões, e o caminho é a própria lista que
+  eles resumem. Espera: resumo, semana.
+#}
+<div id="prog-resumo" class="kpis">
+  <button type="button" class="kpi kpi--neutro"
+    @click="$ajax('{{ resumo.todas_url }}', { target: 'prog-resumo prog-tabela' })">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Atividades</span>
+    <span class="kpi__value">{{ resumo.total }}</span>
+  </button>
+  <div class="kpi kpi--{{ resumo.aderencia_tom }} kpi--estatico"
+    title="Realizado somado dividido pelo previsto somado. Meta do projeto: {{ resumo.meta_aderencia }}.">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('chartLine', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Aderência</span>
+    <span class="kpi__value">{{ resumo.aderencia }}</span>
+  </div>
+  <div class="kpi kpi--info kpi--estatico" title="Média simples do PPC das atividades.">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">PPC médio</span>
+    <span class="kpi__value">{{ resumo.ppc_medio }}</span>
+  </div>
+  <button type="button" class="kpi kpi--warn" title="Realizados lançados que esperam o fiscal"
+    @click="$ajax('{{ resumo.aguardando_url }}', { target: 'prog-resumo prog-tabela' })">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Aguardando fiscal</span>
+    <span class="kpi__value">{{ resumo.aguardando }}</span>
+  </button>
+  <button type="button" class="kpi kpi--erro" title="Atividades com PPC abaixo de {{ resumo.limite_baixa }}%"
+    @click="$ajax('{{ resumo.baixa_url }}', { target: 'prog-resumo prog-tabela' })">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">PPC abaixo de {{ resumo.limite_baixa }}%</span>
+    <span class="kpi__value">{{ resumo.baixa }}</span>
+  </button>
+</div>
