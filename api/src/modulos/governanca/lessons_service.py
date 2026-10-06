@@ -22,7 +22,8 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -37,6 +38,7 @@ from src.core.scope import Scope
 from src.modulos.central_acoes import service as central_acoes
 from src.modulos.central_acoes.validation import NewAction
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.governanca import calculations
 from src.modulos.governanca import lessons_calculations as calc
 from src.modulos.governanca import lessons_models as lm
 from src.modulos.governanca import lessons_validation as validation
@@ -54,6 +56,9 @@ NUMBERING_KIND = "licao"
 ACTION_ORIGIN = "Lição"
 ACTION_GROUP = "Reuso"
 RETURN_PREFIX = "Devolvida ao autor: "
+PARAMETER_GROUP = "licoes"
+ALERT_PARAMETER = "alertaSemRegistroDias"
+DEFAULT_ALERT_DAYS = 90
 
 NOT_FOUND_MESSAGE = "Lição não encontrada."
 NOT_FOUND_PROJECT_MESSAGE = "Projeto não encontrado."
@@ -188,6 +193,31 @@ class Acervo:
 
 
 @dataclass(frozen=True)
+class LessonPanel:
+    """O painel do acervo: os indicadores, as contagens por fase, área e situação, o reuso e os destaques."""
+
+    total: int
+    published: int
+    published_in_period: int
+    in_flow: int
+    validating: int
+    to_repeat: int
+    to_avoid: int
+    reuse_rate: Decimal | None
+    reuses: int
+    avoid_impact_cents: int
+    by_phase: tuple[calc.LessonGroupLine, ...]
+    by_area: tuple[calc.LessonGroupLine, ...]
+    by_situation: tuple[calculations.CountLine, ...]
+    last_lesson: date | None
+    days_without_record: int | None
+    registration_alert: bool
+    alert_days: int
+    most_reused: tuple[LessonRow, ...]
+    projects_without_record: tuple[configuracoes.ProjectDetail, ...]
+
+
+@dataclass(frozen=True)
 class ApplicationLine:
     """One reuse of the lesson: when, where, how, and the action it generated in the Central."""
 
@@ -264,16 +294,7 @@ def acervo(session: Session, *, user: User, scope: Scope, filters: LessonFilter)
     """The acervo of the scope: its own lessons and the Corporativa ones published by other projects."""
     rbac.require_module(user, MODULE)
     lookups = _lookups(session)
-    visible = [
-        item
-        for item in _load(session)
-        if calc.is_lesson_visible(
-            lesson_project_id=item.lesson.project_id,
-            applicability=item.lesson.applicability,
-            situation=item.lesson.situation,
-            scope_project_id=scope.project_id,
-        )
-    ]
+    visible = [item for item in _load(session) if _visible(item, scope)]
     rows = [_row(item, user=user, lookups=lookups) for item in visible]
     matching = [row for row in rows if _matches(row, filters)]
     matching.sort(key=lambda row: calc.lesson_order_key(row.situation, row.registered_on))
@@ -285,6 +306,65 @@ def acervo(session: Session, *, user: User, scope: Scope, filters: LessonFilter)
         ),
         published_by_phase=calc.published_by_phase([(row.phase, row.situation) for row in rows]),
         is_portfolio=scope.is_portfolio,
+    )
+
+
+def lesson_panel(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> LessonPanel:
+    """O painel do acervo do escopo (HU-130): indicadores, contagens, reuso e projetos sem registro.
+
+    As contagens saem das lições visíveis no escopo (como o acervo); "dias desde a última lição" e
+    "projetos sem registro" olham as lições do próprio projeto, com a janela do parâmetro.
+    """
+    rbac.require_module(user, MODULE)
+    lookups = _lookups(session)
+    items = [item for item in _load(session) if _visible(item, scope)]
+    rows = [_row(item, user=user, lookups=lookups) for item in items]
+    alert_days = _alert_days(session, reference_date)
+    published = [row for row in rows if row.situation == lm.SITUATION_PUBLISHED]
+    reused = [row for row in published if row.reuses]
+    window_start = reference_date - timedelta(days=alert_days)
+    own = _own_lessons(items, scope)
+    last = max((item.lesson.registered_on for item in own), default=None)
+    projects = _scope_projects(session, scope)
+    last_by_project: dict[int, date | None] = {project.id: None for project in projects}
+    for item in own:
+        current = last_by_project.get(item.lesson.project_id)
+        if current is None or item.lesson.registered_on > current:
+            last_by_project[item.lesson.project_id] = item.lesson.registered_on
+    without_record = calc.projects_without_record(
+        records=last_by_project,
+        project_ids=[project.id for project in projects],
+        reference_date=reference_date,
+        alert_days=alert_days,
+    )
+    return LessonPanel(
+        total=len(rows),
+        published=len(published),
+        published_in_period=sum(1 for row in published if row.registered_on >= window_start),
+        in_flow=len(rows) - len(published),
+        validating=sum(1 for row in rows if row.situation == lm.SITUATION_VALIDATING),
+        to_repeat=sum(1 for row in rows if row.kind == lm.LESSON_TYPES[0]),
+        to_avoid=sum(1 for row in rows if row.kind == lm.LESSON_TYPES[1]),
+        reuse_rate=calc.reuse_rate(published=len(published), reused=len(reused)),
+        reuses=sum(row.reuses for row in published),
+        avoid_impact_cents=sum(row.cost_cents for row in rows if row.kind == lm.LESSON_TYPES[1]),
+        by_phase=calc.lines_by_phase((row.phase, row.kind, row.situation) for row in rows),
+        by_area=calc.lines_by_area((row.area, row.kind, row.situation) for row in rows),
+        by_situation=calculations.count_lines(
+            (row.situation for row in rows), lm.LESSON_SITUATIONS
+        ),
+        last_lesson=last,
+        days_without_record=calc.days_since_last(last, reference_date),
+        registration_alert=calc.is_registration_alert(last, reference_date, alert_days),
+        alert_days=alert_days,
+        most_reused=tuple(
+            sorted(reused, key=lambda row: (-row.reuses, row.code))[: calc.PANEL_TOP_REUSED]
+        ),
+        projects_without_record=tuple(
+            project for project in projects if project.id in without_record
+        ),
     )
 
 
@@ -923,6 +1003,37 @@ def _open_action(
         reference_date=reference_date,
     )
     return record.id
+
+
+def _visible(item: _Loaded, scope: Scope) -> bool:
+    return calc.is_lesson_visible(
+        lesson_project_id=item.lesson.project_id,
+        applicability=item.lesson.applicability,
+        situation=item.lesson.situation,
+        scope_project_id=scope.project_id,
+    )
+
+
+def _own_lessons(items: list[_Loaded], scope: Scope) -> list[_Loaded]:
+    """As lições do próprio escopo: no Portfólio todas, no projeto só as dele."""
+    return [
+        item for item in items if scope.is_portfolio or item.lesson.project_id == scope.project_id
+    ]
+
+
+def _scope_projects(session: Session, scope: Scope) -> list[configuracoes.ProjectDetail]:
+    projects = configuracoes.list_project_details(session)
+    if scope.is_portfolio:
+        return projects
+    return [project for project in projects if project.id == scope.project_id]
+
+
+def _alert_days(session: Session, reference_date: date) -> int:
+    """A janela do alerta de lições sem registro: o parâmetro em vigor, com o padrão do protótipo."""
+    found = configuracoes.current_group(
+        session, group=PARAMETER_GROUP, reference_date=reference_date
+    )
+    return int(found.get(ALERT_PARAMETER, DEFAULT_ALERT_DAYS))
 
 
 def _lookups(session: Session) -> _Lookups:

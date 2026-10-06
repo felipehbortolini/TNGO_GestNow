@@ -175,3 +175,15 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 **Testes.** `api/tests/governanca/test_painel_mudancas.py` (fórmulas, fachada, a aba no fragmento e o Excel) e o oráculo `api/tests/governanca/test_oraculo_mudancas_painel.py` (16 SMs no portfólio, Pareto por origem do mock e taxa de aprovação de 85,7%).
 
 **Pendência registrada.** O consumo da reserva de contingência entra no painel na ISSUE-041, como a issue aponta.
+
+## O que a ISSUE-028 trouxe
+
+**Telas.** O acervo de lições ganhou as abas **Acervo** e **Painel** (estado local do Alpine). O Painel mostra cinco KPIs — lições no acervo (com "a repetir" e "a evitar"), publicadas nos últimos `licoes.alertaSemRegistroDias` dias, em validação (com as ainda não publicadas), taxa de reuso (com os reusos) e dias desde a última lição, com alerta pelo parâmetro —, os gráficos da biblioteca (lições por fase e por área de conhecimento, com as séries "A repetir" e "A evitar") e as tabelas de situação, mais reusadas e projetos sem registro no período.
+
+**Fórmulas** (`lessons_calculations.py`): `days_since_last` (dias desde a última lição; `None` sem lição), `is_registration_alert` (sem lição, ou a última há mais de `alert_days` dias — a fronteira do protótipo: exatamente 90 dias ainda não é alerta), `reuse_rate` (publicadas com aplicação sobre as publicadas; `None` sem publicada), `lines_by_phase` (fase zerada permanece, para o checklist), `lines_by_area` (só as áreas com lição, da maior para a menor, empate na ordem do vocabulário) e `projects_without_record` (projetos sem lição registrada na janela, qualquer situação).
+
+**Fachada e gráficos.** `service.lesson_panel` devolve o painel do escopo: as contagens saem das lições visíveis (como o acervo), enquanto "dias desde a última lição" e "projetos sem registro" olham as lições do próprio projeto, com a janela do parâmetro (`licoes.alertaSemRegistroDias`, padrão 90). `lessons_panel.py` (`charts_of`) monta os dois `Chart` de comparativo de barras; nenhum fragmento traz `<script>`.
+
+**Exportação.** `export.acervo_document` acrescenta as tabelas do painel (fase, área, situação, mais reusadas e projetos sem registro) e os gráficos ao Excel e ao PDF, com o mesmo conteúdo da tela.
+
+**Testes.** `api/tests/governanca/test_painel_licoes.py` (fórmulas, fronteira do alerta, fachada, a aba no fragmento e o Excel) e o oráculo `api/tests/oraculo/test_oraculo_licoes_painel.py` (10 lições, 4 publicadas, 3 nos 90 dias, taxa de reuso de 75,0%, fases, áreas, situações e mais reusadas do mock).

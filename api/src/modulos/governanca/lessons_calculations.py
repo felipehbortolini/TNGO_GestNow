@@ -7,15 +7,19 @@ and the facts come as arguments, so each rule has a test with its boundary.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from src.core.import_values import normalize_text
+from src.modulos.governanca import calculations
 from src.modulos.governanca import lessons_models as lm
 
 KEYWORD_SEPARATORS = re.compile(r"[,;]")
 KEYWORDS_MAXIMUM = 8
 RECOMMENDATION_MINIMUM = 20
+PANEL_TOP_REUSED = 5
 
 # The words the prototype wrote in the free text of the origin, and the origin each one stands for.
 ORIGIN_BY_WORD = {
@@ -226,3 +230,97 @@ def published_by_phase(lessons: list[tuple[str, str]]) -> dict[str, int]:
         if situation == lm.SITUATION_PUBLISHED and phase in counts:
             counts[phase] += 1
     return counts
+
+
+# ── Painel do acervo (ISSUE-028) ─────────────────────────────────────────
+
+
+def days_since_last(last_registered_on: date | None, reference_date: date) -> int | None:
+    """Dias desde a última lição do escopo; ``None`` quando ainda não há lição."""
+    if last_registered_on is None:
+        return None
+    return (reference_date - last_registered_on).days
+
+
+def is_registration_alert(
+    last_registered_on: date | None, reference_date: date, alert_days: int
+) -> bool:
+    """O alerta do parâmetro: sem lição, ou a última há mais de ``alert_days`` dias.
+
+    A fronteira é do protótipo (``ultima < REF - dias``): exatamente ``alert_days`` dias atrás
+    ainda não é alerta.
+    """
+    if last_registered_on is None:
+        return True
+    return (reference_date - last_registered_on).days > alert_days
+
+
+def reuse_rate(*, published: int, reused: int) -> Decimal | None:
+    """Taxa de reuso: publicadas com aplicação registrada sobre as publicadas; ``None`` sem publicada."""
+    if not published:
+        return None
+    return (Decimal(reused) * calculations.PERCENT / Decimal(published)).quantize(
+        calculations.ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+@dataclass(frozen=True)
+class LessonGroupLine:
+    """Uma linha do painel por fase ou por área: total, os dois tipos e as publicadas."""
+
+    label: str
+    total: int
+    to_repeat: int
+    to_avoid: int
+    published: int
+
+
+def lines_by_phase(facts: Iterable[tuple[str, str, str]]) -> tuple[LessonGroupLine, ...]:
+    """Lições por fase, na ordem do vocabulário; a fase sem lição fica zerada (checklist).
+
+    ``facts`` holds ``(phase, kind, situation)`` of each lesson visible in the scope.
+    """
+    return tuple(_group_lines(facts, lm.LESSON_PHASES))
+
+
+def lines_by_area(facts: Iterable[tuple[str, str, str]]) -> tuple[LessonGroupLine, ...]:
+    """Lições por área: só as áreas com lição, da maior para a menor (empate na ordem do vocabulário)."""
+    position = {label: index for index, label in enumerate(lm.LESSON_AREAS)}
+    filled = [line for line in _group_lines(facts, lm.LESSON_AREAS) if line.total]
+    return tuple(sorted(filled, key=lambda line: (-line.total, position[line.label])))
+
+
+def _group_lines(
+    facts: Iterable[tuple[str, str, str]], order: Sequence[str]
+) -> list[LessonGroupLine]:
+    counts: dict[str, list[int]] = {label: [0, 0, 0, 0] for label in order}
+    for label, kind, situation in facts:
+        if label not in counts:
+            continue
+        line = counts[label]
+        line[0] += 1
+        if kind == lm.LESSON_TYPES[0]:
+            line[1] += 1
+        elif kind == lm.LESSON_TYPES[1]:
+            line[2] += 1
+        if situation == lm.SITUATION_PUBLISHED:
+            line[3] += 1
+    return [LessonGroupLine(label, *counts[label]) for label in order]
+
+
+def projects_without_record(
+    *,
+    records: Mapping[int, date | None],
+    project_ids: Iterable[int],
+    reference_date: date,
+    alert_days: int,
+) -> tuple[int, ...]:
+    """Os projetos do escopo sem lição registrada na janela do parâmetro (qualquer situação conta).
+
+    ``records`` holds the date of the latest lesson of each project (``None`` when it has none).
+    """
+    return tuple(
+        project_id
+        for project_id in project_ids
+        if is_registration_alert(records.get(project_id), reference_date, alert_days)
+    )

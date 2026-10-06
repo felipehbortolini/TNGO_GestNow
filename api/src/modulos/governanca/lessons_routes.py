@@ -38,6 +38,7 @@ from src.modulos.configuracoes import service as configuracoes
 from src.modulos.governanca import lessons_calculations as calc
 from src.modulos.governanca import lessons_export as export
 from src.modulos.governanca import lessons_models as lm
+from src.modulos.governanca import lessons_panel as panel_charts
 from src.modulos.governanca import lessons_presentation as presentation
 from src.modulos.governanca import lessons_service as service
 from src.modulos.governanca import lessons_validation as validation
@@ -147,9 +148,15 @@ def lesson_acervo(
     filters = _filters_of(req)
     acervo = service.acervo(session, user=context.user, scope=context.scope, filters=filters)
     template = PARTS_TEMPLATE if _asks_for_parts(req) else PAGE_TEMPLATE
+    context_data = _acervo_context(session, acervo, filters, context)
+    if template == PAGE_TEMPLATE:
+        panel = service.lesson_panel(
+            session, user=context.user, scope=context.scope, reference_date=calendario.today()
+        )
+        context_data |= {"painel": panel, "graficos": panel_charts.charts_of(panel)}
     return AlpineAjaxResponse(
         template_name=template,
-        context=_acervo_context(session, acervo, filters, context),
+        context=context_data,
         request=req,
     )
 
@@ -174,13 +181,18 @@ def lesson_acervo_printable(
 
 def _document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
     filters = _filters_of(req)
+    today = calendario.today()
     acervo = service.acervo(session, user=context.user, scope=context.scope, filters=filters)
+    panel = service.lesson_panel(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
     return export.acervo_document(
         acervo,
+        panel=panel,
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         filters=filters,
-        today=calendario.today(),
+        today=today,
     )
 
 

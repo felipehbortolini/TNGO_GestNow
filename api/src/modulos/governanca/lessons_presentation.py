@@ -31,9 +31,14 @@ def situation_pill(situation: str) -> str:
     return PILL_BY_TONE[situation_tone(situation)]
 
 
+def kind_tone(kind: str) -> Tone:
+    """The tone of the type: to repeat is good news, to avoid is a warning."""
+    return KIND_TONES.get(kind, Tone.NEUTRAL)
+
+
 def kind_pill(kind: str) -> str:
-    """The pill class of the type: to repeat is good news, to avoid is a warning."""
-    return PILL_BY_TONE[KIND_TONES.get(kind, Tone.NEUTRAL)]
+    """The pill class of the type."""
+    return PILL_BY_TONE[kind_tone(kind)]
 
 
 def impact_text(term_days: int, cost_cents: int) -> str:

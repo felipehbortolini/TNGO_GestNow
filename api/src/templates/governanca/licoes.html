@@ -1,15 +1,17 @@
 {% extends "base_fragment.html" %}
 {#
-  Acervo de lições aprendidas (ISSUE-027, HU-129): a barra de ações, a linha do escopo com o checklist
-  de kickoff, os filtros e os cartões.
+  Acervo de lições aprendidas (ISSUE-027, ISSUE-028, HU-129, HU-130): a barra de ações, as abas
+  Acervo e Painel, a linha do escopo com o checklist de kickoff, os filtros e os cartões.
 
   A tela pede este fragmento inteiro uma vez. O formulário de filtros pede só os blocos licoes-resumo
   e licoes-cartoes (licoes_partes.html): como o formulário fica fora dos dois, o campo de busca não
   perde o foco a cada tecla. Os botões do kickoff preenchem fase e situação do formulário (licoes.js).
+  A troca de aba é estado local do Alpine.
 
   Espera: linhas, total_no_escopo, portfolio, linha_do_escopo, kickoff, situacao_publicada, filtros,
   consulta, contagem, pode_registrar, tipos, situacoes, fases, areas, disciplinas, origens,
-  aplicabilidades, excel_url, pdf_url e os apresentadores (pill_situacao, pill_tipo, texto_impacto, plural).
+  aplicabilidades, excel_url, pdf_url, painel, graficos e os apresentadores (pill_situacao, pill_tipo,
+  texto_impacto, plural).
 #}
 {% block fragment %}
 <div class="licoes-acoes">
@@ -21,85 +23,237 @@
   {% endif %}
 </div>
 
-<div id="licoes-resumo">
-  {% include "governanca/_licoes_resumo.html" %}
-</div>
-
-<form class="card licoes-filtros" method="get" action="/api/governanca/licoes"
-  x-target="licoes-resumo licoes-cartoes" @input.debounce.300ms="$el.requestSubmit()">
-  <div class="card__body licoes-filtros__grade">
-    <div class="field">
-      <label for="licoes-busca">Buscar</label>
-      <input id="licoes-busca" name="busca" type="search" class="input" value="{{ filtros.search or '' }}"
-        placeholder="Número, título, recomendação, disciplina, origem ou palavra-chave" autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="licoes-tipo">Tipo</label>
-      <select id="licoes-tipo" name="tipo" class="input">
-        <option value="">Tipo: todos</option>
-        {% for valor in tipos %}
-        <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-situacao">Situação</label>
-      <select id="licoes-situacao" name="situacao" class="input">
-        <option value="">Situação: todas</option>
-        {% for valor in situacoes %}
-        <option value="{{ valor }}"{% if filtros.situation == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-fase">Fase</label>
-      <select id="licoes-fase" name="fase" class="input">
-        <option value="">Todas</option>
-        {% for valor in fases %}
-        <option value="{{ valor }}"{% if filtros.phase == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-area">Área de conhecimento</label>
-      <select id="licoes-area" name="area" class="input">
-        <option value="">Todas</option>
-        {% for valor in areas %}
-        <option value="{{ valor }}"{% if filtros.area == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-disciplina">Disciplina</label>
-      <select id="licoes-disciplina" name="disciplina" class="input">
-        <option value="">Todas</option>
-        {% for valor in disciplinas %}
-        <option value="{{ valor }}"{% if filtros.discipline == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-origem">Origem</label>
-      <select id="licoes-origem" name="origem" class="input">
-        <option value="">Todas</option>
-        {% for valor, rotulo in origens %}
-        <option value="{{ valor }}"{% if filtros.origin == valor %} selected{% endif %}>{{ rotulo }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="licoes-aplicabilidade">Aplicabilidade</label>
-      <select id="licoes-aplicabilidade" name="aplicabilidade" class="input">
-        <option value="">Todas</option>
-        {% for valor in aplicabilidades %}
-        <option value="{{ valor }}"{% if filtros.applicability == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
+<div x-data="{ aba: 'acervo' }">
+  <div class="tabs" role="tablist" aria-label="Visões das lições aprendidas">
+    <button type="button" class="tab" role="tab" id="aba-acervo" aria-controls="painel-acervo"
+      :class="{ 'is-active': aba === 'acervo' }" :aria-selected="aba === 'acervo'"
+      @click="aba = 'acervo'">Acervo</button>
+    <button type="button" class="tab" role="tab" id="aba-painel" aria-controls="painel-painel"
+      :class="{ 'is-active': aba === 'painel' }" :aria-selected="aba === 'painel'"
+      @click="aba = 'painel'">Painel</button>
   </div>
-</form>
 
-<div id="licoes-cartoes">
-  {% include "governanca/_licoes_cartoes.html" %}
+  <section class="mt-16" role="tabpanel" id="painel-acervo" aria-labelledby="aba-acervo" x-show="aba === 'acervo'">
+    <div id="licoes-resumo">
+      {% include "governanca/_licoes_resumo.html" %}
+    </div>
+
+    <form class="card licoes-filtros" method="get" action="/api/governanca/licoes"
+      x-target="licoes-resumo licoes-cartoes" @input.debounce.300ms="$el.requestSubmit()">
+      <div class="card__body licoes-filtros__grade">
+        <div class="field">
+          <label for="licoes-busca">Buscar</label>
+          <input id="licoes-busca" name="busca" type="search" class="input" value="{{ filtros.search or '' }}"
+            placeholder="Número, título, recomendação, disciplina, origem ou palavra-chave" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="licoes-tipo">Tipo</label>
+          <select id="licoes-tipo" name="tipo" class="input">
+            <option value="">Tipo: todos</option>
+            {% for valor in tipos %}
+            <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-situacao">Situação</label>
+          <select id="licoes-situacao" name="situacao" class="input">
+            <option value="">Situação: todas</option>
+            {% for valor in situacoes %}
+            <option value="{{ valor }}"{% if filtros.situation == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-fase">Fase</label>
+          <select id="licoes-fase" name="fase" class="input">
+            <option value="">Todas</option>
+            {% for valor in fases %}
+            <option value="{{ valor }}"{% if filtros.phase == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-area">Área de conhecimento</label>
+          <select id="licoes-area" name="area" class="input">
+            <option value="">Todas</option>
+            {% for valor in areas %}
+            <option value="{{ valor }}"{% if filtros.area == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-disciplina">Disciplina</label>
+          <select id="licoes-disciplina" name="disciplina" class="input">
+            <option value="">Todas</option>
+            {% for valor in disciplinas %}
+            <option value="{{ valor }}"{% if filtros.discipline == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-origem">Origem</label>
+          <select id="licoes-origem" name="origem" class="input">
+            <option value="">Todas</option>
+            {% for valor, rotulo in origens %}
+            <option value="{{ valor }}"{% if filtros.origin == valor %} selected{% endif %}>{{ rotulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="licoes-aplicabilidade">Aplicabilidade</label>
+          <select id="licoes-aplicabilidade" name="aplicabilidade" class="input">
+            <option value="">Todas</option>
+            {% for valor in aplicabilidades %}
+            <option value="{{ valor }}"{% if filtros.applicability == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+
+    <div id="licoes-cartoes">
+      {% include "governanca/_licoes_cartoes.html" %}
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-painel" aria-labelledby="aba-painel" x-show="aba === 'painel'">
+    <div class="kpis" role="group" aria-label="Indicadores do painel">
+      <div class="kpi kpi--estatico kpi--info">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+        <span class="licoes-painel__kpi-texto">
+          <span class="kpi__label">Lições no acervo</span>
+          <span class="hint">{{ plural(painel.to_repeat, 'a repetir', 'a repetir') }} · {{ plural(painel.to_avoid, 'a evitar', 'a evitar') }}</span>
+        </span>
+        <span class="kpi__value">{{ painel.total }}</span>
+      </div>
+      <div class="kpi kpi--estatico kpi--ok">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+        <span class="licoes-painel__kpi-texto">
+          <span class="kpi__label">Publicadas nos últimos {{ painel.alert_days }} dias</span>
+          <span class="hint">{{ plural(painel.published, 'publicada no total', 'publicadas no total') }}</span>
+        </span>
+        <span class="kpi__value">{{ painel.published_in_period }}</span>
+      </div>
+      <div class="kpi kpi--estatico kpi--{{ 'warn' if painel.validating else 'ok' }}">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+        <span class="licoes-painel__kpi-texto">
+          <span class="kpi__label">Em validação</span>
+          <span class="hint">{{ plural(painel.in_flow, 'lição ainda não publicada', 'lições ainda não publicadas') }}</span>
+        </span>
+        <span class="kpi__value">{{ painel.validating }}</span>
+      </div>
+      <div class="kpi kpi--estatico kpi--info">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
+        <span class="licoes-painel__kpi-texto">
+          <span class="kpi__label">Taxa de reuso</span>
+          <span class="hint">Publicadas com aplicação registrada · {{ plural(painel.reuses, 'reuso') }}</span>
+        </span>
+        <span class="kpi__value">{{ (painel.reuse_rate|string ~ '%') if painel.reuse_rate is not none else '·' }}</span>
+      </div>
+      <div class="kpi kpi--estatico kpi--{{ 'warn' if painel.registration_alert else 'ok' }}">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+        <span class="licoes-painel__kpi-texto">
+          <span class="kpi__label">Dias desde a última lição</span>
+          <span class="hint">Limite: {{ painel.alert_days }} dias</span>
+        </span>
+        <span class="kpi__value">{{ painel.days_without_record if painel.days_without_record is not none else '·' }}</span>
+      </div>
+    </div>
+
+    <div class="licoes-painel__graficos">
+      {% for grafico in graficos %}
+      <section class="card" aria-label="{{ grafico.title }}">
+        <div class="card__head"><h3 class="h-card4">{{ grafico.title }}</h3></div>
+        <div class="card__body">
+          <div data-grafico="{{ grafico.kind }}" data-dados='{{ grafico.data | tojson }}'></div>
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+
+    <div class="licoes-painel__tabelas">
+      <section class="card" aria-labelledby="licoes-situacao">
+        <div class="card__head"><h3 class="h-card4" id="licoes-situacao">Lições por situação</h3></div>
+        <div class="card__body">
+          {% if painel.by_situation %}
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <caption class="sr-only">Lições por situação</caption>
+              <thead>
+                <tr><th scope="col">Situação</th><th scope="col">Lições</th></tr>
+              </thead>
+              <tbody>
+                {% for linha in painel.by_situation %}
+                <tr>
+                  <td><span class="pill {{ pill_situacao(linha.label) }}">{{ linha.label }}</span></td>
+                  <td class="num">{{ linha.total }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty" data-estado="vazio-situacao">
+            <h4 class="h-card5">Nenhuma lição no escopo</h4>
+            <p>As lições registradas aparecem aqui.</p>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="licoes-reusadas">
+        <div class="card__head"><h3 class="h-card4" id="licoes-reusadas">Lições mais reusadas</h3></div>
+        <div class="card__body">
+          {% if painel.most_reused %}
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <caption class="sr-only">Lições mais reusadas</caption>
+              <thead>
+                <tr><th scope="col">Lição</th><th scope="col">Tipo</th><th scope="col">Reusos</th></tr>
+              </thead>
+              <tbody>
+                {% for linha in painel.most_reused %}
+                <tr>
+                  <td>
+                    <button type="button" class="link" data-lic-acao="ver" data-codigo="{{ linha.code }}">
+                      <b>{{ linha.code }}</b> — {{ linha.title }}
+                    </button>
+                  </td>
+                  <td><span class="pill {{ pill_tipo(linha.kind) }}">{{ linha.kind }}</span></td>
+                  <td class="num">{{ linha.reuses }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty" data-estado="vazio-reuso">
+            <h4 class="h-card5">Nenhuma aplicação registrada</h4>
+            <p>As lições publicadas com reuso aparecem aqui.</p>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="licoes-sem-registro">
+        <div class="card__head"><h3 class="h-card4" id="licoes-sem-registro">Projetos sem registro de lição</h3></div>
+        <div class="card__body">
+          {% if painel.projects_without_record %}
+          <ul class="licoes-painel__projetos">
+            {% for projeto in painel.projects_without_record %}
+            <li>{{ projeto.code }} — {{ projeto.name }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="empty" data-estado="vazio-sem-registro">
+            <h4 class="h-card5">Todos os projetos registraram lição no período</h4>
+            <p>Nenhum projeto passou de {{ painel.alert_days }} dias sem registrar lição.</p>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </section>
 </div>
 {% endblock %}

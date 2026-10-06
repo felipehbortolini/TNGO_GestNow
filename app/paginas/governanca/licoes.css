@@ -114,6 +114,33 @@
   margin-top: auto;
 }
 
+.pagina--governanca-licoes .licoes-painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--governanca-licoes .licoes-painel__graficos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+  margin: var(--space-lg) 0;
+}
+
+.pagina--governanca-licoes .licoes-painel__tabelas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+}
+
+.pagina--governanca-licoes .licoes-painel__projetos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+}
+
 @media (max-width: 640px) {
   .pagina--governanca-licoes .licoes-acoes {
     justify-content: stretch;
@@ -122,6 +149,10 @@
     width: 100%;
   }
   .pagina--governanca-licoes .licoes-grade {
+    grid-template-columns: 1fr;
+  }
+  .pagina--governanca-licoes .licoes-painel__graficos,
+  .pagina--governanca-licoes .licoes-painel__tabelas {
     grid-template-columns: 1fr;
   }
 }
