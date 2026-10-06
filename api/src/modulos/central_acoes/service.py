@@ -17,7 +17,8 @@ Public API (stable; a change needs an issue of its own, a new field comes with a
   ``reopen_from_origin(session, *, user, origin, reference_date)``, where ``origin`` is an
   ``origin_links.OriginRef(kind, reference)``: the origin closed or reopened a record on its own
   screen, the Central follows;
-* ``find_action``, ``list_actions``, ``replan_history`` and ``count_by_status``: reading.
+* ``find_action``, ``list_actions``, ``replan_history``, ``count_by_status`` and
+  ``count_actions_of_origin``: reading.
 
 Nothing here reads the clock: the routes obtain the date from ``core.calendario``. A module
 never reads the table ``acao``; it uses the functions above.
@@ -421,6 +422,49 @@ def read_action_origin(session: Session, *, user: User, record_id: int) -> Origi
         return None
     rbac.require_module(user, MODULE)
     return OriginRecord(project_id=action.project_id)
+
+
+@dataclass(frozen=True)
+class OriginActionCount:
+    """How many actions of one record of origin exist, how many are open and how many overdue."""
+
+    total: int = 0
+    open: int = 0
+    overdue: int = 0
+
+
+def count_actions_of_origin(
+    session: Session,
+    *,
+    user: User,
+    origin_kind: str,
+    references: Collection[str],
+    reference_date: date,
+) -> dict[str, OriginActionCount]:
+    """The actions (never the informations) of each record of one origin, by its reference.
+
+    The module that owns the record of origin asks here instead of reading ``acao``: the Riscos
+    register prints ``abertas/total`` per risk and refuses to delete a risk with an open action.
+    A reference with no action is left out of the answer.
+    """
+    rbac.require_module(user, MODULE)
+    if not references:
+        return {}
+    statement = select(Action).where(
+        Action.origin == origin_kind,
+        Action.origin_ref.in_(list(references)),
+        Action.kind == ACTION,
+    )
+    counts: dict[str, OriginActionCount] = {}
+    for action in session.scalars(statement):
+        status = calculations.action_status(_action_dates(action), reference_date)
+        known = counts.get(action.origin_ref or "", OriginActionCount())
+        counts[action.origin_ref or ""] = OriginActionCount(
+            total=known.total + 1,
+            open=known.open + (status is not ActionStatus.COMPLETED),
+            overdue=known.overdue + (status is ActionStatus.OVERDUE),
+        )
+    return counts
 
 
 # ── Internals ────────────────────────────────────────────────────────────────────────────────

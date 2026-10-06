@@ -77,3 +77,8 @@ Nenhuma.
 ## Notas
 
 Fonte: `registro.html`, `js/pages/riscos/riscos.js` (modais 10, 11 e 17), `GI.api.riscos.lista`, `resumo`, `previa`, `salvar` e `avaliar`, `mock-riscos`; README, "05 Gestão de Riscos".
+
+## Registro de execução
+
+- Feito: modelo, migração m064, MODELO-DE-DADOS (identificado_em).
+- Feito tb: calculations, validation, service (+ central_acoes.count_actions_of_origin, configuracoes.list_project_risk_contexts). Feito tb: presentation, export, seed, oráculo (test_oraculo_riscos). Feito tb: routes.py (sem templates). Falta: templates Jinja, view+css+js, testes, LEIA-ME.

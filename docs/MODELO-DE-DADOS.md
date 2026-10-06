@@ -1445,6 +1445,7 @@ erDiagram
         boolean oculto
         text motivo_exclusao
         timestamptz ocultado_em
+        date identificado_em
         integer versao
     }
     risco_avaliacao {
@@ -1487,7 +1488,8 @@ erDiagram
     }
 ```
 
-`responsavel_plano_id` é quem responde pelo plano de resposta e não pode
+`identificado_em` é a data de identificação do risco (campo do formulário,
+acrescentado na ISSUE-064). `responsavel_plano_id` é quem responde pelo plano de resposta e não pode
 aprová-lo (segregação de funções, D7). A linha do tempo da ficha é composta de
 `risco_avaliacao`, `risco_revisao` e `auditoria`; a evolução mensal do score
 residual é reconstruída das avaliações e revisões (D6); score, severidade, VME

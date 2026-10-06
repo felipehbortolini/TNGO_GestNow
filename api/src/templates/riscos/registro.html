@@ -1,0 +1,371 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Registro de riscos (HU-107): contexto do projeto, cinco KPIs clicáveis pela avaliação
+  exibida, aviso de revisão vencida, chips, o alternador Inerente/Residual e a tabela. O
+  fragmento é um só e se pede de novo, com os filtros na consulta, a cada clique: KPI, chip,
+  alternador, página e busca são links ou um formulário GET com x-target no próprio fragmento.
+  O filtro completo mora no <template> do fim: a página (registro.js) o abre no modal do
+  Design System. Score e severidade vêm calculados do servidor; a tela só imprime.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, chips, contexto, link_inerente, link_residual, link_anterior,
+  link_proximo, link_limpar, link_vencidas, tem_filtro_extra, url_excel, url_pdf, url_matriz,
+  link_da_ficha, consulta, parametro_consulta, portfolio, pode_gravar, pode_gerir, eh_admin,
+  rotulos_de_projeto, cadencia_do_topo, faixas, estrategias, situacoes, revisoes,
+  etiqueta_de_faixa, formatar_data, texto_da_cadencia, pagina_inicial e pagina_final; e, depois de
+  um salvamento, avaliar_codigo, avisos, alerta_do_gestor e exige_plano.
+#}
+{% set pill_da_situacao = {
+  'Identificado': 'pill--neutral', 'Em análise': 'pill--warn', 'Em tratamento': 'pill--fix',
+  'Monitorado': 'pill--ok', 'Materializado': 'pill--erro', 'Encerrado': 'pill--neutral'
+} %}
+
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, icone) %}
+<button type="button" class="iconbtn" data-registro-modal-url="{{ url }}"
+  data-registro-modal-titulo="{{ titulo }}" data-registro-modal-subtitulo="{{ subtitulo }}"
+  aria-label="{{ rotulo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+</button>
+{% endmacro %}
+
+{% macro nota(visao, destaque) %}
+<td class="registro__nota{% if destaque %} registro__destaque{% endif %}">
+  {% if visao %}
+  <span class="pill {{ etiqueta_de_faixa(visao.severity) }}"><b>{{ visao.score }}</b> {{ visao.severity.name }}</span>
+  <br /><span class="hint">P{{ visao.probability }} x I{{ visao.impact }}</span>
+  {% else %}
+  <span class="muted">não avaliado</span>
+  {% endif %}
+</td>
+{% endmacro %}
+
+{% block fragment %}
+{% if avaliar_codigo %}
+<span hidden data-registro-avaliar="/api/riscos/{{ avaliar_codigo }}/avaliar?{{ parametro_consulta }}"
+  data-registro-avaliar-titulo="Avaliação do risco {{ avaliar_codigo }}"
+  x-init="TN.paginas['riscos/registro'].abrirAvaliacao($el)"></span>
+{% endif %}
+
+{% if contexto %}
+<div class="registro__contexto" aria-label="Contexto do {{ 'portfólio' if portfolio else 'projeto' }}">
+  {% for texto, tom in contexto %}
+  <span class="pill {{ 'pill--fix' if tom == 'primary' else 'pill--neutral' }}">{{ texto }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for aviso in avisos or [] %}
+<div class="aviso aviso--warn mb-16" role="status"><span>{{ aviso }}</span></div>
+{% endfor %}
+{% if alerta_do_gestor %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <span>Risco na faixa mais alta: o gestor do projeto deve ser avisado.</span>
+</div>
+{% endif %}
+{% if exige_plano %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <span>Risco na faixa mais alta sem plano de resposta: registre o plano na ficha do risco.</span>
+</div>
+{% endif %}
+
+<div class="kpis registro__kpis" style="--kpis-colunas: 5">
+  {% for kpi in kpis %}
+  <a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+    x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+    <span class="registro__kpi-texto">
+      <span class="kpi__label">{{ kpi.label }}</span>
+      <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    </span>
+    <span class="kpi__value">{{ kpi.value }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% set vencidos = listagem.summary.overdue %}
+{% if vencidos %}
+<div class="aviso aviso--warn mb-16" role="status" data-registro-aviso>
+  <span>
+    <strong>{{ vencidos|length }} {{ 'risco com revisão vencida' if vencidos|length == 1 else 'riscos com revisão vencida' }}:</strong>
+    {% for linha in vencidos %}<a href="{{ link_da_ficha(linha.code) }}" data-tn-tela>{{ linha.code }}</a>{{ ', ' if not loop.last }}{% endfor %}.
+    Riscos {{ faixas[0].name|lower }}s exigem revisão {{ cadencia_do_topo }}.
+  </span>
+  <a class="btn btn--secondary btn--sm" href="{{ link_vencidas }}" x-target="{{ target_id }}">Filtrar vencidas</a>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/riscos/registro" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar riscos</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Número, risco, causa, consequência, dono..." />
+        {% if filtros.nature %}<input type="hidden" name="natureza" value="{{ filtros.nature }}" />{% endif %}
+        {% if filtros.category %}<input type="hidden" name="categoria" value="{{ filtros.category }}" />{% endif %}
+        {% if filtros.severities %}<input type="hidden" name="severidade" value="{{ filtros.severities|join(',') }}" />{% endif %}
+        {% if filtros.situation != 'ativos' %}<input type="hidden" name="situacao" value="{{ filtros.situation }}" />{% endif %}
+        {% if filtros.strategy %}<input type="hidden" name="estrategia" value="{{ filtros.strategy }}" />{% endif %}
+        {% if filtros.owner_id is not none %}<input type="hidden" name="dono" value="{{ filtros.owner_id }}" />{% endif %}
+        {% if filtros.review %}<input type="hidden" name="revisao" value="{{ filtros.review }}" />{% endif %}
+        {% if filtros.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
+      </form>
+      <div class="registro__barra">
+        <div class="seg" role="group" aria-label="Avaliação exibida">
+          <a class="seg__btn{% if filtros.assessment == 'inerente' %} is-active{% endif %}" href="{{ link_inerente }}"
+            x-target="{{ target_id }}"{% if filtros.assessment == 'inerente' %} aria-current="true"{% endif %}>Inerente</a>
+          <a class="seg__btn{% if filtros.assessment == 'residual' %} is-active{% endif %}" href="{{ link_residual }}"
+            x-target="{{ target_id }}"{% if filtros.assessment == 'residual' %} aria-current="true"{% endif %}>Residual</a>
+        </div>
+        <button type="button" class="btn btn--secondary" data-registro-filtros>
+          <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
+          Filtros
+        </button>
+        <a class="btn btn--secondary" href="{{ url_matriz }}" data-tn-tela>Matriz P x I</a>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-registro-modal-url="/api/riscos/novo?{{ parametro_consulta }}"
+          data-registro-modal-titulo="Novo risco"
+          data-registro-modal-subtitulo="{{ 'Escolha o projeto' if portfolio else 'Causa, evento e consequência' }}">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Novo risco
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="registro__chips" aria-label="Filtros ativos">
+      <span class="hint">Filtros ativos:</span>
+      {% for chip in chips %}
+      <span class="chip">
+        <span>{{ chip.text }}</span>
+        {% if chip.removable %}
+        <a class="registro__chip-remover" href="{{ chip.url }}" x-target="{{ target_id }}" aria-label="Remover filtro {{ chip.text }}">
+          <span x-init="$el.innerHTML = window.icon('dismiss', 12)" aria-hidden="true"></span>
+        </a>
+        {% endif %}
+      </span>
+      {% endfor %}
+      {% if tem_filtro_extra %}
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      {% endif %}
+    </div>
+
+    <p class="hint registro__contagem" role="status">
+      {% if filtros.situation == 'ativos' and not filtros.include_closed %}
+      {{ listagem.total }} {{ 'risco ativo' if listagem.total == 1 else 'riscos ativos' }}
+      {% else %}
+      {{ listagem.total }} {{ 'risco' if listagem.total == 1 else 'riscos' }} no filtro atual
+      {% endif %}
+      {% if listagem.closed_hidden %}({{ listagem.closed_hidden }} {{ 'encerrado oculto' if listagem.closed_hidden == 1 else 'encerrados ocultos' }} pelo filtro){% endif %}
+    </p>
+
+    {% if listagem.summary.registered == 0 and not filtros.include_deleted %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há riscos registrados</h2>
+      <p>Registre o primeiro risco com causa, evento e consequência; o score e a severidade são calculados pelo servidor.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum risco encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver os riscos.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl registro__tabela">
+        <caption class="sr-only">Registro de riscos</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Nº</th>
+            <th scope="col">Risco</th>
+            <th scope="col">Dono</th>
+            <th scope="col"{% if filtros.assessment == 'inerente' %} class="registro__destaque"{% endif %}>Inerente</th>
+            <th scope="col"{% if filtros.assessment == 'residual' %} class="registro__destaque"{% endif %}>Residual</th>
+            <th scope="col">Estratégia</th>
+            <th scope="col">Ações</th>
+            <th scope="col">Próx. revisão</th>
+            <th scope="col">Situação</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_lines %}
+          <tr class="{{ 'registro__linha--alerta' if linha.review_overdue }}{{ ' registro__linha--apagada' if (not linha.active) or linha.hidden }}">
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ rotulos_de_projeto[linha.project_id] }}</span></td>{% endif %}
+            <td class="registro__codigo">
+              <a href="{{ link_da_ficha(linha.code) }}" data-tn-tela title="Abrir ficha"><b>{{ linha.code }}</b></a>
+              {% if linha.hidden %}<br /><span class="hint">excluído</span>{% endif %}
+            </td>
+            <td>
+              <span class="fw-600">{{ linha.title }}</span><br />
+              <span class="hint">{{ linha.category_label }}{% if linha.nature != 'Ameaça' %} · {{ linha.nature }}{% endif %}</span>
+            </td>
+            <td>{{ linha.owner_name }}</td>
+            {{ nota(linha.inherent, filtros.assessment == 'inerente') }}
+            {{ nota(linha.residual, filtros.assessment == 'residual') }}
+            <td>
+              {% if linha.strategy %}<span class="pill pill--fix">{{ linha.strategy }}</span>{% else %}<span class="muted">sem plano</span>{% endif %}
+              {% if linha.plan_pending %}<br /><span class="hint">aguarda aprovação</span>{% endif %}
+            </td>
+            <td class="num">
+              {% if linha.actions.total %}
+              <b>{{ linha.actions.open }}</b>/{{ linha.actions.total }}<br /><span class="hint">abertas</span>
+              {% if linha.actions.overdue %}<br /><span class="registro__atrasada">{{ linha.actions.overdue }} {{ 'atrasada' if linha.actions.overdue == 1 else 'atrasadas' }}</span>{% endif %}
+              {% else %}0{% endif %}
+            </td>
+            <td class="num registro__codigo">
+              {% if linha.next_review %}
+              {{ formatar_data(linha.next_review) }}
+              {% if linha.review_overdue %}<br /><span class="pill pill--erro">vencida</span>
+              {% else %}<br /><span class="hint">{{ texto_da_cadencia(linha.cadence_days) }}</span>{% endif %}
+              {% else %}
+              <span class="hint">{{ 'sem data' if linha.active else 'encerrado' }}</span>
+              {% endif %}
+            </td>
+            <td><span class="pill {{ pill_da_situacao.get(linha.situation, 'pill--neutral') }}">{{ linha.situation }}</span></td>
+            <td class="registro__acoes">
+              <a class="iconbtn" href="{{ link_da_ficha(linha.code) }}" data-tn-tela aria-label="Abrir ficha de {{ linha.code }}" title="Abrir ficha">
+                <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+              </a>
+              {% if linha.hidden %}
+              {% if eh_admin %}
+              <form method="post" action="/api/riscos/{{ linha.code }}/restaurar" x-target="{{ target_id }}" class="registro__restaurar">
+                <input type="hidden" name="consulta" value="{{ consulta }}" />
+                <button type="submit" class="btn btn--secondary btn--sm">Restaurar</button>
+              </form>
+              {% endif %}
+              {% elif linha.active and pode_gravar %}
+              {{ botao_do_modal('/api/riscos/' ~ linha.code ~ '/avaliar?' ~ parametro_consulta, 'Avaliação do risco ' ~ linha.code, linha.title, 'Avaliar ' ~ linha.code, 'chartLine') }}
+              {{ botao_do_modal('/api/riscos/' ~ linha.code ~ '/editar?' ~ parametro_consulta, 'Editar risco ' ~ linha.code, linha.title, 'Editar ' ~ linha.code, 'edit') }}
+              {% if pode_gerir %}
+              {{ botao_do_modal('/api/riscos/' ~ linha.code ~ '/excluir?' ~ parametro_consulta, 'Excluir risco ' ~ linha.code, linha.title, 'Excluir ' ~ linha.code, 'trash') }}
+              {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="registro__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+<template data-registro-filtros-modelo>
+  <form method="get" action="/api/riscos/registro" x-target="{{ target_id }}"
+    @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
+    <div class="fgrid">
+      <div class="field field--full">
+        <label for="{{ target_id }}-f-busca">Busca livre</label>
+        <input id="{{ target_id }}-f-busca" class="input" type="text" name="busca" maxlength="120"
+          value="{{ filtros.search }}" placeholder="Número, risco, causa, consequência, dono..." />
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-natureza">Natureza</label>
+        <select id="{{ target_id }}-f-natureza" class="input" name="natureza">
+          <option value="">Todas</option>
+          <option value="Ameaça"{% if filtros.nature == 'Ameaça' %} selected{% endif %}>Ameaça</option>
+          <option value="Oportunidade"{% if filtros.nature == 'Oportunidade' %} selected{% endif %}>Oportunidade</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-categoria">Categoria (RBS)</label>
+        <select id="{{ target_id }}-f-categoria" class="input" name="categoria">
+          <option value="">Todas</option>
+          {% for categoria in listagem.categories %}
+          <option value="{{ categoria.group }} > {{ categoria.name }}"{% if filtros.category == categoria.group ~ ' > ' ~ categoria.name %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-situacao">Situação</label>
+        <select id="{{ target_id }}-f-situacao" class="input" name="situacao">
+          <option value="ativos"{% if filtros.situation == 'ativos' %} selected{% endif %}>Ativos</option>
+          <option value="todas"{% if filtros.situation == 'todas' %} selected{% endif %}>Todas</option>
+          {% for situacao in situacoes %}
+          <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-estrategia">Estratégia</label>
+        <select id="{{ target_id }}-f-estrategia" class="input" name="estrategia">
+          <option value="">Todas</option>
+          {% for estrategia in estrategias %}
+          <option value="{{ estrategia }}"{% if filtros.strategy == estrategia %} selected{% endif %}>{{ estrategia }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-dono">Dono</label>
+        <select id="{{ target_id }}-f-dono" class="input" name="dono">
+          <option value="">Todos</option>
+          {% for pessoa_id, nome in listagem.owners %}
+          <option value="{{ pessoa_id }}"{% if filtros.owner_id == pessoa_id %} selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-revisao">Revisão</label>
+        <select id="{{ target_id }}-f-revisao" class="input" name="revisao">
+          <option value="">Qualquer</option>
+          {% for valor, texto in revisoes %}
+          <option value="{{ valor }}"{% if filtros.review == valor %} selected{% endif %}>{{ texto }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <fieldset class="field field--full registro__faixas">
+        <legend>Severidade ({{ 'inerente' if filtros.assessment == 'inerente' else 'residual' }})</legend>
+        {% for faixa in faixas %}
+        <label class="registro__opcao">
+          <input type="checkbox" name="severidade" value="{{ faixa.id }}"{% if faixa.id in filtros.severities %} checked{% endif %} />
+          <span>{{ faixa.name }}</span>
+        </label>
+        {% endfor %}
+      </fieldset>
+      <div class="field">
+        <label for="{{ target_id }}-f-de">Identificado de</label>
+        <input id="{{ target_id }}-f-de" class="input" type="date" name="de" value="{{ filtros.identified_from.isoformat() if filtros.identified_from }}" />
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-ate">Identificado até</label>
+        <input id="{{ target_id }}-f-ate" class="input" type="date" name="ate" value="{{ filtros.identified_until.isoformat() if filtros.identified_until }}" />
+      </div>
+      <div class="field field--full">
+        <label class="registro__opcao">
+          <input type="checkbox" name="encerrados" value="1"{% if filtros.include_closed %} checked{% endif %} />
+          <span>Incluir encerrados e materializados</span>
+        </label>
+        {% if eh_admin %}
+        <label class="registro__opcao">
+          <input type="checkbox" name="excluidos" value="1"{% if filtros.include_deleted %} checked{% endif %} />
+          <span>Incluir excluídos (só o Admin vê)</span>
+        </label>
+        {% endif %}
+      </div>
+    </div>
+    {% if filtros.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+      <button type="submit" class="btn btn--primary">Consultar</button>
+    </div>
+  </form>
+</template>
+{% endblock %}

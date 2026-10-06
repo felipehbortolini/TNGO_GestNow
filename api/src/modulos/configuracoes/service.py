@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from src.core import recording
 from src.core.errors import InvalidDataError
+from src.core.models import Client
 from src.modulos.configuracoes import validation
 from src.modulos.configuracoes.models import (
     Collaborator,
@@ -400,6 +401,38 @@ def _project_detail(project: Project) -> ProjectDetail:
         budget_cents=project.budget_cents,
         manager_person_id=project.manager_id,
     )
+
+
+@dataclass(frozen=True)
+class ProjectRiskContext:
+    """What the risk register prints about a project: client, numbering pattern and appetite."""
+
+    id: int
+    code: str
+    name: str
+    client_acronym: str
+    risk_pattern: str | None
+    risk_appetite: str | None
+
+
+def list_project_risk_contexts(session: Session) -> list[ProjectRiskContext]:
+    """Every project with the client acronym, the risk numbering pattern and the risk appetite."""
+    statement = (
+        select(Project, Client.acronym, Client.name)
+        .join(Client, Client.id == Project.client_id)
+        .order_by(Project.code)
+    )
+    return [
+        ProjectRiskContext(
+            id=project.id,
+            code=project.code,
+            name=project.name,
+            client_acronym=acronym or client_name,
+            risk_pattern=project.risk_pattern,
+            risk_appetite=project.risk_appetite,
+        )
+        for project, acronym, client_name in session.execute(statement)
+    ]
 
 
 def person_names(session: Session, person_ids: Iterable[int]) -> dict[int, str]:
