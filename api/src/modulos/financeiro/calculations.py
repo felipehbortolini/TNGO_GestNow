@@ -54,6 +54,7 @@ class ItemLine:
     unit: str | None = None
     quantity: Decimal | None = None
     unit_price_cents: int | None = None
+    base_cents: int | None = None
     capex: bool | None = None
     cost_center: str | None = None
     responsible: str | None = None
@@ -92,7 +93,8 @@ def item_totals(items: Sequence[ItemLine]) -> dict[int, int]:
     """Valor orçado of every item: the product for an item, the sum of its children for the rest.
 
     Packages and subpackages add up on the server, in cents, from the items below them; a
-    package without items is worth zero.
+    package without items is worth zero. An item with a frozen base (a revision) uses it
+    instead of the product: that is the value in force of the revision.
     """
     children: dict[int | None, list[ItemLine]] = {}
     for item in items:
@@ -101,7 +103,11 @@ def item_totals(items: Sequence[ItemLine]) -> dict[int, int]:
 
     def total_of(item: ItemLine) -> int:
         if item.level >= LEAF_LEVEL:
-            totals[item.id] = budgeted_cents(item.quantity, item.unit_price_cents)
+            totals[item.id] = (
+                item.base_cents
+                if item.base_cents is not None
+                else budgeted_cents(item.quantity, item.unit_price_cents)
+            )
         else:
             totals[item.id] = sum(total_of(child) for child in children.get(item.id, ()))
         return totals[item.id]
@@ -280,6 +286,87 @@ def parent_codes(rows: Sequence[TreeRow]) -> frozenset[str]:
     if any(row.is_root for row in rows) and any(not row.is_root for row in rows):
         parents.add(ROOT_CODE)
     return frozenset(parents)
+
+
+# ── Orçado atual, saldo livre e item novo ────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ReallocationLine:
+    """Um remanejamento aplicado: de onde saiu, para onde foi, quanto e a revisão que o consolida."""
+
+    source_item_id: int
+    target_item_id: int
+    value_cents: int
+    revision: int
+
+
+def current_base_cents(
+    items: Sequence[ItemLine],
+    *,
+    revision_bases: Mapping[int, int],
+    latest_revision: int | None,
+    reallocations: Sequence[ReallocationLine] = (),
+) -> dict[int, int]:
+    """Orçado atual de cada item: a base da última revisão mais os remanejamentos aplicados.
+
+    Sem revisão alguma a base é quantidade x preço; com revisão, é a linha congelada de
+    ``eac_revisao_item`` e zero para o item que não está nela. Os remanejamentos aplicados e
+    ainda não consolidados (``revisao`` igual à próxima revisão; zero sem revisão) tiram o
+    valor da origem e o põem no destino.
+    """
+    next_revision = 0 if latest_revision is None else latest_revision + 1
+    bases = {
+        item.id: (
+            revision_bases.get(item.id, 0)
+            if latest_revision is not None
+            else budgeted_cents(item.quantity, item.unit_price_cents)
+        )
+        for item in items
+    }
+    for line in reallocations:
+        if line.revision != next_revision:
+            continue
+        if line.source_item_id in bases:
+            bases[line.source_item_id] -= line.value_cents
+        if line.target_item_id in bases:
+            bases[line.target_item_id] += line.value_cents
+    return bases
+
+
+@dataclass(frozen=True)
+class ReservationLine:
+    """Reserva de saldo: a transferência de uma SM aberta que ainda não foi aplicada."""
+
+    source_item_id: int
+    value_cents: int
+
+
+def free_balance_cents(
+    item_id: int,
+    *,
+    base_cents: int,
+    committed_cents: int,
+    reservations: Sequence[ReservationLine],
+) -> int:
+    """Saldo livre do item: orçado atual menos comprometido menos o reservado em outras SMs abertas."""
+    reserved = sum(line.value_cents for line in reservations if line.source_item_id == item_id)
+    return base_cents - committed_cents - reserved
+
+
+def next_item_code(parent_code: str | None, codes: Sequence[str]) -> str:
+    """Código do item novo: o próximo número livre entre os irmãos, sob o pai informado.
+
+    Sem pai, o item é um pacote novo e a numeração é a da raiz; códigos que não são filhos
+    diretos do pai (netos, por exemplo) não entram na conta.
+    """
+    prefix = f"{parent_code}{CODE_SEPARATOR}" if parent_code else ""
+    siblings = [
+        int(code[len(prefix) :])
+        for code in codes
+        if code.startswith(prefix) and code[len(prefix) :].isdigit()
+    ]
+    return f"{prefix}{max(siblings, default=0) + 1}"
 
 
 # ── Ponderação da carteira ───────────────────────────────────────────────

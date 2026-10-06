@@ -5,10 +5,11 @@ exactly as in ``docs/MODELO-DE-DADOS.md``, section "08 Governança". The value s
 vocabulary of the SM: they feed the CHECK constraints of the database, the validation and the
 screens, so a spelling lives in one place.
 
-One kind of column points to a table of a module that arrives later and carries no database foreign
-key yet (``eac_item_id`` of Financeiro): the migration of its owner adds the constraint, as D9 asks for
-any link whose other end is not there when the slice is written. ``licao_id`` points to the lessons
-of this module (``lessons_models``, ISSUE-027).
+One kind of column pointed to a table of a module that arrived later and carried no database foreign
+key (``eac_item_id`` of Financeiro): the migration of its owner (``m030``, ISSUE-030) adds the
+constraint and the columns now declare it, as D9 asks for any link whose other end is not there when
+the slice is written. ``licao_id`` points to the lessons of this module (``lessons_models``,
+ISSUE-027).
 """
 
 from __future__ import annotations
@@ -199,13 +200,13 @@ class ChangeImpact(Base):
 
 
 class ChangeImpactEacItem(Base):
-    """Item da EAC afetado pela análise (fato sem ``versao``); o vínculo com ``eac_item`` vem depois."""
+    """Item da EAC afetado pela análise (fato sem ``versao``)."""
 
     __tablename__ = "mudanca_impacto_eac_item"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     impact_id: Mapped[int] = mapped_column("impacto_id", ForeignKey("mudanca_impacto.id"))
-    eac_item_id: Mapped[int] = mapped_column("eac_item_id", BigInteger)
+    eac_item_id: Mapped[int] = mapped_column("eac_item_id", ForeignKey("eac_item.id"))
 
 
 class ChangeReallocation(Base):
@@ -215,8 +216,8 @@ class ChangeReallocation(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     change_id: Mapped[int] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
-    source_item_id: Mapped[int] = mapped_column("origem_item_id", BigInteger)
-    target_item_id: Mapped[int] = mapped_column("destino_item_id", BigInteger)
+    source_item_id: Mapped[int] = mapped_column("origem_item_id", ForeignKey("eac_item.id"))
+    target_item_id: Mapped[int] = mapped_column("destino_item_id", ForeignKey("eac_item.id"))
     applied_by_id: Mapped[int | None] = mapped_column("aplicado_por_id", ForeignKey("pessoa.id"))
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
     applied: Mapped[bool] = mapped_column("aplicado", Boolean, server_default=text("false"))
