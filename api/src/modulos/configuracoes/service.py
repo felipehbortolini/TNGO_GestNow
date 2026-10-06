@@ -330,6 +330,7 @@ class ProjectSummary:
     manager_id: int | None = None
     budget_cents: int | None = None
     start_date: date | None = None
+    expected_end_date: date | None = None
 
 
 def list_projects(session: Session) -> list[ProjectSummary]:
@@ -346,6 +347,7 @@ def list_projects(session: Session) -> list[ProjectSummary]:
         Project.manager_id,
         Project.budget_cents,
         Project.start_date,
+        Project.expected_end_date,
     ).order_by(Project.code)
     return [
         ProjectSummary(
@@ -355,6 +357,7 @@ def list_projects(session: Session) -> list[ProjectSummary]:
             manager_id=row.manager_id,
             budget_cents=row.budget_cents,
             start_date=row.start_date,
+            expected_end_date=row.expected_end_date,
         )
         for row in session.execute(statement)
     ]

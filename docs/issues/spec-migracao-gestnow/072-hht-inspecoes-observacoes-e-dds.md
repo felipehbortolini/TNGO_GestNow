@@ -69,3 +69,9 @@ Nenhuma.
 ## Notas
 
 Fonte: `hht.html` e `inspecoes.html` do HSE, `mock-hse`; `histogramaMaoDeObra` gerado no fim de `mock-portfolio` e usado em `js/pages/hse/hht.js` e `js/pages/financeiro/desembolso.js`.
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: backend completo (modelo, m072, cálculos, validação, fachada, importadores, exportação, formulários, rotas) e templates Jinja (formulario, hht, inspecoes, histograma).
+- Falta: view/CSS/JS das duas telas, seed, testes e oráculo, LEIA-ME, desembolso (histograma), divergências, decisões.

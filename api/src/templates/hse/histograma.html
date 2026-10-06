@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  O histograma de mão de obra como fragmento avulso: o Cronograma de desembolso o pede onde o
+  protótipo o mostrava (GET /api/hse/histograma). Espera: pontos, maximo e portfolio
+  (ver _histograma.html).
+#}
+{% from "hse/_histograma.html" import histograma %}
+{% block fragment %}
+{{ histograma(pontos, maximo, portfolio, target_id) }}
+{% endblock %}

@@ -1,0 +1,57 @@
+{#
+  Histograma de mão de obra previsto (HHT e efetivo por mês), calculado no servidor do HHT e da
+  Curva S física. Macro usada pela tela HHT e pelo fragmento avulso que o Cronograma de
+  desembolso pede (hse/histograma.html).
+
+  Espera: pontos (mês, rótulo do projeto, previstos e registrados já formatados), maximo (o maior
+  HHT previsto, escala das barras) e portfolio.
+#}
+{% macro histograma(pontos, maximo, portfolio, identificador) %}
+<section class="card" aria-labelledby="{{ identificador }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ identificador }}-titulo">Histograma de mão de obra</h2>
+    <span class="hint">previsto: HHT registrado ajustado pelo avanço previsto e real da Curva S física</span>
+  </div>
+  <div class="card__body">
+    {% if not pontos %}
+    <div class="empty" data-estado="vazio-origem">
+      <h2 class="h-card4">Ainda não há histograma</h2>
+      <p>O histograma nasce do HHT registrado: lance as horas dos meses para vê-lo aqui.</p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Histograma de mão de obra por mês</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Mês</th>
+            <th scope="col">HHT previsto</th>
+            <th scope="col"><span class="sr-only">Barra do HHT previsto</span></th>
+            <th scope="col">HHT registrado</th>
+            <th scope="col">Efetivo previsto</th>
+            <th scope="col">Efetivo registrado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ponto in pontos %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ ponto.projeto }}</span></td>{% endif %}
+            <td class="nowrap">{{ ponto.mes }}</td>
+            <td class="num">{{ ponto.hht_previsto }}</td>
+            <td class="hht__barra-celula">
+              <meter class="hht__barra" min="0" max="{{ maximo }}" value="{{ ponto.hht_previsto_valor }}"
+                aria-label="HHT previsto de {{ ponto.mes }}">{{ ponto.hht_previsto }}</meter>
+            </td>
+            <td class="num">{{ ponto.hht_registrado }}</td>
+            <td class="num">{{ ponto.efetivo_previsto }}</td>
+            <td class="num">{{ ponto.efetivo_registrado }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endmacro %}
