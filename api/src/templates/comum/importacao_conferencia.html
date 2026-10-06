@@ -1,0 +1,160 @@
+{% extends "base_fragment.html" %}
+{#
+  A conferência da planilha (passo 2 da importação, D12, HU-139): o que cada linha vai fazer,
+  antes de qualquer gravação.
+
+  Erro e aviso são coisas diferentes e ficam separados: o erro bloqueia a linha, o aviso não.
+  Cada motivo vem com o número da linha da planilha, o único endereço que serve para quem
+  volta ao Excel para corrigir. Este fragmento é o conteúdo do lugar de resultado, dentro do
+  formulário do envio: o botão de confirmar usa formaction e reenvia o arquivo escolhido,
+  junto com a identidade do arquivo conferido (conferido) e o "estou ciente" (ciente).
+
+  Espera: arquivo, preview (core.importing.ImportPreview), colunas (cabecalho, numerica),
+  lidas, vao_gravar, com_aviso, com_erro, confirmar_url, campo_conferido, campo_ciente
+  e valor_ciente.
+#}
+{% block fragment %}
+<div class="mt-24">
+  {% if preview.missing %}
+  <div class="aviso aviso--erro" role="alert">
+    <strong>Colunas obrigatórias ausentes em {{ arquivo }}</strong>
+    <span>{{ preview.missing | join(', ') }}. Baixe o modelo e ajuste a planilha.</span>
+  </div>
+  {% elif not lidas %}
+  <div class="aviso aviso--info">
+    <strong>{{ arquivo }} não tem linhas de dados</strong>
+    <span>Preencha as linhas abaixo do cabeçalho do modelo e envie de novo.</span>
+  </div>
+  {% else %}
+
+  <div class="kpis">
+    <div class="kpi kpi--ok kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Vão ser gravadas</span>
+      <span class="kpi__value">{{ vao_gravar }}</span>
+    </div>
+    <div class="kpi kpi--warn kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Com aviso</span>
+      <span class="kpi__value">{{ com_aviso }}</span>
+    </div>
+    <div class="kpi kpi--erro kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('errorCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Bloqueadas por erro</span>
+      <span class="kpi__value">{{ com_erro }}</span>
+    </div>
+  </div>
+
+  {% if preview.ignored %}
+  <p class="hint mb-16">Colunas ignoradas (não fazem parte do modelo): {{ preview.ignored | join(', ') }}.</p>
+  {% endif %}
+
+  {% if preview.problem_rows %}
+  <section class="card mb-16" aria-labelledby="{{ target_id }}-problemas">
+    <div class="card__head">
+      <h3 class="h-card5" id="{{ target_id }}-problemas">Linhas com motivo</h3>
+      <span class="hint">erro bloqueia a linha; aviso não impede a importação</span>
+    </div>
+    <div class="card__body">
+      <ul class="lista-simples">
+        {% for item in preview.problem_rows %}
+        <li class="lista-simples__item">
+          <span class="pill {{ 'pill--erro' if item.errors else 'pill--warn' }}">Linha {{ item.number }} · {{ 'erro' if item.errors else 'aviso' }}</span>
+          <span class="linha__main">
+            {% for motivo in item.errors %}
+            <span class="linha__titulo">{{ motivo }}</span>
+            {% endfor %}
+            {% for motivo in item.warnings %}
+            <span class="linha__titulo">{% if item.errors %}Aviso: {% endif %}{{ motivo }}</span>
+            {% endfor %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if preview.unlisted_problems %}
+      <p class="hint mt-8">E mais {{ preview.unlisted_problems }} linha(s) com motivo, que a lista não mostra.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if vao_gravar %}
+  <section class="card mb-16" aria-labelledby="{{ target_id }}-previa">
+    <div class="card__head">
+      <h3 class="h-card5" id="{{ target_id }}-previa">Pré-visualização</h3>
+      <span class="hint">primeiras {{ preview.sample_rows | length }} de {{ vao_gravar }} linhas que vão ser gravadas, já convertidas</span>
+    </div>
+    <div class="card__body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Linhas da planilha que vão ser gravadas</caption>
+          <thead>
+            <tr>
+              <th scope="col">Linha</th>
+              {% for coluna in colunas %}
+              <th scope="col"{% if coluna.numerica %} class="td-num"{% endif %}>{{ coluna.cabecalho }}</th>
+              {% endfor %}
+              <th scope="col">Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in preview.sample_rows %}
+            <tr>
+              <td class="num">{{ item.number }}</td>
+              {% for texto in item.shown %}
+              <td{% if colunas[loop.index0].numerica %} class="td-num"{% endif %}>{{ texto }}</td>
+              {% endfor %}
+              <td>
+                {% if item.warnings %}
+                <span class="pill pill--warn">Entra com aviso</span>
+                {% else %}
+                <span class="pill pill--ok">Entra</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  {% if preview.can_confirm %}
+  <div x-data="{ ciente: false }">
+    <input type="hidden" name="{{ campo_conferido }}" value="{{ preview.digest }}" />
+    <div class="aviso aviso--info mb-16">
+      <strong>{{ vao_gravar }} linha(s) {{ 'será gravada' if vao_gravar == 1 else 'serão gravadas' }}, tudo ou nada.</strong>
+      {% if com_erro %}
+      <span>{{ com_erro }} linha(s) com erro {{ 'não será importada' if com_erro == 1 else 'não serão importadas' }}.</span>
+      {% endif %}
+    </div>
+    {% if com_erro %}
+    <label class="body-txt mb-16">
+      <input type="checkbox" name="{{ campo_ciente }}" value="{{ valor_ciente }}" x-model="ciente" />
+      Estou ciente de que as linhas com erro não serão importadas
+    </label>
+    {% endif %}
+    <div class="acoes-rodape">
+      <button type="button" class="btn btn--ghost"
+        @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">
+        Cancelar
+      </button>
+      <button type="submit" class="btn btn--primary" formaction="{{ confirmar_url }}"
+        {% if com_erro %}:disabled="!ciente"{% endif %}>
+        <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+        Importar {{ vao_gravar }} linha(s)
+      </button>
+    </div>
+  </div>
+  {% else %}
+  <div class="acoes-rodape">
+    <button type="button" class="btn btn--ghost"
+      @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">
+      Fechar
+    </button>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

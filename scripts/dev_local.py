@@ -24,7 +24,7 @@ from src.core.config import load_local_settings  # noqa: E402
 
 load_local_settings()
 
-from src.blueprints import acesso, attachments, exports, health, nav  # noqa: E402
+from src.blueprints import acesso, attachments, exports, health, importing, nav  # noqa: E402
 
 # Only tells the shell that someone is signed in. In demonstration the API does
 # not take the identity from here: it comes from the profile selector in the
@@ -79,6 +79,10 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
         re.compile(r"^/api/anexos/(?P<anexo_id>[^/]+)/baixar$"),
         attachments.download_attachment,
     ),
+    ("GET", re.compile(r"^/api/importacao/(?P<chave>[^/]+)$"), importing.import_steps),
+    ("GET", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/modelo$"), importing.import_template),
+    ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/conferir$"), importing.import_check),
+    ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/confirmar$"), importing.import_confirm),
 ]
 
 

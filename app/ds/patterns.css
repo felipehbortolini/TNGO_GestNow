@@ -54,6 +54,10 @@
 .kpi--info::before { background: var(--azul-500); }
 .kpi--info .kpi__label { color: var(--azul-800); }
 
+/* KPI que só informa (a conferência da importação): sem o gesto de clicar do .kpi. */
+.kpi--estatico { cursor: default; }
+.kpi--estatico:hover { box-shadow: var(--shadow); border-color: var(--borda); transform: none; }
+
 .kpi__icone {
   width: 32px; height: 32px; border-radius: var(--r-sm); flex: none;
   background: var(--verde-soft); color: var(--verde-500);

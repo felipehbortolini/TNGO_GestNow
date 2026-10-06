@@ -1,0 +1,102 @@
+{% extends "base_fragment.html" %}
+{#
+  Importação de planilha em passos (D12, HU-139): o modelo, o envio e o lugar da conferência.
+  Fragmento genérico: a tela do módulo pede este fragmento onde quer a importação, dando ao
+  lugar um id e o mesmo id como alvo:
+
+    <div id="importar-punch"
+         x-init="$ajax('/api/importacao/punch-list', { target: 'importar-punch' })">
+      <div class="spinner" role="status" aria-label="Carregando a importação"></div>
+    </div>
+
+  O formulário guarda o arquivo e o envia duas vezes, de propósito: a conferência
+  (/conferir) só lê e mostra; a confirmação (/confirmar) lê de novo e é a única que grava.
+  O lugar do resultado fica DENTRO do formulário, por isso o arquivo continua escolhido
+  entre os passos e o botão de confirmar (que vem na conferência, com formaction) o reenvia.
+  Escolher outro arquivo limpa a conferência. Cancelar limpa a conferência e o arquivo: nada
+  foi guardado em nenhum passo.
+
+  Espera: titulo, colunas (cabecalho, obrigatoria, formato, exemplo), limite_mb, limite_linhas,
+  campo_arquivo, modelo_url e conferir_url.
+#}
+{% block fragment %}
+<section class="card" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Importar planilha: {{ titulo }}</h2>
+    <span class="hint">nada é gravado antes da sua confirmação</span>
+  </div>
+  <div class="card__body">
+    <ol class="lista-simples mb-16">
+      <li class="lista-simples__item">
+        <span class="pill pill--fix">1</span>
+        <span class="linha__main">
+          <span class="linha__titulo">Baixe o modelo</span>
+          <span class="linha__meta">As colunas já vêm na ordem certa; a aba Instruções diz o que cada uma pede.</span>
+        </span>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
+          <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+          Baixar o modelo (.xlsx)
+        </button>
+      </li>
+      <li class="lista-simples__item">
+        <span class="pill pill--fix">2</span>
+        <span class="linha__main">
+          <span class="linha__titulo">Envie e confira</span>
+          <span class="linha__meta">O sistema valida linha a linha e mostra o que vai gravar. Nada é salvo neste passo.</span>
+        </span>
+      </li>
+      <li class="lista-simples__item">
+        <span class="pill pill--fix">3</span>
+        <span class="linha__main">
+          <span class="linha__titulo">Confirme</span>
+          <span class="linha__meta">Só o que passou na conferência é gravado, tudo ou nada, com registro na trilha.</span>
+        </span>
+      </li>
+    </ol>
+
+    <h3 class="h-card5 mb-16">O que cada coluna pede</h3>
+    <div class="tbl-wrap mb-16">
+      <table class="tbl">
+        <caption class="sr-only">Colunas do modelo de importação</caption>
+        <thead>
+          <tr>
+            <th scope="col">Coluna</th>
+            <th scope="col">Obrigatória</th>
+            <th scope="col">Formato</th>
+            <th scope="col">Exemplo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for coluna in colunas %}
+          <tr>
+            <td class="fw-600">{{ coluna.cabecalho }}</td>
+            <td>{{ 'Sim' if coluna.obrigatoria else 'Não' }}</td>
+            <td>{{ coluna.formato }}</td>
+            <td>{{ coluna.exemplo }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <form method="post" action="{{ conferir_url }}" enctype="multipart/form-data"
+      x-target="{{ target_id }}-resultado" data-tn-loading="Processando a planilha..."
+      x-data="{ nome: '' }" @reset="nome = ''">
+      <div class="upload">
+        <div class="field upload__campo">
+          <label for="{{ target_id }}-arquivo">Planilha preenchida</label>
+          <input id="{{ target_id }}-arquivo" class="input upload__arquivo" type="file"
+            name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="{{ target_id }}-dica"
+            @change="nome = $el.files[0] ? $el.files[0].name : ''; document.getElementById('{{ target_id }}-resultado').replaceChildren()" />
+          <span class="hint" id="{{ target_id }}-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
+        </div>
+        <button type="submit" class="btn btn--primary" :disabled="!nome">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Conferir a planilha
+        </button>
+      </div>
+      <div id="{{ target_id }}-resultado" aria-live="polite"></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

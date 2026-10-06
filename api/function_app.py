@@ -4,6 +4,7 @@ from src.blueprints.acesso import bp as acesso_bp
 from src.blueprints.attachments import bp as attachments_bp
 from src.blueprints.exports import bp as exports_bp
 from src.blueprints.health import bp as health_bp
+from src.blueprints.importing import bp as importing_bp
 from src.blueprints.nav import bp as nav_bp
 from src.modulos.central_acoes.routes import bp as central_acoes_bp
 from src.modulos.configuracoes.routes import bp as configuracoes_bp
@@ -25,6 +26,7 @@ app.register_functions(nav_bp)
 app.register_functions(acesso_bp)
 app.register_functions(exports_bp)
 app.register_functions(attachments_bp)
+app.register_functions(importing_bp)
 app.register_functions(inicio_bp)
 app.register_functions(central_acoes_bp)
 app.register_functions(planejamento_bp)

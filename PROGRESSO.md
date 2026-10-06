@@ -1,14 +1,14 @@
-<!-- Progresso da migração: 17 de 93 -->
+<!-- Progresso da migração: 18 de 93 -->
 
 # Progresso da migração
 
-**17 de 93 issues concluídas** (última fechada: ISSUE-017). Atualizado em 06/10/2026 02:53 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**18 de 93 issues concluídas** (última fechada: ISSUE-018). Atualizado em 06/10/2026 03:02 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 17 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017 |
-| em andamento | 1 | 018 |
-| na fila | 75 | 019 a 093 |
+| concluída | 18 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018 |
+| em andamento | 5 | 019, 023, 029, 045, 051 |
+| na fila | 70 | 020 a 093 |
 
 ## Concluídas
 
@@ -28,26 +28,26 @@
 | ISSUE-012 | Anexos de verdade: pasta local ou Blob, limites por parâmetro e download com a permissão do registro de origem | `155d35e` |
 | ISSUE-013 | Porta de notificação: e-mail via Microsoft Graph escrito e desligado, envio simulado registrado na trilha | `3662b49` |
 | ISSUE-014 | Biblioteca de gráficos 1: motor comum com drill e curvas, barras, Pareto e relógios | `263d5c0` |
-| ISSUE-015 | Biblioteca de gráficos 2: cards, faixa de KPI, matrizes, heatmap, mapa de 52 semanas, quantitativos e etapas | - |
+| ISSUE-015 | Biblioteca de gráficos 2: cards, faixa de KPI, matrizes, heatmap, mapa de 52 semanas, quantitativos e etapas | `a7a3e3e` |
 | ISSUE-016 | Biblioteca de gráficos 3: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os visuais novos | `c0e3a90` |
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | `128eb77` |
+| ISSUE-018 | Importação de planilha em passos com conferência linha a linha | - |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-018 | Importação de planilha em passos com conferência linha a linha | em andamento | ISSUE-017 |
-| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | na fila | ISSUE-019 |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
-| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | na fila | ISSUE-023 |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | na fila | ISSUE-024, ISSUE-019 |
 | ISSUE-026 | Painel de mudanças | na fila | ISSUE-025 |
 | ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | na fila | ISSUE-019, ISSUE-023 |
 | ISSUE-028 | Painel de lições | na fila | ISSUE-027 |
-| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | na fila | ISSUE-029, ISSUE-025 |
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | na fila | ISSUE-030 |
 | ISSUE-032 | Ficha do contrato: cascata de valor, medições e aditivos | na fila | ISSUE-031 |
@@ -63,13 +63,13 @@
 | ISSUE-042 | Curva S financeira e KPIs de custo | na fila | ISSUE-041 |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | na fila | ISSUE-031, ISSUE-033 |
 | ISSUE-044 | Relato do período | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
-| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-046 | Produtividade: plano de quantidades, ciclo da linha de base e apontamento semanal | na fila | ISSUE-025 |
 | ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | na fila | ISSUE-046 |
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | na fila | ISSUE-046, ISSUE-047, ISSUE-019 |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | na fila | ISSUE-019 |
 | ISSUE-050 | Punch list: painel de completação | na fila | ISSUE-049 |
-| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | na fila | ISSUE-051 |
 | ISSUE-053 | Pedidos de alteração e governança da programação | na fila | ISSUE-052 |
 | ISSUE-054 | Subpágina de configuração da programação, uma por projeto | na fila | ISSUE-051 |

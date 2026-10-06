@@ -187,6 +187,79 @@ Com `blob` e a cadeia de conexão ausente a requisição falha alto, com o **nom
 | Função de leitura do módulo dono | `attachment_origins.OriginReader` (devolve `OriginRecord`, `None` ou levanta `AccessDeniedError`) |
 | Anexo de dado pessoal | `OriginRecord(restricted=True)` e `Permission.VIEW_RESTRICTED` |
 
+## Importação
+
+Toda importação de planilha é o **mesmo fluxo do servidor, em passos** (D12, HU-139, ISSUE-018); o módulo só registra o seu `Importer` com as colunas, a validação de uma linha e a gravação de uma linha pela própria fachada. A planilha **nunca é lida no navegador** (o SheetJS do protótipo e o risco dele saíram): o arquivo vai ao servidor, é conferido antes de qualquer biblioteca abri-lo e lido com o openpyxl em modo de leitura contínua.
+
+| Passo | O que acontece | Nome no código |
+|---|---|---|
+| 1. Modelo | o Excel vazio, gerado pelo construtor da exportação: cabeçalho na aba `Dados` e a aba `Instruções` (obrigatória, formato e exemplo de cada coluna). O exemplo **não** vai em `Dados`, para não ser importado por engano | `importing.model_document` + `excel.excel_response`; rota `GET /api/importacao/{chave}/modelo` |
+| 2. Envio e conferência | lê o arquivo, acha o cabeçalho, converte cada célula para o tipo da coluna e pede a validação de cada linha. **Erro bloqueia a linha, aviso não**; cada motivo vem com o número da linha do Excel. **Não grava nada** | `importing.check` devolve `ImportPreview`; rota `POST /api/importacao/{chave}/conferir` |
+| 3. Confirmação | lê e confere **o mesmo arquivo de novo** e grava toda linha sem erro, **tudo ou nada**, numa transação só | `importing.confirm` devolve `ImportResult`; rota `POST /api/importacao/{chave}/confirmar` |
+| Cancelar | fechar a conferência: nenhum passo antes da confirmação guarda coisa alguma, no banco ou fora dele | (sem rota: não há o que desfazer) |
+
+O servidor **não guarda estado entre os passos**. A tela `GET /api/importacao/{chave}` (fragmento `comum/importacao.html`) tem um formulário só, e o lugar do resultado fica **dentro** dele: o arquivo continua escolhido, o botão de confirmar (que vem na conferência, com `formaction`) o reenvia, e `conferido` (o SHA-256 do arquivo conferido) garante que a confirmação vale só para ele. Escolher outro arquivo limpa a conferência.
+
+### Como um módulo registra o seu importador
+
+```python
+# no fim do service.py do módulo, como o tipo de origem dos anexos
+def validate_punch_row(session, *, values, context):
+    errors = ("Responsável: não encontrado",) if not _person_exists(session, values["owner"]) else ()
+    warnings = ("Prazo no passado",) if values["due"] and values["due"] < context.reference_date else ()
+    return RowCheck(errors=errors, warnings=warnings)
+
+
+def save_punch_row(session, *, values, context):
+    create_punch(session, user=context.user, scope=context.scope, data=values)  # a fachada grava com recording
+
+
+importing.register(
+    Importer(
+        key="punch-list",                      # o endereço: /api/importacao/punch-list
+        title="Punch list",
+        module="qualidade",                    # a pasta do módulo: quem importa precisa alcançá-lo
+        columns=(
+            ImportColumn("title", "Título", required=True, example="Trinca no piso"),
+            ImportColumn("owner", "Responsável", required=True, example="Ana Souza"),
+            ImportColumn("due", "Prazo", ValueKind.DATE, example="31/10/2026"),
+            ImportColumn("status", "Situação", options=("Aberto", "Fechado"), example="Aberto"),
+        ),
+        validate=validate_punch_row,
+        save=save_punch_row,
+        unique=("title",),                     # não repete na planilha; o que já existe é da validate
+    )
+)
+```
+
+A tela do módulo pede o fragmento onde quer a importação, dando ao lugar um id e o mesmo id como alvo (o exemplo está no cabeçalho de `comum/importacao.html`). O servidor guarda só a lista dos importadores registrados; quem registra é o módulo, ao ser importado.
+
+### API pública (estável)
+
+| Termo de negócio | Nome no código |
+|---|---|
+| Importador de um módulo | `importing.Importer(key, title, module, columns, validate, save, permission=Permission.WRITE, unique=())` e `importing.register`, `find`, `registered`, `require` |
+| Coluna do modelo | `importing.ImportColumn(field, header, kind=ValueKind.TEXT, required=False, options=(), example="", digits=2)`; `options` faz uma lista (ignora caixa e acento) |
+| O que o módulo diz de uma linha | `importing.RowCheck(errors=(), warnings=())` (`importing.VALID` para a linha sem nada a dizer) |
+| Quem importa, onde e quando | `importing.ImportContext(user, scope, reference_date)`: a data vem da rota (`calendario.today()`) |
+| Validação de uma linha | `RowValidator`: `validate(session, *, values, context) -> RowCheck`; recebe os valores **já convertidos** (todos os campos, `None` onde a célula está vazia) e **só lê**; a linha com erro de tipo nem chega a ela |
+| Gravação de uma linha | `RowWriter`: `save(session, *, values, context)`; grava **pela fachada do módulo dono** (`core.recording`: trilha e versão); `InvalidDataError` aqui recusa a importação inteira, com o número da linha |
+| Modelo para baixar | `importing.model_document(session, *, importer, context)` (um `Document` com `Table` sem linhas) |
+| Conferência | `importing.check(session, *, importer, upload, context)` devolve `ImportPreview` (`rows`, `writable_rows`, `error_rows`, `warning_rows`, `missing`, `ignored`, `can_confirm`, `digest`) |
+| Confirmação | `importing.confirm(session, *, importer, upload, context, confirmation)` devolve `ImportResult` (`written`, `skipped`); `Confirmation(checked_digest, acknowledged)` |
+| Arquivo enviado | `importing.Upload(name, content)` |
+| Conversão de célula | `import_values.convert(cell, kind, options=())`: texto, número, percentual, dinheiro em centavos, data |
+| Leitura do `.xlsx` | `spreadsheet_reader.read_rows(file_name, content)` |
+
+### Regras
+
+* **Só `.xlsx`.** Outra extensão, bytes que não são do Excel, arquivo corrompido, acima de 5 MB, que expandiria além de 50 MB ou com mais de 5.000 linhas de dados é **422** com a mensagem no lugar da conferência. O `.xls` e o `.csv` que o protótipo aceitava saem: o modelo baixado já é `.xlsx`.
+* **O cabeçalho é achado pelo nome**, entre as 30 primeiras linhas (o modelo traz logo, título, escopo e data acima dele): sem diferença de caixa, acento ou espaço. Coluna fora do modelo é ignorada e listada; coluna obrigatória ausente bloqueia a conferência inteira.
+* **Conversão** como no protótipo (`importar.js`): `1.234,56` e `1234,56` são 1234,56; sem vírgula o ponto é decimal; `R$` e `%` são aceitos; dinheiro vira **centavos inteiros** (metade para cima); célula formatada como percentual guarda fração e volta em pontos (`0,453` é 45,3); data é `dd/mm/aaaa`, `aaaa-mm-dd` ou o número de série do Excel, e `31/02/2026` não existe.
+* **Linha numerada como no Excel**, linha vazia é espaçamento (não é conferida) e o erro de uma linha diz a coluna (`Valor: valor inválido`).
+* **Tudo ou nada**: a confirmação grava dentro de um *savepoint*; se o módulo recusar uma linha, as anteriores são desfeitas, mesmo com o chamador mantendo a transação.
+* **Quem importa** alcança o módulo do importador e tem a permissão dele (`WRITE` por padrão); o fornecedor não importa.
+
 ## Acesso e permissões
 
 Quem entra, o que vê e o que grava é decidido **no servidor**, nunca na tela (D7, ISSUE-011). O **cadastro de Colaboradores é a fonte de verdade do acesso**: ter conta Microsoft não basta.

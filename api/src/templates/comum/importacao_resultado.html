@@ -1,0 +1,45 @@
+{% extends "base_fragment.html" %}
+{#
+  O resultado da importação (passo 3, D12, HU-139): o que entrou e o que ficou de fora.
+
+  A gravação foi tudo ou nada para as linhas sem erro: se qualquer uma fosse recusada, nada
+  teria entrado e a resposta seria a mensagem de erro, não este fragmento. As linhas com erro
+  nunca são gravadas e aparecem aqui com o motivo, para a pessoa corrigir na planilha e enviar
+  só elas de novo. Ao entrar, o formulário do envio é limpo (o arquivo já foi importado).
+
+  Espera: resultado (core.importing.ImportResult) e importador (o título).
+#}
+{% block fragment %}
+<div class="mt-24" x-init="$el.closest('form').reset()">
+  <div class="aviso aviso--ok" role="status">
+    <strong>{{ resultado.written | length }} linha(s) de {{ importador }} importada(s)</strong>
+    <span>
+      {{ resultado.file_name }}: tudo foi gravado de uma vez, com o registro na trilha.
+      {% if resultado.with_warning %}{{ resultado.with_warning }} linha(s) entraram com aviso.{% endif %}
+    </span>
+  </div>
+
+  {% if resultado.skipped %}
+  <section class="card mt-16" aria-labelledby="{{ target_id }}-fora">
+    <div class="card__head">
+      <h3 class="h-card5" id="{{ target_id }}-fora">Linhas que ficaram de fora</h3>
+      <span class="hint">{{ resultado.skipped | length }} com erro, não gravadas: corrija na planilha e envie só elas</span>
+    </div>
+    <div class="card__body">
+      <ul class="lista-simples">
+        {% for item in resultado.skipped %}
+        <li class="lista-simples__item">
+          <span class="pill pill--erro">Linha {{ item.number }} · erro</span>
+          <span class="linha__main">
+            {% for motivo in item.errors %}
+            <span class="linha__titulo">{{ motivo }}</span>
+            {% endfor %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
