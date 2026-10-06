@@ -1,0 +1,133 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Dashboards e KPIs da Central (HU-050): os cinco indicadores do motor de status único, os
+  gráficos da biblioteca (status por origem, abertas por responsável, status por projeto no
+  Portfólio e previstas x concluídas por mês) e a tabela de desempenho por responsável. O filtro
+  de origem é um formulário GET com x-target no próprio fragmento. Os números saem da mesma
+  listagem da tela Ações, então batem com ela no mesmo escopo.
+
+  Os dados dos gráficos chegam em data-dados (JSON escapado), nunca por script.
+
+  Espera: painel, graficos, origens, origem, portfolio, caminho_das_acoes, mes, url_excel, url_pdf.
+#}
+{% macro indicador(rotulo, valor, referencia, rodape, icone, tom, link) %}
+{% if link %}<a class="kpi kpi--{{ tom }}" href="{{ link }}" data-tn-tela>{% else %}<div class="kpi kpi--{{ tom }} kpi--estatico">{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+  <span class="painel__kpi-texto">
+    <span class="kpi__label">{{ rotulo }}</span>
+    <span class="hint">{{ referencia }}{% if rodape %} · {{ rodape }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ valor }}</span>
+{% if link %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+{% set contagens = painel.counts %}
+<div class="card mb-16">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="painel__filtro" method="get" action="/api/central-acoes/painel" x-target="{{ target_id }}">
+        <label class="field__label" for="{{ target_id }}-origem">Origem</label>
+        <select id="{{ target_id }}-origem" class="input" name="origem" @change="$el.form.requestSubmit()">
+          <option value="">Todas as origens</option>
+          {% for item in origens %}
+          <option value="{{ item }}"{% if origem == item %} selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <div class="painel__barra">
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if painel.universe == 0 %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+  <h2 class="h-card4">Ainda não há ações</h2>
+  <p>As ações nascem nos registros de origem: atas, riscos, RNC, contratos, suprimentos e os demais módulos.</p>
+</div>
+{% elif contagens.total == 0 %}
+<div class="empty" data-estado="vazio-filtro">
+  <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+  <p>Não há ações da origem {{ origem }} neste escopo. Escolha outra origem.</p>
+</div>
+{% else %}
+<div class="kpis painel__kpis" style="--kpis-colunas: 5" role="group" aria-label="Indicadores das ações">
+  {{ indicador('Total de ações', contagens.total, 'Referência: ' ~ painel.universe, contagens.open ~ ' em andamento', 'taskList', 'neutro', '') }}
+  {{ indicador('Em dia', contagens.on_time, 'Esperado: ' ~ contagens.open, '', 'clock', 'info', caminho_das_acoes ~ '?status=andamento') }}
+  {{ indicador('Atrasadas', contagens.overdue, 'Meta: 0', (painel.overdue_share ~ '% das abertas') if painel.overdue_share is not none else '', 'warning', 'erro', caminho_das_acoes ~ '?status=atrasada') }}
+  {{ indicador('Concluídas', contagens.completed, 'Previsto: ' ~ painel.due_by_reference, '', 'checkCircle', 'ok', caminho_das_acoes ~ '?status=concluida') }}
+  {{ indicador('Concluídas no prazo original', (painel.on_planned_share ~ '%') if painel.on_planned_share is not none else '·', 'Esperado: 100%', painel.completed_on_planned ~ ' de ' ~ contagens.completed ~ ' sem replanejar', 'calendar', 'warn' if painel.on_planned_share != 100 else 'ok', '') }}
+</div>
+
+<div class="painel__graficos">
+  {% for grafico in graficos %}
+  <section class="card" aria-label="{{ grafico.title }}">
+    <div class="card__head"><h2 class="h-card4">{{ grafico.title }}</h2></div>
+    <div class="card__body">
+      <div data-grafico="{{ grafico.kind }}" data-dados='{{ grafico.data | tojson }}'></div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+{% if portfolio %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-projetos">
+  <div class="card__head"><h2 class="h-card4" id="{{ target_id }}-projetos">Status por projeto</h2></div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Ações por projeto e status</caption>
+        <thead><tr>
+          <th scope="col">Projeto</th><th scope="col">Em dia</th><th scope="col">Atrasadas</th>
+          <th scope="col">Concluídas</th><th scope="col">Total</th>
+        </tr></thead>
+        <tbody>
+          {% for linha in painel.projects %}
+          <tr{% if linha.tally.overdue %} class="painel__linha--atrasada"{% endif %}>
+            <td>{{ linha.label }}</td>
+            <td class="num">{{ linha.tally.on_time }}</td>
+            <td class="num">{{ linha.tally.overdue }}</td>
+            <td class="num">{{ linha.tally.completed }}</td>
+            <td class="num">{{ linha.tally.total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="card" aria-labelledby="{{ target_id }}-responsaveis">
+  <div class="card__head"><h2 class="h-card4" id="{{ target_id }}-responsaveis">Desempenho por responsável</h2></div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Desempenho por responsável</caption>
+        <thead><tr>
+          <th scope="col">Responsável</th><th scope="col">Abertas</th><th scope="col">Atrasadas</th>
+          <th scope="col">% atrasadas</th><th scope="col">Concluídas</th><th scope="col">Maior atraso (dias)</th>
+        </tr></thead>
+        <tbody>
+          {% for linha in painel.responsibles %}
+          {% set t = linha.tally %}
+          <tr{% if t.overdue %} class="painel__linha--atrasada"{% endif %}>
+            <td><a href="{{ caminho_das_acoes }}?responsavel={{ linha.responsible_id }}" data-tn-tela>{{ linha.name }}</a></td>
+            <td class="num">{{ t.open }}</td>
+            <td class="num">{{ t.overdue }}</td>
+            <td class="num">{% if t.overdue_share is not none %}{{ t.overdue_share }}%{% else %}—{% endif %}</td>
+            <td class="num">{{ t.completed }}</td>
+            <td class="num">{{ t.longest_delay or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

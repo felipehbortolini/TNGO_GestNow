@@ -160,3 +160,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* O follow-up (ISSUE-020): a prévia da mensagem de cada responsável, recolhida até ser aberta. */
+.pagina--central_acoes-acoes .followup__previa,
+.modal .followup__previa {
+  margin-bottom: var(--space-sm);
+}
+
+.modal .followup__previa summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.modal .followup__previa .textarea {
+  width: 100%;
+  margin-top: var(--space-xs);
+}

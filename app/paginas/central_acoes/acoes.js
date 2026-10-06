@@ -11,7 +11,7 @@
    O servidor desenha tudo (api/src/templates/central_acoes/acoes.html): KPIs, chips, visão e
    página são links com x-target. Aqui só moram os dois modais que o Design System abre por
    JavaScript: o dos filtros (o formulário vem num <template> do fragmento) e o dos formulários
-   da linha (replanejar, concluir, histórico e anexos), cujo corpo o servidor entrega por
+   da linha (replanejar, concluir, histórico, anexos e o follow-up), cujo corpo o servidor entrega por
    GET em #acoes-modal-corpo.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
@@ -25,6 +25,7 @@
   const LARGURA_DOS_FILTROS = 640;
   const LARGURA_PADRAO = 560;
   const LARGURA_DO_HISTORICO = 820;
+  const LARGURA_DO_FOLLOWUP = 760;
 
   /* O corpo do modal pede o fragmento ao servidor assim que o Alpine o inicializa; o endereço
      vai por data-url para nunca ser interpolado dentro de uma expressão. */
@@ -48,11 +49,14 @@
   }
 
   function abrirFormulario(botao) {
-    const historico = botao.dataset.acoesModalUrl.indexOf("/historico") >= 0;
+    const endereco = botao.dataset.acoesModalUrl;
+    let largura = LARGURA_PADRAO;
+    if (endereco.indexOf("/historico") >= 0) largura = LARGURA_DO_HISTORICO;
+    else if (endereco.indexOf("/followup") >= 0) largura = LARGURA_DO_FOLLOWUP;
     window.TN.modal({
       title: botao.dataset.acoesModalTitulo,
       subtitle: botao.dataset.acoesModalSubtitulo,
-      width: historico ? LARGURA_DO_HISTORICO : LARGURA_PADRAO,
+      width: largura,
       body: corpoCarregando(botao.dataset.acoesModalUrl)
     });
   }

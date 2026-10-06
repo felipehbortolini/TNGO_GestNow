@@ -7,6 +7,7 @@ from src.blueprints.health import bp as health_bp
 from src.blueprints.importing import bp as importing_bp
 from src.blueprints.nav import bp as nav_bp
 from src.modulos.central_acoes.minutes_routes import bp as central_acoes_atas_bp
+from src.modulos.central_acoes.panel_routes import bp as central_acoes_painel_bp
 from src.modulos.central_acoes.routes import bp as central_acoes_bp
 from src.modulos.configuracoes.routes import bp as configuracoes_bp
 from src.modulos.financeiro.routes import bp as financeiro_bp
@@ -31,6 +32,7 @@ app.register_functions(importing_bp)
 app.register_functions(inicio_bp)
 app.register_functions(central_acoes_bp)
 app.register_functions(central_acoes_atas_bp)
+app.register_functions(central_acoes_painel_bp)
 app.register_functions(planejamento_bp)
 app.register_functions(programacao_semanal_bp)
 app.register_functions(financeiro_bp)
