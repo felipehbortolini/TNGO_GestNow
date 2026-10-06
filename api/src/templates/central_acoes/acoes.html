@@ -10,7 +10,7 @@
   data-estado), erro e sem permissão (a view).
 
   Espera: listagem, filtros, visao, kpis, chips, colunas_do_quadro, links_de_visao, link_anterior,
-  link_proximo, link_limpar, tem_filtro_extra, url_excel, url_pdf, consulta, parametro_consulta,
+  link_proximo, link_limpar, tem_filtro_extra, url_excel, url_pdf, url_followup, pode_gerir, consulta, parametro_consulta,
   origens, opcoes_de_status, portfolio, pode_gravar, etiqueta_de_status, formatar_data,
   pagina_inicial e pagina_final.
 #}
@@ -92,6 +92,13 @@
         </button>
         <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
         <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gerir %}
+        <button type="button" class="btn btn--secondary" data-acoes-modal-url="{{ url_followup }}"
+          data-acoes-modal-titulo="Enviar follow-up" data-acoes-modal-subtitulo="Ações em aberto do filtro atual, por responsável">
+          <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+          Enviar follow-up
+        </button>
+        {% endif %}
       </div>
     </div>
 

@@ -193,3 +193,171 @@ def latest_revision_ids(entries: Iterable[RevisionEntry]) -> frozenset[int]:
         if known is None or entry.revision > known.revision:
             latest[key] = entry
     return frozenset(entry.id for entry in latest.values())
+
+
+# ── Painel e follow-up (ISSUE-020) ───────────────────────────────────────────────────────────
+
+TOP_RESPONSIBLES = 10
+
+
+@dataclass(frozen=True)
+class ResponsibleTally:
+    """What the panel counts for a group of actions: the three statuses and the longest delay."""
+
+    on_time: int
+    overdue: int
+    completed: int
+    longest_delay: int
+
+    @property
+    def open(self) -> int:
+        """Abertas: the ones on time plus the overdue ones."""
+        return self.on_time + self.overdue
+
+    @property
+    def total(self) -> int:
+        """Every action counted, whatever its status."""
+        return self.on_time + self.overdue + self.completed
+
+    @property
+    def overdue_share(self) -> int | None:
+        """Atrasadas as a whole percentage of the open ones; ``None`` when nothing is open."""
+        return whole_percent(self.overdue, self.open)
+
+
+@dataclass(frozen=True)
+class MonthCount:
+    """Previstas x concluídas of one civil month (``2026-09``)."""
+
+    month: str
+    planned: int
+    completed: int
+
+
+@dataclass(frozen=True)
+class FollowUpAction:
+    """What the follow-up message says about an open action of one responsible."""
+
+    action_id: int
+    project_id: int
+    responsible_id: int
+    label: str
+    subject: str
+    due_date: date | None
+    status: ActionStatus
+    days_overdue: int
+
+
+@dataclass(frozen=True)
+class FollowUpGroup:
+    """The open actions of one responsible, the longest delay first."""
+
+    responsible_id: int
+    actions: tuple[FollowUpAction, ...]
+
+    @property
+    def overdue_count(self) -> int:
+        """How many of the actions are Atrasada."""
+        return sum(1 for item in self.actions if item.status is ActionStatus.OVERDUE)
+
+
+def whole_percent(part: int, whole: int) -> int | None:
+    """``part`` as a whole percentage of ``whole`` (half up); ``None`` when ``whole`` is zero."""
+    if whole == 0:
+        return None
+    share = Decimal(part) * _PERCENT / Decimal(whole)
+    return int(share.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def responsible_tally(items: Iterable[tuple[ActionStatus, int]]) -> ResponsibleTally:
+    """The panel numbers of a group from ``(status, days overdue)``; informations do not count."""
+    collected = list(items)
+    return ResponsibleTally(
+        on_time=sum(1 for status, _ in collected if status is ActionStatus.IN_PROGRESS),
+        overdue=sum(1 for status, _ in collected if status is ActionStatus.OVERDUE),
+        completed=sum(1 for status, _ in collected if status is ActionStatus.COMPLETED),
+        longest_delay=max(
+            (days for status, days in collected if status is ActionStatus.OVERDUE), default=0
+        ),
+    )
+
+
+def completed_on_planned_count(actions: Iterable[ActionDates]) -> int:
+    """Concluídas no prazo original: completed on or before the planned date, never replanned out."""
+    return sum(
+        1
+        for dates in actions
+        if dates.completed_on is not None
+        and dates.planned_date is not None
+        and dates.completed_on <= dates.planned_date
+    )
+
+
+def monthly_planned_vs_completed(actions: Iterable[ActionDates]) -> list[MonthCount]:
+    """Previstas x concluídas por mês: planned by the month of the deadline in force.
+
+    A completed action also counts as planned in the month of its deadline, as the prototype
+    does; the completions are counted in the month of the completion date.
+    """
+    planned: dict[str, int] = {}
+    completed: dict[str, int] = {}
+    for dates in actions:
+        due = effective_due_date(dates.planned_date, dates.replanned_date)
+        if due is not None:
+            month = due.strftime("%Y-%m")
+            planned[month] = planned.get(month, 0) + 1
+        if dates.completed_on is not None:
+            key = dates.completed_on.strftime("%Y-%m")
+            completed[key] = completed.get(key, 0) + 1
+    return [
+        MonthCount(month=key, planned=planned.get(key, 0), completed=completed.get(key, 0))
+        for key in sorted(planned.keys() | completed.keys())
+    ]
+
+
+def top_open_responsibles(
+    tallies: Mapping[int, ResponsibleTally], limit: int = TOP_RESPONSIBLES
+) -> list[int]:
+    """Os que têm mais ações abertas (até ``limit``), as atrasadas desempatam, depois o id."""
+    candidates = [key for key, tally in tallies.items() if tally.open > 0]
+    ranked = sorted(candidates, key=lambda key: (-tallies[key].open, -tallies[key].overdue, key))
+    return ranked[:limit]
+
+
+def group_for_follow_up(
+    items: Iterable[FollowUpAction], names: Mapping[int, str]
+) -> list[FollowUpGroup]:
+    """One group per responsible with open actions: the most overdue first, then by name.
+
+    Only Em andamento and Atrasada enter; inside a group the longest delay comes first, then
+    the closest deadline.
+    """
+    by_person: dict[int, list[FollowUpAction]] = {}
+    for item in items:
+        if item.status in (ActionStatus.IN_PROGRESS, ActionStatus.OVERDUE):
+            by_person.setdefault(item.responsible_id, []).append(item)
+    groups = [
+        FollowUpGroup(
+            responsible_id=person,
+            actions=tuple(
+                sorted(
+                    listed,
+                    key=lambda item: (
+                        -item.days_overdue,
+                        item.due_date is None,
+                        item.due_date or date.min,
+                        item.action_id,
+                    ),
+                )
+            ),
+        )
+        for person, listed in by_person.items()
+    ]
+    return sorted(
+        groups,
+        key=lambda group: (
+            -group.overdue_count,
+            names.get(group.responsible_id, "").casefold(),
+            group.responsible_id,
+        ),
+    )

@@ -62,3 +62,9 @@ Nenhuma.
 ## Notas
 
 Fonte: `js/pages/central-acoes/acoes.js` e `dashboard.js`, `GI.api.central.resumo`.
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: leitura da fonte (dashboard.js, followup do acoes.js) e do módulo; o PDF das ações filtradas já existe da ISSUE-019 (`acoes/imprimivel`), falta o teste do filtro.
+- Falta: cálculos (follow-up, painel) | fachada (`follow_up`, `dashboard`) | rotas | telas (botão follow-up, painel) | exportação do painel | testes | seed/oráculo | LEIA-ME.

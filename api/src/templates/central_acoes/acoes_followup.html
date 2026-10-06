@@ -1,0 +1,80 @@
+{% extends "base_fragment.html" %}
+{#
+  Follow-up aos responsáveis, no modal da tela Ações (HU-049, HU-144). Dois momentos no mesmo
+  fragmento: a prévia (plano) e o que foi registrado (resultado). A prévia lista os responsáveis
+  com ações em aberto no filtro atual, a mensagem de cada um e, enquanto o envio por e-mail está
+  desligado, o aviso de que o envio é simulado. O envio manda uma notificação por responsável pela
+  porta de notificação; cada uma fica na trilha.
+
+  Espera: plano (ou nulo), resultado (ou nulo) e consulta (os filtros da lista, em texto de URL).
+#}
+{% block fragment %}
+{% if resultado %}
+<div class="aviso aviso--{{ 'warn' if resultado.toast_kind == 'aviso' else ('erro' if resultado.toast_kind == 'erro' else 'ok') }}" role="status">
+  <span>{{ resultado.notice }}</span>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--primary" data-acoes-fechar-modal>Fechar</button>
+</div>
+{% elif not plano.entries %}
+<div class="empty" data-estado="vazio-filtro">
+  <h2 class="h-card4">Nenhuma ação em aberto no filtro atual</h2>
+  <p>Ajuste os filtros da lista para escolher quem recebe o follow-up.</p>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>Fechar</button>
+</div>
+{% else %}
+<form method="post" action="/api/central-acoes/acoes/followup{% if consulta %}?{{ consulta }}{% endif %}"
+  x-target="{{ target_id }}" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}"
+  data-tn-loading="Enviando o follow-up...">
+  {% if plano.simulated %}
+  <div class="aviso aviso--warn mb-16" role="status">
+    <span>O envio por e-mail está desligado: o follow-up fica registrado na trilha como simulado e nada é enviado.</span>
+  </div>
+  {% endif %}
+  <p class="body-txt mb-16">
+    {{ plano.entries|length }} {{ 'responsável' if plano.entries|length == 1 else 'responsáveis' }} com
+    {{ plano.action_count }} {{ 'ação' if plano.action_count == 1 else 'ações' }} em aberto no filtro atual.
+    Cada um recebe uma mensagem só com as ações dele.
+  </p>
+  <div class="tbl-wrap mb-16">
+    <table class="tbl">
+      <caption class="sr-only">Responsáveis do follow-up</caption>
+      <thead><tr>
+        <th scope="col">Responsável</th><th scope="col">E-mail</th>
+        <th scope="col">Abertas</th><th scope="col">Atrasadas</th>
+      </tr></thead>
+      <tbody>
+        {% for entrada in plano.entries %}
+        <tr>
+          <td>{{ entrada.name }}</td>
+          <td>{% if entrada.email %}{{ entrada.email }}{% else %}<span class="muted">sem e-mail cadastrado</span>{% endif %}</td>
+          <td class="num">{{ entrada.group.actions|length }}</td>
+          <td class="num">{{ entrada.group.overdue_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for entrada in plano.entries %}
+  <details class="followup__previa">
+    <summary>Prévia para {{ entrada.name }}</summary>
+    <label class="sr-only" for="{{ target_id }}-previa-{{ loop.index }}">Mensagem para {{ entrada.name }}</label>
+    <textarea id="{{ target_id }}-previa-{{ loop.index }}" class="textarea" rows="10" readonly>{{ entrada.body }}</textarea>
+  </details>
+  {% endfor %}
+  {% if plano.without_address %}
+  <div class="aviso aviso--info mt-16" role="status">
+    <span>Sem e-mail no cadastro, não recebem: {{ plano.without_address|map(attribute='name')|join(', ') }}.</span>
+  </div>
+  {% endif %}
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary"{% if not plano.addressed %} disabled{% endif %}>
+      Enviar a {{ plano.addressed|length }} {{ 'responsável' if plano.addressed|length == 1 else 'responsáveis' }}
+    </button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

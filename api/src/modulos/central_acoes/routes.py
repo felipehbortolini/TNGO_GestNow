@@ -14,6 +14,8 @@ modal. The attachments of an action are the generic ``/api/anexos?origem=acao&re
 * ``GET  acoes/{acao_id}/concluir``       the completion form; ``POST`` saves;
 * ``GET  acoes/{acao_id}/historico``      the justifications of the replans.
 
+The follow-up (``acoes/followup``) and the panel (``painel``) are in ``panel_routes``.
+
 The rules are in ``service``; the routes only read the request, call it and draw the answer.
 """
 
@@ -356,6 +358,10 @@ def _screen_context(
         "url_pdf": presentation.address(
             replace(filters, page=1), path=f"{presentation.ROUTE}/imprimivel"
         ),
+        "url_followup": presentation.address(
+            replace(filters, page=1), path=f"{presentation.ROUTE}/followup"
+        ),
+        "pode_gerir": rbac.can(context.user, Permission.MANAGE),
         "consulta": query,
         "parametro_consulta": urlencode({"consulta": query}),
         "origens": ORIGINS,
