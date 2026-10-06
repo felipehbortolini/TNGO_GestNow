@@ -149,6 +149,13 @@ max-complexity = 10
 "src/modulos/governanca/export.py" = ["PLR0913"]
 "src/modulos/governanca/lessons_export.py" = ["PLR0913"]
 
+# `update_projection` tem 6 parâmetros, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY (item_id, valor_centavos, justificativa, autor_id, hoje), a assinatura da
+# atualização da projeção no término (ISSUE-031) que a rota do mapa de controle chama. A regra
+# existe para argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar
+# um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/financeiro/service.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 

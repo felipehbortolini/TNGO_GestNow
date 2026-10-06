@@ -39,9 +39,11 @@ from src.modulos.financeiro.calculations import (
 )
 from src.modulos.financeiro.models import (
     EacItem,
+    EacProjection,
     EacReallocation,
     EacRevision,
     EacRevisionItem,
+    ErpCost,
 )
 
 if TYPE_CHECKING:
@@ -1549,3 +1551,530 @@ def reallocation_rows(
             for view in (*listing.applied, *listing.pending)
         )
     return tuple(rows)
+
+
+# ── Mapa de controle, projeção e custos do ERP (ISSUE-031) ───────────────
+
+
+PROJECTION_ITEM_MESSAGE = "A projeção no término é de um item de custo (nível 3) da EAC."
+ERP_ITEM_MESSAGE = "A linha do ERP aponta para um item que não é de custo (nível 3) do projeto."
+ERP_VALUE_MESSAGE = "Os valores do custo do ERP não podem ser negativos."
+ERP_EMPTY_MESSAGE = (
+    "A linha do ERP precisa de ao menos um valor: comprometido, realizado ou projeção."
+)
+
+
+@dataclass(frozen=True)
+class ProjectionView:
+    """A projeção no término de um item como o mapa e o histórico a mostram."""
+
+    item_id: int
+    value_cents: int
+    on: date
+    origin: str
+    author: str
+    justification: str
+
+
+@dataclass(frozen=True)
+class ErpCostLine:
+    """Uma linha do fechamento do ERP: o item, o mês e os três valores, em centavos."""
+
+    item_id: int
+    month: date
+    committed_cents: int | None = None
+    actual_cents: int | None = None
+    projection_cents: int | None = None
+
+
+@dataclass(frozen=True)
+class MapaRow:
+    """Uma linha do mapa de controle: item, subtotal de pacote ou a linha do escopo.
+
+    As colunas aditivas vêm dos fatos; o remanejamento, o saldo, o desvio, o percentual e a faixa
+    do mapa de calor são calculados aqui.
+    """
+
+    code: str
+    description: str
+    level: int
+    item_id: int | None
+    project_id: int | None
+    project_label: str | None
+    baseline_cents: int
+    reallocation_cents: int
+    current_cents: int
+    committed_cents: int
+    actual_cents: int
+    saldo_cents: int
+    projection_cents: int
+    deviation_cents: int
+    deviation_percent: Decimal | None
+    band: calculations.DeviationBand
+
+
+@dataclass(frozen=True)
+class MapaControleView:
+    """O mapa de controle do escopo: as linhas, a linha do projeto (ou do portfólio) e as faixas."""
+
+    scope_label: str
+    is_portfolio: bool
+    rows: tuple[MapaRow, ...]
+    total: MapaRow
+    bands: tuple[Decimal, ...]
+
+
+@dataclass(frozen=True)
+class _MapPlace:
+    """Onde uma linha do mapa fica: código, descrição, nível e o projeto de origem."""
+
+    code: str
+    description: str
+    level: int
+    item_id: int | None = None
+    project_id: int | None = None
+    project_label: str | None = None
+
+
+@dataclass(frozen=True)
+class _MapAmounts:
+    """As colunas aditivas de uma linha, já subtotalizadas; os derivados saem no mapa."""
+
+    baseline_cents: int
+    current_cents: int
+    committed_cents: int
+    actual_cents: int
+    projection_cents: int
+
+
+@dataclass(frozen=True)
+class _ProjectColumns:
+    """O que a leitura de um projeto devolve: as linhas e os totais de nível 1."""
+
+    rows: tuple[MapaRow, ...]
+    amounts: _MapAmounts
+
+
+def update_projection(
+    session: Session,
+    *,
+    item_id: int,
+    valor_centavos: int,
+    justificativa: str,
+    autor_id: int,
+    hoje: date,
+) -> ProjectionView:
+    """Atualizar a projeção no término de um item, com histórico e justificativa (HU-090).
+
+    A projeção exige justificativa, não pode ser negativa nem ficar abaixo do realizado do item
+    (a regra do protótipo) e entra como fato manual datado; a vigente passa a ser a última. O
+    ``autor_id`` é a pessoa do cadastro que informa, e a trilha nomeia o colaborador dela.
+    """
+    item = session.get(EacItem, item_id)
+    if item is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    if item.level < calculations.LEAF_LEVEL:
+        raise InvalidDataError(PROJECTION_ITEM_MESSAGE)
+    actual = _erp_totals(session, item_ids=[item.id], cutoff=hoje).get(
+        item.id, calculations.ErpTotals(committed_cents=0, actual_cents=0)
+    )
+    form = validation.parse_projection_form(
+        {
+            validation.FIELD_PROJECTION: format_brl(valor_centavos),
+            validation.FIELD_JUSTIFICATION: justificativa,
+        },
+        actual_cents=actual.actual_cents,
+    )
+    collaborator_id, person_id = _operator_ids(session, autor_id)
+    record = recording.create(
+        session,
+        user_id=collaborator_id,
+        record=EacProjection(
+            item_id=item.id,
+            author_id=person_id,
+            projected_on=hoje,
+            value_cents=form.value_cents,
+            origin=calculations.MANUAL_ORIGIN,
+            justification=form.justification,
+        ),
+    )
+    return _projection_view(session, record)
+
+
+def import_erp_costs(
+    session: Session,
+    *,
+    projeto_id: int,
+    linhas: Sequence[ErpCostLine],
+    importado_por_id: int,
+    hoje: date,
+) -> int:
+    """Gravar o fechamento do ERP: um fato por item e mês, substituindo o mês reimportado.
+
+    É a fachada da confirmação da importação (a leitura e a conferência são da rota). O mesmo item
+    e mês reimportado atualiza a linha, nunca a duplica; o mês é normalizado para o primeiro dia e
+    o ``importado_em`` vem do relógio. Devolve quantos fatos foram gravados. O ``importado_por_id``
+    é a pessoa do cadastro que importa, e a trilha nomeia o colaborador dela.
+    """
+    if not linhas:
+        return 0
+    collaborator_id, person_id = _operator_ids(session, importado_por_id)
+    items = _cost_items_of(session, project_id=projeto_id)
+    existing = _erp_costs_of(session, item_ids=[line.item_id for line in linhas])
+    now = calendario.now()
+    for line in linhas:
+        _check_erp_line(line, items=items, hoje=hoje)
+        month = line.month.replace(day=1)
+        record = existing.get((line.item_id, month))
+        if record is None:
+            recording.create(
+                session,
+                user_id=collaborator_id,
+                record=ErpCost(
+                    project_id=projeto_id,
+                    item_id=line.item_id,
+                    imported_by_id=person_id,
+                    month=month,
+                    committed_cents=line.committed_cents,
+                    actual_cents=line.actual_cents,
+                    projection_cents=line.projection_cents,
+                    imported_at=now,
+                ),
+            )
+            continue
+        before = audit.snapshot(record)
+        record.committed_cents = line.committed_cents
+        record.actual_cents = line.actual_cents
+        record.projection_cents = line.projection_cents
+        record.imported_by_id = person_id
+        record.imported_at = now
+        session.flush()
+        audit.changed(
+            session,
+            user_id=collaborator_id,
+            entity=record.__tablename__,
+            record=record,
+            before=before,
+        )
+    return len(linhas)
+
+
+def _check_erp_line(line: ErpCostLine, *, items: Mapping[int, EacItem], hoje: date) -> None:
+    item = items.get(line.item_id)
+    if item is None or item.level < calculations.LEAF_LEVEL:
+        raise InvalidDataError({validation.FIELD_ERP_ITEM: ERP_ITEM_MESSAGE})
+    if (line.month.year, line.month.month) > (hoje.year, hoje.month):
+        raise InvalidDataError({validation.FIELD_ERP_MONTH: validation.ERP_MONTH_IN_THE_FUTURE})
+    values = (line.committed_cents, line.actual_cents, line.projection_cents)
+    if any(value is not None and value < 0 for value in values):
+        raise InvalidDataError({validation.FIELD_ERP_VALUES: ERP_VALUE_MESSAGE})
+    if all(value is None for value in values):
+        raise InvalidDataError({validation.FIELD_ERP_VALUES: ERP_EMPTY_MESSAGE})
+    if (
+        line.projection_cents is not None
+        and line.actual_cents is not None
+        and line.projection_cents < line.actual_cents
+    ):
+        raise InvalidDataError(
+            {validation.FIELD_ERP_PROJECTION: validation.PROJECTION_BELOW_ACTUAL}
+        )
+
+
+def _cost_items_of(session: Session, *, project_id: int) -> dict[int, EacItem]:
+    statement = select(EacItem).where(EacItem.project_id == project_id)
+    return {item.id: item for item in session.scalars(statement)}
+
+
+def _erp_costs_of(session: Session, *, item_ids: Sequence[int]) -> dict[tuple[int, date], ErpCost]:
+    if not item_ids:
+        return {}
+    statement = select(ErpCost).where(ErpCost.item_id.in_(sorted(set(item_ids))))
+    return {(row.item_id, row.month): row for row in session.scalars(statement)}
+
+
+def _operator_ids(session: Session, operator_id: int) -> tuple[int, int]:
+    """O (colaborador, pessoa) de quem opera: ``operator_id`` é a pessoa; sem acesso, o colaborador."""
+    for access in configuracoes.list_active_access(session):
+        if access.person_id == operator_id:
+            return access.id, access.person_id
+    access = configuracoes.find_access(session, operator_id)
+    if access is not None:
+        return access.id, access.person_id
+    return operator_id, operator_id
+
+
+def _projection_view(session: Session, record: EacProjection) -> ProjectionView:
+    names = configuracoes.person_names(session, [record.author_id])
+    return ProjectionView(
+        item_id=record.item_id,
+        value_cents=record.value_cents,
+        on=record.projected_on,
+        origin=record.origin,
+        author=names.get(record.author_id, ""),
+        justification=record.justification,
+    )
+
+
+def mapa_controle(session: Session, *, scope: Scope, reference_date: date) -> MapaControleView:
+    """O mapa de controle do escopo: item a item no projeto, um registro por projeto na carteira.
+
+    As colunas aditivas vêm dos fatos: a linha de base congelada da última revisão, os
+    remanejamentos aplicados e ainda não consolidados, o comprometido e o realizado dos custos do
+    ERP somados até a data de referência e a projeção vigente (manual ou do fechamento). Os
+    subtotais de pacote e subpacote, a linha do projeto e a faixa do mapa de calor (parâmetros
+    vigentes) são calculados aqui. Na carteira, cada linha é um projeto com EAC.
+    """
+    bands = _deviation_bands(session, reference_date=reference_date)
+    projects = configuracoes.list_projects(session)
+    if scope.is_portfolio:
+        return _portfolio_map(session, projects, bands=bands, reference_date=reference_date)
+    project = _project_of(projects, scope)
+    columns = _project_columns(session, project, bands=bands, reference_date=reference_date)
+    total = _map_row(
+        _MapPlace(
+            code=calculations.ROOT_CODE,
+            description=project.name,
+            level=0,
+            project_id=project.id,
+            project_label=_label(project),
+        ),
+        columns.amounts,
+        bands=bands,
+    )
+    return MapaControleView(
+        scope_label=_label(project),
+        is_portfolio=False,
+        rows=columns.rows,
+        total=total,
+        bands=bands,
+    )
+
+
+def _portfolio_map(
+    session: Session,
+    projects: Sequence[configuracoes.ProjectSummary],
+    *,
+    bands: tuple[Decimal, ...],
+    reference_date: date,
+) -> MapaControleView:
+    rows: list[MapaRow] = []
+    for number, project in enumerate(projects, start=1):
+        columns = _project_columns(session, project, bands=bands, reference_date=reference_date)
+        if not columns.rows:
+            continue
+        rows.append(
+            _map_row(
+                _MapPlace(
+                    code=str(number),
+                    description=_label(project),
+                    level=1,
+                    project_id=project.id,
+                    project_label=_label(project),
+                ),
+                columns.amounts,
+                bands=bands,
+            )
+        )
+    total = _map_row(
+        _MapPlace(code=calculations.ROOT_CODE, description=PORTFOLIO_ROOT_DESCRIPTION, level=0),
+        _sum_amounts(rows),
+        bands=bands,
+    )
+    return MapaControleView(
+        scope_label=PORTFOLIO_LABEL,
+        is_portfolio=True,
+        rows=tuple(rows),
+        total=total,
+        bands=bands,
+    )
+
+
+def _project_columns(
+    session: Session,
+    project: configuracoes.ProjectSummary,
+    *,
+    bands: tuple[Decimal, ...],
+    reference_date: date,
+) -> _ProjectColumns:
+    items = _lines_by_project(session, [project.id]).get(project.id, [])
+    if not items:
+        return _ProjectColumns(rows=(), amounts=_MapAmounts(0, 0, 0, 0, 0))
+    label = _label(project)
+    item_ids = [item.id for item in items]
+    baselines = _baseline_bases(session, project_id=project.id, items=items)
+    currents = _current_bases(session, project_id=project.id, items=items)
+    erp = _erp_totals(session, item_ids=item_ids, cutoff=reference_date)
+    committed = {item.id: erp[item.id].committed_cents if item.id in erp else 0 for item in items}
+    actual = {item.id: erp[item.id].actual_cents if item.id in erp else 0 for item in items}
+    projected = calculations.projected_total_cents(
+        items, current_bases=currents, facts=_projection_facts(session, item_ids=item_ids)
+    )
+    baseline_totals = _leveled_totals(items, baselines)
+    current_totals = _leveled_totals(items, currents)
+    committed_totals = _leveled_totals(items, committed)
+    actual_totals = _leveled_totals(items, actual)
+    rows = tuple(
+        _map_row(
+            _MapPlace(
+                code=item.code,
+                description=item.description,
+                level=item.level,
+                item_id=item.id,
+                project_id=project.id,
+                project_label=label,
+            ),
+            _MapAmounts(
+                baseline_cents=baseline_totals.get(item.id, 0),
+                current_cents=current_totals.get(item.id, 0),
+                committed_cents=committed_totals.get(item.id, 0),
+                actual_cents=actual_totals.get(item.id, 0),
+                projection_cents=projected.by_item.get(item.id, 0),
+            ),
+            bands=bands,
+        )
+        for item in sorted(items, key=lambda item: calculations.code_key(item.code))
+    )
+    amounts = _MapAmounts(
+        baseline_cents=_top_total(items, baseline_totals),
+        current_cents=_top_total(items, current_totals),
+        committed_cents=_top_total(items, committed_totals),
+        actual_cents=_top_total(items, actual_totals),
+        projection_cents=projected.total_cents,
+    )
+    return _ProjectColumns(rows=rows, amounts=amounts)
+
+
+def _map_row(place: _MapPlace, amounts: _MapAmounts, *, bands: tuple[Decimal, ...]) -> MapaRow:
+    """A linha do mapa: as colunas aditivas prontas e o saldo, o desvio e a faixa calculados."""
+    deviation = calculations.deviation_cents(amounts.projection_cents, amounts.current_cents)
+    percent = calculations.deviation_percent(deviation, amounts.current_cents)
+    return MapaRow(
+        code=place.code,
+        description=place.description,
+        level=place.level,
+        item_id=place.item_id,
+        project_id=place.project_id,
+        project_label=place.project_label,
+        baseline_cents=amounts.baseline_cents,
+        reallocation_cents=calculations.reallocation_cents(
+            amounts.current_cents, amounts.baseline_cents
+        ),
+        current_cents=amounts.current_cents,
+        committed_cents=amounts.committed_cents,
+        actual_cents=amounts.actual_cents,
+        saldo_cents=calculations.saldo_a_comprometer_cents(
+            amounts.current_cents, amounts.committed_cents
+        ),
+        projection_cents=amounts.projection_cents,
+        deviation_cents=deviation,
+        deviation_percent=percent,
+        band=calculations.deviation_band(percent, bands),
+    )
+
+
+def _sum_amounts(rows: Sequence[MapaRow]) -> _MapAmounts:
+    return _MapAmounts(
+        baseline_cents=sum(row.baseline_cents for row in rows),
+        current_cents=sum(row.current_cents for row in rows),
+        committed_cents=sum(row.committed_cents for row in rows),
+        actual_cents=sum(row.actual_cents for row in rows),
+        projection_cents=sum(row.projection_cents for row in rows),
+    )
+
+
+def _baseline_bases(
+    session: Session, *, project_id: int, items: Sequence[ItemLine]
+) -> dict[int, int]:
+    """Linha de base de cada item: a base congelada da última revisão, sem os remanejamentos."""
+    latest = _latest_revision(session, project_id=project_id)
+    revision_bases = (
+        _revision_bases(session, project_id=project_id, revision=latest)
+        if latest is not None
+        else {}
+    )
+    return calculations.baseline_base_cents(
+        items, revision_bases=revision_bases, latest_revision=latest
+    )
+
+
+def _leveled_totals(items: Sequence[ItemLine], values: Mapping[int, int]) -> dict[int, int]:
+    """Os subtotais de uma coluna: o valor do item e a soma dos filhos nos pacotes e subpacotes."""
+    return calculations.item_totals(
+        [replace(item, base_cents=values.get(item.id, 0)) for item in items]
+    )
+
+
+def _top_total(items: Sequence[ItemLine], totals: Mapping[int, int]) -> int:
+    """O total do projeto em uma coluna: a soma dos pacotes (nível 1)."""
+    return sum(totals.get(item.id, 0) for item in items if item.level == 1)
+
+
+def _erp_totals(
+    session: Session, *, item_ids: Sequence[int], cutoff: date
+) -> dict[int, calculations.ErpTotals]:
+    """Comprometido e realizado de cada item, somando os meses do ERP até a data de corte."""
+    if not item_ids:
+        return {}
+    statement = select(ErpCost).where(ErpCost.item_id.in_(sorted(set(item_ids))))
+    facts = [
+        calculations.ErpCostFact(
+            item_id=row.item_id,
+            month=row.month,
+            committed_cents=row.committed_cents,
+            actual_cents=row.actual_cents,
+            projection_cents=row.projection_cents,
+        )
+        for row in session.scalars(statement)
+    ]
+    return calculations.erp_totals_until(facts, cutoff=cutoff)
+
+
+def _projection_facts(
+    session: Session, *, item_ids: Sequence[int]
+) -> tuple[calculations.ProjectionFact, ...]:
+    """Os fatos de projeção dos itens: os manuais e os dos fechamentos do ERP."""
+    if not item_ids:
+        return ()
+    wanted = sorted(set(item_ids))
+    facts: list[calculations.ProjectionFact] = []
+    manual = (
+        select(EacProjection).where(EacProjection.item_id.in_(wanted)).order_by(EacProjection.id)
+    )
+    facts.extend(
+        calculations.ProjectionFact(
+            item_id=row.item_id,
+            value_cents=row.value_cents,
+            on=row.projected_on,
+            origin=row.origin,
+        )
+        for row in session.scalars(manual)
+    )
+    closed = (
+        select(ErpCost)
+        .where(ErpCost.item_id.in_(wanted), ErpCost.projection_cents.is_not(None))
+        .order_by(ErpCost.id)
+    )
+    facts.extend(
+        calculations.ProjectionFact(
+            item_id=row.item_id,
+            value_cents=int(row.projection_cents or 0),
+            on=row.month,
+            origin=calculations.ERP_ORIGIN,
+        )
+        for row in session.scalars(closed)
+    )
+    return tuple(facts)
+
+
+def _deviation_bands(session: Session, *, reference_date: date) -> tuple[Decimal, ...]:
+    """As faixas vigentes do mapa de calor: o parâmetro do grupo financeiro ou o padrão."""
+    group = configuracoes.current_group(session, group=MODULE, reference_date=reference_date)
+    configured = group.get("faixasDesvio")
+    bands = (
+        tuple(Decimal(str(band)) for band in configured)
+        if isinstance(configured, Sequence) and not isinstance(configured, str)
+        else ()
+    )
+    if len(bands) != 3:
+        return tuple(Decimal(str(band)) for band in calculations.DEFAULT_DEVIATION_BANDS)
+    return bands
