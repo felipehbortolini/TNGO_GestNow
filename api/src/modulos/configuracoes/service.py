@@ -31,7 +31,9 @@ from src.modulos.configuracoes.models import (
     ParameterValue,
     ParameterVersion,
     Person,
+    PortfolioWeight,
     Project,
+    Unit,
 )
 
 INITIAL_JUSTIFICATION = "Versão inicial"
@@ -318,6 +320,8 @@ class ProjectSummary:
     id: int
     code: str
     name: str
+    manager_id: int | None = None
+    budget_cents: int | None = None
 
 
 def list_projects(session: Session) -> list[ProjectSummary]:
@@ -327,11 +331,76 @@ def list_projects(session: Session) -> list[ProjectSummary]:
     resolves the scope and the shell that renders the selector read it here
     and never the table.
     """
-    statement = select(Project.id, Project.code, Project.name).order_by(Project.code)
+    statement = select(
+        Project.id, Project.code, Project.name, Project.manager_id, Project.budget_cents
+    ).order_by(Project.code)
     return [
-        ProjectSummary(id=row.id, code=row.code, name=row.name)
+        ProjectSummary(
+            id=row.id,
+            code=row.code,
+            name=row.name,
+            manager_id=row.manager_id,
+            budget_cents=row.budget_cents,
+        )
         for row in session.execute(statement)
     ]
+
+
+@dataclass(frozen=True)
+class PersonSummary:
+    """The fields of a person that other modules may read: identity and name."""
+
+    id: int
+    name: str
+    email: str = ""
+
+
+def list_people(session: Session) -> list[PersonSummary]:
+    """Every person of the register, ordered by name: the options of a responsible field."""
+    statement = select(Person.id, Person.name, Person.email).order_by(Person.name, Person.id)
+    return [
+        PersonSummary(id=row.id, name=row.name, email=row.email)
+        for row in session.execute(statement)
+    ]
+
+
+@dataclass(frozen=True)
+class MeasureUnitSummary:
+    """A unit of measure of the register: identity and the code the screens print (``m²``)."""
+
+    id: int
+    code: str
+    name: str
+
+
+def list_measure_units(session: Session) -> list[MeasureUnitSummary]:
+    """The units of measure of the register, ordered by code."""
+    statement = (
+        select(Unit.id, Unit.code, Unit.name).where(Unit.kind == "medida").order_by(Unit.code)
+    )
+    return [
+        MeasureUnitSummary(id=row.id, code=row.code, name=row.name)
+        for row in session.execute(statement)
+    ]
+
+
+def portfolio_grades(session: Session, *, reference_date: date) -> dict[int, dict[str, int]]:
+    """The grades (1 to 5) of each project by criterion, in the portfolio version in force.
+
+    Keyed by project id, then by criterion id (``estrategico``, ``complexidade``). The grades
+    live inside the version of the ``portfolio`` group (D8), so a new version of the weighting
+    brings its own grades; before the first version there are none.
+    """
+    version = current_version(session, group="portfolio", reference_date=reference_date)
+    if version is None:
+        return {}
+    statement = select(
+        PortfolioWeight.project_id, PortfolioWeight.criterion, PortfolioWeight.grade
+    ).where(PortfolioWeight.version_id == version.id)
+    grades: dict[int, dict[str, int]] = {}
+    for row in session.execute(statement):
+        grades.setdefault(row.project_id, {})[row.criterion] = row.grade
+    return grades
 
 
 @dataclass(frozen=True)

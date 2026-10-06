@@ -43,10 +43,24 @@ Prefixo: `/api/financeiro/`.
 
 Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
 
+## O que a ISSUE-029 trouxe
+
+* **Tela EAC** (`financeiro/eac`): árvore (linha 0 do projeto, pacote, subpacote, item) com recolher e expandir, filtros de busca, nível e tipo de custo, KPIs e total filtrado. Totais de pacote e subpacote somados no servidor, em centavos. No Portfólio a árvore é somente leitura: linha 0 = portfólio, nível 1 = projeto ("código · nome"), nível 2 = pacotes principais, com a coluna de peso na carteira.
+* **Rotas** (`routes.py`): `GET /api/financeiro/eac` (conteúdo), `GET /eac/itens/{id}/editar` (formulário cadastral com histórico), `POST /eac/itens/{id}` (grava), `GET /eac/excel` e `GET /eac/imprimivel` (mesmo conteúdo e filtros da tela; no Portfólio com a coluna Projeto).
+* **Edição cadastral**: descrição, tipo de custo, classificação CAPEX/OPEX, centro de custo e responsável. Não muda valor, dispensa SM, exige justificativa e fica no histórico do item (`service.edit_item_registry`, `service.item_history`); controle de versão com 409.
+* **Ponderação da carteira**: `service.portfolio_weights` lê o orçamento vigente da EAC e as notas dos projetos e aplica `calculations.portfolio_weights` (critérios normalizados) fechado em 100,00 por `calculations.largest_remainder`. A edição da ponderação é da ISSUE-080.
+* **Carga e oráculo**: `seed.py` grava a EAC dos mocks; `tests/financeiro/test_eac_oraculo.py` afirma BAC de R$ 44,6 mi no projeto 1 e pesos 55,36 / 29,34 / 15,30.
+* **Fora desta fatia**: item novo, remanejamento, revisão e importação por planilha (ISSUE-030).
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |
 |---|---|---|
+| Valor orçado do item | Quantidade x preço unitário, em centavos | `calculations.budgeted_cents` |
+| Total de pacote e subpacote | Soma dos itens abaixo, no servidor | `calculations.item_totals` |
+| Árvore do projeto e da carteira | Linha 0, pacotes, subpacotes e itens; carteira em três níveis | `calculations.build_project_tree`, `calculations.build_portfolio_tree` |
+| Maior resto | Fecha os pesos em 100,00 (duas casas) | `calculations.largest_remainder` |
+| Peso do projeto na carteira | Soma dos critérios normalizados (valor financeiro, criticidade estratégica, complexidade, exposição a risco) | `calculations.portfolio_weights` |
 | CPI | Valor agregado dividido pelo custo real (`EV / AC`) | `calculations.cost_performance_index` |
 | SPI de custo | Valor agregado dividido pelo valor planejado (`EV / PV`) | `calculations.cost_schedule_index` |
 | VAC | Orçamento no término menos Projeção no término | `calculations.variance_at_completion` |

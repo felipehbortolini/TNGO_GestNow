@@ -1355,6 +1355,9 @@ do dono".
 | Decisão da execução (ISSUE-018), pendente de revisão do dono | Formatos e limites da importação | só `.xlsx`, até 5 MB, 5.000 linhas de dados e 50 MB expandidos; o `.xls` e o `.csv` que o protótipo aceitava são recusados com 422 e a orientação de usar o modelo | D12, ISSUE-018 |
 | Decisão da execução (ISSUE-018), pendente de revisão do dono | Linhas com erro na confirmação | se há linha com erro a pessoa marca "estou ciente" (como o passo 4 do protótipo) e só as linhas sem erro entram; o servidor exige a marca | D12, ISSUE-018 |
 | Decisão da execução (ISSUE-018), pendente de revisão do dono | Acesso da importação | o importador declara o módulo e a permissão (`WRITE` por padrão); as rotas pedem `WRITE` e a fachada confere o módulo; o fornecedor não importa | D7, ISSUE-018 |
+| Decisão da execução (ISSUE-029), pendente de revisão do dono | EAC no Portfólio | somente leitura, linha 0 = portfólio, nível 1 = projeto, nível 2 = pacotes principais, com coluna de peso na carteira | D8, ISSUE-029 |
+| Decisão da execução (ISSUE-029), pendente de revisão do dono | Valor orçado | calculado como quantidade x preço unitário em centavos, sem usar o `base` arredondado do protótipo (divergência registrada, pendente de aceite) | D6, ISSUE-029 |
+| Decisão da execução (ISSUE-029), pendente de revisão do dono | Edição cadastral do item | descrição, tipo, classificação, centro de custo e responsável exigem justificativa, sem SM, com histórico e controle de versão | D5, ISSUE-029 |
 
 ---
 

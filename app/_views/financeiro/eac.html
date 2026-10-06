@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--financeiro-eac"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['financeiro/eac'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -9,8 +9,45 @@
       </div>
     </div>
 
+    <div id="eac-formulario"></div>
+
     <div class="card">
       <div class="card__body">
+        <form class="eac-filtros" method="get" action="/api/financeiro/eac" data-filtros
+          x-target="eac-conteudo" x-init="$ajax('/api/financeiro/eac', { target: 'eac-conteudo' })"
+          @change="$el.requestSubmit()" @submit="estado = 'carregando'" role="search">
+          <div class="field eac-filtros__campo eac-filtros__campo--busca">
+            <label for="eac-f-busca">Buscar</label>
+            <input class="input" type="search" id="eac-f-busca" name="busca" placeholder="Código ou descrição" autocomplete="off" />
+          </div>
+          <div class="field eac-filtros__campo">
+            <label for="eac-f-nivel">Nível</label>
+            <select class="input" id="eac-f-nivel" name="nivel">
+              <option value="1">Pacotes</option>
+              <option value="2">Subpacotes</option>
+              <option value="3" selected>Itens</option>
+            </select>
+          </div>
+          <div class="field eac-filtros__campo">
+            <label for="eac-f-tipo">Tipo de custo</label>
+            <select class="input" id="eac-f-tipo" name="tipo">
+              <option value="">Todos</option>
+              <option>Material</option>
+              <option>Mão de obra</option>
+              <option>Equipamento</option>
+              <option>Serviço</option>
+              <option>Indireto</option>
+              <option>Contingência</option>
+            </select>
+          </div>
+          <div class="eac-filtros__acoes">
+            <a class="btn btn--ghost btn--sm" data-exportar="excel" href="/api/financeiro/eac/excel">Excel</a>
+            <a class="btn btn--ghost btn--sm" data-exportar="pdf" href="/api/financeiro/eac/imprimivel" target="_blank" rel="noopener">PDF</a>
+          </div>
+        </form>
+
+        <div id="eac-conteudo" x-show="estado === 'conteudo'"></div>
+
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
           <p>Carregando...</p>

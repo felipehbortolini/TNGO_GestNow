@@ -1,0 +1,11 @@
+{% extends "base_fragment.html" %}
+{#
+  Conteúdo da tela EAC (D8, HU-087): os KPIs e a árvore do escopo, já filtrada pelo servidor.
+  A raiz leva o id que a tela pediu ({{ target_id }}); o miolo é o parcial, que a resposta do
+  cadastro (eac_salvo.html) também usa.
+  Espera: view (EacView), linhas (LineView), resultado, orcamento, total_filtrado,
+  tipos_de_custo, alvo_formulario e alvo_conteudo.
+#}
+{% block fragment %}
+{% include "financeiro/_eac_conteudo.html" %}
+{% endblock %}

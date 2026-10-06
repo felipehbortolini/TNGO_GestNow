@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta do cadastro do item: duas raízes irmãs, porque o formulário declara os dois alvos
+  (alvo declarado que não vem na resposta é esvaziado pelo Alpine AJAX). O formulário volta
+  vazio (fechado) e o conteúdo volta atualizado, com os mesmos filtros.
+#}
+{% block root %}
+<div id="{{ alvo_formulario }}"></div>
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_eac_conteudo.html" %}
+</div>
+{% endblock %}

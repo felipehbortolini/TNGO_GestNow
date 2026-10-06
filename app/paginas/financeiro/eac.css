@@ -1,16 +1,57 @@
 /* ============================================================
    eac.css — Estilo da tela EAC (financeiro/eac)
 
-   Árvore da Estrutura Analítica de Custos, com itens, revisões, remanejamentos e importação.
+   Árvore da Estrutura Analítica de Custos: filtros, tabela em árvore com
+   recolher e expandir, linha do projeto no topo e total filtrado.
 
    Escopo: tudo que morar aqui começa por .pagina--financeiro-eac, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-029 e ISSUE-030.
+   de cor, espaçamento, raio ou sombra escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--financeiro-eac .eac-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--financeiro-eac .eac-filtros__campo { min-width: 160px; }
+.pagina--financeiro-eac .eac-filtros__campo--busca { flex: 1 1 240px; }
+
+.pagina--financeiro-eac .eac-filtros__acoes {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.pagina--financeiro-eac .eac-linha__codigo { white-space: nowrap; }
+
+.pagina--financeiro-eac .eac-linha__alternar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-right: var(--space-xs);
+  border: 0;
+  background: transparent;
+  color: var(--text-hint);
+  cursor: pointer;
+}
+
+.pagina--financeiro-eac .eac-linha__alternar[aria-expanded="false"] { transform: rotate(-90deg); }
+
+.pagina--financeiro-eac .eac-linha--raiz,
+.pagina--financeiro-eac .eac-linha--nivel-1 { font-weight: 600; }
+
+.pagina--financeiro-eac .eac-linha--raiz { background: var(--verde-50); }
+
+.pagina--financeiro-eac .eac-linha--nivel-2 .eac-linha__descricao { padding-left: var(--space-lg); }
+.pagina--financeiro-eac .eac-linha--nivel-3 .eac-linha__descricao { padding-left: var(--space-xl); }
+
+.pagina--financeiro-eac .eac-linha--total { font-weight: 600; }
+.pagina--financeiro-eac .eac-linha__valor { white-space: nowrap; }
+.pagina--financeiro-eac .eac-linha[hidden] { display: none; }

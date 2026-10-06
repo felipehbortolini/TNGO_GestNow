@@ -1,0 +1,116 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do cadastro do item da EAC (HU-087): descrição, tipo de custo, classificação, centro
+  de custo e responsável. Não muda valor, então não pede SM, mas a justificativa é obrigatória e
+  a alteração fica no histórico do item. Volta preenchido com o que a pessoa digitou no 422 e no
+  409 ("Este registro foi alterado por <nome> às <hora>"), e guarda a versão que abriu.
+  Espera: formulario (ItemForm), valores, erros, mensagem, filtros, tipos_de_custo,
+  classificacoes, orcado, preco, quantidade, unidade e alvo_conteudo.
+#}
+{% block fragment %}
+{% set item = formulario %}
+{% set linha = item.row %}
+{% set v_descricao = valores.get('descricao') if 'descricao' in valores else item.description %}
+{% set v_tipo = valores.get('tipo_custo') if 'tipo_custo' in valores else item.cost_type %}
+{% set v_classificacao = valores.get('classificacao') if 'classificacao' in valores else ('CAPEX' if item.capex else 'OPEX') %}
+{% set v_centro = valores.get('centro_custo') if 'centro_custo' in valores else item.cost_center %}
+{% set v_responsavel = valores.get('responsavel') if 'responsavel' in valores else (item.responsible_id | string) %}
+{% set v_justificativa = valores.get('justificativa') or '' %}
+{% set v_versao = valores.get('versao') if 'versao' in valores else item.version %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Editar item {{ linha.code }}</h2>
+    <span class="hint">{{ linha.description }}</span>
+  </div>
+  <div class="card__body">
+    <div class="aviso aviso--info mb-16" role="note">
+      <strong>Orçado atual {{ orcado }}</strong>
+      <span>({{ quantidade }} {{ unidade }} x {{ preco }}). O valor não muda aqui: dados cadastrais dispensam SM, mas exigem justificativa e ficam no histórico do item.</span>
+    </div>
+
+    {% if mensagem %}
+    <div class="aviso aviso--erro mb-16" role="alert">{{ mensagem }}</div>
+    {% endif %}
+
+    {% if item.history %}
+    <h3 class="h-card5 mb-16">Histórico de cadastro</h3>
+    <ul class="lista-simples mb-16">
+      {% for entrada in item.history[:5] %}
+      <li class="lista-simples__item">
+        <span class="linha__main">
+          <span class="linha__titulo">{{ entrada.occurred_on.strftime('%d/%m/%Y') }} · {{ entrada.author }} · {{ entrada.fields | join(', ') }}</span>
+          <span class="linha__meta">{{ entrada.justification }}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <form method="post" action="/api/financeiro/eac/itens/{{ linha.item_id }}"
+      x-target="{{ target_id }} {{ alvo_conteudo }}" data-tn-loading="Salvando...">
+      <input type="hidden" name="versao" value="{{ v_versao }}" />
+      <input type="hidden" name="busca" value="{{ filtros.search }}" />
+      <input type="hidden" name="nivel" value="{{ filtros.level }}" />
+      <input type="hidden" name="tipo" value="{{ filtros.cost_type }}" />
+      <div class="fgrid">
+        <div class="field field--full">
+          <label for="{{ target_id }}-descricao">Descrição</label>
+          <input id="{{ target_id }}-descricao" name="descricao" class="input{{ ' input--erro' if erros.get('descricao') else '' }}"
+            type="text" maxlength="120" required value="{{ v_descricao }}"
+            {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="{{ target_id }}-descricao-erro"{% endif %} />
+          {% if erros.get('descricao') %}<span class="field__erro" id="{{ target_id }}-descricao-erro">{{ erros.get('descricao') }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ target_id }}-tipo">Tipo de custo</label>
+          <select id="{{ target_id }}-tipo" name="tipo_custo" class="input{{ ' input--erro' if erros.get('tipo_custo') else '' }}" required
+            {% if erros.get('tipo_custo') %}aria-invalid="true" aria-describedby="{{ target_id }}-tipo-erro"{% endif %}>
+            {% for tipo in tipos_de_custo %}
+            <option value="{{ tipo }}"{% if tipo == v_tipo %} selected{% endif %}>{{ tipo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('tipo_custo') %}<span class="field__erro" id="{{ target_id }}-tipo-erro">{{ erros.get('tipo_custo') }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ target_id }}-classificacao">Classificação</label>
+          <select id="{{ target_id }}-classificacao" name="classificacao" class="input{{ ' input--erro' if erros.get('classificacao') else '' }}" required
+            {% if erros.get('classificacao') %}aria-invalid="true" aria-describedby="{{ target_id }}-classificacao-erro"{% endif %}>
+            {% for classificacao in classificacoes %}
+            <option value="{{ classificacao }}"{% if classificacao == v_classificacao %} selected{% endif %}>{{ classificacao }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('classificacao') %}<span class="field__erro" id="{{ target_id }}-classificacao-erro">{{ erros.get('classificacao') }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ target_id }}-centro">Centro de custo</label>
+          <input id="{{ target_id }}-centro" name="centro_custo" class="input{{ ' input--erro' if erros.get('centro_custo') else '' }}"
+            type="text" maxlength="20" value="{{ v_centro }}"
+            {% if erros.get('centro_custo') %}aria-invalid="true" aria-describedby="{{ target_id }}-centro-erro"{% endif %} />
+          {% if erros.get('centro_custo') %}<span class="field__erro" id="{{ target_id }}-centro-erro">{{ erros.get('centro_custo') }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="{{ target_id }}-responsavel">Responsável</label>
+          <select id="{{ target_id }}-responsavel" name="responsavel" class="input{{ ' input--erro' if erros.get('responsavel') else '' }}" required
+            {% if erros.get('responsavel') %}aria-invalid="true" aria-describedby="{{ target_id }}-responsavel-erro"{% endif %}>
+            {% for pessoa in item.people %}
+            <option value="{{ pessoa.id }}"{% if (pessoa.id | string) == v_responsavel %} selected{% endif %}>{{ pessoa.name }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('responsavel') %}<span class="field__erro" id="{{ target_id }}-responsavel-erro">{{ erros.get('responsavel') }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="{{ target_id }}-justificativa">Justificativa da alteração</label>
+          <textarea id="{{ target_id }}-justificativa" name="justificativa" class="input{{ ' input--erro' if erros.get('justificativa') else '' }}"
+            maxlength="300" required
+            {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="{{ target_id }}-justificativa-erro"{% endif %}>{{ v_justificativa }}</textarea>
+          {% if erros.get('justificativa') %}<span class="field__erro" id="{{ target_id }}-justificativa-erro">{{ erros.get('justificativa') }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

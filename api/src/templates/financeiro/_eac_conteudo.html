@@ -1,0 +1,105 @@
+{#
+  Miolo do conteúdo da EAC: marcador do resultado, KPIs e árvore. Sem <link>, <style> nem <script>.
+  O marcador data-resultado diz à tela (eac.js) qual dos cinco estados mostrar: conteudo,
+  vazio-origem (o escopo não tem EAC) ou vazio-filtro (os filtros escondem tudo).
+  Os totais de pacote e subpacote vêm somados do servidor, em centavos.
+#}
+<span hidden data-resultado="{{ resultado }}" data-carteira="{{ 'sim' if view.is_portfolio else 'nao' }}"></span>
+{% if resultado == 'conteudo' %}
+<div class="kpis" style="--kpis-colunas: 2">
+  <div class="kpi kpi--neutro kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ 'Orçamento vigente da carteira' if view.is_portfolio else 'Orçamento vigente' }}</span>
+    <span class="kpi__value">{{ orcamento }}</span>
+  </div>
+  {% if view.is_portfolio %}
+  <div class="kpi kpi--info kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('layers', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Projetos · {{ view.summary.package_count }} pacotes principais</span>
+    <span class="kpi__value">{{ view.summary.project_count }}</span>
+  </div>
+  {% else %}
+  <div class="kpi kpi--info kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('layers', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Itens de custo · {{ view.summary.package_count }} pacotes · {{ view.summary.subpackage_count }} subpacotes</span>
+    <span class="kpi__value">{{ view.summary.item_count }}</span>
+  </div>
+  {% endif %}
+</div>
+
+{% if view.is_portfolio %}
+<p class="hint mb-16">Portfólio: projeto e pacotes principais, somente leitura. Abra o projeto para editar os itens.</p>
+{% endif %}
+
+<div class="tbl-wrap">
+  <table class="tbl eac-tabela" data-arvore>
+    <caption class="sr-only">{{ 'Estrutura analítica de custos da carteira' if view.is_portfolio else 'Estrutura analítica de custos' }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Código</th>
+        <th scope="col">Descrição</th>
+        <th scope="col">Tipo de custo</th>
+        <th scope="col">Un.</th>
+        <th scope="col" class="td-num">Qtd.</th>
+        <th scope="col" class="td-num">Preço unitário</th>
+        <th scope="col" class="td-num">Valor orçado</th>
+        <th scope="col">CAPEX/OPEX</th>
+        <th scope="col">Centro de custo</th>
+        <th scope="col">Responsável</th>
+        {% if view.is_portfolio %}<th scope="col" class="td-num">Peso na carteira</th>{% endif %}
+        <th scope="col"><span class="sr-only">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in linhas %}
+      {% set r = linha.row %}
+      <tr class="eac-linha {{ 'eac-linha--raiz' if r.is_root else 'eac-linha--nivel-' ~ r.level }}"
+        data-codigo="{{ r.code }}"{% if r.is_root %} data-raiz{% endif %}>
+        <td class="eac-linha__codigo nowrap">
+          {% if linha.has_children %}
+          <button type="button" class="eac-linha__alternar" data-alternar="{{ r.code }}"
+            aria-expanded="true" aria-label="Recolher {{ r.code }}" title="Recolher {{ r.code }}">
+            <span x-init="$el.innerHTML = window.icon('chevronDown', 16)" aria-hidden="true"></span>
+          </button>
+          {% endif %}
+          <span class="num">{{ r.code }}</span>
+        </td>
+        <td class="eac-linha__descricao">{{ r.description }}</td>
+        <td>{{ r.cost_type or '' }}</td>
+        <td>{{ r.unit or '' }}</td>
+        <td class="td-num">{{ linha.quantity }}</td>
+        <td class="td-num">{{ linha.unit_price }}</td>
+        <td class="td-num eac-linha__valor">{{ linha.budget }}</td>
+        <td>{{ linha.classification }}</td>
+        <td>{{ r.cost_center or '' }}</td>
+        <td>{{ r.responsible or '' }}</td>
+        {% if view.is_portfolio %}<td class="td-num">{{ linha.weight }}</td>{% endif %}
+        <td class="td-center nowrap">
+          {% if linha.can_edit %}
+          <a class="iconbtn" data-editar x-target="{{ alvo_formulario }}"
+            href="/api/financeiro/eac/itens/{{ r.item_id }}/editar{{ '?' ~ linha.edit_query if linha.edit_query else '' }}"
+            aria-label="Editar item {{ r.code }}" title="Editar">
+            <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+          </a>
+          {% elif view.is_portfolio and r.level == 1 %}
+          <a class="btn btn--ghost btn--sm" href="/financeiro/eac?projeto={{ r.project_id }}" data-tn-tela>
+            Abrir
+            <span x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% if total_filtrado %}
+    <tfoot>
+      <tr class="eac-linha eac-linha--total">
+        <td colspan="6">Total filtrado</td>
+        <td class="td-num eac-linha__valor">{{ total_filtrado }}</td>
+        <td colspan="{{ 5 if view.is_portfolio else 4 }}"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endif %}
