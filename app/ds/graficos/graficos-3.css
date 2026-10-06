@@ -1,0 +1,950 @@
+/* ============================================================
+   graficos/graficos-3.css — Estilo dos visuais da ISSUE-016
+
+   A terceira parte do estilo da biblioteca de gráficos (a primeira é o
+   graficos.css; a moldura, a dica escura, a legenda, os botões de ano e as
+   animações graf-sobe e graf-cresce vêm de lá, então este arquivo carrega
+   depois dele). Ficou num arquivo à parte para as ISSUE-015 e 016 não
+   mexerem no mesmo CSS. Aqui moram:
+
+     - os tons de peça (.is-tom-<papel>), que apoio.js dá a selos, pílulas e
+       pontos: o JavaScript fala em papel (ok, alerta, erro...) e o CSS lê o
+       token;
+     - os oito visuais da coletânea que esta issue porta: Gantt, Calendário,
+       Galeria, Formulário de Cards, Áreas de Avaliação, Tabela formatada,
+       Tabela Formata 2 e Tabela Etapa por etapa (docs/referencia/graficos/);
+     - os quatro visuais novos, no mesmo padrão: pirâmide de segurança
+       dupla, cascata de valor do contrato, rosca e linhas múltiplas.
+
+   Nenhuma cor é escrita à mão: tudo é var(--token) ou color-mix de tokens
+   (a paleta da coletânea já é a do Design System). Os tamanhos, os
+   espaçamentos e as animações são os dos originais, e as unidades de
+   janela (vw) viraram --graf-u, 1% da largura do visual, como no Pareto.
+   Todas as classes começam com .graf para não colidir com tokens.css,
+   shell.css e patterns.css.
+   ============================================================ */
+
+/* ============================================================
+   Tons de peça
+   --tom é a cor cheia (ponto, barra, selo), --tom-fundo o fundo suave e
+   --tom-texto o texto sobre esse fundo. Papel desconhecido vira neutro (ver
+   apoio.js, tom()).
+   ============================================================ */
+.is-tom-ok { --tom: var(--ok-500); --tom-fundo: var(--ok-50); --tom-texto: var(--ok-800); }
+.is-tom-alerta { --tom: var(--warn-500); --tom-fundo: var(--warn-50); --tom-texto: var(--warn-800); }
+.is-tom-atencao {
+  --tom: var(--laranja-500);
+  --tom-fundo: color-mix(in srgb, var(--laranja-500) 12%, var(--branco));
+  --tom-texto: var(--warn-700);
+}
+.is-tom-erro { --tom: var(--erro-500); --tom-fundo: var(--erro-50); --tom-texto: var(--erro-700); }
+.is-tom-neutro { --tom: var(--frio-500); --tom-fundo: var(--frio-50); --tom-texto: var(--frio-700); }
+.is-tom-info { --tom: var(--azul-500); --tom-fundo: var(--azul-50); --tom-texto: var(--azul-800); }
+.is-tom-marca { --tom: var(--verde-500); --tom-fundo: var(--verde-50); --tom-texto: var(--brand-title); }
+.is-tom-comprometido { --tom: var(--roxo-500); --tom-fundo: var(--roxo-50); --tom-texto: var(--roxo-700); }
+.is-tom-bege {
+  --tom: var(--bege-500);
+  --tom-fundo: color-mix(in srgb, var(--bege-500) 14%, var(--branco));
+  --tom-texto: var(--neutro-600);
+}
+.is-tom-vazio {
+  --tom: var(--neutro-200);
+  --tom-fundo: color-mix(in srgb, var(--neutro-100) 50%, var(--branco));
+  --tom-texto: var(--text-secondary);
+}
+
+/* ============================================================
+   Desenhos e busca (apoio.js)
+   A lupa, a seta de voltar e as camadas são os SVG dos originais; a cor sai
+   daqui (o traço é currentColor).
+   ============================================================ */
+.graf-desenho { display: block; flex: 0 0 auto; }
+
+.graf-busca {
+  display: flex; align-items: center; flex: 0 0 auto; gap: 10px;
+  padding: 10px 14px; background: var(--branco); border-bottom: 2px solid var(--neutro-100);
+}
+.graf-busca[hidden] { display: none; }
+.graf-busca > .graf-desenho { color: var(--verde-500); }
+.graf-busca__campo {
+  flex: 1; min-width: 0; padding: 0; border: none; outline: none; background: transparent;
+  -webkit-appearance: none; appearance: none;
+  font-family: var(--font); font-size: 14px; color: var(--text-primary);
+}
+.graf-busca__campo::placeholder { color: var(--neutro-300); }
+.graf-busca__campo::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.graf-busca__contagem {
+  padding: 3px 8px; border: 1px solid var(--neutro-100); border-radius: 9999px;
+  background: var(--neutro-50); white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+}
+.graf-busca__contagem:empty { display: none; }
+
+/* ============================================================
+   Gráfico Gantt
+   A lista fixa à esquerda (WBS, nome e situação) e o calendário à direita
+   rolam juntos; a lista fica colada (sticky) e o cabeçalho também.
+   ============================================================ */
+.graf--gantt { height: var(--graf-altura, 600px); }
+.graf-gantt {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 8px; padding: 4px;
+  color: var(--text-primary);
+}
+
+/* Faixa de indicadores */
+.graf-gantt__kpis { display: flex; align-items: stretch; flex: 0 0 auto; gap: 8px; animation: graf-sobe .5s ease both; }
+.graf-gantt__kpi {
+  display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0;
+  padding: 6px 12px; border-left: 3px solid var(--tom, var(--neutro-200)); border-radius: var(--r-md);
+  background: var(--branco); box-shadow: var(--shadow-hover);
+}
+.graf-gantt__kpi.is-concluidas { --tom: var(--verde-600); }
+.graf-gantt__kpi-rotulo {
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary);
+}
+.graf-gantt__kpi-valor { font-size: 20px; font-weight: 600; line-height: 1.15; color: var(--tom); }
+.graf-gantt__kpi.is-simples .graf-gantt__kpi-valor { color: var(--text-secondary); }
+.graf-gantt__kpi-valor small { font-size: 11px; }
+.graf-gantt__kpi-barra { height: 3px; margin-top: 4px; border-radius: 9999px; overflow: hidden; background: var(--neutro-100); }
+.graf-gantt__kpi-barra i {
+  display: block; height: 100%; border-radius: 9999px; background: var(--verde-500);
+  transform-origin: left; animation: graf-gantt-estica 1.3s cubic-bezier(.25, 1, .5, 1) both;
+}
+
+/* Quadro com a lista e o calendário */
+.graf-gantt__quadro { position: relative; display: flex; flex: 1; min-height: 0; }
+.graf-gantt__rolagem {
+  position: relative; flex: 1; min-width: 0; min-height: 0; overflow: auto;
+  border-radius: var(--r-md); background: var(--branco); box-shadow: var(--shadow-hover);
+}
+.graf-gantt__corpo { display: flex; min-width: 100%; width: max-content; }
+
+/* Lista da esquerda */
+.graf-gantt__esq {
+  position: sticky; left: 0; z-index: 20; flex-shrink: 0;
+  width: clamp(200px, calc(var(--graf-u, 8px) * 24), 340px);
+  border-right: 1px solid var(--neutro-200); background: var(--branco);
+}
+.graf-gantt__esq-cab {
+  position: sticky; top: 0; z-index: 30; display: flex; align-items: center; height: 52px; padding: 0 12px;
+  border-bottom: 1px solid var(--neutro-200); background: var(--neutro-50);
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--brand-title);
+}
+.graf-gantt__item {
+  position: relative; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px;
+  border-bottom: 1px solid var(--neutro-100);
+}
+.graf-gantt__item.is-zebra, .graf-gantt__linha.is-zebra { background: color-mix(in srgb, var(--neutro-50) 50%, var(--branco)); }
+.graf-gantt__item:hover { background: var(--verde-50); }
+.graf-gantt__marca-critica {
+  position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 2px 2px 0; background: var(--erro-500);
+}
+.graf-gantt__wbs {
+  flex-shrink: 0; min-width: 34px;
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; color: var(--verde-500);
+}
+.graf-gantt__nome {
+  flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+.graf-gantt__situacao {
+  flex-shrink: 0; padding: 2px 8px; border-radius: 9999px; white-space: nowrap;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600;
+  background: color-mix(in srgb, var(--tom) 12%, transparent); color: var(--tom);
+}
+
+/* Calendário da direita */
+.graf-gantt__dir { position: relative; flex: 1; min-width: 900px; }
+.graf-gantt__dir-cab {
+  position: sticky; top: 0; z-index: 15; display: flex; flex-direction: column; height: 52px;
+  border-bottom: 1px solid var(--neutro-200); background: var(--neutro-50);
+}
+.graf-gantt__faixa { display: flex; flex: 1; width: 100%; }
+.graf-gantt__faixa:first-child { border-bottom: 1px solid var(--neutro-200); }
+.graf-gantt__ano, .graf-gantt__mes {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+  font-weight: 600;
+}
+.graf-gantt__ano { border-right: 1px solid var(--neutro-200); font-size: 12px; color: var(--brand-title); }
+.graf-gantt__mes { border-right: 1px solid var(--neutro-100); font-size: 10px; white-space: nowrap; color: var(--text-secondary); }
+.graf-gantt__grade { position: absolute; top: 52px; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none; }
+.graf-gantt__grade i { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--neutro-100); }
+
+/* Hoje */
+.graf-gantt__hoje {
+  position: absolute; top: 0; bottom: 0; z-index: 12; width: 0; pointer-events: none;
+  border-left: 2px dashed var(--laranja-500);
+}
+.graf-gantt__hoje-selo {
+  position: absolute; top: 0; z-index: 25; transform: translateX(-50%); padding: 2px 10px;
+  border-radius: 0 0 4px 4px; background: var(--laranja-500); box-shadow: var(--shadow-hover);
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; color: var(--branco);
+}
+
+/* Linhas, barras, linha de base e desvio */
+.graf-gantt__linha { position: relative; z-index: 2; height: 44px; border-bottom: 1px solid var(--neutro-100); }
+.graf-gantt__barra {
+  position: absolute; top: 11px; display: block; height: 22px; border-radius: 4px; cursor: pointer;
+  background: var(--brand-primary); box-shadow: var(--shadow-hover);
+  transform-origin: left; animation: graf-gantt-estica .9s cubic-bezier(.25, 1, .5, 1) both;
+  transition: filter .2s, box-shadow .2s;
+}
+.graf-gantt__barra:hover {
+  z-index: 14; filter: brightness(1.08);
+  box-shadow: var(--shadow-hover), 0 0 0 2px color-mix(in srgb, var(--verde-500) 40%, transparent);
+}
+.graf-gantt__barra.is-concluida { background: var(--verde-600); }
+.graf-gantt__barra.is-critica { outline: 2px solid var(--erro-500); outline-offset: 1px; }
+.graf-gantt__barra.is-concluida::after {
+  content: ""; position: absolute; right: 6px; top: 50%; width: 9px; height: 5px; margin-top: -4px;
+  border-left: 2px solid var(--branco); border-bottom: 2px solid var(--branco);
+  transform: rotate(-45deg); opacity: .9;
+}
+.graf-gantt__futuro {
+  position: absolute; top: 0; bottom: 0; right: 0; border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--branco) 42%, transparent);
+}
+.graf-gantt__data-ini, .graf-gantt__data-fim {
+  position: absolute; top: 3px; font-size: 10px; font-weight: 600; white-space: nowrap;
+}
+.graf-gantt__data-ini { right: 100%; margin-right: 8px; color: var(--neutro-400); }
+.graf-gantt__data-fim { left: 100%; margin-left: 8px; color: var(--text-secondary); }
+.graf-gantt__delta { margin-left: 6px; font-style: normal; font-weight: 600; }
+.graf-gantt__delta.is-atraso { color: var(--erro-500); }
+.graf-gantt__delta.is-antecipa { color: var(--ok-500); }
+.graf-gantt__base {
+  position: absolute; top: 15px; z-index: 10; width: 10px; height: 10px; margin-left: -5px;
+  border: 2px solid var(--brand-title); border-radius: 2px; background: var(--branco); transform: rotate(45deg);
+}
+.graf-gantt__desvio { position: absolute; top: 36px; height: 3px; border-radius: 9999px; opacity: .85; }
+.graf-gantt__desvio.is-atraso { background: var(--erro-500); }
+.graf-gantt__desvio.is-antecipa { background: var(--ok-500); }
+
+/* Legenda */
+.graf-gantt__legenda {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; flex: 0 0 auto; gap: 18px;
+  padding: 8px 12px; border-radius: var(--r-md); background: var(--branco); box-shadow: var(--shadow-hover);
+  animation: graf-sobe .5s ease both;
+}
+.graf-gantt__leg-item {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.graf-gantt__amostra { display: block; flex-shrink: 0; width: 14px; height: 8px; border-radius: 2px; }
+.graf-gantt__amostra.is-concluida { background: var(--verde-600); }
+.graf-gantt__amostra.is-execucao { background: var(--brand-primary); }
+.graf-gantt__amostra.is-base {
+  width: 9px; height: 9px; border: 2px solid var(--brand-title); background: var(--branco); transform: rotate(45deg);
+}
+.graf-gantt__amostra.is-atraso { background: var(--erro-500); }
+.graf-gantt__amostra.is-antecipa { background: var(--ok-500); }
+.graf-gantt__amostra.is-hoje { width: 3px; background: var(--laranja-500); }
+.graf-gantt__amostra.is-critica { background: var(--branco); outline: 2px solid var(--erro-500); }
+
+@keyframes graf-gantt-estica { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ============================================================
+   HTML Calendário
+   Grade fixa de 6 semanas por 7 dias: a altura do visual manda, sem rolagem.
+   ============================================================ */
+.graf--calendario { height: var(--graf-altura, 405px); }
+.graf-calendario { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 8px 10px; color: var(--text-primary); }
+.graf-calendario__nav { display: flex; align-items: center; flex: 0 0 auto; gap: 6px; }
+.graf-calendario__seta {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 22px; height: 22px; padding: 0;
+  border: 1px solid var(--neutro-200); border-radius: 9999px; background: var(--branco); cursor: pointer;
+  font-family: var(--font); font-size: 14px; line-height: 1; color: var(--brand-title);
+}
+.graf-calendario__seta:hover { border-color: var(--verde-500); background: var(--verde-50); }
+.graf-calendario__mes { margin: 0 4px; font-family: var(--font-label); font-size: 13px; font-weight: 700; color: var(--brand-title); }
+.graf-calendario__hoje {
+  height: 22px; margin-left: auto; padding: 0 10px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); cursor: pointer; font-family: var(--font); font-size: 9.5px; font-weight: 600; color: var(--neutro-600);
+}
+.graf-calendario__hoje:hover { border-color: var(--verde-500); background: var(--verde-50); color: var(--brand-title); }
+.graf-calendario__seta:focus-visible, .graf-calendario__hoje:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-calendario__semana { display: grid; grid-template-columns: repeat(7, 1fr); flex: 0 0 auto; gap: 3px; margin-top: 6px; }
+.graf-calendario__semana span {
+  padding: 2px 0; text-align: center; font-size: 8.5px; font-weight: 700; text-transform: uppercase; color: var(--neutro-400);
+}
+.graf-calendario__grade {
+  display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(6, 1fr);
+  flex: 1; min-height: 0; gap: 3px; margin-top: 2px;
+}
+.graf-calendario__dia {
+  position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: 3px 5px 4px;
+  border: 1px solid var(--neutro-100); border-radius: 6px; background: var(--branco);
+  animation: graf-calendario-entra .2s ease both;
+}
+.graf-calendario__dia.is-fora {
+  border-color: color-mix(in srgb, var(--neutro-100) 55%, var(--branco));
+  background: color-mix(in srgb, var(--neutro-100) 20%, var(--branco)); color: var(--neutro-200);
+}
+.graf-calendario__dia.is-fim-de-semana { background: color-mix(in srgb, var(--neutro-100) 35%, var(--branco)); }
+.graf-calendario__dia.is-vencido {
+  border-color: color-mix(in srgb, var(--erro-500) 14%, var(--branco));
+  background: color-mix(in srgb, var(--erro-500) 6%, var(--branco));
+}
+.graf-calendario__dia.is-hoje {
+  border-color: var(--verde-500); box-shadow: inset 0 0 0 1px var(--verde-500);
+  background: color-mix(in srgb, var(--verde-500) 5%, var(--branco));
+}
+.graf-calendario__numero { font-size: 10.5px; font-weight: 700; }
+.graf-calendario__selo {
+  position: absolute; top: 3px; right: 4px; min-width: 15px; padding: 0 4px; border-radius: 9999px;
+  background: var(--tom); text-align: center; font-size: 8px; font-weight: 700; line-height: 14px; color: var(--branco);
+}
+/* O selo "no prazo" é o verde da marca; a barrinha usa o verde de estado. */
+.graf-calendario__selo.is-tom-ok { background: var(--verde-500); }
+.graf-calendario__barra {
+  display: flex; margin-top: auto; height: 3px; border-radius: 3px; overflow: hidden; background: var(--neutro-100);
+}
+.graf-calendario__barra i { display: block; }
+/* A legenda do graficos.css é posicionada por cima da barra de cima; aqui ela
+   entra no fluxo, embaixo da grade. */
+.graf-calendario__legenda {
+  position: static; transform: none; flex: 0 0 auto; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 6px;
+}
+
+@keyframes graf-calendario-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* ============================================================
+   Galeria
+   Um cartão por vez, o texto que rola quando é longo, as setas e os pontos.
+   ============================================================ */
+.graf--galeria { height: var(--graf-altura, 420px); }
+.graf-galeria {
+  display: flex; flex-direction: column; align-items: center; flex: 1; min-height: 0; overflow: hidden; padding: 8px;
+  font-family: var(--font);
+}
+.graf-galeria__contador {
+  align-self: flex-start; flex-shrink: 0; padding: 0 0 6px;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--verde-500);
+}
+.graf-galeria__area { flex: 1; width: 100%; min-height: 0; overflow: hidden; border-radius: 14px; }
+.graf-galeria__trilho { display: flex; height: 100%; transition: transform .4s cubic-bezier(.4, 0, .2, 1); }
+.graf-galeria__cartao {
+  display: flex; flex-direction: column; min-width: 100%; height: 100%; padding: 16px 20px; overflow: hidden;
+  border: 1px solid var(--borda); border-radius: 14px; background: var(--branco);
+}
+.graf-galeria__cab { flex-shrink: 0; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--neutro-100); }
+.graf-galeria__titulo {
+  margin-bottom: 4px; font-size: 16px; font-weight: 700; line-height: 1.3; color: var(--brand-title);
+  word-break: break-word; overflow-wrap: break-word;
+}
+.graf-galeria__campo { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.graf-galeria__campo b { font-weight: 700; color: var(--neutro-800); }
+.graf-galeria__corpo {
+  flex: 1; min-height: 0; padding: 4px; overflow-y: auto; white-space: normal;
+  font-size: 14px; line-height: 1.6; color: var(--neutro-600); word-break: break-word; overflow-wrap: break-word;
+}
+.graf-galeria__corpo.is-vazio { font-style: italic; color: var(--neutro-300); }
+.graf-galeria__nav { display: flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 16px; padding: 8px 0 2px; }
+.graf-galeria__seta {
+  display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
+  border: 1.5px solid var(--neutro-200); border-radius: 50%; background: var(--branco); cursor: pointer; user-select: none;
+  transition: all .2s;
+}
+.graf-galeria__seta:hover { border-color: var(--verde-500); background: var(--verde-50); transform: scale(1.1); }
+.graf-galeria__seta:active { background: var(--verde-100); transform: scale(.95); }
+.graf-galeria__seta:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-galeria__seta svg {
+  width: 14px; height: 14px; fill: none; stroke: var(--neutro-600); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+}
+.graf-galeria__seta:hover svg { stroke: var(--verde-500); }
+.graf-galeria__pontos { display: flex; align-items: center; gap: 6px; }
+.graf-galeria__ponto { width: 6px; height: 6px; border-radius: 50%; background: var(--neutro-200); transition: all .3s; }
+.graf-galeria__ponto.is-ativo { width: 18px; border-radius: 3px; background: var(--verde-500); }
+
+/* ============================================================
+   Formulário de Cards
+   A lista de cartões pequenos com a busca no alto; tocar num cartão troca a
+   lista pelo detalhe, com a barra Voltar no lugar da busca.
+   ============================================================ */
+.graf--formulario-cards { height: var(--graf-altura, 620px); }
+.graf-fc { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
+/* Barra Voltar */
+.graf-fc__voltar {
+  display: flex; align-items: center; flex: 0 0 auto; gap: 8px; width: 100%; padding: 8px 14px;
+  border: none; border-bottom: 2px solid var(--neutro-100); background: var(--neutro-50); cursor: pointer;
+  text-align: left; font-family: var(--font);
+}
+.graf-fc__voltar[hidden] { display: none; }
+.graf-fc__voltar:hover { background: var(--verde-50); }
+.graf-fc__voltar:focus-visible { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+.graf-fc__voltar-seta {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px;
+  border-radius: 8px; background: var(--brand-title); color: var(--branco);
+}
+.graf-fc__voltar-rotulo { font-size: 12px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--brand-title); }
+.graf-fc__voltar-codigo { margin-left: 4px; font-size: 12px; color: var(--text-secondary); }
+
+/* Conteúdo e lista */
+.graf-fc__conteudo {
+  display: flex; flex-direction: column; align-items: center; flex: 1; min-height: 0; gap: 12px; padding: 10px; overflow-y: auto;
+}
+.graf-fc__lista { display: flex; flex-direction: column; width: 100%; max-width: 560px; gap: 10px; }
+.graf-fc__mini {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 16px;
+  border: 1px solid var(--borda); border-radius: 12px; background: var(--branco); box-shadow: var(--shadow-hover);
+  cursor: pointer; text-align: left; font-family: var(--font); color: var(--text-primary);
+  transition: box-shadow .2s, transform .15s;
+}
+.graf-fc__mini[hidden] { display: none; }
+.graf-fc__mini:hover { box-shadow: 0 6px 18px 0 color-mix(in srgb, var(--brand-title) 12%, transparent); transform: translateY(-1px); }
+.graf-fc__mini:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-fc__mini-esq { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 3px; }
+.graf-fc__mini-titulo {
+  font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--brand-title);
+}
+.graf-fc__mini-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+.graf-fc__mini-dir { display: flex; align-items: center; flex-shrink: 0; gap: 8px; }
+.graf-fc__status, .graf-fc__pilula {
+  padding: 3px 10px; border-radius: 20px; background: var(--tom-fundo); font-size: 11px; font-weight: 700; color: var(--tom-texto);
+}
+.graf-fc__status { white-space: nowrap; }
+.graf-fc__seta { font-size: 18px; font-weight: 700; line-height: 1; color: var(--verde-500); }
+
+/* Detalhe */
+.graf-fc__detalhe { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 12px; padding: 10px 0; }
+.graf-fc__detalhe[hidden] { display: none; }
+.graf-fc__detalhe-cartao {
+  display: flex; flex-direction: column; width: 100%; max-width: 560px;
+  border: 1px solid var(--borda); border-radius: 16px; background: var(--branco); box-shadow: var(--shadow-hover);
+}
+.graf-fc__cabecalho {
+  display: flex; flex-direction: column; gap: 3px; padding: 18px 22px; border-radius: 15px 15px 0 0;
+  background: linear-gradient(135deg, var(--brand-title), var(--verde-500));
+}
+.graf-fc__eyebrow {
+  font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--branco) 70%, transparent);
+}
+.graf-fc__titulo { font-size: 17px; font-weight: 800; letter-spacing: .2px; color: var(--branco); }
+.graf-fc__corpo { display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; }
+.graf-fc__faixa { padding: 12px 16px; border-radius: 10px; background: var(--tom-fundo); color: var(--tom-texto); }
+.graf-fc__faixa-rotulo { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: .85; }
+.graf-fc__faixa-valor { font-size: 13px; font-weight: 800; letter-spacing: .1px; }
+.graf-fc__grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.graf-fc__campo {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px;
+  border: 1px solid var(--borda); border-radius: 10px; background: var(--neutro-50);
+}
+.graf-fc__rotulo { font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--brand-title); }
+.graf-fc__campo-valor { font-size: 13px; font-weight: 700; color: var(--neutro-800); }
+.graf-fc__pilula { align-self: flex-start; display: inline-block; letter-spacing: .2px; }
+.graf-fc__divisor { height: 1px; background: var(--borda); }
+.graf-fc__secao { display: flex; flex-direction: column; gap: 8px; }
+.graf-fc__caixa {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--verde-200) 60%, var(--branco));
+  background: color-mix(in srgb, var(--verde-50) 55%, var(--branco));
+}
+.graf-fc__caixa > .graf-desenho { margin-top: 1px; color: var(--verde-500); }
+.graf-fc__texto { font-size: 12px; font-weight: 500; line-height: 1.6; color: var(--neutro-800); }
+
+/* ============================================================
+   Gráfico de Áreas de Avaliação
+   Os resumos e os botões de ano no alto, e o SVG com as faixas de
+   classificação, a linha suave e os pontos na cor da faixa.
+   ============================================================ */
+.graf--areas-avaliacao { height: var(--graf-altura, 560px); padding: 4px 8px; }
+.graf-areas__cab {
+  display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; gap: 12px; margin-bottom: 4px;
+  animation: graf-areas-sobe .5s cubic-bezier(.22, 1, .36, 1) both;
+}
+.graf-areas__chips { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; }
+.graf-areas__chip {
+  display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 3px 8px;
+  border: 1px solid var(--neutro-100); border-radius: 6px; background: var(--neutro-50);
+}
+.graf-areas__chip-rotulo {
+  font-family: var(--font-label); font-size: 6.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
+  white-space: nowrap; color: var(--neutro-400);
+}
+.graf-areas__chip-valor { font-size: 11px; font-weight: 600; line-height: 1.15; white-space: nowrap; color: var(--text-secondary); }
+.graf-areas__chip.is-destaque { border: none; background: var(--verde-500); }
+.graf-areas__chip.is-destaque .graf-areas__chip-rotulo { color: color-mix(in srgb, var(--branco) 78%, transparent); }
+.graf-areas__chip.is-destaque .graf-areas__chip-valor { color: var(--branco); }
+.graf-areas__chip.is-subiu .graf-areas__chip-valor { color: var(--ok-500); }
+.graf-areas__chip.is-caiu .graf-areas__chip-valor { color: var(--erro-500); }
+
+/* O SVG: rótulos das faixas, valores, meses, área, pontos e o anel do último */
+.graf-areas__zona { font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; opacity: .55; }
+.graf-areas__valor { font-size: 13px; font-weight: 600; animation: graf-areas-aparece .5s ease both; }
+.graf-areas__mes { font-size: 11px; font-weight: 600; letter-spacing: .3px; }
+.graf-areas__area { animation: graf-areas-aparece 1s ease 1.1s both; }
+.graf-areas__ponto {
+  transform-box: fill-box; transform-origin: center;
+  animation: graf-areas-pop .4s cubic-bezier(.22, 1.4, .36, 1) both;
+}
+.graf-areas__anel {
+  transform-box: fill-box; transform-origin: center;
+  animation: graf-areas-anel 1.8s cubic-bezier(.22, 1, .36, 1) 2.2s infinite;
+}
+
+@keyframes graf-areas-sobe { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes graf-areas-aparece { from { opacity: 0; } to { opacity: 1; } }
+@keyframes graf-areas-pop { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@keyframes graf-areas-anel { 0% { opacity: .75; transform: scale(1); } 100% { opacity: 0; transform: scale(2.4); } }
+
+/* ============================================================
+   Tabela formatada
+   A tabela larga com a busca no alto, o cabeçalho em dois níveis, as
+   pílulas, as horas e o mapa de calor dos percentuais.
+   ============================================================ */
+.graf--tabela-formatada { height: var(--graf-altura, 560px); }
+.graf-tabela { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.graf-tabela .graf-busca__campo { font-size: 16px; }
+.graf-tabela .graf-busca__contagem { border-color: var(--neutro-200); font-family: var(--font-label); font-size: 14px; }
+.graf-tabela__rolagem {
+  flex: 1; min-height: 0; overflow: auto; background: var(--branco); box-shadow: 0 4px 16px 0 color-mix(in srgb, var(--neutro-800) 8%, transparent);
+}
+.graf-tabela__tabela { width: 100%; border-collapse: collapse; table-layout: auto; }
+.graf-tabela__tabela thead { position: sticky; top: 0; z-index: 10; }
+.graf-tabela__tabela th {
+  padding: 6px 3px; border-right: 1px solid color-mix(in srgb, var(--branco) 15%, transparent);
+  font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: .3px; line-height: 1.3;
+  text-align: center; vertical-align: middle; white-space: normal; color: var(--branco);
+}
+.graf-tabela__tabela th:last-child { border-right: none; }
+.graf-tabela__colunas { background: linear-gradient(135deg, var(--brand-title) 0%, var(--verde-500) 100%); }
+.graf-tabela__tabela .graf-tabela__grupo {
+  padding: 5px 6px; border-right: none; border-bottom: 2px solid var(--verde-500); background: var(--verde-50);
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--brand-title);
+}
+.graf-tabela__tabela .graf-tabela__grupo.is-inicio-de-grupo { border-left: 2px solid color-mix(in srgb, var(--verde-500) 25%, transparent); }
+.graf-tabela__tabela .graf-tabela__grupo.is-total {
+  border-bottom-color: var(--brand-title); background: color-mix(in srgb, var(--verde-100) 70%, var(--verde-200)); letter-spacing: .8px;
+}
+.graf-tabela__tabela .graf-tabela__grupo.is-total.is-inicio-de-grupo { border-left-color: color-mix(in srgb, var(--brand-title) 25%, transparent); }
+.graf-tabela__tabela td.is-inicio-de-grupo { border-left: 2px solid color-mix(in srgb, var(--frio-300) 55%, var(--branco)); }
+
+.graf-tabela__tabela td {
+  padding: 4px 5px; border-bottom: 1px solid var(--neutro-100); text-align: center; vertical-align: middle; white-space: nowrap;
+  font-size: 12px; color: var(--text-primary);
+}
+.graf-tabela__linha { animation: graf-tabela-entra .28s ease var(--graf-atraso, 0ms) both; }
+.graf-tabela__linha:nth-child(even) td { background: color-mix(in srgb, var(--neutro-50) 60%, var(--branco)); }
+.graf-tabela__linha.is-destaque td { background: var(--warn-50); }
+.graf-tabela__tabela td.graf-tabela__td-texto { min-width: 90px; white-space: normal; word-break: break-word; }
+.graf-tabela__tabela td.graf-tabela__td-texto:first-child { min-width: 110px; font-weight: 500; }
+.graf-tabela__tabela td.graf-tabela__td-percentual { padding: 2px; }
+
+/* Pílulas de categoria, horas em H:MM e percentuais com fundo de mapa de calor */
+.graf-tabela__categoria, .graf-tabela__hora {
+  display: inline-block; border: 1px solid color-mix(in srgb, var(--tom) 45%, transparent); border-radius: 9999px;
+  background: var(--tom-fundo); white-space: nowrap;
+}
+.graf-tabela__categoria { padding: 2px 7px; font-family: var(--font-label); font-size: 11px; font-weight: 700; color: var(--tom-texto); }
+.graf-tabela__hora { padding: 2px 6px; font-family: var(--font); font-size: 12px; font-weight: 600; color: var(--tom); }
+.graf-tabela__hora.is-tom-vazio { border-color: var(--neutro-200); background: var(--frio-50); color: var(--neutro-600); }
+.graf-tabela__perc {
+  display: inline-block; min-width: 34px; padding: 2px 5px; border-radius: 5px; text-align: center;
+  font-size: 12px; font-weight: 600; color: var(--brand-title);
+  background: color-mix(in srgb, var(--verde-500) calc(var(--intensidade, 0) * 1%), transparent);
+  transition: background .35s, color .35s;
+}
+.graf-tabela__perc.is-vazio { background: none; color: var(--neutro-300); }
+.graf-tabela__perc.is-forte { color: var(--branco); }
+.graf-tabela__perc.is-total, .graf-tabela__perc.is-aviso, .graf-tabela__perc.is-excesso { min-width: 40px; font-size: 13px; font-weight: 700; }
+.graf-tabela__perc.is-total { background: color-mix(in srgb, var(--brand-title) calc(var(--intensidade, 0) * 1%), transparent); }
+.graf-tabela__perc.is-excesso { background: color-mix(in srgb, var(--erro-500) calc(var(--intensidade, 0) * 1%), transparent); }
+.graf-tabela__perc.is-aviso { background: color-mix(in srgb, var(--warn-500) 22%, transparent); color: var(--warn-800); }
+
+.graf-tabela__rodape {
+  display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding: 6px 14px;
+  border-top: 1px solid var(--neutro-100); border-radius: 0 0 var(--r-md) var(--r-md); background: var(--neutro-50);
+}
+.graf-tabela__contagem, .graf-tabela__rodape-texto { font-family: var(--font-label); font-size: 13px; color: var(--text-secondary); }
+.graf-tabela__contagem span { font-weight: 700; color: var(--brand-title); }
+.graf-tabela__rodape-texto { font-weight: 700; color: var(--verde-500); }
+
+@keyframes graf-tabela-entra { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ============================================================
+   Tabela Formata 2
+   O mapa de funções: um bloco de medidas (Prev, Real, Rem, Contr.) por
+   grupo, o Total no cabeçalho e, por linha, o ponto de saúde e a barrinha
+   de avanço.
+   ============================================================ */
+.graf--tabela-formatada-2 { height: var(--graf-altura, 560px); }
+.graf-tabela2 { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.graf-tabela2__rolagem { flex: 1; min-height: 0; padding: 10px; overflow: auto; }
+.graf-tabela2__tabela {
+  width: 100%; min-width: 1000px; border-collapse: collapse; table-layout: fixed; font-size: 11px;
+}
+.graf-tabela2__grupos th {
+  height: 20px; padding: 0 3px; text-align: center; vertical-align: middle;
+  background: linear-gradient(135deg, var(--verde-500) 0%, var(--verde-600) 100%);
+  font-family: var(--font-label); font-size: 10.5px; font-weight: 700; letter-spacing: 1px; line-height: 1.15;
+  text-transform: uppercase; color: var(--branco);
+}
+.graf-tabela2__grupos th.graf-tabela2__primeira-coluna { padding-left: 12px; text-align: left; }
+.graf-tabela2__medidas th {
+  height: 26px; padding: 0 2px; text-align: center; vertical-align: middle; background: var(--brand-primary);
+  font-family: var(--font-label); font-size: 8.5px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--branco);
+}
+.graf-tabela2__grupos th.is-inicio-de-grupo, .graf-tabela2__medidas th.is-inicio-de-grupo {
+  border-left: 1px solid color-mix(in srgb, var(--branco) 22%, transparent);
+}
+.graf-tabela2__total td {
+  padding: 3px; border-top: 2px solid var(--verde-500); text-align: center; line-height: 1.15;
+  background: linear-gradient(135deg, var(--brand-primary-hover) 0%, var(--brand-title) 100%);
+  font-family: var(--font-label); font-size: 13px; font-weight: 700; color: var(--branco);
+}
+.graf-tabela2__total td:first-child {
+  padding-left: 12px; text-align: left; font-size: 10px; letter-spacing: 1px; color: color-mix(in srgb, var(--branco) 92%, transparent);
+}
+.graf-tabela2__total td.is-inicio-de-grupo { border-left: 1px solid color-mix(in srgb, var(--branco) 18%, transparent); }
+
+.graf-tabela2__linha { animation: graf-tabela2-entra .34s ease var(--graf-atraso, 0ms) both; }
+.graf-tabela2__linha td {
+  padding: 9px 1px; border-bottom: 1px solid color-mix(in srgb, var(--neutro-800) 7%, transparent); text-align: center;
+  transition: background .16s;
+}
+.graf-tabela2__linha:hover td { background: var(--verde-50); }
+.graf-tabela2__linha td.is-inicio-de-grupo { border-left: 1px solid var(--frio-50); }
+.graf-tabela2__linha td.graf-tabela2__primeira { padding: 8px 10px; text-align: left; transition: background .16s, box-shadow .2s ease; }
+.graf-tabela2__linha:hover td.graf-tabela2__primeira { box-shadow: inset 3px 0 0 var(--verde-500); }
+.graf-tabela2__identificacao { display: flex; align-items: center; gap: 8px; }
+.graf-tabela2__ponto { flex-shrink: 0; width: 8px; height: 8px; border-radius: 9999px; background: var(--tom); }
+.graf-tabela2__nome { font-size: 11.5px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; color: var(--brand-title); }
+.graf-tabela2__subtitulo { display: block; margin-top: 1px; font-size: 9px; font-weight: 500; line-height: 1.1; color: var(--frio-500); }
+.graf-tabela2__avanco { height: 3px; margin: 5px 0 0 16px; border-radius: 9999px; overflow: hidden; background: var(--frio-50); }
+.graf-tabela2__avanco i {
+  display: block; height: 100%; border-radius: 9999px; background: var(--tom, var(--verde-500));
+  animation: graf-tabela2-cresce .9s cubic-bezier(.4, 0, .2, 1) both;
+}
+.graf-tabela2__valor { font-family: var(--font-label); font-size: 13px; font-weight: 700; color: var(--brand-primary-hover); }
+.graf-tabela2__valor.is-realizado { color: var(--verde-500); }
+.graf-tabela2__selo {
+  display: inline-block; min-width: 24px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--tom) 55%, var(--branco));
+  border-radius: 9999px; background: var(--tom-fundo); text-align: center;
+  font-family: var(--font-label); font-size: 12px; font-weight: 700; letter-spacing: .2px; color: var(--tom);
+}
+.graf-tabela2__selo.is-tom-ok { color: var(--ok-800); }
+
+@keyframes graf-tabela2-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes graf-tabela2-cresce { from { width: 0; } }
+
+/* ============================================================
+   Tabela Etapa por etapa
+   A matriz de ações por etapa: o cartão de cada projeto com uma célula por
+   etapa da fase à vista. O visual é um contêiner de consulta (como o
+   original): em largura estreita partes somem, e o mesmo vale para as
+   células, que são contêineres também. Tamanhos de fonte e espaços são os
+   do original, que é denso de propósito.
+   ============================================================ */
+.graf--tabela-etapa-por-etapa { height: var(--graf-altura, 560px); }
+.graf-acoes {
+  position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 10px 14px; overflow: hidden;
+  container-type: inline-size; font-size: 11px; color: var(--text-primary);
+}
+.graf-acoes__cab { display: flex; align-items: center; flex: 0 0 auto; flex-wrap: wrap; gap: 10px 14px; }
+.graf-acoes__titulo { font-size: 17px; font-weight: 600; line-height: 1.15; white-space: nowrap; color: var(--brand-title); }
+.graf-acoes__subtitulo {
+  margin-top: 2px; font-family: var(--font-label); font-size: 8px; font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; white-space: nowrap; color: var(--verde-500);
+}
+.graf-acoes__kpis { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 13px; margin-left: auto; }
+.graf-acoes__kpi { text-align: right; }
+.graf-acoes__kpi b { display: block; font-size: 18px; font-weight: 600; line-height: 1; color: var(--tom); }
+.graf-acoes__kpi.is-tom-vazio b { color: var(--text-secondary); }
+.graf-acoes__kpi span {
+  display: block; margin-top: 3px; font-family: var(--font-label); font-size: 7.5px; font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; white-space: nowrap; color: var(--text-secondary);
+}
+
+/* Abas das fases */
+.graf-acoes__abas { display: flex; flex: 0 0 auto; gap: 2px; margin-left: 12px; padding: 3px; border-radius: 9999px; background: var(--neutro-100); }
+.graf-acoes__abas[hidden] { display: none; }
+.graf-acoes__aba {
+  padding: 5px 12px; border: 0; border-radius: 9999px; background: transparent; cursor: pointer;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; color: var(--text-secondary);
+}
+.graf-acoes__aba:hover { color: var(--brand-title); }
+.graf-acoes__aba.is-ativa { background: var(--verde-500); color: var(--branco); }
+.graf-acoes__aba:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-acoes__aba i { margin-left: 5px; font-size: 8px; font-style: normal; opacity: .7; }
+
+/* Busca e filtros */
+.graf-acoes__filtros {
+  display: flex; align-items: center; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; margin-top: 8px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--neutro-100); overflow: hidden;
+}
+.graf-acoes__busca, .graf-acoes__filtro {
+  flex: 1 1 0; min-width: 0; height: 24px; padding: 4px 8px; border: 1px solid var(--neutro-200); border-radius: 9999px;
+  background: var(--branco); outline: none; text-overflow: ellipsis;
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; color: var(--neutro-600);
+}
+.graf-acoes__busca { flex: 1.6 1 0; padding-left: 11px; font-weight: 400; letter-spacing: 0; }
+.graf-acoes__busca:focus, .graf-acoes__filtro:focus { border-color: var(--verde-500); }
+.graf-acoes__busca::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.graf-acoes__filtro.is-ativo { border-color: var(--verde-500); background: var(--verde-50); color: var(--brand-title); }
+.graf-acoes__filtro option { font-family: var(--font); font-size: 11px; font-weight: 400; text-transform: none; color: var(--text-primary); }
+.graf-acoes__contagem { flex: 0 0 auto; padding-left: 2px; font-size: 9px; white-space: nowrap; color: var(--text-secondary); }
+.graf-acoes__contagem b { font-weight: 700; color: var(--brand-title); }
+
+/* Cabeçalho das etapas e cartões dos projetos */
+.graf-acoes__corpo {
+  flex: 1 1 auto; min-height: 0; padding-top: 5px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable;
+}
+.graf-acoes__colunas, .graf-acoes__grade {
+  display: grid; grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr)); gap: 4px;
+}
+.graf-acoes__colunas { position: sticky; top: 0; z-index: 4; margin-bottom: 4px; padding: 0 9px 5px; background: var(--branco); }
+.graf-acoes__coluna {
+  padding: 4px 2px; border-radius: 4px; background: var(--neutro-50); overflow: hidden; text-align: center;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-label); font-size: 7.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--brand-title);
+}
+.graf-acoes__cartao {
+  position: relative; margin-bottom: 4px; padding: 5px 9px; border: 1px solid var(--neutro-100); border-radius: 8px;
+  background: var(--branco); animation: graf-acoes-entra .22s ease both;
+}
+.graf-acoes__cartao::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 8px 0 0 8px; background: var(--tom);
+}
+.graf-acoes__cartao-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; margin-bottom: 4px; }
+.graf-acoes__nome { flex: 0 0 auto; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--brand-title); }
+.graf-acoes__chip {
+  display: inline-flex; align-items: center; flex: 0 0 auto; gap: 4px; padding: 2px 7px; border-radius: 9999px; white-space: nowrap;
+  background: var(--tom-fundo); font-family: var(--font-label); font-size: 7.5px; font-style: normal; font-weight: 600;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--tom-texto);
+}
+.graf-acoes__chip.is-tom-vazio { background: var(--neutro-100); color: var(--neutro-600); }
+.graf-acoes__chip-rotulo { font-size: 6.5px; font-style: normal; opacity: .6; }
+.graf-acoes__ponto { display: block; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 9999px; background: var(--tom); }
+.graf-acoes__progresso { flex: 0 0 auto; width: 56px; height: 4px; margin-left: auto; border-radius: 4px; overflow: hidden; background: var(--neutro-100); }
+.graf-acoes__progresso i { display: block; height: 100%; background: var(--verde-500); }
+.graf-acoes__perc { flex: 0 0 auto; width: 26px; text-align: right; font-size: 9px; font-weight: 600; color: var(--text-secondary); }
+
+/* Célula: a ação mais urgente da etapa */
+.graf-acoes__celula {
+  position: relative; min-width: 0; padding: 3px 5px; border: 1px solid var(--neutro-100); border-radius: 6px;
+  background: var(--branco); container-type: inline-size;
+}
+.graf-acoes__celula:not(.is-vazia):hover { border-color: var(--verde-500); }
+.graf-acoes__celula:focus-within { border-color: var(--verde-500); }
+.graf-acoes__celula.is-vazia { border-style: dashed; background: color-mix(in srgb, var(--neutro-100) 35%, var(--branco)); }
+.graf-acoes__botao {
+  display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font); font-size: inherit; color: inherit;
+}
+.graf-acoes__botao:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-acoes__qtd {
+  position: absolute; top: -5px; right: -4px; padding: 1px 5px; border-radius: 9999px; background: var(--brand-title);
+  font-size: 7px; font-weight: 600; line-height: 1.5; color: var(--branco);
+}
+.graf-acoes__linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 4px; min-width: 0; line-height: 11px;
+}
+.graf-acoes__linha i {
+  flex: 0 0 auto; font-family: var(--font-label); font-size: 6.5px; font-style: normal; font-weight: 600; letter-spacing: .5px;
+  text-transform: uppercase; white-space: nowrap; color: var(--neutro-400);
+}
+.graf-acoes__linha b {
+  min-width: 0; font-size: 9.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);
+}
+.graf-acoes__linha.is-concluida b { color: var(--text-secondary); }
+.graf-acoes__pilula {
+  display: flex; align-items: center; gap: 4px; min-width: 0; margin-top: 2px; padding: 1px 5px; border-radius: 9999px;
+  background: var(--tom-fundo); color: var(--tom-texto);
+}
+.graf-acoes__pilula.is-tom-vazio { color: var(--neutro-400); }
+.graf-acoes__pilula span, .graf-acoes__desvio, .graf-acoes__comentario {
+  font-size: 8px; font-weight: 600; line-height: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.graf-acoes__desvio { display: block; margin-top: 2px; }
+.graf-acoes__desvio.is-tom-erro { color: var(--erro-500); }
+.graf-acoes__desvio.is-tom-ok { color: var(--ok-800); }
+.graf-acoes__desvio.is-tom-alerta { color: var(--warn-700); }
+.graf-acoes__desvio.is-tom-neutro { color: var(--text-secondary); }
+.graf-acoes__desvio.is-tom-vazio { color: var(--neutro-300); }
+.graf-acoes__comentario {
+  display: block; margin-top: 2px; padding-left: 5px; border-left: 2px solid var(--verde-200);
+  font-style: italic; font-weight: 400; color: var(--text-secondary);
+}
+.graf-acoes__vazio {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; padding: 36px;
+  font-size: 12px; color: var(--text-secondary);
+}
+.graf-acoes__vazio i { width: 28px; height: 28px; border: 2px solid var(--neutro-200); border-radius: 50%; }
+
+/* Rodapé: legenda e resumo da fase */
+.graf-acoes__rodape {
+  display: flex; align-items: center; flex: 0 0 auto; flex-wrap: wrap; gap: 12px; margin-top: 4px; padding-top: 6px;
+  border-top: 1px solid var(--neutro-100);
+}
+.graf-acoes__legenda { display: contents; }
+.graf-acoes__leg { display: flex; align-items: center; gap: 4px; font-size: 9px; white-space: nowrap; color: var(--text-secondary); }
+.graf-acoes__resumo { margin-left: auto; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+
+/* Detalhe das ações da célula, sobre o próprio visual */
+.graf-acoes__sombra {
+  position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 14px;
+  background: color-mix(in srgb, var(--text-primary) 45%, transparent);
+}
+.graf-acoes__sombra[hidden] { display: none; }
+.graf-acoes__dialogo {
+  width: 1680px; max-width: 100%; max-height: 100%; padding: 16px 24px; border-radius: var(--r-md); overflow-y: auto;
+  background: var(--branco); box-shadow: var(--shadow-hover); animation: graf-acoes-entra .18s ease both;
+}
+.graf-acoes__m-titulo { font-size: 15px; font-weight: 600; color: var(--brand-title); }
+.graf-acoes__fechar {
+  float: right; padding: 0; border: 0; background: none; cursor: pointer; font-family: var(--font); font-size: 19px; line-height: 1;
+  color: var(--neutro-300);
+}
+.graf-acoes__fechar:hover { color: var(--text-secondary); }
+.graf-acoes__fechar:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-acoes__m-sub {
+  margin: 3px 0 9px; padding-bottom: 9px; border-bottom: 1px solid var(--neutro-100); font-size: 10.5px; color: var(--text-secondary);
+}
+.graf-acoes__acao { padding: 9px 0; border-bottom: 1px solid var(--neutro-100); }
+.graf-acoes__acao:last-child { border-bottom: 0; }
+.graf-acoes__acao-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 5px; }
+.graf-acoes__acao-cab > b {
+  font-family: var(--font-label); font-size: 8px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--neutro-400);
+}
+.graf-acoes__acao-cab .graf-acoes__desvio { margin-top: 0; font-size: 10px; line-height: normal; }
+.graf-acoes__justificativa { font-size: 12px; line-height: 1.45; color: var(--text-primary); }
+.graf-acoes__justificativa.is-vazia { color: var(--neutro-300); }
+.graf-acoes__dados { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 5px; font-size: 10px; color: var(--text-secondary); }
+.graf-acoes__dados b { font-weight: 600; color: var(--text-primary); }
+
+@keyframes graf-acoes-entra { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+@container (max-width: 900px) {
+  .graf-acoes__subtitulo, .graf-acoes__contagem, .graf-acoes__leg { display: none; }
+  .graf-acoes__kpis { gap: 9px; }
+  .graf-acoes__kpi b { font-size: 15px; }
+}
+@container (max-width: 760px) {
+  .graf-acoes__titulo { font-size: 14px; }
+  .graf-acoes__aba { padding: 5px 8px; letter-spacing: 0; }
+  .graf-acoes__kpis { gap: 7px; }
+  .graf-acoes__filtros { flex-wrap: wrap; }
+}
+@container (max-width: 560px) {
+  .graf-acoes__titulos { display: none; }
+}
+@container (max-width: 74px) {
+  .graf-acoes__linha i { display: none; }
+}
+@container (max-width: 52px) {
+  .graf-acoes__linha b { font-size: 8px; }
+  .graf-acoes__pilula { padding: 1px 3px; }
+  .graf-acoes__pilula span, .graf-acoes__desvio, .graf-acoes__comentario { font-size: 7px; }
+}
+
+/* ============================================================
+   Pirâmide de segurança dupla (visual novo)
+   Duas pirâmides lado a lado (mês e acumulado), faixas de altura fixa (44 px,
+   40 px em largura estreita), o nome de cada nível uma vez só na coluna do
+   meio, a proporção real embaixo de cada pirâmide e a de referência no
+   rodapé. A forma de cada faixa é um clip-path (piramide-seguranca.js).
+   ============================================================ */
+.graf--piramide-seguranca { height: auto; }
+.graf-piramide { position: relative; padding: 14px 16px 12px; }
+.graf-piramide__grade { display: grid; align-items: stretch; column-gap: 14px; }
+.graf-piramide__titulo {
+  padding: 0 0 8px; text-align: center; font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--brand-title);
+}
+.graf-piramide__faixa {
+  position: relative; display: flex; align-items: center; justify-content: center; height: 44px; background: var(--cor);
+  box-shadow: inset 0 -2px 0 var(--branco); cursor: default; transition: filter .15s;
+  animation: graf-piramide-entra .6s cubic-bezier(.17, .84, .28, 1) var(--graf-atraso, 0ms) both;
+}
+.graf-piramide__faixa:hover { filter: brightness(1.07); }
+.graf-piramide__numero {
+  font-size: 15px; font-weight: 600; line-height: 1; color: var(--branco);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--neutro-800) 25%, transparent);
+}
+.graf-piramide__faixa.is-zerada .graf-piramide__numero { color: var(--text-secondary); text-shadow: none; }
+.graf-piramide__nivel {
+  display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 4px; white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+}
+.graf-piramide__ponto { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
+.graf-piramide__real { padding: 10px 0 0; text-align: center; font-size: 11px; color: var(--text-secondary); }
+.graf-piramide__real b { font-weight: 600; letter-spacing: .3px; color: var(--text-primary); }
+.graf-piramide__real-rotulo { font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; }
+.graf-piramide__referencia {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--neutro-100); text-align: center; font-size: 11px;
+  color: var(--text-secondary);
+}
+.graf-piramide__referencia b { font-weight: 600; color: var(--brand-title); }
+.graf-piramide[data-faixa-larg~="480"] .graf-piramide__faixa,
+.graf-piramide[data-faixa-larg~="480"] .graf-piramide__nivel { height: 40px; }
+
+@keyframes graf-piramide-entra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ============================================================
+   Cascata de valor do contrato (visual novo)
+   O SVG é montado por cascata-contrato.js; aqui só a entrada: as barras
+   crescem, e os valores aparecem logo depois.
+   ============================================================ */
+.graf--cascata-contrato { height: var(--graf-altura, 460px); }
+.graf-cascata__barra {
+  transform-box: fill-box; transform-origin: 50% 100%;
+  animation: graf-cresce .8s cubic-bezier(.17, .84, .28, 1) var(--graf-atraso, 0ms) both;
+}
+.graf-cascata__valor { animation: fadeIn .5s ease-out var(--graf-atraso, 0ms) both; }
+
+/* ============================================================
+   Rosca de distribuição (visual novo)
+   O anel e a legenda com o valor e a parte de cada fatia. O anel se desenha
+   no sentido horário (rosca.js); passar o ponteiro (ou o foco) numa fatia ou
+   na linha dela realça as duas e esmaece o resto.
+   ============================================================ */
+.graf--rosca { height: auto; }
+.graf-rosca {
+  position: relative; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-xl); padding: 18px 16px;
+}
+.graf-rosca__quadro { flex: 0 0 auto; width: 240px; max-width: 100%; }
+.graf-rosca__anel { display: block; width: 100%; height: auto; overflow: visible; }
+.graf-rosca__fatia { cursor: pointer; }
+.graf-rosca.tem-realce .graf-rosca__fatia { opacity: .35; }
+.graf-rosca.tem-realce .graf-rosca__fatia.is-realce { opacity: 1; stroke-width: 42px; }
+.graf-rosca__total { font-size: 28px; font-weight: 600; fill: var(--brand-title); }
+.graf-rosca__total-rotulo {
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; fill: var(--text-secondary);
+}
+.graf-rosca__legenda {
+  display: flex; flex-direction: column; flex: 1 1 220px; gap: 2px; min-width: 220px; max-width: 360px; margin: 0; padding: 0; list-style: none;
+}
+.graf-rosca__item {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: var(--r-sm); font-size: 12px; transition: background .15s, opacity .15s;
+  animation: graf-sobe .5s ease both;
+}
+.graf-rosca__item:nth-child(2) { animation-delay: .06s; }
+.graf-rosca__item:nth-child(3) { animation-delay: .12s; }
+.graf-rosca__item:nth-child(4) { animation-delay: .18s; }
+.graf-rosca__item:nth-child(5) { animation-delay: .24s; }
+.graf-rosca__item:nth-child(n + 6) { animation-delay: .3s; }
+.graf-rosca__item:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.graf-rosca__item.is-realce { background: var(--neutro-50); }
+.graf-rosca.tem-realce .graf-rosca__item:not(.is-realce) { opacity: .5; }
+.graf-rosca__cor { display: block; width: 10px; height: 10px; border-radius: 2px; }
+.graf-rosca__nome { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.graf-rosca__valor { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.graf-rosca__parte { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+
+/* ============================================================
+   Linhas múltiplas (visual novo)
+   O SVG é montado por linhas-multiplas.js, com a moldura, a legenda e os
+   botões de ano do graficos.css; aqui só os pontos.
+   ============================================================ */
+.graf-linhas__ponto {
+  transform-box: fill-box; transform-origin: center;
+  animation: graf-linhas-pop .4s cubic-bezier(.22, 1.4, .36, 1) .9s both;
+}
+
+@keyframes graf-linhas-pop { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }

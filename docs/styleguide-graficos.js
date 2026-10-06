@@ -315,6 +315,522 @@
     relogios: exemploRelogios,
   };
 
+  /* ---------- Exemplos da ISSUE-016 ---------- */
+
+  /* Soma `dias` a uma data ISO (AAAA-MM-DD): o servidor é quem manda as datas
+     assim. */
+  function somarDias(iso, dias) {
+    const partes = iso.split("-").map(Number);
+    return new Date(Date.UTC(partes[0], partes[1] - 1, partes[2] + dias)).toISOString().slice(0, 10);
+  }
+
+  /* Uma lista de linhas em colunas nomeadas: o exemplo fica em tabela e o JSON
+     que o gráfico recebe, em objetos. */
+  function emObjetos(nomes, linhas) {
+    return linhas.map(function (linha) {
+      const objeto = {};
+      nomes.forEach(function (nome, i) {
+        objeto[nome] = linha[i];
+      });
+      return objeto;
+    });
+  }
+
+  /* As 14 atividades do original (cronograma 2026 e 2027): WBS, nome, início,
+     término, término da linha de base, concluída, crítica, fora do prazo,
+     avanço (%) e situação. */
+  const ATIVIDADES_DO_GANTT = [
+    ["1.1", "Mobilização de canteiro", "2026-02-02", "2026-02-27", "2026-03-06", true, false, false, 100, ["No prazo", "ok"]],
+    ["1.2", "Levantamento topográfico e geotécnico", "2026-02-16", "2026-03-27", null, true, false, false, 100, ["No prazo", "ok"]],
+    ["1.3", "Licenciamento ambiental", "2026-02-23", "2026-05-08", "2026-04-24", false, false, false, 78, ["Alerta", "alerta"]],
+    ["1.4", "Estudos de viabilidade técnica", "2026-03-02", "2026-04-17", "2026-04-17", true, false, false, 100, ["No prazo", "ok"]],
+    ["2.1", "Fundação e estruturas de concreto", "2026-03-09", "2026-07-30", "2026-06-30", false, true, true, 82, ["Atrasado", "erro"]],
+    ["2.2", "Estruturas metálicas da planta", "2026-04-20", "2026-09-21", "2026-08-31", false, true, true, 46, ["Atrasado", "erro"]],
+    ["2.3", "Coberturas e fechamentos", "2026-05-25", "2026-10-14", "2026-09-30", false, false, false, 18, ["Alerta", "alerta"]],
+    ["3.1", "Montagem eletromecânica", "2026-06-01", "2026-11-30", "2026-11-15", false, true, false, 12, ["Alerta", "alerta"]],
+    ["3.2", "Tubulações industriais", "2026-06-15", "2026-12-15", "2026-12-22", false, false, false, 6, ["No prazo", "ok"]],
+    ["4.1", "Sala de controle e automação", "2026-08-03", "2026-12-18", null, false, false, false, 5, ["No prazo", "ok"]],
+    ["4.2", "Comissionamento da unidade", "2026-10-05", "2027-01-08", "2026-12-22", false, true, false, 0, ["Alerta", "alerta"]],
+    ["5.1", "Testes e partida operacional", "2026-11-09", "2026-12-30", null, false, false, false, 0, ["Em dia", "ok"]],
+    ["5.2", "Treinamento e documentação as-built", "2026-11-30", "2027-01-29", "2027-01-29", false, false, false, 0, ["No prazo", "ok"]],
+    ["6.1", "Suporte pós-entrega", "2027-01-04", "2027-01-29", null, false, false, false, 0, ["No prazo", "ok"]],
+  ];
+
+  function exemploGantt() {
+    const atividades = emObjetos(
+      ["wbs", "nome", "inicio", "fim", "base_fim", "concluida", "critica", "atrasada", "avanco", "situacao"],
+      ATIVIDADES_DO_GANTT,
+    ).map(function (atividade) {
+      return Object.assign({ id: atividade.wbs }, atividade, { situacao: { rotulo: atividade.situacao[0], papel: atividade.situacao[1] } });
+    });
+    return { titulo: "Cronograma de atividades, exemplo", hoje: "2026-08-05", atividades: atividades };
+  }
+
+  function exemploCalendario() {
+    return {
+      titulo: "Calendário de ações, exemplo",
+      hoje: "2026-02-26",
+      mes: { ano: 2026, mes: 2 },
+      situacoes: [
+        { id: "no_prazo", rotulo: "No prazo", papel: "ok" },
+        { id: "atencao", rotulo: "Atenção", papel: "alerta" },
+        { id: "atrasada", rotulo: "Atrasada", papel: "erro" },
+      ],
+      dias: [
+        { data: "2026-02-03", valores: { no_prazo: 2 } },
+        { data: "2026-02-05", valores: { atencao: 1 } },
+        { data: "2026-02-09", valores: { no_prazo: 2, atencao: 1 } },
+        { data: "2026-02-11", valores: { atrasada: 1 } },
+        { data: "2026-02-17", valores: { atencao: 2 } },
+        { data: "2026-02-20", valores: { no_prazo: 1 } },
+        { data: "2026-02-25", valores: { atrasada: 1 } },
+        { data: "2026-02-26", valores: { no_prazo: 1 } },
+        { data: "2026-02-27", valores: { no_prazo: 2 } },
+      ],
+    };
+  }
+
+  function exemploGaleria() {
+    const restricoes = [
+      ["Projeto Alfa - Liberação de área civil", "Mariana Costa", "Status: Atrasado (12/03/2026). Área civil pendente de laudo geotécnico. Avanço 45%. Valor em risco R$ 1.240.000,00. Aguardando ART do responsável técnico."],
+      ["Projeto Beta - Fornecimento de válvulas", "Ricardo Alves", "Status: Em alerta (28/02/2026). Fornecedor com atraso de 15 dias na entrega. Avanço 70%. Impacto estimado R$ 380.500,00 no cronograma de montagem."],
+      ["Projeto Gama - Ensaio hidrostático", "Fernanda Lima", "Status: Em dia (05/04/2026). Ensaio agendado após conclusão da soldagem. Avanço 88%. Sem restrições financeiras. Valor do pacote R$ 520.000,00."],
+      ["Projeto Delta - Comissionamento elétrico", "Carlos Menezes", "Status: Backlog (prev. 20/05/2026). Aguardando energização da subestação. Avanço 10%. Depende de liberação da concessionária. Valor R$ 2.100.000,00."],
+      ["Projeto Alfa - Montagem de tubulação", "", "Status: Concluído (18/01/2026). Pacote finalizado dentro do prazo. Avanço 100%. Valor realizado R$ 640.000,00. Sem restrições remanescentes."],
+    ];
+    return {
+      titulo: "Restrições do 6WLA, exemplo",
+      contador: "Restrições",
+      rotulos: { semValor: "Não atribuído" },
+      itens: restricoes.map(function (restricao) {
+        return { titulo: restricao[0], meta: [{ rotulo: "Responsável", valor: restricao[1] }], texto: restricao[2] };
+      }),
+    };
+  }
+
+  function exemploFormularioCards() {
+    const categorias = { A: "alerta", B: "atencao", C: "ok", D: "erro" };
+    const situacoes = {
+      andamento: { rotulo: "Em andamento", papel: "alerta" },
+      atrasado: { rotulo: "Atrasado", papel: "atencao" },
+      nao_iniciado: { rotulo: "Não iniciado", papel: "info" },
+    };
+    const sim = { rotulo: "Sim", papel: "ok" };
+    const nao = { rotulo: "Não", papel: "erro" };
+    const registros = [
+      ["PRJ-001", "B", "andamento", "Carlos Lima", "2026-09-12", nao, "Inspeção de integridade dos dutos da unidade de ácido, com emissão de relatório dos reparos identificados."],
+      ["PRJ-002", "A", "atrasado", "Ana Souza", "2026-07-30", sim, "Revisão do laudo GCMS dos tanques T-301 e T-302 para liberação da operação."],
+      ["PRJ-003", "C", "andamento", "Mariana Costa", "2026-10-18", nao, "Manutenção preventiva das bombas P-204 A/B, incluindo troca de selos mecânicos e alinhamento."],
+      ["PRJ-004", "D", "nao_iniciado", "Roberto Neves", "2026-11-15", nao, "Comissionamento da subestação SE-2 e testes de energização do painel elétrico principal."],
+    ];
+    return {
+      titulo: "Registros de formulários, exemplo",
+      itens: registros.map(function (r) {
+        return {
+          id: r[0],
+          titulo: r[0],
+          subtitulo: "Categoria " + r[1],
+          situacao: situacoes[r[2]],
+          faixa: { rotulo: "Subcategoria", valor: "Categoria " + r[1], papel: categorias[r[1]] },
+          campos: [
+            { rotulo: "Responsável", valor: r[3] },
+            { rotulo: "Status", situacao: situacoes[r[2]] },
+            { rotulo: "Data de término", data: r[4] },
+            { rotulo: "Área", situacao: r[5] },
+          ],
+          secoes: [{ rotulo: "Descrição", texto: r[6] }],
+        };
+      }),
+    };
+  }
+
+  /* Seis meses de 2025 e os doze de 2026 do original (jan/26 68,4 a dez/26
+     94,6): com dois anos, os botões de ano aparecem. */
+  const NOTAS_DAS_AREAS = {
+    2025: [61.5, 63.8, 62.4, 65.9, 66.7, 67.2],
+    2026: [68.4, 71.2, 69.8, 73.5, 76.1, 79.9, 82.4, 85.7, 88.2, 90.3, 92.8, 94.6],
+  };
+
+  function exemploAreas() {
+    const pontos = [];
+    Object.keys(NOTAS_DAS_AREAS).forEach(function (ano) {
+      const notas = NOTAS_DAS_AREAS[ano];
+      notas.forEach(function (valor, i) {
+        pontos.push({ ano: Number(ano), mes: 12 - notas.length + i + 1, valor: valor });
+      });
+    });
+    return {
+      titulo: "Desempenho da contratada, exemplo",
+      unidade: "%",
+      casas: 1,
+      meta: 90,
+      zonas: [
+        { de: 0, rotulo: "Não aceitável", papel: "erro" },
+        { de: 70, rotulo: "Insuficiente", papel: "alerta" },
+        { de: 81, rotulo: "Bom", papel: "marca" },
+        { de: 90, rotulo: "Muito bom", papel: "ok" },
+      ],
+      pontos: pontos,
+    };
+  }
+
+  /* As nove linhas do original: colaborador, cargo, portfólio, tipo de rateio,
+     horas em projeto e horas indiretas (em minutos), os dez percentuais por
+     portfólio e o total. */
+  const COLABORADORES = [
+    ["Ana Souza", "Engenheira de Planejamento", "Refinaria", "Específico", 8520, 720, [0, 0, 0, 20, 60, 0, 10, 10, 0, 0], 100],
+    ["Carlos Lima", "Técnico de Manutenção", "Impoundment", "Geral", 9930, 270, [40, 35, 15, 0, 0, 0, 0, 0, 5, 5], 100],
+    ["Mariana Costa", "Inspetora de Qualidade", "Smelter", "Timesheet", 10200, 0, [0, 0, 0, 0, 0, 100, 0, 0, 0, 0], 100],
+    ["Roberto Neves", "Coordenador de Projetos", "Porto", "Específico", 5280, 1920, [0, 0, 0, 0, 0, 20, 25, 55, 0, 0], 100],
+    ["Fernanda Alves", "Analista de Contratos", "Pae", "Baseload", 9480, 600, [0, 10, 0, 0, 10, 0, 80, 0, 0, 0], 100],
+    ["Paulo Mendes", "Engenheiro de Processos", "Refinaria", "Específico", 7830, 960, [0, 0, 0, 35, 45, 0, 0, 0, 0, 20], 100],
+    ["Juliana Rocha", "Assistente Administrativa", "Engenharia", "Geral", 5700, 2700, [0, 50, 50, 0, 0, 0, 0, 0, 0, 0], 100],
+    ["Thiago Nunes", "Supervisor de Operações", "Smelter", "Timesheet", 10470, 120, [0, 0, 0, 0, 0, 70, 10, 20, 0, 0], 100],
+    ["Beatriz Ramos", "Arquiteta Corporativa", "Pae", "Baseload", 8880, 720, [0, 0, 0, 0, 0, 0, 90, 0, 0, 0], 90],
+  ];
+  const PORTFOLIOS_DO_RATEIO = [
+    "Impoundment Eng Phase", "Impoundments Plant", "Impoundments Arbs", "Refinaria Especial", "Refinaria", "Smelter", "Pae", "Porto", "Arb 10", "Arb 11",
+  ];
+
+  function exemploTabelaFormatada() {
+    const percentuais = PORTFOLIOS_DO_RATEIO.map(function (rotulo, i) {
+      return { id: "p" + i, rotulo: rotulo, tipo: "percentual" };
+    });
+    const colunas = [
+      { id: "nome", rotulo: "Colaborador" },
+      { id: "cargo", rotulo: "Cargo" },
+      { id: "portfolio", rotulo: "Portfólio", tipo: "categoria" },
+      { id: "tipo", rotulo: "Tipo de rateio", tipo: "categoria" },
+      {
+        id: "horas",
+        rotulo: "Horas em projeto",
+        tipo: "hhmm",
+        faixas: [{ ate: 6000, papel: "atencao" }, { ate: 9000, papel: "alerta" }, { ate: 10081, papel: "vazio" }, { papel: "comprometido" }],
+      },
+      { id: "indiretas", rotulo: "Horas indiretas", tipo: "hhmm", papel: "neutro" },
+    ]
+      .concat(percentuais)
+      .concat([{ id: "total", rotulo: "Total", tipo: "percentual", esperado: 100 }]);
+    const linhas = COLABORADORES.map(function (c) {
+      const linha = { nome: c[0], cargo: c[1], portfolio: c[2], tipo: c[3], horas: c[4], indiretas: c[5], total: c[7] };
+      c[6].forEach(function (valor, i) {
+        linha["p" + i] = valor;
+      });
+      return linha;
+    });
+    return {
+      titulo: "Rateio de colaboradores, exemplo",
+      rodape: "Rateio de colaboradores · Med Parc",
+      rotulos: { buscar: "Pesquisar colaborador, cargo, portfólio..." },
+      grupos: [
+        { rotulo: "Dados de medição", colunas: 6 },
+        { rotulo: "Rateio por portfólio", colunas: 10 },
+        { rotulo: "Total", colunas: 1, total: true },
+      ],
+      colunas: colunas,
+      linhas: linhas,
+    };
+  }
+
+  /* As linhas do mapa de funções do original: previsto, realizado e contratado
+     por função (PC, Pl, Ld, Co) e nas vagas diversas. */
+  const FUNCOES_DO_MAPA = [
+    { id: "pc", rotulo: "Project Control" },
+    { id: "pl", rotulo: "Planejador" },
+    { id: "ld", rotulo: "Líder de projetos" },
+    { id: "co", rotulo: "Coord. Portfólio" },
+    { id: "vd", rotulo: "Vagas diversas" },
+  ];
+  /* Por linha: nome, subtítulo, e [previsto, realizado, contratado] de cada função. */
+  const LINHAS_DO_MAPA = [
+    ["Refinaria", null, [[6, 6, 0], [5, 4, 2], [3, 3, 0], [2, 1, 1], [0, 0, 0]]],
+    ["Smelter", null, [[4, 4, 0], [4, 2, 3], [2, 1, 2], [2, 0, 2], [3, 1, 2]]],
+    ["Impoundment", null, [[3, 3, 0], [3, 1, 1], [2, 2, 0], [1, 1, 0], [2, 2, 0]]],
+    ["PAE", null, [[4, 2, 4], [3, 3, 0], [1, 0, 1], [1, 1, 0], [3, 2, 1]]],
+    ["Porto", null, [[2, 1, 1], [2, 2, 0], [1, 0, 0], [1, 1, 0], [2, 1, 1]]],
+    ["Outros", "Suporte e construção", [[1, 1, 0], [1, 0, 1], [0, 0, 0], [0, 0, 0], [8, 5, 4]]],
+  ];
+
+  function exemploTabelaFormatada2() {
+    return {
+      titulo: "Mapa de funções, exemplo",
+      primeira_coluna: "Portfólio",
+      grupos: FUNCOES_DO_MAPA,
+      medidas: [
+        { id: "previsto", rotulo: "Prev", tipo: "previsto" },
+        { id: "realizado", rotulo: "Real", tipo: "realizado" },
+        { id: "saldo", rotulo: "Rem", tipo: "saldo" },
+        { id: "contratado", rotulo: "Contr." },
+      ],
+      total: { grupo: "Total", linha: "Total geral" },
+      faixas_progresso: [{ de: 100, papel: "ok" }, { de: 80, papel: "marca" }, { de: 50, papel: "alerta" }, { de: 0, papel: "atencao" }],
+      faixas_saude: [{ de: 0, papel: "ok" }, { de: 1, papel: "alerta" }, { de: 3, papel: "atencao" }],
+      linhas: LINHAS_DO_MAPA.map(function (linha) {
+        const valores = {};
+        FUNCOES_DO_MAPA.forEach(function (funcao, i) {
+          valores[funcao.id] = { previsto: linha[2][i][0], realizado: linha[2][i][1], contratado: linha[2][i][2] };
+        });
+        return { id: linha[0].toLowerCase(), rotulo: linha[0], subtitulo: linha[1], valores: valores };
+      }),
+    };
+  }
+
+  /* A matriz de ações do original (hoje, 07/08/2026): quatro fases com quatro
+     etapas cada e sete projetos. As datas dos projetos são dias antes (-) ou
+     depois de hoje; a ação é [etapa na fase, previsto, concluído, estado,
+     responsável, justificativa]. */
+  const HOJE_DA_MATRIZ = "2026-08-07";
+  const ETAPAS_DA_MATRIZ = [
+    ["EXEC", ["Mobilização da frente", "Construção civil e fundações", "Montagem de passarela com juntas térmicas", "Comissionamento das unidades A/B"]],
+    ["FEL1", ["Estudo de conceito", "Definição de escopo", "Lógica de viabilidade", "Aprovação da especificação funcional"]],
+    ["FEL2", ["Engenharia básica", "Linha de base de investimento", "Contratação do EPC", "Aprovação de orçamento de capital"]],
+    ["FEL3", ["Engenharia de detalhamento", "Licenciamento e contratação", "Construção e montagem", "Comissionamento final e startup"]],
+  ];
+  const ATRASOS_DA_MATRIZ = [
+    { valor: "No prazo", papel: "ok" },
+    { valor: "< 6 meses", papel: "alerta" },
+    { valor: "< 1 ano", papel: "atencao" },
+    { valor: "> 1 ano", papel: "erro" },
+  ];
+  const NIVEIS_DO_ORM = ["Extremo - 25", "Muito alto - 20", "Alto - 16", "Alto - 15", "Alto - 12", "Médio - 10", "Baixo - 9", "Baixo - 8"];
+  const PORTFOLIOS_DA_MATRIZ = ["Alumar", "Impoundment", "Juruti", "PAE", "Poços de Caldas", "Porto", "Refinaria", "Smelter"];
+  const RESPONSAVEIS_DA_MATRIZ = ["Alexandre Pontes", "Carla Fonseca", "Daniel Lima", "Eduarda Melo", "Felipe Ramos", "Gabriel Silva"];
+  const ESTADOS_DA_MATRIZ = { C: "concluida", A: "em_andamento", N: "nao_iniciada" };
+  /* Por projeto: nome, fase, atraso da entrega, atraso do RFA, nível do ORM,
+     portfólio e as ações. */
+  const PROJETOS_DA_MATRIZ = [
+    ["Expansão de armazenagem - Bloco 5", 0, 3, 2, 4, "Refinaria", [
+      [0, -25, -5, "C", 0, "Frente mobilizada e área de armazenagem liberada pelo contratado."],
+      [1, 37, null, "N", 1, "Fundações condicionadas ao release da engenharia de fundo de caixa."],
+      [2, 51, null, "A", 2, "Passagem pré-fabricada; mobilização do guindaste para a 3T26."],
+      [3, 49, null, "N", 3, "Comissionamento agendado após o startup da linha de filmagem."],
+    ]],
+    ["Reforma do descarregador de navios", 0, 1, 0, 6, "Porto", [
+      [1, 3, 20, "C", 0, "Fundos e obra civil concluídos com restrição parcial de área."],
+      [2, 34, null, "A", 4, "Montagem em fase de preparação do shell externo."],
+    ]],
+    ["Ampliação do terminal de carga", 0, 1, 1, 2, "Juruti", [
+      [2, 26, null, "N", 1, "Aguardando a licença ambiental da secretaria estadual."],
+      [3, 40, null, "A", 3, "Interface elétrica em execução pela equipe de automação."],
+    ]],
+    ["Remodelagem do sistema de turbo sopradores", 1, 1, 0, 1, "Smelter", [
+      [0, 28, 31, "C", 0, "Conceito final aprovado no comitê técnico de engenharia."],
+      [1, 32, null, "A", 2, "Levantamento de mercado dos equipamentos de alta tensão."],
+      [3, 46, null, "N", 5, "Especificação funcional em revisão pela gestão de ativos."],
+    ]],
+    ["Retomada do silo 2 de armazenagem", 1, 2, 1, 5, "Alumar", [
+      [0, -6, -13, "C", 3, "Estudos atualizados; escopo emendado para vazão máx. de 480 t/h."],
+      [1, 13, null, "N", 1, "Aprovação de investimento pendente junto ao conselho."],
+      [2, 37, null, "A", 0, "Viabilidade econômica em consolidação na planilha de custos."],
+    ]],
+    ["Modernização da estação de bombeamento", 2, 0, 0, 2, "Porto", [
+      [2, 33, null, "A", 4, "Pacote EPC em negociação com os três proponentes qualificados."],
+      [0, 55, null, "N", 2, "Engenharia básica aguardando a definição da sala de comando."],
+    ]],
+    ["Backup da linha de transferência 2", 3, 0, 2, 4, "PAE", [
+      [0, 35, 37, "C", 1, "Detalhamento concluído com uma redução corretiva de intertravamento."],
+      [2, 36, null, "A", 0, "Construção e montagem da tubulação em adiantamento."],
+      [3, 43, null, "N", 3, "Startup previsto após a retirada recursa do sistema antigo."],
+    ]],
+  ];
+
+  /* A cor da borda do cartão pelo ranking do ORM (1 é o mais alto): no app é
+     regra do servidor. */
+  function faixaDoOrm(ranking) {
+    if (ranking <= 1) return "erro";
+    if (ranking === 2) return "atencao";
+    if (ranking <= 5) return "alerta";
+    return ranking <= 7 ? "info" : "vazio";
+  }
+
+  function exemploTabelaEtapas() {
+    const fases = ETAPAS_DA_MATRIZ.map(function (fase) {
+      const id = fase[0].toLowerCase();
+      return {
+        id: id,
+        rotulo: fase[0],
+        etapas: fase[1].map(function (rotulo, i) {
+          return { id: id + "-" + (i + 1), rotulo: rotulo };
+        }),
+      };
+    });
+    const dia = function (dias) {
+      return dias === null ? null : somarDias(HOJE_DA_MATRIZ, dias);
+    };
+    return {
+      titulo: "Gerenciamento de pendências",
+      subtitulo: "Ações por etapa · FEL e Execução",
+      hoje: HOJE_DA_MATRIZ,
+      rotulos: { buscar: "Buscar projeto, ação ou portfólio..." },
+      fases: fases,
+      marcadores: [
+        { id: "late_ho", rotulo: "Late HO", valores: ATRASOS_DA_MATRIZ.map(function (a) { return a.valor; }) },
+        { id: "rfa", rotulo: "RFA x Fcst", valores: ATRASOS_DA_MATRIZ.map(function (a) { return a.valor; }) },
+        { id: "orm", rotulo: "ORM", valores: NIVEIS_DO_ORM },
+        { id: "portfolio", rotulo: "Portfólio", valores: PORTFOLIOS_DA_MATRIZ },
+      ],
+      itens: PROJETOS_DA_MATRIZ.map(function (p, i) {
+        const fase = fases[p[1]];
+        return {
+          id: "projeto-" + (i + 1),
+          rotulo: p[0],
+          fase: fase.id,
+          faixa: faixaDoOrm(p[4] + 1),
+          marcas: {
+            late_ho: ATRASOS_DA_MATRIZ[p[2]],
+            rfa: ATRASOS_DA_MATRIZ[p[3]],
+            orm: { valor: NIVEIS_DO_ORM[p[4]], papel: "vazio", ponto: true },
+            portfolio: { valor: p[5], papel: "marca" },
+          },
+          acoes: p[6].map(function (a) {
+            return {
+              etapa: fase.etapas[a[0]].id,
+              estado: ESTADOS_DA_MATRIZ[a[3]],
+              previsto: dia(a[1]),
+              concluido: dia(a[2]),
+              responsavel: RESPONSAVEIS_DA_MATRIZ[a[4]],
+              justificativa: a[5],
+            };
+          }),
+        };
+      }),
+    };
+  }
+
+  /* Os cinco níveis da pirâmide de segurança, do vértice para a base. */
+  const NIVEIS_DA_PIRAMIDE = [
+    { id: "grave", rotulo: "Lesões graves", papel: "erro" },
+    { id: "leve", rotulo: "Lesões leves", papel: "atencao" },
+    { id: "dano", rotulo: "Danos materiais", papel: "alerta" },
+    { id: "quase", rotulo: "Quase acidentes", papel: "info" },
+    { id: "desvio", rotulo: "Desvios", papel: "marca" },
+  ];
+
+  function exemploPiramide(referencia) {
+    return {
+      titulo: "Pirâmide de segurança, exemplo",
+      niveis: NIVEIS_DA_PIRAMIDE,
+      piramides: [
+        { titulo: "No mês", valores: { grave: 2, leve: 5, dano: 9, quase: 41, desvio: 118 } },
+        { titulo: "Acumulado", valores: { grave: 0, leve: 14, dano: 33, quase: 205, desvio: 1130 } },
+      ],
+      referencia: referencia,
+    };
+  }
+
+  function exemploPiramideBird() {
+    return exemploPiramide({
+      nome: "Bird",
+      termos: [
+        { niveis: ["grave"], valor: 1 },
+        { niveis: ["leve"], valor: 10 },
+        { niveis: ["dano"], valor: 30 },
+        { niveis: ["quase"], valor: 600 },
+      ],
+    });
+  }
+
+  function exemploPiramideHeinrich() {
+    return exemploPiramide({
+      nome: "Heinrich",
+      termos: [
+        { niveis: ["grave"], valor: 1 },
+        { niveis: ["leve"], valor: 29 },
+        { niveis: ["dano", "quase"], valor: 300 },
+      ],
+      nota: "níveis 3 e 4 somados",
+    });
+  }
+
+  function exemploCascata() {
+    return {
+      titulo: "Cascata de valor do contrato, exemplo",
+      formato: { divisor: 100, moeda: "BRL", casas: 0 },
+      etapas: [
+        { id: "original", rotulo: "Valor original", tipo: "total", valor: 3800000000 },
+        { id: "aditivos", rotulo: "Aditivos aprovados", valor: 460000000 },
+        { id: "reajustes", rotulo: "Reajustes", valor: 120000000 },
+        { id: "atual", rotulo: "Valor atual", tipo: "total" },
+        { id: "medido", rotulo: "Medido", valor: -2730000000 },
+        { id: "saldo", rotulo: "Saldo a faturar", tipo: "total" },
+      ],
+    };
+  }
+
+  function exemploRosca() {
+    const empresas = [
+      ["Empresa A", 42],
+      ["Empresa B", 31],
+      ["Empresa C", 24],
+      ["Empresa D", 17],
+      ["Empresa E", 9],
+      ["Empresa F", 6],
+      ["Empresa G", 3],
+    ];
+    return {
+      titulo: "Ocorrências por empresa, exemplo",
+      rotulo_total: "Ocorrências",
+      formato: { casas: 0 },
+      fatias: empresas.map(function (empresa, i) {
+        return { id: "e" + i, rotulo: empresa[0], valor: empresa[1] };
+      }),
+    };
+  }
+
+  /* TF e TRIF, mês a mês: de out/25 a set/26, com um mês sem leitura. */
+  function exemploLinhasTaxas() {
+    const tf = [0.82, 0.74, 0.61, 0.55, 0.69, 0.5, 0.44, 0.38, 0.41, 0.33, 0.29, 0.31];
+    const trif = [1.9, 1.75, 1.52, 1.4, 1.66, 1.31, null, 1.08, 1.12, 0.95, 0.9, 0.86];
+    return {
+      titulo: "TF e TRIF mês a mês, exemplo",
+      casas: 2,
+      series: [
+        { id: "tf", rotulo: "TF", papel: "realizado" },
+        { id: "trif", rotulo: "TRIF", papel: "comprometido" },
+      ],
+      periodos: tf.map(function (valor, i) {
+        const indice = i + 9;
+        return { ano: 2025 + Math.floor(indice / 12), mes: (indice % 12) + 1, valores: { tf: valor, trif: trif[i] } };
+      }),
+    };
+  }
+
+  /* CPI e SPI de jan a set/26, em torno de 1,00. */
+  function exemploLinhasIndices() {
+    const cpi = [0.97, 0.96, 0.98, 0.95, 0.93, 0.94, 0.96, 0.97, 0.96];
+    const spi = [1.02, 1.0, 0.98, 0.97, 0.95, 0.93, 0.94, 0.95, 0.94];
+    return {
+      titulo: "CPI e SPI mês a mês, exemplo",
+      base_zero: false,
+      casas: 2,
+      series: [
+        { id: "cpi", rotulo: "CPI", papel: "realizado" },
+        { id: "spi", rotulo: "SPI", papel: "previsto" },
+      ],
+      referencias: [{ valor: 1, rotulo: "Meta 1,00", papel: "ok" }],
+      periodos: cpi.map(function (valor, i) {
+        return { ano: 2026, mes: i + 1, valores: { cpi: valor, spi: spi[i] } };
+      }),
+    };
+  }
+
+  Object.assign(EXEMPLOS, {
+    gantt: exemploGantt,
+    calendario: exemploCalendario,
+    galeria: exemploGaleria,
+    "formulario-cards": exemploFormularioCards,
+    "areas-avaliacao": exemploAreas,
+    "tabela-formatada": exemploTabelaFormatada,
+    "tabela-formatada-2": exemploTabelaFormatada2,
+    "tabela-etapa-por-etapa": exemploTabelaEtapas,
+    "piramide-seguranca": exemploPiramideBird,
+    "piramide-seguranca-heinrich": exemploPiramideHeinrich,
+    "cascata-contrato": exemploCascata,
+    rosca: exemploRosca,
+    "linhas-multiplas": exemploLinhasTaxas,
+    "linhas-multiplas-indices": exemploLinhasIndices,
+  });
+
   /* ---------- Entrega dos dados e prévia do JSON ---------- */
 
   /* Só o começo de cada lista, para o trecho caber na tela. */
@@ -375,6 +891,219 @@
     ["nome do mês na língua do documento: setembro", "Set", function () { return G.nomeMes(9); }],
   ];
 
+  /* Casos de fronteira dos visuais da ISSUE-016. Os de cada fórmula com nome
+     (situacaoDaAcao, proporcaoReal, agrupar...) conferem o limite onde o
+     resultado vira: o dia do vencimento, o termo zerado, o máximo de fatias. */
+  function casosDaIssue016() {
+    const DATAS = G.apoio.datas;
+    const hoje = DATAS.dia("2026-08-07");
+    const acao = function (previsto, concluido, estado) {
+      return { previsto: previsto === null ? null : DATAS.dia(previsto), concluido: concluido === null ? null : DATAS.dia(concluido), estado: estado };
+    };
+    const situacao = function (a, referencia) {
+      const resultado = G.tabelaEtapaPorEtapa.situacaoDaAcao(a, referencia === undefined ? hoje : referencia);
+      return resultado.tipo + "/" + resultado.desvio;
+    };
+    const urgente = function (previsto, tipo) {
+      return { previsto: previsto === null ? null : DATAS.dia(previsto), situacao: { tipo: tipo } };
+    };
+    const classe = function (...tipos) {
+      const resultado = G.tabelaEtapaPorEtapa.classeDoItem(
+        tipos.map(function (tipo) {
+          return { situacao: { tipo: tipo } };
+        }),
+      );
+      return resultado.papel + "/" + resultado.progresso;
+    };
+    const datasDaGrade = function (ano, mes) {
+      const celulas = G.calendario.celulasDoMes(ano, mes);
+      const primeira = DATAS.partes(celulas[0]);
+      const ultima = DATAS.partes(celulas[celulas.length - 1]);
+      return celulas.length + ": " + primeira.dia + "/" + primeira.mes + " a " + ultima.dia + "/" + ultima.mes;
+    };
+    const fatias = function (...valores) {
+      return valores.map(function (valor, i) {
+        return { id: "f" + i, rotulo: "F" + i, valor: valor };
+      });
+    };
+    const agrupadas = function (lista, maximo) {
+      return G.rosca
+        .agrupar(lista, maximo, "Outros")
+        .map(function (fatia) {
+          return fatia.valor;
+        })
+        .join(" ");
+    };
+    const etapasDaCascata = function (etapas) {
+      return G.cascata
+        .montar(etapas)
+        .map(function (nivel) {
+          return nivel.de + ">" + nivel.ate + " " + nivel.tipo;
+        })
+        .join(", ");
+    };
+    const termos = [{ niveis: ["grave"] }, { niveis: ["leve"] }];
+    const ordenadas = function (resultado) {
+      return resultado.termos.join(",") + (resultado.normalizada ? " (dividida)" : " (contagem)");
+    };
+    const faixaDeHoras = [{ ate: 6000, papel: "atencao" }, { ate: 9000, papel: "alerta" }, { papel: "neutro" }];
+    const zonas = [{ de: 0, rotulo: "D" }, { de: 70, rotulo: "C" }, { de: 81, rotulo: "B" }, { de: 90, rotulo: "A" }];
+    const blocos = [{ id: "p", tipo: "previsto" }, { id: "r", tipo: "realizado" }, { id: "s", tipo: "saldo" }];
+    const faixasDeSaude = [{ de: 3, papel: "atencao" }, { de: 1, papel: "alerta" }, { de: 0, papel: "ok" }];
+    const mes = function (lugar) {
+      return lugar.ano + "-" + lugar.mes;
+    };
+    const eixoDaFaixa = function (menor, maior) {
+      const eixo = G.linhasMultiplas.escalaDaFaixa(menor, maior);
+      return eixo.min.toFixed(2) + " a " + eixo.max.toFixed(2) + ", " + (eixo.passos.length - 1) + " intervalos";
+    };
+    return [
+      ["Gantt: o desvio é o término menos o da linha de base (10/03 contra 03/03)", "7", function () {
+        return G.gantt.prepararAtividade({ inicio: "2026-03-01", fim: "2026-03-10", base_fim: "2026-03-03" }).desvio;
+      }],
+      ["Gantt: a janela vai do dia 1 do mês da data mais antiga até a mais tardia mais 15 dias", "01/02/2026 a 20/03/2026, 48 dias", function () {
+        const janela = G.gantt.janelaDe({}, [G.gantt.prepararAtividade({ inicio: "2026-02-10", fim: "2026-03-05" })]);
+        return DATAS.completa(janela.inicio) + " a " + DATAS.completa(janela.fim) + ", " + janela.dias + " dias";
+      }],
+      ["Gantt: hoje no 5º de 10 dias da barra, a sombra do que falta começa em 40%", "0.4", function () {
+        return G.gantt.fracaoDoFuturo({ inicio: DATAS.dia("2026-08-01"), fim: DATAS.dia("2026-08-10"), concluida: false }, DATAS.dia("2026-08-05"));
+      }],
+      ["Gantt: hoje no primeiro dia da barra, ela toda é futuro; no último dia, não há sombra", "0 / null", function () {
+        const atividade = { inicio: DATAS.dia("2026-08-01"), fim: DATAS.dia("2026-08-10"), concluida: false };
+        return G.gantt.fracaoDoFuturo(atividade, DATAS.dia("2026-08-01")) + " / " + G.gantt.fracaoDoFuturo(atividade, DATAS.dia("2026-08-10"));
+      }],
+      ["Gantt: atividade concluída ou ainda não começada não leva sombra", "null / null", function () {
+        const feita = { inicio: DATAS.dia("2026-08-01"), fim: DATAS.dia("2026-08-10"), concluida: true };
+        const futura = { inicio: DATAS.dia("2026-08-01"), fim: DATAS.dia("2026-08-10"), concluida: false };
+        return G.gantt.fracaoDoFuturo(feita, DATAS.dia("2026-08-05")) + " / " + G.gantt.fracaoDoFuturo(futura, DATAS.dia("2026-07-31"));
+      }],
+      ["Calendário: maio de 2026 começa numa sexta, e a grade de 42 células vai de 26/04 a 06/06", "42: 26/4 a 6/6", function () { return datasDaGrade(2026, 5); }],
+      ["Calendário: fevereiro de 2026 começa num domingo, e a grade vai de 01/02 a 14/03", "42: 1/2 a 14/3", function () { return datasDaGrade(2026, 2); }],
+      ["Calendário: dezembro mais um mês é janeiro do ano seguinte; janeiro menos um é dezembro", "2027-1 / 2025-12", function () {
+        return mes(G.calendario.mesVizinho({ ano: 2026, mes: 12 }, 1)) + " / " + mes(G.calendario.mesVizinho({ ano: 2026, mes: 1 }, -1));
+      }],
+      ["Calendário: o selo soma as quantidades do dia e pega a situação mais grave", "3 erro", function () {
+        const situacoes = [{ id: "ok", papel: "ok" }, { id: "atraso", papel: "erro" }, { id: "alerta", papel: "alerta" }];
+        const resumo = G.calendario.resumoDoDia({ valores: { ok: 2, atraso: 1, alerta: 0 } }, situacoes);
+        return resumo.total + " " + resumo.papel;
+      }],
+      ["Calendário: o papel mandado no dia troca a escolha pela situação mais grave", "info", function () {
+        return G.calendario.resumoDoDia({ valores: { ok: 2 }, papel: "info" }, [{ id: "ok", papel: "ok" }]).papel;
+      }],
+      ["Galeria: do primeiro cartão voltar vai ao último; do último avançar vai ao primeiro; com um só, fica nele", "4 / 0 / 0", function () {
+        return [G.galeria.cartaoVizinho(0, -1, 5), G.galeria.cartaoVizinho(4, 1, 5), G.galeria.cartaoVizinho(0, 1, 1)].join(" / ");
+      }],
+      ["Áreas: a nota 70 é da faixa que começa em 70, 89,99 é da de 81 e 90 é da de 90", "C / B / A", function () {
+        return [70, 89.99, 90].map(function (nota) { return G.areasAvaliacao.zonaDoValor(zonas, nota).rotulo; }).join(" / ");
+      }],
+      ["Áreas: nota abaixo de todas as faixas fica na mais baixa; sem faixas, não há faixa", "D / null", function () {
+        return G.areasAvaliacao.zonaDoValor(zonas, -5).rotulo + " / " + G.areasAvaliacao.zonaDoValor([], 50);
+      }],
+      ["Áreas: o piso do eixo é o menor entre 60 e a dezena quatro pontos abaixo da menor nota (68,4: 60; 42: 30)", "60 / 30", function () {
+        return G.areasAvaliacao.limitesDoEixo({}, [68.4, 71]).min + " / " + G.areasAvaliacao.limitesDoEixo({}, [42]).min;
+      }],
+      ["Áreas: eixo_min e eixo_max fixam as pontas, e sem nota o eixo vai de 0 a 100", "50-95 / 0-100", function () {
+        const fixo = G.areasAvaliacao.limitesDoEixo({ eixo_min: 50, eixo_max: 95 }, [42]);
+        const vazio = G.areasAvaliacao.limitesDoEixo({}, []);
+        return fixo.min + "-" + fixo.max + " / " + vazio.min + "-" + vazio.max;
+      }],
+      ["Tabela formatada: 8520 minutos são 142:00, 270 são 4:30 e 0 é 0:00; 59,6 arredonda para 1:00 e não 0:60", "142:00 / 4:30 / 0:00 / 1:00", function () {
+        return [8520, 270, 0, 59.6].map(G.tabelaFormatada.horasEMinutos).join(" / ");
+      }],
+      ["Tabela formatada: o valor igual ao limite da faixa cai na faixa seguinte (5999, 6000 e acima de tudo)", "atencao / alerta / neutro", function () {
+        return [5999, 6000, 99999].map(function (valor) { return G.tabelaFormatada.papelDaFaixa(faixaDeHoras, valor, "x"); }).join(" / ");
+      }],
+      ["Tabela formatada: sem faixas vale o papel padrão", "padrao", function () { return G.tabelaFormatada.papelDaFaixa([], 10, "padrao"); }],
+      ["Tabela formatada: o fundo do mapa de calor em 0%, 50%, 100% e 110% (passando de 100% recomeça mais claro, em vermelho)", "0.12 / 0.46 / 0.80 / 0.40", function () {
+        return [0, 0.5, 1, 1.1].map(function (fracao) { return G.tabelaFormatada.intensidadeDoCalor(fracao).toFixed(2); }).join(" / ");
+      }],
+      ["Tabela Formata 2: o saldo é previsto menos realizado e fica negativo quando o realizado passa", "2 / -2", function () {
+        return G.tabelaFormatada2.comSaldo({ p: 6, r: 4 }, blocos).s + " / " + G.tabelaFormatada2.comSaldo({ p: 4, r: 6 }, blocos).s;
+      }],
+      ["Tabela Formata 2: a faixa vale pelo maior limite que o valor alcança (3, 2, 0 e -1)", "atencao / alerta / ok / null", function () {
+        return [3, 2, 0, -1].map(function (saldo) { return String(G.tabelaFormatada2.papelPeloLimite(faixasDeSaude, saldo)); }).join(" / ");
+      }],
+      ["Tabela Formata 2: o avanço sem previsto é 0, passando do previsto fica em 100, e 1 de 3 é 33", "0 / 100 / 33", function () {
+        return [[0, 0], [6, 7], [3, 1]].map(function (par) { return G.tabelaFormatada2.avancoEmPercentual(par[0], par[1]); }).join(" / ");
+      }],
+      ["Tabela Formata 2: o remanescente é laranja se falta, verde se fecha e vermelho se passou", "atencao / ok / erro", function () {
+        return [2, 0, -1].map(G.tabelaFormatada2.papelDoSaldo).join(" / ");
+      }],
+      ["Etapa por etapa: ação não iniciada com previsto hoje vence hoje, e com previsto ontem está atrasada em 1 dia", "naoIniciada/0 / naoIniciadaAtrasada/1", function () {
+        return situacao(acao("2026-08-07", null, "nao_iniciada")) + " / " + situacao(acao("2026-08-06", null, "nao_iniciada"));
+      }],
+      ["Etapa por etapa: ação em andamento com previsto ontem está atrasada em 1 dia", "andamentoAtrasado/1", function () {
+        return situacao(acao("2026-08-06", null, "em_andamento"));
+      }],
+      ["Etapa por etapa: concluída no previsto não tem atraso; um dia depois é concluída com atraso de 1 dia", "concluida/0 / concluidaAtraso/1", function () {
+        return situacao(acao("2026-08-01", "2026-08-01", "concluida")) + " / " + situacao(acao("2026-08-01", "2026-08-02", "concluida"));
+      }],
+      ["Etapa por etapa: sem as duas datas o estado decide (concluída sem data, em andamento, sem ação)", "concluidaSemData/null / emAndamento/null / semAcao/null", function () {
+        return [acao(null, null, "concluida"), acao(null, null, "em_andamento"), acao(null, null, "nao_iniciada")].map(function (a) { return situacao(a); }).join(" / ");
+      }],
+      ["Etapa por etapa: sem a data de hoje, a ação em andamento não fica atrasada", "emAndamento/null", function () {
+        return situacao(acao("2026-08-01", null, "em_andamento"), null);
+      }],
+      ["Etapa por etapa: na célula vale a ação mais urgente, e no empate a de previsto mais antigo", "urgente / mais antiga", function () {
+        const andamento = urgente("2026-08-10", "emAndamento");
+        const antiga = urgente("2026-08-05", "emAndamento");
+        const atrasada = urgente("2026-08-20", "andamentoAtrasado");
+        const porUrgencia = G.tabelaEtapaPorEtapa.acaoMaisUrgente([andamento, atrasada]) === atrasada;
+        const porData = G.tabelaEtapaPorEtapa.acaoMaisUrgente([andamento, antiga]) === antiga;
+        return (porUrgencia ? "urgente" : "errado") + " / " + (porData ? "mais antiga" : "errado");
+      }],
+      ["Etapa por etapa: projeto todo concluído é ok (100%); com concluída e atrasada, erro (50%)", "ok/100 / erro/50", function () {
+        return classe("concluida", "concluidaAtraso") + " / " + classe("concluida", "andamentoAtrasado");
+      }],
+      ["Etapa por etapa: concluída com pendente em dia é alerta (50%); só não iniciadas ou sem ação, neutro (0%)", "alerta/50 / neutro/0 / neutro/0", function () {
+        return classe("concluida", "naoIniciada") + " / " + classe("naoIniciada", "naoIniciada") + " / " + classe("semAcao");
+      }],
+      ["Pirâmide: a proporção real divide pelo primeiro termo (2 e 5 dão 1 : 2,5)", "1,2.5 (dividida)", function () {
+        return ordenadas(G.piramide.proporcaoReal({ grave: 2, leve: 5 }, termos));
+      }],
+      ["Pirâmide: com o primeiro termo zerado não há como dividir, e mostra a contagem", "0,5 (contagem)", function () {
+        return ordenadas(G.piramide.proporcaoReal({ grave: 0, leve: 5 }, termos));
+      }],
+      ["Pirâmide: o último termo de Heinrich soma dois níveis (1 : 29 : 300)", "1,29,300 (dividida)", function () {
+        const heinrich = [{ niveis: ["grave"] }, { niveis: ["leve"] }, { niveis: ["dano", "quase"] }];
+        return ordenadas(G.piramide.proporcaoReal({ grave: 1, leve: 29, dano: 100, quase: 200 }, heinrich));
+      }],
+      ["Pirâmide: a faixa do vértice é um triângulo e a da base ocupa a largura toda", "polygon(50% 0, 50% 0, 60% 100%, 40% 100%) / polygon(10% 0, 90% 0, 100% 100%, 0% 100%)", function () {
+        return G.piramide.poligonoDaFaixa(0, 5) + " / " + G.piramide.poligonoDaFaixa(4, 5);
+      }],
+      ["Cascata: o total sem valor assume a soma corrida (100 + 20), e a redução parte dali", "0>100 total, 100>120 acrescimo, 0>120 total, 120>70 reducao, 0>70 total", function () {
+        return etapasDaCascata([
+          { id: "a", tipo: "total", valor: 100 },
+          { id: "b", valor: 20 },
+          { id: "c", tipo: "total" },
+          { id: "d", valor: -50 },
+          { id: "e", tipo: "total" },
+        ]);
+      }],
+      ["Cascata: a redução maior que o acumulado atravessa o zero, e o eixo cobre o menor nível", "100>-30 reducao / -50 a 100", function () {
+        const etapas = [{ id: "a", tipo: "total", valor: 100 }, { id: "b", valor: -130 }];
+        const niveis = G.cascata.montar(etapas);
+        const eixo = G.cascata.escalaDoEixo(niveis);
+        return niveis[1].de + ">" + niveis[1].ate + " " + niveis[1].tipo + " / " + eixo.min + " a " + eixo.max;
+      }],
+      ["Rosca: passando do máximo de 5 fatias, as quatro maiores ficam e as outras três juntam em Outros (9 + 6 + 3)", "42 31 24 17 18", function () {
+        return agrupadas(fatias(3, 42, 31, 24, 17, 9, 6), 5);
+      }],
+      ["Rosca: com exatamente o máximo de fatias não agrupa (ordem decrescente)", "5 4 3 2 1", function () { return agrupadas(fatias(1, 2, 3, 4, 5), 5); }],
+      ["Rosca: fatia zerada, negativa ou sem número não entra", "5 2", function () { return agrupadas(fatias(0, -3, 5, Number.NaN, 2), 5); }],
+      ["Rosca: máximo de fatias 0 desliga o agrupamento", "7 6 5 4 3 2 1", function () { return agrupadas(fatias(1, 2, 3, 4, 5, 6, 7), 0); }],
+      ["Linhas: a escala do zero ao 5 tem passos de 1", "0.00 a 5.00, 5 intervalos", function () { return eixoDaFaixa(0, 5); }],
+      ["Linhas: sem base no zero, o eixo se ajusta ao dado (de 0,85 a 1,10)", "0.85 a 1.10, 5 intervalos", function () { return eixoDaFaixa(0.85, 1.1); }],
+      ["Linhas: a curva suave não passa abaixo da menor leitura nem acima da maior", "0 a 50", function () {
+        const numeros = G.linhasMultiplas.caminhoSuave([[0, 50], [10, 0], [20, 50], [30, 50]]).match(/-?\d+(\.\d+)?/g).map(Number);
+        const alturas = numeros.filter(function (_numero, i) { return i % 2 === 1; });
+        return Math.min(...alturas) + " a " + Math.max(...alturas);
+      }],
+    ];
+  }
+
+  CASOS.push(...casosDaIssue016());
+
   function conferir(caso) {
     let obtido;
     try {
@@ -404,6 +1133,81 @@
     }).length;
     document.getElementById("sg-conferencias-resumo").textContent =
       passaram + " de " + resultados.length + " conferências passaram.";
+  }
+
+  /* ---------- Mapeamento da D11 e cobertura da biblioteca ---------- */
+
+  /* A tabela da D11 da spec: [necessidade no GestNow, [[nome do visual, tipo]]].
+     O tipo é o data-grafico do visual e o id da seção dele nesta página. */
+  const MAPEAMENTO = [
+    ["Curva S física e financeira, avanço da programação, Curva S do MAS", [["Curva S Linha", "curva-s-linha"]]],
+    [
+      "Desembolso previsto x realizado, contratação acumulada, avanço por período com acumulado",
+      [["Curva S Barra e Linha", "curva-s-barra-linha"]],
+    ],
+    ["Avanço por período, real x previsto, comparação entre meses", [["Comparativo de Barras Entre períodos", "comparativo-barras"]]],
+    ["Pareto de RNC, de origem de mudanças, de motivos de parada", [["Pareto", "pareto"]]],
+    ["Cards de KPI com referência de gestão", [["Card Indicador Único", "card-indicador"], ["Card com detalhes", "card-indicador-detalhes"]]],
+    ["Faixa de KPIs com estado", [["HTML KPI Status", "kpi-status"]]],
+    ["SPI, CPI, aderência, conformidade, índice do MAS", [["Relógios de Indicadores", "relogios"]]],
+    ["Matriz P x I e severidade de riscos", [["Matriz Formatada", "matriz-formatada"], ["Separação Severidade Riscos", "severidade-riscos"]]],
+    ["Mapa de calor do desvio da EAC, dia x frente, aging", [["Tabela Heatmap", "tabela-heatmap"]]],
+    [
+      "MAS (12 marcos por pacote), plano de quantidades por semana",
+      [["Mapa 52 semanas", "mapa-52-semanas"], ["Tabela Quantitativos por entregável", "tabela-quantitativos"]],
+    ],
+    ["Etapas do processo de compra, fluxo da SM, ciclo da RNC", [["Etapas", "etapas"]]],
+    ["6WLA, cronograma de marcos e auditorias", [["Gráfico Gantt", "gantt"], ["HTML Calendário", "calendario"]]],
+    ["Restrições do 6WLA, acervo de lições", [["Galeria", "galeria"], ["Formulário de Cards", "formulario-cards"]]],
+    ["Desempenho da contratada ao longo do tempo", [["Gráfico de Áreas de Avaliação", "areas-avaliacao"]]],
+    [
+      "Tabelas detalhadas (mapa de controle, EAP, punch)",
+      [["Tabela formatada", "tabela-formatada"], ["Tabela Formata 2", "tabela-formatada-2"], ["Tabela Etapa por etapa", "tabela-etapa-por-etapa"]],
+    ],
+  ];
+
+  /* Os quatro visuais sem equivalente na coletânea, construídos no mesmo padrão. */
+  const MAPEAMENTO_NOVOS = [
+    ["Painel HSE: pirâmides do mês e do acumulado, com a proporção de referência", [["Pirâmide de segurança dupla", "piramide-seguranca"]]],
+    ["Ficha do contrato: do valor original ao saldo a faturar", [["Cascata de valor do contrato", "cascata-contrato"]]],
+    ["Distribuição de um total em partes (ocorrências por empresa e por área)", [["Rosca de distribuição", "rosca"]]],
+    ["TF e TRIF, CPI e SPI mês a mês", [["Linhas múltiplas", "linhas-multiplas"]]],
+  ];
+
+  function preencherMapeamento(corpo, linhas) {
+    linhas.forEach(function (linha) {
+      const partes = [];
+      linha[1].forEach(function (visual, i) {
+        if (i > 0) partes.push(", ");
+        partes.push(document.getElementById(visual[1]) ? G.el("a", { href: "#" + visual[1], texto: visual[0] }) : visual[0]);
+      });
+      corpo.appendChild(G.el("tr", {}, [G.el("td", { texto: linha[0] }), G.el("td", {}, partes)]));
+    });
+  }
+
+  /* Quantos tipos da lista têm um gráfico desenhado nesta página. */
+  function comExemplo(linhas) {
+    const tipos = new Set();
+    linhas.forEach(function (linha) {
+      linha[1].forEach(function (visual) {
+        tipos.add(visual[1]);
+      });
+    });
+    const presentes = Array.from(tipos).filter(function (tipo) {
+      return document.querySelector('[data-grafico="' + tipo + '"]') !== null;
+    });
+    return { total: tipos.size, presentes: presentes.length };
+  }
+
+  const tabelaDoMapeamento = document.getElementById("sg-mapeamento");
+  if (tabelaDoMapeamento) {
+    preencherMapeamento(tabelaDoMapeamento, MAPEAMENTO);
+    preencherMapeamento(document.getElementById("sg-mapeamento-novos"), MAPEAMENTO_NOVOS);
+    const coletanea = comExemplo(MAPEAMENTO);
+    const novos = comExemplo(MAPEAMENTO_NOVOS);
+    document.getElementById("sg-cobertura").textContent =
+      coletanea.presentes + " de " + coletanea.total + " visuais da coletânea e " + novos.presentes + " de " + novos.total +
+      " visuais novos têm exemplo nesta página.";
   }
 
   /* ---------- Papéis de cor ---------- */

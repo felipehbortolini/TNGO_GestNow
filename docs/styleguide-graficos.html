@@ -67,6 +67,22 @@
     <script defer src="../app/ds/graficos/curva-s-barra-linha.js"></script>
     <script defer src="../app/ds/graficos/comparativo-barras.js"></script>
     <script defer src="../app/ds/graficos/pareto.js"></script>
+    <!-- ISSUE-016: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os quatro visuais
+         novos. O apoio.js (datas, lupa, camadas) vem antes dos visuais que o usam. -->
+    <link rel="stylesheet" href="../app/ds/graficos/graficos-3.css" />
+    <script defer src="../app/ds/graficos/apoio.js"></script>
+    <script defer src="../app/ds/graficos/gantt.js"></script>
+    <script defer src="../app/ds/graficos/calendario.js"></script>
+    <script defer src="../app/ds/graficos/galeria.js"></script>
+    <script defer src="../app/ds/graficos/formulario-cards.js"></script>
+    <script defer src="../app/ds/graficos/areas-avaliacao.js"></script>
+    <script defer src="../app/ds/graficos/tabela-formatada.js"></script>
+    <script defer src="../app/ds/graficos/tabela-formatada-2.js"></script>
+    <script defer src="../app/ds/graficos/tabela-etapa-por-etapa.js"></script>
+    <script defer src="../app/ds/graficos/piramide-seguranca.js"></script>
+    <script defer src="../app/ds/graficos/cascata-contrato.js"></script>
+    <script defer src="../app/ds/graficos/rosca.js"></script>
+    <script defer src="../app/ds/graficos/linhas-multiplas.js"></script>
     <script defer src="../app/ds/graficos/relogios.js"></script>
     <script defer src="styleguide-graficos.js"></script>
   </head>
@@ -93,6 +109,19 @@
         <li><a href="#relogios">Relógios de indicadores</a></li>
         <li><a href="#agregacao">Agregação por período</a></li>
         <li><a href="#cores">Papéis de cor</a></li>
+        <li><a href="#gantt">Gráfico Gantt</a></li>
+        <li><a href="#calendario">HTML Calendário</a></li>
+        <li><a href="#galeria">Galeria</a></li>
+        <li><a href="#formulario-cards">Formulário de Cards</a></li>
+        <li><a href="#areas-avaliacao">Áreas de Avaliação</a></li>
+        <li><a href="#tabela-formatada">Tabela formatada</a></li>
+        <li><a href="#tabela-formatada-2">Tabela Formata 2</a></li>
+        <li><a href="#tabela-etapa-por-etapa">Tabela Etapa por etapa</a></li>
+        <li><a href="#piramide-seguranca">Pirâmide de segurança</a></li>
+        <li><a href="#cascata-contrato">Cascata do contrato</a></li>
+        <li><a href="#rosca">Rosca</a></li>
+        <li><a href="#linhas-multiplas">Linhas múltiplas</a></li>
+        <li><a href="#mapeamento">Mapeamento D11</a></li>
         <li><a href="#conferencias">Conferências</a></li>
       </ul>
 
@@ -463,6 +492,905 @@
             </table>
           </div>
         </div>
+      </section>
+
+      <!-- ===== ISSUE-016: Gantt, Calendário, Galeria, Formulário de Cards, Áreas, tabelas formatadas e os quatro visuais novos ===== -->
+
+      <!-- ===== Gráfico Gantt ===== -->
+      <section class="sg-secao" id="gantt">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Gráfico Gantt</h2>
+          <p class="sg-secao__uso">
+            6WLA, cronograma de marcos e auditorias. Original:
+            <code>docs/referencia/graficos/Gráfico Gantt.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="gantt" data-exemplo="gantt"></div>
+        </div>
+        <p class="sg-dica">
+          A lista (WBS, nome e situação) fica fixa à esquerda e o calendário rola; ao abrir, ele rola até o Hoje (a linha
+          laranja). O losango é o término da linha de base, e o traço entre ele e o fim da barra é o desvio: vermelho se
+          atrasa, verde se antecipa. A sombra clara é o que ainda vai acontecer; a borda vermelha é a atividade crítica.
+          Passe o ponteiro numa barra para a dica.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr>
+                    <td><code>hoje</code></td>
+                    <td>data ISO (<code>AAAA-MM-DD</code>)</td>
+                    <td>O dia de hoje, que vem do servidor: a biblioteca não lê o relógio. Sem ele, a linha de Hoje não aparece.</td>
+                  </tr>
+                  <tr>
+                    <td><code>inicio</code>, <code>fim</code></td>
+                    <td>datas ISO</td>
+                    <td>
+                      Opcionais: a janela do calendário. Sem elas, vai do dia 1 do mês da data mais antiga até a mais tardia mais
+                      15 dias, como no original.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>atividades</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>wbs</code>, <code>nome</code>, <code>inicio</code>, <code>fim</code>,
+                      <code>base_fim</code> (término da linha de base: o losango e o desvio), <code>concluida</code> e
+                      <code>critica</code> (verdadeiro ou falso), <code>atrasada</code> (a regra é do servidor; é o que a faixa de
+                      cima conta em "Fora do prazo"), <code>avanco</code> (%, na dica) e <code>situacao</code>
+                      (<code>{ "rotulo": "No prazo", "papel": "ok" }</code>, a pílula da lista). Atividade sem data aparece na
+                      lista, sem barra.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Desvio e sombra</td>
+                    <td>calculados</td>
+                    <td>
+                      O desvio é o término menos o da linha de base, em dias. A sombra cobre o trecho da barra que vem depois de
+                      hoje, só nas atividades que cruzam o Hoje e não estão concluídas.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td>
+                      <code>colunaEsquerda</code>, <code>atividades</code>, <code>concluidas</code>, <code>criticas</code>,
+                      <code>foraDoPrazo</code>, <code>hoje</code>, <code>concluida</code>, <code>emExecucao</code>,
+                      <code>baseline</code>, <code>desvioAtraso</code>, <code>desvioAntecipacao</code>, <code>critica</code>,
+                      <code>inicio</code>, <code>termino</code>, <code>linhaDeBase</code>, <code>desvio</code>,
+                      <code>avanco</code>, <code>situacao</code>, <code>dia</code>.
+                    </td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 600).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="gantt" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="gantt"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== HTML Calendário ===== -->
+      <section class="sg-secao" id="calendario">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">HTML Calendário</h2>
+          <p class="sg-secao__uso">
+            6WLA, cronograma de marcos e auditorias. Original:
+            <code>docs/referencia/graficos/HTML Calendario.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro sg-quadro--estreito">
+          <div data-grafico="calendario" data-exemplo="calendario"></div>
+        </div>
+        <p class="sg-dica">
+          Grade fixa de 6 semanas por 7 dias, sem rolagem em nenhum mês. O selo de cada dia é a quantidade de itens, na cor
+          da situação mais grave do dia, e a barrinha embaixo divide o dia pelas situações. Fim de semana em cinza, o dia de
+          hoje com contorno verde, o dia passado com item atrasado em rosa. As setas andam de mês em mês e Hoje volta ao mês
+          de hoje.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr><td><code>hoje</code></td><td>data ISO</td><td>O dia de hoje, do servidor. Sem ele, o botão Hoje some.</td></tr>
+                  <tr>
+                    <td><code>mes</code></td>
+                    <td><code>{ "ano": 2026, "mes": 2 }</code></td>
+                    <td>O mês aberto. Sem ele, o de <code>hoje</code> ou, se também falta, o do primeiro dia com dado.</td>
+                  </tr>
+                  <tr>
+                    <td><code>situacoes</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code> e <code>papel</code> (ou <code>cor</code>): o que divide a barrinha e a legenda.</td>
+                  </tr>
+                  <tr>
+                    <td><code>dias</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>data</code> e <code>valores</code>: a quantidade de itens do dia por <code>id</code> de situação. O
+                      servidor manda quantidades; a soma (o selo), a divisão da barrinha e a cor saem aqui. O selo pega a situação
+                      mais grave (<code>erro</code>, <code>atencao</code>, <code>alerta</code>, <code>info</code>,
+                      <code>neutro</code>, <code>ok</code>); <code>papel</code> no dia troca essa escolha. Dia anterior a
+                      <code>hoje</code> com situação <code>erro</code> fica rosa.
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>hoje</code>, <code>anterior</code>, <code>proximo</code>, <code>total</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 405).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="calendario" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="calendario"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Galeria ===== -->
+      <section class="sg-secao" id="galeria">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Galeria</h2>
+          <p class="sg-secao__uso">
+            Restrições do 6WLA, acervo de lições. Original: <code>docs/referencia/graficos/Galeria.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro sg-quadro--estreito">
+          <div data-grafico="galeria" data-exemplo="galeria"></div>
+        </div>
+        <p class="sg-dica">
+          Um cartão por vez, com o contador no alto, o título e os campos do registro no cabeçalho e o texto, que rola
+          quando é longo. As setas (ou as teclas de seta, com o foco na galeria) e os pontos andam de cartão em cartão, e
+          passar do último volta ao primeiro. Com um cartão só, a navegação some.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível da galeria.</td></tr>
+                  <tr><td><code>contador</code></td><td>texto</td><td>O nome do que se conta ("Restrições: 5"). Sem ele, o contador não aparece.</td></tr>
+                  <tr>
+                    <td><code>itens</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>titulo</code>, <code>meta</code> (os campos do cabeçalho, <code>{ "rotulo": "Responsável", "valor": "Mariana
+                      Costa" }</code>; sem valor mostra o texto de <code>semValor</code>) e <code>texto</code> (a observação; sem
+                      ela mostra <code>semTexto</code>).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td>
+                      <code>semTitulo</code>, <code>semTexto</code>, <code>semValor</code>, <code>anterior</code>,
+                      <code>proximo</code>, <code>carrossel</code>, <code>cartao</code>.
+                    </td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 420).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="galeria" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="galeria"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Formulário de Cards ===== -->
+      <section class="sg-secao" id="formulario-cards">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Formulário de Cards</h2>
+          <p class="sg-secao__uso">
+            Restrições do 6WLA, acervo de lições. Original:
+            <code>docs/referencia/graficos/Formulário de Cards.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="formulario-cards" data-exemplo="formulario-cards"></div>
+        </div>
+        <p class="sg-dica">
+          A lista de registros em cartões pequenos, com a busca no alto (pelo código, sem maiúscula nem acento) e a contagem
+          "visíveis / total". Tocar num cartão abre o detalhe no lugar da lista; a barra Voltar traz a lista de volta e limpa
+          a busca.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do visual.</td></tr>
+                  <tr>
+                    <td><code>itens</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>titulo</code> e <code>subtitulo</code> (o cartão pequeno), <code>situacao</code>
+                      (<code>{ "rotulo": "Em andamento", "papel": "alerta" }</code>, a pílula do cartão), <code>faixa</code>
+                      (a faixa colorida do detalhe: <code>rotulo</code>, <code>valor</code>, <code>papel</code>),
+                      <code>campos</code> (os cartões do detalhe, em duas colunas), <code>secoes</code> (os textos longos,
+                      <code>rotulo</code> e <code>texto</code>) e <code>busca</code> (texto extra para a busca).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>campos</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>rotulo</code> mais um de: <code>valor</code> (texto), <code>data</code> (data ISO, escrita na língua
+                      do documento) ou <code>situacao</code> (uma pílula).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td><code>buscar</code>, <code>voltar</code>, <code>detalhes</code>, <code>semResultados</code>.</td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 620).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="formulario-cards" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="formulario-cards"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Gráfico de Áreas de Avaliação ===== -->
+      <section class="sg-secao" id="areas-avaliacao">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Gráfico de Áreas de Avaliação</h2>
+          <p class="sg-secao__uso">
+            Desempenho da contratada ao longo do tempo. Original:
+            <code>docs/referencia/graficos/Grafico de Areas de Avaliação.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="areas-avaliacao" data-exemplo="areas-avaliacao"></div>
+        </div>
+        <p class="sg-dica">
+          A nota de cada mês sobre as faixas de classificação, a linha que se desenha na entrada, os pontos na cor da faixa em
+          que a nota caiu e o último com o anel que pulsa. No alto, a média, o melhor mês, a variação sobre o mês anterior e a
+          leitura atual na cor da faixa. Com mais de um ano, os botões de ano aparecem e os resumos seguem o que está à vista.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr><td><code>unidade</code>, <code>casas</code></td><td>texto, inteiro</td><td>Sufixo e casas das notas (padrão <code>%</code> e 1).</td></tr>
+                  <tr><td><code>meta</code></td><td>número</td><td>Opcional: a linha tracejada.</td></tr>
+                  <tr>
+                    <td><code>eixo_min</code>, <code>eixo_max</code></td>
+                    <td>números</td>
+                    <td>
+                      Fixam as pontas do eixo. Sem elas, o eixo vai de 100 para baixo, em passos de 10, até onde a menor nota
+                      pede (o piso é o menor entre 60 e a dezena quatro pontos abaixo dela, a conta do original).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>zonas</code></td>
+                    <td>lista</td>
+                    <td>
+                      As faixas de classificação, que vêm dos parâmetros do projeto (a biblioteca não traz faixa própria):
+                      <code>de</code>, <code>rotulo</code> e <code>papel</code>. Cada faixa vale a partir do seu <code>de</code> e
+                      vai até o da seguinte (a nota 85 é da faixa que começa em 85).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>pontos</code></td>
+                    <td>lista</td>
+                    <td>Um por mês: <code>ano</code>, <code>mes</code> (1 a 12) e <code>valor</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td>
+                      <code>media</code>, <code>melhorMes</code>, <code>vsAnterior</code>, <code>atual</code>,
+                      <code>pontosPercentuais</code>, <code>todos</code>, <code>ano</code>, <code>vazio</code>.
+                    </td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 560).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="areas-avaliacao" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="areas-avaliacao"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Tabela formatada ===== -->
+      <section class="sg-secao" id="tabela-formatada">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tabela formatada</h2>
+          <p class="sg-secao__uso">
+            Tabelas detalhadas (mapa de controle, EAP, punch). Original:
+            <code>docs/referencia/graficos/Tabela formatada.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-formatada" data-exemplo="tabela-formatada"></div>
+        </div>
+        <p class="sg-dica">
+          Uma tabela larga com a busca no alto (e a contagem), o cabeçalho em dois níveis, as pílulas de categoria, as horas
+          em H:MM coloridas por faixa e os percentuais com fundo de mapa de calor. A coluna de total avisa quando não fecha
+          (amarelo se falta, vermelho se passa). A linha achada pela busca fica em destaque e as linhas entram em sequência.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível da tabela.</td></tr>
+                  <tr><td><code>rodape</code></td><td>texto</td><td>Opcional: o texto à direita do rodapé.</td></tr>
+                  <tr>
+                    <td><code>grupos</code></td>
+                    <td>lista</td>
+                    <td>
+                      Opcional: o cabeçalho de cima. Cada grupo cobre as <code>colunas</code> seguintes
+                      (<code>{ "rotulo": "Dados de medição", "colunas": 6 }</code>); <code>total: true</code> pinta o grupo do
+                      total. A divisa entre grupos sai daí.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>colunas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code> e <code>tipo</code>: <code>texto</code> (padrão),
+                      <code>categoria</code> (pílula; a cor vem da ordem do primeiro aparecimento, ou de <code>tons</code>:
+                      <code>{ "valor": "papel" }</code>), <code>hhmm</code> (o valor em minutos, escrito H:MM; <code>faixas</code>
+                      dá o papel de cor pelo primeiro <code>ate</code> maior que o valor, e a última, sem <code>ate</code>, pega o
+                      resto), <code>percentual</code> (de 0 a 100; zero e vazio viram "—"; <code>casas</code>) e
+                      <code>numero</code> (<code>casas</code>, <code>unidade</code>). Uma coluna com <code>esperado</code> é a de
+                      total: igual ao esperado fica no verde escuro; abaixo, em aviso; acima, em vermelho.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>Cada linha é um objeto com um valor por <code>id</code> de coluna. Os limites das faixas vêm dos parâmetros do projeto.</td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>buscar</code>, <code>exibindo</code> (com <code>{visiveis}</code> e <code>{total}</code>), <code>semResultados</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 560).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="tabela-formatada" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="tabela-formatada"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Tabela Formata 2 ===== -->
+      <section class="sg-secao" id="tabela-formatada-2">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tabela Formata 2</h2>
+          <p class="sg-secao__uso">
+            Tabelas detalhadas (mapa de controle, EAP, punch). Original:
+            <code>docs/referencia/graficos/Tabela Formata 2.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-formatada-2" data-exemplo="tabela-formatada-2"></div>
+        </div>
+        <p class="sg-dica">
+          O mapa de funções: uma linha por item e um bloco de medidas (previsto, realizado, remanescente e contratado) para
+          cada grupo. À esquerda de cada linha, o ponto de saúde e a barrinha de avanço; no alto, a linha de Total geral dentro
+          do cabeçalho; à direita, o bloco Total de cada linha. O selo do remanescente fica laranja se falta, verde se fecha e
+          vermelho se passou. Passar o ponteiro realça a linha.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível da tabela.</td></tr>
+                  <tr><td><code>primeira_coluna</code></td><td>texto</td><td>O título da coluna dos itens.</td></tr>
+                  <tr><td><code>grupos</code></td><td>lista</td><td><code>id</code> e <code>rotulo</code>: um bloco de medidas por grupo (as funções).</td></tr>
+                  <tr>
+                    <td><code>medidas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code> e <code>tipo</code>: <code>previsto</code>, <code>realizado</code> ou
+                      <code>saldo</code> (previsto menos realizado, calculado aqui). Sem <code>tipo</code> é uma medida comum
+                      (o contratado).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>total</code></td>
+                    <td>objeto</td>
+                    <td>Opcional: <code>grupo</code> e <code>linha</code> (os nomes) acrescentam o bloco Total e a linha Total geral.</td>
+                  </tr>
+                  <tr>
+                    <td><code>faixas_progresso</code>, <code>faixas_saude</code></td>
+                    <td>listas</td>
+                    <td>
+                      <code>{ "de": 80, "papel": "marca" }</code>: valem pelo maior <code>de</code> que o valor alcança.
+                      A primeira pinta a barrinha pelo avanço em %; a segunda, o ponto pelo saldo total. As faixas são regra do
+                      projeto e vêm do servidor; sem elas a barrinha é verde e não há ponto.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>linhas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>subtitulo</code> e <code>valores</code>:
+                      <code>{ "grupo": { "medida": número } }</code>. O servidor manda as quantidades; o saldo, os totais por linha e
+                      por coluna e o avanço saem aqui.
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>total</code>, <code>totalGeral</code>, <code>primeiraColuna</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 560).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="tabela-formatada-2" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="tabela-formatada-2"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Tabela Etapa por etapa ===== -->
+      <section class="sg-secao" id="tabela-etapa-por-etapa">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Tabela Etapa por etapa</h2>
+          <p class="sg-secao__uso">
+            Tabelas detalhadas (mapa de controle, EAP, punch). Original:
+            <code>docs/referencia/graficos/Tabela Etapa por etapa super detalhada.html</code>.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="tabela-etapa-por-etapa" data-exemplo="tabela-etapa-por-etapa"></div>
+        </div>
+        <p class="sg-dica">
+          A matriz de ações por etapa: um cartão por projeto e uma coluna por etapa da fase à vista (as abas trocam de fase).
+          Cada célula mostra a ação mais urgente da etapa, com o previsto, o concluído, a situação e o desvio em dias, e um
+          selo quando há mais de uma ação. Os contadores, a busca e os filtros do alto valem para todas as fases. Tocar numa
+          célula com ação abre o detalhe de todas as ações dela, sobre o próprio visual (Esc fecha).
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code>, <code>subtitulo</code></td><td>textos</td><td>O cabeçalho do visual; o subtítulo é opcional.</td></tr>
+                  <tr>
+                    <td><code>hoje</code></td>
+                    <td>data ISO</td>
+                    <td>O dia de hoje, do servidor: o atraso de uma ação é hoje menos o previsto. Sem ele, nenhuma ação fica atrasada.</td>
+                  </tr>
+                  <tr>
+                    <td><code>fases</code></td>
+                    <td>lista</td>
+                    <td>
+                      As abas: <code>id</code>, <code>rotulo</code> e <code>etapas</code> (<code>id</code> e <code>rotulo</code>:
+                      as colunas daquela fase). Com uma fase só, as abas somem.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>marcadores</code></td>
+                    <td>lista</td>
+                    <td>
+                      Os rótulos do cabeçalho do cartão e, ao mesmo tempo, os filtros do alto: <code>id</code>,
+                      <code>rotulo</code> e <code>valores</code> (opcional: a ordem das opções do filtro; sem ela, a da primeira
+                      aparição).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>itens</code></td>
+                    <td>lista</td>
+                    <td>
+                      Um projeto cada: <code>id</code>, <code>rotulo</code>, <code>fase</code> (omitida, vale a primeira),
+                      <code>faixa</code> (o papel de cor da borda do cartão; a regra é do servidor), <code>marcas</code>
+                      (<code>{ "id_do_marcador": { "valor": "Alto - 12", "papel": "atencao", "ponto": true } }</code>) e
+                      <code>acoes</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>acoes</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>etapa</code> (o <code>id</code> de uma etapa da fase), <code>estado</code>
+                      (<code>concluida</code>, <code>em_andamento</code> ou <code>nao_iniciada</code>), <code>previsto</code> e
+                      <code>concluido</code> (datas ISO, opcionais), <code>responsavel</code> e <code>justificativa</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Situação da ação</td>
+                    <td>calculada</td>
+                    <td>
+                      Com data de conclusão: concluída (com atraso se passou do previsto). Sem ela, hoje menos o previsto: positivo
+                      é atraso, e a ação em andamento ou não iniciada fica atrasada. Sem as duas datas, o estado decide
+                      (concluída sem data, em andamento ou sem ação). Na célula vale a ação mais urgente; no empate, a de previsto
+                      mais antigo.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Situação do projeto</td>
+                    <td>calculada</td>
+                    <td>
+                      Concluído se todas as ações com situação estão concluídas; senão, Atrasado se alguma tem atraso; senão, Em
+                      andamento se alguma está em andamento ou já há concluída; senão, Não iniciado. A barra mostra a fração de
+                      concluídas.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>rotulos</code></td>
+                    <td>objeto</td>
+                    <td>Os textos de interface (<code>buscar</code>, <code>projetos</code>, <code>filtroTodos</code>, o nome de cada situação...).</td>
+                  </tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 560).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="tabela-etapa-por-etapa" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="tabela-etapa-por-etapa"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Pirâmide de segurança dupla ===== -->
+      <section class="sg-secao" id="piramide-seguranca">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Pirâmide de segurança dupla</h2>
+          <p class="sg-secao__uso">
+            Painel HSE: as pirâmides do mês e do acumulado. Visual novo (D11): a coletânea não tem equivalente; vem de
+            <code>GI.charts.pyramidPair</code> do protótipo, no padrão da coletânea.
+          </p>
+        </div>
+        <div class="card sg-quadro sg-quadro--estreito">
+          <div data-grafico="piramide-seguranca" data-exemplo="piramide-seguranca"></div>
+        </div>
+        <p class="sg-dica">
+          Duas pirâmides lado a lado, faixas de altura fixa, o nome de cada nível uma vez só na coluna do meio, a proporção
+          real escrita embaixo de cada pirâmide e a referência (Bird ou Heinrich) numa linha no rodapé. A faixa sem ocorrência
+          não some (a forma é fixa), mas fica clara. Aqui a do mês divide pelo primeiro termo (1 : 2,5 : ...); a do acumulado
+          tem zero lesão grave e não há como dividir, então mostra a contagem.
+        </p>
+        <div class="card sg-quadro sg-quadro--estreito">
+          <div data-grafico="piramide-seguranca" data-exemplo="piramide-seguranca-heinrich"></div>
+        </div>
+        <p class="sg-dica">
+          A mesma pirâmide com a referência de Heinrich (1 : 29 : 300), em que o último termo soma dois níveis
+          (<code>niveis: ["dano", "quase"]</code>); a proporção real usa os mesmos grupos.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr>
+                    <td><code>niveis</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code> e <code>papel</code> (ou <code>cor</code>), <strong>do vértice para a base</strong>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>piramides</code></td>
+                    <td>lista de uma ou duas</td>
+                    <td>
+                      <code>titulo</code> e <code>valores</code>: a contagem de ocorrências por <code>id</code> de nível. O
+                      servidor manda as contagens; a proporção real sai aqui.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>referencia</code></td>
+                    <td>objeto</td>
+                    <td>
+                      Opcional: <code>nome</code> (Bird, Heinrich), <code>termos</code> (<code>niveis</code>, a lista de níveis
+                      que o termo cobre, e <code>valor</code>, o do termo) e <code>nota</code> (por exemplo "níveis 3 e 4
+                      somados"). A referência vem dos parâmetros do projeto: a biblioteca não traz a dela. Sem ela, um termo por
+                      nível.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Proporção real</td>
+                    <td>calculada</td>
+                    <td>
+                      Soma, por termo, a contagem dos níveis dele. Com o primeiro termo maior que zero, divide por ele
+                      ("Real 1 : 12,5 : 31"); com zero não há como dividir e mostra a contagem ("Real 0 : 16 : 31 : 190").
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>real</code>, <code>referencia</code>, <code>doTotal</code> (dica).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="piramide-seguranca" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="piramide-seguranca"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Cascata de valor do contrato ===== -->
+      <section class="sg-secao" id="cascata-contrato">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Cascata de valor do contrato</h2>
+          <p class="sg-secao__uso">
+            Ficha do contrato: do valor original ao saldo a faturar. Visual novo (D11): a coletânea não tem equivalente.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="cascata-contrato" data-exemplo="cascata-contrato"></div>
+        </div>
+        <p class="sg-dica">
+          Os totais (barras do zero) no verde da marca, os acréscimos no laranja e as reduções no roxo, como no protótipo.
+          Os rótulos sobre as barras saem na forma compacta ("R$ 4,6 mi"); a dica, na completa. Este exemplo manda centavos
+          (<code>divisor: 100</code>) e pede reais (<code>moeda: "BRL"</code>).
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr>
+                    <td><code>formato</code></td>
+                    <td>objeto</td>
+                    <td>
+                      <code>divisor</code> (padrão 1; 100 se o servidor manda centavos), <code>casas</code> (padrão 0),
+                      <code>moeda</code> (<code>"BRL"</code>) e <code>unidade</code> (sufixo).
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>etapas</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>valor</code>, <code>tipo</code> e <code>papel</code>.
+                      <code>tipo: "total"</code> desenha a barra do zero até o valor; sem <code>tipo</code> a etapa é uma
+                      variação, com sinal, que sai de onde a anterior parou. Total sem <code>valor</code> assume a soma corrida
+                      até ali; com <code>valor</code>, ele manda (a fórmula do negócio, como valor atual = original + aditivos,
+                      é do servidor, que também escolhe o <code>papel</code> de cor de uma etapa).
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>total</code>, <code>acrescimo</code>, <code>reducao</code>, <code>valor</code>, <code>acumulado</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 460).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="cascata-contrato" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="cascata-contrato"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Rosca de distribuição ===== -->
+      <section class="sg-secao" id="rosca">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Rosca de distribuição</h2>
+          <p class="sg-secao__uso">
+            Ocorrências por empresa e por área, composição de um valor. Visual novo (D11): a coletânea não tem equivalente.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="rosca" data-exemplo="rosca"></div>
+        </div>
+        <p class="sg-dica">
+          O anel se desenha no sentido horário, uma fatia depois da outra, com o total no centro e a legenda ao lado (valor e
+          parte de cada fatia). Passe o ponteiro, ou use o foco, numa fatia ou na linha dela: as duas se destacam e o resto
+          esmaece. Passando de cinco fatias, as menores se juntam em "Outros" (cinza), a regra do protótipo para gráfico
+          categórico.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr><td><code>rotulo_total</code></td><td>texto</td><td>O que o total do centro conta (padrão "Total").</td></tr>
+                  <tr>
+                    <td><code>formato</code></td>
+                    <td>objeto</td>
+                    <td>
+                      O mesmo da cascata (<code>divisor</code>, <code>casas</code>, <code>moeda</code>, <code>unidade</code>) e
+                      <code>compacto</code>: <code>true</code> escreve "R$ 4,6 mi" no lugar do valor completo.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>maximo_fatias</code></td>
+                    <td>inteiro</td>
+                    <td>Padrão 5: passando disso, as menores viram uma fatia "Outros". <code>0</code> desliga o agrupamento.</td>
+                  </tr>
+                  <tr>
+                    <td><code>fatias</code></td>
+                    <td>lista</td>
+                    <td>
+                      <code>id</code>, <code>rotulo</code>, <code>valor</code> e <code>papel</code> (ou <code>cor</code>). Saem em
+                      ordem decrescente; fatia zerada, negativa ou sem número não entra. Sem <code>papel</code>, a cor vem da
+                      sequência da biblioteca. O servidor manda os valores; o percentual sai aqui.
+                    </td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>outros</code>, <code>total</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="rosca" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="rosca"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== Linhas múltiplas ===== -->
+      <section class="sg-secao" id="linhas-multiplas">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Linhas múltiplas</h2>
+          <p class="sg-secao__uso">
+            TF e TRIF do HSE, CPI e SPI do custo e do prazo, mês a mês. Visual novo (D11): a coletânea não tem equivalente.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div data-grafico="linhas-multiplas" data-exemplo="linhas-multiplas"></div>
+        </div>
+        <p class="sg-dica">
+          Duas ou mais séries no mesmo eixo, com a legenda, os botões de ano e a dica da coletânea. A linha se desenha da
+          esquerda para a direita e a última leitura de cada série leva o valor. Taxas como TF e TRIF pedem o eixo a partir do
+          zero (<code>base_zero</code>, o padrão).
+        </p>
+        <div class="card sg-quadro">
+          <div data-grafico="linhas-multiplas" data-exemplo="linhas-multiplas-indices"></div>
+        </div>
+        <p class="sg-dica">
+          Índices que giram em torno de 1 (CPI e SPI) mandam <code>base_zero: false</code>: o eixo se ajusta ao dado, e a linha
+          de referência em 1,00 (a meta) corta o gráfico em tracejado. Um mês sem leitura (valor nulo) quebra a linha.
+        </p>
+        <details class="sg-detalhes">
+          <summary>Contrato de dados e uso</summary>
+          <div class="sg-detalhes__corpo">
+            <div class="sg-rolagem">
+              <table class="sg-tabela">
+                <thead>
+                  <tr><th>Campo</th><th>Tipo</th><th>Significado</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>titulo</code></td><td>texto</td><td>Nome acessível do gráfico.</td></tr>
+                  <tr><td><code>casas</code>, <code>unidade</code></td><td>inteiro, texto</td><td>Casas (padrão 2) e sufixo dos valores.</td></tr>
+                  <tr>
+                    <td><code>base_zero</code>, <code>eixo</code></td>
+                    <td>booleano, objeto</td>
+                    <td>
+                      <code>base_zero</code> (padrão sim) faz o eixo começar no zero; <code>false</code> ajusta o eixo ao dado.
+                      <code>eixo.min</code> e <code>eixo.max</code> fixam as pontas.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>suavizar</code></td>
+                    <td>booleano</td>
+                    <td>Padrão sim: a curva das curvas S, sem passar abaixo nem acima de dois pontos vizinhos. <code>false</code> liga os pontos em reta.</td>
+                  </tr>
+                  <tr>
+                    <td><code>series</code></td>
+                    <td>lista</td>
+                    <td><code>id</code>, <code>rotulo</code>, <code>papel</code> (ou <code>cor</code>), <code>traco</code> (<code>"6,4"</code>), <code>largura</code> e <code>raio</code>.</td>
+                  </tr>
+                  <tr>
+                    <td><code>referencias</code></td>
+                    <td>lista</td>
+                    <td>Opcional: linhas tracejadas que cortam o gráfico (<code>valor</code>, <code>rotulo</code>, <code>papel</code>, <code>traco</code>).</td>
+                  </tr>
+                  <tr>
+                    <td><code>periodos</code></td>
+                    <td>lista</td>
+                    <td>Um por mês: <code>ano</code>, <code>mes</code> e <code>valores</code> por <code>id</code> de série; nulo é o mês sem leitura e quebra a linha.</td>
+                  </tr>
+                  <tr><td><code>rotulos</code></td><td>objeto</td><td><code>todos</code>, <code>ano</code>, <code>vazio</code>.</td></tr>
+                  <tr><td><code>altura</code></td><td>número</td><td>Altura em px (padrão 520).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>No fragmento:</p>
+            <pre class="sg-codigo">&lt;div data-grafico="linhas-multiplas" data-dados='{{ grafico | tojson }}'&gt;&lt;/div&gt;</pre>
+            <p>Começo do JSON deste exemplo:</p>
+            <pre class="sg-codigo" data-previa="linhas-multiplas"></pre>
+          </div>
+        </details>
+      </section>
+
+      <!-- ===== fim das seções da ISSUE-016 ===== -->
+
+      <!-- ===== Mapeamento da D11: necessidade no GestNow e visual ===== -->
+      <section class="sg-secao" id="mapeamento">
+        <div class="sg-secao__cab">
+          <h2 class="h-card3">Mapeamento: necessidade no GestNow e visual</h2>
+          <p class="sg-secao__uso">
+            Decisão D11: todo gráfico do protótipo tem destino na biblioteca. A tabela é montada por
+            <code>styleguide-graficos.js</code>; o nome do visual leva à sua seção, e o que ainda não tem seção nesta página
+            aparece sem link.
+          </p>
+        </div>
+        <div class="card sg-quadro">
+          <div class="sg-rolagem">
+            <table class="sg-tabela">
+              <thead>
+                <tr><th>Necessidade no GestNow</th><th>Visual da coletânea</th></tr>
+              </thead>
+              <tbody id="sg-mapeamento"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="sg-dica">
+          Sem equivalente na coletânea, construídos no mesmo padrão visual (tipografia, dica escura, legenda, botões de ano e
+          animação de entrada):
+        </p>
+        <div class="card sg-quadro">
+          <div class="sg-rolagem">
+            <table class="sg-tabela">
+              <thead>
+                <tr><th>Necessidade no GestNow</th><th>Visual novo</th></tr>
+              </thead>
+              <tbody id="sg-mapeamento-novos"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="sg-nota" id="sg-cobertura"></p>
       </section>
 
       <!-- ===== Conferências das contas ===== -->
