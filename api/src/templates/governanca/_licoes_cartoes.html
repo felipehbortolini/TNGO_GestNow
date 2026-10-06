@@ -1,0 +1,70 @@
+{#
+  Os cartões do acervo com o Excel e o PDF (HU-016: no Portfólio cada cartão e a exportação trazem o
+  projeto). Vazio de origem (nenhuma lição visível no escopo) e vazio por filtro são estados diferentes.
+  Cada cartão leva ao registro de origem quando o módulo dono tem a tela; sem tela, só o número.
+#}
+<div class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Lições</h2>
+    <span class="hint" role="status">{{ contagem }}</span>
+    <div class="licoes-exportar">
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}{{ consulta }}">PDF</button>
+    </div>
+  </div>
+  <div class="card__body">
+    {% if total_no_escopo == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3 class="h-card4">Nenhuma lição no acervo ainda</h3>
+      <p>{% if portfolio %}Nenhum projeto do portfólio tem lições registradas.{% else %}Este projeto ainda não tem lições registradas.{% endif %}
+        {% if pode_registrar %}Use "Nova lição" para registrar a primeira.{% endif %}</p>
+    </div>
+    {% elif not linhas %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h3 class="h-card4">Nenhuma lição encontrada com os filtros atuais</h3>
+      <p>Ajuste ou limpe os filtros para ver as lições.</p>
+      <a class="btn btn--secondary" href="/api/governanca/licoes" x-target="licoes-resumo licoes-cartoes">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="licoes-grade">
+      {% for linha in linhas %}
+      <article class="licao-card licao-card--{{ 'repetir' if linha.kind == 'A repetir' else 'evitar' }}" aria-labelledby="licao-{{ linha.code }}">
+        <div class="licao-card__topo">
+          <span class="licao-card__codigo">{{ linha.code }} · {{ linha.project_label }}</span>
+          <span class="licao-card__selos">
+            <span class="pill {{ pill_tipo(linha.kind) }}">{{ linha.kind }}</span>
+            <span class="pill {{ pill_situacao(linha.situation) }}">{{ linha.situation }}</span>
+          </span>
+        </div>
+        <h3 class="licao-card__titulo" id="licao-{{ linha.code }}">
+          <a href="#" data-licao-acao="ver" data-codigo="{{ linha.code }}">{{ linha.title }}</a>
+        </h3>
+        <p class="licao-card__recomendacao">{{ linha.recommendation }}</p>
+        <div class="licao-card__meta">
+          <span>{{ linha.phase }}</span>
+          <span>{{ linha.area }}</span>
+          {% if linha.discipline %}<span>{{ linha.discipline }}</span>{% endif %}
+          <span>Aplicabilidade: {{ linha.applicability }}</span>
+          {% if linha.reuses %}<span>{{ plural(linha.reuses, 'reuso') }}</span>{% endif %}
+        </div>
+        <div class="licao-card__meta">
+          <span>Origem:
+            {% if linha.origin_url %}<a href="{{ linha.origin_url }}" data-tn-tela>{{ linha.origin_ref or linha.origin_label }}</a>
+            {% else %}{{ linha.origin_ref or linha.origin_label }}{% endif %}</span>
+          {% if linha.has_impact %}<span>Impacto: {{ texto_impacto(linha.term_days, linha.cost_cents) }}</span>{% endif %}
+        </div>
+        <div class="licao-card__acoes">
+          <button type="button" class="btn btn--ghost btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Ver</button>
+          {% if linha.actions.send %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Enviar para validação</button>{% endif %}
+          {% if linha.actions.edit %}<button type="button" class="btn btn--secondary btn--sm" data-licao-acao="editar" data-codigo="{{ linha.code }}">Editar</button>{% endif %}
+          {% if linha.actions.validate %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="validar" data-codigo="{{ linha.code }}">Validar</button>{% endif %}
+          {% if linha.actions.publish %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Publicar</button>{% endif %}
+          {% if linha.actions.apply %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">Aplicar em projeto</button>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

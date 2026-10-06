@@ -804,6 +804,12 @@ def list_discipline_names(session: Session) -> list[str]:
     return list(session.scalars(select(Discipline.name).order_by(Discipline.name)))
 
 
+def discipline_names_by_id(session: Session) -> dict[int, str]:
+    """The disciplines of the register: the name of each, by id (what a lesson points to)."""
+    statement = select(Discipline.id, Discipline.name).order_by(Discipline.name)
+    return {row.id: row.name for row in session.execute(statement)}
+
+
 # ── Register writes for the demonstration load of other modules (ISSUE-051) ──
 #
 # The Weekly Scheduling demonstration brings its own companies, locations, units and

@@ -1,16 +1,127 @@
 /* ============================================================
    licoes.css — Estilo da tela Lições aprendidas (governanca/licoes)
 
-   Acervo de lições aprendidas, com busca, filtros, aplicabilidade e painel.
-
-   Escopo: tudo que morar aqui começa por .pagina--governanca-licoes, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-027 e ISSUE-028.
+   Escopo: tudo que mora aqui começa por .pagina--governanca-licoes, a classe da raiz da
+   view. Só tokens do Design System: nenhum valor de cor, espaçamento, raio ou sombra
+   escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--governanca-licoes .licoes-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-md);
+}
+
+.pagina--governanca-licoes .licoes-escopo {
+  margin-bottom: var(--space-md);
+  color: var(--text-secondary);
+}
+
+.pagina--governanca-licoes .licoes-kickoff {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--governanca-licoes .licoes-kickoff__fases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--governanca-licoes .licoes-filtros {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--governanca-licoes .licoes-filtros__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+.pagina--governanca-licoes .licoes-exportar {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.pagina--governanca-licoes .licoes-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-md);
+}
+
+.pagina--governanca-licoes .licao-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--borda);
+  border-left-width: 4px;
+  border-radius: var(--r-md);
+  background: var(--surface-hover-suave);
+}
+
+.pagina--governanca-licoes .licao-card--repetir {
+  border-left-color: var(--ok-500);
+}
+
+.pagina--governanca-licoes .licao-card--evitar {
+  border-left-color: var(--warn-500);
+}
+
+.pagina--governanca-licoes .licao-card__topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.pagina--governanca-licoes .licao-card__codigo {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pagina--governanca-licoes .licao-card__selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.pagina--governanca-licoes .licao-card__titulo {
+  font-weight: 600;
+}
+
+.pagina--governanca-licoes .licao-card__recomendacao {
+  color: var(--text-secondary);
+}
+
+.pagina--governanca-licoes .licao-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  color: var(--text-hint);
+  font-size: 0.75rem;
+}
+
+.pagina--governanca-licoes .licao-card__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: auto;
+}
+
+@media (max-width: 640px) {
+  .pagina--governanca-licoes .licoes-acoes {
+    justify-content: stretch;
+  }
+  .pagina--governanca-licoes .licoes-exportar {
+    width: 100%;
+  }
+  .pagina--governanca-licoes .licoes-grade {
+    grid-template-columns: 1fr;
+  }
+}

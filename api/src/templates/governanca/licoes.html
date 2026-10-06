@@ -1,0 +1,105 @@
+{% extends "base_fragment.html" %}
+{#
+  Acervo de lições aprendidas (ISSUE-027, HU-129): a barra de ações, a linha do escopo com o checklist
+  de kickoff, os filtros e os cartões.
+
+  A tela pede este fragmento inteiro uma vez. O formulário de filtros pede só os blocos licoes-resumo
+  e licoes-cartoes (licoes_partes.html): como o formulário fica fora dos dois, o campo de busca não
+  perde o foco a cada tecla. Os botões do kickoff preenchem fase e situação do formulário (licoes.js).
+
+  Espera: linhas, total_no_escopo, portfolio, linha_do_escopo, kickoff, situacao_publicada, filtros,
+  consulta, contagem, pode_registrar, tipos, situacoes, fases, areas, disciplinas, origens,
+  aplicabilidades, excel_url, pdf_url e os apresentadores (pill_situacao, pill_tipo, texto_impacto, plural).
+#}
+{% block fragment %}
+<div class="licoes-acoes">
+  {% if pode_registrar %}
+  <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-licao-nova>
+    <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+    Nova lição
+  </button>
+  {% endif %}
+</div>
+
+<div id="licoes-resumo">
+  {% include "governanca/_licoes_resumo.html" %}
+</div>
+
+<form class="card licoes-filtros" method="get" action="/api/governanca/licoes"
+  x-target="licoes-resumo licoes-cartoes" @input.debounce.300ms="$el.requestSubmit()">
+  <div class="card__body licoes-filtros__grade">
+    <div class="field">
+      <label for="licoes-busca">Buscar</label>
+      <input id="licoes-busca" name="busca" type="search" class="input" value="{{ filtros.search or '' }}"
+        placeholder="Número, título, recomendação, disciplina, origem ou palavra-chave" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="licoes-tipo">Tipo</label>
+      <select id="licoes-tipo" name="tipo" class="input">
+        <option value="">Tipo: todos</option>
+        {% for valor in tipos %}
+        <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-situacao">Situação</label>
+      <select id="licoes-situacao" name="situacao" class="input">
+        <option value="">Situação: todas</option>
+        {% for valor in situacoes %}
+        <option value="{{ valor }}"{% if filtros.situation == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-fase">Fase</label>
+      <select id="licoes-fase" name="fase" class="input">
+        <option value="">Todas</option>
+        {% for valor in fases %}
+        <option value="{{ valor }}"{% if filtros.phase == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-area">Área de conhecimento</label>
+      <select id="licoes-area" name="area" class="input">
+        <option value="">Todas</option>
+        {% for valor in areas %}
+        <option value="{{ valor }}"{% if filtros.area == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-disciplina">Disciplina</label>
+      <select id="licoes-disciplina" name="disciplina" class="input">
+        <option value="">Todas</option>
+        {% for valor in disciplinas %}
+        <option value="{{ valor }}"{% if filtros.discipline == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-origem">Origem</label>
+      <select id="licoes-origem" name="origem" class="input">
+        <option value="">Todas</option>
+        {% for valor, rotulo in origens %}
+        <option value="{{ valor }}"{% if filtros.origin == valor %} selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="licoes-aplicabilidade">Aplicabilidade</label>
+      <select id="licoes-aplicabilidade" name="aplicabilidade" class="input">
+        <option value="">Todas</option>
+        {% for valor in aplicabilidades %}
+        <option value="{{ valor }}"{% if filtros.applicability == valor %} selected{% endif %}>{{ valor }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</form>
+
+<div id="licoes-cartoes">
+  {% include "governanca/_licoes_cartoes.html" %}
+</div>
+{% endblock %}
