@@ -1,0 +1,53 @@
+{#
+  Filtros do 6WLA e botões de inclusão. Raiz fixa `lookahead-filtros`: a gravação a
+  devolve com os filtros no padrão. O formulário pede só o conteúdo (`x-target`), então
+  o campo de busca não perde o foco enquanto a pessoa digita. Os botões de inclusão só
+  existem para quem pode gravar; no Portfólio o shell pede o projeto antes
+  (`data-tn-incluir`). Espera: board, filtros, disciplinas, listas_de_restricoes e api.
+#}
+<div id="lookahead-filtros">
+  <form class="toolbar lookahead__filtros" method="get" action="{{ api }}" x-target="lookahead-conteudo"
+    role="search" aria-label="Filtros do 6WLA" x-data @input.debounce.300ms="$el.requestSubmit()">
+    <div class="busca">
+      <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+      <label class="sr-only" for="lookahead-busca">Buscar atividade, área ou código</label>
+      <input id="lookahead-busca" type="search" name="busca" class="input busca__input"
+        placeholder="Buscar atividade, área ou código" value="{{ filtros.search }}" />
+    </div>
+    <div class="field">
+      <label class="sr-only" for="lookahead-disciplina">Disciplina</label>
+      <select id="lookahead-disciplina" name="disciplina" class="input">
+        <option value="">Todas as disciplinas</option>
+        {% for disciplina in disciplinas %}
+        <option value="{{ disciplina }}"{% if disciplina == filtros.discipline %} selected{% endif %}>{{ disciplina }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <label class="lookahead__opcao">
+      <input type="checkbox" name="so_restricao" value="1"{% if filtros.only_with_open_constraint %} checked{% endif %} />
+      Só com restrição aberta
+    </label>
+    <div class="field">
+      <label class="sr-only" for="lookahead-restricoes">Restrições listadas</label>
+      <select id="lookahead-restricoes" name="restricoes" class="input">
+        {% for valor, nome in listas_de_restricoes.items() %}
+        <option value="{{ valor }}"{% if valor == filtros.constraints %} selected{% endif %}>Restrições: {{ nome | lower }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if board.can_write %}
+    <div class="lookahead__inclusao">
+      <button type="button" class="btn btn--primary" data-tn-incluir="atividade"
+        @click="$ajax('{{ api }}/atividades/nova', { target: 'lookahead-formulario' })">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Nova atividade
+      </button>
+      <button type="button" class="btn btn--secondary" data-tn-incluir="restricao"
+        @click="$ajax('{{ api }}/restricoes/nova', { target: 'lookahead-formulario' })">
+        <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+        Nova restrição
+      </button>
+    </div>
+    {% endif %}
+  </form>
+</div>

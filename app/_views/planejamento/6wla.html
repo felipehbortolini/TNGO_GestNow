@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--planejamento-6wla"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['planejamento/6wla'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -7,6 +7,20 @@
         <h1 class="h-dash">6WLA</h1>
         <p class="page-head__sub">Atividades por semana (seis semanas), restrições e responsáveis.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--secondary" data-tn-excel="/api/planejamento/6wla/excel">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="/api/planejamento/6wla/imprimivel">PDF</button>
+      </div>
+    </div>
+
+    <span hidden data-lookahead-carga
+      x-init="$ajax('/api/planejamento/6wla', { target: 'lookahead-filtros lookahead-conteudo' })"></span>
+
+    <div id="lookahead-filtros"></div>
+    <div id="lookahead-formulario"></div>
+
+    <div x-show="estado === 'conteudo' || estado === 'vazio-filtro'">
+      <div id="lookahead-conteudo"></div>
     </div>
 
     <div class="card">
@@ -18,13 +32,13 @@
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há dados aqui</h2>
-          <p>Assim que os registros desta tela forem lançados, eles aparecem aqui.</p>
+          <h2 class="h-card4">Ainda não há atividades no 6WLA</h2>
+          <p>Inclua a primeira atividade com o botão Nova atividade; as restrições dela entram depois.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
           <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <p>Ajuste ou limpe os filtros para ver as atividades.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">

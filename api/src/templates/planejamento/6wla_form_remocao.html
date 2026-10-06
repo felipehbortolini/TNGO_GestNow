@@ -1,0 +1,12 @@
+{#
+  Campos da remoção de uma restrição, como no protótipo: a data de remoção (hoje, por
+  padrão) e como ela foi removida.
+  Espera: formulario e opcoes.
+#}
+{% from "planejamento/6wla_macros.html" import texto, area_de_texto %}
+{% set valores = formulario.values %}
+{% set erros = formulario.errors %}
+<div class="fgrid">
+  {{ texto("remocao", "Data de remoção", valores, erros, tipo="date") }}
+  {{ area_de_texto("comentario", "Como foi removida", valores, erros, maximo=200, obrigatorio=false) }}
+</div>

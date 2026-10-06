@@ -1,0 +1,28 @@
+{#
+  Campos da atividade do 6WLA, como no protótipo: atividade, área ou local, disciplina,
+  empresa, responsável e as semanas programadas. O código (LA-01) é do servidor.
+  Espera: formulario e opcoes.
+#}
+{% from "planejamento/6wla_macros.html" import texto, escolha, mensagem %}
+{% set valores = formulario.values %}
+{% set erros = formulario.errors %}
+<div class="fgrid">
+  {{ texto("atividade", "Atividade", valores, erros, maximo=120, cheio=true) }}
+  {{ texto("area", "Área / local", valores, erros, maximo=120) }}
+  {{ escolha("disciplina", "Disciplina", valores, erros, opcoes.discipline_choices()) }}
+  {{ escolha("empresa", "Empresa", valores, erros, opcoes.company_choices()) }}
+  {{ escolha("responsavel", "Responsável", valores, erros, opcoes.person_choices()) }}
+  <fieldset class="field field--full lookahead__semanas">
+    <legend>Semanas programadas</legend>
+    <div class="lookahead__opcoes">
+      {% for semana in opcoes.weeks %}
+      <label class="lookahead__opcao">
+        <input type="checkbox" name="semanas" value="{{ semana.index }}"{% if semana.index | string in formulario.weeks %} checked{% endif %}
+          {% if erros.get('semanas') %}aria-invalid="true" aria-describedby="lk-semanas-erro"{% endif %} />
+        {{ semana.label }} ({{ semana.start.strftime('%d/%m') }})
+      </label>
+      {% endfor %}
+    </div>
+    {{ mensagem("semanas", erros) }}
+  </fieldset>
+</div>

@@ -1,0 +1,219 @@
+{#
+  Conteúdo do 6WLA: indicadores, o Gantt (D11), a grade de atividades por semana, as
+  restrições e a Galeria das abertas. Raiz fixa `lookahead-conteudo`; `data-resultado`
+  diz à tela qual dos cinco estados mostrar (vazio-origem, vazio-filtro ou conteudo).
+  Os indicadores contam todas as atividades do escopo; os filtros só mexem na grade,
+  na lista de restrições e no Gantt, como no protótipo.
+  Espera: board, gantt, galeria, legenda_semana, horizonte, indice_de_remocao e api.
+#}
+{% set figuras = board.figures %}
+{% if board.total_activities == 0 %}{% set resultado = 'vazio-origem' %}
+{% elif not board.activities %}{% set resultado = 'vazio-filtro' %}
+{% else %}{% set resultado = 'conteudo' %}{% endif %}
+<div id="lookahead-conteudo" data-resultado="{{ resultado }}">
+{% if resultado != 'vazio-origem' %}
+  <div class="kpis" role="group" aria-label="Indicadores do 6WLA">
+    <div class="kpi kpi--neutro kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Atividades no horizonte
+        <small class="lookahead__referencia">Referência: {{ horizonte }}</small></span>
+      <span class="kpi__value">{{ figuras.activities }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--ok' if figuras.short_term_ready == figuras.short_term_activities else 'kpi--warn' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Prontas nas 2 próximas semanas
+        <small class="lookahead__referencia">Meta: {{ figuras.short_term_activities }} · sem restrição aberta, podem ir para a programação</small></span>
+      <span class="kpi__value">{{ figuras.short_term_ready }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--warn' if figuras.open_constraints else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Restrições abertas
+        <small class="lookahead__referencia">Esperado: 0 · de {{ figuras.total_constraints }} identificadas</small></span>
+      <span class="kpi__value">{{ figuras.open_constraints }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--erro' if figuras.overdue_constraints else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('errorCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Restrições vencidas
+        <small class="lookahead__referencia">Esperado: 0 · data necessária já passou</small></span>
+      <span class="kpi__value">{{ figuras.overdue_constraints }}</span>
+    </div>
+    <div class="kpi kpi--info kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Índice de remoção
+        <small class="lookahead__referencia">Meta: 100% · removidas ÷ identificadas</small></span>
+      <span class="kpi__value">{{ indice_de_remocao }}</span>
+    </div>
+  </div>
+{% endif %}
+
+{% if resultado == 'conteudo' %}
+  <section class="card mb-16" aria-labelledby="lk-gantt-titulo">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="lk-gantt-titulo">Grade de 6 semanas</h2>
+        <span class="hint">Semanas {{ horizonte }} · cada barra vai da primeira à última semana programada da atividade; "Com restrição aberta" é a atividade programada nas 2 primeiras semanas com restrição em aberto</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <div data-grafico="gantt" data-dados='{{ gantt | tojson }}'></div>
+    </div>
+  </section>
+
+  <section class="card mb-16" aria-labelledby="lk-grade-titulo">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="lk-grade-titulo">Atividades por semana</h2>
+        <span class="hint">Faixa laranja: semana programada com restrição aberta (nas 2 primeiras semanas ela não deve entrar na programação semanal)</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Grade de atividades por semana, com responsáveis e restrições</caption>
+          <thead>
+            <tr>
+              {% if board.portfolio %}<th scope="col">Projeto</th>{% endif %}
+              <th scope="col">ID</th>
+              <th scope="col">Atividade</th>
+              <th scope="col">Responsável</th>
+              {% for semana in board.weeks %}
+              <th scope="col" class="td-center">{{ legenda_semana(semana) }}</th>
+              {% endfor %}
+              <th scope="col">Restrições</th>
+              {% if board.can_write %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for atividade in board.activities %}
+            <tr{% if atividade.overdue_constraints %} class="lookahead__linha--alerta"{% endif %}>
+              {% if board.portfolio %}<td>{{ atividade.project_label }}</td>{% endif %}
+              <td class="fw-600">{{ atividade.code }}</td>
+              <td>
+                <strong>{{ atividade.name }}</strong>
+                <span class="lookahead__referencia">{{ atividade.area }} · {{ atividade.discipline }} · {{ atividade.company_name }}</span>
+              </td>
+              <td>{{ atividade.owner_name }}</td>
+              {% for semana in board.weeks %}
+              <td class="td-center">
+                {% if atividade.planned[semana.index] %}
+                {% set risco = atividade.week_at_risk(semana.index) %}
+                <span class="lookahead__semana{% if risco %} lookahead__semana--risco{% endif %}" role="img"
+                  aria-label="Programada{% if risco %} com restrição aberta{% endif %}">{% if risco %}!{% endif %}</span>
+                {% else %}
+                <span class="lookahead__semana lookahead__semana--vazia" role="img" aria-label="Não programada"></span>
+                {% endif %}
+              </td>
+              {% endfor %}
+              <td>
+                {% if not atividade.constraints %}
+                <span class="pill pill--ok">Nenhuma</span>
+                {% else %}
+                {% if atividade.overdue_constraints %}
+                <span class="pill pill--erro">{{ atividade.overdue_constraints }} {{ 'vencida' if atividade.overdue_constraints == 1 else 'vencidas' }}</span>
+                {% endif %}
+                {% if atividade.open_constraints %}
+                <span class="pill pill--warn">{{ atividade.open_constraints }} {{ 'aberta' if atividade.open_constraints == 1 else 'abertas' }}</span>
+                {% else %}
+                <span class="pill pill--ok">Removidas</span>
+                {% endif %}
+                {% endif %}
+              </td>
+              {% if board.can_write %}
+              <td>
+                <button type="button" class="iconbtn" aria-label="Editar {{ atividade.code }}" title="Editar a atividade"
+                  x-init="$el.innerHTML = window.icon('edit', 16)"
+                  @click="$ajax('{{ api }}/atividades/{{ atividade.id }}/editar', { target: 'lookahead-formulario' })"></button>
+                <button type="button" class="iconbtn" aria-label="Nova restrição para {{ atividade.code }}" title="Nova restrição"
+                  x-init="$el.innerHTML = window.icon('warning', 16)"
+                  @click="$ajax('{{ api }}/restricoes/nova?atividade={{ atividade.id }}', { target: 'lookahead-formulario' })"></button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="card mb-16" aria-labelledby="lk-restricoes-titulo">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="lk-restricoes-titulo">Restrições</h2>
+        <span class="hint">Tipo, situação e data de remoção; vencida = data necessária passou sem remoção</span>
+      </div>
+    </div>
+    <div class="card__body">
+      {% if board.constraints %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Restrições das atividades</caption>
+          <thead>
+            <tr>
+              {% if board.portfolio %}<th scope="col">Projeto</th>{% endif %}
+              <th scope="col">Atividade</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Restrição</th>
+              <th scope="col">Responsável</th>
+              <th scope="col">Necessária até</th>
+              <th scope="col">Removida em</th>
+              <th scope="col">Situação</th>
+              {% if board.can_write %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for restricao in board.constraints %}
+            <tr{% if restricao.is_overdue %} class="lookahead__linha--alerta"{% endif %}>
+              {% if board.portfolio %}<td>{{ restricao.project_label }}</td>{% endif %}
+              <td>
+                <strong>{{ restricao.activity_code }}</strong>
+                <span class="lookahead__referencia">{{ restricao.activity_name }}</span>
+              </td>
+              <td><span class="pill pill--neutral">{{ restricao.kind }}</span></td>
+              <td>{{ restricao.description }}</td>
+              <td>{{ restricao.owner_name }}</td>
+              <td>{{ restricao.due_date.strftime('%d/%m/%Y') }}</td>
+              <td>{% if restricao.removal_date %}{{ restricao.removal_date.strftime('%d/%m/%Y') }}{% endif %}</td>
+              <td>
+                <span class="pill {{ 'pill--erro' if restricao.is_overdue else ('pill--warn' if restricao.is_open else 'pill--ok') }}">{{ restricao.status }}</span>
+              </td>
+              {% if board.can_write %}
+              <td>
+                <button type="button" class="iconbtn" aria-label="Editar a restrição de {{ restricao.activity_code }}" title="Editar a restrição"
+                  x-init="$el.innerHTML = window.icon('edit', 16)"
+                  @click="$ajax('{{ api }}/restricoes/{{ restricao.id }}/editar', { target: 'lookahead-formulario' })"></button>
+                {% if restricao.is_open %}
+                <button type="button" class="btn btn--ghost btn--sm"
+                  @click="$ajax('{{ api }}/restricoes/{{ restricao.id }}/remover', { target: 'lookahead-formulario' })">
+                  <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+                  Remover
+                </button>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="body-txt">Nenhuma restrição neste filtro.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if galeria['itens'] %}
+  <section class="card mb-16" aria-labelledby="lk-galeria-titulo">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="lk-galeria-titulo">Restrições abertas, uma a uma</h2>
+        <span class="hint">As vencidas primeiro, depois pela data necessária</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <div data-grafico="galeria" data-dados='{{ galeria | tojson }}'></div>
+    </div>
+  </section>
+  {% endif %}
+{% endif %}
+</div>

@@ -14,6 +14,29 @@ Módulo `planejamento`. Controla escopo e avanço físico pela EAP e reúne Curv
 | Produtividade | Quantidades, horas efetivas, amostragem, paradas e KPIs | ISSUE-046 a ISSUE-048 |
 | Punch list | Lista de itens, verificação, bloqueios e painel | ISSUE-049, ISSUE-050 |
 
+## 6WLA (ISSUE-045)
+
+Grade das seis semanas seguintes à semana corrente, com atividades, restrições e responsáveis. A janela começa na segunda-feira da semana seguinte à da data de referência (D6: a data entra como argumento; os testes a injetam). Tabelas: `lookahead`, `lookahead_semana`, `lookahead_restricao` (migração `m045_lookahead_6wla.py`; modelo em `docs/MODELO-DE-DADOS.md`).
+
+**Tela:** `planejamento/6wla` (view `app/_views/planejamento/6wla.html`, fragmentos `api/src/templates/planejamento/6wla_*.html`). Indicadores (atividades no horizonte, prontas nas 2 próximas semanas, restrições abertas, vencidas, índice de remoção) contam todas as atividades do escopo; o filtro (busca, disciplina, só com restrição aberta, lista de restrições) mexe na grade e na lista. A semana programada do curto prazo de atividade com restrição aberta recebe a marca laranja. No Portfólio entra a coluna Projeto (tela e exportações) e a inclusão pede o projeto antes de abrir o formulário.
+
+**Rotas** (`/api/planejamento/6wla`, em `routes.py`): `GET` tela; `GET /excel` e `GET /imprimivel` (Excel e PDF pelos mecanismos genéricos, mesmos filtros); `GET /atividades/nova`, `/atividades/{id}/editar`, `/restricoes/nova`, `/restricoes/{id}/editar`, `/restricoes/{id}/remover` (formulários); `POST /atividades`, `/atividades/{id}`, `/restricoes`, `/restricoes/{id}`, `/restricoes/{id}/remocao` (gravações; 422 com mensagem por campo, 409 em conflito de versão, 403 sem permissão de escrita).
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Início do horizonte | Segunda-feira da semana seguinte à data de referência | `calculations.lookahead_window_start`, `lookahead_weeks` |
+| Restrição aberta | Sem data de remoção | `calculations.constraint_is_open` |
+| Restrição vencida | Aberta e com data necessária anterior à referência (o próprio dia não vence) | `calculations.constraint_is_overdue` |
+| Atividade pronta | Sem restrição aberta | `calculations.activity_is_ready` |
+| Risco no curto prazo | Programada nas 2 primeiras semanas com restrição aberta | `calculations.has_open_constraint_in_short_term`, `week_at_risk` |
+| Situação da atividade | `vencida`, `com_restricao` ou `pronta` | `calculations.activity_situation` |
+| Índice de remoção | Removidas sobre identificadas, em pontos percentuais; vazio sem restrições | `calculations.removal_index` |
+| Indicadores do horizonte | Os cinco números da faixa de KPIs | `calculations.lookahead_figures` |
+| Código da atividade | Próximo `LA-NN` do projeto | `calculations.next_activity_code` |
+| Barra da atividade | Da primeira à última semana programada, até o sábado | `calculations.activity_span` |
+
+**Fluxo:** a restrição nasce aberta; a remoção registra a data (e, opcional, o comentário) e a libera; remover duas vezes é recusado. Toda gravação passa por `service.py` (transação, trilha e versão). **Carga:** `seed.py` grava a coleção `lookahead` do protótipo com as datas deslocadas. **Oráculo:** `api/tests/oraculo/test_oraculo_6wla.py`. **Testes:** `api/tests/planejamento/test_6wla_*.py`, com o apoio em `api/tests/apoio_6wla.py`.
+
 ## Trios das telas
 
 Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".

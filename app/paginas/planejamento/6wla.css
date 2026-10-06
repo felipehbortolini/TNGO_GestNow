@@ -8,9 +8,96 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-045.
+   O que a tela acrescenta ao Design System: a faixa de cinco indicadores, a
+   marca de cada semana da grade (programada, programada com restrição aberta e
+   não programada), a linha de uma atividade com restrição vencida e os campos
+   do formulário (semanas programadas).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--planejamento-6wla .kpis {
+  --kpis-colunas: 5;
+}
+
+.pagina--planejamento-6wla .lookahead__referencia {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.pagina--planejamento-6wla .lookahead__filtros .field {
+  min-width: 200px;
+}
+
+.pagina--planejamento-6wla .lookahead__inclusao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.pagina--planejamento-6wla .lookahead__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pagina--planejamento-6wla .lookahead__semana {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-xl);
+  height: var(--space-lg);
+  border-radius: var(--r-sm);
+  background: var(--verde-500);
+  color: var(--branco);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pagina--planejamento-6wla .lookahead__semana--risco {
+  background: var(--warn-500);
+  color: var(--text-primary);
+}
+
+.pagina--planejamento-6wla .lookahead__semana--vazia {
+  background: var(--neutro-100);
+}
+
+.pagina--planejamento-6wla .lookahead__linha--alerta td {
+  background: var(--erro-50);
+}
+
+.pagina--planejamento-6wla .lookahead__formulario {
+  border-color: var(--verde-500);
+}
+
+.pagina--planejamento-6wla .lookahead__semanas {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.pagina--planejamento-6wla .lookahead__semanas legend {
+  padding: 0;
+  margin-bottom: var(--space-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pagina--planejamento-6wla .lookahead__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+.pagina--planejamento-6wla .lookahead__rotulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}

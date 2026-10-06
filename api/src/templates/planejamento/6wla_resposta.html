@@ -1,0 +1,9 @@
+{#
+  Resposta de uma gravação do 6WLA: formulário, filtros e conteúdo de uma vez.
+  Alvo declarado que não volta é esvaziado pelo Alpine AJAX, então as três raízes
+  vêm sempre, inclusive no 422 e no 409 (o formulário volta preenchido, com as
+  mensagens). Com `formulario` vazio, o bloco do formulário volta vazio: fechou.
+#}
+{% include "planejamento/6wla_formulario.html" %}
+{% include "planejamento/6wla_filtros.html" %}
+{% include "planejamento/6wla_conteudo.html" %}

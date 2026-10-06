@@ -1,0 +1,41 @@
+{#
+  Bloco do formulário do 6WLA. Raiz fixa `lookahead-formulario`: é alvo do botão que
+  abre o formulário e de toda gravação. Sem `formulario`, o bloco fica vazio.
+  Espera: formulario (routes.FormScreen) e opcoes (service.FormOptions).
+#}
+<div id="lookahead-formulario">
+{% if formulario %}
+  <section class="card mb-16 lookahead__formulario" aria-labelledby="lk-form-titulo">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="lk-form-titulo">{{ formulario.title }}</h2>
+        {% if formulario.subtitle %}<span class="hint">{{ formulario.subtitle }}</span>{% endif %}
+      </div>
+      <button type="button" class="iconbtn" aria-label="Fechar o formulário"
+        x-init="$el.innerHTML = window.icon('dismiss', 16)"
+        @click="document.getElementById('lookahead-formulario').replaceChildren()"></button>
+    </div>
+    <div class="card__body">
+      {% if formulario.message or formulario.errors %}
+      <div class="aviso aviso--erro mb-16" role="alert">
+        <strong>Não foi possível salvar.</strong>
+        {% if formulario.message %}<span>{{ formulario.message }}</span>{% endif %}
+        {% for texto in formulario.errors.values() %}<span>{{ texto }}</span>{% endfor %}
+      </div>
+      {% endif %}
+      <form method="post" action="{{ formulario.action }}"
+        x-target="lookahead-formulario lookahead-filtros lookahead-conteudo" data-tn-loading="Salvando...">
+        {% if formulario.values.get('versao') %}
+        <input type="hidden" name="versao" value="{{ formulario.values.get('versao') }}" />
+        {% endif %}
+        {% include formulario.template %}
+        <div class="acoes-rodape mt-24">
+          <button type="button" class="btn btn--secondary"
+            @click="document.getElementById('lookahead-formulario').replaceChildren()">Cancelar</button>
+          <button type="submit" class="btn btn--primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endif %}
+</div>

@@ -1,0 +1,9 @@
+{#
+  6WLA (ISSUE-045): os dois blocos que a tela pede ao abrir, filtros e conteúdo.
+  A resposta traz as duas raízes irmãs (ids fixos, de propósito: a view declara
+  `x-target="lookahead-filtros lookahead-conteudo"`); o filtro pede só o conteúdo.
+  Espera: board, filtros, disciplinas, listas_de_restricoes, gantt, galeria,
+  legenda_semana, horizonte, indice_de_remocao e api (ver routes.py).
+#}
+{% include "planejamento/6wla_filtros.html" %}
+{% include "planejamento/6wla_conteudo.html" %}

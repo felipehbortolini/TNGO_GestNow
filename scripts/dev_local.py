@@ -26,6 +26,7 @@ load_local_settings()
 
 from src.blueprints import acesso, attachments, exports, health, importing, nav  # noqa: E402
 from src.modulos.central_acoes import routes as central_acoes  # noqa: E402
+from src.modulos.planejamento import routes as planejamento  # noqa: E402
 
 # Only tells the shell that someone is signed in. In demonstration the API does
 # not take the identity from here: it comes from the profile selector in the
@@ -111,6 +112,59 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
         "GET",
         re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/historico$"),
         central_acoes.replan_history_view,
+    ),
+    ("GET", re.compile(r"^/api/planejamento/6wla$"), planejamento.lookahead_screen),
+    ("GET", re.compile(r"^/api/planejamento/6wla/excel$"), planejamento.lookahead_excel),
+    ("GET", re.compile(r"^/api/planejamento/6wla/imprimivel$"), planejamento.lookahead_printable),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/atividades/nova$"),
+        planejamento.lookahead_new_activity_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/6wla/atividades$"),
+        planejamento.lookahead_create_activity,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/atividades/(?P<atividade_id>[^/]+)/editar$"),
+        planejamento.lookahead_edit_activity_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/6wla/atividades/(?P<atividade_id>[^/]+)$"),
+        planejamento.lookahead_update_activity,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/restricoes/nova$"),
+        planejamento.lookahead_new_constraint_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/6wla/restricoes$"),
+        planejamento.lookahead_create_constraint,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/editar$"),
+        planejamento.lookahead_edit_constraint_form,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/remover$"),
+        planejamento.lookahead_removal_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/remocao$"),
+        planejamento.lookahead_remove_constraint,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)$"),
+        planejamento.lookahead_update_constraint,
     ),
 ]
 

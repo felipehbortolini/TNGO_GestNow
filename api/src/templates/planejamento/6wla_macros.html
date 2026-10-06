@@ -1,0 +1,45 @@
+{#
+  Campos dos formulários do 6WLA. Cada macro recebe os valores e as mensagens do
+  formulário e escreve o rótulo, o campo e a mensagem sob o campo, com o
+  aria-describedby que a liga a ele (acessibilidade: o erro não é só cor).
+#}
+{% macro mensagem(nome, erros) %}
+{% if erros.get(nome) %}
+<span class="field__erro" id="lk-{{ nome }}-erro" role="alert">{{ erros[nome] }}</span>
+{% endif %}
+{% endmacro %}
+
+{% macro texto(nome, rotulo, valores, erros, maximo=none, cheio=false, tipo="text") %}
+<div class="field{% if cheio %} field--full{% endif %}">
+  <label for="lk-{{ nome }}">{{ rotulo }}</label>
+  <input id="lk-{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" type="{{ tipo }}"
+    name="{{ nome }}" value="{{ valores.get(nome) or '' }}" required
+    {% if maximo %}maxlength="{{ maximo }}"{% endif %}
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="lk-{{ nome }}-erro"{% endif %} />
+  {{ mensagem(nome, erros) }}
+</div>
+{% endmacro %}
+
+{% macro area_de_texto(nome, rotulo, valores, erros, maximo, obrigatorio=true, cheio=true) %}
+<div class="field{% if cheio %} field--full{% endif %}">
+  <label for="lk-{{ nome }}">{{ rotulo }}</label>
+  <textarea id="lk-{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" name="{{ nome }}"
+    rows="2" maxlength="{{ maximo }}" {% if obrigatorio %}required{% endif %}
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="lk-{{ nome }}-erro"{% endif %}>{{ valores.get(nome) or '' }}</textarea>
+  {{ mensagem(nome, erros) }}
+</div>
+{% endmacro %}
+
+{% macro escolha(nome, rotulo, valores, erros, opcoes, cheio=false) %}
+<div class="field{% if cheio %} field--full{% endif %}">
+  <label for="lk-{{ nome }}">{{ rotulo }}</label>
+  <select id="lk-{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" name="{{ nome }}" required
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="lk-{{ nome }}-erro"{% endif %}>
+    <option value="">Selecione</option>
+    {% for valor, nome_da_opcao in opcoes %}
+    <option value="{{ valor }}"{% if (valores.get(nome) or '') | string == valor | string %} selected{% endif %}>{{ nome_da_opcao }}</option>
+    {% endfor %}
+  </select>
+  {{ mensagem(nome, erros) }}
+</div>
+{% endmacro %}

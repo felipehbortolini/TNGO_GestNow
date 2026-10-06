@@ -28,6 +28,8 @@ from src.modulos.configuracoes import validation
 from src.modulos.configuracoes.models import (
     Collaborator,
     CollaboratorScheduleRole,
+    Company,
+    Discipline,
     ParameterValue,
     ParameterVersion,
     Person,
@@ -763,3 +765,28 @@ def _grow(container: list[Any], index: int, child: Any) -> None:
     while len(container) <= index:
         container.append(None)
     container[index] = child
+
+
+@dataclass(frozen=True)
+class RegisterOption:
+    """An entry of a register as a list shows it: the id a form sends and the name a person reads."""
+
+    id: int
+    name: str
+
+
+def list_company_options(session: Session) -> list[RegisterOption]:
+    """Every company of the register, by name: what a company selector offers."""
+    statement = select(Company.id, Company.name).order_by(Company.name, Company.id)
+    return [RegisterOption(id=row.id, name=row.name) for row in session.execute(statement)]
+
+
+def list_person_options(session: Session) -> list[RegisterOption]:
+    """Every person of the register, by name: what a responsible selector offers."""
+    statement = select(Person.id, Person.name).order_by(Person.name, Person.id)
+    return [RegisterOption(id=row.id, name=row.name) for row in session.execute(statement)]
+
+
+def list_discipline_names(session: Session) -> list[str]:
+    """The disciplines of the register, by name."""
+    return list(session.scalars(select(Discipline.name).order_by(Discipline.name)))

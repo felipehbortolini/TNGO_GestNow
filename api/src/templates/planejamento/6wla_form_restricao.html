@@ -1,0 +1,35 @@
+{#
+  Campos da restrição do 6WLA, como no protótipo: atividade, tipo, responsável pela
+  remoção, descrição e data necessária. Na edição a atividade é fixa.
+  Espera: formulario (com activity ou activities) e opcoes.
+#}
+{% from "planejamento/6wla_macros.html" import texto, escolha, area_de_texto %}
+{% set valores = formulario.values %}
+{% set erros = formulario.errors %}
+<div class="fgrid">
+  {% if formulario.activity %}
+  <div class="field field--full">
+    <span class="lookahead__rotulo">Atividade</span>
+    <p class="body-txt">{{ formulario.activity.code }} · {{ formulario.activity.name }}</p>
+  </div>
+  {% else %}
+  {% set varios_projetos = (formulario.activities | map(attribute="project_id") | unique | list | length) > 1 %}
+  <div class="field field--full">
+    <label for="lk-atividade">Atividade</label>
+    <select id="lk-atividade" class="input{% if erros.get('atividade') %} input--erro{% endif %}" name="atividade" required
+      {% if erros.get('atividade') %}aria-invalid="true" aria-describedby="lk-atividade-erro"{% endif %}>
+      <option value="">Selecione</option>
+      {% for atividade in formulario.activities %}
+      <option value="{{ atividade.id }}"{% if (valores.get('atividade') or '') | string == atividade.id | string %} selected{% endif %}>
+        {{ atividade.code }} · {{ atividade.name }}{% if varios_projetos %} ({{ atividade.project_label }}){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    {% if erros.get('atividade') %}<span class="field__erro" id="lk-atividade-erro" role="alert">{{ erros['atividade'] }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {{ escolha("tipo", "Tipo", valores, erros, opcoes.kind_choices()) }}
+  {{ escolha("responsavel", "Responsável pela remoção", valores, erros, opcoes.person_choices()) }}
+  {{ area_de_texto("descricao", "Descrição", valores, erros, maximo=200) }}
+  {{ texto("necessaria", "Necessária até", valores, erros, tipo="date") }}
+</div>

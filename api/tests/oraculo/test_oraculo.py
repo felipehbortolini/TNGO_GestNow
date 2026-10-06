@@ -25,7 +25,13 @@ from src.modulos.configuracoes.models import (
     Unit,
 )
 from src.modulos.configuracoes.service import current_versions
-from tests.oraculo import OracleContext, harness, register_check, registered_checks
+from tests.oraculo import (
+    OracleContext,
+    harness,
+    oraculo_6wla,  # noqa: F401 - registra as afirmações do 6WLA
+    register_check,
+    registered_checks,
+)
 
 MOCK_PEOPLE_EMAILS = (
     "leonardo.gomes@exemplo.com",
