@@ -187,3 +187,16 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 **Exportação.** `export.acervo_document` acrescenta as tabelas do painel (fase, área, situação, mais reusadas e projetos sem registro) e os gráficos ao Excel e ao PDF, com o mesmo conteúdo da tela.
 
 **Testes.** `api/tests/governanca/test_painel_licoes.py` (fórmulas, fronteira do alerta, fachada, a aba no fragmento e o Excel) e o oráculo `api/tests/oraculo/test_oraculo_licoes_painel.py` (10 lições, 4 publicadas, 3 nos 90 dias, taxa de reuso de 75,0%, fases, áreas, situações e mais reusadas do mock).
+
+## O que a ISSUE-030 trouxe (ligações com a EAC)
+
+**Análise de impacto.** `conclude_analysis` passou a conferir os itens da EAC pela fachada do Financeiro (`financeiro.eac_item_ids_by_code`, `eac_item_levels_by_code` e `validation.check_impact_item`): item inexistente ou que não é de nível 3 é recusado com a mensagem no campo.
+
+**Remanejamento de orçamento.** A EAC abre a SM pela fachada (`create_reallocation_change`), que grava as transferências em `mudanca_remanejamento` (`ProposedTransfer`: origem, destino, valor e o item novo). A decisão que aprova aplica as transferências na EAC, na mesma transação, por `financeiro.apply_reallocations` (o saldo livre é conferido de novo, sem a reserva da própria SM); a rejeição libera a reserva. `pending_reallocations` devolve as transferências de SMs abertas (a reserva do saldo), `mark_reallocations_applied` grava autor/data/revisão e `apply_reallocations` usa `pending_change_transfers`.
+
+**Revisões da EAC.** `change_eac_source` é o que a revisão lê da SM (situação aprovada, custo do último impacto e `eac_revisao_incorporada`); `eac_revision_sources` lista as SM aprovadas com custo que nenhuma revisão incorporou (as opções do formulário da tela); `incorporate_eac_revision` grava a revisão que incorporou o custo, chamada por `financeiro.create_revision`. O **encerramento** da SM com custo não incorporado é recusado por `_pending_eac_revision` com `CLOSING_EAC_REVISION_PENDING`.
+
+**Carga.** A parte `governanca-eac` do `seed.py` grava as transferências do protótipo em `mudanca_remanejamento` e chama `financeiro.seed.load_revisions`.
+
+**Migração.** `m030_eac_revisoes_e_remanejamento.py` cria as três tabelas da EAC, acrescenta `novo_item` à `mudanca_remanejamento` e fecha os vínculos da Governança com `eac_item` (as FKs de `mudanca_remanejamento` e de `mudanca_impacto_eac_item`), como o `docs/MODELO-DE-DADOS.md` registra.
+

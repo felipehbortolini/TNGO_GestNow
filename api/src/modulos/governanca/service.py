@@ -1582,6 +1582,39 @@ def change_eac_source(session: Session, *, change_id: int) -> ChangeEacSource | 
     )
 
 
+def eac_revision_sources(session: Session, *, project_id: int) -> tuple[ChangeEacSource, ...]:
+    """The approved SMs with cost that no revision of the EAC incorporated yet, oldest first.
+
+    What the EAC screen lists when it asks which SM originates the next revision; a change whose
+    latest impact has no cost does not appear, because the revision itself would refuse it.
+    """
+    changes = session.scalars(
+        select(ChangeRequest)
+        .where(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.eac_revision.is_(None),
+            ChangeRequest.situation.in_(models.APPROVED_SITUATIONS),
+        )
+        .order_by(ChangeRequest.id)
+    ).all()
+    if not changes:
+        return ()
+    impacts = _latest(session, ChangeImpact, [change.id for change in changes])
+    return tuple(
+        ChangeEacSource(
+            change_id=change.id,
+            project_id=change.project_id,
+            code=change.code,
+            approved=True,
+            cost_cents=impact.cost_cents,
+            incorporated_revision=None,
+        )
+        for change in changes
+        for impact in [impacts.get(change.id)]
+        if impact is not None and impact.cost_cents > 0
+    )
+
+
 def incorporate_eac_revision(
     session: Session, *, user: User, change_id: int, revision: int
 ) -> None:

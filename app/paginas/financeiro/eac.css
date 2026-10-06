@@ -55,3 +55,32 @@
 .pagina--financeiro-eac .eac-linha--total { font-weight: 600; }
 .pagina--financeiro-eac .eac-linha__valor { white-space: nowrap; }
 .pagina--financeiro-eac .eac-linha[hidden] { display: none; }
+
+.pagina--financeiro-eac .eac-paineis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.pagina--financeiro-eac .eac-painel__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  flex: none;
+  gap: var(--space-sm);
+}
+
+.pagina--financeiro-eac .eac-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  background: var(--neutro-50);
+}
+
+.pagina--financeiro-eac .tbl tbody tr.eac-remanejamento--pendente td { background: var(--warn-50); }
+
+.pagina--financeiro-eac .tbl tbody tr.eac-revisao--vigente td { background: var(--verde-50); }

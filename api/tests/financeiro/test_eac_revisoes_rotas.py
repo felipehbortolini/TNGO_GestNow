@@ -281,6 +281,18 @@ def test_painel_do_portfolio_traz_o_projeto_em_cada_linha(orcamento: EacScenario
     assert "TN-EAC-001 · Fábrica de teste" in _body(response)
 
 
+def test_a_revisao_lista_as_sm_aprovadas_com_custo_pendentes(orcamento: EacScenario) -> None:
+    change = _sm_com_custo(orcamento, valor_cents=100_000)
+
+    response = routes.eac_revisions(
+        _request("/api/financeiro/eac/revisoes", projeto=str(orcamento.first.id))
+    )
+
+    assert response.status_code == 200
+    assert change.code in _body(response)
+    assert "R$ 1.000,00" in _body(response)
+
+
 @pytest.mark.usefixtures("cenario")
 def test_sem_o_cabecalho_do_alpine_a_leitura_manda_para_o_shell() -> None:
     response = routes.eac_revisions(_request("/api/financeiro/eac/revisoes", target=None))
@@ -507,6 +519,56 @@ def test_item_novo_com_codigo_repetido_e_recusado(cenario: EacScenario) -> None:
 
 
 # ── Importação ───────────────────────────────────────────────────────────
+
+
+def test_o_formulario_da_importacao_vem_do_servidor_e_respeita_o_projeto(
+    orcamento: EacScenario,
+) -> None:
+    response = routes.eac_import_form(
+        _request(
+            "/api/financeiro/eac/revisoes/importar/formulario",
+            target="eac-importar-modal",
+            projeto=str(orcamento.first.id),
+        )
+    )
+
+    assert response.status_code == 200
+    body = _body(response)
+    assert find_by_id(_tags(response), "eac-importar-modal") is not None
+    assert "Baixar o modelo" in body
+    assert 'id="eac-importacao-resultado"' in body
+    assert "Escolha a SM que aprovou o acréscimo" in body
+
+
+@pytest.mark.usefixtures("orcamento")
+def test_o_formulario_da_importacao_no_portfolio_e_recusado() -> None:
+    response = routes.eac_import_form(
+        _request("/api/financeiro/eac/revisoes/importar/formulario", target="eac-importar-modal")
+    )
+
+    assert response.status_code == 422
+    assert "Escolha um projeto" in _body(response)
+
+
+def test_a_conferencia_responde_ao_resultado_e_aos_dois_paineis(orcamento: EacScenario) -> None:
+    content = _spreadsheet()
+
+    response = routes.eac_import_check(
+        _request(
+            "/api/financeiro/eac/revisoes/importar/conferir",
+            form={},
+            file=("itens.xlsx", content),
+            target=f"{IMPORT_TARGET} {REVISIONS_TARGET} {CONTENT_TARGET}",
+            projeto=str(orcamento.first.id),
+        )
+    )
+
+    assert response.status_code == 200
+    tags = _tags(response)
+    assert find_by_id(tags, IMPORT_TARGET) is not None
+    assert find_by_id(tags, REVISIONS_TARGET) is not None
+    assert find_by_id(tags, CONTENT_TARGET) is not None
+    assert "Vão ser gravadas" in _body(response)
 
 
 def test_a_conferencia_mostra_as_linhas_e_nao_grava(orcamento: EacScenario) -> None:

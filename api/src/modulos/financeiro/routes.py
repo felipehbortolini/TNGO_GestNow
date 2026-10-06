@@ -12,9 +12,10 @@ The EAC screen (ISSUE-029, ISSUE-030) and what hangs from it, all under ``/api/f
 * ``POST /eac/remanejamentos`` opens the SM of a reallocation (the value stays reserved in the
   origin until the decision); ``POST /eac/revisoes`` creates a revision from an approved SM with
   cost; ``POST /eac/itens`` creates a new item, financed by a reallocation or by a revision;
-* ``POST /eac/revisoes/importar/conferir`` and ``.../confirmar`` are the two steps of the import
-  of new items by spreadsheet: the check reads and never writes, and the confirmation checks
-  again and creates the revision bound to the SM;
+* ``GET /eac/revisoes/importar/formulario`` is the import form the modal of the screen opens;
+  ``POST /eac/revisoes/importar/conferir`` and ``.../confirmar`` are the two steps of the import
+  of new items by spreadsheet: the check reads and never writes (and answers the result with the
+  two panels), and the confirmation checks again and creates the revision bound to the SM;
 * ``GET /eac/excel`` and ``GET /eac/imprimivel`` are the two exports of the platform, with the
   same filters and the same tables the screen shows.
 """
@@ -29,7 +30,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, database, importing
+from src.core import attachments, calendario, database, importing, rbac
 from src.core.errors import DomainError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import (
@@ -50,7 +51,7 @@ from src.core.routing import (
     fragment_route,
 )
 from src.core.scope import Scope
-from src.core.spreadsheet_reader import MAX_FILE_BYTES
+from src.core.spreadsheet_reader import MAX_DATA_ROWS, MAX_FILE_BYTES, MEGABYTE
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import export, importers, service, validation
 from src.modulos.financeiro.calculations import LEAF_LEVEL, PORTFOLIO_MAIN_LEVEL, TreeRow
@@ -66,6 +67,7 @@ SAVE_ROUTE = "financeiro/eac/itens/{item_id}"
 REVISIONS_ROUTE = "financeiro/eac/revisoes"
 REALLOCATIONS_ROUTE = "financeiro/eac/remanejamentos"
 NEW_ITEM_ROUTE = "financeiro/eac/itens"
+IMPORT_FORM_ROUTE = "financeiro/eac/revisoes/importar/formulario"
 IMPORT_CHECK_ROUTE = "financeiro/eac/revisoes/importar/conferir"
 IMPORT_CONFIRM_ROUTE = "financeiro/eac/revisoes/importar/confirmar"
 EXCEL_ROUTE = "financeiro/eac/excel"
@@ -78,12 +80,14 @@ REVISIONS_TEMPLATE = "financeiro/eac_revisoes.html"
 REALLOCATIONS_TEMPLATE = "financeiro/eac_remanejamentos.html"
 REVISION_SAVED_TEMPLATE = "financeiro/eac_revisao_salva.html"
 REALLOCATION_SAVED_TEMPLATE = "financeiro/eac_remanejamento_salvo.html"
-IMPORT_CHECK_TEMPLATE = "comum/importacao_conferencia.html"
+IMPORT_FORM_TEMPLATE = "financeiro/eac_importacao_form.html"
+IMPORT_CHECK_TEMPLATE = "financeiro/eac_importacao_conferencia.html"
 
 FORM_TARGET = "eac-formulario"
 CONTENT_TARGET = "eac-conteudo"
 REVISIONS_TARGET = "eac-revisoes"
 REALLOCATIONS_TARGET = "eac-remanejamentos"
+IMPORT_RESULT_TARGET = "eac-importacao-resultado"
 SAVED_MESSAGE = "Item {code} atualizado; alteração registrada no histórico."
 NOTHING_CHANGED_MESSAGE = "Nenhum dado alterado."
 REALLOCATION_CREATED_MESSAGE = (
@@ -402,7 +406,9 @@ def eac_revisions(
     """The revisions of the scope: the frozen baseline of each one, with the variation."""
     return AlpineAjaxResponse(
         template_name=REVISIONS_TEMPLATE,
-        context=_revisions_context(session, context.scope),
+        context=_revisions_context(
+            session, context.scope, user=context.user, filters=_filters_of(req.params)
+        ),
         request=req,
     )
 
@@ -415,7 +421,9 @@ def eac_reallocations(
     """The reallocations of the scope: applied and pending, with the free balance of the origin."""
     return AlpineAjaxResponse(
         template_name=REALLOCATIONS_TEMPLATE,
-        context=_reallocations_context(session, context.scope),
+        context=_reallocations_context(
+            session, context.scope, user=context.user, filters=_filters_of(req.params)
+        ),
         request=req,
     )
 
@@ -497,6 +505,26 @@ def eac_new_item(
     return _reallocation_saved(req, session, context, created)
 
 
+@bp.route(route=IMPORT_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eac_import_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of the import of items, opened in the modal of the EAC screen."""
+    project_id = context.scope.require_project()
+    return AlpineAjaxResponse(
+        template_name=IMPORT_FORM_TEMPLATE,
+        context={
+            "fontes": service.revision_source_options(session, project_id=project_id),
+            "filtros": _filters_of(req.params),
+            "campo_arquivo": attachments.FILE_FIELD,
+            "limite_mb": MAX_FILE_BYTES // MEGABYTE,
+            "limite_linhas": MAX_DATA_ROWS,
+        },
+        request=req,
+    )
+
+
 @bp.route(route=IMPORT_CHECK_ROUTE, methods=["POST"])
 @fragment_route(access=WRITE_ACCESS)
 def eac_import_check(
@@ -510,13 +538,23 @@ def eac_import_check(
         upload=_upload_of(req),
         context=_import_context(context),
     )
-    return AlpineAjaxResponse(
-        template_name=IMPORT_CHECK_TEMPLATE, context=_check_context(preview), request=req
+    data = _check_context(preview)
+    data |= _panels_context(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=_filters_of(req.form),
     )
+    data |= {
+        "alvo_importacao": IMPORT_RESULT_TARGET,
+        "alvo_revisoes": REVISIONS_TARGET,
+        "alvo_conteudo": CONTENT_TARGET,
+    }
+    return AlpineAjaxResponse(template_name=IMPORT_CHECK_TEMPLATE, context=data, request=req)
 
 
 @bp.route(route=IMPORT_CONFIRM_ROUTE, methods=["POST"])
-@fragment_route(access=WRITE_ACCESS, on_error=_render_revision_error)
+@fragment_route(access=WRITE_ACCESS)
 def eac_import_confirm(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
@@ -567,21 +605,60 @@ def _project_ids(session: Session, scope: Scope) -> tuple[int, ...]:
     return tuple(project.id for project in configuracoes.list_projects(session))
 
 
-def _revisions_context(session: Session, scope: Scope, *, erro: str = "") -> dict[str, object]:
+def _revisions_context(
+    session: Session,
+    scope: Scope,
+    *,
+    user: User,
+    filters: EacFilters,
+    erro: str = "",
+) -> dict[str, object]:
+    project_id = None if scope.is_portfolio else scope.require_project()
     return {
         "revisoes": service.revision_rows(session, project_ids=_project_ids(session, scope)),
         "carteira": scope.is_portfolio,
         "erro": erro,
+        "filtros": filters,
+        "pode_gravar": project_id is not None and rbac.can(user, Permission.WRITE),
+        "proxima_revisao": (
+            service.next_revision(session, project_id=project_id) if project_id else 0
+        ),
+        "itens": service.item_options(session, project_id=project_id) if project_id else (),
+        "fontes": (
+            service.revision_source_options(session, project_id=project_id) if project_id else ()
+        ),
     }
 
 
-def _reallocations_context(session: Session, scope: Scope, *, erro: str = "") -> dict[str, object]:
+def _reallocations_context(
+    session: Session,
+    scope: Scope,
+    *,
+    user: User,
+    filters: EacFilters,
+    erro: str = "",
+) -> dict[str, object]:
+    project_id = None if scope.is_portfolio else scope.require_project()
     return {
         "remanejamentos": service.reallocation_rows(
             session, project_ids=_project_ids(session, scope)
         ),
         "carteira": scope.is_portfolio,
         "erro": erro,
+        "filtros": filters,
+        "pode_gravar": project_id is not None and rbac.can(user, Permission.WRITE),
+        "itens": service.item_options(session, project_id=project_id) if project_id else (),
+        "subpacotes": (
+            service.subpackage_options(session, project_id=project_id) if project_id else ()
+        ),
+        "fontes": (
+            service.revision_source_options(session, project_id=project_id) if project_id else ()
+        ),
+        "unidades": configuracoes.list_measure_units(session) if project_id else (),
+        "pessoas": configuracoes.list_people(session) if project_id else (),
+        "tipos_de_custo": validation.COST_TYPES,
+        "classificacoes": validation.CLASSIFICATIONS,
+        "prioridades": validation.PRIORITIES,
     }
 
 
@@ -592,8 +669,8 @@ def _panels_context(
         session, user=user, scope=scope, filters=filters, reference_date=calendario.today()
     )
     data = _content_context(view)
-    data |= _revisions_context(session, scope, erro=erro)
-    data |= _reallocations_context(session, scope, erro=erro)
+    data |= _revisions_context(session, scope, user=user, filters=filters, erro=erro)
+    data |= _reallocations_context(session, scope, user=user, filters=filters, erro=erro)
     data |= {"alvo_revisoes": REVISIONS_TARGET, "alvo_remanejamentos": REALLOCATIONS_TARGET}
     return data
 

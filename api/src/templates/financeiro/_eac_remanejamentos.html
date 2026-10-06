@@ -1,68 +1,265 @@
 {#
-  Tabela dos remanejamentos da EAC: os aplicados e os pendentes de decisão, com o saldo livre da
-  origem nos pendentes. No Portfólio cada linha diz o projeto. O aviso de erro aparece no topo
-  quando a operação que pediu a tabela foi recusada. Espera: remanejamentos, carteira, erro.
+  Painel dos remanejamentos da EAC (ISSUE-030): os aplicados e os pendentes de decisão, com o
+  saldo livre da origem nos pendentes, e as ações que abrem uma SM de remanejamento — o
+  remanejamento entre itens e o item novo com recurso de outro item. No Portfólio cada linha diz
+  o projeto e não há ações. O aviso de erro aparece no topo quando a operação que pediu a tabela
+  foi recusada.
+
+  Espera: remanejamentos, carteira, erro, filtros, pode_gravar, itens (EacOption), subpacotes
+  (EacOption), fontes (RevisionSourceOption), unidades, pessoas, tipos_de_custo, classificacoes
+  e prioridades.
 #}
-{% if erro %}
-<div class="aviso aviso--erro" role="alert">
-  <strong>Não foi possível concluir.</strong>
-  <span>{{ erro }}</span>
-</div>
-{% endif %}
-<div class="tbl-wrap">
-  <table class="tbl">
-    <caption class="sr-only">Remanejamentos da EAC</caption>
-    <thead>
-      <tr>
-        {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-        <th scope="col">Data</th>
-        <th scope="col">Origem</th>
-        <th scope="col">Destino</th>
-        <th scope="col" class="td-num">Valor</th>
-        <th scope="col">SM</th>
-        <th scope="col">Situação</th>
-        <th scope="col" class="td-num">Saldo livre da origem</th>
-        <th scope="col">Justificativa</th>
-        <th scope="col">Registrado por</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for linha in remanejamentos %}
-      <tr data-sm="{{ linha.view.change_code }}" data-aplicado="{{ 'sim' if linha.view.applied else 'nao' }}">
-        {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
-        <td class="nowrap">
-          {% if linha.view.applied_on %}{{ linha.view.applied_on.strftime('%d/%m/%Y') }}
-          {% else %}<span class="muted">na aprovação</span>{% endif %}
-        </td>
-        <td>{{ linha.view.source_code }}{% if linha.view.source_description %} · {{ linha.view.source_description }}{% endif %}</td>
-        <td>{{ linha.view.target_code }}{% if linha.view.target_description %} · {{ linha.view.target_description }}{% endif %}</td>
-        <td class="td-num">{{ linha.view.value_cents | brl }}</td>
-        <td class="nowrap">
-          {% if linha.view.change_code %}
-          <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
+<section class="card" aria-labelledby="eac-remanejamentos-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="eac-remanejamentos-titulo">Remanejamentos</h2>
+      <span class="hint">Só por SM aprovada; o valor fica reservado na origem e a transferência só entra na EAC na aprovação.</span>
+    </div>
+    {% if pode_gravar %}
+    <div class="eac-painel__acoes">
+      <button type="button" class="btn btn--primary" data-eac-form="eac-form-remanejar"
+        aria-expanded="false" aria-controls="eac-form-remanejar">Remanejar</button>
+      <button type="button" class="btn btn--secondary" data-eac-form="eac-form-item"
+        aria-expanded="false" aria-controls="eac-form-item">Novo item</button>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if erro %}
+    <div class="aviso aviso--erro" role="alert">
+      <strong>Não foi possível concluir.</strong>
+      <span>{{ erro }}</span>
+    </div>
+    {% endif %}
+
+    {% if pode_gravar %}
+    <form id="eac-form-remanejar" class="eac-form" method="post" action="/api/financeiro/eac/remanejamentos"
+      x-target="eac-remanejamentos eac-conteudo" data-tn-loading="Registrando a SM..." hidden>
+      {% include "financeiro/_eac_filtros_ocultos.html" %}
+      <p class="hint">Gera uma SM "Remanejamento de orçamento" em Governança; o total do orçamento não muda e a transferência só vale na aprovação.</p>
+      <div class="fgrid">
+        <div class="field field--full">
+          <label for="eac-remanejar-origem">Origem</label>
+          <select id="eac-remanejar-origem" name="origem" class="input" required
+            data-eac-saldo="eac-remanejar-saldo">
+            <option value="">Escolha o item de origem</option>
+            {% for item in itens if item.free_balance_cents and item.free_balance_cents > 0 %}
+            <option value="{{ item.code }}" data-saldo="{{ item.free_balance_cents | brl }}">{{ item.code }} · {{ item.description }} · livre {{ item.free_balance_cents | brl }}</option>
+            {% endfor %}
+          </select>
+          <span class="hint" id="eac-remanejar-saldo" role="status">Só entram os itens com saldo livre; ele desconta o reservado em outras SMs abertas.</span>
+        </div>
+        <div class="field field--full">
+          <label for="eac-remanejar-destino">Destino</label>
+          <select id="eac-remanejar-destino" name="destino" class="input" required>
+            <option value="">Escolha o item de destino</option>
+            {% for item in itens %}
+            <option value="{{ item.code }}">{{ item.code }} · {{ item.description }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-remanejar-valor">Valor</label>
+          <input id="eac-remanejar-valor" name="valor" class="input" inputmode="decimal" placeholder="0,00" required />
+        </div>
+        <div class="field">
+          <label for="eac-remanejar-prioridade">Prioridade</label>
+          <select id="eac-remanejar-prioridade" name="prioridade" class="input" required>
+            {% for prioridade in prioridades %}
+            <option value="{{ prioridade }}">{{ prioridade }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="eac-remanejar-justificativa">Justificativa</label>
+          <textarea id="eac-remanejar-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
+        </div>
+      </div>
+      <div class="acoes-rodape">
+        <button type="button" class="btn btn--secondary" data-eac-fechar>Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+          Registrar SM
+        </button>
+      </div>
+    </form>
+
+    <form id="eac-form-item" class="eac-form" method="post" action="/api/financeiro/eac/itens"
+      x-data="{ recurso: 'remanejamento' }"
+      x-target:dynamic="recurso === 'revisao' ? 'eac-revisoes eac-conteudo' : 'eac-remanejamentos eac-conteudo'"
+      data-tn-loading="Criando o item..." hidden>
+      {% include "financeiro/_eac_filtros_ocultos.html" %}
+      <p class="hint">Toda inclusão passa pela gestão de mudanças: por remanejamento de outro item (o total não muda) ou por nova revisão a partir de SM aprovada com custo (papel Gestor).</p>
+      <div class="fgrid">
+        <div class="field">
+          <label for="eac-item-pai">Subpacote</label>
+          <select id="eac-item-pai" name="pai" class="input" required data-eac-pai="eac-item-codigo">
+            <option value="">Escolha o subpacote</option>
+            {% for subpacote in subpacotes %}
+            <option value="{{ subpacote.code }}" data-proximo="{{ subpacote.next_code }}">{{ subpacote.code }} · {{ subpacote.description }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-item-codigo">Código</label>
+          <input id="eac-item-codigo" name="codigo" class="input" type="text" placeholder="1.1.3" required
+            aria-describedby="eac-item-codigo-dica" />
+          <span class="hint" id="eac-item-codigo-dica">Três níveis, no subpacote escolhido (ex.: 1.1.3).</span>
+        </div>
+        <div class="field field--full">
+          <label for="eac-item-descricao">Descrição</label>
+          <input id="eac-item-descricao" name="descricao" class="input" type="text" maxlength="120" required />
+        </div>
+        <div class="field">
+          <label for="eac-item-tipo">Tipo de custo</label>
+          <select id="eac-item-tipo" name="tipo_custo" class="input" required>
+            {% for tipo in tipos_de_custo %}
+            <option value="{{ tipo }}">{{ tipo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-item-unidade">Unidade</label>
+          <select id="eac-item-unidade" name="unidade" class="input" required>
+            {% for unidade in unidades %}
+            <option value="{{ unidade.code }}">{{ unidade.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-item-quantidade">Quantidade</label>
+          <input id="eac-item-quantidade" name="quantidade" class="input" inputmode="decimal" placeholder="0" required />
+        </div>
+        <div class="field">
+          <label for="eac-item-preco">Preço unitário</label>
+          <input id="eac-item-preco" name="preco" class="input" inputmode="decimal" placeholder="0,00" required />
+        </div>
+        <div class="field">
+          <label for="eac-item-classificacao">Classificação</label>
+          <select id="eac-item-classificacao" name="classificacao" class="input" required>
+            {% for classificacao in classificacoes %}
+            <option value="{{ classificacao }}">{{ classificacao }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-item-centro">Centro de custo</label>
+          <input id="eac-item-centro" name="centro_custo" class="input" type="text" maxlength="20" />
+        </div>
+        <div class="field">
+          <label for="eac-item-responsavel">Responsável</label>
+          <select id="eac-item-responsavel" name="responsavel" class="input" required>
+            {% for pessoa in pessoas %}
+            <option value="{{ pessoa.name }}">{{ pessoa.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-item-recurso">Origem do recurso</label>
+          <select id="eac-item-recurso" name="recurso" class="input" required x-model="recurso">
+            <option value="remanejamento">Remanejamento de outro item por SM (o total não muda)</option>
+            <option value="revisao">Nova revisão (SM aprovada com custo)</option>
+          </select>
+        </div>
+        <div class="field field--full" x-show="recurso === 'remanejamento'">
+          <label for="eac-item-origem">Item de origem</label>
+          <select id="eac-item-origem" name="origem" class="input" :required="recurso === 'remanejamento'">
+            <option value="">Escolha o item que financia o novo</option>
+            {% for item in itens if item.free_balance_cents and item.free_balance_cents > 0 %}
+            <option value="{{ item.code }}">{{ item.code }} · {{ item.description }} · livre {{ item.free_balance_cents | brl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field--full" x-show="recurso === 'revisao'">
+          <label for="eac-item-mudanca">SM aprovada</label>
+          <select id="eac-item-mudanca" name="mudanca_id" class="input" :required="recurso === 'revisao'">
+            <option value="">Escolha a SM que financia o item</option>
+            {% for fonte in fontes %}
+            <option value="{{ fonte.change_id }}">{{ fonte.code }} · custo {{ fonte.cost_cents | brl }}</option>
+            {% endfor %}
+          </select>
+          {% if not fontes %}<span class="hint">Não há SM aprovada com custo pendente de incorporação.</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="eac-item-prioridade">Prioridade</label>
+          <select id="eac-item-prioridade" name="prioridade" class="input" required>
+            {% for prioridade in prioridades %}
+            <option value="{{ prioridade }}">{{ prioridade }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="eac-item-justificativa">Justificativa</label>
+          <textarea id="eac-item-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
+        </div>
+      </div>
+      <div class="acoes-rodape">
+        <button type="button" class="btn btn--secondary" data-eac-fechar>Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Criar item
+        </button>
+      </div>
+    </form>
+    {% endif %}
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Remanejamentos da EAC</caption>
+        <thead>
+          <tr>
+            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Data</th>
+            <th scope="col">Origem</th>
+            <th scope="col">Destino</th>
+            <th scope="col" class="td-num">Valor</th>
+            <th scope="col">SM</th>
+            <th scope="col">Situação</th>
+            <th scope="col" class="td-num">Saldo livre da origem</th>
+            <th scope="col">Justificativa</th>
+            <th scope="col">Registrado por</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in remanejamentos %}
+          <tr data-sm="{{ linha.view.change_code }}" data-aplicado="{{ 'sim' if linha.view.applied else 'nao' }}"
+            {% if not linha.view.applied %}class="eac-remanejamento--pendente"{% endif %}>
+            {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
+            <td class="nowrap">
+              {% if linha.view.applied_on %}{{ linha.view.applied_on.strftime('%d/%m/%Y') }}
+              {% else %}<span class="muted">na aprovação</span>{% endif %}
+            </td>
+            <td>{{ linha.view.source_code }}{% if linha.view.source_description %} · {{ linha.view.source_description }}{% endif %}</td>
+            <td>{{ linha.view.target_code }}{% if linha.view.target_description %} · {{ linha.view.target_description }}{% endif %}</td>
+            <td class="td-num">{{ linha.view.value_cents | brl }}</td>
+            <td class="nowrap">
+              {% if linha.view.change_code %}
+              <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
+              {% else %}
+              <span class="muted">sem SM</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if linha.view.applied %}
+              <span class="pill pill--ok">Aplicado</span>
+              {% else %}
+              <span class="pill pill--warn">{{ linha.view.situation }}</span>
+              <br><small class="muted">aplica na aprovação</small>
+              {% endif %}
+            </td>
+            <td class="td-num">
+              {% if linha.view.free_balance_cents is not none %}{{ linha.view.free_balance_cents | brl }}{% endif %}
+            </td>
+            <td>{{ linha.view.justification }}</td>
+            <td>{{ linha.view.author }}</td>
+          </tr>
           {% else %}
-          <span class="muted">sem SM</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if linha.view.applied %}
-          <span class="pill pill--ok">Aplicado</span>
-          {% else %}
-          <span class="pill pill--warn">{{ linha.view.situation }}</span>
-          <br><small class="muted">aplica na aprovação</small>
-          {% endif %}
-        </td>
-        <td class="td-num">
-          {% if linha.view.free_balance_cents is not none %}{{ linha.view.free_balance_cents | brl }}{% endif %}
-        </td>
-        <td>{{ linha.view.justification }}</td>
-        <td>{{ linha.view.author }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="{{ 10 if carteira else 9 }}" class="muted">Nenhum remanejamento registrado.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+          <tr>
+            <td colspan="{{ 10 if carteira else 9 }}" class="muted">Nenhum remanejamento registrado.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

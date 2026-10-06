@@ -1,60 +1,138 @@
 {#
-  Tabela das revisões do orçamento: a linha de base (Rev 0) e as seguintes, com a variação sobre
-  a anterior. No Portfólio cada linha diz o projeto. O aviso de erro aparece no topo quando a
-  operação que pediu a tabela foi recusada. Espera: revisoes, carteira, erro.
+  Painel das revisões do orçamento (ISSUE-030): a linha de base (Rev 0) e as seguintes, com a
+  variação sobre a anterior, e as ações que criam uma revisão — a partir de SM aprovada com custo
+  (formulário aqui, que volta com o erro no topo) ou da importação de itens (modal, cuja rota
+  devolve esta tabela). No Portfólio cada linha diz o projeto e não há ações: os cadastros pedem
+  o projeto.
+
+  Espera: revisoes, carteira, erro, filtros, pode_gravar, proxima_revisao, itens (EacOption) e
+  fontes (RevisionSourceOption).
 #}
-{% if erro %}
-<div class="aviso aviso--erro" role="alert">
-  <strong>Não foi possível concluir.</strong>
-  <span>{{ erro }}</span>
-</div>
-{% endif %}
-<div class="tbl-wrap">
-  <table class="tbl">
-    <caption class="sr-only">Revisões do orçamento</caption>
-    <thead>
-      <tr>
-        {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-        <th scope="col">Revisão</th>
-        <th scope="col">Data</th>
-        <th scope="col" class="td-num">Total</th>
-        <th scope="col" class="td-num">Variação</th>
-        <th scope="col">SM</th>
-        <th scope="col">Justificativa</th>
-        <th scope="col">Aprovado por</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for linha in revisoes %}
-      <tr data-revisao="{{ linha.view.revision }}" data-projeto="{{ linha.view.project_id }}">
-        {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
-        <td class="nowrap">
-          <span class="fw-600 num">Rev {{ linha.view.revision }}</span>
-          {% if linha.view.revision == 0 %}<span class="pill pill--info">Linha de base</span>{% endif %}
-          {% if linha.is_current %}<span class="pill pill--ok">Vigente</span>{% endif %}
-        </td>
-        <td class="nowrap">{{ linha.view.revision_date.strftime('%d/%m/%Y') }}</td>
-        <td class="td-num">{{ linha.view.total_cents | brl }}</td>
-        <td class="td-num">
-          {% if linha.variation_cents is not none %}
-          {{ '+' if linha.variation_cents > 0 }}{{ linha.variation_cents | brl }}
-          {% endif %}
-        </td>
-        <td class="nowrap">
-          {% if linha.view.change_code %}
-          <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
-          {% else %}
-          <span class="muted">sem SM</span>
-          {% endif %}
-        </td>
-        <td>{{ linha.view.justification }}</td>
-        <td>{{ linha.view.approved_by }}</td>
-      </tr>
+<section class="card" aria-labelledby="eac-revisoes-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="eac-revisoes-titulo">Revisões do orçamento</h2>
+      <span class="hint">Rev 0 é a linha de base; o acréscimo ao total só entra por revisão, a partir de SM aprovada com custo.</span>
+    </div>
+    {% if pode_gravar %}
+    <div class="eac-painel__acoes">
+      <button type="button" class="btn btn--primary" data-eac-form="eac-form-revisao"
+        aria-expanded="false" aria-controls="eac-form-revisao">Nova revisão</button>
+      <button type="button" class="btn btn--secondary" data-eac-importar>Importar itens</button>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if erro %}
+    <div class="aviso aviso--erro" role="alert">
+      <strong>Não foi possível concluir.</strong>
+      <span>{{ erro }}</span>
+    </div>
+    {% endif %}
+
+    {% if pode_gravar %}
+    <form id="eac-form-revisao" class="eac-form" method="post" action="/api/financeiro/eac/revisoes"
+      x-target="eac-revisoes eac-conteudo" data-tn-loading="Criando a revisão..." hidden>
+      {% include "financeiro/_eac_filtros_ocultos.html" %}
+      <p class="hint">A revisão consolida os remanejamentos aplicados, incorpora o custo aprovado na SM e congela a linha de base da Curva S financeira.</p>
+      {% if fontes %}
+      <div class="fgrid">
+        <div class="field field--full">
+          <label for="eac-revisao-mudanca">SM aprovada</label>
+          <select id="eac-revisao-mudanca" name="mudanca_id" class="input" required>
+            <option value="">Escolha a SM que origina a revisão</option>
+            {% for fonte in fontes %}
+            <option value="{{ fonte.change_id }}">{{ fonte.code }} · custo {{ fonte.cost_cents | brl }}</option>
+            {% endfor %}
+          </select>
+          <span class="hint">Só as SM aprovadas com custo que nenhuma revisão incorporou ainda.</span>
+        </div>
+        <div class="field">
+          <label for="eac-revisao-item">Item que recebe o valor</label>
+          <select id="eac-revisao-item" name="item" class="input" required>
+            {% for item in itens %}
+            <option value="{{ item.code }}">{{ item.code }} · {{ item.description }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="eac-revisao-valor">Valor incorporado</label>
+          <input id="eac-revisao-valor" name="valor" class="input" inputmode="decimal" placeholder="0,00" required />
+          <span class="hint">Até o custo aprovado na SM.</span>
+        </div>
+        <div class="field field--full">
+          <label for="eac-revisao-justificativa">Justificativa</label>
+          <textarea id="eac-revisao-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
+        </div>
+      </div>
+      <div class="acoes-rodape">
+        <button type="button" class="btn btn--secondary" data-eac-fechar>Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Criar Rev {{ proxima_revisao }}
+        </button>
+      </div>
       {% else %}
-      <tr>
-        <td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhuma revisão registrada.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+      <div class="aviso aviso--info" role="note">
+        <strong>Não há SM aprovada com custo pendente de incorporação.</strong>
+        <span>Aprove uma SM com custo em Governança para criar a próxima revisão.</span>
+      </div>
+      <div class="acoes-rodape">
+        <button type="button" class="btn btn--secondary" data-eac-fechar>Fechar</button>
+      </div>
+      {% endif %}
+    </form>
+    {% endif %}
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Revisões do orçamento</caption>
+        <thead>
+          <tr>
+            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Revisão</th>
+            <th scope="col">Data</th>
+            <th scope="col" class="td-num">Total</th>
+            <th scope="col" class="td-num">Variação</th>
+            <th scope="col">SM</th>
+            <th scope="col">Justificativa</th>
+            <th scope="col">Aprovado por</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in revisoes %}
+          <tr data-revisao="{{ linha.view.revision }}" data-projeto="{{ linha.view.project_id }}"
+            {% if linha.is_current %}class="eac-revisao--vigente"{% endif %}>
+            {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
+            <td class="nowrap">
+              <span class="fw-600 num">Rev {{ linha.view.revision }}</span>
+              {% if linha.view.revision == 0 %}<span class="pill pill--info">Linha de base</span>{% endif %}
+              {% if linha.is_current %}<span class="pill pill--ok">Vigente</span>{% endif %}
+            </td>
+            <td class="nowrap">{{ linha.view.revision_date.strftime('%d/%m/%Y') }}</td>
+            <td class="td-num">{{ linha.view.total_cents | brl }}</td>
+            <td class="td-num">
+              {% if linha.variation_cents is not none %}
+              {{ '+' if linha.variation_cents > 0 }}{{ linha.variation_cents | brl }}
+              {% endif %}
+            </td>
+            <td class="nowrap">
+              {% if linha.view.change_code %}
+              <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
+              {% else %}
+              <span class="muted">sem SM</span>
+              {% endif %}
+            </td>
+            <td>{{ linha.view.justification }}</td>
+            <td>{{ linha.view.approved_by }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhuma revisão registrada.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

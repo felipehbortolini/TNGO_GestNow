@@ -934,6 +934,101 @@ def _reservations(
     )
 
 
+# ── Opções dos formulários da tela (ISSUE-030) ───────────────────────────
+
+
+@dataclass(frozen=True)
+class EacOption:
+    """Um item da EAC como os selects da tela o listam, com o saldo livre e o próximo código."""
+
+    code: str
+    description: str
+    free_balance_cents: int | None = None
+    next_code: str = ""
+
+
+@dataclass(frozen=True)
+class RevisionSourceOption:
+    """Uma SM aprovada com custo ainda não incorporada: a origem possível de uma revisão."""
+
+    change_id: int
+    code: str
+    cost_cents: int
+
+
+def free_balances(session: Session, *, project_id: int) -> dict[int, int]:
+    """O saldo livre de cada item de custo do projeto, em centavos, por id do item."""
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    return _free_balances(session, project_id=project_id, items=items)
+
+
+def _free_balances(
+    session: Session, *, project_id: int, items: Sequence[ItemLine]
+) -> dict[int, int]:
+    bases = _current_bases(session, project_id=project_id, items=items)
+    reservations = _reservations(session, project_id=project_id)
+    return {
+        item.id: calculations.free_balance_cents(
+            item.id,
+            base_cents=bases.get(item.id, 0),
+            committed_cents=COMMITTED_CENTS,
+            reservations=reservations,
+        )
+        for item in items
+        if item.level >= calculations.LEAF_LEVEL
+    }
+
+
+def item_options(session: Session, *, project_id: int) -> tuple[EacOption, ...]:
+    """Os itens de custo (nível 3) do projeto, com o saldo livre: origem e destino do remanejamento."""
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    balances = _free_balances(session, project_id=project_id, items=items)
+    return tuple(
+        EacOption(
+            code=item.code,
+            description=item.description,
+            free_balance_cents=balances.get(item.id, 0),
+        )
+        for item in items
+        if item.level >= calculations.LEAF_LEVEL
+    )
+
+
+def subpackage_options(session: Session, *, project_id: int) -> tuple[EacOption, ...]:
+    """Os subpacotes (nível 2) do projeto, com o próximo código livre: onde um item novo nasce."""
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    codes = [item.code for item in items]
+    return tuple(
+        EacOption(
+            code=item.code,
+            description=item.description,
+            next_code=calculations.next_item_code(item.code, codes),
+        )
+        for item in items
+        if item.level == calculations.PORTFOLIO_MAIN_LEVEL
+    )
+
+
+def next_revision(session: Session, *, project_id: int) -> int:
+    """O número da próxima revisão do projeto: a última mais um; zero sem nenhuma revisão."""
+    latest = _latest_revision(session, project_id=project_id)
+    return 0 if latest is None else latest + 1
+
+
+def revision_source_options(
+    session: Session, *, project_id: int
+) -> tuple[RevisionSourceOption, ...]:
+    """As SM aprovadas com custo que a revisão pode incorporar, pela fachada da Governança."""
+    from src.modulos.governanca import service as governanca
+
+    return tuple(
+        RevisionSourceOption(
+            change_id=source.change_id, code=source.code, cost_cents=source.cost_cents
+        )
+        for source in governanca.eac_revision_sources(session, project_id=project_id)
+    )
+
+
 def _reallocation_title(request: ReallocationRequest) -> str:
     title = request.title.strip()
     if title:

@@ -1,0 +1,22 @@
+{% extends "base_fragment.html" %}
+{#
+  A conferência da importação de itens da EAC (ISSUE-030): resposta multi-alvo, porque o
+  formulário do modal declara os três alvos — o resultado da conferência, o painel das revisões
+  e o conteúdo da árvore. A ordem dos alvos importa: o resultado é o primeiro, então a raiz dele
+  leva o id que o Alpine pediu ({{ target_id }}) e as raízes seguintes têm id fixo.
+
+  Espera: arquivo, preview, colunas, lidas, vao_gravar, com_aviso, com_erro, confirmar_url,
+  campo_conferido, campo_ciente, valor_ciente, alvo_importacao, alvo_revisoes, alvo_conteudo e o
+  contexto dos painéis (revisoes, carteira, pode_gravar, ...).
+#}
+{% block root %}
+<div id="{{ alvo_importacao }}">
+{% include "comum/_importacao_conferencia.html" %}
+</div>
+<div id="{{ alvo_revisoes }}">
+{% include "financeiro/_eac_revisoes.html" %}
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "financeiro/_eac_conteudo.html" %}
+</div>
+{% endblock %}

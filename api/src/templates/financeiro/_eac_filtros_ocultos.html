@@ -1,0 +1,9 @@
+{#
+  Os filtros da árvore dentro dos formulários dos painéis: a resposta devolve o conteúdo da EAC
+  com os mesmos filtros que a tela mostra. Espera: filtros (EacFilters).
+#}
+<span hidden data-filtros-ocultos>
+  <input type="hidden" name="busca" value="{{ filtros.search }}" />
+  <input type="hidden" name="nivel" value="{{ filtros.level }}" />
+  <input type="hidden" name="tipo" value="{{ filtros.cost_type }}" />
+</span>

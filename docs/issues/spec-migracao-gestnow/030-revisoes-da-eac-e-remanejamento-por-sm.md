@@ -1,7 +1,7 @@
 ---
 id: ISSUE-030
 title: "Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 4
@@ -80,3 +80,11 @@ Nenhuma.
 Fonte: `GI.api.financeiro.remanejar`, `novaRevisao`, `novoItemEac` e
 `proximoCodigoEac`; README, ajuste de 01/10/2026 em "03 Gestão Financeira".
 Demonstração: SM-0009 e 0010 aplicadas; 0011 pendente, de R$ 250 mil.
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: o serviço (`service.reallocate` com saldo livre e reserva, `service.apply_reallocations` na aprovação, `service.create_revision` com a linha de base congelada e o custo da SM, `service.item_options`, `subpackage_options`, `revision_source_options` e `next_revision`), as rotas dos painéis e dos formulários (`GET/POST /eac/revisoes`, `GET/POST /eac/remanejamentos`, `POST /eac/itens`, `GET /eac/revisoes/importar/formulario`, `POST .../importar/conferir` e `.../confirmar`), os fragmentos dos dois painéis com os formulários de Nova revisão, Remanejar e Novo item, o modal da importação com o modelo da ISSUE-018 e a resposta multi-alvo da conferência, o importador `eac-itens`, a exportação das duas tabelas, as três ligações com a Governança (análise valida os itens, SM aprovada com custo vira opção da revisão e encerramento é recusado sem a incorporação), a carga e o oráculo (`governanca-eac` e `test_eac_revisoes_oraculo.py`) e os testes de fachada e de rota.
+- Decisão de execução: o item novo por remanejamento nasce na abertura da SM com base zero, porque `mudanca_remanejamento.destino_item_id` é FK não nula — registrado em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`; a importação é confirmada pela revisão vinculada à SM (a confirmação genérica recusa a linha da EAC), e o formulário da importação é um fragmento do servidor aberto no modal, com a conferência devolvendo o resultado e os dois painéis no mesmo alvo.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest (1.820 testes) passaram em 06/10/2026.
+
