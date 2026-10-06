@@ -37,6 +37,7 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 **Fluxo:** a restrição nasce aberta; a remoção registra a data (e, opcional, o comentário) e a libera; remover duas vezes é recusado. Toda gravação passa por `service.py` (transação, trilha e versão). **Carga:** `seed.py` grava a coleção `lookahead` do protótipo com as datas deslocadas. **Oráculo:** `api/tests/oraculo/test_oraculo_6wla.py`. **Testes:** `api/tests/planejamento/test_6wla_*.py`, com o apoio em `api/tests/apoio_6wla.py`.
 
+<<<<<<< HEAD
 ## Punch list (ISSUE-049)
 
 Itens de completação numerados pelo padrão do projeto (`PL-TN-2026-0001`), com a hierarquia Área, Sistema, Subsistema e TAG, disciplina, categoria (A impede o marco seguinte; B fecha até o aceite definitivo; C conforme acordo), marco vinculado, origem, empresa executante, responsável, prazo, identificado por e abertura. Tabela `punch_item` (migração `m049_punch_list.py`; modelo em `docs/MODELO-DE-DADOS.md`). O painel (burndown, aging, % de liberados por marco) é a ISSUE-050.
@@ -58,6 +59,33 @@ Itens de completação numerados pelo padrão do projeto (`PL-TN-2026-0001`), co
 **Fluxo e regras (fachada `punch_service.py`):** fechar exige evidência (ao menos um anexo do item, D5a) e verificador diferente do executante, o responsável pelo item (D7: 403 com a mensagem); sem anexo, 422. O verificador é a pessoa logada. Reprovar volta a Em tratamento, conta a reprovação e exige o motivo. Cancelar exige justificativa de 10 caracteres e conclui a ação. Item fechado ou cancelado não se edita. **Integração (D9):** todo item cria a sua ação na Central pela costura única (`central_acoes.create_action`, origem Punch list); cada passo do item repete na ação o assunto, o grupo, o responsável, o prazo e a situação (`central_acoes.update_from_origin`), e fechar ou cancelar conclui a ação (`close_from_origin`). A Central trata a ação da Punch list na origem (concluir e replanejar lá são recusados) e o link da ação volta para o item (`origin_links`, `?item=`). Importador (`punch_importers.py`): uma linha é um item aberto hoje, com a sua ação, pela fachada; linha inválida é recusada e as válidas só gravam na confirmação.
 
 **Carga:** `seed_punch.py` grava os 20 itens do protótipo (códigos e situações do mock, datas deslocadas); as ações vêm da carga da Central. **Oráculo:** `api/tests/oraculo/test_oraculo_punch.py`. **Testes:** `api/tests/planejamento/test_punch_*.py`, com o apoio em `api/tests/apoio_punch.py`.
+=======
+## EAP (ISSUE-036)
+
+Árvore área (nível 1), subárea (nível 2) e pacote (nível 3, de trabalho ou de planejamento), com a linha do projeto no topo (código 0, peso 100%, avanço consolidado e datas extremas). Só os pacotes têm peso, datas da linha de base, critério de medição e avanço; áreas, subáreas e o total são somados no servidor (média ponderada pelo peso), e os pesos dos pacotes somam 100% (regra dos 100%; a tela avisa quando não fecham). O **real de cada pacote não é gravado** (D5b, D6): é a última medição (`eap_medicao`, por data e depois por id) lida pelo critério. A medição guarda o % acumulado do pacote; ele vira as entradas do critério (etapas em sequência, quantidade executada, estado do marco, estimativa) e o critério devolve o real. O registro de medições, o estorno e a importação do avanço são da ISSUE-037; revisões e desdobramentos, da ISSUE-038.
+
+**Tela:** `planejamento/eap` (view `app/_views/planejamento/eap.html`, fragmentos `api/src/templates/planejamento/eap_conteudo.html` e `eap_dicionario.html`). Indicadores: avanço físico real (ou ponderado, na carteira) com previsto e desvio, pacotes de trabalho com a linha de base da revisão vigente, e término vencido. Filtros: busca, nível, critério de medição e situação (desvio fora da faixa, término vencido, planejamento); os indicadores contam a árvore inteira, o filtro só mexe na tabela. Abaixo da árvore ficam as revisões da EAP e os desdobramentos da revisão vigente. O **dicionário** do pacote (ícone da linha) traz tipo, critério, peso, linha de base, previsto, real e desvio, entregável, critério de aceitação, empresa, responsável, item da EAC ligado, as etapas e o histórico das medições; é somente leitura. No Portfólio a árvore é somente leitura: linha 0 = portfólio, nível 1 = projeto (peso na carteira, vindo da ponderação da EAC) e nível 2 = pacotes principais (peso na carteira e no projeto), com "Abrir" para a EAP do projeto, sem dicionário nem desdobramentos, e a coluna Projeto nas exportações.
+
+**Rotas** (`eap_routes.py`, blueprint próprio registrado em `function_app.py`, prefixo `/api/planejamento/eap`): `GET` tela; `GET /pacotes/{item_id}/dicionario`; `GET /excel` e `GET /imprimivel` (Excel e PDF pelos mecanismos genéricos, mesmos filtros, três tabelas: estrutura, revisões e desdobramentos).
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Avanço do pacote | Real pelo critério: Etapas (soma dos pesos x % concluído), Unidades (executado ÷ quantidade, até 100), Marco 0/100, Marco 50/50 e Percentual estimado; pacote de planejamento fica em 0; resultado limitado a 0 a 100, duas casas | `eap_calculations.package_progress` |
+| Real a partir da medição | O % acumulado da última medição vira as entradas do critério e o critério dá o real; sem medição, 0 | `package_state`, `progress_from_measurement`, `entries_from_percent` |
+| Desvio físico | Real menos previsto, em p.p., uma casa | `deviation_pp` |
+| Faixa do desvio | Verde até -2 p.p., atenção até -5 p.p. e fora da faixa abaixo disso (parâmetros `eap.faixasDesvioPP`; no limite vale a faixa melhor) | `deviation_band` |
+| Término vencido | Pacote de trabalho com término da linha de base antes da data de referência (o próprio dia não vence) e real abaixo de 100 | `package_is_overdue` |
+| Regra dos 100% | Os pesos dos pacotes somam exatamente 100 | `weights_close_at_100` |
+| Média ponderada | Previsto e real das áreas, subáreas, projeto e carteira, ponderados pelo peso, duas casas | `weighted_average` |
+| Árvore do projeto | Linha 0, áreas, subáreas e pacotes por código, com pesos somados e peso no nível acima | `build_project_tree` |
+| Árvore da carteira | Projeto (peso da ponderação) e pacotes principais (peso da área x peso do projeto) | `build_portfolio_tree` |
+| Indicadores | Avanço, pacotes de trabalho e de planejamento, áreas, subáreas, vencidos e fora da faixa | `summarize`, `portfolio_behind_count` |
+| Filtro da árvore | Busca (sem acento e caixa), nível, critério e situação, com os ancestrais dos achados | `filter_tree`, `parent_codes` |
+| Pacotes da revisão | Pacotes com peso congelado maior que zero na revisão | `revision_package_count` |
+| Arredondamento | Como o `Math.round` do protótipo: a metade vai para cima | `round_places` |
+
+**Fluxos e onde mexer:** a fachada é `eap_service.py` (`eap_view`, `package_dictionary`); a gravação passa por ela com a trilha (`create_item`, `add_stages`, `add_measurement`, `create_revision`, `add_split`), e a ISSUE-037 registra a medição por `add_measurement` e a ISSUE-038 as revisões por `create_revision`. Os cálculos puros estão em `eap_calculations.py` (recebem a data de referência), a exportação em `eap_export.py`. A SM de cada revisão é lida pela fachada da Governança (`change_codes`). **Carga:** `eap_seed.py` grava a árvore do protótipo (`eap`: 110 itens, 38 pacotes no projeto 1), as etapas, as medições (as 3 do protótipo e, para o pacote com avanço e sem medição, uma de zero ao avanço, datada na referência), as revisões (os pesos congelados só na vigente de cada projeto, o do protótipo não guardava os anteriores) e o desdobramento 5.2.1 > 5.2.2, com as datas deslocadas e só no modo demonstração. **Migração:** `m036_eap_arvore` (`eap_item`, `eap_item_etapa`, `eap_medicao`, `eap_revisao`, `eap_revisao_item`, `eap_desdobramento`). **Oráculo:** `api/tests/oraculo/test_oraculo_eap.py`. **Testes:** `api/tests/planejamento/test_eap_*.py`, com o apoio em `api/tests/apoio_eap.py`.
+>>>>>>> exec/ISSUE-036
 
 ## Trios das telas
 

@@ -16,7 +16,11 @@ from src.modulos.governanca.routes import bp as governanca_bp
 from src.modulos.hse.analysis_routes import bp as hse_analysis_bp
 from src.modulos.hse.routes import bp as hse_bp
 from src.modulos.inicio.routes import bp as inicio_bp
+<<<<<<< HEAD
 from src.modulos.planejamento.punch_routes import bp as planejamento_punch_bp
+=======
+from src.modulos.planejamento.eap_routes import bp as planejamento_eap_bp
+>>>>>>> exec/ISSUE-036
 from src.modulos.planejamento.routes import bp as planejamento_bp
 from src.modulos.programacao_semanal.routes import bp as programacao_semanal_bp
 from src.modulos.qualidade.routes import bp as qualidade_bp
@@ -37,7 +41,11 @@ app.register_functions(central_acoes_bp)
 app.register_functions(central_acoes_atas_bp)
 app.register_functions(central_acoes_painel_bp)
 app.register_functions(planejamento_bp)
+<<<<<<< HEAD
 app.register_functions(planejamento_punch_bp)
+=======
+app.register_functions(planejamento_eap_bp)
+>>>>>>> exec/ISSUE-036
 app.register_functions(programacao_semanal_bp)
 app.register_functions(financeiro_bp)
 app.register_functions(suprimentos_bp)

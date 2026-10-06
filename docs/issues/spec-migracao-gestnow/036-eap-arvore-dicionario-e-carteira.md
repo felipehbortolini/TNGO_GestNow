@@ -1,7 +1,7 @@
 ---
 id: ISSUE-036
 title: "EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 4
@@ -48,16 +48,16 @@ principais), como a EAC.
 
 ## Critérios de aceite
 
-- [ ] A regra dos 100% vale, e o peso de cada nível é a soma dos filhos.
-- [ ] O real de cada pacote é calculado pelo critério, com um teste por critério.
-- [ ] O desvio usa as faixas dos parâmetros.
-- [ ] A demonstração traz 38 pacotes, a Rev 2 vigente, o desdobramento 5.2.1 > 5.2.2 e os dois pacotes com término vencido.
-- [ ] No Portfólio, a árvore é somente leitura.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] A regra dos 100% vale, e o peso de cada nível é a soma dos filhos.
+- [x] O real de cada pacote é calculado pelo critério, com um teste por critério.
+- [x] O desvio usa as faixas dos parâmetros.
+- [x] A demonstração traz 38 pacotes, a Rev 2 vigente, o desdobramento 5.2.1 > 5.2.2 e os dois pacotes com término vencido.
+- [x] No Portfólio, a árvore é somente leitura.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -72,3 +72,14 @@ Nenhuma.
 
 Fonte: `eap.html`, `GI.api.planejamento.eap`, `GI.regras.avancoPacoteEap`,
 `mock-planejamento`; README, "EAP: regras".
+
+## Registro de execução
+
+Data: 2026-10-06.
+Feito: modelo e migração m036 (6 tabelas, down_revision m072); cálculos (`eap_calculations`), fachada, exportações, rotas, tela e dicionário; carga e oráculo (projeto 1: 38 pacotes, Rev 2, desdobramento 5.2.1 > 5.2.2, vencidos 2.1.1 e 3.2.1); testes de cálculo, fachada, rotas e oráculo; LEIA-ME. Nada foi executado (política de testes), só ruff.
+Pendências: "A porta de qualidade passa" (orquestrador). Indicadores "Curva S no corte" e "SMs a incorporar" do protótipo ficam para as ISSUE-039 e 038.
+DECISÃO: real do pacote | vem da última medição lida pelo critério; a carga grava as 3 medições do protótipo e, para pacote com avanço e sem medição, uma de 0 ao avanço na data de referência | D5, D6, ISSUE-036
+DECISÃO: dicionário do pacote | somente leitura (traz entregável, aceitação, empresa, responsável, EAC, etapas e medições); a edição do dicionário do protótipo não foi construída | D5, ISSUE-036
+DECISÃO: pesos congelados na carga | só a revisão vigente de cada projeto (o protótipo não guardava pesos por revisão); Rev 0 e 1 do projeto 1 ficam sem contagem de pacotes | D5b, ISSUE-036
+DECISÃO: pacotes da revisão | contagem dos pacotes (trabalho e planejamento) com peso congelado, como o campo `pacotes` do protótipo | D5b, ISSUE-036
+DECISÃO: fachada da Governança | `change_ids_by_code` e `change_codes` (aditivas) para ligar a revisão à SM sem ler tabela de outro módulo | D5, ISSUE-036

@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 34 de 93 -->
+<!-- Progresso da migração: 35 de 93 -->
 
 # Progresso da migração
 
-**34 de 93 issues concluídas** (última fechada: ISSUE-074). Atualizado em 06/10/2026 17:54 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**35 de 93 issues concluídas** (última fechada: ISSUE-074). Atualizado em 06/10/2026 17:56 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 34 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 027, 029, 044, 045, 049, 051, 052, 054, 064, 072, 074 |
-| na fila | 59 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 050, 053, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 35 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 023, 024, 027, 029, 036, 044, 045, 049, 051, 052, 054, 064, 072, 074 |
+| na fila | 58 | 022, 025, 026, 028, 030, 031, 032, 033, 034, 035, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 050, 053, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -38,12 +38,13 @@
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | `8e833b8` |
 | ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | `59164b1` |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
+| ISSUE-036 | EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira | - |
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | `f2a9057` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | `c2a8e4c` |
-| ISSUE-054 | Subpágina de configuração da programação, uma por projeto | - |
+| ISSUE-054 | Subpágina de configuração da programação, uma por projeto | `f5f8256` |
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 | ISSUE-074 | Análises de risco APR e HAZOP | `2f856f6` |
@@ -62,7 +63,6 @@
 | ISSUE-033 | Contrato: marcos de pagamento, claims e extensões de prazo | na fila | ISSUE-032, ISSUE-023 |
 | ISSUE-034 | Avaliação de desempenho da contratada | na fila | ISSUE-032, ISSUE-027 |
 | ISSUE-035 | Contratos: visão consolidada e indicadores da administração contratual | na fila | ISSUE-033, ISSUE-034 |
-| ISSUE-036 | EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira | na fila | ISSUE-029 |
 | ISSUE-037 | Medição dos pacotes pelo critério, estorno controlado e importação do avanço | na fila | ISSUE-036 |
 | ISSUE-038 | Revisões da EAP a partir de SM e desdobramento de pacotes de planejamento | na fila | ISSUE-037, ISSUE-025 |
 | ISSUE-039 | Curva S física com linha de base congelada, real das medições e drill | na fila | ISSUE-038 |

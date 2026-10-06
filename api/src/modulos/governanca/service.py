@@ -1352,3 +1352,27 @@ def _register_attachment_origin() -> None:
 
 
 _register_attachment_origin()
+
+
+def change_ids_by_code(session: Session, *, codes: Sequence[str]) -> dict[str, int]:
+    """The id of each change named by its code; a code that is not there is left out.
+
+    What the EAP reads to link a revision to the SM that approved it (Planejamento, ISSUE-036).
+    """
+    wanted = {code.strip() for code in codes if code.strip()}
+    if not wanted:
+        return {}
+    statement = select(models.ChangeRequest.code, models.ChangeRequest.id).where(
+        models.ChangeRequest.code.in_(wanted)
+    )
+    return {row.code: row.id for row in session.execute(statement)}
+
+
+def change_codes(session: Session, change_ids: Sequence[int]) -> dict[int, str]:
+    """The code of each change by its id, for a screen that lists the SMs another module linked."""
+    if not change_ids:
+        return {}
+    statement = select(models.ChangeRequest.id, models.ChangeRequest.code).where(
+        models.ChangeRequest.id.in_(set(change_ids))
+    )
+    return {row.id: row.code for row in session.execute(statement)}

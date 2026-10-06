@@ -2,7 +2,7 @@
 
 Cada issue do módulo acrescenta aqui a sua parte, como uma função chamada por ``load``:
 o 6WLA (ISSUE-045) grava as atividades, as semanas e as restrições do protótipo
-(``lookahead``) e o Relato do período (ISSUE-044) grava os relatos (``seed_relato``). Os cadastros que o protótipo numera (projeto, empresa, pessoa) são
+(``lookahead``) o Relato do período (ISSUE-044) grava os relatos (``seed_relato``) e a EAP (ISSUE-036) grava a árvore, as medições, as revisões e os desdobramentos (``eap_seed``). Os cadastros que o protótipo numera (projeto, empresa, pessoa) são
 achados pela chave de negócio (código, nome), porque os ids do banco não são os do mock.
 As datas das restrições andam com ``shift_date``; o início do horizonte não é gravado,
 sai do calendário (``calculations.lookahead_window_start``).
@@ -17,7 +17,11 @@ from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.modulos.configuracoes import service as configuracoes
+<<<<<<< HEAD
 from src.modulos.planejamento import seed_punch, seed_relato, service
+=======
+from src.modulos.planejamento import eap_seed, seed_relato, service
+>>>>>>> exec/ISSUE-036
 
 PART_NAME = "planejamento"
 ADMIN_PROFILE = "Admin"
@@ -27,7 +31,11 @@ def load(session: Session, reference_date: date) -> None:
     """Write the part of the Planning module, inside the caller's transaction."""
     _load_lookahead(session, reference_date)
     seed_relato.load_reports(session, reference_date)
+<<<<<<< HEAD
     seed_punch.load_items(session, reference_date)
+=======
+    eap_seed.load_eap(session, reference_date)
+>>>>>>> exec/ISSUE-036
 
 
 def _load_lookahead(session: Session, reference_date: date) -> None:

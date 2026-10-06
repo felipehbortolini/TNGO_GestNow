@@ -1404,6 +1404,11 @@ do dono".
 | Decisão da execução (ISSUE-054), pendente de revisão do dono | leitura da configuração | quem alcança o módulo lê; o fornecedor lê só a janela da própria empresa; no Portfólio, resumo somente leitura por projeto | D10, ISSUE-054 |
 | Decisão da execução (ISSUE-054), pendente de revisão do dono | limites dos parâmetros | metas e limite de 0 a 100, vazio é o padrão do app, fora disso 422; o app aceitava qualquer número | D10, ISSUE-054 |
 | Decisão da execução (ISSUE-054), pendente de revisão do dono | janela com vários dias | a tela marca qualquer dos sete dias, cada um com horário (o app só permitia um dia); sem dia marcado vale qualquer dia | D10, ISSUE-054 |
+| Decisão da execução (ISSUE-036), pendente de revisão do dono | real do pacote | vem da última medição lida pelo critério; a carga grava as 3 medições do protótipo e, para pacote com avanço e sem medição, uma de 0 ao avanço na data de referência | D5, D6, ISSUE-036 |
+| Decisão da execução (ISSUE-036), pendente de revisão do dono | dicionário do pacote | somente leitura (traz entregável, aceitação, empresa, responsável, EAC, etapas e medições); a edição do dicionário do protótipo não foi construída | D5, ISSUE-036 |
+| Decisão da execução (ISSUE-036), pendente de revisão do dono | pesos congelados na carga | só a revisão vigente de cada projeto (o protótipo não guardava pesos por revisão); Rev 0 e 1 do projeto 1 ficam sem contagem de pacotes | D5b, ISSUE-036 |
+| Decisão da execução (ISSUE-036), pendente de revisão do dono | pacotes da revisão | contagem dos pacotes (trabalho e planejamento) com peso congelado, como o campo `pacotes` do protótipo | D5b, ISSUE-036 |
+| Decisão da execução (ISSUE-036), pendente de revisão do dono | fachada da Governança | `change_ids_by_code` e `change_codes` (aditivas) para ligar a revisão à SM sem ler tabela de outro módulo | D5, ISSUE-036 |
 
 ---
 

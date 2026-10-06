@@ -1,0 +1,185 @@
+{% extends "base_fragment.html" %}
+{#
+  Conteúdo da tela EAP (D8, HU-056): os KPIs, a árvore do escopo (já filtrada pelo servidor), as
+  revisões e os desdobramentos da revisão vigente. A raiz leva o id que a tela pediu
+  ({{ target_id }}). O marcador data-resultado diz à tela (eap.js) qual dos cinco estados mostrar:
+  conteudo, vazio-origem (o escopo não tem EAP) ou vazio-filtro (os filtros escondem tudo).
+  Os pesos e o avanço de área, subárea e total vêm somados do servidor (média ponderada).
+  Espera: view (EapView), linhas (LineView), resultado, kpis, pesos, peso_planejamento, revisoes,
+  desdobramentos, referencia, limite_menor, limite_maior, alvo_dicionario e alvo_conteudo.
+#}
+{% block fragment %}
+<span hidden data-resultado="{{ resultado }}" data-carteira="{{ 'sim' if view.is_portfolio else 'nao' }}"></span>
+{% if resultado == 'conteudo' %}
+<div class="kpis" style="--kpis-colunas: 3">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="kpi__value">{{ kpi.value }}</span>
+    <span class="hint">{% if kpi.expected_label %}{{ kpi.expected_label }} {{ kpi.expected }} · {% endif %}{{ kpi.note }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if view.is_portfolio %}
+<p class="hint mb-16">Portfólio: projeto (peso na carteira) e pacotes principais (peso na carteira e no projeto), somente leitura. Abra o projeto para ver o dicionário dos pacotes. Avanço na data de referência {{ referencia }}; faixas de desvio -{{ limite_menor }} e -{{ limite_maior }} p.p.</p>
+{% else %}
+  {% if view.current_revision %}
+<p class="hint mb-16">Rev {{ view.current_revision.number }} de {{ revisoes[0].revised_on if revisoes else '' }} · avanço na data de referência {{ referencia }}; pesos em % do projeto; faixas de desvio -{{ limite_menor }} e -{{ limite_maior }} p.p.</p>
+  {% else %}
+<p class="hint mb-16">Avanço na data de referência {{ referencia }}; pesos em % do projeto; faixas de desvio -{{ limite_menor }} e -{{ limite_maior }} p.p.</p>
+  {% endif %}
+  {% if not view.weight_rule_holds %}
+<div class="aviso aviso--warn mb-16" role="note">
+  <strong>Regra dos 100%</strong>
+  <span>Os pesos dos pacotes somam {{ pesos }} do projeto; precisam fechar em 100,00%.</span>
+</div>
+  {% endif %}
+{% endif %}
+
+<div class="tbl-wrap">
+  <table class="tbl eap-tabela" data-arvore>
+    <caption class="sr-only">{{ 'Estrutura analítica da carteira' if view.is_portfolio else 'Estrutura analítica do projeto' }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Código</th>
+        <th scope="col">Descrição</th>
+        {% if not view.is_portfolio %}<th scope="col">Critério de medição</th>{% endif %}
+        <th scope="col" class="td-num">{{ 'Peso na carteira' if view.is_portfolio else 'Peso' }}</th>
+        {% if view.is_portfolio %}<th scope="col" class="td-num">Peso no projeto</th>{% endif %}
+        <th scope="col">Início LB</th>
+        <th scope="col">Término LB</th>
+        <th scope="col" class="td-num">Previsto</th>
+        <th scope="col">Real</th>
+        <th scope="col" class="td-num">Desvio (p.p.)</th>
+        <th scope="col">Responsável</th>
+        <th scope="col"><span class="sr-only">Ações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in linhas %}
+      {% set r = linha.row %}
+      <tr class="eap-linha {{ 'eap-linha--raiz' if r.is_root else 'eap-linha--nivel-' ~ r.level }}"
+        data-codigo="{{ r.code }}"{% if r.is_root %} data-raiz{% endif %}>
+        <td class="eap-linha__codigo nowrap">
+          {% if linha.has_children %}
+          <button type="button" class="eap-linha__alternar" data-alternar="{{ r.code }}"
+            aria-expanded="true" aria-label="Recolher {{ r.code }}" title="Recolher {{ r.code }}">
+            <span x-init="$el.innerHTML = window.icon('chevronDown', 16)" aria-hidden="true"></span>
+          </button>
+          {% endif %}
+          <span class="num">{{ r.code }}</span>
+        </td>
+        <td class="eap-linha__descricao">{{ r.description }}{% if linha.description_suffix %} <span class="pill pill--info">Planejamento</span>{% endif %}</td>
+        {% if not view.is_portfolio %}<td>{{ linha.criterion }}</td>{% endif %}
+        <td class="td-num">{{ linha.weight }}</td>
+        {% if view.is_portfolio %}<td class="td-num">{{ linha.weight_in_parent }}</td>{% endif %}
+        <td class="nowrap">{{ linha.start }}</td>
+        <td class="nowrap">{{ linha.end }}{% if r.level == 3 and r.is_overdue %} <span class="pill pill--erro">vencido</span>{% endif %}</td>
+        <td class="td-num">{{ linha.planned }}</td>
+        <td class="eap-linha__real">
+          {% if linha.real %}
+          <span class="eap-real">
+            <progress class="eap-real__medidor eap-real__medidor--{{ linha.tone or 'neutro' }}" max="100" value="{{ r.real }}">{{ linha.real }}</progress>
+            <span class="num">{{ linha.real }}</span>
+          </span>
+          {% elif r.level == 3 %}
+          <span class="hint">sem medição</span>
+          {% endif %}
+        </td>
+        <td class="td-num eap-desvio{{ ' eap-desvio--' ~ linha.tone if linha.tone else '' }}">{{ linha.deviation }}</td>
+        <td>{{ r.responsible or '' }}</td>
+        <td class="td-center nowrap">
+          {% if linha.can_open_dictionary %}
+          <a class="iconbtn" data-dicionario x-target="{{ alvo_dicionario }}"
+            href="/api/planejamento/eap/pacotes/{{ r.item_id }}/dicionario"
+            aria-label="Dicionário do pacote {{ r.code }}" title="Dicionário">
+            <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+          </a>
+          {% elif view.is_portfolio and r.level == 1 %}
+          <a class="btn btn--ghost btn--sm" href="/planejamento/eap?projeto={{ r.project_id }}" data-tn-tela>
+            Abrir
+            <span x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="h-card4 mt-24">{{ 'Revisão vigente da EAP por projeto' if view.is_portfolio else 'Revisões da EAP' }}</h2>
+<p class="hint mb-16">Rev 0 é a linha de base aprovada; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo.</p>
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Revisões da EAP</caption>
+    <thead>
+      <tr>
+        {% if view.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+        <th scope="col">Revisão</th>
+        <th scope="col">Data</th>
+        <th scope="col" class="td-num">Pacotes</th>
+        <th scope="col">Alteração</th>
+        <th scope="col">SM</th>
+        <th scope="col">Justificativa</th>
+        <th scope="col">Aprovado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for revisao in revisoes %}
+      <tr{% if revisao.is_current and not view.is_portfolio %} class="eap-revisao--vigente"{% endif %}>
+        {% if view.is_portfolio %}<td>{{ revisao.project }}</td>{% endif %}
+        <td class="nowrap"><strong>{{ revisao.name }}</strong>
+          {% if revisao.is_baseline %}<span class="pill pill--info">Linha de base</span>{% endif %}
+          {% if revisao.is_current %}<span class="pill pill--ok">Vigente</span>{% endif %}</td>
+        <td class="nowrap">{{ revisao.revised_on }}</td>
+        <td class="td-num">{{ revisao.package_count }}</td>
+        <td>{{ revisao.change }}</td>
+        <td class="nowrap">{{ revisao.change_code }}</td>
+        <td>{{ revisao.justification }}</td>
+        <td>{{ revisao.approved_by }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 8 if view.is_portfolio else 7 }}" class="hint">Nenhuma revisão registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not view.is_portfolio %}
+<h2 class="h-card4 mt-24">Desdobramentos da revisão vigente</h2>
+<p class="hint mb-16">O peso sai do pacote de planejamento para o pacote de trabalho; o total do projeto não muda.</p>
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Desdobramentos da revisão vigente</caption>
+    <thead>
+      <tr>
+        <th scope="col">Data</th>
+        <th scope="col">Pacote de planejamento</th>
+        <th scope="col">Pacote de trabalho</th>
+        <th scope="col" class="td-num">Peso</th>
+        <th scope="col">Justificativa</th>
+        <th scope="col">Registrado por</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in desdobramentos %}
+      <tr>
+        <td class="nowrap">{{ item.split_on }}</td>
+        <td>{{ item.source }}</td>
+        <td>{{ item.target }}</td>
+        <td class="td-num">{{ item.weight }}</td>
+        <td>{{ item.justification }}</td>
+        <td>{{ item.by }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="hint">Nenhum desdobramento nesta revisão.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

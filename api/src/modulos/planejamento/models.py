@@ -8,6 +8,11 @@ Relato do período (ISSUE-044): one ``relato`` per project, type and period; its
 aggregate and are edited together with it, protected by the ``versao`` of the root.
 
 
+The EAP (ISSUE-036): the three-level tree of the physical scope, the stages of a package, its
+measurements, the revisions with the weights frozen in them and the splits of planning packages.
+No indicator is a column (D5b): the progress of a package comes from its last measurement through
+the measuring criterion, and the totals of the levels are sums made by the facade.
+
 The 6WLA (ISSUE-045): the activities of the six-week horizon, the mark of each
 week and the restrictions that hold an activity back. Class and attribute names
 are English (D1); tables and columns are Portuguese snake_case (D5), matching
@@ -17,6 +22,7 @@ are English (D1); tables and columns are Portuguese snake_case (D5), matching
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -25,6 +31,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     Text,
     UniqueConstraint,
     func,
@@ -145,14 +152,29 @@ class LookaheadConstraint(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 
+<<<<<<< HEAD
 class PunchItem(Base):
     """Item da punch list (ISSUE-049): sistema, TAG, categoria A/B/C, marco, fluxo e verificação."""
 
     __tablename__ = "punch_item"
+=======
+Percent = Numeric(7, 2)
+
+
+class EapItem(Base):
+    """Item of the EAP in three levels: area, subarea and package (work or planning).
+
+    Only the packages carry weight, baseline dates, measuring criterion and progress. The progress
+    is not a column (D5b): it is the last measurement read through the criterion.
+    """
+
+    __tablename__ = "eap_item"
+>>>>>>> exec/ISSUE-036
     __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+<<<<<<< HEAD
     system_id: Mapped[int] = mapped_column("sistema_id", ForeignKey("sistema.id"))
     company_id: Mapped[int | None] = mapped_column("empresa_id", ForeignKey("empresa.id"))
     responsible_id: Mapped[int] = mapped_column("responsavel_id", ForeignKey("pessoa.id"))
@@ -175,3 +197,95 @@ class PunchItem(Base):
     cancellation_reason: Mapped[str | None] = mapped_column("justificativa_cancelamento", Text)
     rejections: Mapped[int] = mapped_column("reprovacoes", Integer, server_default=text("0"))
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+=======
+    parent_id: Mapped[int | None] = mapped_column("pai_id", ForeignKey("eap_item.id"))
+    eac_item_id: Mapped[int | None] = mapped_column("eac_item_id", ForeignKey("eac_item.id"))
+    unit_id: Mapped[int | None] = mapped_column("unidade_id", ForeignKey("unidade.id"))
+    company_id: Mapped[int | None] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    responsible_id: Mapped[int | None] = mapped_column("responsavel_id", ForeignKey("pessoa.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    level: Mapped[int] = mapped_column("nivel", Integer)
+    kind: Mapped[str | None] = mapped_column("tipo", Text)
+    criterion: Mapped[str | None] = mapped_column("criterio", Text)
+    stage_model: Mapped[str | None] = mapped_column("modelo", Text)
+    quantity: Mapped[Decimal | None] = mapped_column("quantidade", Numeric(18, 4))
+    weight: Mapped[Decimal | None] = mapped_column("peso", Percent)
+    planned: Mapped[Decimal | None] = mapped_column("previsto", Percent)
+    start_date: Mapped[date | None] = mapped_column("inicio", Date)
+    end_date: Mapped[date | None] = mapped_column("termino", Date)
+    deliverable: Mapped[str | None] = mapped_column("entregavel", Text)
+    acceptance: Mapped[str | None] = mapped_column("aceitacao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class EapItemStage(Base):
+    """Stage of a package of the Etapas criterion; the percentage done comes from the measurement."""
+
+    __tablename__ = "eap_item_etapa"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("eap_item.id"))
+    order: Mapped[int] = mapped_column("ordem", Integer)
+    name: Mapped[str] = mapped_column("nome", Text)
+    weight: Mapped[Decimal] = mapped_column("peso", Percent)
+
+
+class EapMeasurement(Base):
+    """Dated measurement of a package (date, from, to, author, note): an immutable fact."""
+
+    __tablename__ = "eap_medicao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("eap_item.id"))
+    author_id: Mapped[int | None] = mapped_column("autor_id", ForeignKey("pessoa.id"))
+    measured_on: Mapped[date] = mapped_column("data", Date)
+    from_percent: Mapped[Decimal] = mapped_column("de", Percent)
+    to_percent: Mapped[Decimal] = mapped_column("para", Percent)
+    note: Mapped[str | None] = mapped_column("observacao", Text)
+
+
+class EapRevision(Base):
+    """Revision of the EAP (Rev 0 is the baseline); the number of packages is calculated."""
+
+    __tablename__ = "eap_revisao"
+    __table_args__ = (UniqueConstraint("projeto_id", "revisao"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    approved_by_id: Mapped[int | None] = mapped_column("aprovado_por_id", ForeignKey("pessoa.id"))
+    number: Mapped[int] = mapped_column("revisao", Integer)
+    revised_on: Mapped[date] = mapped_column("data", Date)
+    change: Mapped[str] = mapped_column("alteracao", Text)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class EapRevisionItem(Base):
+    """Exception of D5b: the weight of each package frozen in the revision."""
+
+    __tablename__ = "eap_revisao_item"
+    __table_args__ = (UniqueConstraint("revisao_id", "item_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    revision_id: Mapped[int] = mapped_column("revisao_id", ForeignKey("eap_revisao.id"))
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("eap_item.id"))
+    weight: Mapped[Decimal] = mapped_column("peso", Percent)
+
+
+class EapSplit(Base):
+    """Split of a planning package into a work package: the weight moves, the total does not."""
+
+    __tablename__ = "eap_desdobramento"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    source_item_id: Mapped[int] = mapped_column("origem_item_id", ForeignKey("eap_item.id"))
+    target_item_id: Mapped[int] = mapped_column("destino_item_id", ForeignKey("eap_item.id"))
+    by_id: Mapped[int | None] = mapped_column("por_id", ForeignKey("pessoa.id"))
+    revision: Mapped[int] = mapped_column("revisao", Integer)
+    split_on: Mapped[date] = mapped_column("data", Date)
+    weight: Mapped[Decimal] = mapped_column("peso", Percent)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
+>>>>>>> exec/ISSUE-036

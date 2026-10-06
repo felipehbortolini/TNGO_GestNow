@@ -1,0 +1,90 @@
+{% extends "base_fragment.html" %}
+{#
+  Dicionário do pacote da EAP (HU-056): o que o pacote entrega, quem o executa, como é medido, a
+  linha de base e o histórico das medições. Somente leitura: peso, datas e critério fazem parte
+  da linha de base e só mudam por nova revisão (ISSUE-038); o registro do avanço é da ISSUE-037.
+  Espera: dicionario (PackageDictionary), linha (TreeRow), tipo, criterio, peso, peso_no_nivel,
+  inicio, termino, previsto, real, desvio, tom, quantidade, executado, etapas, medicoes e
+  alvo_dicionario.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Dicionário da EAP · {{ linha.code }}</h2>
+    <span class="hint">{{ linha.description }}</span>
+  </div>
+  <div class="card__body">
+    <dl class="eap-ficha">
+      <dt>Tipo</dt><dd>{{ tipo }}</dd>
+      <dt>Critério de medição</dt><dd>{{ criterio }}</dd>
+      <dt>Peso no projeto</dt><dd>{{ peso }}{% if peso_no_nivel %} · {{ peso_no_nivel }} da subárea{% endif %}</dd>
+      <dt>Linha de base</dt><dd>{{ inicio }} a {{ termino }}</dd>
+      <dt>Avanço</dt><dd>previsto {{ previsto }} · real {{ real }} · desvio {{ desvio }} p.p.</dd>
+      {% if quantidade %}<dt>Quantidade</dt><dd>{{ executado }} de {{ quantidade }} {{ linha.unit or '' }}</dd>{% endif %}
+      <dt>Entregável</dt><dd>{{ dicionario.deliverable or '·' }}</dd>
+      <dt>Critério de aceitação</dt><dd>{{ dicionario.acceptance or '·' }}</dd>
+      <dt>Empresa executante</dt><dd>{{ linha.company or '·' }}</dd>
+      <dt>Responsável</dt><dd>{{ linha.responsible or '·' }}</dd>
+      <dt>Item da EAC (custo)</dt><dd>{{ linha.eac_code or 'Sem vínculo com a EAC' }}</dd>
+    </dl>
+
+    {% if etapas %}
+    <h3 class="h-card5 mt-24">Etapas</h3>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Etapas do pacote</caption>
+        <thead>
+          <tr>
+            <th scope="col">Etapa</th>
+            <th scope="col" class="td-num">Peso</th>
+            <th scope="col" class="td-num">Concluído</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for nome, peso_etapa, concluido in etapas %}
+          <tr><td>{{ nome }}</td><td class="td-num">{{ peso_etapa }}</td><td class="td-num">{{ concluido }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <h3 class="h-card5 mt-24">Medições</h3>
+    {% if medicoes %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Medições do pacote</caption>
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col" class="td-num">De</th>
+            <th scope="col" class="td-num">Para</th>
+            <th scope="col">Autor</th>
+            <th scope="col">Observação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for data, de, para, autor, observacao in medicoes %}
+          <tr>
+            <td class="nowrap">{{ data }}</td>
+            <td class="td-num">{{ de }}</td>
+            <td class="td-num">{{ para }}</td>
+            <td>{{ autor }}</td>
+            <td>{{ observacao }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="hint">Nenhuma medição registrada para este pacote.</p>
+    {% endif %}
+
+    <p class="hint mt-24">Peso, datas e critério fazem parte da linha de base: mudam só por nova revisão.</p>
+    <div class="acoes-rodape mt-24">
+      <button type="button" class="btn btn--secondary"
+        @click="document.getElementById('{{ target_id }}').replaceChildren()">Fechar</button>
+    </div>
+  </div>
+</section>
+{% endblock %}
