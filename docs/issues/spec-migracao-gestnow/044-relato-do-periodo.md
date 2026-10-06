@@ -1,7 +1,7 @@
 ---
 id: ISSUE-044
 title: "Relato do período"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 5
