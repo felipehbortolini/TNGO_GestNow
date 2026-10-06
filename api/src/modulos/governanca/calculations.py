@@ -7,7 +7,8 @@ LEIA-ME of the module) and a boundary test in ``api/tests/governanca/test_calcul
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import unicodedata
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -416,3 +417,122 @@ def _closing_lines(facts: HistoryFacts) -> list[HistoryLine]:
 
 def _at(day: date, hour: time) -> datetime:
     return datetime.combine(day, hour)
+
+
+# ── Ações de implementação sugeridas pela análise (ISSUE-025) ────────────────────────────────
+
+NO_IMPACT_TEXT = "sem impacto"
+
+# A dimensão apontada pela análise, a chave da ação, o módulo dono e a função do responsável.
+SUGGESTED_ACTION_RULES: tuple[tuple[str, str, str, str, str], ...] = (
+    ("custo", "eac", "03", "Custos", "Incorporar a {code} na EAC (nova revisão do orçamento)"),
+    (
+        "prazo",
+        "cronograma",
+        "02",
+        "Planejamento",
+        "Atualizar a linha de base do cronograma e a Curva S ({code})",
+    ),
+    (
+        "contrato",
+        "contrato",
+        "03",
+        "Fiscal de contratos",
+        "Formalizar o aditivo contratual da {code} ({detail})",
+    ),
+    ("riscos", "riscos", "05", "", "Revisar os riscos afetados pela {code} ({detail})"),
+    (
+        "sms",
+        "sms",
+        "07",
+        "HSE",
+        "Atualizar a análise de risco de SMS da {code} ({detail})",
+    ),
+    (
+        "qualidade",
+        "qualidade",
+        "06",
+        "Qualidade",
+        "Atualizar especificação e plano de inspeção da {code} ({detail})",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class ImpactFacts:
+    """O que a análise de impacto apontou, como as ações sugeridas leem."""
+
+    cost_cents: int | None
+    term_days: int | None
+    quality: str | None
+    risks: str | None
+    safety: str | None
+    contract: str | None
+
+
+@dataclass(frozen=True)
+class SuggestedAction:
+    """Uma ação de implementação sugerida pela análise: a chave, o módulo, o assunto e o dono."""
+
+    key: str
+    module: str
+    subject: str
+    responsible_id: int | None
+
+
+def has_impact(text: str | None) -> bool:
+    """Whether a dimension's text says there is an impact: filled in and not "sem impacto"."""
+    return _plain(text or "") not in ("", NO_IMPACT_TEXT)
+
+
+def person_for_role(
+    role: str, fallback_id: int | None, roles: Mapping[int, str | None]
+) -> int | None:
+    """A pessoa com a função pedida, ou o fallback (o gerente do projeto) quando não há."""
+    wanted = _plain(role)
+    if wanted:
+        for person_id, person_role in sorted(roles.items()):
+            if _plain(person_role or "") == wanted:
+                return person_id
+    return fallback_id
+
+
+def suggested_change_actions(
+    impact: ImpactFacts, *, code: str, manager_id: int | None, roles: Mapping[int, str | None]
+) -> tuple[SuggestedAction, ...]:
+    """As ações que a aprovação cria na Central, pelo que a análise apontou (02, 03, 05, 06 e 07)."""
+    facts = {
+        "custo": bool(impact.cost_cents),
+        "prazo": bool(impact.term_days),
+        "contrato": has_impact(impact.contract),
+        "riscos": has_impact(impact.risks),
+        "sms": has_impact(impact.safety),
+        "qualidade": has_impact(impact.quality),
+    }
+    details = {
+        "contrato": impact.contract or "",
+        "riscos": impact.risks or "",
+        "sms": impact.safety or "",
+        "qualidade": impact.quality or "",
+    }
+    actions: list[SuggestedAction] = []
+    for dimension, key, module, role, template in SUGGESTED_ACTION_RULES:
+        if not facts[dimension]:
+            continue
+        actions.append(
+            SuggestedAction(
+                key=key,
+                module=module,
+                subject=template.format(code=code, detail=details.get(dimension, "")),
+                responsible_id=person_for_role(role, manager_id, roles),
+            )
+        )
+    return tuple(actions)
+
+
+def _plain(text: str) -> str:
+    """Text without accents, trimmed and in lower case, for the comparisons of the rules."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return (
+        "".join(char for char in decomposed if not unicodedata.combining(char)).strip().casefold()
+    )

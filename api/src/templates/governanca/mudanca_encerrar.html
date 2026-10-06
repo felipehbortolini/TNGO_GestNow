@@ -1,0 +1,134 @@
+{% extends "base_fragment.html" %}
+{#
+  Encerramento da mudança (HU-128), no modal da ficha: a conferência das ações de implementação e
+  das linhas de base que a análise exige confirmar, a data, as observações e a lição opcional
+  (criada em Rascunho pela fachada de Governança). O sucesso responde a ficha atualizada (alvo
+  mudanca-ficha); uma recusa (422, 409) volta este formulário, preenchido, com a mensagem.
+
+  Espera: formulario (ClosingForm), valores, erros, hoje, tipos_licao, fases_licao, action e target_id.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="{{ target_id }}-erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% macro invalido(erros, nome) %}{% if erros.get(nome) %} aria-invalid="true" aria-describedby="{{ target_id }}-erro-{{ nome }}"{% endif %}{% endmacro %}
+{% set sheet = formulario.sheet %}
+{% set m = sheet.change %}
+{% block fragment %}
+<form method="post" action="{{ action }}"
+  x-target="mudanca-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Encerrando a mudança..."
+  x-data="{ licao: $el.dataset.licao === 'sim' }" data-licao="{{ valores.get('registrar_licao') or '' }}">
+  <input type="hidden" name="codigo" value="{{ m.code }}" />
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
+
+  <h3 class="h-card5 mb-16">Conferência das linhas de base</h3>
+  <ul class="lista-simples mb-16">
+    <li class="lista-simples__item">
+      <span class="pill {{ 'pill--erro' if formulario.open_actions else 'pill--ok' }}">{{ formulario.open_actions }}</span>
+      <span class="body-txt">{{ 'ação de implementação em aberto na Central' if formulario.open_actions == 1 else 'ações de implementação em aberto na Central' if formulario.open_actions else 'Nenhuma ação de implementação em aberto' }}</span>
+    </li>
+    {% if formulario.schedule_required %}
+    <li class="lista-simples__item"><span class="pill pill--warn">Prazo</span><span class="body-txt">Linha de base do cronograma e Curva S física atualizadas (02)</span></li>
+    {% endif %}
+    {% if formulario.contract_required %}
+    <li class="lista-simples__item"><span class="pill pill--warn">Contrato</span><span class="body-txt">Aditivo contratual formalizado (03)</span></li>
+    {% endif %}
+    {% if formulario.risks_required %}
+    <li class="lista-simples__item"><span class="pill pill--warn">Riscos</span><span class="body-txt">Riscos afetados revisados no registro (05)</span></li>
+    {% endif %}
+  </ul>
+
+  <div class="fgrid">
+    {% if formulario.schedule_required %}
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="cronograma" value="sim"{% if valores.get('cronograma') == 'sim' %} checked{% endif %} />
+        <span>Linha de base do cronograma e Curva S física atualizadas</span>
+      </label>
+      {{ campo_erro(erros, 'cronograma') }}
+    </div>
+    {% endif %}
+    {% if formulario.contract_required %}
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="contrato" value="sim"{% if valores.get('contrato') == 'sim' %} checked{% endif %} />
+        <span>Aditivo contratual formalizado</span>
+      </label>
+      {{ campo_erro(erros, 'contrato') }}
+    </div>
+    {% endif %}
+    {% if formulario.risks_required %}
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="riscos" value="sim"{% if valores.get('riscos') == 'sim' %} checked{% endif %} />
+        <span>Riscos afetados revisados no registro</span>
+      </label>
+      {{ campo_erro(erros, 'riscos') }}
+    </div>
+    {% endif %}
+    <div class="field">
+      <label for="{{ target_id }}-data">Data do encerramento</label>
+      <input id="{{ target_id }}-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or hoje }}"
+        {% if m.implementation_start %}min="{{ m.implementation_start.isoformat() }}"{% endif %} max="{{ hoje }}"{{ invalido(erros, 'data') }} />
+      {{ campo_erro(erros, 'data') }}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-observacao">Observações</label>
+      <textarea id="{{ target_id }}-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}" rows="2" maxlength="500"
+        {{ invalido(erros, 'observacao') }}>{{ valores.get('observacao') or '' }}</textarea>
+      {{ campo_erro(erros, 'observacao') }}
+    </div>
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="registrar_licao" value="sim"{% if valores.get('registrar_licao') == 'sim' %} checked{% endif %}
+          @change="licao = $event.target.checked" />
+        <span>Registrar lição aprendida desta mudança (08 Governança)</span>
+      </label>
+    </div>
+    <div class="field field--full" x-show="licao">
+      <label for="{{ target_id }}-licao-titulo">Título da lição</label>
+      <input id="{{ target_id }}-licao-titulo" name="licao_titulo" class="input{% if erros.get('licao_titulo') %} input--erro{% endif %}" maxlength="150"
+        value="{{ valores.get('licao_titulo') or formulario.lesson_title }}"{{ invalido(erros, 'licao_titulo') }} />
+      {{ campo_erro(erros, 'licao_titulo') }}
+    </div>
+    <div class="field" x-show="licao">
+      <label for="{{ target_id }}-licao-tipo">Tipo</label>
+      <select id="{{ target_id }}-licao-tipo" name="licao_tipo" class="input{% if erros.get('licao_tipo') %} input--erro{% endif %}"{{ invalido(erros, 'licao_tipo') }}>
+        {% for tipo in tipos_licao %}
+        <option value="{{ tipo }}"{% if valores.get('licao_tipo') == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'licao_tipo') }}
+    </div>
+    <div class="field" x-show="licao">
+      <label for="{{ target_id }}-licao-fase">Fase</label>
+      <select id="{{ target_id }}-licao-fase" name="licao_fase" class="input{% if erros.get('licao_fase') %} input--erro{% endif %}"{{ invalido(erros, 'licao_fase') }}>
+        {% for fase in fases_licao %}
+        <option value="{{ fase }}"{% if valores.get('licao_fase') == fase %} selected{% endif %}>{{ fase }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'licao_fase') }}
+    </div>
+    <div class="field" x-show="licao">
+      <label for="{{ target_id }}-licao-disciplina">Disciplina (opcional)</label>
+      <input id="{{ target_id }}-licao-disciplina" name="licao_disciplina" class="input" maxlength="60"
+        value="{{ valores.get('licao_disciplina') or '' }}" />
+    </div>
+    <div class="field field--full" x-show="licao">
+      <label for="{{ target_id }}-licao-recomendacao">Recomendação</label>
+      <textarea id="{{ target_id }}-licao-recomendacao" name="licao_recomendacao" class="input{% if erros.get('licao_recomendacao') %} input--erro{% endif %}" rows="3" maxlength="1000"
+        {{ invalido(erros, 'licao_recomendacao') }}>{{ valores.get('licao_recomendacao') or '' }}</textarea>
+      {{ campo_erro(erros, 'licao_recomendacao') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Encerrar mudança</button>
+  </div>
+</form>
+{% endblock %}

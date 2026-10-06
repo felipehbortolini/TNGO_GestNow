@@ -1,0 +1,130 @@
+{% extends "base_fragment.html" %}
+{#
+  Decisão da mudança (HU-127), no modal da ficha: resultado, data, participantes (quórum ou o
+  gerente do projeto, conforme a alçada), justificativa, condições, ata opcional do comitê,
+  reapresentação quando adiada e as ações de implementação que a aprovação cria na Central.
+  O sucesso responde a ficha atualizada (alvo mudanca-ficha); uma recusa (422, 409) volta este
+  formulário, preenchido, com a mensagem sob o campo.
+
+  Espera: formulario (DecisionForm), valores, erros, hoje, action e target_id.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="{{ target_id }}-erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% macro invalido(erros, nome) %}{% if erros.get(nome) %} aria-invalid="true" aria-describedby="{{ target_id }}-erro-{{ nome }}"{% endif %}{% endmacro %}
+{% set sheet = formulario.sheet %}
+{% set m = sheet.change %}
+{% block fragment %}
+<form method="post" action="{{ action }}"
+  x-target="mudanca-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a decisão..."
+  x-data="{ resultado: $el.dataset.resultado, temAcoes: true }" data-resultado="{{ valores.get('resultado') or '' }}">
+  <input type="hidden" name="codigo" value="{{ m.code }}" />
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>
+      Alçada: <strong>{{ m.authority or 'a definir' }}</strong>
+      · Impacto em custo: <strong>{{ sheet.impact.cost_cents | brl if sheet.impact else '·' }}</strong>
+      · Impacto em prazo: <strong>{{ (sheet.impact.term_days ~ ' dias') if sheet.impact else '·' }}</strong>
+      · Fonte do recurso: <strong>{{ m.resource_source or 'sem custo' }}</strong>
+      {% if m.authority == 'Comitê' %}· Quórum mínimo: <strong>{{ formulario.quorum }}</strong>{% endif %}
+    </span>
+  </div>
+  {% if sheet.emergency_start %}
+  <div class="aviso aviso--warn mb-16" role="status">
+    <span><b>Ratificação de mudança emergencial</b> executada desde {{ sheet.emergency_start.strftime('%d/%m/%Y') }}{% if sheet.ratification_due %} · prazo de ratificação {{ sheet.ratification_due.strftime('%d/%m/%Y') }}{% endif %}.</span>
+  </div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="{{ target_id }}-resultado">Decisão</label>
+      <select id="{{ target_id }}-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}" required
+        @change="resultado = $event.target.value"{{ invalido(erros, 'resultado') }}>
+        <option value="">Escolha...</option>
+        {% for opcao in ['Aprovada', 'Aprovada com condições', 'Rejeitada', 'Adiada'] %}
+        <option value="{{ opcao }}"{% if valores.get('resultado') == opcao %} selected{% endif %}>{{ opcao }}{% if opcao == 'Adiada' %} (volta à pauta){% endif %}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'resultado') }}
+    </div>
+    <div class="field">
+      <label for="{{ target_id }}-data">Data da decisão</label>
+      <input id="{{ target_id }}-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or hoje }}"
+        {% if formulario.impact_date %}min="{{ formulario.impact_date.isoformat() }}"{% endif %} max="{{ hoje }}"{{ invalido(erros, 'data') }} />
+      {{ campo_erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="{{ target_id }}-ata">Ata da reunião (opcional)</label>
+      <select id="{{ target_id }}-ata" name="ata_id" class="input{% if erros.get('ata_id') %} input--erro{% endif %}"{{ invalido(erros, 'ata_id') }}>
+        <option value="">Sem ata vinculada</option>
+        {% for ata in formulario.atas %}
+        <option value="{{ ata.id }}"{% if valores.get('ata_id') == ata.id|string %} selected{% endif %}>{{ ata.label }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'ata_id') }}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-participantes">{{ 'Participantes do comitê (quórum de ' ~ formulario.quorum ~ ')' if m.authority == 'Comitê' else 'Decisor (gerente do projeto)' }}</label>
+      <select id="{{ target_id }}-participantes" name="participantes" class="input{% if erros.get('participantes') %} input--erro{% endif %}" multiple size="6" required
+        aria-describedby="{{ target_id }}-participantes-dica{% if erros.get('participantes') %} {{ target_id }}-erro-participantes{% endif %}"
+        {% if erros.get('participantes') %}aria-invalid="true"{% endif %}>
+        {% for pessoa in formulario.people %}
+        <option value="{{ pessoa.id }}"{% if pessoa.id|string in valores.get('participantes', []) %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint" id="{{ target_id }}-participantes-dica">
+        {% if m.authority == 'Comitê' %}Segure Ctrl (ou Cmd) para marcar os participantes; o quórum mínimo é {{ formulario.quorum }}.{% else %}{{ formulario.manager_name }} precisa constar como decisor.{% endif %}
+      </span>
+      {{ campo_erro(erros, 'participantes') }}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-justificativa">Justificativa da decisão</label>
+      <textarea id="{{ target_id }}-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="3" maxlength="600" required
+        {{ invalido(erros, 'justificativa') }}>{{ valores.get('justificativa') or '' }}</textarea>
+      {{ campo_erro(erros, 'justificativa') }}
+    </div>
+    <div class="field field--full" x-show="resultado === 'Aprovada com condições'">
+      <label for="{{ target_id }}-condicoes">Condições</label>
+      <textarea id="{{ target_id }}-condicoes" name="condicoes" class="input{% if erros.get('condicoes') %} input--erro{% endif %}" rows="2" maxlength="600"
+        {{ invalido(erros, 'condicoes') }}>{{ valores.get('condicoes') or '' }}</textarea>
+      {{ campo_erro(erros, 'condicoes') }}
+    </div>
+    <div class="field field--full" x-show="resultado === 'Adiada'">
+      <label for="{{ target_id }}-reapresentar">Reapresentar em</label>
+      <input id="{{ target_id }}-reapresentar" name="reapresentar_em" type="date" class="input{% if erros.get('reapresentar_em') %} input--erro{% endif %}"
+        min="{{ hoje }}" value="{{ valores.get('reapresentar_em') or '' }}"{{ invalido(erros, 'reapresentar_em') }} />
+      <span class="hint">A solicitação volta à pauta nesta data; a decisão de adiamento fica no histórico.</span>
+      {{ campo_erro(erros, 'reapresentar_em') }}
+    </div>
+    {% if formulario.actions %}
+    <div class="field field--full" x-show="resultado === 'Aprovada' || resultado === 'Aprovada com condições'">
+      <span class="registro__rotulo">Ações de implementação a criar na Central (origem Mudança)</span>
+      {% for acao in formulario.actions %}
+      <label class="registro__opcao">
+        <input type="checkbox" name="acoes" value="{{ acao.key }}"{% if acao.key in valores.get('acoes', []) %} checked{% endif %}
+          @change="temAcoes = $el.form.querySelectorAll('input[name=acoes]:checked').length > 0" />
+        <span>{{ acao.subject }}{% if acao.responsible_name %} · {{ acao.responsible_name }}{% endif %}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="field field--full" x-show="temAcoes && (resultado === 'Aprovada' || resultado === 'Aprovada com condições')">
+      <label for="{{ target_id }}-prevista">Data prevista das ações</label>
+      <input id="{{ target_id }}-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}"
+        min="{{ hoje }}" value="{{ valores.get('prevista') or '' }}"{{ invalido(erros, 'prevista') }} />
+      {{ campo_erro(erros, 'prevista') }}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar decisão</button>
+  </div>
+</form>
+{% endblock %}

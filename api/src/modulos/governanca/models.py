@@ -232,10 +232,12 @@ class ChangeDecision(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     change_id: Mapped[int] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    ata_id: Mapped[int | None] = mapped_column("ata_id", ForeignKey("ata.id"))
     decision_date: Mapped[date] = mapped_column("data", Date)
     result: Mapped[str] = mapped_column("resultado", Text)
     conditions: Mapped[str | None] = mapped_column("condicoes", Text)
     justification: Mapped[str] = mapped_column("justificativa", Text)
+    reappear_on: Mapped[date | None] = mapped_column("reapresentar_em", Date)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 

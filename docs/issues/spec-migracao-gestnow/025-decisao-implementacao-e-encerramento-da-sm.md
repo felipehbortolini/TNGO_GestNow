@@ -1,7 +1,7 @@
 ---
 id: ISSUE-025
 title: "Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -79,3 +79,11 @@ Nenhuma.
 
 Fonte: `GI.api.governanca.decidir`, `reapresentar`, `iniciarImplementacao`,
 `encerrar` e `conferencia`; README, "08 Governança".
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: fachada (`service.py`: `decision_form`, `decide_change`, `resubmit_change`, `closing_form`, `close_change` e as ações sugeridas), cálculos (`suggested_change_actions`, `has_impact`, `person_for_role`), validação (`DecisionInput`/`ClosingInput`), a Central (`next_origin_item`), rotas (`decisao`, `reapresentar`, `encerrar`), os modais (`mudanca_decisao.html`, `mudanca_reapresentar.html`, `mudanca_encerrar.html`), a ficha com os botões e o alerta de ratificação, o link de origem `Mudança`, os testes (`api/tests/governanca/test_decisao.py`) e o LEIA-ME do módulo.
+- Migração: `m025_decisao_da_mudanca.py` acrescenta `ata_id` (FK para `ata`) e `reapresentar_em` a `mudanca_decisao`, colunas que o modelo aceito não previa; o `docs/MODELO-DE-DADOS.md` mudou na mesma entrega.
+- Decisão de execução: a aprovação já cria as ações e leva a SM a Em implementação, na mesma transação (o protótipo tinha um passo separado de "Iniciar implementação"; a issue pede a aprovação única). As conferências de incorporação na EAC e na EAP ficam com as ISSUE-030 e ISSUE-038.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.

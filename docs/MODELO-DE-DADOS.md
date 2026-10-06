@@ -460,10 +460,12 @@ erDiagram
     mudanca_decisao {
         bigint id PK
         bigint mudanca_id FK
+        bigint ata_id FK
         date data
         text resultado
         text condicoes
         text justificativa
+        date reapresentar_em
         integer versao
     }
     mudanca_decisao_participante {
@@ -1939,7 +1941,7 @@ fachada, não por coluna.
 | `mudanca_impacto` | Análise de impacto obrigatória: custo (centavos, negativo para redução), prazo (dias no caminho crítico), escopo, qualidade, riscos, SMS, contrato, marco contratual e atividades; na SM de Liberação de reserva, a reserva (`liberacao_reserva`: Contingência ou Gerencial) e o valor (`liberacao_valor_centavos`), pois o custo é zero; a versão vigente é a última. | governanca |
 | `mudanca_impacto_eac_item` | Itens da EAC afetados pela análise, validados contra a EAC de nível 3. Sem `versao` própria. | governanca |
 | `mudanca_remanejamento` | Transferência proposta entre itens da EAC (origem, destino, valor) e a sua aplicação: `aplicado`, data, autor e revisão da EAC. Aprovação aplica a transferência. Sem `versao` própria. | governanca |
-| `mudanca_decisao` | Cada decisão registrada (data, resultado, condições, justificativa), inclusive as adiadas em `decisoesAnteriores`. | governanca |
+| `mudanca_decisao` | Cada decisão registrada (data, resultado, condições, justificativa, a ata opcional do comitê e o `reapresentar_em` da adiada), inclusive as adiadas em `decisoesAnteriores`. | governanca |
 | `mudanca_decisao_participante` | Participantes da decisão, para conferir o quórum. Sem `versao` própria. | governanca |
 | `licao` | Lição aprendida com origem rastreável (`origem` + `origem_ref`), tipo (A repetir/A evitar), fase, área, disciplina, causa, impactos, recomendação, aplicabilidade (Projeto/Corporativa) e situação do fluxo. `reusos` não é coluna: é a contagem de `licao_aplicacao`. | governanca |
 | `licao_palavra_chave` | Palavras-chave da lição, para a busca do acervo. Sem `versao` própria. | governanca |

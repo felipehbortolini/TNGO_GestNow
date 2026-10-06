@@ -139,3 +139,25 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 **Carga e oráculo.** `seed.py` ganhou a parte `governanca-licoes`: lê `prototype_collection("licoes")`, converte a origem em texto do protótipo ("Claim CLM-..." → `Contrato` + `CLM-...`) e grava pela fachada (`load_demonstration_lesson`), conferindo o código do protótipo. Oráculo em `api/tests/oraculo/test_oraculo_licoes.py` (10 lições, 4 publicadas, 9 corporativas, 6 reusos). Migração `m027_licoes_aprendidas.py`; a tabela `licao_historico` entrou no `docs/MODELO-DE-DADOS.md` nesta entrega.
 
 **Testes.** `api/tests/governanca/test_licoes_fachada.py`: segregação do validador, devolução com comentário, origem de módulo, rascunho com origem, aplicação com ação na Central e visibilidade no acervo.
+
+## O que a ISSUE-025 trouxe
+
+**Telas.** Na ficha da mudança, a barra de ações ganha **Registrar decisão** (Aguardando comitê, Gestor), **Reapresentar** (Adiada) e **Encerrar** (Em implementação, Gestor), e o alerta de **ratificação** da emergencial (pendente ou vencida, pelo prazo do parâmetro). O modal **Decisão** mostra o resumo (alçada, impacto em custo e prazo, fonte do recurso), o resultado (Aprovada, Aprovada com condições, Rejeitada ou Adiada), a data, a ata opcional do comitê, os participantes (quórum ou o gerente do projeto, conforme a alçada), a justificativa, as condições, o "reapresentar em" e as **ações de implementação** que a aprovação cria na Central. O modal **Encerrar** faz a conferência das ações em aberto e das linhas de base que a análise exige confirmar, com a data, as observações e a lição opcional.
+
+**Rotas** (`/api/governanca/mudanca/...`, `routes.py`):
+
+| Rota | Uso |
+|---|---|
+| `GET/POST decisao` | Formulário e gravação da decisão; a aprovação cria as ações e leva a SM a Em implementação |
+| `GET/POST reapresentar` | A adiada volta à pauta; a decisão anterior fica no histórico |
+| `GET/POST encerrar` | Encerramento com as confirmações do impacto e a lição opcional em Rascunho |
+
+**Fórmulas** (`calculations.py`): `suggested_change_actions` (as ações que a aprovação cria, pelo que a análise apontou: custo → EAC, prazo → cronograma e Curva S, contrato → aditivo, riscos, SMS e qualidade, com o responsável pela função e o gerente como fallback), `has_impact` (texto preenchido e diferente de "sem impacto") e `person_for_role`. A Central expõe `next_origin_item` para a numeração das ações de um registro de origem.
+
+**Fluxos** (`service.py`): a decisão exige Gestor, a SM Aguardando comitê e a análise de impacto; na alçada do gerente do projeto ele precisa constar entre os participantes; no Comitê, o quórum do parâmetro. A **aprovação** registra a decisão e os participantes, cria as ações de implementação pela costura da Central (origem `Mudança`, grupo `Implementação`, item sequencial, prazo do parâmetro) e leva a SM a Em implementação — tudo na mesma transação, de modo que uma falha no meio desfaz a decisão e as ações. **Rejeitada** é terminal e grava a data de encerramento; **Adiada** guarda o "reapresentar em" e volta à pauta por `resubmit_change`. O **encerramento** é recusado enquanto houver ação de implementação aberta e exige as confirmações que o impacto apontar (cronograma e Curva S, aditivo, riscos); a lição opcional nasce em Rascunho com origem na SM (`lessons_service.create_draft_lesson`).
+
+**Integrações.** Central de Ações (criação das ações, contagem das abertas e numeração por origem), Atas (a ata do comitê, da Central), Lições (o rascunho do encerramento) e o link de origem `Mudança` registrado em `origin_links` (a ação de implementação abre a ficha da SM).
+
+**Migração e modelo.** `m025_decisao_da_mudanca.py` acrescenta `ata_id` (FK para `ata`) e `reapresentar_em` a `mudanca_decisao`, que o modelo aceito não previa; o `docs/MODELO-DE-DADOS.md` mudou na mesma entrega. As conferências de incorporação na EAC e na EAP ficam com as ISSUE-030 e ISSUE-038.
+
+**Testes.** `api/tests/governanca/test_decisao.py`: quórum e decisor, aprovação com ações e link de volta, atomicidade (falha no meio desfaz tudo), adiada e reapresentação, ratificação vencida, encerramento com ação aberta, confirmações do impacto e lição em Rascunho, além das rotas (403 para Membro e a ficha de volta para o Gestor).

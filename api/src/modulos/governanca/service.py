@@ -23,19 +23,31 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from src.core import attachment_origins, numbering, rbac, recording
+from src.core import attachment_origins, calendario, numbering, origin_links, rbac, recording
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.import_values import normalize_text
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
+from src.modulos.central_acoes import minutes_service
+from src.modulos.central_acoes import service as central_acoes
+from src.modulos.central_acoes.calculations import ACTION
+from src.modulos.central_acoes.service import OriginActionCount
+from src.modulos.central_acoes.validation import MinutesFilters, NewAction
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service as financeiro
-from src.modulos.governanca import calculations, models, validation
+from src.modulos.governanca import (
+    calculations,
+    lessons_calculations,
+    lessons_models,
+    lessons_service,
+    models,
+    validation,
+)
 from src.modulos.governanca.calculations import (
     ChangeFigures,
     ChangeSummary,
@@ -43,6 +55,7 @@ from src.modulos.governanca.calculations import (
     HistoryLine,
     NextStepFacts,
 )
+from src.modulos.governanca.lessons_validation import DraftInput
 from src.modulos.governanca.models import (
     ChangeAnalysis,
     ChangeDecision,
@@ -851,6 +864,454 @@ def _not_cancellable_message(situation: str) -> str:
     return CANCEL_DECIDED_MESSAGE + (CANCEL_REVERT_HINT if approved else ".")
 
 
+# ── The decision and the closing (ISSUE-025) ─────────────────────────────
+
+IMPLEMENTATION_ORIGIN = "Mudança"
+IMPLEMENTATION_GROUP = "Implementação"
+DECISION_DENIED_MESSAGE = "Registrar a decisão exige papel Gestor."
+CLOSING_DENIED_MESSAGE = "O encerramento exige papel Gestor."
+UNKNOWN_PERSON_MESSAGE = "A pessoa informada não está no cadastro."
+
+
+@dataclass(frozen=True)
+class DecisionActionView:
+    """Uma ação de implementação sugerida, com o nome do responsável para o formulário."""
+
+    key: str
+    module: str
+    subject: str
+    responsible_id: int | None
+    responsible_name: str
+
+
+@dataclass(frozen=True)
+class DecisionAtaOption:
+    """Uma ata do projeto que o modal Decisão oferece para vincular."""
+
+    id: int
+    label: str
+
+
+@dataclass(frozen=True)
+class DecisionForm:
+    """O que o modal Decisão mostra: a ficha, quem decide e o que a aprovação gera."""
+
+    sheet: ChangeSheet
+    manager_id: int | None
+    manager_name: str
+    quorum: int
+    impact_date: date | None
+    actions: tuple[DecisionActionView, ...]
+    atas: tuple[DecisionAtaOption, ...]
+    people: tuple[configuracoes.RegisterOption, ...]
+    default_participants: tuple[int, ...]
+    default_planned: date
+
+
+@dataclass(frozen=True)
+class DecisionResult:
+    """O que a decisão fez: a situação da SM e quantas ações nasceram na Central."""
+
+    code: str
+    situation: str
+    actions_created: int
+
+
+@dataclass(frozen=True)
+class ClosingForm:
+    """O que o modal Encerrar mostra: as confirmações devidas e as ações em aberto."""
+
+    sheet: ChangeSheet
+    open_actions: int
+    schedule_required: bool
+    contract_required: bool
+    risks_required: bool
+    lesson_title: str
+
+
+@dataclass(frozen=True)
+class ClosingResult:
+    """O que o encerramento fez: o código da SM e o da lição, quando ela foi pedida."""
+
+    code: str
+    lesson_code: str | None
+
+
+@dataclass(frozen=True)
+class _Implementation:
+    """O que a aprovação gera: as ações escolhidas, o prazo e as duas datas da transação."""
+
+    actions: Sequence[DecisionActionView]
+    planned_date: date | None
+    decision_date: date
+    reference_date: date
+
+
+def decision_form(session: Session, *, user: User, code: str, reference_date: date) -> DecisionForm:
+    """O formulário da decisão: o resumo da ficha, o quórum, as atas e as ações sugeridas."""
+    rbac.require_module(user, MODULE)
+    change = _decidable_change(session, code)
+    sheet = find_change_sheet(session, user=user, code=code, reference_date=reference_date)
+    if sheet is None:  # pragma: no cover - a mudança acabou de ser encontrada
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    parameters = _parameters(session, reference_date)
+    manager_id, manager_name = _manager_of(session, change)
+    committee = change.authority == models.AUTHORITY_COMMITTEE
+    participants = [manager_id] if manager_id else []
+    if committee:
+        participants.append(user.person_id)
+    return DecisionForm(
+        sheet=sheet,
+        manager_id=manager_id,
+        manager_name=manager_name,
+        quorum=int(parameters["quorumComite"]),
+        impact_date=sheet.impact.analysis_date if sheet.impact else None,
+        actions=_suggested_action_views(session, change, manager_id),
+        atas=_ata_options(session, user, change, reference_date),
+        people=tuple(configuracoes.list_person_options(session)),
+        default_participants=tuple(dict.fromkeys(participants)),
+        default_planned=calendario.add_days(reference_date, int(parameters["prazoAcoesDias"])),
+    )
+
+
+def decide_change(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    form: Mapping[str, object],
+    reference_date: date,
+) -> DecisionResult:
+    """Registra a decisão (HU-127): quórum e decisor conferidos, e a aprovação gera as ações.
+
+    A decisão, os participantes, as ações de implementação na Central (origem ``Mudança``) e a
+    mudança de situação entram na mesma transação: uma falha no meio desfaz tudo.
+    """
+    if not rbac.can(user, Permission.MANAGE):
+        raise AccessDeniedError(DECISION_DENIED_MESSAGE)
+    change = _decidable_change(session, code)
+    loaded = _load_one(session, change)
+    if loaded.impact is None or loaded.impact.analysis_date is None:
+        raise InvalidDataError(validation.DECISION_IMPACT_REQUIRED)
+    parameters = _parameters(session, reference_date)
+    manager_id, manager_name = _manager_of(session, change)
+    data = validation.parse_decision(form)
+    facts = validation.DecisionFacts(
+        authority=change.authority,
+        manager_id=manager_id,
+        manager_name=manager_name,
+        quorum=int(parameters["quorumComite"]),
+        impact_date=loaded.impact.analysis_date,
+        reference_date=reference_date,
+    )
+    problems = validation.decision_problems(data, facts)
+    if data.ata_id is not None and data.ata_id not in {
+        option.id for option in _ata_options(session, user, change, reference_date)
+    }:
+        problems[validation.FIELD_ATA] = validation.DECISION_ATA_UNKNOWN
+    if problems:
+        raise InvalidDataError(problems)
+    approved = data.result in models.APPROVED_SITUATIONS
+    chosen = (
+        tuple(
+            action
+            for action in _suggested_action_views(session, change, manager_id)
+            if action.key in data.actions
+        )
+        if approved
+        else ()
+    )
+    decision = recording.create(
+        session,
+        user_id=user.id,
+        record=ChangeDecision(
+            change_id=change.id,
+            ata_id=data.ata_id,
+            decision_date=cast("date", data.decision_date),
+            result=data.result,
+            conditions=data.conditions or None,
+            justification=data.justification,
+            reappear_on=data.reappear_on,
+        ),
+    )
+    for person_id in data.participants:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=ChangeDecisionParticipant(decision_id=decision.id, person_id=person_id),
+        )
+    created = (
+        _create_implementation_actions(
+            session,
+            user=user,
+            change=change,
+            plan=_Implementation(
+                actions=chosen,
+                planned_date=data.planned_date,
+                decision_date=cast("date", data.decision_date),
+                reference_date=reference_date,
+            ),
+        )
+        if approved
+        else 0
+    )
+    changes: dict[str, object] = {
+        "situation": models.SITUATION_IMPLEMENTING if approved else data.result
+    }
+    if data.result == models.SITUATION_REJECTED:
+        changes["closing_date"] = data.decision_date
+    recording.update(session, user_id=user.id, record=change, changes=changes, version=data.version)
+    return DecisionResult(code=change.code, situation=change.situation, actions_created=created)
+
+
+def resubmit_change(
+    session: Session, *, user: User, code: str, reference_date: date
+) -> CreatedChange:
+    """Reapresenta a solicitação adiada: volta à pauta e a decisão anterior fica no histórico."""
+    del reference_date  # a reapresentação não depende da data; a assinatura mantém o padrão
+    rbac.require(user, Permission.WRITE)
+    change = _by_code(session, code)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    if change.situation != models.SITUATION_POSTPONED:
+        raise InvalidDataError(validation.REOPEN_NOT_POSTPONED)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes={"situation": models.SITUATION_AWAITING},
+        version=change.version,
+    )
+    return CreatedChange(id=change.id, code=change.code, project_id=change.project_id)
+
+
+def closing_form(session: Session, *, user: User, code: str, reference_date: date) -> ClosingForm:
+    """O formulário do encerramento: a conferência das ações e o que a análise exige confirmar."""
+    rbac.require_module(user, MODULE)
+    change = _closable_change(session, code)
+    sheet = find_change_sheet(session, user=user, code=code, reference_date=reference_date)
+    if sheet is None:  # pragma: no cover - a mudança acabou de ser encontrada
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    impact = sheet.impact
+    return ClosingForm(
+        sheet=sheet,
+        open_actions=_open_implementation_actions(session, user, change, reference_date),
+        schedule_required=bool(impact and impact.term_days),
+        contract_required=bool(impact and calculations.has_impact(impact.contract)),
+        risks_required=bool(impact and calculations.has_impact(impact.risks)),
+        lesson_title=change.title,
+    )
+
+
+def close_change(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    form: validation.Form,
+    reference_date: date,
+) -> ClosingResult:
+    """Encerra a mudança (HU-128): sem ação aberta, com as confirmações e a lição opcional."""
+    if not rbac.can(user, Permission.MANAGE):
+        raise AccessDeniedError(CLOSING_DENIED_MESSAGE)
+    change = _closable_change(session, code)
+    loaded = _load_one(session, change)
+    open_actions = _open_implementation_actions(session, user, change, reference_date)
+    data = validation.parse_closing(form)
+    problems = validation.closing_problems(data, impact=loaded.impact, open_actions=open_actions)
+    if problems:
+        raise InvalidDataError(problems)
+    lesson_id = None
+    lesson_code = None
+    if data.lesson is not None:
+        created = lessons_service.create_draft_lesson(
+            session,
+            user=user,
+            project_id=change.project_id,
+            draft=_closing_lesson_draft(change, loaded.impact, data.lesson),
+            reference_date=reference_date,
+        )
+        lesson_id = created.id
+        lesson_code = created.code
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes={
+            "situation": models.SITUATION_CLOSED,
+            "closing_date": data.closing_date,
+            "closed_schedule": data.schedule,
+            "closed_contract": data.contract,
+            "closed_risks": data.risks,
+            "closing_note": data.note or None,
+            "closed_by_id": user.person_id,
+            "lesson_id": lesson_id,
+        },
+        version=data.version,
+    )
+    return ClosingResult(code=change.code, lesson_code=lesson_code)
+
+
+def _decidable_change(session: Session, code: str) -> ChangeRequest:
+    """A mudança que pode ser decidida agora: Aguardando comitê, com a análise concluída."""
+    change = _by_code(session, code)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    if change.situation != models.SITUATION_AWAITING:
+        raise InvalidDataError(validation.DECISION_ONLY_AWAITING)
+    loaded = _load_one(session, change)
+    if loaded.impact is None or loaded.impact.analysis_date is None:
+        raise InvalidDataError(validation.DECISION_IMPACT_REQUIRED)
+    return change
+
+
+def _closable_change(session: Session, code: str) -> ChangeRequest:
+    change = _by_code(session, code)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    if change.situation != models.SITUATION_IMPLEMENTING:
+        raise InvalidDataError(validation.CLOSING_ONLY_IMPLEMENTING)
+    return change
+
+
+def _manager_of(session: Session, change: ChangeRequest) -> tuple[int | None, str]:
+    project = configuracoes.find_project(session, change.project_id)
+    manager_id = project.manager_person_id if project else None
+    name = _names(session, [manager_id]).get(manager_id or 0, "")
+    return manager_id, name
+
+
+def _suggested_action_views(
+    session: Session, change: ChangeRequest, manager_id: int | None
+) -> tuple[DecisionActionView, ...]:
+    loaded = _load_one(session, change)
+    impact = loaded.impact
+    if impact is None:
+        return ()
+    facts = calculations.ImpactFacts(
+        cost_cents=impact.cost_cents,
+        term_days=impact.term_days,
+        quality=impact.quality,
+        risks=impact.risks,
+        safety=impact.safety,
+        contract=impact.contract,
+    )
+    roles = {person.id: person.role for person in configuracoes.list_person_details(session)}
+    suggested = calculations.suggested_change_actions(
+        facts, code=change.code, manager_id=manager_id, roles=roles
+    )
+    names = _names(session, [action.responsible_id for action in suggested])
+    return tuple(
+        DecisionActionView(
+            key=action.key,
+            module=action.module,
+            subject=action.subject,
+            responsible_id=action.responsible_id,
+            responsible_name=names.get(action.responsible_id or 0, ""),
+        )
+        for action in suggested
+    )
+
+
+def _ata_options(
+    session: Session, user: User, change: ChangeRequest, reference_date: date
+) -> tuple[DecisionAtaOption, ...]:
+    listing = minutes_service.list_minutes(
+        session,
+        user=user,
+        scope=Scope(project_id=change.project_id, source="padrao"),
+        filters=MinutesFilters(),
+        reference_date=reference_date,
+    )
+    return tuple(
+        DecisionAtaOption(
+            id=row.record.id,
+            label=f"{row.record.number} Rev {row.record.revision} · "
+            f"{row.record.meeting_date:%d/%m/%Y}",
+        )
+        for row in listing.rows
+    )
+
+
+def _open_implementation_actions(
+    session: Session, user: User, change: ChangeRequest, reference_date: date
+) -> int:
+    counts = central_acoes.count_actions_of_origin(
+        session,
+        user=user,
+        origin_kind=IMPLEMENTATION_ORIGIN,
+        references=[change.code],
+        reference_date=reference_date,
+    )
+    return counts.get(change.code, OriginActionCount()).open
+
+
+def _create_implementation_actions(
+    session: Session,
+    *,
+    user: User,
+    change: ChangeRequest,
+    plan: _Implementation,
+) -> int:
+    """Cria as ações aprovadas na Central, pela costura única, com origem ``Mudança`` e link."""
+    for action in plan.actions:
+        central_acoes.create_action(
+            session,
+            user=user,
+            new=NewAction(
+                project_id=change.project_id,
+                origin=IMPLEMENTATION_ORIGIN,
+                origin_ref=change.code,
+                subject=action.subject,
+                requester_id=user.person_id,
+                responsible_id=action.responsible_id or user.person_id,
+                planned_date=plan.planned_date,
+                kind=ACTION,
+                description=(
+                    "Implementação da mudança aprovada em "
+                    f"{plan.decision_date:%d/%m/%Y} ({action.module})."
+                ),
+                group=IMPLEMENTATION_GROUP,
+                item=central_acoes.next_origin_item(
+                    session, origin_kind=IMPLEMENTATION_ORIGIN, reference=change.code
+                ),
+            ),
+            reference_date=plan.reference_date,
+        )
+    return len(plan.actions)
+
+
+def _closing_lesson_draft(
+    change: ChangeRequest, impact: ChangeImpact | None, lesson: validation.ClosingLesson
+) -> DraftInput:
+    """A lição do encerramento: o texto que a SM dá, o tipo e a recomendação que a pessoa escreveu."""
+    facts = lessons_calculations.lesson_draft_for_change(
+        lessons_calculations.ChangeFacts(
+            title=change.title,
+            description=change.description,
+            kind=change.kind,
+            origin=change.origin,
+            term_days=impact.term_days if impact else None,
+            cost_cents=impact.cost_cents if impact else None,
+        )
+    )
+    return DraftInput(
+        title=lesson.title,
+        kind=lesson.kind,
+        phase=lesson.phase,
+        area=facts.area,
+        origin=lessons_models.ORIGIN_CHANGE,
+        origin_ref=change.code,
+        what_happened=facts.what_happened,
+        cause=facts.cause,
+        recommendation=lesson.recommendation,
+        discipline=lesson.discipline,
+        term_days=facts.term_days,
+        cost_cents=facts.cost_cents,
+        keywords=facts.keywords,
+    )
+
+
 # ── The demonstration load (ISSUE-023, D6) ───────────────────────────────
 
 
@@ -1351,4 +1812,14 @@ def _register_attachment_origin() -> None:
     )
 
 
+def _build_change_link(reference: origin_links.OriginRef) -> str | None:
+    """The address of the ficha of the change an action came from; none without the code."""
+    if not reference.reference:
+        return None
+    return origin_links.link_to_screen("governanca/mudanca", codigo=reference.reference)
+
+
 _register_attachment_origin()
+origin_links.register(
+    origin_links.OriginLinkType(kind=IMPLEMENTATION_ORIGIN, build=_build_change_link)
+)

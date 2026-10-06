@@ -37,7 +37,15 @@ from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse, redirect_to
 from src.core.routing import Access, RequestContext, file_route, fragment_route
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.governanca import calculations, export, models, presentation, service, validation
+from src.modulos.governanca import (
+    calculations,
+    export,
+    lessons_models,
+    models,
+    presentation,
+    service,
+    validation,
+)
 
 bp = func.Blueprint()
 
@@ -54,6 +62,9 @@ SHEET_PRINTABLE_ROUTE = "governanca/mudanca/imprimivel"
 CANCEL_ROUTE = "governanca/mudanca/cancelar"
 START_ANALYSIS_ROUTE = "governanca/mudanca/analise/iniciar"
 IMPACT_ROUTE = "governanca/mudanca/analise"
+DECISION_ROUTE = "governanca/mudanca/decisao"
+REOPEN_ROUTE = "governanca/mudanca/reapresentar"
+CLOSING_ROUTE = "governanca/mudanca/encerrar"
 
 REGISTER_TEMPLATE = "governanca/mudancas.html"
 REGISTER_PARTS_TEMPLATE = "governanca/mudancas_partes.html"
@@ -63,6 +74,14 @@ NOT_FOUND_TEMPLATE = "governanca/mudanca_nao_encontrada.html"
 CANCEL_TEMPLATE = "governanca/mudanca_cancelar.html"
 START_ANALYSIS_TEMPLATE = "governanca/mudanca_analise_iniciar.html"
 IMPACT_TEMPLATE = "governanca/mudanca_analise.html"
+DECISION_TEMPLATE = "governanca/mudanca_decisao.html"
+REOPEN_TEMPLATE = "governanca/mudanca_reapresentar.html"
+CLOSING_TEMPLATE = "governanca/mudanca_encerrar.html"
+
+SHEET_TARGET = "mudanca-ficha"
+DECIDED_NOTICE = "Decisão registrada."
+RESUBMITTED_NOTICE = "Solicitação reapresentada para decisão."
+CLOSED_NOTICE = "Mudança encerrada."
 
 # The two blocks the filter form replaces; their presence in the request header picks the short answer.
 FILTERED_BLOCKS = ("mudancas-kpis", "mudancas-tabela")
@@ -323,7 +342,14 @@ def change_sheet(
             template_name=NOT_FOUND_TEMPLATE, context={}, request=req, status_code=404
         )
     return AlpineAjaxResponse(
-        template_name=SHEET_TEMPLATE, context=_sheet_context(sheet, code), request=req
+        template_name=SHEET_TEMPLATE,
+        context=_sheet_context(
+            sheet,
+            code,
+            pode_gerir=rbac.can(context.user, Permission.MANAGE),
+            pode_escrever=rbac.can(context.user, Permission.WRITE),
+        ),
+        request=req,
     )
 
 
@@ -359,16 +385,35 @@ def _sheet_document(req: func.HttpRequest, session: Session, context: RequestCon
     )
 
 
-def _sheet_context(sheet: service.ChangeSheet, code: str) -> dict[str, Any]:
+def _sheet_context(
+    sheet: service.ChangeSheet, code: str, *, pode_gerir: bool, pode_escrever: bool
+) -> dict[str, Any]:
     query = urlencode({CODE_PARAMETER: code})
+    change = sheet.change
+    pending = calculations.is_emergency_pending(
+        emergency=change.emergency,
+        has_decision=sheet.decision is not None,
+        situation=change.situation,
+    )
     return {
         "ficha": sheet,
         "etapas": _stage_bar(sheet),
+        "pode_gerir": pode_gerir,
+        "pode_escrever": pode_escrever,
+        "ratificacao_pendente": pending,
+        "ratificacao_vencida": calculations.is_ratification_overdue(
+            pending=pending,
+            due_date=sheet.ratification_due,
+            reference_date=calendario.today(),
+        ),
         "excel_url": f"/api/{SHEET_EXCEL_ROUTE}?{query}",
         "pdf_url": f"/api/{SHEET_PRINTABLE_ROUTE}?{query}",
         "cancelar_url": f"/api/{CANCEL_ROUTE}?{query}",
         "iniciar_analise_url": f"/api/{START_ANALYSIS_ROUTE}?{query}",
         "analise_url": f"/api/{IMPACT_ROUTE}?{query}",
+        "decisao_url": f"/api/{DECISION_ROUTE}?{query}",
+        "reapresentar_url": f"/api/{REOPEN_ROUTE}?{query}",
+        "encerrar_url": f"/api/{CLOSING_ROUTE}?{query}",
         "eac_url": f"/financeiro/eac?projeto={sheet.change.project_id}",
         "anexos_url": f"/api/anexos?origem={service.ORIGIN_TABLE}&registro={sheet.change.id}",
         "tipo_emergencial": models.PRIORITY_EMERGENCY,
@@ -619,3 +664,247 @@ def conclude_impact_analysis(
             req, form=form, values=values, errors=_field_messages(error), status_code=422
         )
     return redirect_to(_sheet_address(change.code, change.project_id))
+
+
+# ── The decision, the resubmission and the closing (ISSUE-025) ───────────
+
+
+def _sheet_again(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    code: str,
+    notice: str,
+) -> func.HttpResponse:
+    """A ficha refreshed behind the modal, with the toast of what happened."""
+    sheet = service.find_change_sheet(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    if sheet is None:
+        return AlpineAjaxResponse(
+            template_name=NOT_FOUND_TEMPLATE, context={}, request=req, status_code=404
+        )
+    return AlpineAjaxResponse(
+        template_name=SHEET_TEMPLATE,
+        context=_sheet_context(
+            sheet,
+            code,
+            pode_gerir=rbac.can(context.user, Permission.MANAGE),
+            pode_escrever=rbac.can(context.user, Permission.WRITE),
+        ),
+        request=req,
+        target_id=SHEET_TARGET,
+        toast=notice,
+    )
+
+
+def _decision_values(req: func.HttpRequest) -> dict[str, object]:
+    """O formulário da decisão com os dois campos de lista como sequências."""
+    values: dict[str, object] = dict(req.form)
+    values[validation.FIELD_PARTICIPANTS] = req.form.getlist(validation.FIELD_PARTICIPANTS)
+    values[validation.FIELD_ACTIONS] = req.form.getlist(validation.FIELD_ACTIONS)
+    return values
+
+
+def _decision_form_response(
+    req: func.HttpRequest,
+    *,
+    form: service.DecisionForm,
+    values: Mapping[str, object],
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    return AlpineAjaxResponse(
+        template_name=DECISION_TEMPLATE,
+        context={
+            "formulario": form,
+            "valores": values,
+            "erros": errors or {},
+            "hoje": calendario.today().isoformat(),
+            "action": f"/api/{DECISION_ROUTE}",
+        },
+        request=req,
+        status_code=status_code,
+    )
+
+
+@bp.route(route=DECISION_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def decision_form_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The decision form: the quorum, the committee minutes and the suggested actions."""
+    code = (req.params.get(CODE_PARAMETER) or "").strip()
+    form = service.decision_form(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    values: dict[str, object] = {
+        validation.FIELD_DECISION_DATE: calendario.today().isoformat(),
+        validation.FIELD_PARTICIPANTS: [str(person) for person in form.default_participants],
+        validation.FIELD_ACTIONS: [action.key for action in form.actions],
+        validation.FIELD_PLANNED: form.default_planned.isoformat(),
+        validation.FIELD_VERSION: str(form.sheet.change.version),
+    }
+    return _decision_form_response(req, form=form, values=values)
+
+
+@bp.route(route=DECISION_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def decide_change_request(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Register the decision (HU-127); a refusal gives the form back, with the message."""
+    code = (req.form.get(CODE_PARAMETER) or "").strip()
+    today = calendario.today()
+    try:
+        result = service.decide_change(
+            session,
+            user=context.user,
+            code=code,
+            form=_decision_values(req),
+            reference_date=today,
+        )
+    except InvalidDataError as error:
+        form = service.decision_form(session, user=context.user, code=code, reference_date=today)
+        return _decision_form_response(
+            req,
+            form=form,
+            values=_decision_values(req),
+            errors=_field_messages(error),
+            status_code=422,
+        )
+    notice = DECIDED_NOTICE
+    if result.actions_created:
+        notice += f" {result.actions_created} ação(ões) na Central."
+    return _sheet_again(req, session, context, code=code, notice=notice)
+
+
+def _reopen_form_response(
+    req: func.HttpRequest,
+    *,
+    code: str,
+    version: int | str | None,
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    return AlpineAjaxResponse(
+        template_name=REOPEN_TEMPLATE,
+        context={
+            "codigo": code,
+            "versao": version,
+            "erros": errors or {},
+            "action": f"/api/{REOPEN_ROUTE}",
+        },
+        request=req,
+        status_code=status_code,
+    )
+
+
+@bp.route(route=REOPEN_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def reopen_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The confirmation of the resubmission of a postponed request."""
+    code = (req.params.get(CODE_PARAMETER) or "").strip()
+    sheet = service.find_change_sheet(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    if sheet is None:
+        raise InvalidDataError(service.NOT_FOUND_MESSAGE)
+    return _reopen_form_response(req, code=code, version=sheet.change.version)
+
+
+@bp.route(route=REOPEN_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def reopen_request(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Reapresenta a solicitação adiada: volta à pauta e a decisão anterior fica no histórico."""
+    code = (req.form.get(CODE_PARAMETER) or "").strip()
+    try:
+        change = service.resubmit_change(
+            session, user=context.user, code=code, reference_date=calendario.today()
+        )
+    except InvalidDataError as error:
+        return _reopen_form_response(
+            req,
+            code=code,
+            version=req.form.get(validation.FIELD_VERSION),
+            errors=_field_messages(error),
+            status_code=422,
+        )
+    return _sheet_again(req, session, context, code=change.code, notice=RESUBMITTED_NOTICE)
+
+
+def _closing_form_response(
+    req: func.HttpRequest,
+    *,
+    form: service.ClosingForm,
+    values: Mapping[str, object],
+    errors: Mapping[str, str] | None = None,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    return AlpineAjaxResponse(
+        template_name=CLOSING_TEMPLATE,
+        context={
+            "formulario": form,
+            "valores": values,
+            "erros": errors or {},
+            "hoje": calendario.today().isoformat(),
+            "tipos_licao": lessons_models.LESSON_TYPES,
+            "fases_licao": lessons_models.LESSON_PHASES,
+            "action": f"/api/{CLOSING_ROUTE}",
+        },
+        request=req,
+        status_code=status_code,
+    )
+
+
+@bp.route(route=CLOSING_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def closing_form_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The closing form: the conference of the implementation and the confirmations due."""
+    code = (req.params.get(CODE_PARAMETER) or "").strip()
+    form = service.closing_form(
+        session, user=context.user, code=code, reference_date=calendario.today()
+    )
+    values: dict[str, object] = {
+        validation.FIELD_DECISION_DATE: calendario.today().isoformat(),
+        validation.FIELD_VERSION: str(form.sheet.change.version),
+    }
+    return _closing_form_response(req, form=form, values=values)
+
+
+@bp.route(route=CLOSING_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def close_change_request(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Encerra a mudança (HU-128); sem ação aberta e com as confirmações devidas."""
+    code = (req.form.get(CODE_PARAMETER) or "").strip()
+    today = calendario.today()
+    try:
+        result = service.close_change(
+            session,
+            user=context.user,
+            code=code,
+            form=req.form,
+            reference_date=today,
+        )
+    except InvalidDataError as error:
+        form = service.closing_form(session, user=context.user, code=code, reference_date=today)
+        return _closing_form_response(
+            req,
+            form=form,
+            values={field: req.form.get(field) or "" for field in req.form},
+            errors=_field_messages(error),
+            status_code=422,
+        )
+    notice = CLOSED_NOTICE
+    if result.lesson_code:
+        notice += f" Lição {result.lesson_code} criada em Rascunho."
+    return _sheet_again(req, session, context, code=result.code, notice=notice)

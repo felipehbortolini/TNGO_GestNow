@@ -1,0 +1,27 @@
+{% extends "base_fragment.html" %}
+{#
+  Reapresentar a solicitação adiada (HU-127), no modal da ficha: confirma a volta à pauta. A
+  decisão de adiamento fica no histórico. O sucesso responde a ficha atualizada (alvo
+  mudanca-ficha); uma recusa (422, 409) volta este formulário, com a mensagem.
+
+  Espera: codigo, versao, erros, action e target_id.
+#}
+{% block fragment %}
+<form method="post" action="{{ action }}"
+  x-target="mudanca-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Reapresentando a solicitação...">
+  <input type="hidden" name="codigo" value="{{ codigo }}" />
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
+  <p class="body-txt mb-16">
+    Reapresentar a <strong>{{ codigo }}</strong> para decisão? A decisão de adiamento fica no histórico e a
+    solicitação volta à pauta do comitê.
+  </p>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Reapresentar</button>
+  </div>
+</form>
+{% endblock %}

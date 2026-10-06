@@ -467,6 +467,23 @@ def count_actions_of_origin(
     return counts
 
 
+def next_origin_item(session: Session, *, origin_kind: str, reference: str) -> str:
+    """The next item number of the actions of one record of origin: the highest numeric plus one.
+
+    The module that owns the record of origin asks here when it creates more than one action for it
+    (the implementation actions of an approved change, ISSUE-025): the numbering follows the record.
+    """
+    statement = select(Action.item).where(
+        Action.origin == origin_kind, Action.origin_ref == reference
+    )
+    highest = 0
+    for item in session.scalars(statement):
+        text = (item or "").strip()
+        if text.isdigit():
+            highest = max(highest, int(text))
+    return str(highest + 1)
+
+
 # ── Internals ────────────────────────────────────────────────────────────────────────────────
 
 

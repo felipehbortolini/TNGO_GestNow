@@ -92,11 +92,30 @@
   {% endfor %}
 </ol>
 
+{% if ratificacao_vencida %}
+<div class="aviso aviso--erro mb-16" role="alert">
+  <span><b>Ratificação vencida.</b> A mudança emergencial{% if ficha.emergency_start %} executada desde {{ ficha.emergency_start.strftime(data) }}{% endif %} aguarda ratificação{% if ficha.ratification_due %} desde {{ ficha.ratification_due.strftime(data) }}{% endif %}.</span>
+</div>
+{% elif ratificacao_pendente %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <span>Mudança emergencial aguardando ratificação{% if ficha.ratification_due %} até {{ ficha.ratification_due.strftime(data) }}{% endif %}.</span>
+</div>
+{% endif %}
+
 <div class="toolbar mb-16" role="group" aria-label="Ações da mudança">
   {% if ficha.analysis_action == 'iniciar' %}
   <button type="button" class="btn btn--primary" data-mudanca-modal="{{ iniciar_analise_url }}" data-titulo="Iniciar análise de impacto" data-codigo="{{ m.code }}">Iniciar análise</button>
   {% elif ficha.analysis_action in ('concluir', 'revisar') %}
   <button type="button" class="btn btn--primary" data-mudanca-modal="{{ analise_url }}" data-titulo="{{ 'Rever a análise de impacto' if ficha.analysis_action == 'revisar' else 'Concluir a análise de impacto' }}" data-codigo="{{ m.code }}">{{ 'Rever análise de impacto' if ficha.analysis_action == 'revisar' else 'Concluir análise de impacto' }}</button>
+  {% endif %}
+  {% if m.situation == 'Aguardando comitê' and pode_gerir %}
+  <button type="button" class="btn btn--primary" data-mudanca-modal="{{ decisao_url }}" data-titulo="Registrar decisão" data-codigo="{{ m.code }}">Registrar decisão</button>
+  {% endif %}
+  {% if m.situation == 'Adiada' and pode_escrever %}
+  <button type="button" class="btn btn--primary" data-mudanca-modal="{{ reapresentar_url }}" data-titulo="Reapresentar solicitação" data-codigo="{{ m.code }}">Reapresentar</button>
+  {% endif %}
+  {% if m.situation == 'Em implementação' and pode_gerir %}
+  <button type="button" class="btn btn--primary" data-mudanca-modal="{{ encerrar_url }}" data-titulo="Encerrar mudança" data-codigo="{{ m.code }}">Encerrar</button>
   {% endif %}
   {% if ficha.can_cancel %}
   <button type="button" class="btn btn--danger" data-mudanca-cancelar="{{ cancelar_url }}" data-codigo="{{ m.code }}">Cancelar solicitação</button>
@@ -226,6 +245,7 @@
           {{ linha('Participantes', ficha.decision.participants | join(', ')) }}
           {{ linha('Justificativa', d.justification) }}
           {% if d.conditions %}{{ linha('Condições', d.conditions) }}{% endif %}
+          {% if d.reappear_on %}{{ linha('Reapresentar em', d.reappear_on.strftime(data)) }}{% endif %}
         </div>
         {% else %}
         <div class="empty" data-estado="vazio-origem">
