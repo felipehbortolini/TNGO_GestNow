@@ -1,7 +1,7 @@
 ---
 id: ISSUE-072
 title: "HHT, inspeções de segurança, observações e DDS"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 7

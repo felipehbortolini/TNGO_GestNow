@@ -1,7 +1,7 @@
 ---
 id: ISSUE-027
 title: "Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
