@@ -1383,6 +1383,11 @@ do dono".
 | Decisão da execução (ISSUE-021), pendente de revisão do dono | numeração na carga | a sequência do projeto continua depois do maior número do mock (`numbering.start_after`) | D6, ISSUE-021 |
 | Decisão da execução (ISSUE-027), pendente de revisão do dono | histórico da lição | tabela própria `licao_historico` (pessoa, data, texto) guarda registro, devolução e validação | D7, ISSUE-027 |
 | Decisão da execução (ISSUE-027), pendente de revisão do dono | risco a partir da lição | recusado com mensagem até a ISSUE-067 | D9, ISSUE-027 |
+| Decisão da execução (ISSUE-052), pendente de revisão do dono | aprovar e reabrir o realizado | só o Fiscal responsável pela atividade (ou o Admin); o app deixava qualquer fiscal | D7, ISSUE-052 |
+| Decisão da execução (ISSUE-052), pendente de revisão do dono | lançar o realizado | Encarregado, Fornecedor (só a própria empresa) e Admin, sem a janela de programação, como no app | D7, ISSUE-052 |
+| Decisão da execução (ISSUE-052), pendente de revisão do dono | justificativa do desvio | guardada em observações do fornecedor, como no app; no limite exato não exige; sem previsto não exige | D10, ISSUE-052 |
+| Decisão da execução (ISSUE-052), pendente de revisão do dono | publicar | atividade validada, com ou sem realizado aprovado (como no app); "Publicar a semana" publica só as validadas | D10, ISSUE-052 |
+| Decisão da execução (ISSUE-052), pendente de revisão do dono | ver detalhes | painel só de leitura (dias, observações, comentários), pois o botão "Ver" do app precisa de destino | D10, ISSUE-052 |
 
 ---
 

@@ -1,0 +1,46 @@
+{% extends "base_fragment.html" %}
+{#
+  Reabertura do realizado aprovado (#drawer): o fiscal devolve o realizado ao lançamento
+  e escreve o motivo, que fica nos comentários da atividade.
+
+  Espera: o contexto de screen.reopen_context.
+#}
+{% block root %}
+<div id="drawer">
+  <div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+    <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-reabrir" @click.stop>
+      <div class="painel__topo">
+        <div>
+          <h2 class="h-card3" id="titulo-reabrir">Reabrir o realizado</h2>
+          <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }} · semana {{ atividade.week }}</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+          x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.closest('.painel-fundo').remove()"></button>
+      </div>
+      <form method="post" action="{{ salvar_url }}" x-target="drawer prog-resumo prog-tabela" data-tn-loading="Reabrindo...">
+        <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <div class="painel__corpo">
+          {% if erros._ %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ }}</span></div>{% endif %}
+          {% include "programacao_semanal/_resumo_do_passo.html" %}
+          <div class="field mt-16">
+            <label for="campo-motivo">Motivo da reabertura</label>
+            <textarea id="campo-motivo" class="input{{ ' input--erro' if erros.motivo }}" name="motivo" rows="3" required
+              placeholder="Explique o que precisa ser corrigido"
+              {% if erros.motivo %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>{{ motivo }}</textarea>
+            {% if erros.motivo %}<span id="erro-motivo" class="field__erro">{{ erros.motivo }}</span>{% endif %}
+          </div>
+          {% include "programacao_semanal/_comentarios.html" %}
+        </div>
+        <div class="painel__rodape">
+          <span class="hint">O realizado volta a “aguarda fiscal” e o fornecedor pode lançar de novo.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--primary">Reabrir</button>
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

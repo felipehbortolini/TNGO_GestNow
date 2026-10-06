@@ -39,7 +39,21 @@ Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_
 | `atividades` | POST | Cria (sem `atividade_id`) ou salva; 422 e 409 devolvem o painel preenchido |
 | `atividades/excluir` | POST | Exclui (só Admin, e só sem pedidos de alteração) e redesenha a matriz |
 
-Previstos nas próximas issues: `validacoes`, `realizados` e `publicacoes` (052), `pedidos-de-alteracao` e `governanca` (053), `configuracoes` (054), `importacoes` e `exportacoes` (055), `dashboard` (056).
+### Rotas do fluxo de cinco passos (ISSUE-052)
+
+Mesmo prefixo e mesmos alvos. Cada passo tem o painel (GET `.../formulario`, alvo `drawer`) e a gravação (POST, alvos `drawer prog-resumo prog-tabela`). O papel errado recebe 403 antes de qualquer outra checagem; passo fora do lugar no fluxo, 422 com a mensagem do app; versão velha, 409. Em 422 e 409 o painel volta preenchido.
+
+| Rota | Método | Quem | O que faz |
+|---|---|---|---|
+| `validacoes/formulario`, `validacoes` | GET, POST | Planejador ou Admin | Valida a programação (elaboração para validada) e define o fiscal, com comentário ao fornecedor |
+| `realizados/formulario`, `realizados` | GET, POST | Encarregado, Fornecedor ou Admin | Lança o realizado por turno (dia e noite), com "= previsto", "Copiar a semana", PPC e desvio vivos; desvio acima do limite exige justificativa |
+| `aprovacoes/formulario`, `aprovacoes` | GET, POST | Fiscal da atividade ou Admin | Aprova o realizado (ele congela) |
+| `reaberturas/formulario`, `reaberturas` | GET, POST | Fiscal da atividade ou Admin | Reabre o realizado aprovado, com o motivo nos comentários |
+| `publicacoes` | POST | Planejador ou Admin | Publica uma atividade validada (`atividade`, `versao`) |
+| `publicacoes/semana` | POST | Planejador ou Admin | Publica todas as validadas da semana (as demais ficam) |
+| `atividades/detalhe` | GET | Quem vê a atividade | Painel só de leitura: dias, observações e comentários |
+
+Previstos nas próximas issues: `pedidos-de-alteracao` e `governanca` (053), `configuracoes` (054), `importacoes` e `exportacoes` (055), `dashboard` (056).
 
 ## Estrutura portada do app
 
@@ -48,7 +62,9 @@ Previstos nas próximas issues: `validacoes`, `realizados` e `publicacoes` (052)
 | `weeks.py` | Semana `S.30/2026`, segunda a domingo, ISO (2026 tem 53), `week_dates`, `shift`, `horizon` | `core/semanas.py` |
 | `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of` | `core/calculos.py` |
 | `window.py` | `decide`: extraordinária vence, depois semana liberada, depois dia e hora | `core/janela.py` |
-| `permissions.py` | Quem cria, edita, publica e exclui (papel por projeto, D7) | `core/rbac.py` |
+| `permissions.py` | Quem cria, edita, valida, lança o realizado, aprova, publica e exclui (papel por projeto, D7) | `core/rbac.py` |
+| `flow.py` | Regras puras do fluxo: `next_action` (o botão da linha), `menu_of`, `actions_of` e as guardas de cada passo | `core/rbac.py` (`proxima_acao`) e `core/dados.py` |
+| `workflow.py` | Fachada dos passos: `validate_activity`, `report_done`, `approve_done`, `reopen_done`, `publish_activity`, `publish_week` | `core/dados.py` |
 | `validation.py` | Formulário da atividade, obrigatórios, soma dos dias com tolerância de 0,51 | `blueprints/atividades.py` |
 | `service.py` | Fachada: recorte por empresa, janela, Portfólio somente leitura, gravação pelo `recording` | `core/registro.py`, `core/dados.py` |
 | `repository.py`, `models.py` | Consultas e tabelas `programacao_*` (migração `m051`) | `core/repositorio.py` (JSON) |
@@ -56,6 +72,21 @@ Previstos nas próximas issues: `validacoes`, `realizados` e `publicacoes` (052)
 | `seed.py`, `demonstracao.json` | Carga: o ambiente `demo-obra` do app no projeto `TN-2026-014`, datas e semanas deslocadas | `data/demo-obra` |
 
 Tradução de termos do app: ambiente = projeto, empresa = `company`, encarregado = `foreman`, responsável (fiscal) = `inspector`, atividade = `Activity`, `dias_previsto` = `planned_days`, `dias_realizado` = turno dia (`day_shift`), `dias_noite` = `night_shift`, `id_exclusiva` = `unique_id`, situação = `situation`, aprovação do realizado = `approval`.
+
+## Fórmulas do fluxo
+
+| Termo de negócio | Nome no código | Definição |
+|---|---|---|
+| PPC da atividade | `calculations.activity_ppc` | Realizado (dia mais noite) sobre previsto, em %; zero sem previsto |
+| Aderência ponderada do conjunto | `calculations.schedule_adherence` | Soma do realizado sobre soma do previsto, em %; atividade grande pesa mais |
+| Faixa alta, média, baixa | `calculations.performance_band` | 80% ou mais, 60% a 79,99%, abaixo de 60% |
+| Desvio do realizado | `calculations.deviation_percent` | Distância do realizado ao previsto, em % do previsto |
+| Desvio que exige justificativa | `calculations.needs_deviation_note` | Regra ligada no projeto e desvio acima do limite (no limite exato não exige; sem previsto não exige) |
+| Próxima ação da linha | `flow.next_action` | Na ordem do fluxo: validar, aprovar, lançar, publicar; sem passo, "ver" |
+
+## Quem faz cada passo (D7, por projeto)
+
+Planejador valida e publica; Encarregado e Fornecedor lançam o realizado (o fornecedor só da própria empresa); o Fiscal aprova ou reabre **só as atividades em que ele é o fiscal responsável**; Admin faz todos. Fiscal e Visualizador não lançam; Planejador não lança nem aprova. A linha da matriz mostra o botão da próxima ação de quem olha e um menu só com o que o perfil ainda pode fazer; no Portfólio só resta "Ver".
 
 ## Fluxo de estado
 
@@ -74,14 +105,14 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 | Alteração | Arquivo ou pasta |
 |---|---|
 | Rotas | `routes.py` (e `screen.py` para o que a tela imprime) |
-| Fluxo, recorte por empresa e janela | `service.py`, `window.py`, `permissions.py` |
+| Fluxo, recorte por empresa e janela | `flow.py`, `workflow.py`, `service.py`, `window.py`, `permissions.py` |
 | PPC, aderência e faixas | `calculations.py` |
 | Validações da atividade/planilha | `validation.py` |
 | Planilha e impressão | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel) |
+| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html`, `validacao.html`, `realizado.html`, `aprovacao.html`, `reabertura.html` e `detalhe.html` os painéis) |
 | Carga de demonstração | `seed.py` e `demonstracao.json` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; as ISSUE-052 a ISSUE-056 completam o resto do fluxo.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052 trouxe os cinco passos (validar, realizado por turno, aprovação do fiscal, reabertura e publicação); as ISSUE-053 a ISSUE-056 completam o resto.

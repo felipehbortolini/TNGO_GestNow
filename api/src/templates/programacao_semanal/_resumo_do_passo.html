@@ -1,0 +1,12 @@
+{#
+  Os três números que todo passo mostra antes de pedir a decisão: previsto, realizado e PPC.
+  Espera: resumo (screen._summary) e atividade.unit.
+#}
+<div class="lancamento-resumo">
+  <div><span class="lancamento-resumo__rotulo">Previsto</span>
+    <span class="lancamento-resumo__valor">{{ resumo.previsto }}</span> <span class="txt-muted">{{ atividade.unit }}</span></div>
+  <div><span class="lancamento-resumo__rotulo">Realizado</span>
+    <span class="lancamento-resumo__valor">{{ resumo.realizado }}</span> <span class="txt-muted">{{ atividade.unit }}</span></div>
+  <div><span class="lancamento-resumo__rotulo">PPC</span>
+    <span class="lancamento-resumo__valor lancamento-resumo__valor--{{ resumo.tom }}">{{ resumo.ppc }}</span></div>
+</div>

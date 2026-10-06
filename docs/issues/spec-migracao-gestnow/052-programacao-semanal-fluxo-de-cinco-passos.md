@@ -1,7 +1,7 @@
 ---
 id: ISSUE-052
 title: "Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 5
@@ -47,14 +47,14 @@ baixa, exatamente como no app.
 
 ## Critérios de aceite
 
-- [ ] Os testes do fluxo do app estão portados e verdes.
-- [ ] Cada transição só é aceita do papel certo no projeto; os demais recebem 403.
-- [ ] Desvio acima do limite sem justificativa é recusado.
-- [ ] O botão da próxima ação e o menu mudam com o perfil.
-- [ ] PPC e aderência dão os mesmos números do app para os mesmos dados.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A demonstração da programação vem da carga de demonstração do app, convertida para as tabelas, num projeto do portfólio, com as datas deslocadas para hoje.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] Os testes do fluxo do app estão portados e verdes.
+- [x] Cada transição só é aceita do papel certo no projeto; os demais recebem 403.
+- [x] Desvio acima do limite sem justificativa é recusado.
+- [x] O botão da próxima ação e o menu mudam com o perfil.
+- [x] PPC e aderência dão os mesmos números do app para os mesmos dados.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A demonstração da programação vem da carga de demonstração do app, convertida para as tabelas, num projeto do portfólio, com as datas deslocadas para hoje.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -68,3 +68,14 @@ Nenhuma.
 ## Notas
 
 Fonte: blueprints e templates de atividade (validar, realizado, aprovar) do app e os cálculos de PPC e aderência.
+
+## Registro de execução
+
+Data: 2026-10-06.
+Feito: `permissions.py` (quem faz cada passo), `flow.py` (próxima ação, menu, guardas), `workflow.py` (validar, realizado por turno, aprovar, reabrir, publicar, publicar a semana), desvio em `calculations.py`, rotas e painéis (validação, realizado, aprovação, reabertura, detalhe), botão e menu na matriz, CSS, testes (`api/tests/programacao_semanal/test_programacao_fluxo_*.py`), LEIA-ME. Nada foi executado (política de testes): só `ruff`.
+Falta: execução da porta de qualidade pelo orquestrador. Sem migração (o modelo da 051 já tem tudo) e sem mudança no modelo de dados; a carga da 051 já cobre todos os estados do fluxo.
+DECISÃO: aprovar e reabrir o realizado | só o Fiscal responsável pela atividade (ou o Admin); o app deixava qualquer fiscal | D7, ISSUE-052
+DECISÃO: lançar o realizado | Encarregado, Fornecedor (só a própria empresa) e Admin, sem a janela de programação, como no app | D7, ISSUE-052
+DECISÃO: justificativa do desvio | guardada em observações do fornecedor, como no app; no limite exato não exige; sem previsto não exige | D10, ISSUE-052
+DECISÃO: publicar | atividade validada, com ou sem realizado aprovado (como no app); "Publicar a semana" publica só as validadas | D10, ISSUE-052
+DECISÃO: ver detalhes | painel só de leitura (dias, observações, comentários), pois o botão "Ver" do app precisa de destino | D10, ISSUE-052

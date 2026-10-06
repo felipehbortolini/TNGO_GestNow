@@ -52,7 +52,7 @@
 .pagina--programacao_semanal-programacao .matriz__situacao { width: 120px; }
 .pagina--programacao_semanal-programacao .matriz__semana { width: 96px; }
 .pagina--programacao_semanal-programacao .matriz__ppc { width: 88px; }
-.pagina--programacao_semanal-programacao .matriz__acoes { width: 148px; }
+.pagina--programacao_semanal-programacao .matriz__acoes { width: 190px; }
 .pagina--programacao_semanal-programacao .ordenar { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0; border: none; background: none; font: inherit; font-weight: 600; color: inherit; cursor: pointer; }
 .pagina--programacao_semanal-programacao .ordenar.is-ativa { color: var(--brand-primary); }
 .pagina--programacao_semanal-programacao .ordenar__seta { font-size: 11px; }
@@ -112,6 +112,34 @@
 .pagina--programacao_semanal-programacao .lancamento-resumo__rotulo { display: block; font-size: 11px; color: var(--text-secondary); }
 .pagina--programacao_semanal-programacao .lancamento-resumo__valor { font-size: 18px; font-weight: 600; }
 .pagina--programacao_semanal-programacao .lancamento-resumo__valor.is-erro { color: var(--erro-700); }
+
+/* O botão da próxima ação e o menu "Mais" da linha: o menu é um details, sem script */
+.pagina--programacao_semanal-programacao .acao-proxima { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.pagina--programacao_semanal-programacao .menu-acoes { position: relative; }
+.pagina--programacao_semanal-programacao .menu-acoes > summary { list-style: none; cursor: pointer; }
+.pagina--programacao_semanal-programacao .menu-acoes > summary::-webkit-details-marker { display: none; }
+.pagina--programacao_semanal-programacao .menu-acoes__lista { position: absolute; right: 0; z-index: 20; display: flex; flex-direction: column; min-width: 260px; margin-top: var(--space-xxs); padding: var(--space-xs); background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-md); box-shadow: var(--shadow-hover); }
+.pagina--programacao_semanal-programacao .menu-acoes__item { display: flex; align-items: flex-start; gap: var(--space-sm); width: 100%; padding: var(--space-sm) var(--space-md); text-align: left; background: none; border: none; border-radius: var(--r-sm); cursor: pointer; color: var(--text-primary); }
+.pagina--programacao_semanal-programacao .menu-acoes__item:hover, .pagina--programacao_semanal-programacao .menu-acoes__item:focus-visible { background: var(--neutro-50); }
+.pagina--programacao_semanal-programacao .menu-acoes__item--perigo { color: var(--erro-700); margin-top: var(--space-xs); border-top: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .menu-acoes__texto { display: flex; flex-direction: column; font-weight: 600; }
+.pagina--programacao_semanal-programacao .menu-acoes__texto small { font-weight: 400; color: var(--text-secondary); }
+
+/* Os painéis do fluxo: lançamento do realizado, leitura dos dias e comentários */
+.pagina--programacao_semanal-programacao .lancamento__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xxs); font-size: 11px; color: var(--text-secondary); }
+.pagina--programacao_semanal-programacao .lancamento__copiar { padding: 0; font-size: 11px; color: var(--brand-primary); background: none; border: none; cursor: pointer; }
+.pagina--programacao_semanal-programacao .lancamento__noite { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: 13px; }
+.pagina--programacao_semanal-programacao .lancamento__noite-campo { display: flex; align-items: center; gap: var(--space-xxs); font-size: 11px; font-weight: 700; color: var(--roxo-700); }
+.pagina--programacao_semanal-programacao .lancamento__dia.is-fds .lancamento__rotulo { color: var(--text-hint); }
+.pagina--programacao_semanal-programacao .lancamento-resumo__valor--ok { color: var(--ok-800); }
+.pagina--programacao_semanal-programacao .lancamento-resumo__valor--warn { color: var(--warn-700); }
+.pagina--programacao_semanal-programacao .lancamento-resumo__valor--erro { color: var(--erro-700); }
+.pagina--programacao_semanal-programacao .grade-lida { display: flex; flex-direction: column; border: 1px solid var(--borda); border-radius: var(--r-md); }
+.pagina--programacao_semanal-programacao .grade-lida__linha { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); font-variant-numeric: tabular-nums; border-top: 1px solid var(--borda); }
+.pagina--programacao_semanal-programacao .grade-lida__linha:first-child { border-top: none; }
+.pagina--programacao_semanal-programacao .grade-lida__linha--cabeca { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--neutro-50); }
+.pagina--programacao_semanal-programacao .grade-lida__linha.is-fds { background: var(--neutro-50); }
+.pagina--programacao_semanal-programacao .comentarios { margin: 0; padding-left: var(--space-lg); font-size: 13px; color: var(--text-secondary); }
 
 @media (max-width: 1100px) {
   .pagina--programacao_semanal-programacao .kpis { --kpis-colunas: 3; }

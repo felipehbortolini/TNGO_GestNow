@@ -38,6 +38,7 @@ from src.modulos.configuracoes import registers
 from src.modulos.configuracoes.registers import Option
 from src.modulos.programacao_semanal import (
     calculations,
+    flow,
     permissions,
     repository,
     validation,
@@ -812,6 +813,47 @@ def _change_planned_days(
         )
 
 
+def load_activity(session: Session, *, caller: Caller, activity_id: int) -> Activity:
+    """The activity of the scope for a step of the flow: not found is 422, another company's is 403."""
+    return _activity_of(session, caller=caller, activity_id=activity_id)
+
+
+def change_done_days(
+    session: Session,
+    *,
+    user_id: int,
+    activity: Activity,
+    day_shift: tuple[float, ...],
+    night_shift: tuple[float, ...],
+) -> None:
+    """Rewrite the done of each day that changed (both shifts), with a trail line for each."""
+    day_values = calculations.seven_days(day_shift)
+    night_values = calculations.seven_days(night_shift)
+    for day in _days_of(session, activity.id):
+        new_day = day_values[day.day - 1]
+        new_night = night_values[day.day - 1]
+        if day.done_day_shift == new_day and day.done_night_shift == new_night:
+            continue
+        before = audit.snapshot(day)
+        day.done_day_shift = new_day
+        day.done_night_shift = new_night
+        session.flush()
+        audit.append(
+            session, _day_line(user_id, activity.project_id, day, audit.UPDATED, before=before)
+        )
+
+
+def activity_figures(session: Session, activity: Activity) -> calculations.ActivityFigures:
+    """The figures of the activity as stored now: what the deviation and the approval read."""
+    days = _days_of(session, activity.id)
+    return calculations.figures_of(
+        [day.planned for day in days],
+        [day.done_day_shift for day in days],
+        [day.done_night_shift for day in days],
+        headline=activity.planned_headline,
+    )
+
+
 def _day_line(
     user_id: int, project_id: int, day: ActivityDay, action: str, before: dict[str, Any] | None
 ) -> audit.TrailLine:
@@ -903,7 +945,29 @@ def _view(
         comments=activity.timenow_comments or "",
         can_edit=editable and _may_edit(caller.user, activity),
         can_delete=editable and permissions.can_delete(caller.user),
+        actions=_actions(activity, figures, caller=caller),
     )
+
+
+def _actions(
+    activity: Activity, figures: calculations.ActivityFigures, *, caller: Caller
+) -> flow.Actions:
+    """The button of the next step and the menu of the row, for the user who looks (HU-77)."""
+    if caller.scope.is_portfolio:
+        return flow.NO_ACTIONS
+    user, project_id = caller.user, activity.project_id
+    rights = flow.Rights(
+        validate=permissions.can_validate(user, project_id),
+        report=permissions.can_report(user, project_id),
+        approve=permissions.can_approve(user, project_id, activity.inspector_id),
+        publish=permissions.can_publish(user, project_id),
+        edit=_may_edit(user, activity),
+        delete=permissions.can_delete(user),
+    )
+    state = flow.State(
+        situation=activity.situation, approval=activity.approval, has_done=figures.has_done
+    )
+    return flow.actions_of(rights, state)
 
 
 def _may_edit(user: User, activity: Activity) -> bool:

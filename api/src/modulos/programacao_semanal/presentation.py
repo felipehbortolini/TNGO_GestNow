@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from src.modulos.programacao_semanal import calculations
+from src.modulos.programacao_semanal import calculations, flow
 from src.modulos.programacao_semanal.calculations import ActivityFigures
 
 # A countable unit never takes a decimal: "2,0 und" is noise.
@@ -31,6 +31,75 @@ SITUATION_SHORT_LABELS = {
     calculations.SITUATION_VALIDATED: "Validada",
     calculations.SITUATION_PUBLISHED: "Publicada",
 }
+
+
+@dataclass(frozen=True)
+class MenuItem:
+    """A step of the flow as the row words it: the button, the line of the menu, its hint and icon."""
+
+    key: str
+    button: str
+    label: str
+    hint: str
+    icon: str
+
+
+MENU_ITEMS = {
+    flow.VALIDATE: MenuItem(
+        flow.VALIDATE,
+        "Validar",
+        "Validar a programação",
+        "Confere e escolhe o fiscal responsável",
+        "shield",
+    ),
+    flow.APPROVE: MenuItem(
+        flow.APPROVE,
+        "Aprovar",
+        "Aprovar o realizado",
+        "Confirma o que foi lançado",
+        "checkCircle",
+    ),
+    flow.REPORT: MenuItem(
+        flow.REPORT,
+        "Lançar",
+        "Lançar o realizado",
+        "O que foi produzido em cada dia",
+        "taskList",
+    ),
+    flow.PUBLISH: MenuItem(
+        flow.PUBLISH,
+        "Publicar",
+        "Publicar a programação",
+        "Libera para todos e encerra a edição",
+        "send",
+    ),
+    flow.VIEW: MenuItem(flow.VIEW, "Ver", "Ver os detalhes", "Números do dia e comentários", "eye"),
+    flow.DETAIL: MenuItem(
+        flow.DETAIL, "Ver", "Ver detalhes", "Números do dia e comentários", "eye"
+    ),
+    flow.REOPEN: MenuItem(
+        flow.REOPEN,
+        "Reabrir",
+        "Reabrir o realizado",
+        "Devolve ao lançamento, com o motivo",
+        "refresh",
+    ),
+    flow.EDIT: MenuItem(
+        flow.EDIT,
+        "Editar",
+        "Editar a programação",
+        "Muda o previsto, a frente, o encarregado",
+        "edit",
+    ),
+    flow.DELETE: MenuItem(
+        flow.DELETE, "Excluir", "Excluir a atividade", "Não tem como desfazer", "trash"
+    ),
+}
+
+
+def menu_item(key: str) -> MenuItem:
+    """The wording of a step, for the button of the row and for the menu."""
+    return MENU_ITEMS[key]
 
 
 def format_number(value: float | None, digits: int = 1) -> str:

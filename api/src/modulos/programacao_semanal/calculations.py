@@ -13,6 +13,8 @@ of those three, as the app computes it: the same rounding, the same bands.
 | Aderência da programação | ``schedule_adherence`` |
 | PPC médio | ``mean_ppc`` |
 | Faixa de desempenho | ``performance_band`` |
+| Desvio do realizado em relação ao previsto | ``deviation_percent`` |
+| Desvio que exige justificativa | ``needs_deviation_note`` |
 
 No function reads the clock or the database.
 """
@@ -98,6 +100,21 @@ def performance_band(value: float, *, high: float = HIGH_BAND, medium: float = M
     if value >= medium:
         return BAND_MEDIUM
     return BAND_LOW
+
+
+def deviation_percent(planned: float, done: float) -> float:
+    """Distance of the done from the planned, in percent of the planned; zero when nothing was planned."""
+    if planned <= 0:
+        return 0.0
+    return abs(done - planned) / planned * 100
+
+
+def needs_deviation_note(planned: float, done: float, *, limit: float, required: bool) -> bool:
+    """Whether the done needs a justification: the rule is on and the deviation passes the limit.
+
+    A deviation exactly at the limit does not need one; neither does an activity with no plan.
+    """
+    return required and deviation_percent(planned, done) > limit
 
 
 @dataclass(frozen=True)

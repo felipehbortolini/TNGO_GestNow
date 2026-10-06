@@ -1,0 +1,63 @@
+{% extends "base_fragment.html" %}
+{#
+  Validação da programação (#drawer): o passo do planejador. Validar libera o realizado,
+  por isso o painel pede o fiscal na mesma ação: programação validada sem responsável é
+  uma pendência que só aparece depois. A versão viaja no formulário, para o 409.
+
+  Espera: o contexto de screen.validation_context.
+#}
+{% block root %}
+<div id="drawer">
+  <div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+    <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-validar" @click.stop>
+      <div class="painel__topo">
+        <div>
+          <h2 class="h-card3" id="titulo-validar">Validar a programação</h2>
+          <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }} · semana {{ atividade.week }}</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+          x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.closest('.painel-fundo').remove()"></button>
+      </div>
+      <form method="post" action="{{ salvar_url }}" x-target="drawer prog-resumo prog-tabela" data-tn-loading="Validando...">
+        <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <div class="painel__corpo">
+          {% if erros._ %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ }}</span></div>{% endif %}
+          <div class="aviso aviso--info mb-16">
+            <span>Confirma que a programação está coerente e libera o reporte do realizado. O fiscal escolhido passa a ser quem aprova esse reporte.</span>
+          </div>
+          <div class="det mb-16">
+            <div class="det__row"><span class="det__label">Atividade</span><span class="det__valor">{{ atividade.description }}</span></div>
+            <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location }}</span></div>
+            <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+            <div class="det__row"><span class="det__label">Previsto</span><span class="det__valor">{{ resumo.previsto }} {{ atividade.unit }}</span></div>
+          </div>
+          <div class="field">
+            <label for="campo-fiscal">Fiscal responsável</label>
+            <select id="campo-fiscal" class="input{{ ' input--erro' if erros.responsavel }}" name="responsavel" required
+              {% if erros.responsavel %}aria-invalid="true" aria-describedby="erro-fiscal"{% endif %}>
+              <option value="">Selecione o fiscal...</option>
+              {% for fiscal in fiscais %}<option value="{{ fiscal.id }}" {% if fiscal_escolhido == fiscal.id %}selected{% endif %}>{{ fiscal.label }}</option>{% endfor %}
+            </select>
+            {% if erros.responsavel %}<span id="erro-fiscal" class="field__erro">{{ erros.responsavel }}</span>
+            {% else %}<span class="hint">A lista vem dos colaboradores com o papel de Fiscal neste projeto.</span>{% endif %}
+          </div>
+          <div class="field mt-16">
+            <label for="campo-comentarios">Comentários ao fornecedor</label>
+            <textarea id="campo-comentarios" class="input" name="comentarios" rows="3"
+              placeholder="Opcional: ajustes combinados, pontos de atenção">{{ comentarios_digitados }}</textarea>
+          </div>
+          {% include "programacao_semanal/_comentarios.html" %}
+        </div>
+        <div class="painel__rodape">
+          <span class="hint">A situação passa de “em elaboração” para “validada”.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--primary">Validar</button>
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

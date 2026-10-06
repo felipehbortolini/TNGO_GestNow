@@ -12,6 +12,21 @@
   @click="$ajax('{{ cabecalho.url }}', { target: 'prog-resumo prog-tabela' })"
 >{{ cabecalho.label }}<span class="ordenar__seta" aria-hidden="true">{{ cabecalho.arrow }}</span></button>
 {%- endmacro %}
+{#
+  O que cada passo faz ao ser clicado (a expressão do @click). Os passos que abrem um
+  painel pedem o fragmento e o põem em #drawer; publicar e excluir confirmam antes de
+  gravar. O texto da atividade viaja em data-* e a expressão lê de $el.dataset: texto
+  livre interpolado na expressão fecharia o atributo no meio.
+#}
+{% macro clique(chave, linha) -%}
+{%- if chave == 'publicar' -%}
+TN.confirmarExclusao({ title: 'Publicar a programação', mensagem: 'Publicar libera esta programação e encerra a edição.', labelConfirmar: 'Publicar', rows: [{ label: 'ID exclusiva', valor: $el.dataset.id }] }).then(function (ok) { if (ok) $ajax('{{ publicar_url }}?atividade={{ linha.id }}&versao={{ linha.version }}', { method: 'post', target: 'drawer prog-resumo prog-tabela' }); })
+{%- elif chave == 'excluir' -%}
+TN.confirmarExclusao({ mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.', rows: [{ label: 'ID exclusiva', valor: $el.dataset.id }, { label: 'Atividade', valor: $el.dataset.atividade }, { label: 'Empresa', valor: $el.dataset.empresa }] }).then(function (ok) { if (ok) $ajax('{{ excluir_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', { method: 'post', target: 'drawer prog-resumo prog-tabela' }); })
+{%- else -%}
+$ajax('{{ passos[chave] }}?atividade={{ linha.id }}', { target: 'drawer' })
+{%- endif -%}
+{%- endmacro %}
 <div id="prog-tabela">
   {% if pastilhas %}
   <div class="filtros-ativos" role="status">
@@ -36,6 +51,10 @@
         {{ linhas | length }} de {{ total_na_semana }} atividade(s) · {{ semana }}
         {% if periodo %}<span class="txt-muted">· {{ periodo }}</span>{% endif %}
       </span>
+      {% if pode_publicar_semana and not somente_leitura %}
+      <button type="button" class="btn btn--secondary btn--sm" data-semana="{{ semana }}"
+        @click="TN.confirmarExclusao({ title: 'Publicar a semana', mensagem: 'Publica todas as programações validadas da semana e encerra a edição delas.', labelConfirmar: 'Publicar', rows: [{ label: 'Semana', valor: $el.dataset.semana }] }).then(function (ok) { if (ok) $ajax('{{ publicar_semana_url }}?semana=' + encodeURIComponent($el.dataset.semana), { method: 'post', target: 'drawer prog-resumo prog-tabela' }); })">Publicar a semana</button>
+      {% endif %}
       <span class="matriz-legenda">
         <span><i class="matriz-legenda__amostra matriz-legenda__amostra--parado"></i>Programado sem produção</span>
         <span><i class="matriz-legenda__amostra matriz-legenda__amostra--batido"></i>Meta do dia atingida</span>
@@ -102,27 +121,36 @@
               <progress class="ppc__medidor" max="100" value="{{ linha.ppc_width }}">{{ linha.ppc_text }}</progress>
             </td>
             <td class="matriz__acoes" data-rotulo="Ações">
+              {#
+                O botão é a PRÓXIMA AÇÃO de quem olha (resolvida no servidor, em flow.next_action),
+                e o menu traz só o que o perfil ainda pode fazer, sem repetir o que virou botão.
+                Sem passo nenhum, o botão é "Ver"; sem itens, o menu some (e no Portfólio,
+                onde nada se grava, só resta o "Ver").
+              #}
               <div class="acoes-linha">
-                {% if linha.can_edit and not somente_leitura %}
-                <button type="button" class="btn btn--secondary btn--sm"
-                  title="Editar {{ linha.unique_id }}"
-                  @click="$ajax('{{ form_url }}?atividade={{ linha.id }}', { target: 'drawer' })">Editar</button>
-                {% endif %}
-                {% if linha.can_delete and not somente_leitura %}
-                <button type="button" class="btn btn--ghost btn--sm"
+                <button type="button"
+                  class="btn btn--sm {{ 'btn--secondary' if linha.button.key == 'ver' else 'btn--primary' }} acao-proxima"
+                  title="{{ linha.button.label }} · {{ linha.unique_id }}"
+                  aria-label="{{ linha.button.label }} · {{ linha.unique_id }}"
                   data-id="{{ linha.unique_id }}" data-atividade="{{ linha.description }}" data-empresa="{{ linha.company }}"
-                  @click="TN.confirmarExclusao({
-                    mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.',
-                    rows: [
-                      { label: 'ID exclusiva', valor: $el.dataset.id },
-                      { label: 'Atividade', valor: $el.dataset.atividade },
-                      { label: 'Empresa', valor: $el.dataset.empresa }
-                    ]
-                  }).then(function (ok) {
-                    if (ok) $ajax('{{ excluir_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
-                      method: 'post', target: 'drawer prog-resumo prog-tabela'
-                    });
-                  })">Excluir</button>
+                  @click="{{ clique(linha.button.key, linha) }}">
+                  <span x-init="$el.innerHTML = window.icon('{{ linha.button.icon }}', 14)" aria-hidden="true"></span>{{ linha.button.button }}
+                </button>
+                {% if linha.menu and not somente_leitura %}
+                <details class="menu-acoes">
+                  <summary class="btn btn--ghost btn--sm" aria-label="Mais ações para {{ linha.unique_id }}">Mais</summary>
+                  <div class="menu-acoes__lista" role="menu" aria-label="Ações de {{ linha.unique_id }}">
+                    {% for item in linha.menu %}
+                    <button type="button" role="menuitem"
+                      class="menu-acoes__item{{ ' menu-acoes__item--perigo' if item.key == 'excluir' }}"
+                      data-id="{{ linha.unique_id }}" data-atividade="{{ linha.description }}" data-empresa="{{ linha.company }}"
+                      @click="$el.closest('details').removeAttribute('open'); {{ clique(item.key, linha) }}">
+                      <span x-init="$el.innerHTML = window.icon('{{ item.icon }}', 16)" aria-hidden="true"></span>
+                      <span class="menu-acoes__texto">{{ item.label }}<small>{{ item.hint }}</small></span>
+                    </button>
+                    {% endfor %}
+                  </div>
+                </details>
                 {% endif %}
               </div>
             </td>

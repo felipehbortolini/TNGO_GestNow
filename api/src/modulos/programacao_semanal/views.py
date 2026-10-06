@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from src.modulos.programacao_semanal import calculations, presentation
+from src.modulos.programacao_semanal import calculations, flow, presentation
 from src.modulos.programacao_semanal.calculations import ActivityFigures
-from src.modulos.programacao_semanal.presentation import DayCell
+from src.modulos.programacao_semanal.presentation import DayCell, MenuItem
 
 NO_NAME = presentation.DASH
 
@@ -48,6 +48,7 @@ class ActivityView:
     comments: str
     can_edit: bool = False
     can_delete: bool = False
+    actions: flow.Actions = flow.NO_ACTIONS
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,8 @@ class MatrixRow:
     row_class: str
     can_edit: bool
     can_delete: bool
+    button: MenuItem
+    menu: list[MenuItem]
 
 
 def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
@@ -110,6 +113,8 @@ def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
         row_class=_row_class(figures),
         can_edit=view.can_edit,
         can_delete=view.can_delete,
+        button=presentation.menu_item(view.actions.next_action),
+        menu=[presentation.menu_item(key) for key in view.actions.menu],
     )
 
 

@@ -1,0 +1,10 @@
+{#
+  O histórico de comentários da equipe Timenow, uma linha por registro
+  ("[24/07 10:00 · Nome] texto"). Espera: comentarios (lista de textos).
+#}
+{% if comentarios %}
+<p class="grupo-label">Comentários</p>
+<ul class="comentarios">
+  {% for linha in comentarios %}<li>{{ linha }}</li>{% endfor %}
+</ul>
+{% endif %}

@@ -21,7 +21,8 @@ from src.core import calendario
 from src.core.errors import InvalidDataError, VersionConflictError
 from src.core.responses import AlpineAjaxResponse
 from src.core.routing import Access, RequestContext, fragment_route
-from src.modulos.programacao_semanal import screen, service, validation
+from src.modulos.programacao_semanal import screen, service, validation, workflow
+from src.modulos.programacao_semanal.models import Activity
 from src.modulos.programacao_semanal.service import Caller
 from src.modulos.programacao_semanal.validation import ActivityForm
 
@@ -33,6 +34,12 @@ SAVED_NEW = "Atividade criada."
 SAVED_EDIT = "Atividade salva."
 DELETED = "Atividade excluída."
 GENERAL_ERROR = "_"
+VALIDATED = "Programação de {id} validada."
+DONE_SAVED = "Realizado de {id} registrado — PPC de {ppc:.0f}%."
+APPROVED = "Realizado de {id} aprovado."
+REOPENED = "Realizado de {id} reaberto."
+PUBLISHED = "{id} publicada."
+WEEK_PUBLISHED = "{count} programação(ões) publicada(s)."
 CONFLICT_HINT = " Feche o painel e abra a atividade de novo para ver a versão salva."
 
 
@@ -218,3 +225,262 @@ def delete_activity(
         version=values.get("versao") or None,
     )
     return _page(req, context, session, _Answer("salvo.html", toast=DELETED))
+
+
+# ── The steps of the flow (ISSUE-052) ────────────────────────────────────
+
+
+def _activity_id(values: Mapping[str, str]) -> int:
+    """The activity a step is about; without it the answer is the plain "not found"."""
+    activity_id = validation.parse_id(values.get("atividade_id") or values.get("atividade"))
+    if activity_id is None:
+        raise InvalidDataError(service.NOT_FOUND_MESSAGE)
+    return activity_id
+
+
+def _errors_of(error: InvalidDataError | VersionConflictError) -> dict[str, str]:
+    """The messages of a refusal, by field; a conflict or a plain message goes under ``_``."""
+    if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
+        return dict(error.detail)
+    hint = CONFLICT_HINT if isinstance(error, VersionConflictError) else ""
+    return {GENERAL_ERROR: str(error) + hint}
+
+
+def _drawer_again(
+    req: func.HttpRequest,
+    template: str,
+    data: dict[str, object],
+    error: InvalidDataError | VersionConflictError,
+) -> func.HttpResponse:
+    """The drawer of a step again, with what was typed, the messages and 409 or 422."""
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/{template}",
+        context=data,
+        request=req,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=next(iter(_errors_of(error).values()), None),
+        toast_tipo="erro",
+    )
+
+
+def _step_done(
+    req: func.HttpRequest, context: RequestContext, session: Session, activity: Activity, toast: str
+) -> func.HttpResponse:
+    """A step that worked: the drawer closes and the strip and the matrix of the week redraw."""
+    answer = _Answer("salvo.html", params={"semana": activity.week}, toast=toast)
+    return _page(req, context, session, answer)
+
+
+@bp.route(route="programacao-semanal/atividades/detalhe", methods=["GET"])
+@fragment_route(access=ACCESS)
+def activity_detail(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The read-only drawer of an activity: the days, the notes and the comments."""
+    caller = _caller(context)
+    view = service.get_activity(session, caller=caller, activity_id=_activity_id(req.params))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/detalhe.html",
+        context=screen.detail_context(view),
+        request=req,
+    )
+
+
+@bp.route(route="programacao-semanal/validacoes/formulario", methods=["GET"])
+@fragment_route(access=ACCESS)
+def validation_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The drawer that validates the programming and names the inspector (HU-73)."""
+    opened = workflow.open_validation(
+        session, caller=_caller(context), activity_id=_activity_id(req.params)
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/validacao.html",
+        context=screen.validation_context(opened),
+        request=req,
+    )
+
+
+@bp.route(route="programacao-semanal/validacoes", methods=["POST"])
+@fragment_route(access=ACCESS)
+def validate_activity(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Validate the programming: the planner names the inspector and the done is released."""
+    caller = _caller(context)
+    values = _body(req)
+    activity_id = _activity_id(values)
+    sent = workflow.Validation(
+        inspector_id=validation.parse_id(values.get("responsavel")),
+        comments=(values.get("comentarios") or "").strip(),
+        version=values.get("versao") or "",
+    )
+    try:
+        activity = workflow.validate_activity(
+            session, caller=caller, activity_id=activity_id, sent=sent
+        )
+    except (InvalidDataError, VersionConflictError) as error:
+        if not _reopenable(error):
+            raise
+        opened = workflow.open_validation(session, caller=caller, activity_id=activity_id)
+        data = screen.validation_context(opened, errors=_errors_of(error), typed=sent)
+        return _drawer_again(req, "validacao.html", data, error)
+    return _step_done(req, context, session, activity, VALIDATED.format(id=activity.unique_id))
+
+
+@bp.route(route="programacao-semanal/realizados/formulario", methods=["GET"])
+@fragment_route(access=ACCESS)
+def report_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The drawer of the done by shift, with "= previsto" and "copiar a semana" (HU-74)."""
+    opened = workflow.open_report(
+        session, caller=_caller(context), activity_id=_activity_id(req.params)
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/realizado.html",
+        context=screen.report_context(opened),
+        request=req,
+    )
+
+
+@bp.route(route="programacao-semanal/realizados", methods=["POST"])
+@fragment_route(access=ACCESS)
+def report_done(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Record the done of the two shifts; the deviation above the limit asks for a justification."""
+    caller = _caller(context)
+    values = _body(req)
+    activity_id = _activity_id(values)
+    form = validation.parse_done(values)
+    version = values.get("versao") or ""
+    try:
+        activity = workflow.report_done(
+            session, caller=caller, activity_id=activity_id, form=form, version=version
+        )
+    except (InvalidDataError, VersionConflictError) as error:
+        if not _reopenable(error):
+            raise
+        opened = workflow.open_report(session, caller=caller, activity_id=activity_id, typed=form)
+        data = screen.report_context(opened, errors=_errors_of(error), version=version)
+        return _drawer_again(req, "realizado.html", data, error)
+    ppc = service.activity_figures(session, activity).ppc
+    toast = DONE_SAVED.format(id=activity.unique_id, ppc=ppc)
+    return _step_done(req, context, session, activity, toast)
+
+
+@bp.route(route="programacao-semanal/aprovacoes/formulario", methods=["GET"])
+@fragment_route(access=ACCESS)
+def approval_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The drawer of the approval: the done day by day, before the inspector signs it (HU-75)."""
+    view = workflow.open_approval(
+        session, caller=_caller(context), activity_id=_activity_id(req.params)
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/aprovacao.html",
+        context=screen.approval_context(view),
+        request=req,
+    )
+
+
+@bp.route(route="programacao-semanal/aprovacoes", methods=["POST"])
+@fragment_route(access=ACCESS)
+def approve_done(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Approve the done: it freezes for the supplier."""
+    caller = _caller(context)
+    values = _body(req)
+    activity_id = _activity_id(values)
+    version = values.get("versao") or ""
+    try:
+        activity = workflow.approve_done(
+            session,
+            caller=caller,
+            activity_id=activity_id,
+            comments=(values.get("comentarios") or "").strip(),
+            version=version,
+        )
+    except VersionConflictError as error:
+        view = workflow.open_approval(session, caller=caller, activity_id=activity_id)
+        data = screen.approval_context(view, errors=_errors_of(error), version=version)
+        return _drawer_again(req, "aprovacao.html", data, error)
+    return _step_done(req, context, session, activity, APPROVED.format(id=activity.unique_id))
+
+
+@bp.route(route="programacao-semanal/reaberturas/formulario", methods=["GET"])
+@fragment_route(access=ACCESS)
+def reopen_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The drawer that reopens an approved done, asking the reason."""
+    view = workflow.open_approval(
+        session, caller=_caller(context), activity_id=_activity_id(req.params)
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/reabertura.html",
+        context=screen.reopen_context(view),
+        request=req,
+    )
+
+
+@bp.route(route="programacao-semanal/reaberturas", methods=["POST"])
+@fragment_route(access=ACCESS)
+def reopen_done(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Reopen the done with the reason: it goes back to the reporting."""
+    caller = _caller(context)
+    values = _body(req)
+    activity_id = _activity_id(values)
+    reason = (values.get("motivo") or "").strip()
+    version = values.get("versao") or ""
+    try:
+        activity = workflow.reopen_done(
+            session, caller=caller, activity_id=activity_id, reason=reason, version=version
+        )
+    except (InvalidDataError, VersionConflictError) as error:
+        if not _reopenable(error):
+            raise
+        view = workflow.open_approval(session, caller=caller, activity_id=activity_id)
+        data = screen.reopen_context(view, errors=_errors_of(error), version=version, reason=reason)
+        return _drawer_again(req, "reabertura.html", data, error)
+    return _step_done(req, context, session, activity, REOPENED.format(id=activity.unique_id))
+
+
+@bp.route(route="programacao-semanal/publicacoes", methods=["POST"])
+@fragment_route(access=ACCESS)
+def publish_activity(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Publish one validated activity: its edition ends."""
+    values = {**_body(req), **req.params}
+    activity = workflow.publish_activity(
+        session,
+        caller=_caller(context),
+        activity_id=_activity_id(values),
+        version=values.get("versao") or "",
+    )
+    return _step_done(req, context, session, activity, PUBLISHED.format(id=activity.unique_id))
+
+
+@bp.route(route="programacao-semanal/publicacoes/semana", methods=["POST"])
+@fragment_route(access=ACCESS)
+def publish_week(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Publish every validated activity of the week in one action."""
+    caller = _caller(context)
+    values = {**_body(req), **req.params}
+    week = service.resolve_week(session, caller=caller, raw=values.get("semana"))
+    count = workflow.publish_week(session, caller=caller, week=week)
+    answer = _Answer(
+        "salvo.html",
+        params={"semana": week},
+        toast=WEEK_PUBLISHED.format(count=count) if count else workflow.NOTHING_TO_PUBLISH,
+    )
+    return _page(req, context, session, answer)

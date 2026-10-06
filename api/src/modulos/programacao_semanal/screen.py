@@ -25,10 +25,11 @@ from src.modulos.programacao_semanal import (
     presentation,
     service,
     weeks,
+    workflow,
 )
 from src.modulos.programacao_semanal.service import Caller, Filters, FormOptions
 from src.modulos.programacao_semanal.validation import ActivityForm
-from src.modulos.programacao_semanal.views import build_row
+from src.modulos.programacao_semanal.views import ActivityView, build_row
 
 BASE_URL = "/api/programacao-semanal"
 MATRIX_URL = f"{BASE_URL}/programacoes"
@@ -37,6 +38,27 @@ BANNER_URL = f"{MATRIX_URL}/janela"
 FORM_URL = f"{BASE_URL}/atividades/formulario"
 SAVE_URL = f"{BASE_URL}/atividades"
 DELETE_URL = f"{BASE_URL}/atividades/excluir"
+DETAIL_URL = f"{BASE_URL}/atividades/detalhe"
+VALIDATION_FORM_URL = f"{BASE_URL}/validacoes/formulario"
+VALIDATION_URL = f"{BASE_URL}/validacoes"
+REPORT_FORM_URL = f"{BASE_URL}/realizados/formulario"
+REPORT_URL = f"{BASE_URL}/realizados"
+APPROVAL_FORM_URL = f"{BASE_URL}/aprovacoes/formulario"
+APPROVAL_URL = f"{BASE_URL}/aprovacoes"
+REOPEN_FORM_URL = f"{BASE_URL}/reaberturas/formulario"
+REOPEN_URL = f"{BASE_URL}/reaberturas"
+PUBLISH_URL = f"{BASE_URL}/publicacoes"
+PUBLISH_WEEK_URL = f"{BASE_URL}/publicacoes/semana"
+# Where each step of the row goes: the drawer it opens (``None`` publishes after a confirmation).
+STEP_URLS = {
+    "validar": VALIDATION_FORM_URL,
+    "lancar": REPORT_FORM_URL,
+    "aprovar": APPROVAL_FORM_URL,
+    "reabrir": REOPEN_FORM_URL,
+    "ver": DETAIL_URL,
+    "detalhe": DETAIL_URL,
+    "editar": FORM_URL,
+}
 
 # (sort field, header text): the columns of the matrix that sort.
 SORT_COLUMNS = (
@@ -212,6 +234,10 @@ def matrix_context(
         "somente_leitura": caller.scope.is_portfolio,
         "form_url": FORM_URL,
         "excluir_url": DELETE_URL,
+        "passos": STEP_URLS,
+        "publicar_url": PUBLISH_URL,
+        "publicar_semana_url": PUBLISH_WEEK_URL,
+        "pode_publicar_semana": _can_publish_week(caller, shown),
         "resumo": {
             "total": summary.total,
             "aderencia": presentation.format_percent(summary.adherence, 0),
@@ -361,3 +387,131 @@ def _supplier_company(options: FormOptions) -> str:
 def empty_form(week: str, company_id: int | None) -> ActivityForm:
     """The form of a new activity: the week of the screen and, for a supplier, its company."""
     return ActivityForm(week=week, company_id=company_id)
+
+
+# ── The steps of the flow: the drawers ───────────────────────────────────
+
+
+def _can_publish_week(caller: Caller, views: list[ActivityView]) -> bool:
+    """Whether the matrix offers "Publicar a semana": a project, the planner and something validated."""
+    project_id = caller.scope.project_id
+    if project_id is None or not permissions.can_publish(caller.user, project_id):
+        return False
+    return any(view.situation == calculations.SITUATION_VALIDATED for view in views)
+
+
+def _day_rows(view: ActivityView, week: str) -> list[dict[str, Any]]:
+    """The seven days of an activity, one row each: label, date, planned and done by shift."""
+    dates = weeks.week_dates(week)
+    figures = view.figures
+    return [
+        {
+            "indice": index,
+            "rotulo": calculations.DAY_LABELS[index],
+            "nome": calculations.DAY_NAMES[index],
+            "data": f"{dates[index]:%d/%m}" if dates else "",
+            "fim_de_semana": index >= calculations.DAYS - 2,
+            "previsto": presentation.format_quantity(figures.planned_days[index], view.unit),
+            "dia": presentation.format_quantity(figures.day_shift[index], view.unit),
+            "noite": presentation.format_quantity(figures.night_shift[index], view.unit),
+        }
+        for index in range(calculations.DAYS)
+    ]
+
+
+def _summary(view: ActivityView) -> dict[str, str]:
+    """The numbers a step shows before it asks: planned, done, PPC and its band."""
+    figures = view.figures
+    return {
+        "previsto": presentation.format_quantity(figures.planned_total, view.unit),
+        "realizado": presentation.format_quantity(figures.done_total, view.unit),
+        "ppc": presentation.format_percent(figures.ppc, 0),
+        "faixa": figures.band,
+        "tom": TONE_OF_BAND[figures.band],
+    }
+
+
+def _step_base(
+    view: ActivityView, errors: Mapping[str, str] | None, version: str | None
+) -> dict[str, Any]:
+    """What every drawer of the flow shares: the activity, its numbers, the version and the errors."""
+    return {
+        "atividade": view,
+        "periodo": weeks.period_label(view.week),
+        "resumo": _summary(view),
+        "dias": _day_rows(view, view.week),
+        "versao": version if version is not None else view.version,
+        "erros": dict(errors or {}),
+        "comentarios": [line for line in view.comments.splitlines() if line.strip()],
+    }
+
+
+def validation_context(
+    opened: workflow.ValidationScreen,
+    *,
+    errors: Mapping[str, str] | None = None,
+    typed: workflow.Validation | None = None,
+) -> dict[str, Any]:
+    """The drawer of the validation: the inspector to choose and the comments to the supplier."""
+    view = opened.view
+    chosen = typed.inspector_id if typed is not None else view.inspector_id
+    return {
+        **_step_base(view, errors, typed.version if typed is not None else None),
+        "fiscais": opened.inspectors,
+        "fiscal_escolhido": chosen,
+        "comentarios_digitados": typed.comments if typed is not None else "",
+        "salvar_url": VALIDATION_URL,
+    }
+
+
+def report_context(
+    opened: workflow.ReportScreen,
+    *,
+    errors: Mapping[str, str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
+    """The drawer of the done: the days to type, the shortcuts and the deviation rule."""
+    view = opened.view
+    figures = view.figures
+    rule = opened.parameters
+    return {
+        **_step_base(view, errors, version),
+        "previsto_json": json.dumps([_number_text(value) for value in figures.planned_days]),
+        "dia_json": json.dumps([_number_text(value) for value in figures.day_shift]),
+        "noite_json": json.dumps([_number_text(value) for value in figures.night_shift]),
+        "mostrar_noite": any(value > 0 for value in figures.night_shift),
+        "limite_desvio": _number_text(rule.deviation_limit),
+        "limite_texto": presentation.format_percent(rule.deviation_limit, 0),
+        "faixa_alta": f"{calculations.HIGH_BAND:g}",
+        "faixa_media": f"{calculations.MEDIUM_BAND:g}",
+        "exige_justificativa": rule.requires_deviation_note,
+        "justificativa": view.notes,
+        "salvar_url": REPORT_URL,
+    }
+
+
+def approval_context(
+    view: ActivityView, *, errors: Mapping[str, str] | None = None, version: str | None = None
+) -> dict[str, Any]:
+    """The drawer of the approval: the done day by day, what the supplier justified, the comments."""
+    return {**_step_base(view, errors, version), "salvar_url": APPROVAL_URL}
+
+
+def reopen_context(
+    view: ActivityView,
+    *,
+    errors: Mapping[str, str] | None = None,
+    version: str | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
+    """The drawer that reopens the done: the reason is what the inspector owes."""
+    return {
+        **_step_base(view, errors, version),
+        "motivo": reason,
+        "salvar_url": REOPEN_URL,
+    }
+
+
+def detail_context(view: ActivityView) -> dict[str, Any]:
+    """The read-only drawer of an activity: the numbers of each day, the notes and the comments."""
+    return {**_step_base(view, None, None), "situacao": SITUATION_CHIPS[view.situation]}

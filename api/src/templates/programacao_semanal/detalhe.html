@@ -1,0 +1,44 @@
+{% extends "base_fragment.html" %}
+{#
+  Detalhe de uma atividade (#drawer), só para ler: quem não tem passo a fazer vê aqui os
+  números dos dias, as observações do fornecedor e os comentários da equipe.
+
+  Espera: o contexto de screen.detail_context.
+#}
+{% block root %}
+<div id="drawer">
+  <div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+    <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-detalhe" @click.stop>
+      <div class="painel__topo">
+        <div>
+          <h2 class="h-card3" id="titulo-detalhe">{{ atividade.unique_id }}</h2>
+          <p class="painel__sub">{{ atividade.description }} · semana {{ atividade.week }}{% if periodo %} · {{ periodo }}{% endif %}</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+          x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.closest('.painel-fundo').remove()"></button>
+      </div>
+      <div class="painel__corpo">
+        <div class="det mb-16">
+          <div class="det__row"><span class="det__label">Situação</span><span class="det__valor">{{ situacao }}</span></div>
+          <div class="det__row"><span class="det__label">Empresa</span><span class="det__valor">{{ atividade.company }}</span></div>
+          <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location }}</span></div>
+          <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">Fiscal</span><span class="det__valor">{{ atividade.inspector or '—' }}</span></div>
+        </div>
+        {% include "programacao_semanal/_resumo_do_passo.html" %}
+        <p class="grupo-label">Dia a dia</p>
+        {% include "programacao_semanal/_dias_lidos.html" %}
+        {% if atividade.notes %}
+        <p class="grupo-label">Observações do fornecedor</p>
+        <p>{{ atividade.notes }}</p>
+        {% endif %}
+        {% include "programacao_semanal/_comentarios.html" %}
+      </div>
+      <div class="painel__rodape">
+        <span class="hint"></span>
+        <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

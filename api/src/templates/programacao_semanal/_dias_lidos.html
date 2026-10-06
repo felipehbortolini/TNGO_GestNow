@@ -1,0 +1,21 @@
+{#
+  Os sete dias de uma atividade, só para ler: previsto e realizado por turno.
+  Usado pelo detalhe, pela aprovação e pela reabertura: quem decide vê a distribuição,
+  não só o total. Espera: dias (screen._day_rows) e atividade.unit.
+#}
+<div class="grade-lida" role="table" aria-label="Previsto e realizado por dia">
+  <div class="grade-lida__linha grade-lida__linha--cabeca" role="row">
+    <span role="columnheader">Dia</span>
+    <span role="columnheader">Previsto{% if atividade.unit %} ({{ atividade.unit }}){% endif %}</span>
+    <span role="columnheader">Realizado dia</span>
+    <span role="columnheader">Realizado noite</span>
+  </div>
+  {% for dia in dias %}
+  <div class="grade-lida__linha{{ ' is-fds' if dia.fim_de_semana }}" role="row">
+    <span role="cell" title="{{ dia.nome }}">{{ dia.rotulo }} <span class="txt-muted">{{ dia.data }}</span></span>
+    <span role="cell">{{ dia.previsto }}</span>
+    <span role="cell">{{ dia.dia }}</span>
+    <span role="cell">{{ dia.noite }}</span>
+  </div>
+  {% endfor %}
+</div>

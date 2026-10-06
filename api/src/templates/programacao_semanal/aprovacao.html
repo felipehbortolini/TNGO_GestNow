@@ -1,0 +1,50 @@
+{% extends "base_fragment.html" %}
+{#
+  Aprovação do realizado (#drawer): o passo do fiscal. Mostra o dia a dia, e não só o
+  total: aprovar sem ver a distribuição é assinar embaixo de um número. Depois de
+  aprovado o realizado congela; para mexer de novo, o fiscal reabre com o motivo.
+
+  Espera: o contexto de screen.approval_context.
+#}
+{% block root %}
+<div id="drawer">
+  <div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+    <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-aprovar" @click.stop>
+      <div class="painel__topo">
+        <div>
+          <h2 class="h-card3" id="titulo-aprovar">Aprovar o realizado</h2>
+          <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }} · semana {{ atividade.week }}</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+          x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.closest('.painel-fundo').remove()"></button>
+      </div>
+      <form method="post" action="{{ salvar_url }}" x-target="drawer prog-resumo prog-tabela" data-tn-loading="Aprovando...">
+        <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <div class="painel__corpo">
+          {% if erros._ %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ }}</span></div>{% endif %}
+          {% include "programacao_semanal/_resumo_do_passo.html" %}
+          <p class="grupo-label">Dia a dia reportado</p>
+          {% include "programacao_semanal/_dias_lidos.html" %}
+          {% if atividade.notes %}
+          <div class="aviso aviso--warn mt-16"><span><strong>Justificativa do fornecedor.</strong> {{ atividade.notes }}</span></div>
+          {% endif %}
+          <div class="field mt-16">
+            <label for="campo-comentarios">Comentários da fiscalização</label>
+            <textarea id="campo-comentarios" class="input" name="comentarios" rows="3"
+              placeholder="Opcional: registro do que foi conferido em campo"></textarea>
+          </div>
+          {% include "programacao_semanal/_comentarios.html" %}
+        </div>
+        <div class="painel__rodape">
+          <span class="hint">Depois de aprovado, o realizado não pode mais ser alterado pelo fornecedor.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--primary">Aprovar</button>
+          </span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

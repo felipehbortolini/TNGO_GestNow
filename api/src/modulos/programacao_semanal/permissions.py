@@ -10,6 +10,9 @@ roles. A Visualizador may well be Planejador: the axes are independent.
 |---|---|
 | Criar atividade | Planejador, Fornecedor ou Admin |
 | Editar atividade | Planejador, Fiscal, Fornecedor ou Admin |
+| Validar a programação e definir o fiscal | Planejador ou Admin |
+| Lançar o realizado | Encarregado, Fornecedor ou Admin |
+| Aprovar ou reabrir o realizado | O Fiscal da atividade ou Admin |
 | Publicar (e editar o publicado) | Planejador ou Admin |
 | Excluir atividade | Admin |
 
@@ -26,6 +29,11 @@ CREATE_DENIED = "Seu perfil não cria programação."
 EDIT_DENIED = "Seu perfil não edita programação."
 PUBLISHED_LOCKED = "Programação publicada não pode ser editada."
 DELETE_DENIED = "Somente o Administrador exclui atividades."
+VALIDATE_DENIED = "Seu perfil não valida programação."
+REPORT_DENIED = "Seu perfil não registra o realizado."
+APPROVE_DENIED = "Somente o fiscal responsável pela atividade aprova o realizado."
+REOPEN_DENIED = "Somente o fiscal responsável pela atividade reabre o realizado."
+PUBLISH_DENIED = "Seu perfil não publica programação."
 
 
 def is_admin(user: User) -> bool:
@@ -58,6 +66,26 @@ def can_edit(user: User, project_id: int) -> bool:
 def can_publish(user: User, project_id: int) -> bool:
     """Whether the user may publish in the project: the one who may also edit the published."""
     return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_validate(user: User, project_id: int) -> bool:
+    """Whether the user may validate the programming and name the inspector."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_report(user: User, project_id: int) -> bool:
+    """Whether the user may report the done: the foreman and the supplier (and the Admin)."""
+    return is_admin(user) or rbac.has_schedule_role(
+        user, project_id, ScheduleRole.FOREMAN, ScheduleRole.SUPPLIER
+    )
+
+
+def can_approve(user: User, project_id: int, inspector_id: int | None) -> bool:
+    """Whether the user approves (or reopens) the done of an activity: its own inspector, or the Admin."""
+    if is_admin(user):
+        return True
+    has_role = rbac.has_schedule_role(user, project_id, ScheduleRole.INSPECTOR)
+    return has_role and inspector_id is not None and inspector_id == user.person_id
 
 
 def can_delete(user: User) -> bool:

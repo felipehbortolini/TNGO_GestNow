@@ -134,3 +134,32 @@ def _foreman(session: Session, project_id: int, company: Company, email: str) ->
         papeis=[(project_id, "Encarregado")],
     )
     return collaborator.person_id
+
+
+def make_user(
+    session: Session,
+    *,
+    email: str,
+    project_id: int,
+    role: ScheduleRole,
+    company: Company | None = None,
+) -> User:
+    """A collaborator with one Weekly Scheduling role in the project, as a ``User``.
+
+    A company makes it a supplier-bound person (foreman, supplier); without one it is Timenow.
+    """
+    collaborator = criar_colaborador(
+        session,
+        email=email,
+        vinculo="Fornecedor" if company is not None else "Timenow",
+        empresa=company,
+        papeis=[(project_id, role.value)],
+    )
+    person = session.get(Person, collaborator.person_id)
+    return _user(collaborator, person, {(project_id, role)})
+
+
+def make_admin(session: Session, *, email: str) -> User:
+    """A Timenow collaborator with the Admin general profile and no Weekly Scheduling role."""
+    collaborator = criar_colaborador(session, email=email, perfil="Admin")
+    return _user(collaborator, session.get(Person, collaborator.person_id), set())

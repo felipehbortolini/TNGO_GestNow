@@ -124,3 +124,35 @@ def parse_id(raw: str | None) -> int | None:
     if not (text.isascii() and text.isdecimal()) or len(text) > MAX_ID_DIGITS:
         return None
     return int(text)
+
+
+@dataclass(frozen=True)
+class DoneForm:
+    """What the person typed when reporting what was produced: the two shifts and the note."""
+
+    day_shift: tuple[float, ...] = field(default_factory=lambda: (0.0,) * calculations.DAYS)
+    night_shift: tuple[float, ...] = field(default_factory=lambda: (0.0,) * calculations.DAYS)
+    note: str = ""
+
+
+NEGATIVE_DONE_MESSAGE = "Quantidade realizada não pode ser negativa."
+
+
+def parse_done(values: Mapping[str, str | None]) -> DoneForm:
+    """Read ``dias_realizado_0``..``dias_realizado_6`` and ``dias_noite_0``.. into a ``DoneForm``."""
+    day = calculations.seven_days(
+        values.get(f"dias_realizado_{index}") for index in range(calculations.DAYS)
+    )
+    night = calculations.seven_days(
+        values.get(f"dias_noite_{index}") for index in range(calculations.DAYS)
+    )
+    return DoneForm(
+        day_shift=tuple(day), night_shift=tuple(night), note=_text(values, "observacoes")
+    )
+
+
+def done_errors(form: DoneForm) -> dict[str, str]:
+    """A quantity done is never negative."""
+    if any(value < 0 for value in (*form.day_shift, *form.night_shift)):
+        return {"dias_realizado": NEGATIVE_DONE_MESSAGE}
+    return {}
