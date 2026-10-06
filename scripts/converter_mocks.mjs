@@ -23,6 +23,7 @@ import vm from "node:vm";
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ORIGEM = join(RAIZ, "fontes", "Sistema", "data");
 const DESTINO = join(RAIZ, "api", "src", "carga", "dados", "plataforma.json");
+const DESTINO_COMPLETO = join(RAIZ, "api", "src", "carga", "dados", "prototipo.json");
 
 // Ordem de carga do protótipo; conferida no MODELO-DE-DADOS.md ("Verificação
 // das coleções"). O mock-portfolio acrescenta registros às coleções dos
@@ -149,6 +150,9 @@ function main() {
   const payload = montarPayload(mocks);
   mkdirSync(dirname(DESTINO), { recursive: true });
   writeFileSync(DESTINO, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  // Todas as coleções do protótipo, como estão: cada módulo lê a sua fatia por
+  // `src.carga.prototype_collection` e não precisa mexer neste conversor.
+  writeFileSync(DESTINO_COMPLETO, `${JSON.stringify(mocks)}\n`, "utf8");
   const contagens = [
     `clientes ${payload.clientes.length}`,
     `projetos ${payload.projetos.length}`,
@@ -161,6 +165,7 @@ function main() {
   ];
   console.log(`Conversão concluída: ${contagens.join(", ")}`);
   console.log(`  destino: ${DESTINO}`);
+  console.log(`  coleções completas: ${DESTINO_COMPLETO}`);
   return 0;
 }
 

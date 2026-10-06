@@ -21,6 +21,8 @@ aplica a carga numa transação, sem imprimir senha nem URL de conexão.
 | `runner.py` | `run_for_mode` decide pelo modo; `run_demonstration` roda cada parte registrada que ainda não está em `carga_demonstracao` (idempotência); `run_production` delega ao `producao.py`. |
 | `plataforma.py` | A parte da plataforma: cliente, 3 projetos do portfólio e as notas da ponderação, empresas, pessoas, colaboradores de demonstração, papéis da Programação Semanal, cadastros de apoio e a versão 1 dos parâmetros. Lê `dados/plataforma.json`. |
 | `producao.py` | Início de produção: cria a pessoa e o colaborador do primeiro Admin e semeia os parâmetros iniciais. Rodar de novo não duplica. |
+| `prototipo.py` | `prototype_collection("acoes")`: lê qualquer coleção dos mocks do protótipo (todas, sem recorte) de `dados/prototipo.json`. É daqui que cada `seed.py` de módulo tira os dados; não precisa mexer no conversor. |
+| `dados/prototipo.json` | Todas as coleções dos 11 mocks, como o protótipo as gera (`node scripts/converter_mocks.mjs`). |
 | `dados/plataforma.json` | Os mocks convertidos, gerados por `scripts/converter_mocks.mjs`. É a fonte versionada dentro do GestNow; o protótipo é só leitura. |
 | `api/tests/oraculo/` | O harness do teste-oráculo: carrega a demonstração com a data injetada em 25/09/2026 (sem deslocamento) e roda as afirmações de número conhecido de cada módulo. |
 

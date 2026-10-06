@@ -8,6 +8,7 @@ first Admin. Each module adds its own part through a ``seed.py`` that calls
 ``src.carga.register``; the LEIA-ME in this folder explains the contract.
 """
 
+from src.carga.prototipo import prototype_collection
 from src.carga.registro import DEMO_ANCHOR, register, registered, shift_date
 from src.carga.runner import (
     ProductionStartError,
@@ -19,6 +20,7 @@ from src.carga.runner import (
 __all__ = [
     "DEMO_ANCHOR",
     "ProductionStartError",
+    "prototype_collection",
     "register",
     "registered",
     "run_demonstration",
