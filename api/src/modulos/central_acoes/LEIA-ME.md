@@ -156,3 +156,28 @@ O link de origem **Ata** está registrado (`origin_links`, no fim de `minutes_se
 ### Carga e oráculo
 
 `seed.py` grava as 9 revisões do protótipo antes das ações (número, revisão, empresas e presença como no mock) e continua a sequência de numeração de cada projeto (a próxima ata do TN-2026-014 é a 0039). `api/tests/oraculo/test_oraculo_atas.py` afirma 8 atas vigentes (5, 2 e 1 por projeto), as ações abertas e atrasadas de cada uma e o tamanho de cada lista de presença em 25/09/2026.
+
+## O que a ISSUE-020 trouxe
+
+Tela **Dashboards e KPIs** (`painel.html`): KPIs do motor de status único (Em andamento, Atrasadas, Concluídas, % atrasadas, concluídas no prazo original), quebra por origem, por responsável (mais atrasado primeiro), os 10 com mais abertas, previstas x concluídas por mês e, no Portfólio, por projeto (com a coluna Projeto). Filtro de origem; Excel e PDF do painel. Na tela Ações, **Enviar follow-up** (só Gestor/Admin) abre a prévia com um aviso por responsável e envia pela porta de notificação; o texto sai de `follow_up.py` (o mesmo na prévia e no envio). Enquanto `GESTNOW_ENVIO_EMAIL` estiver desligado, a tela avisa "simulado" e cada envio fica em `notificacao` e na trilha. O **PDF das ações** é o `acoes/imprimivel` da ISSUE-019, com o filtro da tela.
+
+### Rotas (`/api/central-acoes`, em `panel_routes.py`)
+
+| Rota | Uso |
+|---|---|
+| `GET painel`, `painel/excel`, `painel/imprimivel` | Tela e exportações (consulta `origem`) |
+| `GET/POST acoes/followup` | Prévia e envio, com o filtro da lista na consulta; 422 sem ação aberta ou sem e-mail cadastrado |
+
+### Fórmulas e fachada
+
+| Termo | Nome no código |
+|---|---|
+| Totais de um grupo (em dia, atrasadas, concluídas, maior atraso) | `calculations.responsible_tally` |
+| Percentual inteiro (meio para cima) | `calculations.whole_percent` |
+| Concluídas no prazo original | `calculations.completed_on_planned_count` |
+| Previstas x concluídas por mês | `calculations.monthly_planned_vs_completed` |
+| Top de responsáveis com abertas | `calculations.top_open_responsibles` |
+| Agrupamento do follow-up | `calculations.group_for_follow_up` |
+| Painel / prévia / envio | `panel_service.dashboard`, `plan_follow_up`, `send_follow_up` |
+
+O painel lê a mesma lista da tela Ações (`service.list_actions`), então a contagem é a da lista no mesmo escopo. Onde mexer: texto da mensagem em `follow_up.py`; exportação do painel em `panel_export.py`. Testes: `api/tests/central_acoes/test_painel_*.py`; oráculo "painel da Central de Ações".

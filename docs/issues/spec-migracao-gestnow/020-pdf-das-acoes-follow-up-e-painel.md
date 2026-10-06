@@ -1,7 +1,7 @@
 ---
 id: ISSUE-020
 title: "PDF das ações filtradas, follow-up aos responsáveis e painel da Central"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -41,12 +41,12 @@ Portfólio, por projeto, com os visuais da biblioteca.
 
 ## Critérios de aceite
 
-- [ ] O PDF contém exatamente as ações do filtro aplicado.
-- [ ] O follow-up gera uma notificação por responsável, com as ações dele, e a trilha registra cada uma.
-- [ ] As contagens do painel batem com as da lista no mesmo escopo.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] O PDF contém exatamente as ações do filtro aplicado.
+- [x] O follow-up gera uma notificação por responsável, com as ações dele, e a trilha registra cada uma.
+- [x] As contagens do painel batem com as da lista no mesmo escopo.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -66,5 +66,5 @@ Fonte: `js/pages/central-acoes/acoes.js` e `dashboard.js`, `GI.api.central.resum
 ## Registro de execução
 
 - Data: 2026-10-06.
-- Feito: leitura da fonte (dashboard.js, followup do acoes.js) e do módulo; o PDF das ações filtradas já existe da ISSUE-019 (`acoes/imprimivel`), falta o teste do filtro.
-- Falta: cálculos (follow-up, painel) | fachada (`follow_up`, `dashboard`) | rotas | telas (botão follow-up, painel) | exportação do painel | testes | seed/oráculo | LEIA-ME.
+- Feito: cálculos, fachada (`panel_service`: dashboard, follow-up), rotas (`panel_routes`), telas (painel, modal de follow-up, botão em Ações), Excel e PDF do painel, testes (`test_painel_calculos/servico/rotas`, incl. PDF com filtro), oráculo do painel, LEIA-ME.
+- Pendências: nenhuma de escopo; testes e a porta de qualidade ainda não rodados (política do dono).

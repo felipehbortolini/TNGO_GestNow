@@ -12,7 +12,7 @@ from sqlalchemy import select
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core.rbac import Bond, GeneralProfile, User
 from src.core.scope import Scope
-from src.modulos.central_acoes import service
+from src.modulos.central_acoes import panel_service, service
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Project
 from tests.oraculo import OracleContext, register_check
@@ -76,3 +76,20 @@ def _afirmar_acoes_do_portfolio(context: OracleContext) -> None:
 
 register_check("acoes atrasadas e KPIs por projeto", _afirmar_acoes_por_projeto)
 register_check("acoes do portfolio", _afirmar_acoes_do_portfolio)
+
+
+def _afirmar_painel_do_portfolio(context: OracleContext) -> None:
+    """ISSUE-020: o painel conta como a lista (76 ações: 36 em dia, 14 atrasadas, 26 concluídas)."""
+    panel = panel_service.dashboard(
+        context.session,
+        user=_admin(context),
+        scope=Scope(project_id=None, source="padrao"),
+        origin="",
+        reference_date=context.reference_date,
+    )
+    assert (panel.counts.on_time, panel.counts.overdue, panel.counts.completed) == (36, 14, 26)
+    assert sum(line.tally.total for line in panel.origins) == panel.counts.total == 76
+    assert sum(line.tally.total for line in panel.projects) == 76, "quebra por projeto"
+
+
+register_check("painel da Central de Ações", _afirmar_painel_do_portfolio)
