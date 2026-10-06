@@ -41,7 +41,7 @@ pixel.
 
 ## Fontes
 
-Na raiz do repositório, **só leitura**: `fontes/Sistema/` (protótipo: `data/mock-*.js`, `js/services/{api,regras}.js`, `js/pages/<módulo>/`, `js/i18n/en.js`), `fontes/Timenow - Programação Semanal/` (código do app), `Graficos HTML/` (visuais-padrão) e as cópias em `docs/referencia/`. Regra, número e texto saem do código do protótipo do seu módulo (grep por termo, sem ler a pasta inteira). A carga (`scripts/converter_mocks.mjs` + `seed.py`) e as afirmações do oráculo fazem parte da issue. Nunca invente regra, dado de demonstração nem número do oráculo.
+Na raiz do repositório, **só leitura**: `fontes/Sistema/` (protótipo: `data/mock-*.js`, `js/services/{api,regras}.js`, `js/pages/<módulo>/`, `js/i18n/en.js`), `fontes/Timenow - Programação Semanal/` (código do app), `Graficos HTML/` (visuais-padrão) e as cópias em `docs/referencia/`. Regra, número e texto saem do código do protótipo do seu módulo (grep por termo, sem ler a pasta inteira). A carga (todas as coleções dos mocks já em `api/src/carga/dados/prototipo.json`, lidas por `src.carga.prototype_collection`; cada módulo só escreve o `seed.py`) e as afirmações do oráculo fazem parte da issue. Nunca invente regra, dado de demonstração nem número do oráculo.
 
 ## Leia só isto (três chamadas bastam)
 
