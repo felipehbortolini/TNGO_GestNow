@@ -1,7 +1,7 @@
 ---
 id: ISSUE-024
 title: "Análise de impacto obrigatória com alçada mínima calculada"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3

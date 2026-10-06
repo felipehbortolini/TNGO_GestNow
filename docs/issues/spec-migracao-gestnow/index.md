@@ -50,7 +50,7 @@ vem primeiro.
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | 3 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-021](./021-atas-lista-nova-ata-e-presenca.md) |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | 3 | task | proposed | ready-for-agent | ISSUE-021 | [ISSUE-022](./022-anotacoes-acoes-e-revisoes-da-ata.md) |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | 3 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-023](./023-solicitacao-de-mudanca-registro-e-ficha.md) |
-| ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | 3 | task | proposed | ready-for-agent | ISSUE-023 | [ISSUE-024](./024-analise-de-impacto-e-alcada.md) |
+| ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | 3 | task | in-progress | ready-for-agent | ISSUE-023 | [ISSUE-024](./024-analise-de-impacto-e-alcada.md) |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | 3 | task | proposed | ready-for-agent | ISSUE-024, ISSUE-019 | [ISSUE-025](./025-decisao-implementacao-e-encerramento-da-sm.md) |
 | ISSUE-026 | Painel de mudanças | 3 | task | proposed | ready-for-agent | ISSUE-025 | [ISSUE-026](./026-painel-de-mudancas.md) |
 | ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | 3 | task | proposed | ready-for-agent | ISSUE-019, ISSUE-023 | [ISSUE-027](./027-licoes-acervo-fluxo-e-aplicacao.md) |
