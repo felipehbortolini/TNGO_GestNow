@@ -1,7 +1,7 @@
 ---
 id: ISSUE-020
 title: "PDF das ações filtradas, follow-up aos responsáveis e painel da Central"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
