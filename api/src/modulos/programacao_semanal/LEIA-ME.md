@@ -53,7 +53,7 @@ Mesmo prefixo e mesmos alvos. Cada passo tem o painel (GET `.../formulario`, alv
 | `publicacoes/semana` | POST | Planejador ou Admin | Publica todas as validadas da semana (as demais ficam) |
 | `atividades/detalhe` | GET | Quem vê a atividade | Painel só de leitura: dias, observações e comentários |
 
-Previstos nas próximas issues: `pedidos-de-alteracao` e `governanca` (053), `configuracoes` (054), `importacoes` e `exportacoes` (055), `dashboard` (056).
+Previstos nas próximas issues: `pedidos-de-alteracao` e `governanca` (053), `importacoes` e `exportacoes` (055), `dashboard` (056).
 
 ## Estrutura portada do app
 
@@ -67,6 +67,7 @@ Previstos nas próximas issues: `pedidos-de-alteracao` e `governanca` (053), `co
 | `workflow.py` | Fachada dos passos: `validate_activity`, `report_done`, `approve_done`, `reopen_done`, `publish_activity`, `publish_week` | `core/dados.py` |
 | `validation.py` | Formulário da atividade, obrigatórios, soma dos dias com tolerância de 0,51 | `blueprints/atividades.py` |
 | `service.py` | Fachada: recorte por empresa, janela, Portfólio somente leitura, gravação pelo `recording` | `core/registro.py`, `core/dados.py` |
+| `configuration.py`, `config_screen.py` | Fachada e contexto da configuração por projeto (parâmetros, janelas, padrões, trilha) | `blueprints/configuracoes.py` |
 | `repository.py`, `models.py` | Consultas e tabelas `programacao_*` (migração `m051`) | `core/repositorio.py` (JSON) |
 | `views.py`, `presentation.py`, `screen.py` | Linha da matriz com os textos decididos no Python, grade dos dias, pastilhas, cabeçalhos | `templates/programacao/*` |
 | `seed.py`, `demonstracao.json` | Carga: o ambiente `demo-obra` do app no projeto `TN-2026-014`, datas e semanas deslocadas | `data/demo-obra` |
@@ -96,9 +97,25 @@ Fornecedor cria/edita na janela → Planejador valida e define fiscal → Fornec
 
 Projeto, empresas, colaboradores, fiscais e encarregados vêm de Configurações. A identidade e o papel da pessoa vêm da plataforma GestNow; fornecedor só acessa a própria empresa. Para isso as rotas declaram `Access(module="programacao_semanal")` e a fachada chama `core.rbac`: `company_scope(user)` corta a consulta pela empresa do fornecedor (e `require_company` recusa a de outra), e `has_schedule_role` / `require_schedule_role(user, project_id, *roles)` conferem o papel no projeto em que a pessoa o recebeu (Planejador, Fiscal, Encarregado, Fornecedor; o papel não vale em outro projeto). O fornecedor não tem permissão geral nenhuma: na programação ele age pelos papéis. O módulo não mantém cadastro paralelo de pessoas/empresas. A saída alimenta o dashboard da programação e os relatórios previstos.
 
-## Parâmetros
+## Configuração da programação, uma por projeto (ISSUE-054)
 
-Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite de desvio que exige justificativa, semanas/dias/horários liberados e liberações extraordinárias. Projeto novo recebe valores padrão. A alteração vale na hora e deixa auditoria (ISSUE-054).
+Tela `programacao_semanal/configuracao` (view, CSS e JS do trio). Cada projeto tem a sua: os **parâmetros** (meta de aderência, meta de PPC, semana de referência, exigência e limite do desvio), a **janela de cada empresa** (dias da semana com horário), as **semanas liberadas** (pastilhas por semana ISO, com atalho de trimestre e de ano) e as **liberações extraordinárias**. Empresas e pessoas não são cadastradas aqui: são as de Configurações.
+
+| Rota | Método | O que faz |
+|---|---|---|
+| `configuracoes` | GET | Tela inteira (alvo `config-area`): o projeto do escopo, ou, no Portfólio, um resumo somente leitura por projeto com o pedido de escolher um |
+| `configuracoes/parametros` | POST | Salva os parâmetros (cria a linha se o projeto ainda não tem) |
+| `configuracoes/janelas` | POST | Salva a janela de uma empresa (`empresa`, `dia_N`/`abre_N`/`fecha_N`, `semanas`, `extra_semana`/`extra_abre`/`extra_fecha`, `remover_extra`) |
+
+Regras, todas no servidor (`configuration.py`, fachada; `config_screen.py`, o que a tela imprime):
+
+- **Quem edita:** Planejador do projeto ou Admin (`permissions.can_configure`). Planejador de outro projeto, Fiscal, Fornecedor e Visualizador recebem 403 ao gravar; todos que alcançam o módulo leem, e o fornecedor lê só a janela da própria empresa. No Portfólio gravar é 422 ("escolha um projeto").
+- **Vale na hora:** nada é guardado em memória; a próxima requisição (a faixa da janela, o formulário) lê as linhas.
+- **Trilha com antes e depois**, sem versionamento com justificativa: parâmetros pelo `core.recording` (tabela `programacao_configuracao`); janela com uma linha de trilha da tabela `programacao_janela` cujo antes e depois são o conteúdo da janela (`configuration.content_of`: dias, semanas e extras), pois a linha da janela não tem colunas de conteúdo. Salvar a janela sem mudar nada não deixa trilha. Versão velha é 409.
+- **Padrões do app** (`configuration.create_default_settings`, para a criação de projeto da ISSUE-078): meta de aderência 60, meta de PPC 75, limite de desvio 15, exige justificativa, sem semana de referência. Projeto sem linha lê os mesmos padrões (`service.parameters_of`).
+- **Limites:** as três metas e o limite vão de 0 a 100 (vazio é o padrão; texto, negativo ou acima de 100 é 422); a semana de referência e as semanas têm o formato `S.30/2026`; o dia abre antes de fechar (no limite exato vale); a liberação extraordinária pede semana, abertura e fechamento, e abre antes de fechar. Horário do `datetime-local` é lido no fuso do produto.
+
+Fórmulas: nenhuma nova. A decisão de janela é `window.decide` (extraordinária vence, depois semana liberada, depois dia e hora), e a faixa "Aberta agora" de cada empresa a chama com a semana atual (`configuration.current_week_status`).
 
 ## Onde mexer
 
@@ -106,6 +123,7 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 |---|---|
 | Rotas | `routes.py` (e `screen.py` para o que a tela imprime) |
 | Fluxo, recorte por empresa e janela | `flow.py`, `workflow.py`, `service.py`, `window.py`, `permissions.py` |
+| Configuração por projeto (parâmetros e janelas) | `configuration.py`, `config_screen.py`, `templates/programacao_semanal/configuracao.html` |
 | PPC, aderência e faixas | `calculations.py` |
 | Validações da atividade/planilha | `validation.py` |
 | Planilha e impressão | `export.py` |
@@ -115,4 +133,4 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052 trouxe os cinco passos (validar, realizado por turno, aprovação do fiscal, reabertura e publicação); as ISSUE-053 a ISSUE-056 completam o resto.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052 trouxe os cinco passos (validar, realizado por turno, aprovação do fiscal, reabertura e publicação); a ISSUE-054 trouxe a configuração por projeto; as ISSUE-053, 055 e 056 completam o resto.

@@ -15,6 +15,7 @@ roles. A Visualizador may well be Planejador: the axes are independent.
 | Aprovar ou reabrir o realizado | O Fiscal da atividade ou Admin |
 | Publicar (e editar o publicado) | Planejador ou Admin |
 | Excluir atividade | Admin |
+| Configurar a programação do projeto (parâmetros e janelas) | Planejador do projeto ou Admin |
 
 Pure functions over ``rbac.User``: the facade calls them, the screen only draws what
 they allow.
@@ -34,6 +35,9 @@ REPORT_DENIED = "Seu perfil não registra o realizado."
 APPROVE_DENIED = "Somente o fiscal responsável pela atividade aprova o realizado."
 REOPEN_DENIED = "Somente o fiscal responsável pela atividade reabre o realizado."
 PUBLISH_DENIED = "Seu perfil não publica programação."
+CONFIGURE_DENIED = (
+    "Somente o planejador do projeto ou o administrador altera a configuração da programação."
+)
 
 
 def is_admin(user: User) -> bool:
@@ -70,6 +74,11 @@ def can_publish(user: User, project_id: int) -> bool:
 
 def can_validate(user: User, project_id: int) -> bool:
     """Whether the user may validate the programming and name the inspector."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_configure(user: User, project_id: int) -> bool:
+    """Whether the user edits the configuration of the project: its Planejador or the Admin (D10)."""
     return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
 
 

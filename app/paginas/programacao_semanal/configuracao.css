@@ -1,16 +1,49 @@
 /* ============================================================
    configuracao.css — Estilo da tela Configuração da programação (programacao_semanal/configuracao)
 
-   Janelas e parâmetros da programação semanal, uma configuração por projeto.
+   Parâmetros, janelas por empresa, semanas liberadas e liberações extraordinárias, uma configuração por projeto.
 
    Escopo: tudo que morar aqui começa por .pagina--programacao_semanal-configuracao, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-054.
+   A grade dos sete dias com horário, as pastilhas de semana (uma por semana ISO,
+   com atalho de trimestre e de ano) e a lista das liberações extraordinárias.
+   A pastilha marcada usa o verde da marca e o sinal textual (o número) acompanha;
+   a semana já passada fica esmaecida, mas continua marcável.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--programacao_semanal-configuracao [x-cloak] { display: none; }
+.pagina--programacao_semanal-configuracao .config__aviso { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); margin-bottom: var(--space-lg); }
+.pagina--programacao_semanal-configuracao .config__projeto { margin-bottom: var(--space-md); }
+
+.pagina--programacao_semanal-configuracao .config__dias { display: grid; gap: var(--space-sm); margin-top: var(--space-md); max-width: 560px; }
+.pagina--programacao_semanal-configuracao .config__dia { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: center; gap: var(--space-md); }
+.pagina--programacao_semanal-configuracao .config__dia-nome { display: flex; align-items: center; gap: var(--space-sm); font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
+.pagina--programacao_semanal-configuracao .config__ano { margin-top: var(--space-md); }
+.pagina--programacao_semanal-configuracao .config__ano-topo { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.pagina--programacao_semanal-configuracao .config__ano-rotulo { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.pagina--programacao_semanal-configuracao .config__atalhos { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.pagina--programacao_semanal-configuracao .config__semanas { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: var(--space-xs); }
+
+.pagina--programacao_semanal-configuracao .pastilha-semana { position: relative; display: flex; align-items: center; justify-content: center; padding: var(--space-xs) 0; font-size: 12px; font-weight: 600; color: var(--text-secondary); background: var(--branco); border: 1px solid var(--borda); border-radius: var(--r-sm); cursor: pointer; }
+.pagina--programacao_semanal-configuracao .pastilha-semana input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.pagina--programacao_semanal-configuracao .pastilha-semana:has(input:checked) { color: var(--branco); background: var(--verde-600); border-color: var(--verde-600); }
+.pagina--programacao_semanal-configuracao .pastilha-semana:has(input:focus-visible) { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.pagina--programacao_semanal-configuracao .pastilha-semana:has(input:disabled) { cursor: default; }
+.pagina--programacao_semanal-configuracao .pastilha-semana.is-passada:not(:has(input:checked)) { color: var(--text-dimmed); background: var(--neutro-50); }
+
+.pagina--programacao_semanal-configuracao .config__extras { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: var(--space-md) 0; padding: 0; list-style: none; }
+.pagina--programacao_semanal-configuracao .config__extra-novo { grid-template-columns: repeat(3, 1fr); margin-top: var(--space-md); }
+
+@media (max-width: 720px) {
+  .pagina--programacao_semanal-configuracao .config__dia { grid-template-columns: 1fr 1fr; }
+  .pagina--programacao_semanal-configuracao .config__dia-nome { grid-column: 1 / -1; }
+  .pagina--programacao_semanal-configuracao .config__extra-novo { grid-template-columns: 1fr; }
+  .pagina--programacao_semanal-configuracao .config__aviso { flex-direction: column; align-items: stretch; }
+}

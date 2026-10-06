@@ -21,7 +21,15 @@ from src.core import calendario
 from src.core.errors import InvalidDataError, VersionConflictError
 from src.core.responses import AlpineAjaxResponse
 from src.core.routing import Access, RequestContext, fragment_route
-from src.modulos.programacao_semanal import screen, service, validation, workflow
+from src.modulos.configuracoes import registers
+from src.modulos.programacao_semanal import (
+    config_screen,
+    configuration,
+    screen,
+    service,
+    validation,
+    workflow,
+)
 from src.modulos.programacao_semanal.models import Activity
 from src.modulos.programacao_semanal.service import Caller
 from src.modulos.programacao_semanal.validation import ActivityForm
@@ -34,6 +42,8 @@ SAVED_NEW = "Atividade criada."
 SAVED_EDIT = "Atividade salva."
 DELETED = "Atividade excluída."
 GENERAL_ERROR = "_"
+PARAMETERS_SAVED = "Parâmetros salvos."
+WINDOW_SAVED = "Janela de {company} atualizada."
 VALIDATED = "Programação de {id} validada."
 DONE_SAVED = "Realizado de {id} registrado — PPC de {ppc:.0f}%."
 APPROVED = "Realizado de {id} aprovado."
@@ -484,3 +494,65 @@ def publish_week(
         toast=WEEK_PUBLISHED.format(count=count) if count else workflow.NOTHING_TO_PUBLISH,
     )
     return _page(req, context, session, answer)
+
+
+# ── The configuration of the project (ISSUE-054) ─────────────────────────
+
+
+def _configuration_page(
+    req: func.HttpRequest, context: RequestContext, session: Session, toast: str | None = None
+) -> func.HttpResponse:
+    """The configuration screen (``config-area``): the overview in the Portfólio, the project otherwise."""
+    data = config_screen.context(session, caller=_caller(context))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/configuracao.html", context=data, request=req, toast=toast
+    )
+
+
+def _checked_weeks(req: func.HttpRequest) -> list[str]:
+    """The week pills that came ticked, whichever way the browser sent them."""
+    getter = getattr(req.form, "getlist", None)
+    if getter is not None:
+        return [str(week) for week in getter("semanas")]
+    return str(req.form.get("semanas") or "").split(",")
+
+
+@bp.route(route="programacao-semanal/configuracoes", methods=["GET"])
+@fragment_route(access=ACCESS)
+def configuration_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Parameters, windows, released weeks and extra releases of the project (read-only in the Portfólio)."""
+    return _configuration_page(req, context, session)
+
+
+@bp.route(route="programacao-semanal/configuracoes/parametros", methods=["POST"])
+@fragment_route(access=ACCESS)
+def save_parameters(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the parameters of the project; valid on the next request, with the trail of before and after."""
+    values = _body(req)
+    configuration.save_parameters(
+        session,
+        caller=_caller(context),
+        form=configuration.parse_parameters(values),
+        version=values.get("versao") or None,
+    )
+    return _configuration_page(req, context, session, PARAMETERS_SAVED)
+
+
+@bp.route(route="programacao-semanal/configuracoes/janelas", methods=["POST"])
+@fragment_route(access=ACCESS)
+def save_window(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the window of one company: weekdays, released weeks and the extraordinary releases."""
+    values = _body(req)
+    form = configuration.parse_window(values, weeks_checked=_checked_weeks(req))
+    configuration.save_window(
+        session, caller=_caller(context), form=form, version=values.get("versao") or None
+    )
+    names = registers.company_names(session, [form.company_id or 0])
+    toast = WINDOW_SAVED.format(company=names.get(form.company_id or 0, ""))
+    return _configuration_page(req, context, session, toast)

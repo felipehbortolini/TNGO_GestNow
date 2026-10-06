@@ -30,6 +30,25 @@ def settings_of(session: Session, project_id: int) -> ScheduleSettings | None:
     return session.scalars(statement).one_or_none()
 
 
+def all_settings(session: Session) -> list[ScheduleSettings]:
+    """The configuration rows of every project, by project: what the Portfólio reads."""
+    return list(session.scalars(select(ScheduleSettings).order_by(ScheduleSettings.project_id)))
+
+
+def windows_by_company(session: Session, *, project_id: int) -> dict[int, ScheduleWindow]:
+    """The window rows of the project by company."""
+    statement = select(ScheduleWindow).where(ScheduleWindow.project_id == project_id)
+    return {row.company_id: row for row in session.scalars(statement)}
+
+
+def window_counts(session: Session) -> dict[int, int]:
+    """How many companies have a window, by project."""
+    statement = select(ScheduleWindow.project_id, func.count(ScheduleWindow.id)).group_by(
+        ScheduleWindow.project_id
+    )
+    return {int(project_id): int(total) for project_id, total in session.execute(statement)}
+
+
 def find_activity(session: Session, activity_id: int) -> Activity | None:
     """The activity with the id, or ``None``."""
     return session.get(Activity, activity_id)

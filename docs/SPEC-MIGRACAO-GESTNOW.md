@@ -1401,6 +1401,9 @@ do dono".
 | Decisão da execução (ISSUE-049), pendente de revisão do dono | fotos de abertura e fechamento | são anexos do item (botão Anexos da linha), sem campo no formulário de abertura | D5a, ISSUE-049 |
 | Decisão da execução (ISSUE-049), pendente de revisão do dono | carga | os 20 itens entram sem anexo; as ações vêm da carga da Central; item fechado da demonstração não tem a foto | D6, ISSUE-049 |
 | Decisão da execução (ISSUE-049), pendente de revisão do dono | sistemas na tela | a tabela "Sistemas e liberação por marco" fica na tela da lista, não na aba Painel | D11, ISSUE-049 |
+| Decisão da execução (ISSUE-054), pendente de revisão do dono | leitura da configuração | quem alcança o módulo lê; o fornecedor lê só a janela da própria empresa; no Portfólio, resumo somente leitura por projeto | D10, ISSUE-054 |
+| Decisão da execução (ISSUE-054), pendente de revisão do dono | limites dos parâmetros | metas e limite de 0 a 100, vazio é o padrão do app, fora disso 422; o app aceitava qualquer número | D10, ISSUE-054 |
+| Decisão da execução (ISSUE-054), pendente de revisão do dono | janela com vários dias | a tela marca qualquer dos sete dias, cada um com horário (o app só permitia um dia); sem dia marcado vale qualquer dia | D10, ISSUE-054 |
 
 ---
 

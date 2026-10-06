@@ -1,0 +1,232 @@
+{% extends "base_fragment.html" %}
+{#
+  Configuração da programação (#config-area), uma por projeto. No Portfólio é só
+  leitura: um resumo por projeto e o pedido de escolher um. No projeto, os
+  parâmetros e uma janela por empresa (dias e horários, semanas liberadas e
+  liberações extraordinárias). Quem não é Planejador do projeto nem Admin lê, mas
+  não edita. A versão viaja em cada formulário, para o 409.
+
+  Espera: o contexto de config_screen.context.
+#}
+{% block root %}
+<div id="config-area" class="config">
+  {% if portfolio %}
+  <div class="aviso aviso--info config__aviso" role="status">
+    <span>{{ aviso }}</span>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-incluir="configurar">Escolher um projeto</button>
+  </div>
+  <div class="card">
+    <div class="card__body">
+      {% if linhas %}
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th scope="col">Projeto</th>
+            <th scope="col" class="num">Meta de aderência</th>
+            <th scope="col" class="num">Meta de PPC</th>
+            <th scope="col">Justificativa de desvio</th>
+            <th scope="col" class="num">Empresas com janela</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            <th scope="row">{{ linha.projeto }}</th>
+            <td class="num">{{ linha.meta_aderencia }}%</td>
+            <td class="num">{{ linha.meta_ppc }}%</td>
+            <td>{% if linha.exige_justificativa %}Acima de {{ linha.limite_desvio }}%{% else %}Não exige{% endif %}</td>
+            <td class="num">{{ linha.janelas }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty" data-estado="vazio-origem">
+        <h2 class="h-card4">Nenhum projeto cadastrado</h2>
+        <p>Crie um projeto para configurar a programação dele.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  {% set leitura = not pode_editar %}
+  <p class="hint config__projeto">Projeto: <strong>{{ projeto }}</strong></p>
+  {% if aviso %}<div class="aviso aviso--info config__aviso" role="status"><span>{{ aviso }}</span></div>{% endif %}
+
+  <section class="card mb-16" aria-labelledby="titulo-parametros">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="titulo-parametros">Parâmetros</h2>
+        <p class="hint">Metas dos indicadores, semana de referência e a regra do desvio. Valem na hora para este projeto.</p>
+      </div>
+    </div>
+    <div class="card__body">
+      <form method="post" action="{{ parametros_url }}" x-target="config-area" data-tn-loading="Salvando os parâmetros..."
+        x-data="{ exige: {{ 'true' if parametros.exige_justificativa else 'false' }} }">
+        <input type="hidden" name="versao" value="{{ parametros.versao }}" />
+        <div class="fgrid">
+          <div class="field">
+            <label for="cfg-meta-aderencia">Meta de aderência (%)</label>
+            <input id="cfg-meta-aderencia" class="input" type="text" inputmode="decimal" name="meta_aderencia"
+              value="{{ parametros.meta_aderencia }}" {{ 'disabled' if leitura }} />
+            <span class="hint">Total realizado sobre o total previsto da semana.</span>
+          </div>
+          <div class="field">
+            <label for="cfg-meta-ppc">Meta de PPC médio (%)</label>
+            <input id="cfg-meta-ppc" class="input" type="text" inputmode="decimal" name="meta_ppc"
+              value="{{ parametros.meta_ppc }}" {{ 'disabled' if leitura }} />
+            <span class="hint">Média do PPC das atividades programadas.</span>
+          </div>
+          <div class="field">
+            <label for="cfg-semana-referencia">Semana de referência</label>
+            <input id="cfg-semana-referencia" class="input" type="text" name="semana_referencia" placeholder="{{ semana_atual }}"
+              value="{{ parametros.semana_referencia }}" autocomplete="off" {{ 'disabled' if leitura }} />
+            <span class="hint">Semana em que a programação abre. Vazia, abre na semana atual.</span>
+          </div>
+          <div class="field">
+            <label for="cfg-limite-desvio">Limite de desvio sem justificativa (%)</label>
+            <input id="cfg-limite-desvio" class="input" type="text" inputmode="decimal" name="limite_desvio_justificativa"
+              value="{{ parametros.limite_desvio }}" x-bind:disabled="{{ 'true' if leitura else '!exige' }}" />
+            <span class="hint">Acima disso, o realizado precisa de justificativa.</span>
+          </div>
+        </div>
+        <div class="field mt-16">
+          <label class="toggle" :class="exige ? 'toggle is-active' : 'toggle'">
+            <input type="checkbox" class="sr-only" x-model="exige" aria-label="Exigir justificativa quando o desvio passar do limite" {{ 'disabled' if leitura }} />
+            <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            Exigir justificativa acima do limite
+          </label>
+          <input type="hidden" name="exige_justificativa_desvio" :value="exige ? 'sim' : 'nao'" />
+        </div>
+        {% if not leitura %}
+        <div class="acoes-rodape">
+          <button type="submit" class="btn btn--primary">Salvar os parâmetros</button>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </section>
+
+  <div class="aviso aviso--info mb-16">
+    <span>
+      <strong>Como a janela funciona.</strong>
+      A regra vale para a empresa, não para a pessoa. A liberação extraordinária vence tudo; depois, a semana precisa estar
+      liberada; por último, o dia e o horário precisam ser os de agora. Fora disso a empresa consulta, mas não edita.
+      Sem nenhum dia marcado, vale qualquer dia das semanas liberadas.
+    </span>
+  </div>
+
+  {% for janela in janelas %}
+  <section class="card mb-16" aria-labelledby="titulo-janela-{{ janela.empresa_id }}">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="titulo-janela-{{ janela.empresa_id }}">{{ janela.empresa }}</h2>
+        <p class="hint">
+          <span class="pill {{ 'pill--ok' if janela.aberta else 'pill--warn' }}">{{ 'Aberta agora' if janela.aberta else 'Fechada agora' }}</span>
+          {{ janela.motivo }}
+        </p>
+      </div>
+      <span class="chip chip--info">{{ janela.quantidade_semanas }} semana(s) liberada(s)</span>
+    </div>
+    <div class="card__body">
+      <form method="post" action="{{ janela_url }}" x-target="config-area" data-tn-loading="Salvando a janela..."
+        x-data="{ marcar(seletor, valor) { $el.querySelectorAll(seletor).forEach(function (campo) { campo.checked = valor; }); } }">
+        <input type="hidden" name="empresa" value="{{ janela.empresa_id }}" />
+        <input type="hidden" name="versao" value="{{ janela.versao }}" />
+
+        <h3 class="h-card5">Dias e horários</h3>
+        <p class="hint">Marque os dias em que a empresa pode escrever e o horário de cada um.</p>
+        <div class="config__dias">
+          {% for dia in janela.dias %}
+          <div class="config__dia">
+            <label class="config__dia-nome">
+              <input type="checkbox" name="dia_{{ dia.n }}" value="1" {{ 'checked' if dia.marcado }} {{ 'disabled' if leitura }} />
+              {{ dia.nome }}
+            </label>
+            <label class="sr-only" for="abre-{{ janela.empresa_id }}-{{ dia.n }}">Abre às, {{ dia.nome }}</label>
+            <input id="abre-{{ janela.empresa_id }}-{{ dia.n }}" class="input" type="time" name="abre_{{ dia.n }}" value="{{ dia.abre }}" {{ 'disabled' if leitura }} />
+            <label class="sr-only" for="fecha-{{ janela.empresa_id }}-{{ dia.n }}">Fecha às, {{ dia.nome }}</label>
+            <input id="fecha-{{ janela.empresa_id }}-{{ dia.n }}" class="input" type="time" name="fecha_{{ dia.n }}" value="{{ dia.fecha }}" {{ 'disabled' if leitura }} />
+          </div>
+          {% endfor %}
+        </div>
+
+        <h3 class="h-card5 mt-24">Semanas liberadas</h3>
+        <p class="hint">Clique nas pastilhas para marcar. Os atalhos de trimestre e de ano marcam tudo de uma vez.</p>
+        {% for bloco in anos %}
+        <div class="config__ano">
+          <div class="config__ano-topo">
+            <span class="config__ano-rotulo">{{ bloco.ano }}</span>
+            {% if not leitura %}
+            <span class="config__atalhos">
+              {% for trimestre in [1, 2, 3, 4] %}
+              <button type="button" class="btn btn--ghost btn--sm"
+                @click="marcar('[data-ano=\'{{ bloco.ano }}\'][data-tri=\'{{ trimestre }}\']', true)">T{{ trimestre }}</button>
+              {% endfor %}
+              <button type="button" class="btn btn--ghost btn--sm" @click="marcar('[data-ano=\'{{ bloco.ano }}\']', true)">Ano inteiro</button>
+              <button type="button" class="btn btn--ghost btn--sm" @click="marcar('[data-ano=\'{{ bloco.ano }}\']', false)">Limpar</button>
+            </span>
+            {% endif %}
+          </div>
+          <div class="config__semanas">
+            {% for semana in bloco.semanas %}
+            <label class="pastilha-semana{{ ' is-passada' if semana.passada }}" title="{{ semana.id }} · {{ semana.periodo }}">
+              <input type="checkbox" name="semanas" value="{{ semana.id }}" data-ano="{{ bloco.ano }}" data-tri="{{ semana.trimestre }}"
+                {{ 'checked' if semana.id in janela.semanas }} {{ 'disabled' if leitura }} />
+              {{ semana.numero }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+
+        <h3 class="h-card5 mt-24">Liberação extraordinária</h3>
+        <p class="hint">Abre uma semana por um período absoluto, ignorando dia e horário. Vence a regra nos dois sentidos: fora do intervalo, a semana fica fechada.</p>
+        {% if janela.extras %}
+        <ul class="config__extras">
+          {% for extra in janela.extras %}
+          <li class="chip">
+            {{ extra.semana }} · {{ extra.abre }} até {{ extra.fecha }}
+            {% if not leitura %}
+            <button type="submit" class="btn btn--ghost btn--sm" name="remover_extra" value="{{ extra.semana }}"
+              aria-label="Remover a liberação extraordinária de {{ extra.semana }}">Remover</button>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if not leitura %}
+        <div class="fgrid config__extra-novo">
+          <div class="field">
+            <label for="ex-semana-{{ janela.empresa_id }}">Semana</label>
+            <input id="ex-semana-{{ janela.empresa_id }}" class="input" type="text" name="extra_semana" placeholder="{{ semana_atual }}" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="ex-abre-{{ janela.empresa_id }}">Abre em</label>
+            <input id="ex-abre-{{ janela.empresa_id }}" class="input" type="datetime-local" name="extra_abre" />
+          </div>
+          <div class="field">
+            <label for="ex-fecha-{{ janela.empresa_id }}">Fecha em</label>
+            <input id="ex-fecha-{{ janela.empresa_id }}" class="input" type="datetime-local" name="extra_fecha" />
+          </div>
+        </div>
+        <div class="acoes-rodape">
+          <button type="submit" class="btn btn--primary">Salvar a janela de {{ janela.empresa }}</button>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </section>
+  {% else %}
+  <div class="card">
+    <div class="card__body">
+      <div class="empty" data-estado="vazio-origem">
+        <h2 class="h-card4">Nenhuma empresa cadastrada</h2>
+        <p>Cadastre as empresas em Configurações, em Empresas, para configurar as janelas.</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
