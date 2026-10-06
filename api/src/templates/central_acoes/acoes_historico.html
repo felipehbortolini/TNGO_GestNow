@@ -1,0 +1,39 @@
+{% extends "base_fragment.html" %}
+{#
+  Histórico de replanejamentos de uma ação (HU-053), no modal da tela Ações: quando foi registrado,
+  de que data para que data, por quem e a justificativa. A data prevista original nunca muda.
+
+  Espera: acao, linhas (registered_on, from_date, to_date, author_name, justification) e formatar_data.
+#}
+{% block fragment %}
+<p class="body-txt mb-16">Prevista original: <strong>{{ formatar_data(acao.planned_date) }}</strong></p>
+{% if linhas %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Replanejamentos da ação</caption>
+    <thead>
+      <tr>
+        <th scope="col">Registrado em</th>
+        <th scope="col">De</th>
+        <th scope="col">Para</th>
+        <th scope="col">Por</th>
+        <th scope="col">Justificativa</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in linhas %}
+      <tr>
+        <td class="num">{{ formatar_data(linha.registered_on) }}</td>
+        <td class="num">{{ formatar_data(linha.from_date) }}</td>
+        <td class="num">{{ formatar_data(linha.to_date) }}</td>
+        <td>{{ linha.author_name }}</td>
+        <td>{{ linha.justification }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="body-txt muted">Esta ação nunca foi replanejada.</p>
+{% endif %}
+{% endblock %}

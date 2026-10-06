@@ -25,6 +25,7 @@ from src.core.config import load_local_settings  # noqa: E402
 load_local_settings()
 
 from src.blueprints import acesso, attachments, exports, health, importing, nav  # noqa: E402
+from src.modulos.central_acoes import routes as central_acoes  # noqa: E402
 
 # Only tells the shell that someone is signed in. In demonstration the API does
 # not take the identity from here: it comes from the profile selector in the
@@ -83,6 +84,34 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
     ("GET", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/modelo$"), importing.import_template),
     ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/conferir$"), importing.import_check),
     ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/confirmar$"), importing.import_confirm),
+    ("GET", re.compile(r"^/api/central-acoes/acoes$"), central_acoes.list_actions_screen),
+    ("GET", re.compile(r"^/api/central-acoes/acoes/excel$"), central_acoes.actions_excel),
+    ("GET", re.compile(r"^/api/central-acoes/acoes/imprimivel$"), central_acoes.actions_printable),
+    (
+        "GET",
+        re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/replanejar$"),
+        central_acoes.replan_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/replanejar$"),
+        central_acoes.replan_save,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/concluir$"),
+        central_acoes.complete_form,
+    ),
+    (
+        "POST",
+        re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/concluir$"),
+        central_acoes.complete_save,
+    ),
+    (
+        "GET",
+        re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/historico$"),
+        central_acoes.replan_history_view,
+    ),
 ]
 
 

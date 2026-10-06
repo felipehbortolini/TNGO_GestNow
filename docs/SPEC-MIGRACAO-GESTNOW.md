@@ -1358,6 +1358,9 @@ do dono".
 | Decisão da execução (ISSUE-029), pendente de revisão do dono | EAC no Portfólio | somente leitura, linha 0 = portfólio, nível 1 = projeto, nível 2 = pacotes principais, com coluna de peso na carteira | D8, ISSUE-029 |
 | Decisão da execução (ISSUE-029), pendente de revisão do dono | Valor orçado | calculado como quantidade x preço unitário em centavos, sem usar o `base` arredondado do protótipo (divergência registrada, pendente de aceite) | D6, ISSUE-029 |
 | Decisão da execução (ISSUE-029), pendente de revisão do dono | Edição cadastral do item | descrição, tipo, classificação, centro de custo e responsável exigem justificativa, sem SM, com histórico e controle de versão | D5, ISSUE-029 |
+| Decisão da execução (ISSUE-019), pendente de revisão do dono | ação da Punch list | replanejar e concluir ficam no registro de origem; a Central mostra e linka | D9, ISSUE-019 |
+| Decisão da execução (ISSUE-019), pendente de revisão do dono | ata_id sem chave estrangeira | a FK entra com as atas na ISSUE-021 | D9, ISSUE-019 |
+| Decisão da execução (ISSUE-019), pendente de revisão do dono | oráculo das 8 atrasadas | vale para o projeto TN-2026-014 (tela do protótipo); portfólio dá 14 | D6, ISSUE-019 |
 
 ---
 

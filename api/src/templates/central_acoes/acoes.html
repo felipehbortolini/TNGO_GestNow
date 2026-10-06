@@ -1,0 +1,274 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Ações da Central (HU-047, HU-048): KPIs clicáveis, chips dos filtros, barra de
+  ferramentas, e a lista ou o kanban. O fragmento é um só e se pede de novo, com os filtros na
+  consulta, a cada clique: KPI, chip, visão, página e busca são links ou um formulário GET
+  com x-target no próprio fragmento. O filtro completo (modal) mora no <template> do fim: a
+  página (acoes.js) o abre no modal do Design System.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, visao, kpis, chips, colunas_do_quadro, links_de_visao, link_anterior,
+  link_proximo, link_limpar, tem_filtro_extra, url_excel, url_pdf, consulta, parametro_consulta,
+  origens, opcoes_de_status, portfolio, pode_gravar, etiqueta_de_status, formatar_data,
+  pagina_inicial e pagina_final.
+#}
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, icone) %}
+<button type="button" class="iconbtn" data-acoes-modal-url="{{ url }}"
+  data-acoes-modal-titulo="{{ titulo }}" data-acoes-modal-subtitulo="{{ subtitulo }}"
+  aria-label="{{ rotulo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+</button>
+{% endmacro %}
+
+{% macro origem_com_link(linha) %}
+{% if linha.link.has_link %}
+<a href="{{ linha.link.url }}" data-tn-tela>{{ linha.link.reference }}</a>
+{% elif linha.link.reference %}
+<span class="acoes__sem-link" title="O registro de origem ainda não tem tela própria">{{ linha.link.reference }}</span>
+{% else %}
+<span class="muted">—</span>
+{% endif %}
+{% endmacro %}
+
+{% macro acoes_da_linha(linha) %}
+{% set registro = linha.record %}
+{% set referencia = (registro.origin_ref or registro.origin) ~ ' · ' ~ registro.subject %}
+{% if linha.treated_at_source and linha.link.has_link %}
+<a class="iconbtn" href="{{ linha.link.url }}" data-tn-tela aria-label="Abrir {{ registro.origin_ref }} em {{ registro.origin }}" title="Tratada em {{ registro.origin }}">
+  <span x-init="$el.innerHTML = window.icon('arrowRight', 16)" aria-hidden="true"></span>
+</a>
+{% endif %}
+{% if pode_gravar and linha.can_change %}
+{{ botao_do_modal('/api/central-acoes/acoes/' ~ registro.id ~ '/replanejar?' ~ parametro_consulta, 'Registrar replanejamento', referencia, 'Registrar replanejamento', 'calendar') }}
+{{ botao_do_modal('/api/central-acoes/acoes/' ~ registro.id ~ '/concluir?' ~ parametro_consulta, 'Concluir ação', referencia, 'Concluir ação', 'check') }}
+{% endif %}
+{% if linha.replan_count %}
+{{ botao_do_modal('/api/central-acoes/acoes/' ~ registro.id ~ '/historico', 'Justificativas de replanejamento', referencia, 'Justificativas de replanejamento (' ~ linha.replan_count ~ ')', 'clock') }}
+{% endif %}
+{{ botao_do_modal('/api/anexos?origem=acao&registro=' ~ registro.id, 'Anexos da ação', referencia, 'Anexos da ação', 'file') }}
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis acoes__kpis" style="--kpis-colunas: 4">
+  {% for kpi in kpis %}
+  <a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+    x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+    <span class="acoes__kpi-texto">
+      <span class="kpi__label">{{ kpi.label }}</span>
+      <span class="hint">{{ kpi.reference_label }}: {{ kpi.reference_value }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    </span>
+    <span class="kpi__value">{{ kpi.value }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/central-acoes/acoes" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar ações</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120"
+          placeholder="Assunto, descrição, referência, responsável..." />
+        {% if filtros.origin %}<input type="hidden" name="origem" value="{{ filtros.origin }}" />{% endif %}
+        {% if filtros.responsible_id is not none %}<input type="hidden" name="responsavel" value="{{ filtros.responsible_id }}" />{% endif %}
+        <input type="hidden" name="status" value="{{ filtros.status.value }}" />
+        {% if visao == 'kanban' %}<input type="hidden" name="visao" value="kanban" />{% endif %}
+      </form>
+      <div class="acoes__barra">
+        <div class="seg" role="group" aria-label="Visão das ações">
+          <a class="seg__btn{% if visao == 'lista' %} is-active{% endif %}" href="{{ links_de_visao.lista }}"
+            x-target="{{ target_id }}"{% if visao == 'lista' %} aria-current="true"{% endif %}>Lista</a>
+          <a class="seg__btn{% if visao == 'kanban' %} is-active{% endif %}" href="{{ links_de_visao.kanban }}"
+            x-target="{{ target_id }}"{% if visao == 'kanban' %} aria-current="true"{% endif %}>Kanban</a>
+        </div>
+        <button type="button" class="btn btn--secondary" data-acoes-filtros>
+          <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
+          Filtros
+        </button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+
+    <div class="acoes__chips" aria-label="Filtros ativos">
+      <span class="hint">Filtros ativos:</span>
+      {% for chip in chips %}
+      <span class="chip">
+        <span>{{ chip.text }}</span>
+        {% if chip.removable %}
+        <a class="acoes__chip-remover" href="{{ chip.url }}" x-target="{{ target_id }}" aria-label="Remover filtro {{ chip.text }}">
+          <span x-init="$el.innerHTML = window.icon('dismiss', 12)" aria-hidden="true"></span>
+        </a>
+        {% endif %}
+      </span>
+      {% endfor %}
+      {% if tem_filtro_extra %}
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      {% endif %}
+    </div>
+
+    <p class="hint acoes__contagem" role="status">
+      {{ listagem.total }} {{ 'ação' if listagem.total == 1 else 'ações' }} no filtro atual
+    </p>
+
+    {% if listagem.universe == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há ações</h2>
+      <p>As ações nascem nos registros de origem: atas, riscos, RNC, contratos, suprimentos e os demais módulos.</p>
+    </div>
+    {% elif visao == 'kanban' %}
+    {% if not listagem.board %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+      <p>Ajuste ou limpe os filtros para ver as ações.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="acoes__quadro">
+      {% for coluna in colunas_do_quadro %}
+      <section class="acoes__coluna" aria-label="{{ coluna.title }}">
+        <header class="acoes__coluna-cabeca">
+          <h3 class="h-card5">{{ coluna.title }}</h3>
+          <span class="pill pill--neutral">{{ coluna.rows|length }}</span>
+        </header>
+        {% for linha in coluna.rows %}
+        {% set registro = linha.record %}
+        <article class="acoes__card acoes__card--{{ coluna.tone }}">
+          <p class="acoes__card-titulo">{{ registro.subject }}</p>
+          <p class="acoes__card-meta">
+            {% if portfolio %}<span class="pill pill--neutral">{{ linha.project_label }}</span>{% endif %}
+            <span class="pill pill--neutral">{{ registro.origin }}</span>
+            {{ origem_com_link(linha) }}
+          </p>
+          <p class="acoes__card-meta">
+            <span>{{ linha.responsible_name }}</span>
+            <span class="num">
+              {% if registro.status.value == 'concluida' %}Concluída {{ formatar_data(registro.completed_on) }}
+              {% else %}{{ formatar_data(registro.due_date) }}{% if registro.days_overdue %} · {{ registro.days_overdue }} d{% endif %}{% endif %}
+            </span>
+          </p>
+          <div class="acoes__card-acoes">{{ acoes_da_linha(linha) }}</div>
+        </article>
+        {% else %}
+        <p class="hint">Nenhuma ação.</p>
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% elif not listagem.rows %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+      <p>Ajuste ou limpe os filtros para ver as ações.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Ações da Central</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Origem</th>
+            <th scope="col">Ata</th>
+            <th scope="col">Item</th>
+            <th scope="col">Assunto / Descrição</th>
+            <th scope="col">Responsável</th>
+            <th scope="col">Prevista</th>
+            <th scope="col">Replanejada</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_rows %}
+          {% set registro = linha.record %}
+          <tr{% if registro.status.value == 'atrasada' %} class="acoes__linha--atrasada"{% endif %}>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td>
+              <span class="pill {{ 'pill--fix' if registro.origin == 'Ata' else 'pill--neutral' }}">{{ registro.origin }}</span>
+              {% if registro.origin != 'Ata' %}<br />{{ origem_com_link(linha) }}{% endif %}
+            </td>
+            <td>{% if registro.origin == 'Ata' %}{{ origem_com_link(linha) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="num">{{ registro.item or '—' }}</td>
+            <td>
+              <span class="fw-600">{{ registro.subject }}</span>
+              {% if registro.description %}<br /><span class="hint">{{ registro.description }}</span>{% endif %}
+            </td>
+            <td>{{ linha.responsible_name }}</td>
+            <td class="num">{{ formatar_data(registro.planned_date) }}</td>
+            <td class="num">{{ formatar_data(registro.replanned_date) }}</td>
+            <td>
+              <span class="pill {{ etiqueta_de_status[registro.status] }}">{{ registro.status_label }}</span>
+              {% if registro.days_overdue %}<br /><span class="hint">há {{ registro.days_overdue }} {{ 'dia' if registro.days_overdue == 1 else 'dias' }}</span>{% endif %}
+            </td>
+            <td class="acoes__acoes">{{ acoes_da_linha(linha) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="acoes__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+<template data-acoes-filtros-modelo>
+  <form method="get" action="/api/central-acoes/acoes" x-target="{{ target_id }}"
+    @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
+    <div class="fgrid">
+      <div class="field field--full">
+        <label for="{{ target_id }}-f-busca">Busca livre</label>
+        <input id="{{ target_id }}-f-busca" class="input" type="text" name="busca" maxlength="120"
+          value="{{ filtros.search }}" placeholder="Assunto, descrição, referência, responsável..." />
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-origem">Origem</label>
+        <select id="{{ target_id }}-f-origem" class="input" name="origem">
+          <option value="">Todas as origens</option>
+          {% for origem in origens %}
+          <option value="{{ origem }}"{% if filtros.origin == origem %} selected{% endif %}>{{ origem }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="{{ target_id }}-f-status">Status</label>
+        <select id="{{ target_id }}-f-status" class="input" name="status">
+          {% for valor, texto in opcoes_de_status %}
+          <option value="{{ valor }}"{% if filtros.status.value == valor %} selected{% endif %}>{{ texto }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field--full">
+        <label for="{{ target_id }}-f-responsavel">Responsável</label>
+        <select id="{{ target_id }}-f-responsavel" class="input" name="responsavel">
+          <option value="">Todos</option>
+          {% for pessoa in listagem.responsibles %}
+          <option value="{{ pessoa.id }}"{% if filtros.responsible_id == pessoa.id %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    {% if visao == 'kanban' %}<input type="hidden" name="visao" value="kanban" />{% endif %}
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>Cancelar</button>
+      <button type="submit" class="btn btn--primary">Consultar</button>
+    </div>
+  </form>
+</template>
+{% endblock %}

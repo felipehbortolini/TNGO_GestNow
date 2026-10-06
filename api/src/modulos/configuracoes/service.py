@@ -14,7 +14,7 @@ type and the value as text (lists use the index in the path).
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -401,6 +401,17 @@ def portfolio_grades(session: Session, *, reference_date: date) -> dict[int, dic
     for row in session.execute(statement):
         grades.setdefault(row.project_id, {})[row.criterion] = row.grade
     return grades
+
+
+def find_people(session: Session, ids: Collection[int]) -> dict[int, PersonSummary]:
+    """The people with the ids, by id; an id with no person is simply absent from the answer."""
+    if not ids:
+        return {}
+    statement = select(Person.id, Person.name, Person.email).where(Person.id.in_(set(ids)))
+    return {
+        row.id: PersonSummary(id=row.id, name=row.name, email=row.email)
+        for row in session.execute(statement)
+    }
 
 
 @dataclass(frozen=True)

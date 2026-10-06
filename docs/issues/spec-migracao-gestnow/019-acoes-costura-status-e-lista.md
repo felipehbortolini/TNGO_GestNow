@@ -1,7 +1,7 @@
 ---
 id: ISSUE-019
 title: "Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -67,17 +67,17 @@ de módulos que ainda não existem são registrados nas issues deles.
 
 ## Critérios de aceite
 
-- [ ] A função de criação é a única forma de gravar ação, e grava origem e referência.
-- [ ] O status é calculado com a data injetada nos quatro casos, com teste de fronteira (prevista igual a hoje).
-- [ ] Os KPIs filtram a lista, os filtros viram chips removíveis, e o kanban mostra as mesmas ações por status.
-- [ ] Replanejar sem justificativa é recusado com 422; com justificativa, a data muda e o histórico guarda a justificativa.
-- [ ] O link de origem resolve para os tipos registrados e, para os que ainda não existem, mostra a referência sem link.
-- [ ] O oráculo afirma 8 ações atrasadas em 25/09/2026.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] A função de criação é a única forma de gravar ação, e grava origem e referência.
+- [x] O status é calculado com a data injetada nos quatro casos, com teste de fronteira (prevista igual a hoje).
+- [x] Os KPIs filtram a lista, os filtros viram chips removíveis, e o kanban mostra as mesmas ações por status.
+- [x] Replanejar sem justificativa é recusado com 422; com justificativa, a data muda e o histórico guarda a justificativa.
+- [x] O link de origem resolve para os tipos registrados e, para os que ainda não existem, mostra a referência sem link.
+- [x] O oráculo afirma 8 ações atrasadas em 25/09/2026.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] No Portfólio, as listas desta fatia trazem a coluna Projeto (também nas exportações), e os botões de inclusão pedem o projeto antes de abrir o formulário.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
 - [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
@@ -95,3 +95,12 @@ Nenhuma.
 Fonte: tela Ações do protótipo, `GI.api.central.acoes` e `resumo`, regra do
 status em `regras.js`, `mock-central`; README, seção 3, "01 Central de Ações".
 A origem "Pendências" do sistema antigo se chama Punch list.
+
+## Registro de execução
+
+Data: 2026-10-06. Nada rodado (política do dono); só ruff format/check nos testes.
+Feito: modelo e migração m019_acoes, costura `create_action`, status calculado, links de origem (`core/origin_links.py`), rotas, templates, view/js/css, Excel e PDF, seed, oráculo (8 atrasadas, projeto 1), testes de cálculo, origem, validação, serviço e rota, LEIA-ME.
+Falta: porta de qualidade e execução dos testes (orquestrador).
+DECISÃO: ação da Punch list | replanejar e concluir ficam no registro de origem; a Central mostra e linka | D9, ISSUE-019
+DECISÃO: ata_id sem chave estrangeira | a FK entra com as atas na ISSUE-021 | D9, ISSUE-019
+DECISÃO: oráculo das 8 atrasadas | vale para o projeto TN-2026-014 (tela do protótipo); portfólio dá 14 | D6, ISSUE-019

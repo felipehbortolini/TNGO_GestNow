@@ -8,9 +8,155 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-019 e ISSUE-020.
+   O que a tela acrescenta ao Design System: o texto de duas linhas do KPI clicável, a barra de
+   ferramentas (visão, filtros e exportação), os chips removíveis, a linha atrasada, a paginação
+   e o kanban por status (ISSUE-019). O fragmento é desenhado pelo servidor
+   (api/src/templates/central_acoes/acoes.html).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--central_acoes-acoes a.kpi,
+.pagina--central_acoes-acoes a.seg__btn,
+.pagina--central_acoes-acoes a.iconbtn {
+  text-decoration: none;
+}
+
+.pagina--central_acoes-acoes a.kpi {
+  color: inherit;
+}
+
+.pagina--central_acoes-acoes .acoes__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--central_acoes-acoes .acoes__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-acoes .acoes__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--central_acoes-acoes .acoes__chip-remover {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  border-radius: var(--r-sm);
+}
+
+.pagina--central_acoes-acoes .acoes__chip-remover:hover {
+  background: var(--neutro-200);
+}
+
+.pagina--central_acoes-acoes .acoes__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--central_acoes-acoes .acoes__sem-link {
+  color: var(--text-secondary);
+}
+
+.pagina--central_acoes-acoes .acoes__linha--atrasada td {
+  background: var(--erro-50);
+}
+
+.pagina--central_acoes-acoes .acoes__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--central_acoes-acoes .acoes__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+/* ---------- Kanban por status ---------- */
+
+.pagina--central_acoes-acoes .acoes__quadro {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.pagina--central_acoes-acoes .acoes__coluna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--neutro-50);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+
+.pagina--central_acoes-acoes .acoes__coluna-cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-acoes .acoes__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-left: 4px solid var(--azul-500);
+  border-radius: var(--r-md);
+}
+
+.pagina--central_acoes-acoes .acoes__card--erro {
+  border-left-color: var(--erro-500);
+}
+
+.pagina--central_acoes-acoes .acoes__card--ok {
+  border-left-color: var(--ok-500);
+}
+
+.pagina--central_acoes-acoes .acoes__card-titulo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pagina--central_acoes-acoes .acoes__card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--central_acoes-acoes .acoes__card-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+@media (max-width: 1100px) {
+  .pagina--central_acoes-acoes .acoes__quadro {
+    grid-template-columns: 1fr;
+  }
+}

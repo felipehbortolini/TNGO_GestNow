@@ -72,4 +72,46 @@ Não há grupo de parâmetros próprio definido nesta issue. Numeração, data d
 | Tela, estilo e comportamento | `app/_views/central_acoes/` e `app/paginas/central_acoes/` |
 | Testes | `api/tests/central_acoes/` |
 
-Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-019 a ISSUE-022 completam este documento e acrescentam testes das regras.
+As ISSUE-020 a ISSUE-022 completam este documento com o painel e as atas.
+
+## O que a ISSUE-019 trouxe
+
+Tela Ações (`app/_views/central_acoes/acoes.html`): KPIs clicáveis (Em dia, Atrasadas, Concluídas, Total), filtros em modal (busca, origem, status, responsável) com chips removíveis, lista paginada, kanban por status, replanejar com justificativa, concluir, histórico de replanejamentos, Excel e versão imprimível (PDF). No Portfólio a lista traz a coluna Projeto.
+
+### Rotas (`/api/central-acoes/acoes`)
+
+| Rota | Uso |
+|---|---|
+| `GET acoes` | Tela; filtros na consulta (`busca`, `origem`, `status`, `responsavel`, `pagina`, `visao=kanban`) |
+| `GET acoes/excel`, `GET acoes/imprimivel` | Exportações do mesmo filtro |
+| `GET/POST acoes/{acao_id}/replanejar` | Formulário e gravação; 422 sem justificativa, 409 se a versão mudou |
+| `GET/POST acoes/{acao_id}/concluir` | Conclusão com data (não futura) |
+| `GET acoes/{acao_id}/historico` | Justificativas dos replanejamentos |
+
+### Fórmulas (`calculations.py`)
+
+| Termo | Nome no código |
+|---|---|
+| Status da ação (Informação, Concluída, Atrasada, Em andamento) | `action_status` |
+| Prazo vigente (replanejada, senão prevista) | `effective_due_date` |
+| Dias de atraso | `days_overdue` |
+| Atrasadas / Em dia / Concluídas / Total | `overdue_action_count`, `counts_by_status`, `due_by_reference_count` |
+| Filtro Em andamento inclui atrasadas | `matches_status_filter` |
+
+A fronteira é a prevista igual à data de referência: ainda em andamento.
+
+### API pública da costura (para os demais módulos)
+
+| Função | Quando chamar |
+|---|---|
+| `service.create_action(session, user=, new=NewAction(...), reference_date=)` | Única forma de gravar uma ação; exige origem (uma de `origins.ORIGINS`), referência do registro de origem, assunto e, para Ação, data prevista |
+| `service.close_from_origin(session, user=, origin=OriginRef, completed_on=, reference_date=)` | O registro de origem foi encerrado na tela do módulo dono: conclui as ações abertas dele |
+| `service.reopen_from_origin(session, user=, origin=OriginRef, reference_date=)` | O registro de origem foi reaberto |
+| `origins.register_reaction(origem, reacao)` | O módulo dono diz como reage quando a ação é replanejada ou concluída na Central (`reacao(session, user, action, ActionEvent)`, mesma transação; pode recusar) |
+| `origin_links.register(OriginLinkType(kind=, build=))` (`src/core/origin_links.py`) | O módulo dono registra o link de volta; sem registro, a tela mostra só a referência |
+
+Ligações pendentes: cada módulo de origem registra o seu tipo de link e a sua reação na issue dele (Riscos, Qualidade, HSE, Mudanças, Lições, Produtividade, Contratos, Suprimentos); a Ata, na ISSUE-021. Ação da Punch list é tratada no registro de origem (replanejar e concluir ficam fora da Central).
+
+### Carga e oráculo
+
+`seed.py` grava as 60 ações do protótipo e as 19 derivadas da Punch list pela costura. `api/tests/oraculo/test_oraculo_acoes.py` afirma 8 atrasadas no projeto TN-2026-014 em 25/09/2026 (portfólio: 14 atrasadas, 36 em dia, 26 concluídas).

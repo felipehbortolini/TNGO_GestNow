@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 19 de 93 -->
+<!-- Progresso da migração: 20 de 93 -->
 
 # Progresso da migração
 
-**19 de 93 issues concluídas** (última fechada: ISSUE-029). Atualizado em 06/10/2026 12:34 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**20 de 93 issues concluídas** (última fechada: ISSUE-029). Atualizado em 06/10/2026 12:36 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 19 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 029 |
-| em andamento | 5 | 019, 023, 044, 045, 051 |
+| concluída | 20 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 029 |
+| em andamento | 4 | 023, 044, 045, 051 |
 | na fila | 69 | 020 a 093 |
 
 ## Concluídas
@@ -32,13 +32,13 @@
 | ISSUE-016 | Biblioteca de gráficos 3: Gantt, calendário, galeria, cards de formulário, áreas, tabelas formatadas e os visuais novos | `c0e3a90` |
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | `128eb77` |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | `f332a9a` |
-| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | - |
+| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | - |
+| ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | na fila | ISSUE-019 |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
