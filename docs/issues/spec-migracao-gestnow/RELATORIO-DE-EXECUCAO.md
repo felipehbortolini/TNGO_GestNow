@@ -55,3 +55,11 @@ e 5 da ISSUE-004.
 
 **Estado da fila:** ISSUE-001 a ISSUE-004 `done`; a fila continua na entrega 2
 (ISSUE-005).
+
+## Estado parcial (06/10/2026, durante as entregas 2 a 7)
+
+- Concluídas e na `main`: ver `PROGRESSO.md` (gerado por `scripts/execucao/gerar_progresso.py`). Em andamento com código parcial nos ramos remotos `wip/ISSUE-NNN`: 020, 027, 064 e 072.
+- Nenhum teste nem a porta de qualidade rodaram ainda (política: só no fim de cada entrega e na etapa final). Pendências já conhecidas para essa etapa: `ruff` PLR0913 em três funções de `api/src/modulos/configuracoes/service.py`; revisar a duplicação entre `core/responses.file_response` e o `_content_disposition` da ISSUE-012; reconferir os testes de rota/serviço escritos sem execução (fixtures e `_user_of` de `core.auth`).
+- Decisões das issues concluídas já estão no Histórico de decisões da spec ("pendente de revisão do dono"). Divergências com o protótipo: ver `DIVERGENCIAS-DO-PROTOTIPO.md` (EAC, ISSUE-029) e a pendência sobre o marcador de meta dos Relógios (ISSUE-014).
+- Duas issues do mesmo módulo não rodam em paralelo (conflitos em `models`, `service`, `routes`); migrações usam `m<NNN>` e são reencadeadas pelo orquestrador (`scripts/execucao/reencadear_migracao.py`).
+- Retomada: ao fim do limite de sessão, relançar os agentes de 020, 027, 064 e 072 a partir de `wip/ISSUE-NNN` e seguir a fila (W4 em diante).

@@ -8,9 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "docs/issues/spec-migracao-gestnow/index.md"
-ROW = re.compile(
-    r"\| ISSUE-(\d+) \| (.*?) \| (\d+) \| \w+ \| ([a-z-]+) \| [a-z-]+ \| (.*?) \|"
-)
+ROW = re.compile(r"\| ISSUE-(\d+) \| (.*?) \| (\d+) \| \w+ \| ([a-z-]+) \| [a-z-]+ \| (.*?) \|")
 STATUS_LABEL = {
     "done": "concluída",
     "in-progress": "em andamento",
@@ -33,11 +31,7 @@ def commit_of(number: str) -> str:
 
 def main() -> None:
     """Write PROGRESSO.md."""
-    rows = [
-        m.groups()
-        for m in map(ROW.match, INDEX.read_text(encoding="utf-8").split("\n"))
-        if m
-    ]
+    rows = [m.groups() for m in map(ROW.match, INDEX.read_text(encoding="utf-8").split("\n")) if m]
     by_status: dict[str, list[tuple[str, ...]]] = {}
     for row in rows:
         by_status.setdefault(row[3], []).append(row)
@@ -48,10 +42,12 @@ def main() -> None:
         "",
         "# Progresso da migração",
         "",
-        (f"**{len(done)} de {len(rows)} issues concluídas** (última fechada: ISSUE-{last}). "
-        f"Atualizado em {datetime.now(UTC):%d/%m/%Y %H:%M} UTC por "
-        "`scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do "
-        "`docs/issues/spec-migracao-gestnow/index.md`."),
+        (
+            f"**{len(done)} de {len(rows)} issues concluídas** (última fechada: ISSUE-{last}). "
+            f"Atualizado em {datetime.now(UTC):%d/%m/%Y %H:%M} UTC por "
+            "`scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do "
+            "`docs/issues/spec-migracao-gestnow/index.md`."
+        ),
         "",
         "| Situação | Quantidade | Issues |",
         "|---|---|---|",
@@ -76,14 +72,13 @@ def main() -> None:
             "| Issue | Título | Situação | Bloqueada por |",
             "|---|---|---|---|",
         ]
-        lines += [
-            f"| ISSUE-{n} | {t} | {STATUS_LABEL[s]} | {b} |"
-            for n, t, _e, s, b in pending
-        ]
+        lines += [f"| ISSUE-{n} | {t} | {STATUS_LABEL[s]} | {b} |" for n, t, _e, s, b in pending]
     lines += [
         "",
-        ("Pendências de fonte: `docs/issues/spec-migracao-gestnow/PENDENCIAS-DE-FONTE.md`. "
-        "Retrato por entrega: `docs/issues/spec-migracao-gestnow/RELATORIO-DE-EXECUCAO.md`."),
+        (
+            "Pendências de fonte: `docs/issues/spec-migracao-gestnow/PENDENCIAS-DE-FONTE.md`. "
+            "Retrato por entrega: `docs/issues/spec-migracao-gestnow/RELATORIO-DE-EXECUCAO.md`."
+        ),
         "",
     ]
     (ROOT / "PROGRESSO.md").write_text("\n".join(lines), encoding="utf-8")
