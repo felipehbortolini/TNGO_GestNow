@@ -152,29 +152,14 @@ class LookaheadConstraint(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
 
-<<<<<<< HEAD
 class PunchItem(Base):
     """Item da punch list (ISSUE-049): sistema, TAG, categoria A/B/C, marco, fluxo e verificação."""
 
     __tablename__ = "punch_item"
-=======
-Percent = Numeric(7, 2)
-
-
-class EapItem(Base):
-    """Item of the EAP in three levels: area, subarea and package (work or planning).
-
-    Only the packages carry weight, baseline dates, measuring criterion and progress. The progress
-    is not a column (D5b): it is the last measurement read through the criterion.
-    """
-
-    __tablename__ = "eap_item"
->>>>>>> exec/ISSUE-036
     __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
-<<<<<<< HEAD
     system_id: Mapped[int] = mapped_column("sistema_id", ForeignKey("sistema.id"))
     company_id: Mapped[int | None] = mapped_column("empresa_id", ForeignKey("empresa.id"))
     responsible_id: Mapped[int] = mapped_column("responsavel_id", ForeignKey("pessoa.id"))
@@ -197,7 +182,23 @@ class EapItem(Base):
     cancellation_reason: Mapped[str | None] = mapped_column("justificativa_cancelamento", Text)
     rejections: Mapped[int] = mapped_column("reprovacoes", Integer, server_default=text("0"))
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
-=======
+
+
+Percent = Numeric(7, 2)
+
+
+class EapItem(Base):
+    """Item of the EAP in three levels: area, subarea and package (work or planning).
+
+    Only the packages carry weight, baseline dates, measuring criterion and progress. The progress
+    is not a column (D5b): it is the last measurement read through the criterion.
+    """
+
+    __tablename__ = "eap_item"
+    __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
     parent_id: Mapped[int | None] = mapped_column("pai_id", ForeignKey("eap_item.id"))
     eac_item_id: Mapped[int | None] = mapped_column("eac_item_id", ForeignKey("eac_item.id"))
     unit_id: Mapped[int | None] = mapped_column("unidade_id", ForeignKey("unidade.id"))
@@ -288,4 +289,3 @@ class EapSplit(Base):
     split_on: Mapped[date] = mapped_column("data", Date)
     weight: Mapped[Decimal] = mapped_column("peso", Percent)
     justification: Mapped[str] = mapped_column("justificativa", Text)
->>>>>>> exec/ISSUE-036

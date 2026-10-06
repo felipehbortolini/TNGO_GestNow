@@ -17,11 +17,7 @@ from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.modulos.configuracoes import service as configuracoes
-<<<<<<< HEAD
-from src.modulos.planejamento import seed_punch, seed_relato, service
-=======
-from src.modulos.planejamento import eap_seed, seed_relato, service
->>>>>>> exec/ISSUE-036
+from src.modulos.planejamento import eap_seed, seed_punch, seed_relato, service
 
 PART_NAME = "planejamento"
 ADMIN_PROFILE = "Admin"
@@ -31,11 +27,8 @@ def load(session: Session, reference_date: date) -> None:
     """Write the part of the Planning module, inside the caller's transaction."""
     _load_lookahead(session, reference_date)
     seed_relato.load_reports(session, reference_date)
-<<<<<<< HEAD
     seed_punch.load_items(session, reference_date)
-=======
     eap_seed.load_eap(session, reference_date)
->>>>>>> exec/ISSUE-036
 
 
 def _load_lookahead(session: Session, reference_date: date) -> None:
