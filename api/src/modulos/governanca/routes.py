@@ -46,6 +46,9 @@ from src.modulos.governanca import (
     service,
     validation,
 )
+from src.modulos.governanca import (
+    panel as panel_charts,
+)
 
 bp = func.Blueprint()
 
@@ -142,9 +145,22 @@ def change_register(
         reference_date=calendario.today(),
     )
     template = REGISTER_PARTS_TEMPLATE if _asks_for_parts(req) else REGISTER_TEMPLATE
+    context_data = _register_context(overview, filters, context)
+    if template == REGISTER_TEMPLATE:
+        panel = service.change_panel(
+            session,
+            user=context.user,
+            scope=context.scope,
+            reference_date=calendario.today(),
+        )
+        context_data |= {
+            "painel": panel,
+            "graficos": panel_charts.charts_of(panel),
+            "mes": panel_charts.month_label,
+        }
     return AlpineAjaxResponse(
         template_name=template,
-        context=_register_context(overview, filters, context),
+        context=context_data,
         request=req,
     )
 
@@ -175,8 +191,12 @@ def _register_document(
     overview = service.register_overview(
         session, user=context.user, scope=context.scope, filters=filters, reference_date=today
     )
+    panel = service.change_panel(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
     return export.register_document(
         overview,
+        panel=panel,
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         filters=filters,

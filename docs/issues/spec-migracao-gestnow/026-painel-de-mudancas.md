@@ -1,7 +1,7 @@
 ---
 id: ISSUE-026
 title: "Painel de mudanças"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -53,3 +53,11 @@ Nenhuma.
 ## Notas
 
 Fonte: `GI.api.governanca.painelMudancas`.
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: a aba **Painel** no registro de mudanças (KPIs, gráficos e a tabela do Pareto), os cálculos (`count_lines`, `pareto_lines`, `approval_rate`, `approved_monthly`), a fachada (`service.change_panel`), os gráficos (`panel.py`: `charts_of`, `month_label`), a exportação com as tabelas do painel no Excel e no PDF (`export.register_document`), os testes (`api/tests/governanca/test_painel_mudancas.py`) e o oráculo (`api/tests/governanca/test_oraculo_mudancas_painel.py`).
+- Decisão de execução: o painel é calculado no escopo inteiro da requisição (sem os filtros da tabela), como no protótipo; o pedido de partes do filtro não carrega o painel. Os visuais são os da biblioteca do Design System, sem `<script>` nos fragmentos.
+- Pendência registrada: o consumo da reserva de contingência entra no painel na ISSUE-041, como a issue aponta.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.

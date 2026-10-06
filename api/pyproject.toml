@@ -141,6 +141,13 @@ max-complexity = 10
 # mais indireção.
 "src/modulos/configuracoes/service.py" = ["PLR0913"]
 
+# `register_document` tem 6 parâmetros, e é assim de propósito: depois do `*`
+# são todos KEYWORD-ONLY (panel, scope, projects, filters, today). A regra do
+# clean code existe para argumento posicional, onde a ordem se erra na chamada
+# — problema que argumento nomeado não tem; reduzir significaria criar um
+# objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/governanca/export.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 

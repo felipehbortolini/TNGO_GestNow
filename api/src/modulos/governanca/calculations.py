@@ -8,7 +8,7 @@ LEIA-ME of the module) and a boundary test in ``api/tests/governanca/test_calcul
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -221,6 +221,8 @@ class ChangeFigures:
 
     situation: str
     request_date: date
+    origin: str = ""
+    kind: str = ""
     cost_cents: int | None = None
     term_days: int | None = None
     decision_date: date | None = None
@@ -320,6 +322,130 @@ def mean_decision_days(figures: Sequence[ChangeFigures]) -> int | None:
         return None
     count = len(spans)
     return (2 * sum(spans) + count) // (2 * count)
+
+
+# ── Painel de mudanças (ISSUE-026) ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CountLine:
+    """Uma linha de contagem do painel: o rótulo e o total."""
+
+    label: str
+    total: int
+
+
+@dataclass(frozen=True)
+class ParetoLine:
+    """Uma linha do Pareto: total, participação e percentual acumulado (uma casa)."""
+
+    label: str
+    total: int
+    percent: Decimal
+    cumulative: Decimal
+
+
+@dataclass(frozen=True)
+class ApprovedMonth:
+    """Um mês do painel: aprovadas e solicitadas, com o valor e o prazo acumulados até ele."""
+
+    month: date
+    approved: int
+    requested: int
+    value_cents: int
+    term_days: int
+
+
+def count_lines(labels: Iterable[str], order: Sequence[str]) -> tuple[CountLine, ...]:
+    """As contagens por rótulo: primeiro a ordem fixa pedida, depois o resto em ordem alfabética."""
+    counts: dict[str, int] = {}
+    for label in labels:
+        counts[label] = counts.get(label, 0) + 1
+    remaining = sorted(label for label in counts if label not in order)
+    return tuple(
+        CountLine(label, counts[label]) for label in (*order, *remaining) if label in counts
+    )
+
+
+def pareto_lines(lines: Sequence[CountLine]) -> tuple[ParetoLine, ...]:
+    """O Pareto: maior total primeiro (empate pelo rótulo), com o acumulado fechando em 100%."""
+    total = sum(line.total for line in lines)
+    ordered = sorted(lines, key=lambda line: (-line.total, line.label))
+    result: list[ParetoLine] = []
+    accumulated = 0
+    for line in ordered:
+        accumulated += line.total
+        result.append(
+            ParetoLine(
+                label=line.label,
+                total=line.total,
+                percent=(Decimal(line.total) * PERCENT / Decimal(total)).quantize(
+                    ONE_TENTH, rounding=ROUND_HALF_UP
+                ),
+                cumulative=(Decimal(accumulated) * PERCENT / Decimal(total)).quantize(
+                    ONE_TENTH, rounding=ROUND_HALF_UP
+                ),
+            )
+        )
+    return tuple(result)
+
+
+def approval_rate(figures: Sequence[ChangeFigures]) -> Decimal | None:
+    """Taxa de aprovação: aprovadas sobre decididas, sem as adiadas; ``None`` sem decisão."""
+    approved = sum(1 for item in figures if is_approved(item.situation))
+    rejected = sum(1 for item in figures if item.situation == models.SITUATION_REJECTED)
+    decided = approved + rejected
+    if not decided:
+        return None
+    return (Decimal(approved) * PERCENT / Decimal(decided)).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def approved_monthly(
+    figures: Sequence[ChangeFigures], reference_date: date
+) -> tuple[ApprovedMonth, ...]:
+    """Valor e prazo aprovados acumulados por mês, do primeiro pedido ao mês da referência.
+
+    Cada mês conta as aprovadas e as solicitadas dele e acumula o valor e o prazo das aprovadas;
+    as mudanças sem data de pedido não entram.
+    """
+    dated = [item for item in figures if item.request_date is not None]
+    if not dated:
+        return ()
+    first = min(item.request_date for item in dated)
+    approved = [
+        item for item in figures if is_approved(item.situation) and item.decision_date is not None
+    ]
+    months: list[date] = []
+    current = _month_start(first)
+    last = _month_start(reference_date)
+    while current <= last:
+        months.append(current)
+        current = _next_month(current)
+    value = 0
+    term = 0
+    result: list[ApprovedMonth] = []
+    for month in months:
+        done = [
+            item
+            for item in approved
+            if item.decision_date is not None and _month_start(item.decision_date) == month
+        ]
+        value += sum(item.cost_cents or 0 for item in done)
+        term += sum(item.term_days or 0 for item in done)
+        requested = sum(1 for item in dated if _month_start(item.request_date) == month)
+        result.append(ApprovedMonth(month, len(done), requested, value, term))
+    return tuple(result)
+
+
+def _month_start(value: date) -> date:
+    return value.replace(day=1)
+
+
+def _next_month(value: date) -> date:
+    index = value.year * 12 + value.month
+    return date(index // 12, index % 12 + 1, 1)
 
 
 @dataclass(frozen=True)

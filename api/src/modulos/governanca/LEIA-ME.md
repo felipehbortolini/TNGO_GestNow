@@ -161,3 +161,17 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 **Migração e modelo.** `m025_decisao_da_mudanca.py` acrescenta `ata_id` (FK para `ata`) e `reapresentar_em` a `mudanca_decisao`, que o modelo aceito não previa; o `docs/MODELO-DE-DADOS.md` mudou na mesma entrega. As conferências de incorporação na EAC e na EAP ficam com as ISSUE-030 e ISSUE-038.
 
 **Testes.** `api/tests/governanca/test_decisao.py`: quórum e decisor, aprovação com ações e link de volta, atomicidade (falha no meio desfaz tudo), adiada e reapresentação, ratificação vencida, encerramento com ação aberta, confirmações do impacto e lição em Rascunho, além das rotas (403 para Membro e a ficha de volta para o Gestor).
+
+## O que a ISSUE-026 trouxe
+
+**Telas.** O registro de mudanças ganhou as abas **Registro** e **Painel** (estado local do Alpine). O Painel mostra dois KPIs — taxa de aprovação (aprovadas sobre decididas, sem as adiadas) e tempo médio de decisão —, os gráficos da biblioteca (mudanças por situação, Pareto por origem, valor e prazo aprovados acumulados por mês em linhas sem suavização, e mudanças por tipo em rosca) e a tabela do Pareto com total, participação e percentual acumulado.
+
+**Fórmulas** (`calculations.py`): `count_lines` (contagens na ordem fixa pedida, depois o resto em ordem alfabética), `pareto_lines` (maior total primeiro, empate pelo rótulo, acumulado fechando em 100%), `approval_rate` (aprovadas sobre aprovadas mais rejeitadas; as adiadas ficam fora; `None` sem decisão) e `approved_monthly` (por mês da decisão: aprovadas e solicitadas do mês, com o valor e o prazo acumulados do primeiro pedido ao mês da referência).
+
+**Gráficos** (`panel.py`): `charts_of` monta os cinco `Chart` da tela e da impressão (comparativo-barras, pareto, duas linhas-multiplas e rosca); `month_label` escreve `set/2026`. Nenhum fragmento traz `<script>`: o gráfico nasce do `data-grafico`/`data-dados` que o servidor manda.
+
+**Fachada e exportação.** `service.change_panel` devolve o painel do escopo (o mesmo resumo do registro, mais situação, origens, tipos, meses, taxa e tempo médio); `routes._register_context` passa `painel`/`graficos` à tela inteira (o pedido de partes não os carrega) e `export.register_document` acrescenta as tabelas do painel (situação, Pareto, tipo e valor/prazo acumulados) ao Excel e ao PDF, com o mesmo conteúdo da tela.
+
+**Testes.** `api/tests/governanca/test_painel_mudancas.py` (fórmulas, fachada, a aba no fragmento e o Excel) e o oráculo `api/tests/governanca/test_oraculo_mudancas_painel.py` (16 SMs no portfólio, Pareto por origem do mock e taxa de aprovação de 85,7%).
+
+**Pendência registrada.** O consumo da reserva de contingência entra no painel na ISSUE-041, como a issue aponta.

@@ -1,14 +1,16 @@
 {% extends "base_fragment.html" %}
 {#
-  Registro de mudanças (ISSUE-023, HU-125): a barra de ações, os seis KPIs, os filtros e a tabela.
+  Registro de mudanças (ISSUE-023, ISSUE-026, HU-125, HU-130): a barra de ações, as abas Registro
+  e Painel, os seis KPIs, os filtros, a tabela e o painel (Pareto por origem, acumulados por mês,
+  tipos e taxa de aprovação).
 
   A tela pede este fragmento inteiro uma vez. O formulário de filtros pede só os blocos
   mudancas-kpis e mudancas-tabela (mudancas_partes.html): como o formulário fica fora dos dois,
-  o campo de busca não perde o foco a cada tecla.
+  o campo de busca não perde o foco a cada tecla. A troca de aba é estado local do Alpine.
 
   Espera: cartoes, linhas, total_no_escopo, portfolio, filtros, consulta, contagem, pode_registrar,
-  opcoes_situacao, tipos, origens, prioridades, alcadas, excel_url, pdf_url e os apresentadores
-  (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
+  opcoes_situacao, tipos, origens, prioridades, alcadas, excel_url, pdf_url, painel, graficos, mes e
+  os apresentadores (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
 #}
 {% block fragment %}
 <div class="mudancas-acoes">
@@ -20,67 +22,143 @@
   {% endif %}
 </div>
 
-<div id="mudancas-kpis" class="kpis">
-  {% include "governanca/_mudancas_kpis.html" %}
-</div>
-
-<form class="card mudancas-filtros" method="get" action="/api/governanca/mudancas"
-  x-target="mudancas-kpis mudancas-tabela" @input.debounce.300ms="$el.requestSubmit()">
-  <div class="card__body mudancas-filtros__grade">
-    <div class="field">
-      <label for="mudancas-busca">Buscar</label>
-      <input id="mudancas-busca" name="busca" type="search" class="input" value="{{ filtros.search or '' }}"
-        placeholder="Número, título, descrição, tipo ou origem" autocomplete="off" />
-    </div>
-    <div class="field">
-      <label for="mudancas-situacao">Situação</label>
-      <select id="mudancas-situacao" name="situacao" class="input">
-        <option value="">Situação: todas</option>
-        {% for valor, rotulo in opcoes_situacao %}
-        <option value="{{ valor }}"{% if filtros.situation == valor %} selected{% endif %}>{{ rotulo }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="mudancas-tipo">Tipo</label>
-      <select id="mudancas-tipo" name="tipo" class="input">
-        <option value="">Todos</option>
-        {% for valor in tipos %}
-        <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="mudancas-origem">Origem</label>
-      <select id="mudancas-origem" name="origem" class="input">
-        <option value="">Todas</option>
-        {% for valor in origens %}
-        <option value="{{ valor }}"{% if filtros.origin == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="mudancas-prioridade">Prioridade</label>
-      <select id="mudancas-prioridade" name="prioridade" class="input">
-        <option value="">Todas</option>
-        {% for valor in prioridades %}
-        <option value="{{ valor }}"{% if filtros.priority == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label for="mudancas-alcada">Alçada</label>
-      <select id="mudancas-alcada" name="alcada" class="input">
-        <option value="">Todas</option>
-        {% for valor in alcadas %}
-        <option value="{{ valor }}"{% if filtros.authority == valor %} selected{% endif %}>{{ valor }}</option>
-        {% endfor %}
-      </select>
-    </div>
+<div x-data="{ aba: 'registro' }">
+  <div class="tabs" role="tablist" aria-label="Visões da gestão de mudanças">
+    <button type="button" class="tab" role="tab" id="aba-registro" aria-controls="painel-registro"
+      :class="{ 'is-active': aba === 'registro' }" :aria-selected="aba === 'registro'"
+      @click="aba = 'registro'">Registro</button>
+    <button type="button" class="tab" role="tab" id="aba-painel" aria-controls="painel-painel"
+      :class="{ 'is-active': aba === 'painel' }" :aria-selected="aba === 'painel'"
+      @click="aba = 'painel'">Painel</button>
   </div>
-</form>
 
-<div id="mudancas-tabela">
-  {% include "governanca/_mudancas_tabela.html" %}
+  <section class="mt-16" role="tabpanel" id="painel-registro" aria-labelledby="aba-registro" x-show="aba === 'registro'">
+    <div id="mudancas-kpis" class="kpis">
+      {% include "governanca/_mudancas_kpis.html" %}
+    </div>
+
+    <form class="card mudancas-filtros" method="get" action="/api/governanca/mudancas"
+      x-target="mudancas-kpis mudancas-tabela" @input.debounce.300ms="$el.requestSubmit()">
+      <div class="card__body mudancas-filtros__grade">
+        <div class="field">
+          <label for="mudancas-busca">Buscar</label>
+          <input id="mudancas-busca" name="busca" type="search" class="input" value="{{ filtros.search or '' }}"
+            placeholder="Número, título, descrição, tipo ou origem" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="mudancas-situacao">Situação</label>
+          <select id="mudancas-situacao" name="situacao" class="input">
+            <option value="">Situação: todas</option>
+            {% for valor, rotulo in opcoes_situacao %}
+            <option value="{{ valor }}"{% if filtros.situation == valor %} selected{% endif %}>{{ rotulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="mudancas-tipo">Tipo</label>
+          <select id="mudancas-tipo" name="tipo" class="input">
+            <option value="">Todos</option>
+            {% for valor in tipos %}
+            <option value="{{ valor }}"{% if filtros.kind == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="mudancas-origem">Origem</label>
+          <select id="mudancas-origem" name="origem" class="input">
+            <option value="">Todas</option>
+            {% for valor in origens %}
+            <option value="{{ valor }}"{% if filtros.origin == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="mudancas-prioridade">Prioridade</label>
+          <select id="mudancas-prioridade" name="prioridade" class="input">
+            <option value="">Todas</option>
+            {% for valor in prioridades %}
+            <option value="{{ valor }}"{% if filtros.priority == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="mudancas-alcada">Alçada</label>
+          <select id="mudancas-alcada" name="alcada" class="input">
+            <option value="">Todas</option>
+            {% for valor in alcadas %}
+            <option value="{{ valor }}"{% if filtros.authority == valor %} selected{% endif %}>{{ valor }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </form>
+
+    <div id="mudancas-tabela">
+      {% include "governanca/_mudancas_tabela.html" %}
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-painel" aria-labelledby="aba-painel" x-show="aba === 'painel'">
+    <div class="kpis" style="--kpis-colunas: 2" role="group" aria-label="Indicadores do painel">
+      <div class="kpi kpi--estatico kpi--{{ 'ok' if painel.approval_rate is not none else 'neutro' }}">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+        <span class="mudancas-painel__kpi-texto">
+          <span class="kpi__label">Taxa de aprovação</span>
+          <span class="hint">Aprovadas sobre decididas, sem as adiadas</span>
+        </span>
+        <span class="kpi__value">{{ (painel.approval_rate|string ~ '%') if painel.approval_rate is not none else '·' }}</span>
+      </div>
+      <div class="kpi kpi--estatico kpi--info">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+        <span class="mudancas-painel__kpi-texto">
+          <span class="kpi__label">Tempo médio de decisão</span>
+          <span class="hint">Dias da solicitação até a decisão</span>
+        </span>
+        <span class="kpi__value">{{ (painel.mean_decision_days ~ ' dias') if painel.mean_decision_days is not none else '·' }}</span>
+      </div>
+    </div>
+
+    <div class="mudancas-painel__graficos">
+      {% for grafico in graficos %}
+      <section class="card" aria-label="{{ grafico.title }}">
+        <div class="card__head"><h3 class="h-card4">{{ grafico.title }}</h3></div>
+        <div class="card__body">
+          <div data-grafico="{{ grafico.kind }}" data-dados='{{ grafico.data | tojson }}'></div>
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+
+    <section class="card" aria-labelledby="mudancas-pareto">
+      <div class="card__head"><h3 class="h-card4" id="mudancas-pareto">Pareto por origem</h3></div>
+      <div class="card__body">
+        {% if painel.origins %}
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">Pareto por origem</caption>
+            <thead>
+              <tr><th scope="col">Origem</th><th scope="col">Total</th><th scope="col">%</th><th scope="col">% acumulado</th></tr>
+            </thead>
+            <tbody>
+              {% for linha in painel.origins %}
+              <tr>
+                <td>{{ linha.label }}</td>
+                <td class="num">{{ linha.total }}</td>
+                <td class="num">{{ linha.percent }}%</td>
+                <td class="num">{{ linha.cumulative }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem">
+          <h4 class="h-card5">Nenhuma mudança no escopo</h4>
+          <p>As solicitações registradas aparecem aqui.</p>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+  </section>
 </div>
 {% endblock %}

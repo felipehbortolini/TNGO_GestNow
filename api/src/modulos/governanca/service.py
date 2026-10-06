@@ -272,6 +272,45 @@ def register_overview(
     )
 
 
+@dataclass(frozen=True)
+class ChangePanel:
+    """O painel de mudanças: os indicadores, o Pareto, as contagens e os acumulados por mês."""
+
+    summary: ChangeSummary
+    situations: tuple[calculations.CountLine, ...]
+    origins: tuple[calculations.ParetoLine, ...]
+    kinds: tuple[calculations.CountLine, ...]
+    months: tuple[calculations.ApprovedMonth, ...]
+    approval_rate: Decimal | None
+    mean_decision_days: int | None
+
+
+def change_panel(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> ChangePanel:
+    """O painel do escopo: indicadores, Pareto por origem, tipos e acumulados por mês (HU-130)."""
+    rbac.require_module(user, MODULE)
+    everything = _load(session)
+    in_scope = [item for item in everything if _in_scope(item, scope)]
+    figures = [_figures(item) for item in in_scope]
+    projects = configuracoes.list_project_details(session)
+    return ChangePanel(
+        summary=_summary(
+            in_scope, budget_cents=_scope_budget(scope, projects), reference_date=reference_date
+        ),
+        situations=calculations.count_lines(
+            (item.situation for item in figures), models.CHANGE_SITUATIONS
+        ),
+        origins=calculations.pareto_lines(
+            calculations.count_lines((item.origin for item in figures), ())
+        ),
+        kinds=calculations.count_lines((item.kind for item in figures), models.CHANGE_TYPES),
+        months=calculations.approved_monthly(figures, reference_date),
+        approval_rate=calculations.approval_rate(figures),
+        mean_decision_days=calculations.mean_decision_days(figures),
+    )
+
+
 def find_change_sheet(
     session: Session, *, user: User, code: str, reference_date: date
 ) -> ChangeSheet | None:
@@ -1575,6 +1614,8 @@ def _figures(item: _Loaded) -> ChangeFigures:
     return ChangeFigures(
         situation=change.situation,
         request_date=change.request_date,
+        origin=change.origin,
+        kind=change.kind,
         cost_cents=item.impact.cost_cents if item.impact else None,
         term_days=item.impact.term_days if item.impact else None,
         decision_date=item.decision.decision_date if item.decision else None,

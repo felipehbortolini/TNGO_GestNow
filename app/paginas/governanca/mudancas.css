@@ -69,11 +69,28 @@
   gap: var(--space-sm);
 }
 
+.pagina--governanca-mudancas .mudancas-painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--governanca-mudancas .mudancas-painel__graficos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+  margin: var(--space-lg) 0;
+}
+
 @media (max-width: 640px) {
   .pagina--governanca-mudancas .mudancas-acoes {
     justify-content: stretch;
   }
   .pagina--governanca-mudancas .mudancas-exportar {
     width: 100%;
+  }
+  .pagina--governanca-mudancas .mudancas-painel__graficos {
+    grid-template-columns: 1fr;
   }
 }

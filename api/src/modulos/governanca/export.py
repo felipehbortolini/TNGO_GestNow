@@ -27,9 +27,11 @@ from src.core.money import format_brl
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.governanca import models, presentation
+from src.modulos.governanca import panel as panel_charts
 from src.modulos.governanca.presentation import KpiCard
 from src.modulos.governanca.service import (
     ChangeFilter,
+    ChangePanel,
     ChangeSheet,
     DecisionView,
     RegisterOverview,
@@ -46,12 +48,13 @@ FIELD_COLUMNS = (Column("Campo", width=30), Column("Valor", width=90))
 def register_document(
     overview: RegisterOverview,
     *,
+    panel: ChangePanel,
     scope: Scope,
     projects: Sequence[ProjectLike],
     filters: ChangeFilter,
     today: date,
 ) -> Document:
-    """The Registro de mudanças: the six KPIs and the table of the changes of the scope."""
+    """The Registro de mudanças: the six KPIs, the table and the tables of the Painel."""
     return Document(
         title=REGISTER_TITLE,
         scope_label=describe_scope(scope, projects),
@@ -59,8 +62,73 @@ def register_document(
         portfolio=scope.is_portfolio,
         context=_filter_context(filters),
         kpis=tuple(_kpi(card) for card in presentation.kpi_cards(overview)),
-        tables=(_changes_table(overview),),
+        charts=panel_charts.charts_of(panel),
+        tables=(
+            _changes_table(overview),
+            _panel_situation_table(panel),
+            _panel_pareto_table(panel),
+            _panel_kind_table(panel),
+            _panel_month_table(panel),
+        ),
         paper=Paper.A4,
+    )
+
+
+def _panel_situation_table(panel: ChangePanel) -> Table:
+    return Table(
+        title="Mudanças por situação",
+        columns=(Column("Situação", width=40), Column("Total", ValueKind.INTEGER)),
+        rows=tuple(row(line.label, line.total) for line in panel.situations),
+        per_project=False,
+    )
+
+
+def _panel_pareto_table(panel: ChangePanel) -> Table:
+    return Table(
+        title="Pareto por origem",
+        columns=(
+            Column("Origem", width=40),
+            Column("Total", ValueKind.INTEGER),
+            Column("%", ValueKind.PERCENT, digits=1),
+            Column("% acumulado", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(
+            row(line.label, line.total, line.percent, line.cumulative) for line in panel.origins
+        ),
+        per_project=False,
+    )
+
+
+def _panel_kind_table(panel: ChangePanel) -> Table:
+    return Table(
+        title="Mudanças por tipo",
+        columns=(Column("Tipo", width=40), Column("Total", ValueKind.INTEGER)),
+        rows=tuple(row(line.label, line.total) for line in panel.kinds),
+        per_project=False,
+    )
+
+
+def _panel_month_table(panel: ChangePanel) -> Table:
+    return Table(
+        title="Valor e prazo aprovados acumulados",
+        columns=(
+            Column("Mês", width=18),
+            Column("Aprovadas", ValueKind.INTEGER),
+            Column("Solicitadas", ValueKind.INTEGER),
+            Column("Valor acumulado", ValueKind.MONEY),
+            Column("Prazo acumulado (dias)", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(
+                panel_charts.month_label(line.month),
+                line.approved,
+                line.requested,
+                line.value_cents,
+                line.term_days,
+            )
+            for line in panel.months
+        ),
+        per_project=False,
     )
 
 
