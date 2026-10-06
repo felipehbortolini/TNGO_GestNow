@@ -21,7 +21,6 @@ Cancelling is closing the check; there is nothing to undo. The rules are those o
 ``core.importing``: the routes only read the request, call it and draw the answer.
 """
 
-from collections.abc import Mapping
 from typing import Any
 
 import azure.functions as func
@@ -190,7 +189,7 @@ def _steps_context(importer: importing.Importer) -> dict[str, Any]:
 
 def _check_context(
     importer: importing.Importer, preview: importing.ImportPreview
-) -> Mapping[str, Any]:
+) -> dict[str, Any]:
     """What the check fragment prints: the preview, the counts and where the confirmation goes."""
     return {
         "arquivo": preview.file_name,

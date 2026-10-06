@@ -21,7 +21,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "governanca/mudancas";
   const RAIZ = "main.pagina--governanca-mudancas";
   let modalAberto = null;
   let ouvindo = false;
@@ -109,7 +108,7 @@
     document.addEventListener("ajax:sent", aoEnviar);
   }
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["governanca/mudancas"] = {
     iniciar: function (raiz) {
       window.Alpine.$data(raiz).estado = "carregando";
       ouvir();

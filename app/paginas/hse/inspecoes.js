@@ -21,7 +21,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "hse/inspecoes";
   const ALVO_DO_MODAL = "hse-modal-corpo";
   const LARGURA_PADRAO = 640;
 
@@ -52,7 +51,7 @@
     if (fechar) fechar.click();
   }
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["hse/inspecoes"] = {
     iniciar: function (raiz) {
       const dados = window.Alpine.$data(raiz);
       let urlAtual = null;

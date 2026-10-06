@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.scope import Scope
 from src.modulos.planejamento import service
+from src.modulos.planejamento.models import LookaheadConstraint
 from tests.apoio_6wla import (
     HOJE,
     Cadastro,
@@ -53,6 +54,13 @@ def _restringir(
         raw=campos_da_restricao(cadastro, atividade_id, necessaria=necessaria),
     )
     return registro.id
+
+
+def _versao(sessao: Session, restricao_id: int) -> str:
+    """A versão vigente da restrição, como a tela a envia na remoção."""
+    registro = sessao.get(LookaheadConstraint, restricao_id)
+    assert registro is not None
+    return str(registro.version)
 
 
 def test_a_atividade_nasce_com_o_proximo_codigo_do_projeto(
@@ -132,7 +140,11 @@ def test_remover_a_restricao_registra_data_e_libera_a_atividade(
         user=cadastro.usuario_membro,
         scope=_escopo(cadastro),
         constraint_id=restricao_id,
-        raw={"remocao": "2026-09-24", "comentario": "Guindaste mobilizado"},
+        raw={
+            "remocao": "2026-09-24",
+            "comentario": "Guindaste mobilizado",
+            "versao": _versao(sessao, restricao_id),
+        },
     )
 
     quadro = _quadro(sessao, cadastro)
@@ -147,7 +159,7 @@ def test_remover_a_restricao_registra_data_e_libera_a_atividade(
 def test_remover_duas_vezes_e_recusado(sessao: Session, cadastro: Cadastro) -> None:
     atividade = incluir_atividade(sessao, cadastro)
     restricao_id = _restringir(sessao, cadastro, atividade.id)
-    campos = {"remocao": "2026-09-24"}
+    campos = {"remocao": "2026-09-24", "versao": _versao(sessao, restricao_id)}
     service.remove_constraint(
         sessao,
         user=cadastro.usuario_membro,

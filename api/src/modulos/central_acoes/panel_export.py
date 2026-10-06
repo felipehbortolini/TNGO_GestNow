@@ -14,6 +14,7 @@ from datetime import date
 
 from src.core.export_document import (
     Cell,
+    CellValue,
     Chart,
     Column,
     Document,
@@ -225,7 +226,7 @@ def _status_columns(first: Column) -> tuple[Column, ...]:
     )
 
 
-def _status_cells(tally: ResponsibleTally) -> tuple[object, ...]:
+def _status_cells(tally: ResponsibleTally) -> tuple[Cell | CellValue, ...]:
     return (
         tally.on_time,
         Cell(tally.overdue, Tone.ERROR if tally.overdue else None),

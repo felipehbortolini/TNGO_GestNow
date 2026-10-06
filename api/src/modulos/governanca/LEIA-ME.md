@@ -8,7 +8,7 @@ Módulo `governanca`. Controla solicitações de mudança (SM) e lições aprend
 |---|---|---|
 | Registro e painel de mudanças | Lista, etapa, próxima decisão e indicadores | ISSUE-023, ISSUE-026 |
 | Ficha da mudança | Solicitação, impacto, decisão, implementação e histórico | ISSUE-023 a ISSUE-025 |
-| Acervo de lições | Busca, filtros, aplicabilidade e aplicação em projeto | ISSUE-027 |
+| Acervo de lições | Busca, filtros, aplicabilidade e aplicação em projeto | ISSUE-027 (pronta) |
 | Painel de lições | Lições publicadas, reuso e projetos sem registro | ISSUE-028 |
 
 ## Trios das telas
@@ -61,17 +61,18 @@ Limite de alçada do Gerente (até 1% do orçamento e sem impacto contratual ini
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` |
-| Transições, permissões e integrações | `service.py` |
-| Alçada e prazos derivados | `calculations.py` |
-| Validação de impacto/decisão | `validation.py` |
-| Exportação | `export.py` |
-| Persistência | `models.py`; entidades na ISSUE-003 |
+| Rotas | `routes.py` e `lessons_routes.py` |
+| Transições, permissões e integrações | `service.py` e `lessons_service.py` |
+| Alçada e prazos derivados | `calculations.py` e `lessons_calculations.py` |
+| Validação de impacto/decisão | `validation.py` e `lessons_validation.py` |
+| Exportação | `export.py` e `lessons_export.py` |
+| Persistência | `models.py` e `lessons_models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
+| Carga de demonstração | `seed.py` (`governanca` e `governanca-licoes`) |
 | Fragmentos | `api/src/templates/governanca/` |
 | Tela, estilo e comportamento | `app/_views/governanca/` e `app/paginas/governanca/` |
-| Testes | `api/tests/governanca/` |
+| Testes | `api/tests/governanca/` e `api/tests/oraculo/test_oraculo_licoes.py` |
 
-As ISSUE-024 a ISSUE-028 completam este documento (análise, decisão, painel e lições).
+As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel de mudanças e painel de lições).
 
 ## O que a ISSUE-023 trouxe (Registro e ficha da mudança)
 
@@ -115,3 +116,26 @@ As ISSUE-024 a ISSUE-028 completam este documento (análise, decisão, painel e 
 **Fluxos** (`service.py`): `start_analysis` cria a análise em andamento e leva a SM a Em análise de impacto; `conclude_analysis` grava o impacto (uma linha por SM, atualizada nas revisões), troca os itens da EAC e as transferências não aplicadas, fecha a análise em andamento, grava fonte e alçada na SM e leva Em análise de impacto a Aguardando comitê (a revisão mantém a situação). A Próxima etapa diz quem decide.
 
 **Pontos para outros módulos.** Os itens vêm do Financeiro por `eac_item_ids_by_code` e `eac_item_codes` (que o item é de custo, nível 3, é conferido na ISSUE-030); o aviso de custo acima do saldo das reservas fica para a ISSUE-041. Migração `m024_analise_de_impacto.py`. Testes: `test_analise.py`, `test_validacao_analise.py`, `test_rotas_analise.py` e as fronteiras novas de `test_calculos.py`.
+
+## O que a ISSUE-027 trouxe (Lições aprendidas)
+
+**Telas.** Acervo de lições (`licoes`): contagem, cartões com situação/recomendação/aplicabilidade, KPIs por escopo, checklist de kickoff (botões de fase filtram as lições publicadas da fase), filtros (busca, fase, área, disciplina, tipo, origem, aplicabilidade, situação) e Excel/PDF. No Portfólio a lista traz a coluna Projeto e "Nova lição" pede o projeto antes. O trio está na tabela acima e o `licoes.js` abre os modais (ver, editar, validar, aplicar, nova), entregues pelo servidor.
+
+**Rotas** (prefixo `/api/`, `lessons_routes.py`):
+
+| Rota | Método | Uso |
+|---|---|---|
+| `governanca/licoes` | GET | Acervo com filtros; no Portfólio, coluna Projeto |
+| `governanca/licoes` | POST | Cria a lição (Rascunho; `enviar=1` já manda para validação) |
+| `governanca/licoes/excel` e `/imprimivel` | GET | Exportações do acervo no filtro |
+| `governanca/licoes/nova` | GET | Formulário da nova lição |
+| `governanca/licoes/ver`, `/editar`, `/validar` e `/aplicar` | GET, POST | Ficha, edição do rascunho, decisão da validação e reuso |
+| `governanca/licoes/enviar` e `/publicar` | POST | Rascunho → Em validação e Validada → Publicada |
+
+**Fórmulas** (`lessons_calculations.py`): `is_lesson_visible` (o projeto vê as suas e as Corporativas publicadas de outros; o Portfólio vê todas), `acervo_counts`, `published_by_phase` (checklist de kickoff), `is_ready_to_send` (recomendação e disciplina), `lesson_order_key`, `parse_keywords` (até 8), `next_application_item` (item da ação gerada), `lesson_draft_for_change` (texto do rascunho nascido no encerramento da SM).
+
+**Fluxos** (`lessons_service.py`): Rascunho → Em validação → Validada → Publicada; a devolução volta a Rascunho com o comentário no histórico. O validador é Gestor e não pode ser o autor (`rbac.require_segregation`, 403). A origem de módulo exige o número do registro e o confere pela fachada dona (`register_origin`; Mudança já ligada, as demais nas issues dos seus módulos); origem sem número ou número inexistente é 422. `create_draft_lesson` é o que os outros módulos chamam para abrir lição em Rascunho com origem — a primeira ligação é o encerramento da SM (ISSUE-025). Aplicar em projeto registra `licao_aplicacao` e, quando pedido, cria a ação na Central (origem `Lição`); o risco gerado fica para a ISSUE-067.
+
+**Carga e oráculo.** `seed.py` ganhou a parte `governanca-licoes`: lê `prototype_collection("licoes")`, converte a origem em texto do protótipo ("Claim CLM-..." → `Contrato` + `CLM-...`) e grava pela fachada (`load_demonstration_lesson`), conferindo o código do protótipo. Oráculo em `api/tests/oraculo/test_oraculo_licoes.py` (10 lições, 4 publicadas, 9 corporativas, 6 reusos). Migração `m027_licoes_aprendidas.py`; a tabela `licao_historico` entrou no `docs/MODELO-DE-DADOS.md` nesta entrega.
+
+**Testes.** `api/tests/governanca/test_licoes_fachada.py`: segregação do validador, devolução com comentário, origem de módulo, rascunho com origem, aplicação com ação na Central e visibilidade no acervo.

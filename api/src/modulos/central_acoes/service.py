@@ -693,7 +693,7 @@ def _replan_counts(session: Session, action_ids: Sequence[int]) -> dict[int, int
         .where(ActionReplan.action_id.in_(action_ids))
         .group_by(ActionReplan.action_id)
     )
-    return dict(session.execute(statement).tuples().all())
+    return dict(session.execute(statement).all())
 
 
 attachment_origins.register(

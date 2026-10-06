@@ -21,7 +21,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "central_acoes/ata";
   const RAIZ = "main.pagina--central_acoes-ata";
   const ALVO_DO_MODAL = "ata-modal-corpo";
   const LARGURA_PADRAO = 600;
@@ -85,7 +84,7 @@
     document.addEventListener("ajax:sent", aoEnviar);
   }
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["central_acoes/ata"] = {
     iniciar: function (raiz) {
       window.Alpine.$data(raiz).estado = "carregando";
       ouvir();

@@ -1,16 +1,71 @@
 /* ============================================================
    dashboard.css — Estilo da tela Dashboards e KPIs (central_acoes/dashboard)
 
-   Indicadores das ações por origem, responsável e projeto, calculados pelo status único.
+   Escopo: tudo que mora aqui começa por .pagina--central_acoes-dashboard, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento,
+   raio ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Escopo: tudo que morar aqui começa por .pagina--central_acoes-dashboard, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-020.
+   O que a tela acrescenta ao Design System (ISSUE-020): o rótulo do filtro fora de um .field, o
+   texto de duas linhas do indicador, a barra de ferramentas e a grade dos gráficos da biblioteca.
+   O fragmento é desenhado pelo servidor (api/src/templates/central_acoes/painel.html); os
+   gráficos o motor de app/ds/graficos monta sozinho.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--central_acoes-dashboard .field__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.pagina--central_acoes-dashboard .painel__filtro {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-dashboard .painel__filtro .input {
+  width: auto;
+  min-width: 200px;
+}
+
+.pagina--central_acoes-dashboard .painel__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.pagina--central_acoes-dashboard .painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--central_acoes-dashboard .painel__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--central_acoes-dashboard .painel__graficos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--central_acoes-dashboard .painel__linha--atrasada td {
+  background: var(--warn-50);
+}
+
+@media (max-width: 640px) {
+  .pagina--central_acoes-dashboard .painel__graficos {
+    grid-template-columns: 1fr;
+  }
+}

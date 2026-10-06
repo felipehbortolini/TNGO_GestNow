@@ -69,7 +69,9 @@ def upgrade() -> None:
         sa.Column("de", sa.Date(), nullable=False),
         sa.Column("para", sa.Date(), nullable=False),
         sa.Column("justificativa", sa.Text(), nullable=False),
-        sa.ForeignKeyConstraint(["acao_id"], ["acao.id"], name=op.f("fk_acao_replanejamento_acao_id")),
+        sa.ForeignKeyConstraint(
+            ["acao_id"], ["acao.id"], name=op.f("fk_acao_replanejamento_acao_id")
+        ),
         sa.ForeignKeyConstraint(
             ["autor_id"], ["pessoa.id"], name=op.f("fk_acao_replanejamento_autor_id")
         ),

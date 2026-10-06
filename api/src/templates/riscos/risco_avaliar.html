@@ -1,0 +1,139 @@
+{% extends "base_fragment.html" %}
+{#
+  Avaliação do risco, inerente ou residual (ISSUE-064, HU-107): probabilidade com faixas percentuais,
+  as seis dimensões de impacto, o impacto pelo pior caso (pode ser elevado, nunca reduzido), prazo,
+  custo em reais, risco à vida e justificativa quando o score muda. A prévia do score é calculada
+  pelo servidor a cada mudança (alvo risco-previa). Trocar Inerente/Residual recarrega o formulário
+  com os valores do outro tipo. O 422 devolve este formulário preenchido; o sucesso atualiza a tela.
+
+  Espera: risco, versao, consulta, valores, erros, parametros, dimensoes, oportunidade, previa,
+  escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia, tipo_atual e anterior.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/avaliar"
+  x-target="registro-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando a avaliação..."
+  x-data="{ verPrevia(formulario) { this.$ajax('/api/riscos/previa?' + new URLSearchParams(new FormData(formulario)).toString(), { target: 'risco-previa' }); } }"
+  @change="verPrevia($el)">
+  <input type="hidden" name="versao" value="{{ versao or '' }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>
+      {% if oportunidade %}Oportunidade: avalie a probabilidade de captura e o benefício por dimensão.{% elif tipo_atual == 'residual' %}<b>Avaliação residual:</b> considere o risco com o plano de resposta executado. Para ameaças, o residual não supera o inerente.{% else %}<b>Avaliação inerente:</b> considere o risco sem nenhum tratamento.{% if not risco.has_plan %} A avaliação residual só é habilitada depois que o plano de resposta existir.{% endif %}{% endif %}
+    </span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="risco-aval-tipo">Avaliação</label>
+      <select id="risco-aval-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}"
+        data-url="/api/riscos/{{ risco.code }}/avaliar" data-consulta="{{ consulta }}"
+        @change="$ajax($el.dataset.url + '?tipo=' + $event.target.value + '&consulta=' + encodeURIComponent($el.dataset.consulta), { target: '{{ target_id }}' })"
+        {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
+        <option value="inerente"{% if tipo_atual == 'inerente' %} selected{% endif %}>Inerente</option>
+        <option value="residual"{% if tipo_atual == 'residual' %} selected{% endif %}{% if not risco.has_plan %} disabled{% endif %}>Residual</option>
+      </select>
+      {{ campo_erro(erros, 'tipo') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-aval-p">{{ 'Probabilidade de captura' if oportunidade else 'Probabilidade' }}</label>
+      <select id="risco-aval-p" name="p" class="input{% if erros.get('p') %} input--erro{% endif %}" required
+        {% if erros.get('p') %}aria-invalid="true" aria-describedby="erro-p"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for faixa in parametros.probabilities %}
+        <option value="{{ faixa.level }}"{% if valores.get('p') == faixa.level|string %} selected{% endif %}>{{ faixa.level }} · {{ faixa.name }} ({{ faixa.range_text }})</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'p') }}
+    </div>
+
+    <div class="field field--full">
+      <span class="registro__rotulo">{{ 'Benefício por dimensão' if oportunidade else 'Impacto por dimensão' }}</span>
+      <p class="hint">Avalie ao menos uma dimensão. Em branco: não se aplica.</p>
+      {% if erros.get('dimensoes') %}
+      <span id="erro-dimensoes" class="field__erro">{{ erros['dimensoes'] }}</span>
+      {% endif %}
+    </div>
+    {% for chave, rotulo in dimensoes %}
+    <div class="field">
+      <label for="risco-aval-d-{{ chave }}">{{ rotulo }}</label>
+      <select id="risco-aval-d-{{ chave }}" name="d_{{ chave }}" class="input">
+        <option value="">Não se aplica</option>
+        {% for n in range(1, 6) %}
+        <option value="{{ n }}"{% if valores.get('d_' ~ chave) == n|string %} selected{% endif %}>{{ n }} {{ parametros.impacts[n - 1] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+
+    <div class="field field--full">
+      <label for="risco-aval-i">{{ 'Benefício (resultante)' if oportunidade else 'Impacto (resultante)' }}</label>
+      <select id="risco-aval-i" name="i" class="input{% if erros.get('i') %} input--erro{% endif %}" required
+        {% if erros.get('i') %}aria-invalid="true" aria-describedby="erro-i"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for n in range(1, 6) %}
+        <option value="{{ n }}"{% if valores.get('i') == n|string %} selected{% endif %}>{{ n }} {{ parametros.impacts[n - 1] }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">
+        {% if previa.minimum_impact %}O impacto do risco é o maior valor entre as dimensões (regra do pior caso). Aqui: {{ previa.minimum_impact }}. Pode ser elevado, nunca reduzido.{% else %}O impacto resultante acompanha a maior dimensão avaliada: pode ser elevado, nunca reduzido.{% endif %}
+      </span>
+      {{ campo_erro(erros, 'i') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-aval-prazo">{{ 'Benefício em prazo (dias)' if oportunidade else 'Impacto em prazo (dias)' }}</label>
+      <input id="risco-aval-prazo" name="impactoPrazoDias" type="number" min="0" max="999" step="1"
+        class="input{% if erros.get('impactoPrazoDias') %} input--erro{% endif %}"
+        value="{{ valores.get('impactoPrazoDias') or '' }}"{% if erros.get('impactoPrazoDias') %} aria-invalid="true" aria-describedby="erro-impactoPrazoDias"{% endif %} />
+      <span class="hint">{{ 'Dias de antecipação no caminho crítico.' if oportunidade else 'Dias de atraso no caminho crítico; alimenta o painel.' }}</span>
+      {{ campo_erro(erros, 'impactoPrazoDias') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-aval-custo">{{ 'Benefício em custo (R$)' if oportunidade else 'Impacto em custo (R$)' }}</label>
+      <input id="risco-aval-custo" name="impactoCustoCentavos" inputmode="decimal"
+        class="input{% if erros.get('impactoCustoCentavos') %} input--erro{% endif %}"
+        value="{{ valores.get('impactoCustoCentavos') or '' }}"{% if erros.get('impactoCustoCentavos') %} aria-invalid="true" aria-describedby="erro-impactoCustoCentavos"{% endif %} />
+      <span class="hint">Gravado em centavos. Base do VME.</span>
+      {{ campo_erro(erros, 'impactoCustoCentavos') }}
+    </div>
+
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="riscoVida" value="1"{% if valores.get('riscoVida') == '1' %} checked{% endif %} />
+        <span>Envolve risco à vida (SMS)</span>
+      </label>
+      <span class="hint">Na escala CIPM, risco à vida é sempre classificado na faixa mais alta.</span>
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-aval-justificativa">Justificativa da avaliação</label>
+      <textarea id="risco-aval-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="3" maxlength="500"
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">Obrigatória sempre que o score ou a severidade mudarem em relação à avaliação anterior.</span>
+      {{ campo_erro(erros, 'justificativa') }}
+    </div>
+
+    <div class="field field--full">
+      <div id="risco-previa">{% include "riscos/_risco_previa.html" %}</div>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Salvar avaliação</button>
+  </div>
+</form>
+{% endblock %}

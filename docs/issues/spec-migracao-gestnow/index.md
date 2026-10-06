@@ -46,14 +46,14 @@ vem primeiro.
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | 2 | task | done | ready-for-agent | ISSUE-011, ISSUE-014 | [ISSUE-017](./017-exportacao-excel-e-versao-imprimivel.md) |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | 2 | task | done | ready-for-agent | ISSUE-017 | [ISSUE-018](./018-importacao-de-planilha-em-passos.md) |
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | 3 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-019](./019-acoes-costura-status-e-lista.md) |
-| ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | 3 | task | in-progress | ready-for-agent | ISSUE-019 | [ISSUE-020](./020-pdf-das-acoes-follow-up-e-painel.md) |
+| ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | 3 | task | done | ready-for-agent | ISSUE-019 | [ISSUE-020](./020-pdf-das-acoes-follow-up-e-painel.md) |
 | ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | 3 | task | done | ready-for-agent | ISSUE-019 | [ISSUE-021](./021-atas-lista-nova-ata-e-presenca.md) |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | 3 | task | proposed | ready-for-agent | ISSUE-021 | [ISSUE-022](./022-anotacoes-acoes-e-revisoes-da-ata.md) |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | 3 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-023](./023-solicitacao-de-mudanca-registro-e-ficha.md) |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | 3 | task | done | ready-for-agent | ISSUE-023 | [ISSUE-024](./024-analise-de-impacto-e-alcada.md) |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | 3 | task | proposed | ready-for-agent | ISSUE-024, ISSUE-019 | [ISSUE-025](./025-decisao-implementacao-e-encerramento-da-sm.md) |
 | ISSUE-026 | Painel de mudanças | 3 | task | proposed | ready-for-agent | ISSUE-025 | [ISSUE-026](./026-painel-de-mudancas.md) |
-| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | 3 | task | in-progress | ready-for-agent | ISSUE-019, ISSUE-023 | [ISSUE-027](./027-licoes-acervo-fluxo-e-aplicacao.md) |
+| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | 3 | task | done | ready-for-agent | ISSUE-019, ISSUE-023 | [ISSUE-027](./027-licoes-acervo-fluxo-e-aplicacao.md) |
 | ISSUE-028 | Painel de lições | 3 | task | proposed | ready-for-agent | ISSUE-027 | [ISSUE-028](./028-painel-de-licoes.md) |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | 4 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-029](./029-eac-arvore-visao-carteira-e-ponderacao.md) |
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | 4 | task | proposed | ready-for-agent | ISSUE-029, ISSUE-025 | [ISSUE-030](./030-revisoes-da-eac-e-remanejamento-por-sm.md) |
@@ -90,7 +90,7 @@ vem primeiro.
 | ISSUE-061 | Diligenciamento e recebimento | 6 | task | proposed | ready-for-agent | ISSUE-060 | [ISSUE-061](./061-diligenciamento-e-recebimento.md) |
 | ISSUE-062 | MAS: Mapa de Suprimentos | 6 | task | proposed | ready-for-agent | ISSUE-061 | [ISSUE-062](./062-mas-mapa-de-suprimentos.md) |
 | ISSUE-063 | Painel de suprimentos | 6 | task | proposed | ready-for-agent | ISSUE-062 | [ISSUE-063](./063-painel-de-suprimentos.md) |
-| ISSUE-064 | Registro e avaliação de riscos | 6 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-064](./064-riscos-registro-e-avaliacao.md) |
+| ISSUE-064 | Registro e avaliação de riscos | 6 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-064](./064-riscos-registro-e-avaliacao.md) |
 | ISSUE-065 | Ficha do risco: plano de resposta, revisões, encerramento e reabertura | 6 | task | proposed | ready-for-agent | ISSUE-064, ISSUE-019, ISSUE-023, ISSUE-027 | [ISSUE-065](./065-ficha-do-risco-plano-revisoes-e-encerramento.md) |
 | ISSUE-066 | Matriz P x I e painel de riscos | 6 | task | proposed | ready-for-agent | ISSUE-065 | [ISSUE-066](./066-matriz-pxi-e-painel-de-riscos.md) |
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | 6 | task | proposed | ready-for-agent | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 | [ISSUE-067](./067-integracoes-que-chegam-aos-riscos.md) |
@@ -98,7 +98,7 @@ vem primeiro.
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | 7 | task | proposed | ready-for-agent | ISSUE-068, ISSUE-061 | [ISSUE-069](./069-inspecoes-itp-e-fat.md) |
 | ISSUE-070 | Auditorias | 7 | task | proposed | ready-for-agent | ISSUE-068 | [ISSUE-070](./070-auditorias.md) |
 | ISSUE-071 | Painel da qualidade | 7 | task | proposed | ready-for-agent | ISSUE-069, ISSUE-070 | [ISSUE-071](./071-painel-da-qualidade.md) |
-| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
+| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | 7 | task | proposed | ready-for-agent | ISSUE-072, ISSUE-019, ISSUE-027 | [ISSUE-073](./073-ocorrencias-investigacao-e-lgpd.md) |
 | ISSUE-074 | Análises de risco APR e HAZOP | 7 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-074](./074-apr-e-hazop.md) |
 | ISSUE-075 | Painel HSE | 7 | task | proposed | ready-for-agent | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 | [ISSUE-075](./075-painel-hse.md) |

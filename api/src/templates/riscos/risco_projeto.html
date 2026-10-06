@@ -1,0 +1,31 @@
+{% extends "base_fragment.html" %}
+{#
+  O risco nasce dentro de um projeto: no Portfólio o formulário de Novo risco pede o projeto
+  antes de abrir (HU-016). O GET de /api/riscos/novo com o projeto escolhido volta com o
+  formulário de identificação no lugar deste fragmento.
+
+  Espera: projetos (id, code, name) e consulta.
+#}
+{% block fragment %}
+<form method="get" action="/api/riscos/novo" x-target="{{ target_id }}" data-tn-loading="Abrindo o formulário...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Portfólio: escolha o projeto do risco. O número, o apetite e a numeração vêm da configuração dele.</span>
+  </div>
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="{{ target_id }}-projeto">Projeto</label>
+      <select id="{{ target_id }}-projeto" name="projeto" class="input" required>
+        <option value="">Escolha...</option>
+        {% for projeto in projetos %}
+        <option value="{{ projeto.id }}">{{ projeto.code }} · {{ projeto.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Continuar</button>
+  </div>
+</form>
+{% endblock %}

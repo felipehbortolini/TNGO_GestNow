@@ -1,7 +1,7 @@
 ---
 id: ISSUE-072
 title: "HHT, inspeções de segurança, observações e DDS"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 7
@@ -72,6 +72,8 @@ Fonte: `hht.html` e `inspecoes.html` do HSE, `mock-hse`; `histogramaMaoDeObra` g
 
 ## Registro de execução
 
-- Data: 2026-10-06.
-- Feito: backend completo (modelo, m072, cálculos, validação, fachada, importadores, exportação, formulários, rotas) e templates Jinja (formulario, hht, inspecoes, histograma).
-- Falta: view/CSS/JS das duas telas, seed, testes e oráculo, LEIA-ME, desembolso (histograma), divergências, decisões.
+- Data: 2026-10-06 (fechamento).
+- Feito: o backend, os templates e o trio das duas telas já estavam na `main`; esta fatia fechou a carga de demonstração (`api/src/modulos/hse/seed.py`: `hht` e `hseMensal` do protótipo, meses deslocados; sem histograma gravado, porque é calculado), os testes (`api/tests/hse/test_hse_calculos.py` e `test_hse_fachada.py`: fator do histograma, upsert do HHT por mês e empresa, fechamento único por mês, importação conferida e recusada no Portfólio), o oráculo (`api/tests/oraculo/test_oraculo_hse.py`: HHT gravado e as 20 linhas de `histogramaMaoDeObra` reproduzidas com a Curva S do protótipo) e o LEIA-ME do módulo.
+- A migração m072 foi encadeada na cadeia do Alembic (`m021 → m027 → m064 → m072`), que estava com quatro cabeças após os ramos `wip`.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.
+- Observações: o protótipo não tinha inspeção, observação nem DDS individuais — a carga traz o consolidado mensal, como a tela do protótipo mostrava. O histograma aparece na tela de HHT; no Cronograma de desembolso ele entra com a ISSUE-043 (ainda proposta), dona daquela tela, como o próprio escopo da ISSUE-043 previa.

@@ -1,0 +1,56 @@
+{% extends "base_fragment.html" %}
+{#
+  Exclusão lógica de um risco (ISSUE-064): o motivo e, quando for Outro, a observação. A exclusão é
+  bloqueada com ação aberta e para risco encerrado (o servidor recusa com a mensagem); grava motivo,
+  autor e data, e só o Admin vê e restaura. O 422 devolve o formulário; o sucesso atualiza a tela.
+
+  Espera: risco, consulta, versao, valores, erros, motivos e motivo_outro.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/excluir"
+  x-target="registro-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Excluindo o risco..."
+  x-data="{ motivo: $el.dataset.motivo }" data-motivo="{{ valores.get('motivo') or '' }}">
+  <input type="hidden" name="versao" value="{{ versao or '' }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--warn mb-16" role="note">
+    <span>Exclusão lógica: o risco sai da lista, mas continua no banco com motivo, autor e data. Só o Admin vê e restaura.</span>
+  </div>
+
+  <p class="body-txt mb-16">Excluir <strong>{{ risco.code }}</strong> — {{ risco.title }}?</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="risco-motivo">Motivo</label>
+      <select id="risco-motivo" name="motivo" class="input{% if erros.get('motivo') %} input--erro{% endif %}" required
+        @change="motivo = $event.target.value"
+        {% if erros.get('motivo') %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for item in motivos %}
+        <option value="{{ item }}"{% if valores.get('motivo') == item %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      {% if erros.get('motivo') %}<span id="erro-motivo" class="field__erro">{{ erros['motivo'] }}</span>{% endif %}
+    </div>
+    <div class="field field--full" x-show="motivo === '{{ motivo_outro }}'">
+      <label for="risco-observacao">Observação</label>
+      <textarea id="risco-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}" rows="3" maxlength="500"
+        {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
+      <span class="hint">Detalhe o motivo: obrigatório quando o motivo for Outro.</span>
+      {% if erros.get('observacao') %}<span id="erro-observacao" class="field__erro">{{ erros['observacao'] }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--danger">Excluir</button>
+  </div>
+</form>
+{% endblock %}

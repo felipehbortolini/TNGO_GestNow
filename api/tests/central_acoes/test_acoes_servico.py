@@ -238,7 +238,8 @@ def test_a_lista_filtra_por_status_e_os_kpis_ignoram_o_filtro_de_status(
     assert [linha.record.origin_ref for linha in atrasadas.rows] == ["RSK-B"]
     assert atrasadas.counts.overdue == 1
     assert atrasadas.counts.total == 3
-    assert {linha.record.origin_ref for linha in atrasadas.board} == {"RSK-A", "RSK-B", "RSK-C"}
+    # O kanban segue a lista quando o filtro não é Em andamento nem Todos.
+    assert {linha.record.origin_ref for linha in atrasadas.board} == {"RSK-B"}
 
 
 def test_so_acao_entra_na_lista_e_o_escopo_filtra_o_projeto(

@@ -20,7 +20,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "central_acoes/acoes";
   const ALVO_DO_MODAL = "acoes-modal-corpo";
   const LARGURA_DOS_FILTROS = 640;
   const LARGURA_PADRAO = 560;
@@ -80,7 +79,7 @@
     else if (cancelar) fecharModalDe(cancelar);
   });
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["central_acoes/acoes"] = {
     iniciar: function (raiz) {
       const dados = window.Alpine.$data(raiz);
 

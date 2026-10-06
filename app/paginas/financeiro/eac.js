@@ -19,32 +19,32 @@
 (function () {
   "use strict";
 
-  var ESTADOS_DE_RESULTADO = ["conteudo", "vazio-origem", "vazio-filtro"];
+  const ESTADOS_DE_RESULTADO = ["conteudo", "vazio-origem", "vazio-filtro"];
 
   function definirEstado(raiz, estado) {
     window.Alpine.$data(raiz).estado = estado;
   }
 
   function filhas(tabela, codigo) {
-    var linhas = Array.prototype.slice.call(tabela.querySelectorAll("tr[data-codigo]"));
+    const linhas = Array.prototype.slice.call(tabela.querySelectorAll("tr[data-codigo]"));
     return linhas.filter(function (linha) {
-      var c = linha.getAttribute("data-codigo");
+      const c = linha.getAttribute("data-codigo");
       if (c === codigo) return false;
       return codigo === "0" || c.indexOf(codigo + ".") === 0;
     });
   }
 
   function alternar(botao) {
-    var tabela = botao.closest("table");
-    var codigo = botao.getAttribute("data-alternar");
-    var recolher = botao.getAttribute("aria-expanded") === "true";
+    const tabela = botao.closest("table");
+    const codigo = botao.getAttribute("data-alternar");
+    const recolher = botao.getAttribute("aria-expanded") === "true";
     botao.setAttribute("aria-expanded", recolher ? "false" : "true");
-    var rotulo = (recolher ? "Expandir " : "Recolher ") + codigo;
+    const rotulo = (recolher ? "Expandir " : "Recolher ") + codigo;
     botao.setAttribute("aria-label", rotulo);
     botao.setAttribute("title", rotulo);
     filhas(tabela, codigo).forEach(function (linha) {
       linha.hidden = recolher;
-      var proprio = linha.querySelector("[data-alternar]");
+      const proprio = linha.querySelector("[data-alternar]");
       if (proprio) {
         // Ao expandir um pai, os descendentes voltam abertos.
         proprio.setAttribute("aria-expanded", "true");
@@ -53,18 +53,18 @@
   }
 
   function atualizarExportacao(raiz) {
-    var form = raiz.querySelector("[data-filtros]");
+    const form = raiz.querySelector("[data-filtros]");
     if (!form) return;
-    var consulta = new URLSearchParams(new FormData(form)).toString();
+    const consulta = new URLSearchParams(new FormData(form)).toString();
     raiz.querySelectorAll("[data-exportar]").forEach(function (link) {
-      var base = link.getAttribute("href").split("?")[0];
+      const base = link.getAttribute("href").split("?")[0];
       link.setAttribute("href", consulta ? base + "?" + consulta : base);
     });
   }
 
   function aoResponder(raiz) {
-    var marcador = raiz.querySelector("[data-resultado]");
-    var resultado = marcador && marcador.getAttribute("data-resultado");
+    const marcador = raiz.querySelector("[data-resultado]");
+    const resultado = marcador && marcador.getAttribute("data-resultado");
     definirEstado(raiz, ESTADOS_DE_RESULTADO.indexOf(resultado) >= 0 ? resultado : "erro");
     atualizarExportacao(raiz);
   }
@@ -79,13 +79,13 @@
       });
 
       raiz.addEventListener("ajax:error", function (e) {
-        var status = e.detail && e.detail.status;
+        const status = e.detail && e.detail.status;
         if (status === 403) definirEstado(raiz, "sem-permissao");
         else if (status !== 422 && status !== 409) definirEstado(raiz, "erro");
       });
 
       raiz.addEventListener("click", function (e) {
-        var botao = e.target.closest("[data-alternar]");
+        const botao = e.target.closest("[data-alternar]");
         if (botao && raiz.contains(botao)) alternar(botao);
       });
 

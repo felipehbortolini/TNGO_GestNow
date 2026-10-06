@@ -28,9 +28,9 @@ from src.modulos.configuracoes.service import current_versions
 from tests.oraculo import (
     OracleContext,
     harness,
-    oraculo_6wla,  # noqa: F401 - registra as afirmações do 6WLA
     register_check,
     registered_checks,
+    test_oraculo_6wla,  # noqa: F401 - registra as afirmações do 6WLA
 )
 
 MOCK_PEOPLE_EMAILS = (
@@ -88,10 +88,16 @@ def _afirmar_cadastros_de_apoio(context: OracleContext) -> None:
         "420",
         "510",
     }
-    assert len(session.scalars(select(Location)).all()) == 9, "locais por projeto"
+    assert len(session.scalars(select(Location)).all()) == 15, (
+        "9 locais do mock-base + 6 da demonstracao da Programacao Semanal (ISSUE-051)"
+    )
     assert len(session.scalars(select(Discipline)).all()) == 12, "disciplinas"
-    assert len(session.scalars(select(Unit)).all()) == 11, "unidades"
-    assert len(session.scalars(select(Company)).all()) == 18, "empresas"
+    assert len(session.scalars(select(Unit)).all()) == 14, (
+        "11 unidades do mock-base + kg, und e h da demonstracao da Programacao Semanal (ISSUE-051)"
+    )
+    assert len(session.scalars(select(Company)).all()) == 21, (
+        "18 empresas do mock-base + 3 da demonstracao da Programacao Semanal (ISSUE-051)"
+    )
 
 
 def _afirmar_pessoas_e_colaboradores(context: OracleContext) -> None:

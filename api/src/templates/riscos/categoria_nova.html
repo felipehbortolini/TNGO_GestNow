@@ -1,0 +1,41 @@
+{% extends "base_fragment.html" %}
+{#
+  Cadastro rápido de uma categoria da RBS, aberto do formulário do risco (ISSUE-064): grupo
+  (nível 1) e subcategoria. O sucesso grava a categoria e devolve o campo da categoria do
+  formulário de trás com ela escolhida (alvo risco-categoria-campo); o 422 mantém este modal.
+
+  Espera: grupos, valores e erros.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/categorias"
+  x-target="risco-categoria-campo" x-target.422="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Cadastrando a categoria...">
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+  <p class="hint mb-16">Cadastro rápido do catálogo mantido em Configurações &gt; Cadastros.</p>
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="{{ target_id }}-grupo">Grupo (nível 1)</label>
+      <input id="{{ target_id }}-grupo" name="grupo" class="input{% if erros.get('grupo') %} input--erro{% endif %}" maxlength="60" required
+        list="{{ target_id }}-grupos" value="{{ valores.get('grupo') or '' }}"
+        {% if erros.get('grupo') %}aria-invalid="true" aria-describedby="erro-grupo"{% endif %} />
+      <datalist id="{{ target_id }}-grupos">
+        {% for grupo in grupos %}<option value="{{ grupo }}"></option>{% endfor %}
+      </datalist>
+      {% if erros.get('grupo') %}<span id="erro-grupo" class="field__erro">{{ erros['grupo'] }}</span>{% endif %}
+    </div>
+    <div class="field field--full">
+      <label for="{{ target_id }}-nome">Subcategoria</label>
+      <input id="{{ target_id }}-nome" name="nome" class="input{% if erros.get('nome') %} input--erro{% endif %}" maxlength="60" required
+        value="{{ valores.get('nome') or '' }}"{% if erros.get('nome') %} aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
+      {% if erros.get('nome') %}<span id="erro-nome" class="field__erro">{{ erros['nome'] }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Cadastrar categoria</button>
+  </div>
+</form>
+{% endblock %}

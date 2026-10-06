@@ -1,0 +1,182 @@
+{% extends "base_fragment.html" %}
+{#
+  Novo risco e edição da identificação (ISSUE-064, HU-107): causa, evento e consequência; categoria
+  RBS com cadastro rápido; ata de origem quando a origem é Ata de reunião; dono, data, gatilho e
+  descrição. O número nasce na gravação, pelo padrão do projeto. "Salvar e avaliar" abre a avaliação
+  do risco assim que a tela se atualiza. O 422 devolve este formulário preenchido com a mensagem sob
+  cada campo; o sucesso atualiza a tela atrás do modal.
+
+  Espera: risco (vazio no novo), projeto, projeto_id, padrao, versao, consulta, valores, erros,
+  categorias, pessoas, atas (id e rótulo), origens, naturezas, ata_origem, referencia,
+  natureza_travada, origem_do_sistema e ja_avaliado.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="{{ '/api/riscos/' ~ risco.code ~ '/editar' if risco else '/api/riscos/novo' }}"
+  x-target="registro-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando o risco..."
+  x-data="{ origem: $el.dataset.origem }" data-origem="{{ valores.get('origemTipo') or 'Manual' }}">
+  <input type="hidden" name="versao" value="{{ versao or '' }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <input type="hidden" name="projeto" value="{{ projeto_id }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field">
+      <span class="registro__rotulo">Projeto</span>
+      <p class="body-txt fw-600">{{ projeto.code }} · {{ projeto.name if projeto else '' }}</p>
+    </div>
+    <div class="field">
+      <span class="registro__rotulo">Número</span>
+      <p class="body-txt">
+        {% if risco %}<b>{{ risco.code }}</b>{% else %}<span class="muted">gerado ao salvar ({{ padrao }}-...)</span>{% endif %}
+      </p>
+    </div>
+
+    <div class="field">
+      <label for="risco-natureza">Natureza</label>
+      {% if natureza_travada %}
+      <input type="hidden" name="natureza" value="{{ valores.get('natureza') }}" />
+      <p class="body-txt"><span class="pill {{ 'pill--fix' if valores.get('natureza') == 'Ameaça' else 'pill--ok' }}">{{ valores.get('natureza') }}</span></p>
+      <span class="hint">Risco com plano de resposta: a natureza não pode ser trocada.</span>
+      {% else %}
+      <select id="risco-natureza" name="natureza" class="input{% if erros.get('natureza') %} input--erro{% endif %}" required
+        {% if erros.get('natureza') %}aria-invalid="true" aria-describedby="erro-natureza"{% endif %}>
+        {% for natureza in naturezas %}
+        <option value="{{ natureza }}"{% if valores.get('natureza') == natureza %} selected{% endif %}>{{ natureza }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Define as estratégias de resposta disponíveis no plano.</span>
+      {% endif %}
+      {{ campo_erro(erros, 'natureza') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-categoria">Categoria (RBS)</label>
+      <div class="registro__categoria">
+        <div id="risco-categoria-campo">
+          <select id="risco-categoria" name="categoria" class="input{% if erros.get('categoria') %} input--erro{% endif %}" required
+            {% if erros.get('categoria') %}aria-invalid="true" aria-describedby="erro-categoria"{% endif %}>
+            <option value="">Escolha...</option>
+            {% for categoria in categorias %}
+            <option value="{{ categoria.id }}"{% if valores.get('categoria') == categoria.id|string %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
+            {% endfor %}
+          </select>
+          {{ campo_erro(erros, 'categoria') }}
+        </div>
+        <button type="button" class="btn btn--secondary btn--sm" data-registro-categoria>
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Nova categoria
+        </button>
+      </div>
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-causa">Causa (por que pode acontecer)</label>
+      <input id="risco-causa" name="causa" class="input{% if erros.get('causa') %} input--erro{% endif %}" maxlength="255" required
+        value="{{ valores.get('causa') or '' }}"{% if erros.get('causa') %} aria-invalid="true" aria-describedby="erro-causa"{% endif %} />
+      {{ campo_erro(erros, 'causa') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-titulo">Evento (o que pode acontecer)</label>
+      <textarea id="risco-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}" rows="2" maxlength="255" required
+        {% if erros.get('titulo') %}aria-invalid="true" aria-describedby="erro-titulo"{% endif %}>{{ valores.get('titulo') or '' }}</textarea>
+      <span class="hint">É o título usado nas listas e relatórios.</span>
+      {{ campo_erro(erros, 'titulo') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-consequencia">Consequência (efeito no projeto)</label>
+      <input id="risco-consequencia" name="consequencia" class="input{% if erros.get('consequencia') %} input--erro{% endif %}" maxlength="255" required
+        value="{{ valores.get('consequencia') or '' }}"{% if erros.get('consequencia') %} aria-invalid="true" aria-describedby="erro-consequencia"{% endif %} />
+      {{ campo_erro(erros, 'consequencia') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-descricao">Descrição detalhada</label>
+      <textarea id="risco-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}" rows="3" maxlength="1000"
+        placeholder="Contexto, premissas e evidências que sustentam o risco"
+        {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
+      {{ campo_erro(erros, 'descricao') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-dono">Dono do risco</label>
+      <select id="risco-dono" name="donoId" class="input{% if erros.get('donoId') %} input--erro{% endif %}" required
+        {% if erros.get('donoId') %}aria-invalid="true" aria-describedby="erro-donoId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('donoId') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Precisa ser convidado ativo do cliente do projeto.</span>
+      {{ campo_erro(erros, 'donoId') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-identificado">Data de identificação</label>
+      <input id="risco-identificado" name="identificadoEm" type="date" class="input{% if erros.get('identificadoEm') %} input--erro{% endif %}"
+        max="{{ referencia }}" required value="{{ valores.get('identificadoEm') or referencia }}"
+        {% if erros.get('identificadoEm') %}aria-invalid="true" aria-describedby="erro-identificadoEm"{% endif %} />
+      {{ campo_erro(erros, 'identificadoEm') }}
+    </div>
+
+    {% if origem_do_sistema %}
+    <div class="field field--full">
+      <span class="registro__rotulo">Origem</span>
+      <p class="body-txt">{{ risco.origin or risco.origin_type }}<br /><span class="hint">Gerada pelo sistema; não editável.</span></p>
+    </div>
+    {% else %}
+    <div class="field">
+      <label for="risco-origem">Origem</label>
+      <select id="risco-origem" name="origemTipo" class="input{% if erros.get('origemTipo') %} input--erro{% endif %}" required
+        @change="origem = $event.target.value"
+        {% if erros.get('origemTipo') %}aria-invalid="true" aria-describedby="erro-origemTipo"{% endif %}>
+        {% for origem in origens %}
+        <option value="{{ origem }}"{% if valores.get('origemTipo') == origem %} selected{% endif %}>{{ origem }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'origemTipo') }}
+    </div>
+    <div class="field" x-show="origem === '{{ ata_origem }}'">
+      <label for="risco-ata">Ata de origem</label>
+      <select id="risco-ata" name="ataId" class="input{% if erros.get('ataId') %} input--erro{% endif %}"
+        {% if erros.get('ataId') %}aria-invalid="true" aria-describedby="erro-ataId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for ata in atas %}
+        <option value="{{ ata.id }}"{% if valores.get('ataId') == ata.id|string %} selected{% endif %}>{{ ata.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Grava o vínculo de navegação com a ata.</span>
+      {{ campo_erro(erros, 'ataId') }}
+    </div>
+    {% endif %}
+
+    <div class="field field--full">
+      <label for="risco-gatilho">Gatilho (sinal de alerta)</label>
+      <input id="risco-gatilho" name="gatilho" class="input{% if erros.get('gatilho') %} input--erro{% endif %}" maxlength="255"
+        value="{{ valores.get('gatilho') or '' }}"{% if erros.get('gatilho') %} aria-invalid="true" aria-describedby="erro-gatilho"{% endif %} />
+      <span class="hint">Usado no monitoramento: quando o gatilho ocorre, o sistema sugere reavaliação imediata.</span>
+      {{ campo_erro(erros, 'gatilho') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
+    {% if ja_avaliado %}
+    <button type="submit" class="btn btn--primary">Salvar</button>
+    {% else %}
+    <button type="submit" name="acao" value="salvar" class="btn btn--secondary">Salvar</button>
+    <button type="submit" name="acao" value="avaliar" class="btn btn--primary">Salvar e avaliar</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

@@ -940,7 +940,7 @@ def _load(session: Session) -> list[_Loaded]:
     counts = dict(
         session.execute(
             select(LessonApplication.lesson_id, func.count()).group_by(LessonApplication.lesson_id)
-        ).tuples()
+        ).all()
     )
     return [
         _Loaded(lesson, tuple(keywords.get(lesson.id, ())), counts.get(lesson.id, 0))

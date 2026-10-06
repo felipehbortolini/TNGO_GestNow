@@ -343,7 +343,8 @@ def score_preview(
     today = calendario.today()
     preview = service.preview_score(session, user=context.user, data=data, reference_date=today)
     scale = service.parameters(session, reference_date=today).scale
-    return _preview_response(req, preview, scale, kind=data.kind)
+    values = {"p": data.probability, "i": data.impact}
+    return _preview_response(req, preview, scale, kind=data.kind, values=values)
 
 
 # ── Exclusão e restauração ───────────────────────────────────────────────────────────────────
@@ -382,7 +383,6 @@ def delete_save(
     )
     query = form.get("consulta", "")
     if error is not None:
-        stale = isinstance(error, VersionConflictError)
         stale = isinstance(error, VersionConflictError)
         state = _DeleteState(
             risk=risk,
@@ -981,13 +981,19 @@ def _assess_form(
 
 
 def _preview_response(
-    req: func.HttpRequest, preview: service.ScorePreview, scale: Scale, *, kind: str
+    req: func.HttpRequest,
+    preview: service.ScorePreview,
+    scale: Scale,
+    *,
+    kind: str,
+    values: Mapping[str, object],
 ) -> func.HttpResponse:
     return AlpineAjaxResponse(
         template_name=PREVIEW_TEMPLATE,
         context={
             "previa": preview,
             "escala": scale,
+            "valores": dict(values),
             "etiqueta_de_faixa": lambda band: _severity_tone(band, scale),
             "formatar_moeda": _format_money,
             "texto_da_cadencia": _cadence_text_of,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 from collections.abc import Mapping
+from urllib.parse import unquote
 
 import azure.functions as func
 import pytest
@@ -202,7 +203,9 @@ def test_copiar_sem_relato_anterior_avisa_sem_gravar(cenario: Cenario) -> None:
     )
 
     assert resposta.status_code == 200
-    assert "Não há relato mensal anterior para copiar." in _texto(resposta)
+    assert "Não há relato mensal anterior para copiar." in unquote(
+        resposta.headers.get("X-TN-Toast", "")
+    )
 
 
 def test_abrir_leva_ao_relato_do_periodo_ou_ao_formulario(cenario: Cenario) -> None:

@@ -59,7 +59,7 @@
    * os fatos imutáveis de histórico, parte 1: `acao_replanejamento`,
      `eac_revisao_item`, `eac_remanejamento`, `eac_projecao`, `custo_erp`,
      `reserva_movimento`, `curva_financeira_revisao`, `curva_financeira_mes`,
-     `contrato_aditivo`, `licao_palavra_chave`, `licao_aplicacao`,
+     `contrato_aditivo`, `licao_palavra_chave`, `licao_aplicacao`, `licao_historico`,
      `mudanca_impacto_eac_item`, `mudanca_remanejamento` e
      `mudanca_decisao_participante`;
    * os fatos imutáveis de histórico, parte 2: `eap_medicao`,
@@ -382,6 +382,8 @@ erDiagram
     pessoa ||--o{ licao : "autor"
     licao ||--o{ licao_palavra_chave : "indexa"
     licao ||--o{ licao_aplicacao : "reusa"
+    licao ||--o{ licao_historico : "historiciza"
+    pessoa ||--o{ licao_historico : "registra"
     projeto ||--o{ licao_aplicacao : "recebe"
     acao |o--o{ licao_aplicacao : "gera"
     risco |o--o{ licao_aplicacao : "gera"
@@ -505,6 +507,13 @@ erDiagram
         bigint registrado_por_id FK
         date data
         text como
+    }
+    licao_historico {
+        bigint id PK
+        bigint licao_id FK
+        bigint pessoa_id FK
+        timestamptz data_hora
+        text texto
     }
 ```
 
@@ -1935,6 +1944,7 @@ fachada, não por coluna.
 | `licao` | Lição aprendida com origem rastreável (`origem` + `origem_ref`), tipo (A repetir/A evitar), fase, área, disciplina, causa, impactos, recomendação, aplicabilidade (Projeto/Corporativa) e situação do fluxo. `reusos` não é coluna: é a contagem de `licao_aplicacao`. | governanca |
 | `licao_palavra_chave` | Palavras-chave da lição, para a busca do acervo. Sem `versao` própria. | governanca |
 | `licao_aplicacao` | Cada reuso registrado (projeto, data, como) e a ação da Central ou o risco gerados. Sem `versao` própria. | governanca |
+| `licao_historico` | Linha do histórico da lição: quem fez o quê e quando, com o comentário da devolução. Fato imutável, sem `versao` própria. | governanca |
 
 ### 03 Financeiro (dono: `financeiro`)
 

@@ -110,8 +110,13 @@ for (const dir of PASTAS_FRAGMENTO) {
 
 // ── 4. Todo recurso local existe no disco ───────────────────────────
 // É a verificação que teria pego o /kyno-theme.css do template original.
+// Falso positivo estrutural: link de tela (data-tn-tela) aponta para a rota
+// pública do shell (`/modulo/tela`, ver ds/shell.js) — quem a serve é o
+// roteador do app, não um arquivo do disco. A tag inteira sai da varredura;
+// as demais referências do arquivo continuam conferidas.
+const LINK_DE_TELA = /<a\b[^>]*\bdata-tn-tela\b[^>]*>/gi;
 for (const f of arquivos(APP, [".html"])) {
-  const txt = ler(f).replace(/<!--[\s\S]*?-->/g, "");
+  const txt = ler(f).replace(/<!--[\s\S]*?-->/g, "").replace(LINK_DE_TELA, "");
   for (const m of txt.matchAll(/(?:href|src)\s*=\s*["'](\/[^"'#?]+)/g)) {
     const url = m[1];
     if (url.startsWith("/.auth") || url.startsWith("/api/") || url.startsWith("/_")) continue;

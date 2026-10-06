@@ -26,6 +26,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -437,15 +438,20 @@ def save_risk(session: Session, *, user: User, data: RiskInput, reference_date: 
         system_origin=existing is not None and _is_system_origin(existing),
     )
     problems.update(_identification_register_problems(session, data, existing))
-    if existing is None and not _project_exists(session, data.project_id):
+    target = existing.project_id if existing else data.project_id
+    if existing is None and (target is None or not _project_exists(session, target)):
         problems["projeto"] = UNKNOWN_PROJECT_MESSAGE
     if problems:
         raise InvalidDataError(problems)
-    target = existing.project_id if existing else data.project_id
-    notices = _duplicate_notices(session, target, data.title, ignore=existing)
+    # Sem problemas, o projeto está definido: a edição traz o dono do risco e a inclusão passou
+    # pela checagem acima.
+    project_id = cast(int, target)
+    notices = _duplicate_notices(session, project_id, data.title, ignore=existing)
     ctx = _Ctx(session, user, reference_date)
     if existing is None:
-        return SaveResult(_create_risk(ctx, data).code, created=True, notices=notices)
+        return SaveResult(
+            _create_risk(ctx, data, project_id=project_id).code, created=True, notices=notices
+        )
     _update_identification(ctx, existing, data)
     return SaveResult(existing.code, created=False, notices=notices)
 
@@ -686,17 +692,15 @@ def _ata_origin(session: Session, data: RiskInput, project_id: int) -> tuple[int
     return data.ata_id, f"Ata {label}".strip() if label else validation.ATA_ORIGIN
 
 
-def _create_risk(ctx: _Ctx, data: RiskInput) -> Risk:
-    ata_id, origin = _ata_origin(ctx.session, data, data.project_id)
+def _create_risk(ctx: _Ctx, data: RiskInput, *, project_id: int) -> Risk:
+    ata_id, origin = _ata_origin(ctx.session, data, project_id)
     risk = Risk(
-        project_id=data.project_id,
+        project_id=project_id,
         category_id=data.category_id,
         owner_id=data.owner_id,
         identified_by_id=ctx.user.person_id,
         ata_id=ata_id,
-        code=reserve_code(
-            ctx.session, project_id=data.project_id, reference_date=ctx.reference_date
-        ),
+        code=reserve_code(ctx.session, project_id=project_id, reference_date=ctx.reference_date),
         title=data.title.strip(),
         nature=data.nature,
         origin_type=data.origin_type,

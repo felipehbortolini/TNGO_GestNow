@@ -1,7 +1,7 @@
 ---
 id: ISSUE-020
 title: "PDF das ações filtradas, follow-up aos responsáveis e painel da Central"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -65,6 +65,8 @@ Fonte: `js/pages/central-acoes/acoes.js` e `dashboard.js`, `GI.api.central.resum
 
 ## Registro de execução
 
-- Data: 2026-10-06.
-- Feito: leitura da fonte (dashboard.js, followup do acoes.js) e do módulo; o PDF das ações filtradas já existe da ISSUE-019 (`acoes/imprimivel`), falta o teste do filtro.
-- Falta: cálculos (follow-up, painel) | fachada (`follow_up`, `dashboard`) | rotas | telas (botão follow-up, painel) | exportação do painel | testes | seed/oráculo | LEIA-ME.
+- Data: 2026-10-06 (fechamento).
+- Feito: o backend já estava na `main` (fachada `panel_service` e `follow_up`, rotas `panel_routes`, exportação `panel_export`, templates `painel.html` e `acoes_followup.html`); esta fatia fechou a tela Dashboards e KPIs com o trio real (`app/_views/central_acoes/dashboard.html`, `dashboard.css`, `dashboard.js`), os testes de fachada e de rota (`api/tests/central_acoes/test_painel.py`) e o LEIA-ME do módulo.
+- Testes: contagens do painel contra a lista no mesmo escopo, recorte por origem, agrupamento do follow-up por responsável, envio simulado (uma notificação por responsável) e PDF/Excel com filtro.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.
+- Observação: o envio do follow-up segue "simulado" enquanto `GESTNOW_ENVIO_EMAIL` estiver desligado, como a tela avisa.

@@ -25,7 +25,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "planejamento/relato";
   const RAIZ = "main.pagina--planejamento-relato";
   const BASE = "/api/planejamento/relatos";
   const TIPOS = ["Semanal", "Mensal"];
@@ -217,7 +216,7 @@
     document.addEventListener("ajax:sent", aoEnviar);
   }
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["planejamento/relato"] = {
     /* O tipo do filtro quando o endereço pede (?tipo=Mensal); vazio é "Todos". */
     tipoInicial: function () {
       const tipo = parametro("tipo");

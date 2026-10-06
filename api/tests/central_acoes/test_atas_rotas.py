@@ -49,7 +49,7 @@ def _requisicao(
 
 
 def _chamar(rota: object, requisicao: func.HttpRequest) -> func.HttpResponse:
-    return rota.get_user_function()(requisicao)  # type: ignore[attr-defined]
+    return rota(requisicao)
 
 
 def _formulario_completo(cenario: Cenario, unidade_id: int, **campos: str) -> list[tuple[str, str]]:

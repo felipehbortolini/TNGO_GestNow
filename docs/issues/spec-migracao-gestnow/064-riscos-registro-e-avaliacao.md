@@ -1,7 +1,7 @@
 ---
 id: ISSUE-064
 title: "Registro e avaliação de riscos"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 6
@@ -80,5 +80,9 @@ Fonte: `registro.html`, `js/pages/riscos/riscos.js` (modais 10, 11 e 17), `GI.ap
 
 ## Registro de execução
 
-- Feito: modelo, migração m064, MODELO-DE-DADOS (identificado_em).
-- Feito tb: calculations, validation, service (+ central_acoes.count_actions_of_origin, configuracoes.list_project_risk_contexts). Feito tb: presentation, export, seed, oráculo (test_oraculo_riscos). Feito tb: routes.py (sem templates). Falta: templates Jinja, view+css+js, testes, LEIA-ME.
+- Data: 2026-10-06 (fechamento).
+- Feito: o backend já estava na `main` (modelo, migração m064, `MODELO-DE-DADOS`, cálculos, validação, fachada, apresentação, exportação, seed e oráculo); esta fatia fechou os sete fragmentos que faltavam (`risco_projeto`, `risco_form`, `risco_avaliar`, `_risco_previa`, `risco_previa`, `risco_excluir`, `categoria_nova` e `categoria_campo`), o trio real do registro (`app/_views/riscos/registro.html`, `registro.css`, `registro.js`), os testes (`api/tests/riscos/test_riscos_calculos.py`, `test_riscos_fachada.py`, `test_riscos_rotas.py`) e o LEIA-ME do módulo.
+- Testes: score e severidade nas duas escalas (inclusive risco à vida na CIPM), impacto pelo pior caso, VME e exposição, cadência e revisão, numeração que ignora sufixo não numérico, avaliação (residual exige plano, justificativa e residual acima do inerente) e exclusão lógica com restauração só pelo Admin.
+- A migração m064 foi encadeada na cadeia do Alembic (`m021 → m027 → m064 → m072`), que estava com quatro cabeças após os ramos `wip`.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.
+- A ficha do risco (link da coluna Nº e das ações da linha) é a ISSUE-065.

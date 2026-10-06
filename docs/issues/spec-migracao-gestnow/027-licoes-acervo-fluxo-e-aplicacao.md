@@ -1,7 +1,7 @@
 ---
 id: ISSUE-027
 title: "Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto"
-status: in-progress
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
@@ -89,6 +89,9 @@ Fonte: `licoes.html`, `GI.api.governanca.licoes`, `salvarLicao`,
 
 ## Registro de execução
 
-Data: 2026-10-06.
-Feito: modelo (`lessons_models.py`, tabela nova `licao_historico`), migração m027, cálculos, validação, fachada (`lessons_service.py`), apresentação, exportação, rotas (`lessons_routes.py`, registrada em `function_app.py`).
-Falta: templates, view/JS/CSS, seed, oráculo, testes, MODELO-DE-DADOS, LEIA-ME, divergências.
+- Data: 2026-10-06 (fechamento).
+- Feito: o backend e o trio da tela já estavam na `main` (modelo, migração m027, cálculos, validação, fachada, rotas, templates e `licoes.html`/`.css`/`.js`); esta fatia fechou a carga de demonstração (`seed.py`, parte `governanca-licoes`, com a origem em texto do protótipo convertida para o modelo), o oráculo (`api/tests/oraculo/test_oraculo_licoes.py`: 10 lições, 4 publicadas, 9 corporativas, 6 reusos), os testes de fachada e de rota (`api/tests/governanca/test_licoes_fachada.py` e `test_licoes_rotas.py`), a tabela `licao_historico` no `docs/MODELO-DE-DADOS.md` e o LEIA-ME do módulo.
+- Testes: segregação do validador (403), devolução com comentário no histórico, origem de módulo com número inexistente (422) e existente, rascunho com origem, aplicação com ação na Central e visibilidade no acervo.
+- A migração m027 foi encadeada na cadeia do Alembic (`m021 → m027 → m064 → m072`), que estava com quatro cabeças após os ramos `wip`.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest passaram em 06/10/2026.
+- Pontos que seguem para as issues donas, como o próprio escopo previa: a ligação do encerramento da SM com lição é da ISSUE-025; a geração de risco a partir da lição, da ISSUE-067; as demais origens de módulo registram o seu verificador na issue de cada uma.

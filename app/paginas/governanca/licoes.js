@@ -24,7 +24,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "governanca/licoes";
   const RAIZ = "main.pagina--governanca-licoes";
   const ROTAS = {
     ver: "/api/governanca/licoes/ver",
@@ -142,7 +141,7 @@
     document.addEventListener("ajax:sent", aoEnviar);
   }
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["governanca/licoes"] = {
     iniciar: function (raiz) {
       window.Alpine.$data(raiz).estado = "carregando";
       ouvir();

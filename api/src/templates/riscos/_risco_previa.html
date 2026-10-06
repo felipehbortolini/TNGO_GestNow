@@ -1,0 +1,24 @@
+{#
+  Prévia do score da avaliação (ISSUE-064): o servidor calcula score, severidade, VME e cadência a
+  cada mudança do formulário; o bloco é o mesmo no formulário (risco_avaliar.html) e na resposta
+  dinâmica de /api/riscos/previa (risco_previa.html).
+
+  Espera: previa (ScorePreview), valores (p e i), anterior (AssessmentView do mesmo tipo, quando há),
+  tipo_atual, etiqueta_de_faixa, formatar_moeda e texto_da_cadencia.
+#}
+{% if previa.score %}
+<div class="aval-card">
+  <span class="aval-card__rotulo">Score {{ 'residual' if tipo_atual == 'residual' else 'inerente' }}</span>
+  <div class="aval-card__score">
+    <b>{{ previa.score }}</b>
+    <span class="aval-card__pi">P{{ valores.get('p') or '·' }} x I{{ previa.impact }}</span>
+    <span class="pill {{ etiqueta_de_faixa(previa.severity) }}">{{ previa.severity.name }}</span>
+  </div>
+  <span class="body-txt">
+    {% if anterior %}Anterior: {{ anterior.score }} · {% endif %}VME {{ formatar_moeda(previa.vme_cents or 0) }}
+    ({{ previa.mean_pct }}% x impacto em custo){% if previa.cadence_days %} · revisão {{ texto_da_cadencia(previa.cadence_days) }}{% endif %}
+  </span>
+</div>
+{% else %}
+<p class="muted">Escolha probabilidade e impacto para ver o score.</p>
+{% endif %}

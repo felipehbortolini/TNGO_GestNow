@@ -107,7 +107,7 @@ def test_custo_zero_ou_negativo_descarta_a_fonte() -> None:
 def test_rebaixar_a_alcada_e_recusado_e_elevar_e_aceito() -> None:
     muito = _form(custo="100,01", fonte_recurso="Aditivo de orçamento", alcada="Gerente do projeto")
     assert "nunca rebaixada" in _mensagens(muito)["alcada"]
-    elevada = _form(custo="1,00", alcada="Comitê")
+    elevada = _form(custo="1,00", fonte_recurso="Aditivo de orçamento", alcada="Comitê")
     entrada = validation.validate_impact(elevada, rules=REGRAS)
     assert entrada.authority == models.AUTHORITY_COMMITTEE
     assert entrada.required_authority == models.AUTHORITY_MANAGER

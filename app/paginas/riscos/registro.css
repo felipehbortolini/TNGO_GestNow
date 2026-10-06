@@ -1,16 +1,193 @@
 /* ============================================================
    registro.css — Estilo da tela Registro de riscos (riscos/registro)
 
-   Ameaças e oportunidades com avaliação, filtros e próximas revisões.
+   Escopo: tudo que mora aqui começa por .pagina--riscos-registro, a classe da raiz da view,
+   para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento,
+   raio ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Escopo: tudo que morar aqui começa por .pagina--riscos-registro, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-064.
+   O que a tela acrescenta ao Design System (ISSUE-064): a linha de contexto em selos, o
+   texto de duas linhas do indicador, a barra de ferramentas, os chips, a coluna em destaque da
+   avaliação exibida, as linhas em alerta e apagadas, a paginação, o campo da categoria e o
+   cartão da prévia do score. O fragmento é desenhado pelo servidor
+   (api/src/templates/riscos/).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--riscos-registro .registro__contexto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--riscos-registro .registro__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--riscos-registro .registro__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--riscos-registro .registro__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--riscos-registro .registro__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+}
+
+.pagina--riscos-registro .registro__chip-remover {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  line-height: 1;
+}
+
+.pagina--riscos-registro .registro__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--riscos-registro .registro__tabela .registro__nota,
+.pagina--riscos-registro .registro__codigo {
+  white-space: nowrap;
+}
+
+.pagina--riscos-registro .registro__destaque {
+  background: var(--verde-50);
+}
+
+.pagina--riscos-registro .registro__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--riscos-registro .registro__acoes form,
+.pagina--riscos-registro .registro__restaurar {
+  display: inline;
+  margin: 0;
+}
+
+.pagina--riscos-registro .registro__atrasada {
+  color: var(--erro-700);
+  font-size: 0.75rem;
+}
+
+.pagina--riscos-registro .registro__linha--alerta td {
+  background: var(--warn-50);
+}
+
+.pagina--riscos-registro .registro__linha--apagada {
+  opacity: 0.6;
+}
+
+.pagina--riscos-registro .registro__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.pagina--riscos-registro .registro__faixas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pagina--riscos-registro .registro__faixas legend {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.pagina--riscos-registro .registro__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.pagina--riscos-registro .registro__categoria {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.pagina--riscos-registro .registro__categoria > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.pagina--riscos-registro .registro__rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.pagina--riscos-registro .aval-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  background: var(--surface-hover-suave);
+}
+
+.pagina--riscos-registro .aval-card__rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-registro .aval-card__score {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.pagina--riscos-registro .aval-card__score b {
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--brand-title);
+}
+
+.pagina--riscos-registro .aval-card__pi {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .pagina--riscos-registro .registro__paginas {
+    justify-content: stretch;
+  }
+  .pagina--riscos-registro .registro__acoes {
+    text-align: left;
+  }
+}

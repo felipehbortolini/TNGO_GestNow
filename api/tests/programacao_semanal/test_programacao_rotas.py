@@ -235,6 +235,8 @@ def test_every_route_of_the_module_declares_its_access() -> None:
         routes.save_activity,
         routes.delete_activity,
     ):
-        access = handler.__dict__[ACCESS_ATTRIBUTE]
+        # `bp.route` embala a função do `fragment_route`; o `Access` mora na função de dentro.
+        funcao = handler.build().get_user_function()
+        access = funcao.__dict__[ACCESS_ATTRIBUTE]
         assert access is not None
         assert access.module == "programacao_semanal"

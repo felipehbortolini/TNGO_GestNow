@@ -199,7 +199,7 @@ def test_um_importador_de_teste_percorre_modelo_envio_conferencia_e_confirmacao(
     ativos = dict(
         db_session.execute(
             select(Client.name, Client.active).where(Client.name.like(f"{PREFIXO}%"))
-        )
+        ).all()
     )
     assert ativos == {ALFA: True, BETA: False, GAMA: True}
     assert _trilha_de_clientes(db_session) == antes + 3

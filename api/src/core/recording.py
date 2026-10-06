@@ -12,7 +12,7 @@ with children, an integration between modules) composes ``audit`` and
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
@@ -20,8 +20,18 @@ from src.core import audit, versioning
 from src.core.versioning import Versioned
 
 
-def create(session: Session, *, user_id: int, record: Versioned) -> Versioned:
-    """Insert the record, flush it and leave the trail line of creation."""
+class TableRecord(Protocol):
+    """A record the trail can name: every ORM model carries its table name (D5)."""
+
+    __tablename__: str
+
+
+def create[TRecord: TableRecord](session: Session, *, user_id: int, record: TRecord) -> TRecord:
+    """Insert the record, flush it and leave the trail line of creation.
+
+    Serves editable records and immutable facts alike: the facts have no ``versao`` (D5b), so
+    the bound is only the table name, and the return keeps the concrete type of what was inserted.
+    """
     session.add(record)
     session.flush()
     audit.created(session, user_id=user_id, entity=record.__tablename__, record=record)

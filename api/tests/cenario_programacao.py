@@ -115,12 +115,8 @@ def build_scenario(db_session: Session) -> Scenario:
             db_session.get(Person, planner_c.person_id),
             {(project.id, ScheduleRole.PLANNER)},
         ),
-        supplier_a=_supplier(
-            db_session, "ps-forn-a@example.invalid", project.id, company_a.id, company_a
-        ),
-        supplier_b=_supplier(
-            db_session, "ps-forn-b@example.invalid", project.id, company_b.id, company_b
-        ),
+        supplier_a=_supplier(db_session, "ps-forn-a@example.invalid", project.id, company_a),
+        supplier_b=_supplier(db_session, "ps-forn-b@example.invalid", project.id, company_b),
         viewer=_user(viewer_c, db_session.get(Person, viewer_c.person_id), set()),
     )
 

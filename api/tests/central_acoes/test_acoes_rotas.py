@@ -46,7 +46,7 @@ def _requisicao(
 
 
 def _tela(usuario: User, **params: str) -> func.HttpResponse:
-    return routes.list_actions_screen.get_user_function()(_requisicao(usuario, params=params))
+    return routes.list_actions_screen(_requisicao(usuario, params=params))
 
 
 def _criar(session: Session, cenario: Cenario, **campos: object) -> service.ActionRecord:
@@ -118,7 +118,7 @@ def test_o_excel_das_acoes_sai_com_o_mesmo_filtro(sessao: Session, cenario: Cena
     _tres_acoes(sessao, cenario)
     requisicao = _requisicao(cenario.gil, params={"status": "atrasada"})
 
-    resposta = routes.actions_excel.get_user_function()(requisicao)
+    resposta = routes.actions_excel(requisicao)
 
     assert resposta.status_code == 200
     assert resposta.get_body().startswith(b"PK")
@@ -143,7 +143,7 @@ def _replanejar(
         corpo=corpo,
         rota={"acao_id": str(acao.id)},
     )
-    return routes.replan_save.get_user_function()(requisicao)
+    return routes.replan_save(requisicao)
 
 
 def test_replanejar_sem_justificativa_devolve_422_com_o_formulario_preenchido(
@@ -196,7 +196,7 @@ def test_o_historico_lista_a_justificativa(sessao: Session, cenario: Cenario) ->
     _replanejar(cenario, acao)
     requisicao = _requisicao(cenario.gil, rota={"acao_id": str(acao.id)})
 
-    resposta = routes.replan_history_view.get_user_function()(requisicao)
+    resposta = routes.replan_history_view(requisicao)
 
     assert resposta.status_code == 200
     assert "Aguardando a liberação do fornecedor." in resposta.get_body().decode()
@@ -206,6 +206,6 @@ def test_o_historico_lista_a_justificativa(sessao: Session, cenario: Cenario) ->
 def test_acao_inexistente_no_historico_devolve_422(cenario: Cenario) -> None:
     requisicao = _requisicao(cenario.gil, rota={"acao_id": "999999"})
 
-    resposta = routes.replan_history_view.get_user_function()(requisicao)
+    resposta = routes.replan_history_view(requisicao)
 
     assert resposta.status_code == 422

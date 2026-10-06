@@ -116,10 +116,8 @@ def project_labels(session: Session, ids: Collection[int]) -> dict[int, str]:
     return {row.id: f"{row.code} · {row.name}" for row in session.execute(statement)}
 
 
-def _pairs(
-    session: Session, ids: Collection[int], statement: Select[tuple[int, str]]
-) -> dict[int, str]:
+def _pairs(session: Session, ids: Collection[int], statement: Select) -> dict[int, str]:
     """The ``(id, label)`` rows of the statement as a dict; nothing is asked when there are no ids."""
     if not ids:
         return {}
-    return {row[0]: row[1] for row in session.execute(statement)}
+    return {int(row[0]): str(row[1]) for row in session.execute(statement)}

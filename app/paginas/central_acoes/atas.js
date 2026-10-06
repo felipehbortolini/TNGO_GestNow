@@ -21,7 +21,6 @@
 (function () {
   "use strict";
 
-  const CHAVE = "central_acoes/atas";
   const RAIZ = "main.pagina--central_acoes-atas";
   const ALVO_DO_MODAL = "atas-modal-corpo";
   const LARGURA_DO_FORMULARIO = 640;
@@ -62,7 +61,7 @@
     abrirNova(nova.dataset.atasNova);
   });
 
-  window.TN.paginas[CHAVE] = {
+  window.TN.paginas["central_acoes/atas"] = {
     iniciar: function (raiz) {
       const dados = window.Alpine.$data(raiz);
 

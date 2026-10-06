@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  A prévia do score pedida pelo formulário de avaliação a cada mudança (alvo risco-previa): o
+  servidor calcula score, severidade, VME e revisão e devolve só este bloco.
+
+  Espera: previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia, tipo_atual e
+  valores (p e i).
+#}
+{% block fragment %}{% include "riscos/_risco_previa.html" %}{% endblock %}

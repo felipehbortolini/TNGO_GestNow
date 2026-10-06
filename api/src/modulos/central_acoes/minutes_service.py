@@ -479,7 +479,7 @@ def _register_problems(session: Session, new: NewMinutes) -> dict[str, str]:
     units = {unit.id for unit in configuracoes.list_organizational_units(session)}
     if new.unit_id is not None and new.unit_id not in units:
         problems["unidade"] = UNKNOWN_UNIT_MESSAGE
-    people = {new.prepared_by_id, *new.participant_ids} - {None}
+    people = {person for person in (new.prepared_by_id, *new.participant_ids) if person is not None}
     if len(configuracoes.find_people(session, people)) != len(people):
         problems["elaborado_por"] = UNKNOWN_PERSON_MESSAGE
     wanted = {*new.company_ids, *([new.main_company_id] if new.main_company_id else [])}

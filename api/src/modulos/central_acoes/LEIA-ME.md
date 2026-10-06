@@ -7,7 +7,7 @@ Módulo `central_acoes`. É o ponto único para acompanhar ações originadas no
 | Tela | Conteúdo | Issue |
 |---|---|---|
 | Ações | Lista, kanban, filtros, KPIs, replanejamento justificado e origem | ISSUE-019 |
-| Painel de ações | Indicadores por origem, responsável e projeto; follow-up e PDF | ISSUE-020 |
+| Painel de ações | Indicadores por origem, responsável e projeto; follow-up e PDF | ISSUE-020 (pronta) |
 | Atas | Lista e revisão mais recente de cada ata | ISSUE-021 |
 | Ficha da ata | Dados da reunião, participantes, anotações, ações e histórico | ISSUE-021, ISSUE-022 |
 
@@ -63,18 +63,20 @@ Não há grupo de parâmetros próprio definido nesta issue. Numeração, data d
 | Alteração | Arquivo ou pasta |
 |---|---|
 | Rotas das ações | `routes.py` |
+| Rotas do painel e do follow-up | `panel_routes.py` |
 | Rotas das atas | `minutes_routes.py` |
 | Fluxo, permissões e integrações das ações | `service.py` |
+| Painel, agrupamentos e follow-up | `panel_service.py` e `follow_up.py` |
 | Fluxo, permissões e integrações das atas | `minutes_service.py` |
 | Status e indicadores | `calculations.py` |
 | Validação de formulários | `validation.py` |
-| Exportação | `export.py` (ações), `minutes_export.py` (atas) |
+| Exportação | `export.py` (ações), `panel_export.py` (painel), `minutes_export.py` (atas) |
 | Persistência | `models.py`; entidades desenhadas em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/central_acoes/` |
 | Tela, estilo e comportamento | `app/_views/central_acoes/` e `app/paginas/central_acoes/` |
 | Testes | `api/tests/central_acoes/` |
 
-As ISSUE-020 e ISSUE-022 completam este documento com o painel e as anotações e ações da ata.
+A ISSUE-022 completa este documento com as anotações e ações da ata.
 
 ## O que a ISSUE-019 trouxe
 
@@ -117,6 +119,37 @@ Ligações pendentes: cada módulo de origem registra o seu tipo de link e a sua
 ### Carga e oráculo
 
 `seed.py` grava as 60 ações do protótipo e as 19 derivadas da Punch list pela costura. `api/tests/oraculo/test_oraculo_acoes.py` afirma 8 atrasadas no projeto TN-2026-014 em 25/09/2026 (portfólio: 14 atrasadas, 36 em dia, 26 concluídas).
+
+## O que a ISSUE-020 trouxe
+
+Tela **Dashboards e KPIs** (`app/_views/central_acoes/dashboard.html`): cinco indicadores do motor de status único (Total, Em dia, Atrasadas, Concluídas e Concluídas no prazo original), filtro de origem, os gráficos da biblioteca (status por origem, abertas por responsável, status por projeto no Portfólio e previstas x concluídas por mês), a tabela **Status por projeto** (Portfólio) e **Desempenho por responsável**, com Excel e PDF. As contagens saem da mesma listagem da tela Ações, então batem com ela no mesmo escopo. Na tela Ações, **Enviar follow-up** abre o modal com quem recebe o quê e dispara a notificação por responsável (Gestor/Admin).
+
+### Rotas (`/api/central-acoes`)
+
+| Rota | Uso |
+|---|---|
+| `GET painel` | A tela; filtro `origem` na consulta |
+| `GET painel/excel`, `GET painel/imprimivel` | Exportações do mesmo filtro |
+| `GET acoes/followup` | Prévia: uma linha por responsável, com assunto e mensagem, e o aviso "simulado" |
+| `POST acoes/followup` | Envia pela porta de notificação; resposta com o que foi registrado |
+
+### Fórmulas e nomes no código
+
+| Termo | Nome no código |
+|---|---|
+| Percentual de atrasadas sobre as abertas | `calculations.overdue_share_of_open` |
+| Concluídas no prazo original (contagem e percentual) | `calculations.completed_on_planned_count`, `calculations.whole_percent` |
+| Números por responsável (abertas, atrasadas, concluídas, maior atraso) | `calculations.responsible_tally` |
+| Ranking por atraso; previstas x concluídas por mês | `calculations.top_open_responsibles`, `calculations.monthly_planned_vs_completed` |
+| Agrupamento do follow-up por responsável e o texto do envio | `calculations.group_for_follow_up`, `follow_up.message_subject`, `follow_up.message_body`, `follow_up.result_notice` |
+
+### Fluxos
+
+O follow-up lê as ações em aberto do filtro da lista (origem, responsável e busca), agrupa por responsável e, no envio, registra uma notificação por responsável com e-mail pela porta (`src/core/notification.py`), com uma linha na trilha de cada uma. Quem não tem e-mail aparece na prévia e é nomeado no aviso, nunca ignorado em silêncio. Enquanto `GESTNOW_ENVIO_EMAIL` estiver desligado o envio é **simulado** e a tela diz isso.
+
+### Testes
+
+`api/tests/central_acoes/test_painel.py`: as contagens do painel contra a lista no mesmo escopo, o recorte por origem, o agrupamento do follow-up e o envio simulado (uma notificação por responsável), e as rotas do PDF e do Excel com filtro.
 
 ## O que a ISSUE-021 trouxe
 

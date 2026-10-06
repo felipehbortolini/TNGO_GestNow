@@ -170,6 +170,29 @@ export default [
   },
 
   // ─────────────────────────────────────────────────────────────────────
+  // Falsos positivos estruturais do @eslint/css
+  //
+  // Os dois casos abaixo são CSS válido que o parser da regra ainda não
+  // entende. Ficam desligados por arquivo, com o motivo escrito; nenhuma
+  // outra regra do CSS sai de cena. Mesmo caminho de ARG001 nos blueprints
+  // e de allowUnknownVariables logo acima (docs/CLEAN-CODE.md).
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    // `color-mix(in srgb, var(--cor) calc(var(--intensidade) * 1%), transparent)`
+    // é CSS Color 5: a porcentagem calculada dentro do color-mix é válida e é
+    // como as tabelas de calor dos gráficos pintam a intensidade. O parser
+    // lê o `calc()` como valor de `background` e reprova.
+    files: ["app/ds/graficos/graficos-3.css"],
+    rules: { "css/no-invalid-properties": "off" },
+  },
+  {
+    // `margin` é descritor válido de `@page` (margem do papel); a regra
+    // `no-invalid-at-rules` ainda não conhece os descritores de @page.
+    files: ["app/ds/print.css"],
+    rules: { "css/no-invalid-at-rules": "off" },
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
   // HTML
   //
   // O preset `flat/recommended` mistura correção com formatação — traz

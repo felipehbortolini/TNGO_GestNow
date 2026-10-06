@@ -74,11 +74,11 @@ def is_future_month(month: date, reference_date: date) -> bool:
     return month_of(month) > month_of(reference_date)
 
 
-def round_half_up(value: Decimal | float) -> int:
+def round_half_up(value: Decimal | float | int) -> int:
     """Round to an integer with halves going up, as the prototype's ``Math.round`` does."""
-    if isinstance(value, float):
-        return math.floor(value + 0.5)
-    return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    if isinstance(value, Decimal):
+        return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    return math.floor(value + 0.5)
 
 
 def hours_per_person(hours: Decimal, headcount: int) -> int:

@@ -37,14 +37,27 @@ from src.modulos.configuracoes.models import (
     Unit,
 )
 
+# A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
+PARTS = [
+    "plataforma",
+    "central_acoes",
+    "financeiro",
+    "governanca",
+    "governanca-licoes",
+    "hse",
+    "planejamento",
+    "programacao_semanal",
+    "riscos",
+]
 MOCK_PEOPLE = 18
-DEMO_PEOPLE = MOCK_PEOPLE + 1
+# O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
+DEMO_PEOPLE = 31
 PROJECTS = 3
-COMPANIES = 18
+COMPANIES = 21  # 18 do mock-base + 3 da Programação Semanal
 SYSTEMS = 9
-LOCATIONS = 9
+LOCATIONS = 15  # 9 do mock-base + 6 da Programação Semanal
 DISCIPLINES = 12
-UNITS = 11
+UNITS = 14  # 11 do mock-base + kg, und e h da Programação Semanal
 PARAMETER_GROUPS = 14
 
 
@@ -88,13 +101,13 @@ def test_sem_deslocamento_na_ancora_do_prototipo(db_session: Session) -> None:
 def test_carga_de_demonstracao_e_idempotente(db_session: Session) -> None:
     first = run_demonstration(db_session, reference_date=DEMO_ANCHOR)
     counts = _counts(db_session)
-    assert first == ["plataforma"]
+    assert sorted(first) == sorted(PARTS)
 
     second = run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 
     assert second == []
     assert _counts(db_session) == counts
-    assert _count(db_session, SeedRun) == 1
+    assert _count(db_session, SeedRun) == len(PARTS)
 
 
 def test_carga_cobre_os_numeros_da_plataforma(db_session: Session) -> None:
@@ -152,7 +165,7 @@ def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
 def test_carga_grava_a_trilha_e_a_marca_de_execucao(db_session: Session) -> None:
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 
-    run = db_session.scalars(select(SeedRun)).one()
+    run = db_session.scalars(select(SeedRun).where(SeedRun.name == "plataforma")).one()
     assert run.name == "plataforma"
     entities = set(db_session.scalars(select(AuditEntry.entity)).all())
     assert {"projeto", "empresa", "pessoa", "colaborador", "sistema"} <= entities
@@ -228,7 +241,7 @@ def test_carga_de_demonstracao_com_o_modo_padrao(
 
     written = run_for_mode(db_session, reference_date=DEMO_ANCHOR)
 
-    assert written == ["plataforma"]
+    assert sorted(written) == sorted(PARTS)
     assert _count(db_session, Project) == PROJECTS
 
 

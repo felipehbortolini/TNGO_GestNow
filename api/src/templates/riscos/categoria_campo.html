@@ -1,0 +1,18 @@
+{% extends "base_fragment.html" %}
+{#
+  O campo da categoria (RBS) do formulário do risco, depois do cadastro rápido (ISSUE-064): chega
+  no lugar do campo de trás, com a categoria nova escolhida. Mesma estrutura do bloco de
+  risco_form.html para o id não se perder na troca.
+
+  Espera: categorias (id, group, name), valores (categoria) e erros.
+#}
+{% block fragment %}
+<select id="risco-categoria" name="categoria" class="input{% if erros.get('categoria') %} input--erro{% endif %}" required
+  {% if erros.get('categoria') %}aria-invalid="true" aria-describedby="erro-categoria"{% endif %}>
+  <option value="">Escolha...</option>
+  {% for categoria in categorias %}
+  <option value="{{ categoria.id }}"{% if valores.get('categoria') == categoria.id|string %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
+  {% endfor %}
+</select>
+{% if erros.get('categoria') %}<span id="erro-categoria" class="field__erro">{{ erros['categoria'] }}</span>{% endif %}
+{% endblock %}

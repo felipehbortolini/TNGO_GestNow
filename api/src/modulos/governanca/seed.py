@@ -23,7 +23,9 @@ from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core import calendario
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.governanca import service
+from src.modulos.governanca import lessons_models as lm
+from src.modulos.governanca import lessons_service, service
+from src.modulos.governanca.lessons_service import SeedLesson
 from src.modulos.governanca.service import (
     SeedAnalysis,
     SeedChange,
@@ -35,7 +37,17 @@ from src.modulos.governanca.service import (
 type Mover = Callable[[str], date]
 
 PART_NAME = "governanca"
+LESSONS_PART_NAME = "governanca-licoes"
 DEFAULT_ANALYSIS_DAYS = 10
+
+# The origin text of the prototype (``Claim CLM-...`` etc.) and the origin of the lesson model.
+ORIGIN_PREFIXES = (
+    ("Claim ", lm.ORIGIN_CONTRACT),
+    ("Processo ", lm.ORIGIN_SUPPLY),
+    ("Risco ", lm.ORIGIN_RISK),
+    ("RNC ", lm.ORIGIN_NCR),
+    ("Ocorrência ", lm.ORIGIN_HSE),
+)
 
 
 def load(session: Session, reference_date: date) -> None:
@@ -206,4 +218,63 @@ def _seed_decision(
     )
 
 
+def load_lessons(session: Session, reference_date: date) -> None:
+    """Write the lessons of the demonstration, in the order of the prototype.
+
+    Each lesson keeps the code the prototype printed (the numbering of its project) and the
+    situation it had — the acervo of the demonstration already has published lessons. The origin
+    comes as free text in the prototype (``Claim CLM-...``): the prefix says which record of which
+    module it is, and the rest is the number of the record.
+    """
+    author = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if author is None:
+        message = "O Admin da demonstração não está no cadastro: a parte da plataforma roda antes."
+        raise LookupError(message)
+    lookup = _Lookup.build(session)
+    for source in prototype_collection("licoes"):
+        lessons_service.load_demonstration_lesson(
+            session,
+            author_id=author.id,
+            seed=_seed_lesson(source, lookup=lookup, reference_date=reference_date),
+            reference_date=reference_date,
+        )
+
+
+def _seed_lesson(source: Mapping[str, Any], *, lookup: _Lookup, reference_date: date) -> SeedLesson:
+    origin, reference = _origin_of(source["origem"])
+    return SeedLesson(
+        project_id=lookup.projects[source["projetoId"]],
+        code=source["codigo"],
+        author_person_id=lookup.people[source["autorId"]],
+        discipline=source["disciplina"],
+        registered_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+        reuses=int(source.get("reusos") or 0),
+        columns={
+            "title": source["titulo"],
+            "kind": source["tipo"],
+            "phase": source["fase"],
+            "area": source["area"],
+            "origin": origin,
+            "origin_ref": reference,
+            "what_happened": source["aconteceu"],
+            "cause": source["causa"],
+            "term_impact_days": int(source.get("impactoPrazoDias") or 0),
+            "cost_impact_cents": int(source.get("impactoCustoCentavos") or 0),
+            "recommendation": source["recomendacao"],
+            "applicability": source["aplicabilidade"],
+            "situation": source["situacao"],
+        },
+        keywords=tuple(source.get("palavrasChave") or ()),
+    )
+
+
+def _origin_of(text: str) -> tuple[str, str | None]:
+    """The origin of the model and the number of the record behind the text of the prototype."""
+    for prefix, origin in ORIGIN_PREFIXES:
+        if text.startswith(prefix):
+            return origin, text[len(prefix) :].strip() or None
+    return lm.ORIGIN_DIRECT, None
+
+
 register(PART_NAME, load)
+register(LESSONS_PART_NAME, load_lessons)

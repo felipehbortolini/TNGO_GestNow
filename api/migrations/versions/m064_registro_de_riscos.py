@@ -20,7 +20,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "m064"
-down_revision: str | None = "0003"
+down_revision: str | None = "m027"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -58,9 +58,7 @@ def _version() -> sa.Column:
 
 
 def _fk(table: str, column: str, target: str) -> sa.ForeignKeyConstraint:
-    return sa.ForeignKeyConstraint(
-        [column], [f"{target}.id"], name=op.f(f"fk_{table}_{column}")
-    )
+    return sa.ForeignKeyConstraint([column], [f"{target}.id"], name=op.f(f"fk_{table}_{column}"))
 
 
 def upgrade() -> None:

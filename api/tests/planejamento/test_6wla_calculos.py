@@ -70,7 +70,7 @@ def test_a_janela_anda_sete_dias_quando_a_data_anda_uma_semana() -> None:
 def test_a_janela_atravessa_a_semana_53_e_o_ano_novo() -> None:
     semanas = calc.lookahead_weeks(date(2026, 12, 21))
 
-    assert [semana.label for semana in semanas] == ["S53", "S1", "S2", "S3", "S4", "S5"]
+    assert [semana.label for semana in semanas] == ["S53", "S01", "S02", "S03", "S04", "S05"]
     assert semanas[1].start == date(2027, 1, 4)
 
 

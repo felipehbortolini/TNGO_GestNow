@@ -127,7 +127,7 @@ def test_conteudo_de_membro_tem_o_botao_de_editar_por_item(cenario: EacScenario)
     edit_links = [tag for tag in tags if "data-editar" in tag.attrs]
     assert len(edit_links) == 3  # só os itens, nunca pacote nem subpacote
     assert all(link.attrs["x-target"] == "eac-formulario" for link in edit_links)
-    assert any(link.attrs["href"].endswith("/editar") for link in edit_links)
+    assert any("/editar" in link.attrs["href"] for link in edit_links)
 
 
 def test_conteudo_de_visualizador_nao_tem_o_botao_de_editar(cenario: EacScenario) -> None:
