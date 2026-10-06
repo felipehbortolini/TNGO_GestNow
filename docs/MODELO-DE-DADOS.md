@@ -967,6 +967,13 @@ erDiagram
     }
 ```
 
+Unicidade composta de `relato` (ISSUE-044): um relato por projeto, tipo e período,
+`UNIQUE (projeto_id, tipo, periodo)`; o semanal (`2026-S38`) e o mensal (`2026-08`)
+são registros distintos. `relato.tipo` guarda `Semanal` ou `Mensal`,
+`relato_atividade.grupo` guarda `periodo` ou `proximo`, e `relato_ponto.natureza`
+guarda `Ameaça` ou `Oportunidade`. `criado_por_id` e `atualizado_por_id` apontam
+para a `pessoa`.
+
 ### 7. 02 Planejamento: produtividade
 
 ```mermaid

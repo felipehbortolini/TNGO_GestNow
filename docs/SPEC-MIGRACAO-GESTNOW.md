@@ -1361,6 +1361,10 @@ do dono".
 | Decisão da execução (ISSUE-019), pendente de revisão do dono | ação da Punch list | replanejar e concluir ficam no registro de origem; a Central mostra e linka | D9, ISSUE-019 |
 | Decisão da execução (ISSUE-019), pendente de revisão do dono | ata_id sem chave estrangeira | a FK entra com as atas na ISSUE-021 | D9, ISSUE-019 |
 | Decisão da execução (ISSUE-019), pendente de revisão do dono | oráculo das 8 atrasadas | vale para o projeto TN-2026-014 (tela do protótipo); portfólio dá 14 | D6, ISSUE-019 |
+| Decisão da execução (ISSUE-044), pendente de revisão do dono | relato sem pontos de atenção | os pontos são opcionais; só as duas listas de atividades exigem ao menos uma linha | D6, ISSUE-044 |
+| Decisão da execução (ISSUE-044), pendente de revisão do dono | carga de demonstração dos relatos | os períodos andam em períodos inteiros (semanas e meses) e não em dias, para a última semana e o último mês fechados continuarem os de hoje | D6, ISSUE-044 |
+| Decisão da execução (ISSUE-044), pendente de revisão do dono | copiar do período anterior | traz o relato mais recente do mesmo tipo antes do período (não só o vizinho) e não grava; sem anterior, avisa | D6, ISSUE-044 |
+| Decisão da execução (ISSUE-044), pendente de revisão do dono | projeto sem início cadastrado | a faixa de períodos começa no período corrente | D6, ISSUE-044 |
 
 ---
 

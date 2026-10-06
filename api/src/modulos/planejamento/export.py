@@ -1,5 +1,11 @@
 """Exports for the Planning module.
 
+Relato do período (ISSUE-044): the ``Document`` the Excel and the printable version share, with
+the same content the prototype exported: the indicators, the table of the reports, the table of
+the activities and the table of the attention points with the risk tied to each. What the list
+shows after the filter is what goes out; in the Portfólio each table opens with ``Projeto``.
+
+
 The 6WLA (ISSUE-045) hands the generic export one ``Document`` built from the
 board the screen shows, so what the Excel and the printable version carry is the
 same as the screen: the indicators with their reference, the grid of six weeks
@@ -10,6 +16,7 @@ here too: the server sends the facts, the library draws them.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -20,6 +27,8 @@ from src.core.export_document import (
     Column,
     Document,
     Kpi,
+    Paper,
+    Row,
     Table,
     Tone,
     ValueKind,
@@ -29,12 +38,230 @@ from src.core.export_document import (
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.planejamento import calculations
-from src.modulos.planejamento.service import ActivityView, ConstraintView, LookaheadBoard
+from src.modulos.planejamento.service import (
+    ActivityView,
+    ConstraintView,
+    LookaheadBoard,
+    PeriodCoverage,
+    ReportSummary,
+    ReportView,
+)
+from src.modulos.planejamento.validation import OPPORTUNITY
+
+TITLE = "Relato do período"
+
+
+NO_VALUE = "·"
+
+
+REGISTERED = "Registrado"
+
+
+PENDING = "Pendente"
+
+
+# The width of the long texts of the sheets, in characters.
+PERIOD_WIDTH = 34
+
+
+TEXT_WIDTH = 60
+
+
+@dataclass(frozen=True)
+class ReportExport:
+    """What the screen hands to the export: the indicators, the reports kept by the filter, the type."""
+
+    summary: ReportSummary
+    reports: Sequence[ReportView]
+    kind: str = ""
+
+
+def build_document(
+    data: ReportExport, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+) -> Document:
+    """The document of the screen: the indicators and the three tables, as the list shows them."""
+    return Document(
+        title=TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(("Tipo", data.kind or "Todos"),),
+        kpis=_report_kpis(data.summary),
+        tables=(
+            _reports_table(data.reports),
+            _activities_table(data.reports),
+            _points_table(data.reports),
+        ),
+        paper=Paper.A4,
+    )
+
+
+def _report_kpis(summary: ReportSummary) -> tuple[Kpi, ...]:
+    return (
+        _coverage_kpi("Semana anterior", summary.previous_week, is_portfolio=summary.is_portfolio),
+        _coverage_kpi("Mês anterior", summary.previous_month, is_portfolio=summary.is_portfolio),
+        _points_kpi(summary),
+        Kpi(
+            "Relatos registrados",
+            summary.total,
+            f"Previsto: {summary.expected_total}",
+            ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=(
+                f"{calculations.plural(summary.weekly_total, 'semanal', 'semanais')} · "
+                f"{calculations.plural(summary.monthly_total, 'mensal', 'mensais')}"
+            ),
+        ),
+    )
+
+
+def _coverage_kpi(label: str, coverage: PeriodCoverage, *, is_portfolio: bool) -> Kpi:
+    """The last closed period: registered or pending, or in the Portfólio the projects that did."""
+    tone = Tone.OK if coverage.is_complete else Tone.WARN
+    if is_portfolio:
+        return Kpi(
+            label,
+            coverage.registered,
+            f"Esperado: {coverage.expected}",
+            ValueKind.INTEGER,
+            tone=tone,
+            status=f"{coverage.name} · projetos com relato",
+        )
+    return Kpi(
+        label,
+        REGISTERED if coverage.is_complete else PENDING,
+        f"Esperado: {REGISTERED}",
+        tone=tone,
+        status=coverage.name,
+    )
+
+
+def _points_kpi(summary: ReportSummary) -> Kpi:
+    last = summary.last_weekly
+    reference = NO_VALUE if summary.reference_points is None else str(summary.reference_points)
+    if last is None:
+        return Kpi(
+            "Pontos de atenção (último semanal)",
+            NO_VALUE,
+            f"Referência: {reference}",
+            tone=Tone.INFO,
+            status="nenhum relato semanal",
+        )
+    return Kpi(
+        "Pontos de atenção (último semanal)",
+        len(last.points),
+        f"Referência: {reference}",
+        ValueKind.INTEGER,
+        tone=Tone.WARN if last.threats else Tone.INFO,
+        status=f"{calculations.points_summary(last.threats, last.opportunities)} · {last.short_name}",
+    )
+
+
+def _reports_table(reports: Sequence[ReportView]) -> Table:
+    return Table(
+        title="Relatos registrados",
+        columns=(
+            Column("Período", width=PERIOD_WIDTH),
+            Column("Atividades do período", ValueKind.INTEGER),
+            Column("Próximo período", ValueKind.INTEGER),
+            Column("Pontos de atenção", width=PERIOD_WIDTH),
+            Column("Atualizado", width=PERIOD_WIDTH),
+        ),
+        rows=tuple(_report_row(report) for report in reports),
+    )
+
+
+def _report_row(report: ReportView) -> Row:
+    points = f"{len(report.points)}"
+    if report.points:
+        points += f" ({calculations.points_summary(report.threats, report.opportunities)})"
+    return row(
+        f"{report.kind} · {report.name}",
+        len(report.activities),
+        len(report.next_activities),
+        points,
+        f"{updated_text(report)} · {report.updated_by}",
+        project=report.project_label,
+    )
+
+
+def updated_text(report: ReportView) -> str:
+    """When the report was last saved, in the timezone of the product: ``21/09/2026 16:20``."""
+    return calendario.in_product_timezone(report.updated_at).strftime("%d/%m/%Y %H:%M")
+
+
+def _activities_table(reports: Sequence[ReportView]) -> Table:
+    rows: list[Row] = []
+    for report in reports:
+        rows.extend(
+            row(
+                report.kind,
+                report.name,
+                "Atividades do período",
+                line,
+                project=report.project_label,
+            )
+            for line in report.activities
+        )
+        rows.extend(
+            row(
+                report.kind,
+                report.name,
+                "Atividades do próximo período",
+                line,
+                project=report.project_label,
+            )
+            for line in report.next_activities
+        )
+    return Table(
+        title="Atividades",
+        columns=(
+            Column("Tipo"),
+            Column("Período", width=PERIOD_WIDTH),
+            Column("Campo", width=PERIOD_WIDTH),
+            Column("Atividade", width=TEXT_WIDTH),
+        ),
+        rows=tuple(rows),
+    )
+
+
+def _points_table(reports: Sequence[ReportView]) -> Table:
+    rows = tuple(
+        row(
+            report.kind,
+            report.name,
+            point.description,
+            Cell(point.nature, Tone.OK if point.nature == OPPORTUNITY else Tone.WARN),
+            point.risk,
+            project=report.project_label,
+        )
+        for report in reports
+        for point in report.points
+    )
+    return Table(
+        title="Pontos de atenção e riscos",
+        columns=(
+            Column("Tipo"),
+            Column("Período", width=PERIOD_WIDTH),
+            Column("Ponto de atenção", width=TEXT_WIDTH),
+            Column("Natureza do risco"),
+            Column("Risco atrelado", width=TEXT_WIDTH),
+        ),
+        rows=rows,
+    )
+
 
 DOCUMENT_TITLE = "6WLA: planejamento de 6 semanas"
+
+
 GRID_TITLE = "Grade de 6 semanas"
+
+
 CONSTRAINTS_TITLE = "Restrições"
+
+
 MARK = "X"
+
 
 _GANTT_LABELS = {
     "colunaEsquerda": "Atividade",
@@ -44,11 +271,15 @@ _GANTT_LABELS = {
     "foraDoPrazo": "Com restrição aberta",
     "emExecucao": "Programada",
 }
+
+
 _SITUATION_LABELS = {
     "vencida": ("Restrição vencida", "erro"),
     "com_restricao": ("Com restrição", "alerta"),
     "pronta": ("Pronta", "ok"),
 }
+
+
 _STATUS_TONES = {"Vencida": Tone.ERROR, "Aberta": Tone.WARN, "Removida": Tone.OK}
 
 

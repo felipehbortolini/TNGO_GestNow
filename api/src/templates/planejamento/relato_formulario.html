@@ -1,0 +1,148 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do relato do período, novo ou em edição (ISSUE-044, HU-046). O servidor desenha o
+  formulário de novo a cada passo (tipo trocado, ponto de atenção adicionado ou removido, cópia
+  do período anterior) com o que a pessoa digitou, e um 422 volta com a mensagem em cada campo.
+  Tipo e período só se escolhem no relato novo; no existente eles não mudam.
+
+  Espera: estado (FormState), novo, tipo, projeto, relato (na edição), periodo e opcoes (no
+  novo), tipos, naturezas, limites, erros, linhas_pontos e mensagens.
+#}
+{% macro erro(nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="relato-erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if erros.get(nome) %} aria-invalid="true" aria-describedby="relato-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+{% block fragment %}
+<form class="relato-form" method="post" action="/api/planejamento/relatos/gravar"
+  x-data x-target="relato-modal" novalidate>
+  <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
+  <input type="hidden" name="id" value="{{ estado.report_id if estado.report_id is not none else '' }}" />
+  <input type="hidden" name="versao" value="{{ estado.version }}" />
+
+  <div class="aviso aviso--info" role="note">
+    <span>O risco de cada ponto de atenção é a leitura do planejamento e não tem vínculo com o registro do 05 Gestão de Riscos. Para tratá-lo formalmente, registre-o também no 05.</span>
+  </div>
+
+  {% if mensagens %}
+  <div class="aviso aviso--erro" role="alert">
+    <strong>Não foi possível salvar o relato.</strong>
+    {% for mensagem in mensagens %}<span>{{ mensagem }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="relato-form__bloco">
+    <p class="relato-ver__identificacao">
+      <span class="muted">Projeto</span>
+      <span class="fw-600">{{ projeto }}</span>
+    </p>
+
+    {% if novo %}
+    <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
+      formaction="/api/planejamento/relatos/formulario"></button>
+    <fieldset class="relato-opcoes">
+      <legend class="relato-legenda">Tipo</legend>
+      {% for opcao in tipos %}
+      <label class="relato-opcao">
+        <input type="radio" name="tipo" value="{{ opcao }}" {{ 'checked' if opcao == tipo }}
+          @change="$el.form.requestSubmit($refs.recarregar)" />
+        <span>{{ opcao }}</span>
+        <span class="hint">{{ 'semana ISO, segunda a domingo' if opcao == 'Semanal' else 'mês civil' }}</span>
+      </label>
+      {% endfor %}
+      {{ erro('tipo') }}
+    </fieldset>
+
+    <div class="field">
+      <label for="relato-periodo">Período</label>
+      <select class="input{{ ' input--erro' if erros.get('periodo') }}" id="relato-periodo" name="periodo"{{ marcas('periodo') }}>
+        {% for opcao in opcoes %}
+        <option value="{{ opcao.period }}"{{ ' selected' if opcao.period == periodo }}{{ ' disabled' if opcao.taken }}>{{ opcao.label }}{{ ' (em andamento)' if opcao.in_progress }}{{ ' (já registrado)' if opcao.taken }}</option>
+        {% endfor %}
+      </select>
+      {{ erro('periodo') }}
+    </div>
+    {% else %}
+    <p class="relato-ver__identificacao">
+      <span class="pill {{ 'pill--neutral' if relato.kind == 'Mensal' else 'pill--fix' }}">{{ relato.kind }}</span>
+      <span class="fw-600">{{ relato.name }}</span>
+      <span class="hint">o tipo e o período não mudam depois de criados</span>
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="relato-form__bloco">
+    <div class="field">
+      <label for="relato-atividades-periodo">Atividades do período</label>
+      <textarea class="input{{ ' input--erro' if erros.get('atividades_periodo') }}" id="relato-atividades-periodo"
+        name="atividades_periodo" rows="5"{{ marcas('atividades_periodo') }}>{{ estado.activities }}</textarea>
+      <span class="hint">Uma atividade por linha (até {{ limites.linhas }} linhas de {{ limites.linha }} caracteres).</span>
+      {{ erro('atividades_periodo') }}
+    </div>
+
+    <div class="field">
+      <label for="relato-atividades-proximo">Atividades do próximo período</label>
+      <textarea class="input{{ ' input--erro' if erros.get('atividades_proximo') }}" id="relato-atividades-proximo"
+        name="atividades_proximo" rows="5"{{ marcas('atividades_proximo') }}>{{ estado.next_activities }}</textarea>
+      <span class="hint">Uma atividade por linha.</span>
+      {{ erro('atividades_proximo') }}
+    </div>
+  </div>
+
+  <div class="relato-form__bloco">
+    <h3 class="h-card5">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+    {{ erro('pontos') }}
+    {% if not linhas_pontos %}
+    <p class="muted">Nenhum ponto de atenção no período. Use o botão abaixo para incluir.</p>
+    {% endif %}
+
+    {% for linha in linhas_pontos %}
+    {% set i = linha.indice %}
+    <fieldset class="relato-ponto">
+      <legend class="relato-legenda">Ponto de atenção {{ loop.index }}</legend>
+
+      <div class="field">
+        <label for="relato-ponto-{{ i }}-descricao">Ponto de atenção</label>
+        <textarea class="input{{ ' input--erro' if linha.erros.descricao }}" id="relato-ponto-{{ i }}-descricao"
+          name="ponto_{{ i }}_descricao" rows="2" maxlength="{{ limites.ponto }}"{{ marcas('ponto_' ~ i ~ '_descricao') }}>{{ linha.ponto.description }}</textarea>
+        {{ erro('ponto_' ~ i ~ '_descricao') }}
+      </div>
+
+      <fieldset class="relato-opcoes">
+        <legend class="relato-legenda">Risco atrelado</legend>
+        {% for natureza in naturezas %}
+        <label class="relato-opcao">
+          <input type="radio" name="ponto_{{ i }}_natureza" value="{{ natureza }}" {{ 'checked' if natureza == linha.ponto.nature }} />
+          <span>{{ natureza }}</span>
+        </label>
+        {% endfor %}
+        {{ erro('ponto_' ~ i ~ '_natureza') }}
+      </fieldset>
+
+      <div class="field">
+        <label for="relato-ponto-{{ i }}-risco">Descrição do risco</label>
+        <textarea class="input{{ ' input--erro' if linha.erros.risco }}" id="relato-ponto-{{ i }}-risco"
+          name="ponto_{{ i }}_risco" rows="2" maxlength="{{ limites.ponto }}"
+          placeholder="Causa, evento e efeito no projeto (prazo, custo, escopo ou qualidade)"{{ marcas('ponto_' ~ i ~ '_risco') }}>{{ linha.ponto.risk }}</textarea>
+        {{ erro('ponto_' ~ i ~ '_risco') }}
+      </div>
+
+      <button type="submit" class="btn btn--ghost btn--sm"
+        formaction="/api/planejamento/relatos/formulario?acao=remover-ponto&amp;indice={{ i }}">Remover o ponto de atenção {{ loop.index }}</button>
+    </fieldset>
+    {% endfor %}
+
+    <button type="submit" class="btn btn--secondary"
+      formaction="/api/planejamento/relatos/formulario?acao=adicionar-ponto"
+      {{ 'disabled' if linhas_pontos | length >= limites.pontos }}>Adicionar ponto de atenção</button>
+    <span class="hint">Até {{ limites.pontos }} pontos de atenção por relato.</span>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">Cancelar</button>
+    <button type="submit" class="btn btn--ghost" formaction="/api/planejamento/relatos/copiar">Copiar do período anterior</button>
+    <button type="submit" class="btn btn--primary">{{ 'Registrar relato' if novo else 'Salvar alterações' }}</button>
+  </div>
+</form>
+{% endblock %}

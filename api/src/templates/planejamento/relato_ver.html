@@ -1,0 +1,79 @@
+{% extends "base_fragment.html" %}
+{#
+  Modal Ver do relato do período (ISSUE-044, HU-046): o relato inteiro, com o risco atrelado a
+  cada ponto de atenção. O risco é a leitura do planejamento e não entra no registro do 05.
+
+  Espera: relato, atualizado e pode_gravar.
+#}
+{% block fragment %}
+<div class="relato-ver">
+  <p class="relato-ver__identificacao">
+    <span class="pill {{ 'pill--neutral' if relato.kind == 'Mensal' else 'pill--fix' }}">{{ relato.kind }}</span>
+    <span class="fw-600">{{ relato.name }}</span>
+    <span class="muted">{{ relato.project_label }}</span>
+  </p>
+
+  <section class="relato-bloco" aria-labelledby="relato-ver-periodo">
+    <h3 class="h-card5" id="relato-ver-periodo">Atividades do período</h3>
+    {% if relato.activities %}
+    <ul class="relato-lista">
+      {% for linha in relato.activities %}<li>{{ linha }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Sem registro.</p>
+    {% endif %}
+  </section>
+
+  <section class="relato-bloco" aria-labelledby="relato-ver-proximo">
+    <h3 class="h-card5" id="relato-ver-proximo">Atividades do próximo período</h3>
+    <p class="hint">{{ relato.next_name }}</p>
+    {% if relato.next_activities %}
+    <ul class="relato-lista">
+      {% for linha in relato.next_activities %}<li>{{ linha }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Sem registro.</p>
+    {% endif %}
+  </section>
+
+  <section class="relato-bloco" aria-labelledby="relato-ver-pontos">
+    <h3 class="h-card5" id="relato-ver-pontos">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+    {% if relato.points %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Pontos de atenção e riscos atrelados</caption>
+        <thead>
+          <tr>
+            <th scope="col">Ponto de atenção</th>
+            <th scope="col">Risco atrelado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ponto in relato.points %}
+          <tr>
+            <td>{{ ponto.description }}</td>
+            <td>
+              <span class="pill {{ 'pill--ok' if ponto.nature == 'Oportunidade' else 'pill--warn' }}">{{ ponto.nature }}</span>
+              <p class="relato-ver__risco">{{ ponto.risk }}</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">Nenhum ponto de atenção no período.</p>
+    {% endif %}
+  </section>
+
+  <p class="hint">Atualizado em {{ atualizado }} por {{ relato.updated_by }}. O risco atrelado é a leitura do planejamento e não entra no registro do 05 Gestão de Riscos.</p>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">Fechar</button>
+    {% if pode_gravar %}
+    <button type="button" class="btn btn--primary" data-relato-acao="editar" data-relato-id="{{ relato.id }}"
+      data-relato-titulo="Editar relato {{ relato.kind | lower }}" data-relato-subtitulo="{{ relato.name }}">Editar</button>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

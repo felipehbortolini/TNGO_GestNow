@@ -1,5 +1,13 @@
 """Persistence models for the Planning module.
 
+Class and attribute names are English (D1); tables and columns are Portuguese snake_case
+(D5), matching ``docs/MODELO-DE-DADOS.md``.
+
+Relato do período (ISSUE-044): one ``relato`` per project, type and period; its activities
+(``relato_atividade``) and attention points (``relato_ponto``) are the children of the
+aggregate and are edited together with it, protected by the ``versao`` of the root.
+
+
 The 6WLA (ISSUE-045): the activities of the six-week horizon, the mark of each
 week and the restrictions that hold an activity back. Class and attribute names
 are English (D1); tables and columns are Portuguese snake_case (D5), matching
@@ -8,12 +16,86 @@ are English (D1); tables and columns are Portuguese snake_case (D5), matching
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, ForeignKey, Integer, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import VERSION_SERVER_DEFAULT, Base
+
+
+class Report(Base):
+    """Relato do período: o relato semanal (semana ISO) ou mensal (mês civil) de um projeto."""
+
+    __tablename__ = "relato"
+    __table_args__ = (UniqueConstraint("projeto_id", "tipo", "periodo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    created_by_id: Mapped[int] = mapped_column("criado_por_id", ForeignKey("pessoa.id"))
+    updated_by_id: Mapped[int] = mapped_column("atualizado_por_id", ForeignKey("pessoa.id"))
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    period: Mapped[str] = mapped_column("periodo", Text)
+    created_at: Mapped[datetime] = mapped_column(
+        "criado_em", DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        "atualizado_em", DateTime(timezone=True), server_default=func.now()
+    )
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+    activities: Mapped[list[ReportActivity]] = relationship(
+        back_populates="report",
+        cascade="all, delete-orphan",
+        order_by="ReportActivity.order",
+    )
+    points: Mapped[list[ReportPoint]] = relationship(
+        back_populates="report",
+        cascade="all, delete-orphan",
+        order_by="ReportPoint.order",
+    )
+
+
+class ReportActivity(Base):
+    """Atividade do relato: uma linha do período ou do próximo período, na ordem digitada."""
+
+    __tablename__ = "relato_atividade"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    report_id: Mapped[int] = mapped_column("relato_id", ForeignKey("relato.id"))
+    group: Mapped[str] = mapped_column("grupo", Text)
+    order: Mapped[int] = mapped_column("ordem", Integer)
+    text: Mapped[str] = mapped_column("texto", Text)
+
+    report: Mapped[Report] = relationship(back_populates="activities")
+
+
+class ReportPoint(Base):
+    """Ponto de atenção do relato, com o risco atrelado (ameaça ou oportunidade).
+
+    O risco é a leitura do planejamento e não tem vínculo com o registro do 05.
+    """
+
+    __tablename__ = "relato_ponto"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    report_id: Mapped[int] = mapped_column("relato_id", ForeignKey("relato.id"))
+    order: Mapped[int] = mapped_column("ordem", Integer)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    nature: Mapped[str] = mapped_column("natureza", Text)
+    risk: Mapped[str] = mapped_column("risco", Text)
+
+    report: Mapped[Report] = relationship(back_populates="points")
 
 
 class Lookahead(Base):

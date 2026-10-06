@@ -26,7 +26,7 @@ load_local_settings()
 
 from src.blueprints import acesso, attachments, exports, health, importing, nav  # noqa: E402
 from src.modulos.central_acoes import routes as central_acoes  # noqa: E402
-from src.modulos.planejamento import routes as planejamento  # noqa: E402
+from src.modulos.planejamento import routes as planejamento_routes  # noqa: E402
 
 # Only tells the shell that someone is signed in. In demonstration the API does
 # not take the identity from here: it comes from the profile selector in the
@@ -85,6 +85,25 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
     ("GET", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/modelo$"), importing.import_template),
     ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/conferir$"), importing.import_check),
     ("POST", re.compile(r"^/api/importacao/(?P<chave>[^/]+)/confirmar$"), importing.import_confirm),
+    # Planejamento > Relato do período (ISSUE-044).
+    ("GET", re.compile(r"^/api/planejamento/relatos$"), planejamento_routes.report_panel),
+    ("GET", re.compile(r"^/api/planejamento/relatos/ver$"), planejamento_routes.report_view),
+    ("GET", re.compile(r"^/api/planejamento/relatos/abrir$"), planejamento_routes.report_open),
+    ("GET", re.compile(r"^/api/planejamento/relatos/formulario$"), planejamento_routes.report_form),
+    (
+        "POST",
+        re.compile(r"^/api/planejamento/relatos/formulario$"),
+        planejamento_routes.report_form_reload,
+    ),
+    ("POST", re.compile(r"^/api/planejamento/relatos/copiar$"), planejamento_routes.report_copy),
+    ("POST", re.compile(r"^/api/planejamento/relatos/gravar$"), planejamento_routes.report_save),
+    ("POST", re.compile(r"^/api/planejamento/relatos/excluir$"), planejamento_routes.report_delete),
+    ("GET", re.compile(r"^/api/planejamento/relatos/excel$"), planejamento_routes.report_excel),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/relatos/imprimivel$"),
+        planejamento_routes.report_printable,
+    ),
     ("GET", re.compile(r"^/api/central-acoes/acoes$"), central_acoes.list_actions_screen),
     ("GET", re.compile(r"^/api/central-acoes/acoes/excel$"), central_acoes.actions_excel),
     ("GET", re.compile(r"^/api/central-acoes/acoes/imprimivel$"), central_acoes.actions_printable),
@@ -113,58 +132,62 @@ ROUTES: list[tuple[str, re.Pattern[str], Callable[[func.HttpRequest], func.HttpR
         re.compile(r"^/api/central-acoes/acoes/(?P<acao_id>[^/]+)/historico$"),
         central_acoes.replan_history_view,
     ),
-    ("GET", re.compile(r"^/api/planejamento/6wla$"), planejamento.lookahead_screen),
-    ("GET", re.compile(r"^/api/planejamento/6wla/excel$"), planejamento.lookahead_excel),
-    ("GET", re.compile(r"^/api/planejamento/6wla/imprimivel$"), planejamento.lookahead_printable),
+    ("GET", re.compile(r"^/api/planejamento/6wla$"), planejamento_routes.lookahead_screen),
+    ("GET", re.compile(r"^/api/planejamento/6wla/excel$"), planejamento_routes.lookahead_excel),
+    (
+        "GET",
+        re.compile(r"^/api/planejamento/6wla/imprimivel$"),
+        planejamento_routes.lookahead_printable,
+    ),
     (
         "GET",
         re.compile(r"^/api/planejamento/6wla/atividades/nova$"),
-        planejamento.lookahead_new_activity_form,
+        planejamento_routes.lookahead_new_activity_form,
     ),
     (
         "POST",
         re.compile(r"^/api/planejamento/6wla/atividades$"),
-        planejamento.lookahead_create_activity,
+        planejamento_routes.lookahead_create_activity,
     ),
     (
         "GET",
         re.compile(r"^/api/planejamento/6wla/atividades/(?P<atividade_id>[^/]+)/editar$"),
-        planejamento.lookahead_edit_activity_form,
+        planejamento_routes.lookahead_edit_activity_form,
     ),
     (
         "POST",
         re.compile(r"^/api/planejamento/6wla/atividades/(?P<atividade_id>[^/]+)$"),
-        planejamento.lookahead_update_activity,
+        planejamento_routes.lookahead_update_activity,
     ),
     (
         "GET",
         re.compile(r"^/api/planejamento/6wla/restricoes/nova$"),
-        planejamento.lookahead_new_constraint_form,
+        planejamento_routes.lookahead_new_constraint_form,
     ),
     (
         "POST",
         re.compile(r"^/api/planejamento/6wla/restricoes$"),
-        planejamento.lookahead_create_constraint,
+        planejamento_routes.lookahead_create_constraint,
     ),
     (
         "GET",
         re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/editar$"),
-        planejamento.lookahead_edit_constraint_form,
+        planejamento_routes.lookahead_edit_constraint_form,
     ),
     (
         "GET",
         re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/remover$"),
-        planejamento.lookahead_removal_form,
+        planejamento_routes.lookahead_removal_form,
     ),
     (
         "POST",
         re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)/remocao$"),
-        planejamento.lookahead_remove_constraint,
+        planejamento_routes.lookahead_remove_constraint,
     ),
     (
         "POST",
         re.compile(r"^/api/planejamento/6wla/restricoes/(?P<restricao_id>[^/]+)$"),
-        planejamento.lookahead_update_constraint,
+        planejamento_routes.lookahead_update_constraint,
     ),
 ]
 

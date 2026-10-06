@@ -4,13 +4,163 @@
    Atividades do período e do próximo período, com os pontos de atenção.
 
    Escopo: tudo que morar aqui começa por .pagina--planejamento-relato, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-044.
+   view, para não vazar entre telas. Os modais (Ver, Novo e Editar) moram fora da raiz, mas o
+   fragmento que o servidor devolve para eles traz a mesma classe na sua raiz. Só tokens do
+   Design System: nenhum valor de cor, espaçamento, raio ou sombra escrito direto. O que se
+   repetir em três telas sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+/* ---------- Indicadores: quatro por linha, com a nota de referência embaixo do rótulo ---------- */
+.pagina--planejamento-relato .relato-kpis {
+  --kpis-colunas: 4;
+}
+
+.pagina--planejamento-relato .relato-kpi__nota {
+  display: block;
+  margin-top: var(--space-xxs);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* ---------- Tabela: a célula com o título e o selo, e as ações da linha ---------- */
+.pagina--planejamento-relato .relato-celula {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.pagina--planejamento-relato .relato-celula__titulo {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--brand-title);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pagina--planejamento-relato .relato-celula__titulo:hover {
+  text-decoration: underline;
+}
+
+.pagina--planejamento-relato .relato-celula__titulo:focus-visible {
+  outline: 2px solid var(--verde-500);
+  outline-offset: 2px;
+}
+
+.pagina--planejamento-relato .relato-celula__nota {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--planejamento-relato .relato-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+/* ---------- Modal Ver ---------- */
+.pagina--planejamento-relato .relato-ver__identificacao {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-lg);
+}
+
+.pagina--planejamento-relato .relato-ver__risco {
+  margin: var(--space-xs) 0 0;
+}
+
+.pagina--planejamento-relato .relato-bloco {
+  margin-bottom: var(--space-xl);
+}
+
+.pagina--planejamento-relato .relato-lista {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-xl);
+  color: var(--text-primary);
+}
+
+.pagina--planejamento-relato .relato-lista li + li {
+  margin-top: var(--space-xs);
+}
+
+/* ---------- Modal Novo e Editar ---------- */
+.pagina--planejamento-relato .relato-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.pagina--planejamento-relato .relato-form__bloco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.pagina--planejamento-relato .relato-legenda {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pagina--planejamento-relato .relato-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.pagina--planejamento-relato .relato-opcoes .relato-legenda {
+  flex-basis: 100%;
+}
+
+.pagina--planejamento-relato .relato-opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pagina--planejamento-relato .relato-ponto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+
+.pagina--planejamento-relato .relato-ponto .field {
+  align-self: stretch;
+}
+
+/* ---------- Telas estreitas ---------- */
+@media (max-width: 1100px) {
+  .pagina--planejamento-relato .relato-kpis {
+    --kpis-colunas: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .pagina--planejamento-relato .relato-kpis {
+    --kpis-colunas: 1;
+  }
+}

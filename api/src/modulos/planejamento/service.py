@@ -1,5 +1,19 @@
 """Business facade for the Planning module.
 
+Relato do período (ISSUE-044, HU-046): the weekly (ISO week) and the monthly (civil month)
+report of a project, two distinct records. A person registers what was done in the period,
+what comes in the next one and the attention points, each with the risk tied to it (a threat
+or an opportunity, the planning reading with no link to the 05 register). The period goes
+from the start of the project to the current one: a future period is refused, a duplicate is
+refused (the existing one is edited) and the type and the period never change after creation.
+
+Writes go through here, in the transaction of the request. The report is an aggregate: the
+activities and the attention points are its children, edited together and protected by the
+``versao`` of the root, so the facade composes ``versioning`` and ``audit`` itself (the trail
+carries the whole content, before and after). Nothing reads the clock: the caller passes the
+date of reference, obtained from ``core.calendario``.
+
+
 The 6WLA (ISSUE-045): the board of the six weeks, the activities and their
 restrictions. Every function receives the session, the user, the scope and the
 reference date as arguments; nothing here reads the clock (D6). Writing goes
@@ -12,35 +26,670 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import Integer, cast, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from src.core import audit, rbac, recording
+from src.core import audit, calendario, rbac, recording, versioning
+from src.core.audit import TrailLine
 from src.core.errors import InvalidDataError
 from src.core.import_values import normalize_text
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.planejamento import calculations, validation
-from src.modulos.planejamento.models import Lookahead, LookaheadConstraint, LookaheadWeek
+from src.modulos.planejamento.models import (
+    Lookahead,
+    LookaheadConstraint,
+    LookaheadWeek,
+    Report,
+    ReportActivity,
+    ReportPoint,
+)
+from src.modulos.planejamento.validation import MONTHLY, WEEKLY, PointInput
+
+MODULE = "planejamento"
+
+
+# The group of an activity: what was done in the period or what comes in the next one.
+GROUP_PERIOD = "periodo"
+
+
+GROUP_NEXT = "proximo"
+
+
+NOT_FOUND_MESSAGE = "Relato não encontrado."
+
+
+UNKNOWN_PROJECT_MESSAGE = "O projeto do relato não existe."
+
+
+@dataclass(frozen=True)
+class ReportDraft:
+    """What a person typed: the type and period, the two lists of activities and the points."""
+
+    kind: str = ""
+    period: str = ""
+    activities: tuple[str, ...] = ()
+    next_activities: tuple[str, ...] = ()
+    points: tuple[PointInput, ...] = ()
+
+
+@dataclass(frozen=True)
+class SaveRequest:
+    """A save: the draft and, when it edits a report, its id and the version the screen opened."""
+
+    draft: ReportDraft
+    report_id: int | None = None
+    version: str | None = None
+
+
+@dataclass(frozen=True)
+class ReportFilter:
+    """The filter of the list: the type (empty is all) and the text to search for."""
+
+    kind: str = ""
+    search: str = ""
+
+
+@dataclass(frozen=True)
+class ReportView:
+    """A report as the screens read it: identity, labels, content, counts and who wrote it last."""
+
+    id: int
+    project_id: int
+    project_code: str
+    project_name: str
+    kind: str
+    period: str
+    name: str
+    short_name: str
+    next_name: str
+    activities: tuple[str, ...]
+    next_activities: tuple[str, ...]
+    points: tuple[PointInput, ...]
+    threats: int
+    opportunities: int
+    version: int
+    updated_at: datetime
+    updated_by: str
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Nome do projeto``: how the Portfólio names the project of a row."""
+        return f"{self.project_code} · {self.project_name}"
+
+
+@dataclass(frozen=True)
+class NewReportChoices:
+    """What the form of a new report offers: the project it will belong to and its periods."""
+
+    project_label: str
+    options: list[calculations.PeriodOption]
+
+
+@dataclass(frozen=True)
+class PeriodCoverage:
+    """Whether a closed period was reported: how many projects of the scope did, of how many."""
+
+    period: str
+    name: str
+    short_name: str
+    registered: int
+    expected: int
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether every project of the scope reported the period."""
+        return self.registered >= self.expected
+
+
+@dataclass(frozen=True)
+class ReportSummary:
+    """The indicators of the screen (HU-046): the last closed week and month, the points and the count."""
+
+    previous_week: PeriodCoverage
+    previous_month: PeriodCoverage
+    last_weekly: ReportView | None
+    reference_points: int | None
+    total: int
+    weekly_total: int
+    monthly_total: int
+    expected_total: int
+    is_portfolio: bool
+
+
+# ── Reading ────────────────────────────────────────────────────────────────
+
+
+def list_reports(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    report_filter: ReportFilter | None = None,
+) -> list[ReportView]:
+    """The reports of the scope, the most recent period first, after the type and the search."""
+    rbac.require_module(user, MODULE)
+    chosen = report_filter or ReportFilter()
+    views = _views(session, _reports_in(session, scope))
+    kept = [view for view in views if _passes(view, chosen)]
+    return sorted(
+        kept,
+        key=lambda view: (
+            *calculations.report_order_key(view.kind, view.period),
+            view.project_code,
+        ),
+    )
+
+
+def report_summary(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> ReportSummary:
+    """The indicators of the screen, read on the reference date for the projects of the scope."""
+    rbac.require_module(user, MODULE)
+    projects = _projects_in(session, scope)
+    views = _views(session, _reports_in(session, scope))
+    weekly = [view for view in views if view.kind == WEEKLY]
+    last_weekly = max(weekly, key=lambda view: (view.period, view.id), default=None)
+    return ReportSummary(
+        previous_week=_coverage(WEEKLY, projects, views, reference_date),
+        previous_month=_coverage(MONTHLY, projects, views, reference_date),
+        last_weekly=last_weekly,
+        reference_points=_reference_points(weekly, last_weekly),
+        total=len(views),
+        weekly_total=len(weekly),
+        monthly_total=len(views) - len(weekly),
+        expected_total=sum(
+            calculations.expected_report_count(kind, project.start_date, reference_date)
+            for project in projects.values()
+            for kind in validation.KINDS
+        ),
+        is_portfolio=scope.is_portfolio,
+    )
+
+
+def get_report(session: Session, *, user: User, scope: Scope, report_id: int) -> ReportView:
+    """One report of the scope, or 422 when there is none with that id in it."""
+    rbac.require_module(user, MODULE)
+    return _views(session, [_find(session, scope, report_id)])[0]
+
+
+def find_report(
+    session: Session, *, user: User, scope: Scope, kind: str, period: str
+) -> ReportView | None:
+    """The report of the project of the scope for the type and period, or ``None`` when absent.
+
+    It is the address of the report manager's modal: type, period and open. In the Portfólio
+    there is no project to look in, so there is no answer.
+    """
+    rbac.require_module(user, MODULE)
+    if scope.project_id is None:
+        return None
+    report = _report_of(session, project_id=scope.project_id, kind=kind, period=period)
+    return _views(session, [report])[0] if report is not None else None
+
+
+def period_choices(
+    session: Session, *, user: User, scope: Scope, kind: str, reference_date: date
+) -> NewReportChoices:
+    """The project of the scope and the periods the form offers for a new report of the type."""
+    rbac.require_module(user, MODULE)
+    project = _project(session, scope.require_project())
+    taken = session.scalars(
+        select(Report.period).where(Report.project_id == project.id, Report.kind == kind)
+    ).all()
+    return NewReportChoices(
+        project_label=f"{project.code} · {project.name}",
+        options=calculations.period_options(
+            kind, project_start=project.start_date, reference_date=reference_date, taken=taken
+        ),
+    )
+
+
+def previous_report(
+    session: Session, *, user: User, scope: Scope, request: SaveRequest
+) -> ReportView | None:
+    """The report "Copiar do período anterior" brings: the latest of the same type before the period.
+
+    The project and the period are those of the report being edited, or of the project of the
+    scope and the period chosen in the form of a new one.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    project_id, kind, period = _target(session, scope, request)
+    candidates = list(
+        session.scalars(
+            select(Report)
+            .options(selectinload(Report.activities), selectinload(Report.points))
+            .where(Report.project_id == project_id, Report.kind == kind)
+        )
+    )
+    earlier = calculations.latest_period_before((report.period for report in candidates), period)
+    chosen = next((report for report in candidates if report.period == earlier), None)
+    return _views(session, [chosen])[0] if chosen is not None else None
+
+
+# ── Writing ────────────────────────────────────────────────────────────────
+
+
+def save_report(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    request: SaveRequest,
+    reference_date: date,
+) -> ReportView:
+    """Create the report or save the edit of one, or refuse with 422 per field.
+
+    Writing asks for Membro. A new report belongs to the project of the scope (in the Portfólio
+    the screen asks for the project first). The type and the period of an existing report are
+    kept: only the content changes. A stale version is refused with 409.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    existing = _find(session, scope, request.report_id) if request.report_id is not None else None
+    project_id = existing.project_id if existing is not None else scope.require_project()
+    kind = existing.kind if existing is not None else request.draft.kind
+    period = existing.period if existing is not None else request.draft.period
+    content = _content_of(request.draft)
+    errors = _save_errors(
+        session,
+        project=_project(session, project_id),
+        draft=ReportDraft(kind=kind, period=period, **content),
+        is_new=existing is None,
+        reference_date=reference_date,
+    )
+    if errors:
+        raise InvalidDataError(errors)
+    if existing is not None:
+        report = _edit(
+            session, user=user, report=existing, version=request.version, content=content
+        )
+    else:
+        report = _assemble(
+            project_id=project_id, kind=kind, period=period, person_id=user.person_id
+        )
+        fill_report(report, **content)
+        insert_report(session, user_id=user.id, report=report)
+    return _views(session, [report])[0]
+
+
+def insert_report(session: Session, *, user_id: int, report: Report) -> Report:
+    """Write an assembled report with the trail of its creation (the whole content, after).
+
+    The screen creates through ``save_report``; the demonstration load calls this one, with the
+    authors and the times of the prototype already on the report.
+    """
+    session.add(report)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user_id,
+            entity=Report.__tablename__,
+            record_id=report.id,
+            action=audit.CREATED,
+            after=_aggregate(report),
+            project_id=report.project_id,
+        ),
+    )
+    return report
+
+
+def delete_report(
+    session: Session, *, user: User, scope: Scope, report_id: int, version: str | None
+) -> ReportView:
+    """Delete the report, which leaves the period pending again; asks for Gestor.
+
+    Returns the report as it was, for the message. A stale version is refused with 409.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    report = _find(session, scope, report_id)
+    view = _views(session, [report])[0]
+    before = _aggregate(report)
+    versioning.require(session, report, version)
+    session.delete(report)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=Report.__tablename__,
+            record_id=view.id,
+            action=audit.DELETED,
+            before=before,
+            project_id=view.project_id,
+        ),
+    )
+    return view
+
+
+# ── Rules of the save ──────────────────────────────────────────────────────
+
+
+def _target(session: Session, scope: Scope, request: SaveRequest) -> tuple[int, str, str]:
+    """The project, the type and the period a save is about: the report's own when it exists."""
+    if request.report_id is None:
+        return scope.require_project(), request.draft.kind, request.draft.period
+    report = _find(session, scope, request.report_id)
+    return report.project_id, report.kind, report.period
+
+
+def _content_of(draft: ReportDraft) -> dict[str, Any]:
+    """The content of the draft cleaned the way it is saved: lines trimmed, blank points dropped."""
+    return {
+        "activities": tuple(validation.clean_lines(draft.activities)),
+        "next_activities": tuple(validation.clean_lines(draft.next_activities)),
+        "points": tuple(validation.non_blank_points(draft.points)),
+    }
+
+
+def _save_errors(
+    session: Session,
+    *,
+    project: configuracoes.ProjectSummary,
+    draft: ReportDraft,
+    is_new: bool,
+    reference_date: date,
+) -> dict[str, str]:
+    """Every message of a save, by the field of the form: type, period, activities and points."""
+    errors = validation.validate_kind(draft.kind)
+    if not errors:
+        problem = _period_problem(
+            session, project=project, draft=draft, is_new=is_new, reference_date=reference_date
+        )
+        if problem:
+            errors[validation.FIELD_PERIOD] = problem
+    errors.update(validation.validate_activities(draft.activities, draft.next_activities))
+    errors.update(validation.validate_points(draft.points))
+    return errors
+
+
+def _period_problem(
+    session: Session,
+    *,
+    project: configuracoes.ProjectSummary,
+    draft: ReportDraft,
+    is_new: bool,
+    reference_date: date,
+) -> str | None:
+    """The message for the period: not valid, before the project, in the future or already reported."""
+    problem = calculations.report_period_error(
+        draft.kind, draft.period, project_start=project.start_date, reference_date=reference_date
+    )
+    if problem is not None or not is_new:
+        return problem
+    already = _report_of(session, project_id=project.id, kind=draft.kind, period=draft.period)
+    return _duplicate_message(draft.kind) if already is not None else None
+
+
+def _duplicate_message(kind: str) -> str:
+    return f"Já existe relato {kind.lower()} para este período; edite o registro existente."
+
+
+def _assemble(*, project_id: int, kind: str, period: str, person_id: int) -> Report:
+    """A report not yet written, authored and stamped now."""
+    moment = calendario.now()
+    return Report(
+        project_id=project_id,
+        created_by_id=person_id,
+        updated_by_id=person_id,
+        kind=kind,
+        period=period,
+        created_at=moment,
+        updated_at=moment,
+    )
+
+
+def fill_report(
+    report: Report,
+    *,
+    activities: Sequence[str],
+    next_activities: Sequence[str],
+    points: Sequence[PointInput],
+) -> None:
+    """Replace the children of the report with the content, in the order given.
+
+    The screen goes through ``save_report``; the demonstration load assembles its reports with
+    this and writes them with ``insert_report``.
+    """
+    report.activities = [
+        *_activity_rows(GROUP_PERIOD, activities),
+        *_activity_rows(GROUP_NEXT, next_activities),
+    ]
+    report.points = [
+        ReportPoint(
+            order=order, description=point.description, nature=point.nature, risk=point.risk
+        )
+        for order, point in enumerate(points, start=1)
+    ]
+
+
+def _activity_rows(group: str, lines: Sequence[str]) -> list[ReportActivity]:
+    return [
+        ReportActivity(group=group, order=order, text=line)
+        for order, line in enumerate(lines, start=1)
+    ]
+
+
+def _edit(
+    session: Session,
+    *,
+    user: User,
+    report: Report,
+    version: str | None,
+    content: dict[str, Any],
+) -> Report:
+    """Save the content of an existing report after the version check, leaving the trail."""
+    before = _aggregate(report)
+    versioning.require(session, report, version)
+    fill_report(report, **content)
+    report.updated_by_id = user.person_id
+    report.updated_at = calendario.now()
+    versioning.advance(report)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=Report.__tablename__,
+            record_id=report.id,
+            action=audit.UPDATED,
+            before=before,
+            after=_aggregate(report),
+            project_id=report.project_id,
+        ),
+    )
+    return report
+
+
+def _aggregate(report: Report) -> dict[str, Any]:
+    """The report and its children as the trail keeps them, keyed by the Portuguese names."""
+    return {
+        **audit.snapshot(report),
+        "atividades": [
+            {"grupo": row.group, "ordem": row.order, "texto": row.text} for row in report.activities
+        ],
+        "pontos": [
+            {
+                "ordem": row.order,
+                "descricao": row.description,
+                "natureza": row.nature,
+                "risco": row.risk,
+            }
+            for row in report.points
+        ],
+    }
+
+
+# ── Reading helpers ────────────────────────────────────────────────────────
+
+
+def _projects_in(session: Session, scope: Scope) -> dict[int, configuracoes.ProjectSummary]:
+    """The projects of the scope by id: every project in the Portfólio, the chosen one otherwise."""
+    return {
+        project.id: project
+        for project in configuracoes.list_projects(session)
+        if scope.project_id is None or project.id == scope.project_id
+    }
+
+
+def _project(session: Session, project_id: int) -> configuracoes.ProjectSummary:
+    for project in configuracoes.list_projects(session):
+        if project.id == project_id:
+            return project
+    raise InvalidDataError(UNKNOWN_PROJECT_MESSAGE)
+
+
+def _reports_in(session: Session, scope: Scope) -> list[Report]:
+    statement = select(Report).options(selectinload(Report.activities), selectinload(Report.points))
+    if scope.project_id is not None:
+        statement = statement.where(Report.project_id == scope.project_id)
+    return list(session.scalars(statement))
+
+
+def _find(session: Session, scope: Scope, report_id: int) -> Report:
+    """The report with the id inside the scope, or 422: an id of another project is not found."""
+    report = session.get(Report, report_id)
+    if report is None or (scope.project_id is not None and report.project_id != scope.project_id):
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    return report
+
+
+def _report_of(session: Session, *, project_id: int, kind: str, period: str) -> Report | None:
+    statement = select(Report).where(
+        Report.project_id == project_id, Report.kind == kind, Report.period == period
+    )
+    return session.scalars(statement).first()
+
+
+def _views(session: Session, reports: Sequence[Report]) -> list[ReportView]:
+    """The reports as the screens read them, with the project and the author named once."""
+    if not reports:
+        return []
+    projects = {project.id: project for project in configuracoes.list_projects(session)}
+    names = configuracoes.person_names(session, {report.updated_by_id for report in reports})
+    return [_view(report, projects[report.project_id], names) for report in reports]
+
+
+def _view(
+    report: Report, project: configuracoes.ProjectSummary, names: dict[int, str]
+) -> ReportView:
+    points = tuple(
+        PointInput(description=row.description, nature=row.nature, risk=row.risk)
+        for row in report.points
+    )
+    threats, opportunities = calculations.nature_counts(point.nature for point in points)
+    return ReportView(
+        id=report.id,
+        project_id=project.id,
+        project_code=project.code,
+        project_name=project.name,
+        kind=report.kind,
+        period=report.period,
+        name=calculations.period_name(report.kind, report.period),
+        short_name=calculations.short_period_name(report.kind, report.period),
+        next_name=_next_name(report.kind, report.period),
+        activities=_lines(report, GROUP_PERIOD),
+        next_activities=_lines(report, GROUP_NEXT),
+        points=points,
+        threats=threats,
+        opportunities=opportunities,
+        version=report.version,
+        updated_at=report.updated_at,
+        updated_by=names.get(report.updated_by_id, ""),
+    )
+
+
+def _lines(report: Report, group: str) -> tuple[str, ...]:
+    return tuple(row.text for row in report.activities if row.group == group)
+
+
+def _next_name(kind: str, period: str) -> str:
+    following = calculations.next_period(kind, period)
+    return calculations.period_name(kind, following) if following is not None else ""
+
+
+def _passes(view: ReportView, report_filter: ReportFilter) -> bool:
+    """Whether the report stays in the list: the type, and the search in any of its texts."""
+    if report_filter.kind and view.kind != report_filter.kind:
+        return False
+    needle = normalize_text(report_filter.search)
+    if not needle:
+        return True
+    texts = [
+        view.name,
+        view.project_code,
+        *view.activities,
+        *view.next_activities,
+        *(f"{point.description} {point.nature} {point.risk}" for point in view.points),
+    ]
+    return needle in normalize_text(" ".join(texts))
+
+
+def _coverage(
+    kind: str,
+    projects: dict[int, configuracoes.ProjectSummary],
+    views: Sequence[ReportView],
+    reference_date: date,
+) -> PeriodCoverage:
+    """How many projects reported the last closed period of the type."""
+    period = calculations.previous_period(kind, reference_date)
+    reported = {view.project_id for view in views if view.kind == kind and view.period == period}
+    return PeriodCoverage(
+        period=period,
+        name=calculations.period_name(kind, period),
+        short_name=calculations.short_period_name(kind, period),
+        registered=len(reported & projects.keys()),
+        expected=len(projects),
+    )
+
+
+def _reference_points(weekly: Sequence[ReportView], last: ReportView | None) -> int | None:
+    """The attention points of the weekly report before the last one, of the same project."""
+    if last is None:
+        return None
+    of_project = {view.period: view for view in weekly if view.project_id == last.project_id}
+    earlier = calculations.latest_period_before(of_project, last.period)
+    return len(of_project[earlier].points) if earlier is not None else None
+
 
 # First key of the advisory lock that serializes the code of a new activity of a project.
 ACTIVITY_CODE_LOCK = 4501
 
+
 ACTIVITY_NOT_FOUND_MESSAGE = "A atividade não existe mais. Recarregue a tela."
+
+
 CONSTRAINT_NOT_FOUND_MESSAGE = "A restrição não existe mais. Recarregue a tela."
+
+
 OTHER_PROJECT_MESSAGE = "O registro pertence a outro projeto: abra a tela no projeto dele."
+
+
 ALREADY_REMOVED_MESSAGE = "A restrição já foi removida."
+
+
 CHOOSE_ACTIVITY_MESSAGE = "Escolha a atividade da lista."
 
+
 OPEN_CONSTRAINTS = "abertas"
+
+
 ALL_CONSTRAINTS = "todas"
 
+
 STATUS_OVERDUE = "Vencida"
+
+
 STATUS_OPEN = "Aberta"
+
+
 STATUS_REMOVED = "Removida"
 
 

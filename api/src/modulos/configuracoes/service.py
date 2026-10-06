@@ -317,13 +317,18 @@ def current_parameters(session: Session, *, reference_date: date) -> dict[str, d
 
 @dataclass(frozen=True)
 class ProjectSummary:
-    """The fields of a project that other modules and the shell may read: identity and label."""
+    """The fields of a project that other modules and the shell may read: identity and label.
+
+    ``start_date`` is the start of the project, which the period screens read to bound the
+    periods (the first one is the period of that date); it is ``None`` when none was registered.
+    """
 
     id: int
     code: str
     name: str
     manager_id: int | None = None
     budget_cents: int | None = None
+    start_date: date | None = None
 
 
 def list_projects(session: Session) -> list[ProjectSummary]:
@@ -334,7 +339,12 @@ def list_projects(session: Session) -> list[ProjectSummary]:
     and never the table.
     """
     statement = select(
-        Project.id, Project.code, Project.name, Project.manager_id, Project.budget_cents
+        Project.id,
+        Project.code,
+        Project.name,
+        Project.manager_id,
+        Project.budget_cents,
+        Project.start_date,
     ).order_by(Project.code)
     return [
         ProjectSummary(
@@ -343,6 +353,7 @@ def list_projects(session: Session) -> list[ProjectSummary]:
             name=row.name,
             manager_id=row.manager_id,
             budget_cents=row.budget_cents,
+            start_date=row.start_date,
         )
         for row in session.execute(statement)
     ]

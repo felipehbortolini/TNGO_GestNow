@@ -70,7 +70,7 @@ vem primeiro.
 | ISSUE-041 | Contingência e reserva gerencial | 4 | task | proposed | ready-for-agent | ISSUE-039, ISSUE-031, ISSUE-025 | [ISSUE-041](./041-contingencia-e-reserva-gerencial.md) |
 | ISSUE-042 | Curva S financeira e KPIs de custo | 4 | task | proposed | ready-for-agent | ISSUE-041 | [ISSUE-042](./042-curva-s-financeira-e-kpis-de-custo.md) |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | 4 | task | proposed | ready-for-agent | ISSUE-031, ISSUE-033 | [ISSUE-043](./043-cronograma-de-desembolso.md) |
-| ISSUE-044 | Relato do período | 5 | task | in-progress | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-044](./044-relato-do-periodo.md) |
+| ISSUE-044 | Relato do período | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-044](./044-relato-do-periodo.md) |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-045](./045-6wla.md) |
 | ISSUE-046 | Produtividade: plano de quantidades, ciclo da linha de base e apontamento semanal | 5 | task | proposed | ready-for-agent | ISSUE-025 | [ISSUE-046](./046-produtividade-quantidades-lb-e-apontamento.md) |
 | ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | 5 | task | proposed | ready-for-agent | ISSUE-046 | [ISSUE-047](./047-produtividade-horas-efetivas-amostragem-e-paralisacoes.md) |

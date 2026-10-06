@@ -102,3 +102,27 @@ Incluem critérios/modelos de medição e faixas de desvio da EAP, faixas de pro
 | Testes | `api/tests/planejamento/` |
 
 Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-036 a ISSUE-050 completam este documento e acrescentam testes das regras.
+
+## Relato do período (ISSUE-044, HU-046)
+
+**Tela** `relato` (trio `relato.html`, `relato.css`, `relato.js`): KPIs (semana anterior e mês anterior registrados ou pendentes, pontos de atenção do último semanal contra o anterior, relatos registrados), filtro Todos, Semanais e Mensais, busca, tabela e os modais Novo, Editar, Ver, Copiar do período anterior e Excluir. Fragmentos em `api/src/templates/planejamento/relato_*.html`. O botão Análise do período chega na ISSUE-081.
+
+**Rotas** (prefixo `/api/planejamento/relatos`, em `routes.py`): `GET` painel (`tipo`, `busca`); `GET ver?id=`; `GET abrir?tipo=&periodo=` (endereço do modal do relatório gerencial: abre o relato do período ou o formulário); `GET|POST formulario` (redesenha com o digitado; `acao=adicionar-ponto` e `remover-ponto&indice=`); `POST copiar`; `POST gravar` (Membro; 422 por campo, 409 versão vencida); `POST excluir` (Gestor); `GET excel` e `GET imprimivel` (indicadores e as tabelas da lista, no Portfólio com a coluna Projeto).
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Faixa de períodos do relato | Do período do início do projeto ao corrente (sem início, o corrente) | `calculations.report_period_range` |
+| Recusa de período | Futuro, anterior ao início ou malformado, com a mensagem | `calculations.report_period_error` |
+| Relatos devidos | Períodos fechados desde o início (o corrente não é devido) | `calculations.expected_report_count` |
+| Período anterior | Último período fechado antes da data de referência | `calculations.previous_period` |
+| Relato a copiar | O mais recente do mesmo tipo antes do período (não precisa ser o vizinho) | `calculations.latest_period_before` |
+| Opções do formulário | Períodos do mais recente ao mais antigo, com corrente e já relatados marcados | `calculations.period_options` |
+| Deslocamento da carga | Períodos inteiros entre a âncora do protótipo e a data da carga | `calculations.shift_period` |
+| Limites | 20 linhas de 300 caracteres, ao menos uma; até 12 pontos, de 10 a 400 caracteres | `validation.validate_activities`, `validation.validate_points` |
+| Gravação, duplicidade e cópia | Um registro por projeto, tipo e período; tipo e período não mudam | `service.save_report`, `service.previous_report` |
+
+**Fluxos.** Novo: o tipo escolhe as opções de período; gravar valida tudo e devolve 422 por campo. Copiar traz o próximo período do relato anterior como atividades do período e os pontos para revisão, sem gravar. Excluir devolve o período a pendente. Toda gravação passa por `service.py`, com trilha e versão. O risco do ponto de atenção é leitura do planejamento, sem vínculo com o registro de Riscos (05).
+
+**Carga:** `seed_relato.py` grava os 9 relatos dos mocks pela fachada (`service.insert_report`), com os períodos deslocados em períodos inteiros e só no modo demonstração. **Migração:** `m044_relato_do_periodo` (`relato`, `relato_atividade`, `relato_ponto`). **Testes:** `api/tests/planejamento/test_relato_*.py` (cálculos, fachada, rotas e oráculo).

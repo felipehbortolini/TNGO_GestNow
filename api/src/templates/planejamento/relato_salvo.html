@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta de um relato gravado (ISSUE-044): o corpo do modal fica vazio e a marca
+  data-relato-salvo diz à tela para fechar o modal e refazer o painel. A mensagem de sucesso
+  vai no cabeçalho de toast da resposta.
+#}
+{% block fragment %}
+<span data-relato-salvo="sim" hidden></span>
+{% endblock %}

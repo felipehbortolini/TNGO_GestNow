@@ -1,0 +1,125 @@
+{% extends "base_fragment.html" %}
+{#
+  Relato do período: os indicadores e a tabela dos relatos (ISSUE-044, HU-046).
+
+  O painel responde ao filtro (tipo e busca) e é refeito depois de gravar e de excluir. A marca
+  data-situacao diz à tela em que estado ela está: pronto, vazio-origem (nenhum relato) ou
+  vazio-filtro (o filtro não achou nenhum); quem desenha o vazio é a view.
+
+  Espera: resumo, linhas (relato, atualizado, pontos), textos, situacao, portfolio,
+  pode_gravar e pode_excluir.
+#}
+{% macro indicador(rotulo, valor, tom, icone, nota, rodape) %}
+<div class="kpi kpi--estatico kpi--{{ tom }}">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">
+    {{ rotulo }}
+    <span class="relato-kpi__nota">{{ nota }}</span>
+    <span class="relato-kpi__nota">{{ rodape }}</span>
+  </span>
+  <span class="kpi__value">{{ valor }}</span>
+</div>
+{% endmacro %}
+
+{% macro cobertura(rotulo, cob, icone) %}
+{% set tom = 'ok' if cob.is_complete else 'warn' %}
+{% if portfolio %}
+{{ indicador(rotulo, cob.registered, tom, icone, 'Esperado: ' ~ cob.expected, cob.name ~ ' · projetos com relato') }}
+{% else %}
+{{ indicador(rotulo, 'Registrado' if cob.is_complete else 'Pendente', tom, icone, 'Esperado: Registrado', cob.name) }}
+{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<div data-situacao="{{ situacao }}" hidden></div>
+
+<div class="kpis relato-kpis">
+  {{ cobertura('Semana anterior', resumo.previous_week, 'calendar') }}
+  {{ cobertura('Mês anterior', resumo.previous_month, 'calendar') }}
+  {% if resumo.last_weekly %}
+  {{ indicador('Pontos de atenção (último semanal)', resumo.last_weekly.points | length,
+     'warn' if resumo.last_weekly.threats else 'info', 'warning',
+     'Referência: ' ~ (resumo.reference_points if resumo.reference_points is not none else '·'),
+     textos.pontos ~ ' · ' ~ resumo.last_weekly.short_name) }}
+  {% else %}
+  {{ indicador('Pontos de atenção (último semanal)', '·', 'info', 'warning', 'Referência: ·', 'nenhum relato semanal') }}
+  {% endif %}
+  {{ indicador('Relatos registrados', resumo.total, 'neutro', 'taskList', 'Previsto: ' ~ resumo.expected_total, textos.contagem) }}
+</div>
+
+{% if linhas %}
+<div class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Relatos registrados</h2>
+    <span class="hint">um registro semanal e um mensal por período; alimentam a página 2 do Planejamento no relatório gerencial</span>
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <caption class="sr-only">Relatos do período</caption>
+      <thead>
+        <tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Período</th>
+          <th scope="col" class="td-num">Atividades do período</th>
+          <th scope="col" class="td-num">Próximo período</th>
+          <th scope="col" class="td-num">Pontos de atenção</th>
+          <th scope="col">Atualizado</th>
+          <th scope="col"><span class="sr-only">Ações</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+        {% set relato = linha.relato %}
+        {% set titulo = 'Relato ' ~ relato.kind | lower ~ ' · ' ~ relato.name %}
+        <tr>
+          {% if portfolio %}
+          <td><span class="pill pill--neutral">{{ relato.project_code }}</span> <span class="body-txt">{{ relato.project_name }}</span></td>
+          {% endif %}
+          <td>
+            <div class="relato-celula">
+              <button type="button" class="relato-celula__titulo fw-600"
+                data-relato-acao="ver" data-relato-id="{{ relato.id }}"
+                data-relato-titulo="{{ titulo }}" data-relato-subtitulo="{{ relato.project_label }}">{{ relato.name }}</button>
+              <span class="pill {{ 'pill--neutral' if relato.kind == 'Mensal' else 'pill--fix' }}">{{ relato.kind }}</span>
+            </div>
+          </td>
+          <td class="td-num num">{{ relato.activities | length }}</td>
+          <td class="td-num num">{{ relato.next_activities | length }}</td>
+          <td class="td-num num">
+            {{ relato.points | length }}
+            {% if relato.points %}<span class="relato-celula__nota">({{ linha.pontos }})</span>{% endif %}
+          </td>
+          <td>
+            <div class="relato-celula">
+              <span class="num">{{ linha.atualizado }}</span>
+              <span class="relato-celula__nota">{{ relato.updated_by }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="relato-acoes">
+              <button type="button" class="iconbtn" aria-label="Ver o relato {{ relato.kind | lower }} de {{ relato.name }}"
+                data-relato-acao="ver" data-relato-id="{{ relato.id }}"
+                data-relato-titulo="{{ titulo }}" data-relato-subtitulo="{{ relato.project_label }}"
+                x-init="$el.innerHTML = window.icon('eye', 18)"></button>
+              {% if pode_gravar %}
+              <button type="button" class="iconbtn" aria-label="Editar o relato {{ relato.kind | lower }} de {{ relato.name }}"
+                data-relato-acao="editar" data-relato-id="{{ relato.id }}"
+                data-relato-titulo="Editar relato {{ relato.kind | lower }}" data-relato-subtitulo="{{ relato.name }}"
+                x-init="$el.innerHTML = window.icon('edit', 18)"></button>
+              {% endif %}
+              {% if pode_excluir %}
+              <button type="button" class="iconbtn" aria-label="Excluir o relato {{ relato.kind | lower }} de {{ relato.name }}"
+                data-relato-acao="excluir" data-relato-id="{{ relato.id }}" data-relato-versao="{{ relato.version }}"
+                data-relato-titulo="{{ titulo }}" data-relato-subtitulo="{{ relato.project_label }}"
+                x-init="$el.innerHTML = window.icon('trash', 18)"></button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

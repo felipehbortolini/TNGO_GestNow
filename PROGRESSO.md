@@ -1,14 +1,14 @@
-<!-- Progresso da migração: 22 de 93 -->
+<!-- Progresso da migração: 23 de 93 -->
 
 # Progresso da migração
 
-**22 de 93 issues concluídas** (última fechada: ISSUE-045). Atualizado em 06/10/2026 12:39 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**23 de 93 issues concluídas** (última fechada: ISSUE-045). Atualizado em 06/10/2026 12:44 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 22 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 029, 045 |
-| em andamento | 3 | 024, 044, 051 |
-| na fila | 68 | 020 a 093 |
+| concluída | 23 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 029, 044, 045 |
+| em andamento | 3 | 021, 024, 051 |
+| na fila | 67 | 020 a 093 |
 
 ## Concluídas
 
@@ -35,14 +35,15 @@
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | `b3da731` |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | `faf834f` |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
-| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | - |
+| ISSUE-044 | Relato do período | - |
+| ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |
-| ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | na fila | ISSUE-019 |
+| ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | em andamento | ISSUE-019 |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
 | ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | em andamento | ISSUE-023 |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | na fila | ISSUE-024, ISSUE-019 |
@@ -63,7 +64,6 @@
 | ISSUE-041 | Contingência e reserva gerencial | na fila | ISSUE-039, ISSUE-031, ISSUE-025 |
 | ISSUE-042 | Curva S financeira e KPIs de custo | na fila | ISSUE-041 |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | na fila | ISSUE-031, ISSUE-033 |
-| ISSUE-044 | Relato do período | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-046 | Produtividade: plano de quantidades, ciclo da linha de base e apontamento semanal | na fila | ISSUE-025 |
 | ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | na fila | ISSUE-046 |
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | na fila | ISSUE-046, ISSUE-047, ISSUE-019 |
