@@ -1,7 +1,7 @@
 ---
 id: ISSUE-021
 title: "Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada"
-status: proposed
+status: in-progress
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 3
