@@ -1,0 +1,12 @@
+{#
+  Os dois blocos que o formulário de filtros do Acervo de lições substitui: a linha do escopo com o
+  checklist de kickoff (a fase escolhida fica marcada) e os cartões. Raízes irmãs, sem base_fragment,
+  com os ids fixos de propósito: a resposta se destina aos lugares que o formulário declarou
+  (docs/PADROES-DE-PAGINA.md, "Resposta que atualiza vários blocos").
+#}
+<div id="licoes-resumo">
+  {% include "governanca/_licoes_resumo.html" %}
+</div>
+<div id="licoes-cartoes">
+  {% include "governanca/_licoes_cartoes.html" %}
+</div>

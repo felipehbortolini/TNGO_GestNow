@@ -1,0 +1,97 @@
+{% extends "base_fragment.html" %}
+{#
+  Nova lição ou edição de um rascunho (ISSUE-027, HU-129): título, tipo, fase, área, disciplina, origem
+  (com o número do registro quando a origem é de módulo), o que aconteceu, causa, impacto em prazo e
+  custo, recomendação, palavras-chave e aplicabilidade. O 422 devolve este formulário preenchido com a
+  mensagem sob cada campo; o sucesso abre a lição no acervo. "Salvar e enviar" já manda para validação.
+
+  Espera: codigo (vazio na nova), valores, erros, tipos, fases, areas, disciplinas, origens (valor e
+  rótulo), aplicabilidades e action.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% macro lista(erros, valores, nome, rotulo, opcoes) %}
+<div class="field">
+  <label for="licao-{{ nome }}">{{ rotulo }}</label>
+  <select id="licao-{{ nome }}" name="{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}"
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="erro-{{ nome }}"{% endif %}>
+    <option value="">Escolha...</option>
+    {% for opcao in opcoes %}
+    {% set valor = opcao[0] if opcao is not string else opcao %}
+    {% set texto = opcao[1] if opcao is not string else opcao %}
+    <option value="{{ valor }}"{% if valores.get(nome) == valor %} selected{% endif %}>{{ texto }}</option>
+    {% endfor %}
+  </select>
+  {{ erro(erros, nome) }}
+</div>
+{% endmacro %}
+{% macro texto(erros, valores, nome, rotulo, linhas, limite) %}
+<div class="field field--full">
+  <label for="licao-{{ nome }}">{{ rotulo }}</label>
+  <textarea id="licao-{{ nome }}" name="{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" rows="{{ linhas }}" maxlength="{{ limite }}"
+    {% if erros.get(nome) %}aria-invalid="true" aria-describedby="erro-{{ nome }}"{% endif %}>{{ valores.get(nome) or '' }}</textarea>
+  {{ erro(erros, nome) }}
+</div>
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Salvando a lição...">
+  {% if codigo %}<input type="hidden" name="codigo" value="{{ codigo }}" />{% endif %}
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="licao-titulo">Título</label>
+      <input id="licao-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}" maxlength="150"
+        value="{{ valores.get('titulo') or '' }}"{% if erros.get('titulo') %} aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
+      {{ erro(erros, 'titulo') }}
+    </div>
+    {{ lista(erros, valores, 'tipo', 'Tipo', tipos) }}
+    {{ lista(erros, valores, 'fase', 'Fase', fases) }}
+    {{ lista(erros, valores, 'area', 'Área de conhecimento', areas) }}
+    {{ lista(erros, valores, 'disciplina', 'Disciplina', disciplinas) }}
+    {{ lista(erros, valores, 'origem', 'Origem', origens) }}
+    <div class="field">
+      <label for="licao-origem_ref">Número do registro de origem</label>
+      <input id="licao-origem_ref" name="origem_ref" class="input{% if erros.get('origem_ref') %} input--erro{% endif %}"
+        value="{{ valores.get('origem_ref') or '' }}"{% if erros.get('origem_ref') %} aria-invalid="true" aria-describedby="erro-origem_ref"{% endif %} />
+      <span class="hint">Obrigatório quando a origem é um módulo (Ata, Mudança...): o número precisa existir lá.</span>
+      {{ erro(erros, 'origem_ref') }}
+    </div>
+    {{ texto(erros, valores, 'aconteceu', 'O que aconteceu', 3, 1000) }}
+    {{ texto(erros, valores, 'causa', 'Causa', 2, 600) }}
+    <div class="field">
+      <label for="licao-impacto_prazo_dias">Impacto em prazo (dias)</label>
+      <input id="licao-impacto_prazo_dias" name="impacto_prazo_dias" type="number" min="0" step="1" class="input{% if erros.get('impacto_prazo_dias') %} input--erro{% endif %}"
+        value="{{ valores.get('impacto_prazo_dias') or '' }}"{% if erros.get('impacto_prazo_dias') %} aria-invalid="true" aria-describedby="erro-impacto_prazo_dias"{% endif %} />
+      {{ erro(erros, 'impacto_prazo_dias') }}
+    </div>
+    <div class="field">
+      <label for="licao-impacto_custo">Impacto em custo (R$)</label>
+      <input id="licao-impacto_custo" name="impacto_custo" inputmode="decimal" class="input{% if erros.get('impacto_custo') %} input--erro{% endif %}"
+        value="{{ valores.get('impacto_custo') or '' }}"{% if erros.get('impacto_custo') %} aria-invalid="true" aria-describedby="erro-impacto_custo"{% endif %} />
+      {{ erro(erros, 'impacto_custo') }}
+    </div>
+    {{ texto(erros, valores, 'recomendacao', 'Recomendação', 3, 1000) }}
+    <div class="field field--full">
+      <label for="licao-palavras_chave">Palavras-chave (separe por vírgula, no máximo 8)</label>
+      <input id="licao-palavras_chave" name="palavras_chave" class="input{% if erros.get('palavras_chave') %} input--erro{% endif %}"
+        value="{{ valores.get('palavras_chave') or '' }}"{% if erros.get('palavras_chave') %} aria-invalid="true" aria-describedby="erro-palavras_chave"{% endif %} />
+      {{ erro(erros, 'palavras_chave') }}
+    </div>
+    {{ lista(erros, valores, 'aplicabilidade', 'Aplicabilidade', aplicabilidades) }}
+  </div>
+  <p class="hint">Projeto: a lição fica restrita ao projeto. Corporativa: depois de publicada, é compartilhada com a organização para os próximos projetos.</p>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
+    <button type="submit" class="btn btn--secondary">Salvar rascunho</button>
+    <button type="submit" name="enviar" value="sim" class="btn btn--primary">Salvar e enviar para validação</button>
+  </div>
+</form>
+{% endblock %}

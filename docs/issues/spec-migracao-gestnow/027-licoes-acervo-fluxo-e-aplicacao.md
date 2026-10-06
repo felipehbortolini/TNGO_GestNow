@@ -86,3 +86,9 @@ Nenhuma.
 Fonte: `licoes.html`, `GI.api.governanca.licoes`, `salvarLicao`,
 `enviarValidacao`, `validarLicao`, `publicarLicao` e `aplicarLicao`,
 `mock-governanca`; README, "Lições Aprendidas".
+
+## Registro de execução
+
+Data: 2026-10-06.
+Feito: modelo (`lessons_models.py`, tabela nova `licao_historico`), migração m027, cálculos, validação, fachada (`lessons_service.py`), apresentação, exportação, rotas (`lessons_routes.py`, registrada em `function_app.py`).
+Falta: templates, view/JS/CSS, seed, oráculo, testes, MODELO-DE-DADOS, LEIA-ME, divergências.

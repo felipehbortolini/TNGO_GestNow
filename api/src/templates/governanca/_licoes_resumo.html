@@ -1,0 +1,24 @@
+{#
+  A linha do escopo e o checklist de kickoff: a consulta ao acervo no início do projeto e de cada fase.
+  Cada botão mostra quantas lições publicadas a fase tem e, ao clicar, filtra o acervo pelas publicadas
+  daquela fase (clicar de novo no ativo limpa).
+#}
+<p class="licoes-escopo" role="status">{{ linha_do_escopo }}</p>
+<section class="card licoes-kickoff" aria-labelledby="licoes-kickoff-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="licoes-kickoff-titulo">Consulta ao acervo no kickoff</h2>
+      <p class="hint">Recomendada no início do projeto e de cada fase: escolha a fase que começa para ver as lições publicadas.</p>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="licoes-kickoff__fases" role="group" aria-label="Filtrar lições publicadas por fase">
+      {% for botao in kickoff %}
+      <button type="button" class="btn btn--sm {{ 'btn--primary' if botao.active else 'btn--secondary' }}"
+        data-licoes-fase="{{ botao.phase }}" aria-pressed="{{ 'true' if botao.active else 'false' }}">
+        {{ botao.phase }} <span class="pill pill--neutral">{{ botao.count }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+</section>

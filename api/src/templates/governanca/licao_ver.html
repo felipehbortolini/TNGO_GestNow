@@ -1,0 +1,119 @@
+{% extends "base_fragment.html" %}
+{#
+  Ficha da lição aprendida (ISSUE-027, HU-129): situação, classificação, origem rastreável, o texto,
+  as aplicações registradas e o histórico, com os botões que o usuário pode usar agora. Enviar para
+  validação e Publicar são formulários desta ficha; Editar, Validar e Aplicar abrem o formulário do
+  servidor no modal (licoes.js). O alerta de devolução aparece enquanto a lição é um Rascunho devolvido.
+
+  Espera: ficha (LessonSheet), linha, acoes, origem_url, action_enviar, action_publicar e os
+  apresentadores (pill_situacao, pill_tipo, texto_impacto, plural).
+#}
+{% macro dado(rotulo, valor) %}
+<div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
+{% endmacro %}
+{% block fragment %}
+{% set data = '%d/%m/%Y' %}
+{% if ficha.return_note %}
+<div class="aviso aviso--warn mb-16" role="alert">
+  <strong>Devolvida pelo validador.</strong> <span>{{ ficha.return_note }}</span>
+</div>
+{% endif %}
+
+<div class="licao-ficha__grade">
+  <div class="det__row"><span class="det__label">Situação</span><span class="det__valor"><span class="pill {{ pill_situacao(linha.situation) }}">{{ linha.situation }}</span></span></div>
+  <div class="det__row"><span class="det__label">Tipo</span><span class="det__valor"><span class="pill {{ pill_tipo(linha.kind) }}">{{ linha.kind }}</span></span></div>
+  {{ dado('Fase', linha.phase) }}
+  {{ dado('Área de conhecimento', linha.area) }}
+  {{ dado('Disciplina', linha.discipline) }}
+  {{ dado('Aplicabilidade', linha.applicability) }}
+  <div class="det__row"><span class="det__label">Origem</span><span class="det__valor">
+    {% if origem_url %}<a href="{{ origem_url }}" data-tn-tela>{{ linha.origin_label }} {{ linha.origin_ref }}</a>
+    {% else %}{{ linha.origin_label }}{% if linha.origin_ref %} {{ linha.origin_ref }}{% endif %}{% endif %}</span></div>
+  {{ dado('Projeto', linha.project_label) }}
+  {{ dado('Autor', ficha.author_name) }}
+  {{ dado('Registrada em', linha.registered_on.strftime(data)) }}
+  {{ dado('Impacto', texto_impacto(linha.term_days, linha.cost_cents)) }}
+  {{ dado('Reusos', linha.reuses) }}
+</div>
+
+<dl class="licao-ficha__texto">
+  <dt>O que aconteceu</dt><dd>{{ ficha.what_happened }}</dd>
+  <dt>Causa</dt><dd>{{ ficha.cause }}</dd>
+  <dt>Recomendação</dt><dd><strong>{{ linha.recommendation }}</strong></dd>
+  <dt>Palavras-chave</dt>
+  <dd>{% for palavra in linha.keywords %}<span class="pill pill--neutral">{{ palavra }}</span> {% endfor %}</dd>
+</dl>
+
+{% if ficha.applications %}
+<h3 class="h-card5 mt-16">Aplicações registradas</h3>
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Aplicações da lição</caption>
+    <thead>
+      <tr><th scope="col">Data</th><th scope="col">Projeto</th><th scope="col">Como</th><th scope="col">Quem</th><th scope="col">Gerado</th></tr>
+    </thead>
+    <tbody>
+      {% for aplicacao in ficha.applications %}
+      <tr>
+        <td>{{ aplicacao.applied_on.strftime(data) }}</td>
+        <td>{{ aplicacao.project_label }}</td>
+        <td>{{ aplicacao.how }}</td>
+        <td>{{ aplicacao.registered_by or '·' }}</td>
+        <td>
+          {% if aplicacao.action_id %}<a href="/central-acoes/acoes?busca={{ linha.code | urlencode }}" data-tn-tela>Ação na Central</a>
+          {% else %}<span class="muted">·</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h3 class="h-card5 mt-16">Histórico</h3>
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Histórico da lição</caption>
+    <thead>
+      <tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr>
+    </thead>
+    <tbody>
+      {% for entrada in ficha.history %}
+      <tr>
+        <td class="licao-ficha__quando">{{ entrada.moment.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ entrada.person_name or '·' }}</td>
+        <td>{{ entrada.text }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="modal__actions licao-ficha__acoes">
+  <button type="button" class="btn btn--secondary"
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+  {% if acoes.edit %}
+  <button type="button" class="btn btn--secondary" data-licao-acao="editar" data-codigo="{{ linha.code }}">Editar</button>
+  {% endif %}
+  {% if acoes.validate %}
+  <button type="button" class="btn btn--primary" data-licao-acao="validar" data-codigo="{{ linha.code }}">Validar</button>
+  {% endif %}
+  {% if acoes.apply %}
+  <button type="button" class="btn btn--primary" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">Aplicar em projeto</button>
+  {% endif %}
+  {% if acoes.send %}
+  <form method="post" action="{{ action_enviar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="Enviando para validação...">
+    <input type="hidden" name="codigo" value="{{ linha.code }}" />
+    <input type="hidden" name="versao" value="{{ ficha.version }}" />
+    <button type="submit" class="btn btn--primary">Enviar para validação</button>
+  </form>
+  {% endif %}
+  {% if acoes.publish %}
+  <form method="post" action="{{ action_publicar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="Publicando...">
+    <input type="hidden" name="codigo" value="{{ linha.code }}" />
+    <input type="hidden" name="versao" value="{{ ficha.version }}" />
+    <button type="submit" class="btn btn--primary">Publicar</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

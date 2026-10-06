@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  A lição pedida não existe: o código não aponta para nenhuma lição do acervo.
+#}
+{% block fragment %}
+<div class="empty" data-estado="vazio-origem">
+  <h2 class="h-card4">Lição não encontrada</h2>
+  <p>Lição não encontrada. Confira o número ou volte ao acervo.</p>
+</div>
+{% endblock %}

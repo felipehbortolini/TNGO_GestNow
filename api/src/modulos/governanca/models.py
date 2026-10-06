@@ -5,10 +5,10 @@ exactly as in ``docs/MODELO-DE-DADOS.md``, section "08 Governança". The value s
 vocabulary of the SM: they feed the CHECK constraints of the database, the validation and the
 screens, so a spelling lives in one place.
 
-Two kinds of column point to tables that belong to modules that arrive later and carry no database
-foreign key yet (``eac_item_id`` of Financeiro, ``licao_id`` of the lessons of this module): the
-migration of the owner of each table adds the constraint, as D9 asks for any link whose other end
-is not there when the slice is written.
+One kind of column points to a table of a module that arrives later and carries no database foreign
+key yet (``eac_item_id`` of Financeiro): the migration of its owner adds the constraint, as D9 asks for
+any link whose other end is not there when the slice is written. ``licao_id`` points to the lessons
+of this module (``lessons_models``, ISSUE-027).
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import VERSION_SERVER_DEFAULT, Base
 from src.core.money import Centavos
+from src.modulos.governanca import lessons_models as lessons_models
 
 TYPE_REALLOCATION = "Remanejamento de orçamento"
 TYPE_RESERVE_RELEASE = "Liberação de reserva"
@@ -130,7 +131,7 @@ class ChangeRequest(Base):
     project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
     requester_id: Mapped[int] = mapped_column("solicitante_id", ForeignKey("pessoa.id"))
     closed_by_id: Mapped[int | None] = mapped_column("encerrado_por_id", ForeignKey("pessoa.id"))
-    lesson_id: Mapped[int | None] = mapped_column("licao_id", BigInteger)
+    lesson_id: Mapped[int | None] = mapped_column("licao_id", ForeignKey("licao.id"))
     code: Mapped[str] = mapped_column("codigo", Text, unique=True)
     title: Mapped[str] = mapped_column("titulo", Text)
     kind: Mapped[str] = mapped_column("tipo", Text)
