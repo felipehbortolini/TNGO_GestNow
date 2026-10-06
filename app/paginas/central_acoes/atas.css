@@ -8,9 +8,31 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-021 e ISSUE-022.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--central_acoes-atas .atas__barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-atas .atas__contagem {
+  margin: var(--space-sm) 0;
+}
+
+.pagina--central_acoes-atas .atas__acoes {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pagina--central_acoes-atas .atas__paginas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}

@@ -1,0 +1,34 @@
+{% extends "base_fragment.html" %}
+{#
+  Retirar participante da lista de presença (HU-054), no modal da ficha. A retirada é recusada, com a
+  mensagem, quando há ação aberta da ata sob responsabilidade da pessoa; sem ação aberta, retira e
+  registra na trilha. O sucesso responde a ficha atualizada (alvo ata-ficha); a recusa volta este
+  formulário com a mensagem no aviso.
+
+  Espera: ficha, aba, versao, erros (geral), participante (Attendee ou nada) e pessoa_id.
+#}
+{% block fragment %}
+<form method="post" action="/api/central-acoes/ata/retirar"
+  x-target="ata-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Retirando o participante...">
+  <input type="hidden" name="id" value="{{ ficha.record.id }}" />
+  <input type="hidden" name="pessoa" value="{{ pessoa_id }}" />
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  <input type="hidden" name="aba" value="{{ aba }}" />
+  {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
+  {% if participante %}
+  <p class="body-txt mb-16">Retirar <strong>{{ participante.person.name }}</strong> da lista de presença da ata {{ ficha.record.number }}?</p>
+  {% if participante.open_count %}
+  <p class="hint mb-16">Há {{ participante.open_count }} {{ 'ação aberta' if participante.open_count == 1 else 'ações abertas' }} sob a responsabilidade desta pessoa nesta ata: a retirada será recusada até que sejam concluídas ou passem a outro responsável.</p>
+  {% endif %}
+  {% else %}
+  <p class="body-txt mb-16">A pessoa não está mais na lista de presença desta ata.</p>
+  {% endif %}
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    {% if participante %}<button type="submit" class="btn btn--danger">Retirar</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

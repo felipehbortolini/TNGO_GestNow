@@ -1,0 +1,151 @@
+{% extends "base_fragment.html" %}
+{#
+  Ficha da ata (HU-051, HU-054): a faixa (número, revisão, contexto e a contagem das ações), a barra de
+  exportação e as abas Dados da Reunião e Lista de Presença. Anotações e Ações chegam na ISSUE-022.
+  Só a revisão vigente se altera; uma revisão anterior abre em leitura, com o link para a vigente.
+
+  A troca de aba é estado local do Alpine, nascido do data-aba (a aba que o servidor devolve depois de
+  um modal). Os modais (empresas, convidados, retirar) abrem pela página (ata.js) a partir dos
+  data-ata-modal-*; o corpo de cada um é um fragmento do servidor.
+
+  Espera: ficha (MinutesSheet), aba, pode_editar, url_excel, url_pdf, url_empresas, url_convidados,
+  endereco_de_retirada, url_vigente e formatar_data.
+#}
+{% macro linha(rotulo, valor) %}
+<div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
+{% endmacro %}
+{% block fragment %}
+{% set ata = ficha.record %}
+{% set titulo = 'Ata ' ~ ata.number ~ ' Rev ' ~ ata.revision %}
+
+{% if not ficha.is_latest %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Revisão anterior, somente leitura.</strong>
+  <span><a href="{{ url_vigente }}" data-tn-tela>Abrir a revisão vigente</a>.</span>
+</div>
+{% endif %}
+
+<section class="card ata-faixa" aria-label="Identificação da ata">
+  <div class="card__body ata-faixa__corpo">
+    <div>
+      <p class="ata-faixa__codigo">{{ ata.number }} · Rev {{ ata.revision }}</p>
+      <p class="ata-faixa__meta">
+        <span>{{ formatar_data(ata.meeting_date) }}</span>
+        <span>{{ ata.meeting_type }}</span>
+        <span>Projeto {{ ficha.project_label }}</span>
+        <span>Elaborada por {{ ficha.prepared_by_name }}</span>
+      </p>
+    </div>
+    <div class="ata-faixa__selos">
+      <span class="pill pill--neutral">{{ ficha.counts.total }} {{ 'ação' if ficha.counts.total == 1 else 'ações' }}</span>
+      <span class="pill pill--fix">{{ ficha.counts.open }} {{ 'aberta' if ficha.counts.open == 1 else 'abertas' }}</span>
+      <span class="pill {{ 'pill--erro' if ficha.counts.overdue else 'pill--ok' }}">{{ ficha.counts.overdue }} {{ 'atrasada' if ficha.counts.overdue == 1 else 'atrasadas' }}</span>
+    </div>
+  </div>
+</section>
+
+<div class="toolbar mt-16 mb-16" role="group" aria-label="Exportar a ata">
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">Gerar PDF</button>
+</div>
+
+<div x-data="{ aba: $el.dataset.aba }" data-aba="{{ aba }}">
+  <div class="tabs" role="tablist" aria-label="Seções da ata">
+    {% for chave, nome in [('dados', 'Dados da Reunião'), ('presenca', 'Lista de Presença')] %}
+    <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
+      :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
+      @click="aba = '{{ chave }}'">{{ nome }}{% if chave == 'presenca' %} <span class="pill pill--neutral">{{ ficha.attendees | length }}</span>{% endif %}</button>
+    {% endfor %}
+  </div>
+
+  <section class="mt-16" role="tabpanel" id="painel-dados" aria-labelledby="aba-dados" x-show="aba === 'dados'">
+    <div class="card">
+      <div class="card__header ata-cabeca">
+        <h2 class="h-card4">Dados da Reunião</h2>
+        {% if pode_editar %}
+        <button type="button" class="btn btn--secondary btn--sm" data-ata-modal-url="{{ url_empresas }}"
+          data-ata-modal-titulo="Empresas executoras" data-ata-modal-subtitulo="{{ ata.number }}">
+          <span x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+          Empresas executoras
+        </button>
+        {% endif %}
+      </div>
+      <div class="card__body det">
+        {{ linha('Número', ata.number) }}
+        {{ linha('Revisão', 'Rev ' ~ ata.revision) }}
+        {{ linha('Data', formatar_data(ata.meeting_date)) }}
+        {{ linha('Tipo de reunião', ata.meeting_type) }}
+        {{ linha('Diretoria', ata.board) }}
+        {{ linha('Unidade', ficha.unit_name) }}
+        {{ linha('Elaborado por', ficha.prepared_by_name) }}
+        {{ linha('Projeto', ficha.project_label) }}
+        {{ linha('Assunto', ata.subject) }}
+        {{ linha('Empresa principal', ficha.main_company_name) }}
+        {{ linha('Empresas executoras', ficha.companies | map(attribute='name') | join(', ')) }}
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-presenca" aria-labelledby="aba-presenca" x-show="aba === 'presenca'">
+    <div class="card">
+      <div class="card__header ata-cabeca">
+        <div>
+          <h2 class="h-card4">Lista de Presença</h2>
+          <p class="hint">{{ ficha.attendees | length }} {{ 'participante' if ficha.attendees | length == 1 else 'participantes' }}</p>
+        </div>
+        {% if pode_editar %}
+        <button type="button" class="btn btn--secondary btn--sm" data-ata-modal-url="{{ url_convidados }}"
+          data-ata-modal-titulo="Buscar convidado" data-ata-modal-subtitulo="{{ ata.number }}">
+          <span x-init="$el.innerHTML = window.icon('search', 16)" aria-hidden="true"></span>
+          Buscar convidado
+        </button>
+        {% endif %}
+      </div>
+      {% if ficha.attendees %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Participantes da ata</caption>
+          <thead>
+            <tr>
+              <th scope="col">Nome</th>
+              <th scope="col">Função</th>
+              <th scope="col">Empresa</th>
+              <th scope="col">E-mail</th>
+              <th scope="col">Ações abertas nesta ata</th>
+              <th scope="col"><span class="sr-only">Retirar da lista</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for participante in ficha.attendees %}
+            <tr>
+              <td><span class="fw-600">{{ participante.person.name }}</span></td>
+              <td>{{ participante.person.role or '—' }}</td>
+              <td>{{ participante.company_name }}</td>
+              <td>{{ participante.person.email }}</td>
+              <td class="num">{{ participante.open_count }}</td>
+              <td class="ata-cabeca__acoes">
+                {% if pode_editar %}
+                <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_retirada(participante.person.id) }}"
+                  data-ata-modal-titulo="Retirar participante" data-ata-modal-subtitulo="{{ participante.person.name }}"
+                  aria-label="Retirar {{ participante.person.name }} da lista" title="Retirar da lista">
+                  <span x-init="$el.innerHTML = window.icon('trash', 16)" aria-hidden="true"></span>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card__body">
+        <div class="empty" data-estado="vazio-origem">
+          <h2 class="h-card4">Lista de presença vazia</h2>
+          <p>Use "Buscar convidado" para incluir quem participou da reunião.</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base_fragment.html" %}
+{#
+  Gerar nova ata (HU-051), no modal da tela Atas. Data, tipo de reunião, diretoria, unidade,
+  elaborado por e assunto (150 caracteres, com contador) são obrigatórios; empresas executoras e a
+  principal são opcionais. O número do projeto nasce na gravação, pela sequência da plataforma. A
+  validação é do servidor: o 422 devolve este formulário preenchido, com a mensagem sob cada campo;
+  o sucesso redireciona para a ficha da ata.
+
+  Espera: valores, erros, rotulo_do_projeto, tipos_de_reuniao, unidades, pessoas, empresas,
+  limite_do_assunto e action.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="nova-ata-erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% macro invalido(erros, nome) %}{% if erros.get(nome) %} aria-invalid="true" aria-describedby="nova-ata-erro-{{ nome }}"{% endif %}{% endmacro %}
+{% block fragment %}
+<form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
+  data-tn-loading="Gerando a ata..."
+  x-data="{ assunto: $el.dataset.assunto }" data-assunto="{{ valores.get('assunto') or '' }}">
+  {% if rotulo_do_projeto %}<p class="muted mb-16">Projeto: <strong>{{ rotulo_do_projeto }}</strong>. O número da ata nasce na gravação, pelo padrão do projeto.</p>{% endif %}
+  {% for chave in ['geral', 'projeto'] %}
+  {% if erros.get(chave) %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>{% endif %}
+  {% endfor %}
+  <div class="fgrid">
+    <div class="field">
+      <label for="nova-ata-data">Data</label>
+      <input id="nova-ata-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or '' }}"{{ invalido(erros, 'data') }} />
+      {{ campo_erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="nova-ata-tipo">Tipo de reunião</label>
+      <select id="nova-ata-tipo" name="tipo_reuniao" class="input{% if erros.get('tipo_reuniao') %} input--erro{% endif %}" required{{ invalido(erros, 'tipo_reuniao') }}>
+        <option value="">Escolha...</option>
+        {% for tipo in tipos_de_reuniao %}
+        <option value="{{ tipo }}"{% if valores.get('tipo_reuniao') == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'tipo_reuniao') }}
+    </div>
+    <div class="field">
+      <label for="nova-ata-diretoria">Diretoria</label>
+      <input id="nova-ata-diretoria" name="diretoria" class="input{% if erros.get('diretoria') %} input--erro{% endif %}" maxlength="100" required
+        value="{{ valores.get('diretoria') or '' }}"{{ invalido(erros, 'diretoria') }} />
+      {{ campo_erro(erros, 'diretoria') }}
+    </div>
+    <div class="field">
+      <label for="nova-ata-unidade">Unidade</label>
+      <select id="nova-ata-unidade" name="unidade" class="input{% if erros.get('unidade') %} input--erro{% endif %}" required{{ invalido(erros, 'unidade') }}>
+        <option value="">Escolha...</option>
+        {% for unidade in unidades %}
+        <option value="{{ unidade.id }}"{% if valores.get('unidade') == unidade.id|string %} selected{% endif %}>{{ unidade.name }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'unidade') }}
+    </div>
+    <div class="field field--full">
+      <label for="nova-ata-elaborado">Elaborado por</label>
+      <select id="nova-ata-elaborado" name="elaborado_por" class="input{% if erros.get('elaborado_por') %} input--erro{% endif %}" required{{ invalido(erros, 'elaborado_por') }}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('elaborado_por') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'elaborado_por') }}
+    </div>
+    <div class="field field--full">
+      <label for="nova-ata-assunto">Assunto</label>
+      <textarea id="nova-ata-assunto" name="assunto" rows="2" maxlength="{{ limite_do_assunto }}" required x-model="assunto"
+        class="input{% if erros.get('assunto') %} input--erro{% endif %}"
+        aria-describedby="nova-ata-assunto-dica{% if erros.get('assunto') %} nova-ata-erro-assunto{% endif %}"
+        {% if erros.get('assunto') %}aria-invalid="true"{% endif %}>{{ valores.get('assunto') or '' }}</textarea>
+      <span class="hint" id="nova-ata-assunto-dica"><span x-text="assunto.length"></span> de {{ limite_do_assunto }} caracteres.</span>
+      {{ campo_erro(erros, 'assunto') }}
+    </div>
+    <div class="field">
+      <label for="nova-ata-principal">Empresa principal (opcional)</label>
+      <select id="nova-ata-principal" name="empresa_principal" class="input">
+        <option value="">Nenhuma</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if valores.get('empresa_principal') == empresa.id|string %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field--full">
+      <label for="nova-ata-empresas">Empresas executoras (opcional)</label>
+      <select id="nova-ata-empresas" name="empresas" class="input" multiple size="5" aria-describedby="nova-ata-empresas-dica">
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if empresa.id|string in valores.get('empresas', []) %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint" id="nova-ata-empresas-dica">Segure Ctrl (ou Cmd) para marcar mais de uma. A empresa principal entra na lista sozinha.</span>
+      {{ campo_erro(erros, 'empresas') }}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Gerar ata</button>
+  </div>
+</form>
+{% endblock %}

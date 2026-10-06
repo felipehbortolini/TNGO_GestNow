@@ -1,0 +1,58 @@
+{% extends "base_fragment.html" %}
+{#
+  Buscar convidado (HU-051), no modal da ficha: a busca filtra as pessoas do cadastro que ainda não
+  estão na lista de presença, e o formulário abaixo adiciona as marcadas. A busca é um GET no próprio
+  modal; o sucesso do formulário responde a ficha atualizada (alvo ata-ficha), na aba Lista de
+  Presença; uma recusa (422, 409) volta o formulário com a mensagem.
+
+  Espera: ficha, aba, versao, erros (pessoas, geral), candidatos, total_de_candidatos, limite,
+  empresas_por_id e busca.
+#}
+{% block fragment %}
+<form class="busca mb-16" method="get" action="/api/central-acoes/ata/convidados" x-target="{{ target_id }}" role="search">
+  <input type="hidden" name="id" value="{{ ficha.record.id }}" />
+  <input type="hidden" name="aba" value="{{ aba }}" />
+  <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+  <label class="sr-only" for="{{ target_id }}-busca">Buscar pessoas</label>
+  <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca" value="{{ busca }}"
+    maxlength="120" placeholder="Nome, função ou e-mail..." />
+</form>
+{% if not candidatos %}
+<div class="empty" data-estado="vazio-filtro">
+  <p>{{ 'Nenhuma pessoa encontrada para a busca.' if busca else 'Todas as pessoas cadastradas já estão na lista.' }}</p>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--secondary"
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+</div>
+{% else %}
+<form method="post" action="/api/central-acoes/ata/convidados"
+  x-target="ata-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Adicionando os convidados...">
+  <input type="hidden" name="id" value="{{ ficha.record.id }}" />
+  <input type="hidden" name="versao" value="{{ versao }}" />
+  <input type="hidden" name="aba" value="{{ aba }}" />
+  {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
+  <div class="field field--full">
+    <label for="{{ target_id }}-pessoas">Pessoas cadastradas</label>
+    <select id="{{ target_id }}-pessoas" name="pessoas" class="input{% if erros.pessoas %} input--erro{% endif %}" multiple size="8" required
+      aria-describedby="{{ target_id }}-pessoas-dica{% if erros.pessoas %} {{ target_id }}-pessoas-erro{% endif %}"
+      {% if erros.pessoas %}aria-invalid="true"{% endif %}>
+      {% for pessoa in candidatos %}
+      <option value="{{ pessoa.id }}">{{ pessoa.name }}{% if pessoa.role %} · {{ pessoa.role }}{% endif %} · {{ empresas_por_id.get(pessoa.company_id) or 'Timenow / cliente' }}</option>
+      {% endfor %}
+    </select>
+    <span class="hint" id="{{ target_id }}-pessoas-dica">
+      {% if total_de_candidatos > limite %}Mostrando {{ limite }} de {{ total_de_candidatos }}: refine a busca. {% endif %}Segure Ctrl (ou Cmd) para marcar mais de uma.
+    </span>
+    {% if erros.pessoas %}<span class="field__erro" id="{{ target_id }}-pessoas-erro" role="alert">{{ erros.pessoas }}</span>{% endif %}
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary"
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
+    <button type="submit" class="btn btn--primary">Adicionar</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

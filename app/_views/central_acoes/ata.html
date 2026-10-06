@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--central_acoes-ata"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['central_acoes/ata'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -7,28 +7,26 @@
         <h1 class="h-dash">Ata</h1>
         <p class="page-head__sub">Dados da reunião, lista de presença, anotações e ações da ata.</p>
       </div>
+      <div class="page-head__actions">
+        <a href="/central-acoes/atas" class="btn btn--secondary" data-tn-tela>Voltar às atas</a>
+      </div>
     </div>
 
-    <div class="card">
+    <!-- A ficha é um fragmento do servidor (api/src/templates/central_acoes/ata.html). O 404 traz o
+         aviso de ata não encontrada dentro do próprio fragmento; carregando, erro e sem permissão
+         são daqui. -->
+    <div id="ata-ficha" x-show="estado === 'pronto'"
+      x-init="$ajax('/api/central-acoes/ata' + window.location.search, { target: 'ata-ficha' })"></div>
+
+    <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
-        </div>
-
-        <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
-          <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhuma ata aberta</h2>
-          <p>Abra uma ata pela lista de Atas para ver a ficha aqui.</p>
-        </div>
-
-        <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <p>Carregando a ata...</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
+          <h2 class="h-card5">Não foi possível carregar a ata</h2>
           <p class="body-txt">Confira a conexão e tente de novo.</p>
         </div>
 

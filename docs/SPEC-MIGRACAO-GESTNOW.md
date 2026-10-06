@@ -1374,6 +1374,13 @@ do dono".
 | Decisão da execução (ISSUE-024), pendente de revisão do dono | liberação de reserva | reserva (Contingência/Gerencial) e valor ficam em colunas novas de `mudanca_impacto` (`liberacao_reserva`, `liberacao_valor_centavos`), pois o custo é zero | D5, ISSUE-024 |
 | Decisão da execução (ISSUE-024), pendente de revisão do dono | itens da EAC | o formulário recebe códigos da EAC; a fachada do Financeiro (`eac_item_ids_by_code`, `eac_item_codes`) os resolve no projeto da SM e recusa o código inexistente | D9, ISSUE-024 |
 | Decisão da execução (ISSUE-024), pendente de revisão do dono | alçada exigida | maior entre o custo absoluto e o total remanejado; liberação de reserva e fonte Reserva gerencial vão sempre ao Comitê | D7, ISSUE-024 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | empresa principal na nova ata | segue o protótipo: seleção opcional ao lado das executoras, e a principal entra sozinha entre elas | D5, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | editar dados da reunião | fora desta fatia (a spec pede empresas, convidados e retirada); a ficha mostra os dados em leitura | D5, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | endereço da ficha | `ata?id=` com o id da revisão, porque as revisões repetem o número | D14, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | tipos de reunião | lista fixa do protótipo (7 tipos), validada no servidor; Unidade vem do cadastro de unidades organizacionais | D5, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | retirar empresa | bloqueada quando alguém dela é responsável por ação aberta da ata (regra 11.5 do protótipo) | D5, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | revisão anterior | só leitura; empresas e presença só mudam na vigente, protegidas pela versão da ata | D5, ISSUE-021 |
+| Decisão da execução (ISSUE-021), pendente de revisão do dono | numeração na carga | a sequência do projeto continua depois do maior número do mock (`numbering.start_after`) | D6, ISSUE-021 |
 
 ---
 

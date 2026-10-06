@@ -1,0 +1,17 @@
+{% extends "base_fragment.html" %}
+{#
+  A ata pedida não existe (ou o endereço não traz o identificador): a ficha mostra o aviso, com o
+  caminho de volta para a lista de Atas. Resposta 404.
+#}
+{% block fragment %}
+<div class="card">
+  <div class="card__body">
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ata não encontrada</h2>
+      <p>A ata pedida não existe ou foi removida. Confira o número na lista de Atas.</p>
+      <a class="btn btn--primary" href="/central-acoes/atas" data-tn-tela>Ir para Atas</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

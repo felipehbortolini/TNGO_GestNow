@@ -1,0 +1,108 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Atas da Central (HU-051): barra de ferramentas e a lista com a revisão mais recente de cada
+  ata. O fragmento é um só e se pede de novo, com a busca e a página na consulta: a busca é um
+  formulário GET e a paginação são links, ambos com x-target no próprio fragmento. "Gerar nova ata"
+  usa o mecanismo de inclusão (data-tn-incluir): no Portfólio a plataforma pede o projeto antes; no
+  projeto a página (atas.js) abre o formulário do servidor no modal.
+
+  Os cinco estados da tela: carregando, erro e sem permissão (a view); vazio de origem e vazio por
+  filtro (aqui, data-estado).
+
+  Espera: listagem, filtros, portfolio, pode_gravar, link_anterior, link_proximo, link_limpar,
+  url_excel, url_pdf, url_nova, endereco_da_ficha, formatar_data, pagina_inicial e pagina_final.
+#}
+{% block fragment %}
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/central-acoes/atas" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar atas</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Número, assunto, tipo de reunião..." />
+      </form>
+      <div class="atas__barra">
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-atas-nova="{{ url_nova }}">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Gerar nova ata
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+
+    <p class="hint atas__contagem" role="status">
+      {{ listagem.total }} {{ 'ata' if listagem.total == 1 else 'atas' }}{% if filtros.search %} no filtro atual{% endif %}
+    </p>
+
+    {% if listagem.universe == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há atas</h2>
+      <p>Use "Gerar nova ata" para registrar a primeira reunião{% if portfolio %} (o Portfólio pede o projeto antes){% endif %}.</p>
+    </div>
+    {% elif not listagem.rows %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+      <p>Ajuste ou limpe a busca para ver as atas.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar busca</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Atas do projeto</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Número</th>
+            <th scope="col">Rev</th>
+            <th scope="col">Data</th>
+            <th scope="col">Assunto</th>
+            <th scope="col">Empresa principal</th>
+            <th scope="col">Tipo de reunião</th>
+            <th scope="col">Ações abertas</th>
+            <th scope="col">Atrasadas</th>
+            <th scope="col"><span class="sr-only">Abrir a ata</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_rows %}
+          {% set registro = linha.record %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td><a class="fw-600" href="{{ endereco_da_ficha(registro.id, registro.project_id) }}" data-tn-tela>{{ registro.number }}</a></td>
+            <td class="num">{{ registro.revision }}</td>
+            <td class="num">{{ formatar_data(registro.meeting_date) }}</td>
+            <td><span class="fw-600">{{ registro.subject }}</span></td>
+            <td>{{ linha.main_company_name or '—' }}</td>
+            <td>{{ registro.meeting_type }}</td>
+            <td class="num">{{ linha.open_count }}</td>
+            <td class="num">{% if linha.overdue_count %}<span class="pill pill--erro">{{ linha.overdue_count }}</span>{% else %}0{% endif %}</td>
+            <td class="atas__acoes">
+              <a class="iconbtn" href="{{ endereco_da_ficha(registro.id, registro.project_id) }}" data-tn-tela
+                aria-label="Abrir ata {{ registro.number }}" title="Abrir ata {{ registro.number }}">
+                <span x-init="$el.innerHTML = window.icon('arrowRight', 16)" aria-hidden="true"></span>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="atas__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

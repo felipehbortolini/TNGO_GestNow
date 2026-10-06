@@ -556,9 +556,11 @@ def _filter_by_context(
         return kept
     names = _person_names(session, {action.responsible_id for action in kept})
     codes = {project.id: project.code for project in configuracoes.list_projects(session)}
-    wanted = _normalize(filters.search)
+    wanted = normalize_text(filters.search)
     return [
-        action for action in kept if wanted in _normalize(_searchable_text(action, names, codes))
+        action
+        for action in kept
+        if wanted in normalize_text(_searchable_text(action, names, codes))
     ]
 
 
@@ -576,7 +578,7 @@ def _searchable_text(action: Action, names: dict[int, str], codes: dict[int, str
     return " ".join(part for part in parts if part)
 
 
-def _normalize(text: str) -> str:
+def normalize_text(text: str) -> str:
     """Lower case without accents, so ``Mudança`` is found by ``mudanca``."""
     decomposed = unicodedata.normalize("NFKD", text.casefold())
     return "".join(char for char in decomposed if not unicodedata.combining(char))
@@ -600,7 +602,7 @@ def _responsible_options(
 ) -> tuple[ResponsibleOption, ...]:
     names = _person_names(session, {action.responsible_id for action in universe})
     options = [ResponsibleOption(id=key, name=name) for key, name in names.items()]
-    return tuple(sorted(options, key=lambda option: (_normalize(option.name), option.id)))
+    return tuple(sorted(options, key=lambda option: (normalize_text(option.name), option.id)))
 
 
 @dataclass(frozen=True)

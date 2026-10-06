@@ -893,3 +893,56 @@ def grant_schedule_role(
             )
         )
         session.flush()
+
+
+@dataclass(frozen=True)
+class PersonDetail:
+    """A person as an attendance list prints it: name, role, company and e-mail."""
+
+    id: int
+    name: str
+    role: str | None
+    company_id: int | None
+    email: str
+
+
+def find_person_details(session: Session, ids: Collection[int]) -> dict[int, PersonDetail]:
+    """The people with the ids, with role and company, by id; an unknown id is left out."""
+    if not ids:
+        return {}
+    statement = select(Person).where(Person.id.in_(set(ids)))
+    return {person.id: _person_detail(person) for person in session.scalars(statement)}
+
+
+def list_person_details(session: Session) -> list[PersonDetail]:
+    """Every person of the register, by name, with role and company: what a guest search reads."""
+    statement = select(Person).order_by(Person.name, Person.id)
+    return [_person_detail(person) for person in session.scalars(statement)]
+
+
+def _person_detail(person: Person) -> PersonDetail:
+    return PersonDetail(
+        id=person.id,
+        name=person.name,
+        role=person.role,
+        company_id=person.company_id,
+        email=person.email,
+    )
+
+
+def list_company_names(session: Session) -> dict[int, str]:
+    """The name of every company of the register, by id."""
+    return {option.id: option.name for option in list_company_options(session)}
+
+
+ORGANIZATIONAL_UNIT_KIND = "organizacional"
+
+
+def list_organizational_units(session: Session) -> list[RegisterOption]:
+    """The organizational units of the register, by name: what a unit selector offers."""
+    statement = (
+        select(Unit.id, Unit.name)
+        .where(Unit.kind == ORGANIZATIONAL_UNIT_KIND)
+        .order_by(Unit.name, Unit.id)
+    )
+    return [RegisterOption(id=row.id, name=row.name) for row in session.execute(statement)]

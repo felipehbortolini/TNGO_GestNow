@@ -61,6 +61,17 @@ def next_number(
     return f"{prefix}-{number:0{digits}d}"
 
 
+def start_after(session: Session, *, project: NumberedProject, kind: str, last_number: int) -> None:
+    """Make the next number of ``kind`` come after ``last_number``; the sequence never goes back.
+
+    For the load of the demonstration, whose records arrive already numbered: the first number a
+    person generates continues the series instead of colliding with it.
+    """
+    row = _locked_row(session, project.id, kind)
+    row.next_value = max(row.next_value, last_number + 1)
+    session.flush()
+
+
 def _prefix(project: NumberedProject, kind: str, reference_date: date) -> tuple[str, int]:
     template, digits = KINDS[kind]
     ata = project.ata_pattern or f"TN-{reference_date.year}"

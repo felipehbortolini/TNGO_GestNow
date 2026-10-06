@@ -33,7 +33,7 @@ Prefixo: `/api/central-acoes/`.
 | `acoes` | Listar, filtrar, replanejar e consultar ações | ISSUE-019 |
 | `painel` | Consultar indicadores e gerar follow-up/PDF | ISSUE-020 |
 | `atas` | Listar, criar e consultar atas | ISSUE-021 |
-| `atas/{codigo}` | Revisar ata e manter presença, anotações e ações | ISSUE-022 |
+| `atas/{codigo}` | Revisar ata e manter anotações e ações | ISSUE-022 |
 
 Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
 
@@ -62,17 +62,19 @@ Não há grupo de parâmetros próprio definido nesta issue. Numeração, data d
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` |
-| Fluxo, permissões e integrações | `service.py` |
+| Rotas das ações | `routes.py` |
+| Rotas das atas | `minutes_routes.py` |
+| Fluxo, permissões e integrações das ações | `service.py` |
+| Fluxo, permissões e integrações das atas | `minutes_service.py` |
 | Status e indicadores | `calculations.py` |
 | Validação de formulários | `validation.py` |
-| Exportação | `export.py` |
+| Exportação | `export.py` (ações), `minutes_export.py` (atas) |
 | Persistência | `models.py`; entidades desenhadas em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/central_acoes/` |
 | Tela, estilo e comportamento | `app/_views/central_acoes/` e `app/paginas/central_acoes/` |
 | Testes | `api/tests/central_acoes/` |
 
-As ISSUE-020 a ISSUE-022 completam este documento com o painel e as atas.
+As ISSUE-020 e ISSUE-022 completam este documento com o painel e as anotações e ações da ata.
 
 ## O que a ISSUE-019 trouxe
 
@@ -115,3 +117,42 @@ Ligações pendentes: cada módulo de origem registra o seu tipo de link e a sua
 ### Carga e oráculo
 
 `seed.py` grava as 60 ações do protótipo e as 19 derivadas da Punch list pela costura. `api/tests/oraculo/test_oraculo_acoes.py` afirma 8 atrasadas no projeto TN-2026-014 em 25/09/2026 (portfólio: 14 atrasadas, 36 em dia, 26 concluídas).
+
+## O que a ISSUE-021 trouxe
+
+Tela **Atas** (`app/_views/central_acoes/atas.html`): busca, lista paginada só com a revisão mais recente de cada ata (Número, Rev, Data, Assunto, Empresa principal, Tipo de reunião, Ações abertas e Atrasadas), Excel e PDF, e **Gerar nova ata** (formulário no modal; no Portfólio o botão pede o projeto antes). **Ficha da ata** (`ata.html`): faixa (número, revisão, data, tipo, projeto, elaborador e a contagem das ações), abas Dados da Reunião e Lista de Presença (Anotações e Ações chegam na ISSUE-022), modais Empresas executoras (com a principal), Buscar convidado e Retirar participante, Excel e PDF da ficha. A ficha de uma revisão anterior abre só para leitura, com o link da vigente.
+
+### Rotas (`/api/central-acoes`)
+
+| Rota | Uso |
+|---|---|
+| `GET atas` | Lista (`busca`, `pagina`) |
+| `GET atas/excel`, `GET atas/imprimivel` | Exportações da lista |
+| `GET atas/nova`, `POST atas` | Formulário e gravação; 422 por campo; sucesso redireciona para a ficha; sem projeto no escopo, 422 |
+| `GET ata?id=` | Ficha (`aba=dados` ou `presenca`); 404 com o aviso se a ata não existe |
+| `GET ata/excel`, `GET ata/imprimivel` | Exportações da ficha (dados, empresas e presença) |
+| `GET/POST ata/empresas` | Empresa principal e executoras |
+| `GET/POST ata/convidados` | Busca e inclusão de convidados |
+| `GET/POST ata/retirar` | Retirar participante; 422 com a mensagem se há ação aberta dele nesta ata; 409 se a versão mudou |
+
+### Regras e nomes no código
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Revisão mais recente de cada ata | A linhagem é o número dentro do projeto; vale a maior revisão | `calculations.latest_revision_ids` |
+| Numeração da ata | Próximo número do padrão do projeto (`TN-2026-0000`) pela sequência da plataforma, sem buraco | `minutes_service.create_minutes` (`numbering.next_number`, tipo `ata`) |
+| Retirada bloqueada (HU-054) | Participante com ação aberta (tipo Ação, sem conclusão) da ata sob sua responsabilidade não sai da lista; empresa não sai se alguém dela tem ação aberta da ata | `minutes_service.remove_attendee`, `minutes_service.set_companies` |
+
+Empresas e participantes não têm versão própria: a versão da ata os protege, e toda mudança de lista a avança e deixa a trilha (`ata_empresa`, `ata_participante`). Só a revisão vigente se altera. O autor entra na lista de presença ao gerar a ata, e a empresa principal entra sozinha entre as executoras.
+
+### API pública (fachada `minutes_service`)
+
+`create_minutes`, `list_minutes`, `find_minutes`, `set_companies`, `add_guests`, `remove_attendee` e `guest_candidates`. A ISSUE-022 cria as revisões novas pela mesma fachada (`NewMinutes.revision`).
+
+### Integrações
+
+O link de origem **Ata** está registrado (`origin_links`, no fim de `minutes_service.py`): a ação de uma ata abre a ficha dela. `acao.ata_id` agora é chave estrangeira para `ata`. A ata não registra reação a replanejar ou concluir: o item da ata é a própria ação.
+
+### Carga e oráculo
+
+`seed.py` grava as 9 revisões do protótipo antes das ações (número, revisão, empresas e presença como no mock) e continua a sequência de numeração de cada projeto (a próxima ata do TN-2026-014 é a 0039). `api/tests/oraculo/test_oraculo_atas.py` afirma 8 atas vigentes (5, 2 e 1 por projeto), as ações abertas e atrasadas de cada uma e o tamanho de cada lista de presença em 25/09/2026.

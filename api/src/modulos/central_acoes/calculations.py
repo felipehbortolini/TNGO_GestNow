@@ -168,3 +168,28 @@ def overdue_share_of_open(counts: StatusCounts) -> int | None:
         return None
     share = Decimal(counts.overdue) * _PERCENT / Decimal(counts.open)
     return int(share.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+@dataclass(frozen=True)
+class RevisionEntry:
+    """What the lineage of a minutes needs of one revision: its id, project, number and revision."""
+
+    id: int
+    project_id: int
+    number: str
+    revision: int
+
+
+def latest_revision_ids(entries: Iterable[RevisionEntry]) -> frozenset[int]:
+    """Ata mais recente de cada linhagem: o id da maior revisão de cada número do projeto.
+
+    A lineage is the number inside one project; two projects may hold the same number. The list
+    of minutes shows only these (HU-051).
+    """
+    latest: dict[tuple[int, str], RevisionEntry] = {}
+    for entry in entries:
+        key = (entry.project_id, entry.number)
+        known = latest.get(key)
+        if known is None or entry.revision > known.revision:
+            latest[key] = entry
+    return frozenset(entry.id for entry in latest.values())

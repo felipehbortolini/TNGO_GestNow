@@ -6,10 +6,11 @@ list (one per item that is not cancelled, ``punch``) enter through the single se
 the completion date. Every date is shifted by ``shift_date``; on 25/09/2026 (the oracle) nothing
 moves and the numbers of the prototype come out whole.
 
-An Ata action has no reference in the mock: the prototype reads it from the minutes, so the
-reference here is the number of the ata (``atas``). ``acao.ata_id`` keeps the id the prototype
-gave the minutes: the minutes arrive with ISSUE-021, which seeds them with the same ids before it
-adds the foreign key.
+The minutes (``atas``) enter first, through ``minutes_service.create_minutes`` with the number,
+the revision, the companies and the attendance the prototype had; the sequence of numbering of each
+project continues after the highest number of the mock. An Ata action has no reference in the mock:
+the prototype reads it from the minutes, so the reference here is the number of the ata, and
+``acao.ata_id`` is the id the database gave the minutes of that mock id.
 
 The Punch list actions are created here, not by the module of the Punch list: the prototype
 derived them in the Central (``acaoDoPunch``), one for one, with the status in step. The Punch
@@ -27,10 +28,11 @@ from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
+from src.core import numbering
 from src.core.rbac import Bond, GeneralProfile, User
-from src.modulos.central_acoes import service
+from src.modulos.central_acoes import minutes_service, service
 from src.modulos.central_acoes.calculations import ACTION
-from src.modulos.central_acoes.validation import NewAction, ReplanEntry
+from src.modulos.central_acoes.validation import NewAction, NewMinutes, ReplanEntry
 from src.modulos.configuracoes import service as configuracoes
 
 PART_NAME = "central_acoes"
@@ -49,6 +51,9 @@ class _Lookups:
     people: Mapping[int, int]
     projects: Mapping[int, int]
     atas: Mapping[int, str]
+    ata_ids: dict[int, int]
+    units: Mapping[str, int]
+    companies: Mapping[int, int]
     systems: Mapping[int, str]
 
     def shifted(self, value: str | None) -> date | None:
@@ -65,6 +70,7 @@ class _Lookups:
 def load(session: Session, reference_date: date) -> None:
     """Write the actions of the prototype and the ones derived from the Punch list."""
     lookups = _lookups(session, reference_date)
+    _load_minutes(session, lookups)
     for source in prototype_collection("acoes"):
         _create(session, lookups, _action_of(lookups, source))
     for item in prototype_collection("punch"):
@@ -108,10 +114,66 @@ def _lookups(session: Session, reference_date: date) -> _Lookups:
             for project in prototype_collection("projetos")
         },
         atas={ata["id"]: ata["numero"] for ata in prototype_collection("atas")},
+        ata_ids={},
+        units={unit.name: unit.id for unit in configuracoes.list_organizational_units(session)},
+        companies=_company_ids(session),
         systems={
             system["id"]: f"{system['codigo']} {system['nome']}"
             for system in prototype_collection("sistemas")
         },
+    )
+
+
+def _company_ids(session: Session) -> dict[int, int]:
+    """The company of the register behind each company id of the prototype, by name."""
+    ids_by_name = {option.name: option.id for option in configuracoes.list_company_options(session)}
+    return {
+        company["id"]: ids_by_name[company["nome"]] for company in prototype_collection("empresas")
+    }
+
+
+def _load_minutes(session: Session, lookups: _Lookups) -> None:
+    """The minutes of the prototype, in the order of the mock, and the continuation of the numbers."""
+    last_numbers: dict[int, int] = {}
+    for source in prototype_collection("atas"):
+        record = minutes_service.create_minutes(
+            session,
+            user=lookups.user,
+            new=_minutes_of(lookups, source),
+            reference_date=lookups.reference_date,
+        )
+        lookups.ata_ids[source["id"]] = record.id
+        suffix = int(record.number.rsplit("-", 1)[1])
+        last_numbers[record.project_id] = max(last_numbers.get(record.project_id, 0), suffix)
+    for project_id, last_number in last_numbers.items():
+        project = configuracoes.find_project(session, project_id)
+        if project is not None:
+            numbering.start_after(
+                session,
+                project=project,
+                kind=minutes_service.NUMBER_KIND,
+                last_number=last_number,
+            )
+
+
+def _minutes_of(lookups: _Lookups, source: Mapping[str, Any]) -> NewMinutes:
+    """One minutes of the mock as the facade receives it, with its number and attendance."""
+    main = source.get("empresaPrincipalId")
+    return NewMinutes(
+        project_id=lookups.projects[source["projetoId"]],
+        meeting_date=lookups.shifted(source["data"]),
+        meeting_type=source["tipoReuniao"],
+        board=source["diretoria"],
+        unit_id=lookups.units[source["unidade"]],
+        prepared_by_id=lookups.person(source["elaboradoPorId"]),
+        subject=source["assunto"],
+        company_ids=tuple(lookups.companies[item] for item in source.get("empresasIds") or ()),
+        main_company_id=lookups.companies[main] if main else None,
+        number=source["numero"],
+        revision=source["revisao"],
+        participant_ids=tuple(
+            lookups.person(item) for item in source.get("participantesIds") or ()
+        ),
     )
 
 
@@ -132,7 +194,7 @@ def _action_of(lookups: _Lookups, source: Mapping[str, Any]) -> NewAction:
         description=source.get("descricao"),
         group=source.get("grupo"),
         item=source.get("item"),
-        ata_id=ata_id,
+        ata_id=lookups.ata_ids[ata_id] if ata_id else None,
         contributes_probability=bool(contribution.get("probabilidade")),
         contributes_impact=bool(contribution.get("impacto")),
         completed_on=lookups.shifted(source.get("conclusao")),

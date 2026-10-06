@@ -9,7 +9,7 @@ calls the facade.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -233,3 +233,115 @@ def _history_problems(new: NewAction) -> dict[str, str]:
     if any(justification_problem(entry.justification) for entry in new.replans):
         problems["replanejamentos"] = "Todo replanejamento precisa da justificativa."
     return problems
+
+
+# ── The minutes (ISSUE-021) ──────────────────────────────────────────────────────────────────
+
+MEETING_TYPES: tuple[str, ...] = (
+    "Coordenação de obra",
+    "Licenciamento",
+    "Status com o cliente",
+    "Segurança",
+    "Planejamento",
+    "Kickoff",
+    "Reunião de acompanhamento",
+)
+MAX_SUBJECT_LENGTH = 150
+MAX_BOARD_LENGTH = 100
+MINUTES_PAGE_SIZE = 15
+
+MINUTES_DATE_REQUIRED = "Informe a data da reunião."
+MEETING_TYPE_REQUIRED = "Escolha o tipo de reunião."
+BOARD_REQUIRED = "Informe a diretoria."
+BOARD_TOO_LONG = f"A diretoria aceita até {MAX_BOARD_LENGTH} caracteres."
+UNIT_REQUIRED = "Escolha a unidade."
+PREPARED_BY_REQUIRED = "Escolha quem elaborou a ata."
+MINUTES_SUBJECT_REQUIRED = "Informe o assunto da ata."
+MINUTES_SUBJECT_TOO_LONG = f"O assunto aceita até {MAX_SUBJECT_LENGTH} caracteres."
+
+
+@dataclass(frozen=True)
+class NewMinutes:
+    """What a person fills to generate a minutes; ``number``, ``revision`` and ``participant_ids`` are for the load.
+
+    A new minutes takes its number from the sequence of the project and starts with its author
+    in the attendance list; the load of the demonstration hands the number and the attendance
+    the prototype had.
+    """
+
+    project_id: int
+    meeting_date: date | None
+    meeting_type: str
+    board: str
+    unit_id: int | None
+    prepared_by_id: int | None
+    subject: str
+    company_ids: tuple[int, ...] = ()
+    main_company_id: int | None = None
+    number: str | None = None
+    revision: int = 0
+    participant_ids: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class MinutesFilters:
+    """The filters of the list of minutes: free search and the page."""
+
+    search: str = ""
+    page: int = 1
+
+
+@dataclass(frozen=True)
+class CompaniesRequest:
+    """The executing companies of a minutes: the main one, the others and the version opened."""
+
+    minutes_id: int
+    main_company_id: int | None
+    company_ids: tuple[int, ...]
+    version: int | str | None
+
+
+@dataclass(frozen=True)
+class AttendanceRequest:
+    """A change of the attendance list: the people and the version the screen opened."""
+
+    minutes_id: int
+    person_ids: tuple[int, ...]
+    version: int | str | None
+
+
+def parse_ids(raw_values: Sequence[str]) -> tuple[int, ...]:
+    """The ids a multiple field sent, without repeats and without what is not a number."""
+    parsed = (parse_id(raw) for raw in raw_values)
+    return tuple(dict.fromkeys(item for item in parsed if item is not None))
+
+
+def minutes_problems(new: NewMinutes) -> dict[str, str]:
+    """The messages of a new minutes by field; empty when it may be generated (HU-051)."""
+    problems: dict[str, str] = {}
+    if new.meeting_date is None:
+        problems["data"] = MINUTES_DATE_REQUIRED
+    if new.meeting_type not in MEETING_TYPES:
+        problems["tipo_reuniao"] = MEETING_TYPE_REQUIRED
+    board = new.board.strip()
+    if not board:
+        problems["diretoria"] = BOARD_REQUIRED
+    elif len(board) > MAX_BOARD_LENGTH:
+        problems["diretoria"] = BOARD_TOO_LONG
+    if new.unit_id is None:
+        problems["unidade"] = UNIT_REQUIRED
+    if new.prepared_by_id is None:
+        problems["elaborado_por"] = PREPARED_BY_REQUIRED
+    subject = new.subject.strip()
+    if not subject:
+        problems["assunto"] = MINUTES_SUBJECT_REQUIRED
+    elif len(subject) > MAX_SUBJECT_LENGTH:
+        problems["assunto"] = MINUTES_SUBJECT_TOO_LONG
+    return problems
+
+
+def parse_minutes_filters(params: Mapping[str, str]) -> MinutesFilters:
+    """The search and the page of the list of minutes from the query string."""
+    return MinutesFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH_LENGTH], page=parse_page(params)
+    )

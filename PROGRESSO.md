@@ -1,14 +1,14 @@
-<!-- Progresso da migração: 25 de 93 -->
+<!-- Progresso da migração: 26 de 93 -->
 
 # Progresso da migração
 
-**25 de 93 issues concluídas** (última fechada: ISSUE-051). Atualizado em 06/10/2026 12:48 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**26 de 93 issues concluídas** (última fechada: ISSUE-051). Atualizado em 06/10/2026 13:01 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 25 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 023, 024, 029, 044, 045, 051 |
-| em andamento | 2 | 021, 064 |
-| na fila | 66 | 020 a 093 |
+| concluída | 26 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 021, 023, 024, 029, 044, 045, 051 |
+| em andamento | 3 | 027, 064, 072 |
+| na fila | 64 | 020 a 093 |
 
 ## Concluídas
 
@@ -33,8 +33,9 @@
 | ISSUE-017 | Exportação Excel e versão imprimível (PDF pelo navegador) genéricas | `128eb77` |
 | ISSUE-018 | Importação de planilha em passos com conferência linha a linha | `f332a9a` |
 | ISSUE-019 | Ações: costura única de criação, status calculado, lista, kanban, filtros, replanejamento com justificativa e link de origem | `b3da731` |
+| ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | - |
 | ISSUE-023 | Solicitação de mudança: registro, nova SM numerada, ficha e cancelamento | `faf834f` |
-| ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | - |
+| ISSUE-024 | Análise de impacto obrigatória com alçada mínima calculada | `8e833b8` |
 | ISSUE-029 | EAC em árvore com itens, visão carteira e ponderação da carteira | `4aab1f8` |
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
@@ -45,11 +46,10 @@
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
 | ISSUE-020 | PDF das ações filtradas, follow-up aos responsáveis e painel da Central | na fila | ISSUE-019 |
-| ISSUE-021 | Atas: lista, nova ata numerada, dados da reunião e lista de presença com retirada bloqueada | em andamento | ISSUE-019 |
 | ISSUE-022 | Anotações e ações da ata por grupo, revisões da ata, histórico e justificativas | na fila | ISSUE-021 |
 | ISSUE-025 | Decisão com quórum, ações de implementação na Central, emergencial, reapresentação e encerramento | na fila | ISSUE-024, ISSUE-019 |
 | ISSUE-026 | Painel de mudanças | na fila | ISSUE-025 |
-| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | na fila | ISSUE-019, ISSUE-023 |
+| ISSUE-027 | Lições aprendidas: acervo, fluxo de validação segregado e aplicação em projeto | em andamento | ISSUE-019, ISSUE-023 |
 | ISSUE-028 | Painel de lições | na fila | ISSUE-027 |
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | na fila | ISSUE-029, ISSUE-025 |
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | na fila | ISSUE-030 |
@@ -90,7 +90,7 @@
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | na fila | ISSUE-068, ISSUE-061 |
 | ISSUE-070 | Auditorias | na fila | ISSUE-068 |
 | ISSUE-071 | Painel da qualidade | na fila | ISSUE-069, ISSUE-070 |
-| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | na fila | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
+| ISSUE-072 | HHT, inspeções de segurança, observações e DDS | em andamento | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | na fila | ISSUE-072, ISSUE-019, ISSUE-027 |
 | ISSUE-074 | Análises de risco APR e HAZOP | na fila | ISSUE-019 |
 | ISSUE-075 | Painel HSE | na fila | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 |

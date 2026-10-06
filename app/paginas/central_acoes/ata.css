@@ -1,16 +1,49 @@
 /* ============================================================
    ata.css — Estilo da tela Ata (central_acoes/ata)
 
-   Dados da reunião, lista de presença, anotações e ações da ata.
-
    Escopo: tudo que morar aqui começa por .pagina--central_acoes-ata, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-021 e ISSUE-022.
+   de cor, espaçamento, raio ou sombra escrito direto.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--central_acoes-ata .ata-faixa__corpo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.pagina--central_acoes-ata .ata-faixa__codigo {
+  color: var(--brand-title);
+  font-weight: 600;
+}
+
+.pagina--central_acoes-ata .ata-faixa__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  color: var(--text-secondary);
+}
+
+.pagina--central_acoes-ata .ata-faixa__selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-ata .ata-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.pagina--central_acoes-ata .ata-cabeca__acoes {
+  text-align: right;
+  white-space: nowrap;
+}
