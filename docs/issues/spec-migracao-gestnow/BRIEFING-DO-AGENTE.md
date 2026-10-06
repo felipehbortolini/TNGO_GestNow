@@ -41,15 +41,7 @@ pixel.
 
 ## Fontes
 
-As pastas de origem (`Sistema`, `Graficos HTML`, `Timenow - Programação
-Semanal`, `Padrao Desenvolvimento`), quando existirem ao lado da raiz do
-repositório, são **só leitura**. Se não existirem (execução só com o GitHub),
-há a spec, os docs e as cópias em `docs/referencia/` (`graficos/`,
-`prototipo/README.md` e `HANDOVER.md`, `programacao-semanal/*.md`). O que a
-issue cita de código do protótipo, mocks ou código do app que não estiver
-disponível: implemente pela **spec (que vence)**, pelo README do protótipo
-(use `grep` na seção do módulo, não leia inteiro) e pelos docs do app. Nunca
-invente regra, dado de demonstração nem número do oráculo.
+Na raiz do repositório, **só leitura**: `fontes/Sistema/` (protótipo: `data/mock-*.js`, `js/services/{api,regras}.js`, `js/pages/<módulo>/`, `js/i18n/en.js`), `fontes/Timenow - Programação Semanal/` (código do app), `Graficos HTML/` (visuais-padrão) e as cópias em `docs/referencia/`. Regra, número e texto saem do código do protótipo do seu módulo (grep por termo, sem ler a pasta inteira). A carga (`scripts/converter_mocks.mjs` + `seed.py`) e as afirmações do oráculo fazem parte da issue. Nunca invente regra, dado de demonstração nem número do oráculo.
 
 ## Leia só isto (três chamadas bastam)
 
