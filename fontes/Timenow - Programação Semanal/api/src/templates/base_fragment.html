@@ -1,0 +1,5 @@
+{% block root %}
+<div id="{{ target_id }}"{% if root_class %} class="{{ root_class }}"{% endif %}>
+{% block fragment %}{% endblock %}
+</div>
+{% endblock %}

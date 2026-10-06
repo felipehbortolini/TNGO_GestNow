@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Punch list · Planejamento | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="planejamento/punch-list">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Punch list</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-novo"><i data-icon="plus"></i>Novo item</button><button type="button" class="btn btn--secondary" id="btn-importar"><i data-icon="upload"></i>Importar Excel</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="tabs" data-tabs role="tablist" aria-label="Visões da Punch list">
+        <button type="button" class="tab" role="tab" id="aba-lista" aria-controls="p-lista" aria-selected="true"><i data-icon="list"></i>Lista</button>
+        <button type="button" class="tab" role="tab" id="aba-painel" aria-controls="p-painel" aria-selected="false"><i data-icon="dashboard"></i>Painel</button>
+      </div>
+      <section class="tab-panel" role="tabpanel" id="p-lista" aria-labelledby="aba-lista">
+        <div class="kpi-grid" id="kpis"></div>
+        <div class="toolbar mt-6">
+          <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar número, descrição ou TAG" aria-label="Buscar itens"></div>
+          <button type="button" class="btn btn--secondary" id="btn-filtros"><i data-icon="filter"></i>Filtros</button>
+        </div>
+        <div class="filter-bar mb-4" id="chips"></div>
+        <section class="card card--flush" aria-labelledby="t-lista">
+          <div class="card__header"><div><h2 class="card__title" id="t-lista">Itens</h2><p class="card__subtitle" id="contagem"></p></div></div>
+          <div id="tabela"></div>
+        </section>
+      </section>
+      <section class="tab-panel" role="tabpanel" id="p-painel" aria-labelledby="aba-painel" hidden>
+        <div class="alert alert--warning mb-4" id="alerta-bloqueio" hidden></div>
+        <div class="grid grid--2">
+          <section class="card" aria-labelledby="t-burn">
+            <div class="card__header"><div><h2 class="card__title" id="t-burn">Abertura e fechamento acumulados</h2><p class="card__subtitle">Por semana (burndown)</p></div></div>
+            <div class="chart"><canvas id="g-burn"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-aging">
+            <div class="card__header"><div><h2 class="card__title" id="t-aging">Tempo em aberto</h2><p class="card__subtitle">Itens abertos por faixa de idade e categoria</p></div></div>
+            <div class="chart"><canvas id="g-aging"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-disc">
+            <div class="card__header"><div><h2 class="card__title" id="t-disc">Abertos por disciplina</h2><p class="card__subtitle">Por categoria</p></div></div>
+            <div class="chart"><canvas id="g-disc"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-emp">
+            <div class="card__header"><div><h2 class="card__title" id="t-emp">Abertos por empresa</h2><p class="card__subtitle">Por categoria</p></div></div>
+            <div class="chart"><canvas id="g-emp"></canvas></div>
+          </section>
+        </div>
+        <section class="card card--flush mt-4" aria-labelledby="t-sis">
+          <div class="card__header"><div><h2 class="card__title" id="t-sis">Sistemas e liberação por marco</h2><p class="card__subtitle">Sistema com item A aberto fica bloqueado para o marco vinculado</p></div></div>
+          <div id="tb-sistemas"></div>
+        </section>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/components/importar.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/planejamento/punch-list.js"></script>
+</body>
+</html>

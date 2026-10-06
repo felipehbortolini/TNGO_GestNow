@@ -1,0 +1,248 @@
+{#
+  Partial — o painel de anexar o realizado.
+
+  É a tela que mais gente diferente usa e a que mais erra, então o
+  desenho responde a isso:
+
+  * **um cartão por dia**, com o previsto impresso ao lado do campo. Não
+    é preciso lembrar nem consultar outra tela para saber quanto era.
+  * **“copiar previsto”**, por dia e para a semana inteira. O caso comum
+    — entregou o que estava programado — vira um clique em vez de sete
+    digitações.
+  * **total e PPC vivos**, recalculados a cada tecla. O erro de somar
+    errado deixa de existir porque ninguém precisa somar.
+  * **noite recolhida por padrão.** A maioria das frentes só tem turno
+    dia; quatorze campos abertos para preencher sete é o que faz alguém
+    digitar na linha errada.
+  * **o desvio grande pede justificativa** antes de salvar, com a conta
+    já feita na tela — o servidor cobra a mesma regra, aqui só antecipa.
+
+  Espera: atividade, datas, erros, limite_desvio, exige_justificativa.
+#}
+{#
+  A justificativa entra por data-* e não interpolada na expressão: texto
+  livre carrega aspas, e `| tojson` é marcado como seguro — as aspas
+  duplas sairiam sem escape e fechariam o atributo x-data no meio, o que
+  derruba o componente inteiro em silêncio. Em data-* o autoescape do
+  Jinja faz o trabalho certo. Mesma armadilha registrada em
+  docs/CONVENCOES.md.
+#}
+<div
+  class="painel-fundo"
+  data-justificativa="{{ atividade.observacoes_fornecedor | default('', true) }}"
+  @click.self="$el.remove()"
+  @keydown.escape.window="$el.remove()"
+  x-data="{
+    dia: [{{ atividade.dias_realizado | join(', ') }}],
+    noite: [{{ atividade.dias_noite | join(', ') }}],
+    previsto: [{{ atividade.dias_previsto | join(', ') }}],
+    mostrarNoite: {{ 'true' if atividade.dias_noite | sum > 0 else 'false' }},
+    justificativa: $el.dataset.justificativa,
+    get totalPrevisto() { return this.previsto.reduce((s, v) => s + (Number(v) || 0), 0); },
+    get totalDia() { return this.dia.reduce((s, v) => s + (Number(v) || 0), 0); },
+    get totalNoite() { return this.noite.reduce((s, v) => s + (Number(v) || 0), 0); },
+    get total() { return this.totalDia + this.totalNoite; },
+    get ppc() { return this.totalPrevisto > 0 ? (this.total / this.totalPrevisto) * 100 : 0; },
+    get desvio() {
+      if (!this.totalPrevisto) return 0;
+      return Math.abs(this.total - this.totalPrevisto) / this.totalPrevisto * 100;
+    },
+    get precisaJustificar() {
+      return {{ 'true' if exige_justificativa else 'false' }}
+        && this.desvio > {{ limite_desvio }}
+        && this.justificativa.trim().length < 5;
+    },
+    get diasComProducao() { return this.dia.filter((v, i) => (Number(v) || 0) + (Number(this.noite[i]) || 0) > 0).length; },
+    numero(v) { return (Number(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 }); },
+    copiarDia(i) { this.dia[i] = this.previsto[i]; this.noite[i] = 0; },
+    copiarSemana() { this.dia = this.previsto.slice(); this.noite = this.noite.map(() => 0); },
+    zerar() { this.dia = this.dia.map(() => 0); this.noite = this.noite.map(() => 0); }
+  }"
+>
+  <div class="painel painel--largo" role="dialog" aria-modal="true" aria-labelledby="titulo-realizado" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="painel__titulo" id="titulo-realizado">Anexar o realizado</h2>
+        <p class="painel__sub">
+          {{ atividade.id_exclusiva }} · {{ atividade.atividade }} · {{ atividade.empresa }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="iconbtn painel__fechar"
+        aria-label="Fechar"
+        x-init="$el.innerHTML = window.icon('dismiss', 18)"
+        @click="$root.remove()"
+      ></button>
+    </div>
+
+    <form
+      method="post"
+      action="/api/atividade-realizado?chave={{ atividade.key | chave_url }}"
+      x-target="drawer prog-resumo prog-tabela"
+      data-tn-loading="Salvando o realizado..."
+    >
+      <div class="painel__corpo">
+        {% if erros %}
+        <div class="aviso aviso--erro mb-16" role="alert">
+          <strong>Ajuste antes de salvar</strong>
+          {% for mensagem in erros.values() %}<span>{{ mensagem }}</span>{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="aviso aviso--info mb-16">
+          <strong>Como preencher</strong>
+          <span>
+            Digite quanto foi produzido em cada dia. Se o dia saiu exatamente como o
+            previsto, use o atalho <b>“= previsto”</b> do próprio dia — ou
+            <b>“Copiar a semana inteira”</b> logo abaixo. O total e o PPC se atualizam sozinhos.
+          </span>
+        </div>
+
+        <div class="toolbar" style="margin-bottom: 12px">
+          <div class="grupo-label" style="margin: 0">Produção por dia — {{ atividade.unidade }}</div>
+          <div class="flex gap-8 items-center">
+            <button type="button" class="btn btn--ghost btn--sm" @click="copiarSemana()">
+              Copiar a semana inteira
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="zerar()">Zerar tudo</button>
+            <label class="toggle" :class="mostrarNoite ? 'toggle is-active' : 'toggle'">
+              <input
+                type="checkbox"
+                class="sr-only"
+                x-model="mostrarNoite"
+                aria-label="Registrar turno noite separadamente"
+              />
+              <span class="toggle__track"><span class="toggle__thumb"></span></span>
+              Turno noite
+            </label>
+          </div>
+        </div>
+
+        <div class="lancamento">
+          {% for i in range(7) %}
+          <div
+            class="lancamento__dia{{ ' is-fds' if i >= 5 }}"
+            :class="{ 'is-sem-plano': previsto[{{ i }}] === 0 }"
+          >
+            <span class="lancamento__rotulo">
+              {{ DIAS[i] }}
+              {% if datas %}<span class="lancamento__data">{{ datas[i].strftime('%d/%m') }}</span>{% endif %}
+            </span>
+
+            <span class="lancamento__meta">
+              <span>prev. <b x-text="numero(previsto[{{ i }}])"></b></span>
+              <button
+                type="button"
+                class="lancamento__copiar"
+                x-show="previsto[{{ i }}] > 0"
+                @click="copiarDia({{ i }})"
+                :aria-label="'Copiar o previsto de {{ DIAS_NOME[i] }}'"
+              >= previsto</button>
+            </span>
+
+            <label class="sr-only" for="dia-{{ i }}">Realizado no turno dia em {{ DIAS_NOME[i] }}</label>
+            <input
+              id="dia-{{ i }}"
+              class="lancamento__campo"
+              type="number"
+              inputmode="decimal"
+              step="0.1"
+              min="0"
+              name="dias_realizado_{{ i }}"
+              x-model.number="dia[{{ i }}]"
+            />
+
+            <template x-if="mostrarNoite">
+              <div class="lancamento__mini">
+                <label class="sr-only" for="noite-{{ i }}">Realizado no turno noite em {{ DIAS_NOME[i] }}</label>
+                <span aria-hidden="true">N</span>
+                <input
+                  id="noite-{{ i }}"
+                  class="lancamento__campo lancamento__campo--noite"
+                  type="number"
+                  inputmode="decimal"
+                  step="0.1"
+                  min="0"
+                  name="dias_noite_{{ i }}"
+                  x-model.number="noite[{{ i }}]"
+                />
+              </div>
+            </template>
+            <template x-if="!mostrarNoite">
+              <input type="hidden" name="dias_noite_{{ i }}" :value="noite[{{ i }}]" />
+            </template>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="resumo-lancamento mt-16">
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">Previsto na semana</span>
+            <span class="resumo-lancamento__valor" x-text="numero(totalPrevisto) + ' {{ atividade.unidade }}'"></span>
+          </div>
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">Realizado</span>
+            <span class="resumo-lancamento__valor" x-text="numero(total) + ' {{ atividade.unidade }}'"></span>
+            <span class="resumo-lancamento__nota" x-show="mostrarNoite"
+                  x-text="'dia ' + numero(totalDia) + ' · noite ' + numero(totalNoite)"></span>
+          </div>
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">PPC</span>
+            <span
+              class="resumo-lancamento__valor"
+              :class="ppc >= 80 ? '' : (ppc >= 60 ? 'is-alerta' : 'is-erro')"
+              x-text="numero(ppc) + '%'"
+            ></span>
+            <span class="resumo-lancamento__nota" x-text="diasComProducao + ' dia(s) com produção'"></span>
+          </div>
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">Desvio do previsto</span>
+            <span
+              class="resumo-lancamento__valor"
+              :class="desvio > {{ limite_desvio }} ? 'is-alerta' : ''"
+              x-text="numero(desvio) + '%'"
+            ></span>
+            <span class="resumo-lancamento__nota">limite sem justificativa: {{ limite_desvio | pct(0) }}</span>
+          </div>
+        </div>
+
+        <div class="field mt-16">
+          <label for="campo-observacoes">
+            Justificativa do desvio
+            <span x-show="precisaJustificar" class="chip chip--warn">obrigatória</span>
+          </label>
+          <textarea
+            id="campo-observacoes"
+            name="observacoes"
+            class="input{{ ' input--erro' if erros.observacoes }}"
+            rows="3"
+            x-model="justificativa"
+            placeholder="O que aconteceu na semana? Chuva, falta de frente liberada, atraso de material..."
+          ></textarea>
+          {% if erros.observacoes %}
+          <span class="field__erro">{{ erros.observacoes }}</span>
+          {% endif %}
+          <span class="hint" x-show="precisaJustificar">
+            O realizado está mais de {{ limite_desvio | pct(0) }} distante do previsto.
+            Escreva o motivo para conseguir salvar.
+          </span>
+        </div>
+      </div>
+
+      <div class="painel__rodape">
+        <span class="painel__aviso">
+          Ao salvar, o registro segue para aprovação do fiscal
+          {% if atividade.responsavel %}<b>{{ atividade.responsavel }}</b>{% endif %}.
+        </span>
+        <div class="painel__rodape-acoes">
+          <button type="button" class="btn btn--secondary" @click="$root.remove()">Cancelar</button>
+          <button type="submit" class="btn btn--primary" :disabled="precisaJustificar">
+            <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+            Salvar realizado
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

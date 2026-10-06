@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Programação Semanal · Planejamento | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="planejamento/programacao-semanal">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Programação Semanal</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-nova-atv"><i data-icon="plus"></i>Nova atividade</button><button type="button" class="btn btn--secondary" id="btn-importar"><i data-icon="upload"></i>Importar Excel</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <label class="sr-only" for="f-semana">Semana</label><select class="select" id="f-semana"></select>
+        <div class="toolbar__grow"></div>
+        <div class="btn-group" id="fluxo"></div>
+      </div>
+      <div class="kpi-grid" id="kpis"></div>
+      <section class="card card--flush mt-6" aria-labelledby="t-prog">
+        <div class="card__header"><div><h2 class="card__title" id="t-prog">Atividades da semana</h2><p class="card__subtitle" id="sub-prog"></p></div></div>
+        <div id="tabela"></div>
+      </section>
+      <div class="grid grid--2 mt-4" id="indicadores">
+        <section class="card" aria-labelledby="t-ppc">
+          <div class="card__header"><div><h2 class="card__title" id="t-ppc">PPC por área</h2><p class="card__subtitle">Atividades cumpridas ÷ programadas</p></div></div>
+          <div class="chart chart--sm"><canvas id="g-ppc"></canvas></div>
+        </section>
+        <section class="card" aria-labelledby="t-ader">
+          <div class="card__header"><div><h2 class="card__title" id="t-ader">Aderência por contratada</h2><p class="card__subtitle">Realizado ÷ previsto por atividade (limitado a 100%), média</p></div></div>
+          <div class="chart chart--sm"><canvas id="g-ader"></canvas></div>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/components/importar.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/planejamento/programacao-semanal.js"></script>
+</body>
+</html>

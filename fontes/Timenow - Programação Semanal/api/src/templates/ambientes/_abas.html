@@ -1,0 +1,22 @@
+{#
+  Partial — a sub-navegação da área do operador, dentro do seletor.
+
+  O item Tokens entra com a Entrega 3; aqui já vivem a listagem e a
+  criação. A área inteira só é alcançada por operador — o item não
+  existe no DOM de mais ninguém.
+
+  Espera: abas.
+#}
+<nav class="subnav" aria-label="Administração do registro de ambientes">
+  {% for aba in abas %}
+  <a
+    class="subnav__item{{ ' is-active' if aba.ativa }}"
+    href="{{ aba.href }}"
+    x-target="app-shell"
+    {% if aba.ativa %}aria-current="page"{% endif %}
+  >
+    <span x-init="$el.innerHTML = window.icon('{{ aba.icone }}', 16)" aria-hidden="true"></span>
+    {{ aba.rotulo }}
+  </a>
+  {% endfor %}
+</nav>

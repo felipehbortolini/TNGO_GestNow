@@ -1,0 +1,33 @@
+{#
+  Partial — uma faixa segmentada de status.
+
+  Barra única com os segmentos proporcionais, e o número dentro do
+  segmento. Três pizzas lado a lado responderiam a mesma pergunta
+  ocupando o triplo do espaço e obrigando a comparar ângulos.
+
+  Espera `bloco` no contexto: {titulo, segmentos: [{nome, valor, cor}]}.
+#}
+{% set total = bloco.segmentos | sum(attribute='valor') %}
+<div class="faixa-status">
+  <span class="faixa-status__titulo">{{ bloco.titulo }}</span>
+  {% if total %}
+  <div class="faixa-status__trilho" role="img"
+       aria-label="{{ bloco.titulo }}: {% for s in bloco.segmentos %}{{ s.valor }} {{ s.nome }}{{ ', ' if not loop.last }}{% endfor %}">
+    {% for s in bloco.segmentos %}
+    {% if s.valor %}
+    <span class="faixa-status__seg faixa-status__seg--{{ s.cor }}"
+          style="flex: {{ s.valor }}"
+          title="{{ s.nome }}: {{ s.valor }}">{{ s.valor }}</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <div class="faixa-status__legenda">
+    {% for s in bloco.segmentos %}
+    <span><i class="faixa-status__seg--{{ s.cor }}"
+             style="background: var(--{{ 'verde' if s.cor == 'ok' else ('frio' if s.cor == 'info' else ('warn' if s.cor == 'warn' else ('erro' if s.cor == 'erro' else 'neutro'))) }}-{{ '300' if s.cor == 'neutro' else '500' }})"></i>{{ s.nome }} · {{ s.valor }}</span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="hint">Sem dados para esta semana.</p>
+  {% endif %}
+</div>

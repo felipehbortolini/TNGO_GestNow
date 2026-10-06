@@ -1,0 +1,202 @@
+{% extends "base_fragment.html" %}
+{#
+  Configurações · Janelas de programação.
+
+  Esta era a pior tela do app anterior: 156 caixas de seleção, uma por
+  semana de três anos, sem nenhum atalho. Liberar um trimestre exigia
+  treze cliques e a conferência era impossível.
+
+  O que mudou:
+
+  * a semana virou **pastilha** numa grade, não uma caixa numa lista;
+  * cada trimestre e cada ano têm **atalho de marcar e limpar**;
+  * o resumo mostra **quantas** estão marcadas e **qual é a próxima**,
+    que é a pergunta real de quem configura;
+  * o estado de agora aparece no topo do cartão — aberta ou fechada, e
+    por quê — sem precisar abrir a tela do fornecedor para descobrir.
+
+  Espera: janelas (janela.resumo), anos, dias_semana, semana_atual, hoje.
+#}
+{% block fragment %}
+{% include "configuracoes/_abas.html" %}
+
+<div class="aviso aviso--info mb-16">
+  <strong>Como a janela funciona</strong>
+  <span>
+    A regra vale para a <b>empresa</b>, não para a pessoa. São três camadas, nesta ordem:
+    a liberação extraordinária vence tudo; depois, a semana precisa estar liberada;
+    por último, o dia e o horário precisam ser os de hoje. Fora disso a contratada
+    consulta, mas não edita.
+  </span>
+</div>
+
+{% for j in janelas %}
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">{{ j.empresa }}</h2>
+      <p class="hint">
+        {% if j.aberta %}
+        <span class="pill pill--ok">Aberta agora</span>
+        {% else %}
+        <span class="pill pill--warn">Fechada agora</span>
+        {% endif %}
+        {{ j.motivo }}
+      </p>
+    </div>
+    <span class="chip chip--info">{{ j.quantidade_semanas }} semana(s) liberada(s)</span>
+  </div>
+
+  <div class="card__body">
+    <form method="post" action="/api/configuracoes-janela" x-target="config-area"
+          data-tn-loading="Salvando a janela...">
+      <input type="hidden" name="empresa" value="{{ j.empresa }}" />
+
+      <div class="bloco-config" style="padding-top: 8px">
+        <div>
+          <h3 class="bloco-config__titulo">Dia e horário</h3>
+          <p class="bloco-config__texto">
+            Quando, dentro da semana, a contratada pode escrever. Deixe o dia em branco
+            para liberar em qualquer dia das semanas marcadas.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="fgrid" style="grid-template-columns: 1.4fr 1fr 1fr">
+            <div class="field">
+              <label for="dia-{{ loop.index }}">Dia da semana</label>
+              <select id="dia-{{ loop.index }}" class="input" name="dia">
+                <option value="">Qualquer dia</option>
+                {% for sigla, nome in dias_semana %}
+                <option value="{{ sigla }}" {% if j.dias and j.dias[0].dia == sigla %}selected{% endif %}>
+                  {{ nome }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="abre-{{ loop.index }}">Abre às</label>
+              <input id="abre-{{ loop.index }}" class="input" type="time" name="abre"
+                     value="{{ j.abre or '00:01' }}" />
+            </div>
+            <div class="field">
+              <label for="fecha-{{ loop.index }}">Fecha às</label>
+              <input id="fecha-{{ loop.index }}" class="input" type="time" name="fecha"
+                     value="{{ j.fecha or '23:59' }}" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h3 class="bloco-config__titulo">Semanas liberadas</h3>
+          <p class="bloco-config__texto">
+            Clique nas pastilhas para marcar. Os atalhos de trimestre e de ano marcam
+            tudo de uma vez.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="seletor-semanas" x-data="{
+            marcar(seletor, valor) {
+              $el.querySelectorAll(seletor).forEach(function (campo) { campo.checked = valor; });
+            }
+          }">
+            {% for bloco in anos %}
+            <div>
+              <div class="seletor-semanas__topo">
+                <span class="grupo-label" style="margin: 0">{{ bloco.ano }}</span>
+                <div class="seletor-semanas__atalhos">
+                  {% for trimestre in [1, 2, 3, 4] %}
+                  <button type="button" class="btn btn--ghost btn--sm"
+                          @click="marcar('[data-ano=\'{{ bloco.ano }}\'][data-tri=\'{{ trimestre }}\']', true)">
+                    T{{ trimestre }}
+                  </button>
+                  {% endfor %}
+                  <button type="button" class="btn btn--ghost btn--sm"
+                          @click="marcar('[data-ano=\'{{ bloco.ano }}\']', true)">Ano inteiro</button>
+                  <button type="button" class="btn btn--ghost btn--sm"
+                          @click="marcar('[data-ano=\'{{ bloco.ano }}\']', false)">Limpar</button>
+                </div>
+              </div>
+              <div class="seletor-semanas__grade">
+                {% for s in bloco.semanas %}
+                <label
+                  class="pastilha-semana{{ ' is-passada' if s.id < semana_atual and s.ano <= hoje.ano }}"
+                  title="{{ s.id }} · {{ s.periodo }}"
+                >
+                  <input
+                    type="checkbox"
+                    name="semanas"
+                    value="{{ s.id }}"
+                    data-ano="{{ bloco.ano }}"
+                    data-tri="{{ ((s.mes - 1) // 3) + 1 }}"
+                    {% if s.id in j.semanas_liberadas %}checked{% endif %}
+                  />
+                  {{ '%02d' | format(s.numero) }}
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h3 class="bloco-config__titulo">Liberação extraordinária</h3>
+          <p class="bloco-config__texto">
+            Abre uma semana específica por um período absoluto, ignorando dia e horário.
+            É a exceção — e ela vence a regra nos dois sentidos: fora do intervalo, a
+            semana fica fechada mesmo que estivesse liberada.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          {% if j.extra %}
+          <div class="lista-chips">
+            {% for e in j.extra %}
+            <span class="chip-removivel">
+              {{ e.semana }} · {{ e.abre }} até {{ e.fecha }}
+              <button type="submit" class="chip-removivel__x" name="remover_extra" value="{{ e.semana }}"
+                      aria-label="Remover a liberação extraordinária de {{ e.semana }}">&times;</button>
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="fgrid" style="grid-template-columns: 1fr 1fr 1fr">
+            <div class="field">
+              <label for="ex-semana-{{ loop.index }}">Semana</label>
+              <input id="ex-semana-{{ loop.index }}" class="input" type="text" name="extra_semana"
+                     placeholder="{{ semana_atual }}" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="ex-abre-{{ loop.index }}">Abre em</label>
+              <input id="ex-abre-{{ loop.index }}" class="input" type="datetime-local" name="extra_abre" />
+            </div>
+            <div class="field">
+              <label for="ex-fecha-{{ loop.index }}">Fecha em</label>
+              <input id="ex-fecha-{{ loop.index }}" class="input" type="datetime-local" name="extra_fecha" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="acoes-rodape">
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Salvar a janela de {{ j.empresa }}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% else %}
+<div class="card">
+  <div class="empty">
+    <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+    <h3>Nenhuma empresa cadastrada</h3>
+    <p>Cadastre as contratadas em “Cadastros de apoio” para configurar as janelas.</p>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

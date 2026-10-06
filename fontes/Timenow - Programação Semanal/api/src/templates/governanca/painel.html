@@ -1,0 +1,158 @@
+{% extends "base_fragment.html" %}
+{#
+  Governança — o fluxo visto de cima.
+
+  Uma linha por contratada e semana. A pergunta que a tela responde não é
+  "o que tem nesta atividade", e sim "quem está segurando a semana" —
+  por isso o corte é por empresa e o destaque é a pendência, não o total.
+
+  Espera: g (dados.governanca).
+#}
+{% block fragment %}
+<div class="kpis" style="--kpis-colunas: 4">
+  <div class="kpi kpi--neutro" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Contratadas ativas</span>
+    <span class="kpi__value">{{ g.fornecedores_ativos }}</span>
+  </div>
+  <div class="kpi kpi--info" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Janelas abertas hoje</span>
+    <span class="kpi__value">{{ g.janelas_abertas }}</span>
+  </div>
+  <div class="kpi kpi--warn" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Aguardando fiscal</span>
+    <span class="kpi__value">{{ g.situacao.pendentes }}</span>
+  </div>
+  <div class="kpi kpi--ok" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Atividades no histórico</span>
+    <span class="kpi__value">{{ g.total_atividades }}</span>
+  </div>
+</div>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Janelas de programação</h2>
+    <span class="hint">situação de agora, {{ g.semana }}</span>
+  </div>
+  <div class="card__body">
+    {% if g.janelas %}
+    <ul class="lista-simples">
+      {% for j in g.janelas %}
+      <li class="lista-simples__item">
+        <span class="linha__dot" style="background: var(--{{ 'verde' if j.aberta else 'warn' }}-500)"></span>
+        <span class="linha__main">
+          <span class="linha__titulo">{{ j.empresa }}</span>
+          <span class="linha__meta">{{ j.motivo }}</span>
+        </span>
+        <span class="chip">{{ j.quantidade_semanas }} semana(s) liberada(s)</span>
+        {% if j.dia_rotulo %}
+        <span class="chip chip--info">{{ j.dia_rotulo }} · {{ j.abre }}–{{ j.fecha }}</span>
+        {% endif %}
+        {% if j.extra %}
+        <span class="chip chip--warn">{{ j.extra | length }} extraordinária(s)</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty"><p>Nenhuma janela cadastrada.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Lista de controle</h2>
+    <span class="hint">uma linha por contratada e semana, da mais recente para a mais antiga</span>
+  </div>
+  <div class="card__body">
+    {% if g.linhas %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Situação das programações por contratada e semana</caption>
+        <thead>
+          <tr>
+            <th scope="col">Contratada</th>
+            <th scope="col">Semana</th>
+            <th scope="col" class="td-num">Programações</th>
+            <th scope="col">Situação</th>
+            <th scope="col" class="td-center">Pendências</th>
+            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col">Fiscal</th>
+            <th scope="col">Última alteração</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in g.linhas %}
+          <tr>
+            <td class="fw-600">{{ linha.empresa }}</td>
+            <td>
+              {{ linha.semana }}
+              <span class="linha__meta">{{ linha.periodo }}</span>
+            </td>
+            <td class="td-num">{{ linha.total }}</td>
+            <td>
+              <div class="flex gap-8" style="flex-wrap: wrap">
+                {% if linha.em_elaboracao %}<span class="pill pill--warn">Elaboração {{ linha.em_elaboracao }}</span>{% endif %}
+                {% if linha.validada %}<span class="pill pill--fix">Validada {{ linha.validada }}</span>{% endif %}
+                {% if linha.publicada %}<span class="pill pill--ok">Publicada {{ linha.publicada }}</span>{% endif %}
+              </div>
+            </td>
+            <td class="td-center">
+              {% if linha.pendencias %}
+              <span class="pill pill--warn">{{ linha.pendencias }}</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="td-num">
+              <span class="mppc mppc--{{ linha.aderencia | faixa }}">
+                <span class="mppc__valor">{{ linha.aderencia | pct(0) }}</span>
+              </span>
+            </td>
+            <td>{{ linha.responsavel or '—' }}</td>
+            <td class="muted">{{ linha.atualizado_em | data_br(com_hora=true) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3>Nada registrado ainda</h3>
+      <p>Assim que a primeira programação for criada, o controle aparece aqui.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mt-24">
+  <div class="card__head">
+    <h2 class="h-card4">Pedidos de alteração</h2>
+    <span class="hint">
+      o caminho para mudar o que já está publicado ou aprovado
+    </span>
+  </div>
+  <div class="card__body">
+    <div id="gov-pedidos" x-init="$ajax('/api/pedidos', { target: 'gov-pedidos' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+
+{% if pode(user, 'ver_auditoria') %}
+<section class="card mt-24">
+  <div class="card__head">
+    <h2 class="h-card4">Trilha de auditoria</h2>
+    <span class="hint">quem mudou o quê, e quando</span>
+  </div>
+  <div class="card__body">
+    <div id="gov-trilha" x-init="$ajax('/api/governanca-trilha', { target: 'gov-trilha' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

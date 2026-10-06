@@ -1,0 +1,109 @@
+{% from "programacao/_macros.html" import ordenar, consulta, cabecalho_dias, filtros_ativos %}
+{#
+  Partial — a matriz da semana.
+
+  Sete colunas, não dezoito: os sete dias vivem numa célula só, como
+  grade, e previsto e realizado ficam empilhados dentro do dia. É o que
+  faz a linha inteira caber na tela sem barra de rolagem horizontal — a
+  única rolagem é a vertical, dentro de .matriz-rolagem, com o cabeçalho
+  grudado no topo.
+
+  Espera: atividades, filtros, semana, periodo, datas, janela,
+  total_na_semana, filtrando, user.
+#}
+{{ filtros_ativos(filtros, semana) }}
+
+{% if atividades %}
+<div class="matriz-quadro">
+  <div class="matriz-topo">
+    <span class="matriz-topo__contagem">
+      {{ atividades | length }} de {{ total_na_semana }} atividade(s) · {{ semana }}
+      {% if periodo %}<span class="muted">· {{ periodo }}</span>{% endif %}
+    </span>
+    <div class="matriz-topo__legenda legenda-dia">
+      <span><i class="amostra--prev"></i>Prev — o programado</span>
+      <span><i class="amostra--real"></i>Real — o executado</span>
+      <span><i class="amostra--parado"></i>Programado sem produção</span>
+      <span><i class="amostra--batido"></i>Meta do dia atingida</span>
+      <span><i class="amostra--extra"></i>Produção sem previsão</span>
+    </div>
+  </div>
+
+  <div class="matriz-rolagem" tabindex="0" role="region" aria-label="Matriz da programação">
+    <table class="matriz">
+      <caption class="sr-only">
+        Programação da semana {{ semana }}: previsto e realizado por dia, PPC e situação.
+      </caption>
+      <colgroup>
+        <col class="mt-item" />
+        <col class="mt-atividade" />
+        <col class="mt-execucao" />
+        <col class="mt-dias" />
+        <col class="mt-situacao" />
+        <col class="mt-semana" />
+        <col class="mt-ppc" />
+        <col class="mt-acoes" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col" class="mt-item">{{ ordenar('item', '#', filtros, semana) }}</th>
+          <th scope="col" class="mt-atividade">{{ ordenar('atividade', 'Atividade', filtros, semana) }}</th>
+          <th scope="col" class="mt-execucao">{{ ordenar('empresa', 'Execução', filtros, semana) }}</th>
+          <th scope="col" class="mt-dias">{{ cabecalho_dias(datas) }}</th>
+          <th scope="col" class="mt-situacao">{{ ordenar('situacao', 'Situação', filtros, semana) }}</th>
+          <th scope="col" class="mt-semana">{{ ordenar('realizado', 'Semana', filtros, semana) }}</th>
+          <th scope="col" class="mt-ppc">{{ ordenar('ppc', 'PPC', filtros, semana) }}</th>
+          <th scope="col" class="mt-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in atividades %}{% include "programacao/_linha.html" %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif filtrando %}
+<div class="card">
+  <div class="empty">
+    <img src="/ds/assets/ilustra-aviso.png" alt="" />
+    <h3>Nenhuma atividade com esses filtros</h3>
+    <p>
+      A semana {{ semana }} tem {{ total_na_semana }} atividade(s), mas nenhuma corresponde ao
+      que você pediu. Limpe o refinamento para ver todas.
+    </p>
+    <button
+      type="button"
+      class="btn btn--secondary"
+      @click="$ajax('/api/programacao-filtros?semana={{ semana | urlencode }}', { target: 'prog-filtros' });
+              $ajax('/api/programacao?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })"
+    >
+      Limpar filtros
+    </button>
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="empty">
+    <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+    <h3>Semana {{ semana }} ainda sem programação</h3>
+    <p>
+      {% if janela.aberta and pode(user, 'gerar') %}
+      Crie a primeira atividade ou importe a planilha da semana.
+      {% else %}
+      Nenhuma atividade foi programada para esta semana até agora.
+      {% endif %}
+    </p>
+    {% if janela.aberta and pode(user, 'gerar') %}
+    <button
+      type="button"
+      class="btn btn--primary"
+      @click="$ajax('/api/atividade-form?semana={{ semana | urlencode }}', { target: 'drawer' })"
+    >
+      Nova atividade
+    </button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

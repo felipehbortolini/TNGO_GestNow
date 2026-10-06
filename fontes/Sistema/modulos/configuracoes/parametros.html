@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parâmetros do sistema · Configurações | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="configuracoes/parametros">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Parâmetros do sistema</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--secondary" id="btn-historico"><i data-icon="history"></i>Histórico de versões</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="alert alert--info mb-4">
+        <i data-icon="info"></i>
+        <div class="alert__body"><b>Acesso restrito a Gestor e Admin.</b> Cada alteração cria uma nova versão com data de vigência, autor e justificativa. Pesos e prazos valem para registros novos; registros já calculados (avaliações, prazos de ocorrências) guardam os parâmetros da época. Critérios de exibição (base das taxas, escala de severidade, faixas) recalculam as telas na hora.</div>
+      </div>
+      <div id="acesso"></div>
+      <section class="card mb-4" aria-labelledby="t-versao">
+        <div class="card__header"><div><h2 class="card__title" id="t-versao">Versão vigente</h2><p class="card__subtitle" id="sub-versao"></p></div></div>
+        <div class="form-grid" id="versao"></div>
+      </section>
+      <div class="toolbar">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar parâmetro" aria-label="Buscar parâmetro"></div>
+        <label class="sr-only" for="f-modulo">Módulo</label>
+        <select class="select" id="f-modulo"></select>
+      </div>
+      <div class="grid grid--2" id="grupos"></div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/configuracoes/parametros.js"></script>
+</body>
+</html>

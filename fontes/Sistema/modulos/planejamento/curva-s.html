@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curva S · Planejamento | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="planejamento/curva-s">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Curva S</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-avanco"><i data-icon="plus"></i>Registrar avanço do mês</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="kpi-grid" id="kpis"></div>
+      <section class="card mt-6" aria-labelledby="t-curva">
+        <div class="card__header"><div><h2 class="card__title" id="t-curva">Curva S física</h2><p class="card__subtitle" id="sub-curva"></p></div></div>
+        <div class="chart chart--lg"><canvas id="g-curva"></canvas></div>
+      </section>
+      <section class="card card--flush mt-4" id="sec-carteira" aria-labelledby="t-carteira" hidden>
+        <div class="card__header"><div><h2 class="card__title" id="t-carteira">Composição da carteira</h2><p class="card__subtitle">Peso de cada projeto na Curva S ponderada e contribuição para o desvio da carteira</p></div></div>
+        <div id="tabela-carteira"></div>
+      </section>
+      <section class="card card--flush mt-4" aria-labelledby="t-periodos">
+        <div class="card__header"><div><h2 class="card__title" id="t-periodos">Período a período</h2><p class="card__subtitle">% acumulado e avanço no mês</p></div></div>
+        <div id="tabela"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/planejamento/curva-s.js"></script>
+</body>
+</html>

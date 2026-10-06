@@ -1,0 +1,32 @@
+<!--
+  Início — o estado da semana em uma tela.
+
+  A view é só o esqueleto: quem traz número é /api/home-resumo. Assim a
+  mesma página serve o fornecedor (que vê a própria empresa) e a Timenow
+  (que vê tudo), sem nenhum condicional aqui dentro.
+-->
+<main id="app-shell" class="content">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Programação semanal de serviços</p>
+        <h1 class="h-dash">Início</h1>
+        <p class="page-head__sub">
+          Como a semana está andando — aderência, pendências e o que precisa de decisão hoje.
+        </p>
+      </div>
+      <div class="page-head__actions">
+        <a href="/_views/programacao.html" x-target="app-shell" class="btn btn--primary">
+          Abrir a programação
+        </a>
+      </div>
+    </div>
+
+    <div id="home-resumo" x-init="$ajax('/api/home-resumo', { target: 'home-resumo' })">
+      <div class="page-loading">
+        <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
+        <p class="page-loading__txt">Carregando a semana...</p>
+      </div>
+    </div>
+  </div>
+</main>

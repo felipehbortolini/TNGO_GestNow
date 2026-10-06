@@ -1,0 +1,167 @@
+{% extends "base_fragment.html" %}
+{#
+  Barra lateral — 300px, marca em cima, pessoa embaixo.
+
+  Quem é o usuário vem do servidor, já resolvido: o cadastro de
+  colaboradores é a fonte de verdade do acesso, e consultá-lo aqui evita
+  a tela mostrar um nome que veio do provedor de identidade e um perfil
+  que veio de outro lugar.
+
+  Os itens já chegam filtrados por permissão — o que o perfil não abre
+  não está no DOM, e não apenas escondido por CSS.
+
+  Sobrescreve {% raw %}{% block root %}{% endraw %} porque a raiz precisa ser <aside>.
+#}
+{% block root %}
+<aside
+  id="{{ target_id }}"
+  class="sidebar"
+  aria-label="Navegação principal"
+  x-data="{
+    rota: location.pathname,
+    saude: '…',
+    seguro: {{ 'true' if seguro else 'false' }},
+    async init() {
+      this.$el.querySelectorAll('[data-icone]').forEach(function (el) {
+        el.innerHTML = window.icon(el.dataset.icone, 16);
+      });
+      const marca = this.$el.querySelector('.sidebar__logo-link');
+      if (marca && window.LOGO_FULL) marca.innerHTML = window.LOGO_FULL;
+      try {
+        const resposta = await fetch('/api/health');
+        this.saude = (await resposta.json()).status;
+      } catch (e) { this.saude = 'offline'; }
+    },
+    ativo(href) {
+      const atual = (this.rota === '/' || this.rota === '/index.html')
+        ? '{{ itens[0].href if itens else "" }}'
+        : this.rota;
+      return atual === href;
+    },
+    trocar(ambiente) {
+      document.cookie = 'tn_ambiente=' + ambiente + ';path=/;SameSite=Lax'
+        + (this.seguro ? ';Secure' : '');
+      // Trocar é escolher, e leva à tela inicial do ambiente novo
+      // (história 8) — logo carrega a marca de entrada desta aba, como
+      // o seletor faz. Sem ela o boot mostraria o seletor de novo e a
+      // troca viraria dois passos.
+      TN.marcarEntrada(ambiente);
+      location.replace('/');
+    },
+    aoSeletor() {
+      // O caminho explícito de volta à escolha: limpa a marca desta aba
+      // para o boot mostrar o seletor, sem mexer no cookie — quem não
+      // escolher nada continua com o ambiente anterior válido.
+      TN.esquecerEntrada();
+      location.replace('/');
+    }
+  }"
+>
+{% block fragment %}
+  <div class="sidebar__brand">
+    <a
+      href="/_views/home.html"
+      x-target="app-shell"
+      @click="rota = '/_views/home.html'"
+      class="sidebar__logo-link"
+      title="Início"
+      aria-label="Timenow — Início"
+    ></a>
+  </div>
+
+  <hr class="sidebar__divisor" />
+
+  <p class="sidebar__section-label">{{ secao }}{% if projeto %} · {{ projeto }}{% endif %}</p>
+
+  {# Troca de ambiente — só existe no DOM de quem tem mais de um. A lista
+     é a mesma do seletor; escolher grava o cookie e volta à tela inicial
+     do ambiente novo, remontando a sidebar pelo boot. #}
+  {% if pode_trocar %}
+  <div class="sidebar__extra" x-data="{ aberto: false }">
+    <button
+      type="button"
+      class="btn btn--ghost btn--sm"
+      @click="aberto = !aberto"
+      :aria-expanded="aberto ? 'true' : 'false'"
+    >
+      <span x-init="$el.innerHTML = window.icon('layers', 16)" aria-hidden="true"></span>
+      Trocar de ambiente
+    </button>
+    <nav x-show="aberto" @click.outside="aberto = false" aria-label="Trocar de ambiente" class="mt-8">
+      {% for trocavel in trocaveis %}
+      <button
+        type="button"
+        class="sidebar__item"
+        data-ambiente="{{ trocavel.id }}"
+        @click="trocar($el.dataset.ambiente); aberto = false"
+      >
+        <span class="sidebar__item-icon" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+        <span class="sidebar__item-label">{{ trocavel.projeto }}</span>
+      </button>
+      {% endfor %}
+    </nav>
+  </div>
+  {% endif %}
+
+  {# O seletor virou a tela inicial permanente (revisão 3, item 3), então
+     precisa haver um caminho de volta a ele de dentro de qualquer
+     ambiente — inclusive para quem tem um só, que é justamente quem não
+     recebe o controle de troca acima e ficaria sem saída na aba. #}
+  <div class="sidebar__extra">
+    <button type="button" class="btn btn--ghost btn--sm" @click="aoSeletor()">
+      <span x-init="$el.innerHTML = window.icon('layers', 16)" aria-hidden="true"></span>
+      Ver todos os ambientes
+    </button>
+  </div>
+
+  <nav class="sidebar__nav">
+    {% for item in itens %}
+    <a
+      class="sidebar__item"
+      href="{{ item.href }}"
+      x-target="app-shell"
+      x-target.away="_top"
+      @click="rota = '{{ item.href }}'"
+      :class="ativo('{{ item.href }}') ? 'sidebar__item is-active' : 'sidebar__item'"
+      :aria-current="ativo('{{ item.href }}') ? 'page' : false"
+    >
+      <span class="sidebar__item-icon" data-icone="{{ item.icone }}" aria-hidden="true"></span>
+      <span class="sidebar__item-label">{{ item.rotulo }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  {# Trocador de perfil da demonstração. Só existe quando não há provedor
+     de identidade: com SSO o perfil vem do cadastro e não há o que
+     escolher. Serve para revisar a tela como cada papel a vê, sem
+     provisionar cinco contas. #}
+  <div id="perfil-demo" x-init="$ajax('/api/perfil-demo', { target: 'perfil-demo' })"></div>
+
+  <div class="sidebar__saude">
+    <span
+      class="pill"
+      role="status"
+      :class="saude === 'ok' ? 'pill--ok' : 'pill--erro'"
+      x-text="saude === 'ok' ? 'API online' : 'API ' + saude"
+    ></span>
+  </div>
+
+  <div class="sidebar__user">
+    <div class="avatar">{{ user.iniciais }}</div>
+    <div class="userchip__info">
+      <div class="userchip__name" title="{{ user.nome }}">{{ user.nome }}</div>
+      <div class="userchip__role" title="{{ user.email }}">
+        {{ user.perfil_rotulo }}{% if user.empresa %} · {{ user.empresa }}{% endif %}
+      </div>
+    </div>
+    <a
+      href="/.auth/logout"
+      class="iconbtn sidebar__user-chev"
+      aria-label="Sair"
+      title="Sair"
+      x-init="$el.innerHTML = window.icon('signout', 16)"
+    ></a>
+  </div>
+{% endblock %}
+</aside>
+{% endblock %}

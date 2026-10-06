@@ -1,0 +1,4 @@
+{"quando": "2026-08-26T18:50:17+00:00", "acao": "exportar", "rotulo": "Exportou os dados", "ator": "admin@timenow.com.br", "resumo": "planilha da semana S.35/2026", "contexto": {"semana": "S.35/2026", "linhas": 12}}
+{"quando": "2026-09-21T16:55:46+00:00", "acao": "criar", "rotulo": "Criou a atividade", "ator": "admin@timenow.com.br", "resumo": "TESTE", "contexto": {"key": "S.39-2026::TESTE", "semana": "S.39/2026"}}
+{"quando": "2026-09-21T16:55:59+00:00", "acao": "validar", "rotulo": "Validou a programação", "ator": "admin@timenow.com.br", "resumo": "TESTE", "contexto": {"key": "S.39-2026::TESTE", "fiscal": "Marcos Duarte"}}
+{"quando": "2026-09-21T16:56:30+00:00", "acao": "criar", "rotulo": "Criou a atividade", "ator": "admin@timenow.com.br", "resumo": "TESTE2", "contexto": {"key": "S.39-2026::TESTE2", "semana": "S.39/2026"}}

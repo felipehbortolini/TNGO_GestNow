@@ -1,0 +1,42 @@
+<!--
+  Programação da semana — a tela de trabalho do app.
+
+  Quatro regiões que se carregam sozinhas e se atualizam por motivos
+  diferentes:
+
+    #prog-janela   aviso de janela aberta/fechada (segue o relógio)
+    #prog-filtros  semana, busca, refinamento e ações (segue os cadastros)
+    #prog-resumo   faixa de indicadores           (segue os dados)
+    #prog-tabela   a matriz                       (segue os dados)
+    #drawer        painel de formulário           (vazio = fechado)
+
+  Resumo e tabela chegam juntos: são o par que toda mutação devolve, e uma
+  requisição só evita a tela piscar em dois tempos. O #drawer entra na
+  mesma lista de x-target — vem preenchido no 422, com os erros, e vazio
+  no 200, e é assim que o painel se fecha sozinho ao salvar.
+-->
+<main id="app-shell" class="content">
+  <div class="page page--larga">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Execução</p>
+        <h1 class="h-dash">Programação da semana</h1>
+        <p class="page-head__sub">
+          Previsto e realizado lado a lado, dia a dia, com as ações liberadas para o seu perfil.
+        </p>
+      </div>
+    </div>
+
+    <div id="prog-janela" x-init="$ajax('/api/programacao-janela', { target: 'prog-janela' })"></div>
+
+    <div id="prog-filtros" x-init="$ajax('/api/programacao-filtros', { target: 'prog-filtros' })"></div>
+
+    <div id="prog-resumo"></div>
+
+    <div id="prog-tabela" x-init="$ajax('/api/programacao', { target: 'prog-resumo prog-tabela' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div id="drawer"></div>
+</main>

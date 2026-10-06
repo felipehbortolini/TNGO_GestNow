@@ -1,0 +1,29 @@
+{% extends "base_fragment.html" %}
+{#
+  Aviso de janela — só aparece para quem a janela restringe.
+
+  Para a equipe Timenow a janela não vale, e um aviso permanente dizendo
+  "liberado" seria ruído numa tela que já é densa.
+
+  Espera: janela, semana, periodo.
+#}
+{% block fragment %}
+{% if janela.eh_fornecedor %}
+<div class="janela-aviso {{ '' if janela.aberta else 'janela-aviso--fechada' }}" role="status">
+  <span
+    class="janela-aviso__icone"
+    x-init="$el.innerHTML = window.icon('{{ 'checkCircle' if janela.aberta else 'lock' }}', 20)"
+    aria-hidden="true"
+  ></span>
+  <span class="janela-aviso__texto">
+    {% if janela.aberta %}
+    <strong>Janela aberta para {{ janela.empresa }}.</strong>
+    {{ janela.motivo }} Você pode criar e editar a programação da semana {{ semana }}.
+    {% else %}
+    <strong>Janela fechada para {{ janela.empresa }}.</strong>
+    {{ janela.motivo }} A consulta continua liberada; a edição, não.
+    {% endif %}
+  </span>
+</div>
+{% endif %}
+{% endblock %}

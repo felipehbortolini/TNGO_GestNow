@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel HSE · HSE | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="hse/painel">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Painel HSE</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--secondary" data-analise="hse"><i data-icon="clipboardList"></i>Análise do período</button><a class="btn btn--secondary" id="lnk-ocorrencias" href="ocorrencias.html"><i data-icon="octagonAlert"></i>Ocorrências</a><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <label class="sr-only" for="f-ano">Ano</label>
+        <select class="select" id="f-ano"></select>
+        <label class="sr-only" for="f-mes">Mês</label>
+        <select class="select" id="f-mes"></select>
+        <div class="segmented" data-segmented id="f-referencia" role="group" aria-label="Referência da pirâmide">
+          <button type="button" class="segmented__opt" aria-pressed="true" data-value="bird">Bird</button>
+          <button type="button" class="segmented__opt" aria-pressed="false" data-value="heinrich">Heinrich</button>
+        </div>
+      </div>
+      <p class="text-small text-muted mb-4" id="periodo"></p>
+      <h2 class="section-title" id="t-kpis-mes">No mês selecionado</h2>
+      <div class="kpi-grid" id="kpis-mes"></div>
+      <h2 class="section-title mt-6" id="t-kpis-acum">Acumulado</h2>
+      <div class="kpi-grid" id="kpis"></div>
+      <h2 class="section-title mt-6" id="t-proativos">Indicadores proativos</h2>
+      <div class="kpi-grid" id="proativos"></div>
+      <div class="grid grid--2 mt-6">
+        <section class="card" aria-labelledby="t-piramide">
+          <div class="card__header"><div><h2 class="card__title" id="t-piramide">Pirâmide de segurança</h2>
+            <p class="card__subtitle">Mês selecionado e acumulado</p></div></div>
+          <div class="pyramid-pair" id="piramides"></div>
+          <p class="pyramid-ref" id="nota-piramide"></p>
+        </section>
+        <section class="card" aria-labelledby="t-evolucao">
+          <div class="card__header"><div><h2 class="card__title" id="t-evolucao">Evolução mensal</h2>
+            <p class="card__subtitle">Taxa de frequência (TF) e de lesões registráveis (TRIF), por mês com HHT registrado</p></div></div>
+          <div class="chart"><canvas id="g-evolucao"></canvas></div>
+        </section>
+      </div>
+      <div class="grid grid--2 mt-6">
+        <section class="card" aria-labelledby="t-area">
+          <div class="card__header"><div><h2 class="card__title" id="t-area">Ocorrências por área</h2></div></div>
+          <div id="por-area"></div>
+        </section>
+        <section class="card" aria-labelledby="t-empresa">
+          <div class="card__header"><div><h2 class="card__title" id="t-empresa">Ocorrências por empresa</h2></div></div>
+          <div id="por-empresa"></div>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/components/analise.js"></script>
+<script src="../../js/pages/hse/hse.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/hse/painel.js"></script>
+</body>
+</html>

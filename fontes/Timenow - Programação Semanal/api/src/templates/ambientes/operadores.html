@@ -1,0 +1,155 @@
+{% extends "base_fragment.html" %}
+{#
+  Área do operador · Operadores da instalação.
+
+  Quem administra a carteira inteira. A variável de ambiente é o PISO
+  (decisão 11): sempre existe operador, mesmo com o registro vazio ou
+  corrompido, e esta tela não o remove. Acima dela, os promovidos aqui —
+  e só eles caem por aqui.
+
+  A origem de cada linha é exibida de propósito: sem ela a tela ofereceria
+  um botão inerte para quem veio da configuração e mentiria sobre o que
+  consegue fazer (revisão 3, item 2).
+
+  Espera: usuario, abas, operadores, erros.
+#}
+{% block fragment %}
+<div class="page">
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Área do operador</p>
+      <h1 class="h-dash">Operadores da instalação</h1>
+      <p class="page-head__sub">
+        Quem administra o registro de ambientes e enxerga todos os clientes.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      <a href="/api/ambientes-administracao" x-target="app-shell" class="btn btn--ghost">
+        <span x-init="$el.innerHTML = window.icon('arrowLeft', 16)" aria-hidden="true"></span>
+        Voltar
+      </a>
+    </div>
+  </div>
+
+  {% include "ambientes/_abas.html" %}
+
+  {% if erros.geral %}
+  <div class="aviso aviso--erro mb-16">
+    <span>{{ erros.geral }}</span>
+  </div>
+  {% endif %}
+
+  <div class="aviso aviso--atencao mb-16">
+    <p>
+      Promover alguém a operador dá acesso à base de <strong>todos os clientes</strong>,
+      presentes e futuros, sem depender de concessão em nenhum ambiente. A pessoa
+      passa a aparecer na tela de Colaboradores de cada ambiente, marcada e não
+      removível pelo administrador do cliente.
+    </p>
+  </div>
+
+  <section class="card mb-16">
+    <div class="card__head">
+      <h2 class="h-card4">Promover a operador</h2>
+    </div>
+    <div class="card__body">
+      <form method="post" action="/api/ambientes-operador-promover" x-target="app-shell"
+            data-tn-loading="Promovendo...">
+        <div class="fgrid" style="grid-template-columns: 1fr auto; align-items: end">
+          <div class="field">
+            <label for="op-email">E-mail</label>
+            <input id="op-email" class="input" type="email" name="email" required
+                   autocomplete="off" placeholder="nome@timenow.com.br" />
+            <span class="hint">
+              Vale na requisição seguinte, sem reiniciar a instalação.
+            </span>
+          </div>
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
+            Promover
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Quem opera hoje</h2>
+      <span class="hint">{{ operadores | length }} pessoa(s)</span>
+    </div>
+    <div class="card__body">
+      {% if operadores %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Operadores da instalação</caption>
+          <thead>
+            <tr>
+              <th scope="col">E-mail</th>
+              <th scope="col">Origem</th>
+              <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for operador in operadores %}
+            <tr>
+              <td>
+                <span class="mlinha__titulo">{{ operador.email }}</span>
+              </td>
+              <td>
+                {% if operador.origem == 'configuracao' %}
+                <span class="pill pill--fix">Configuração da implantação</span>
+                {% else %}
+                <span class="pill pill--neutral">Promovido em tela</span>
+                {% endif %}
+              </td>
+              <td class="td-center">
+                {% if operador.origem != 'configuracao' %}
+                <button
+                  type="button"
+                  class="iconbtn"
+                  title="Rebaixar {{ operador.email }}"
+                  aria-label="Rebaixar {{ operador.email }}"
+                  data-email="{{ operador.email }}"
+                  x-init="$el.innerHTML = window.icon('trash', 16)"
+                  @click="
+                    TN.confirmarExclusao({
+                      title: 'Rebaixar operador',
+                      mensagem: 'A pessoa deixa de enxergar todos os clientes na requisição seguinte. O acesso dela aos ambientes onde está cadastrada continua valendo.',
+                      labelConfirmar: 'Rebaixar',
+                      rows: [
+                        { label: 'E-mail', valor: $el.dataset.email }
+                      ]
+                    }).then(function (ok) {
+                      if (ok) $ajax('/api/ambientes-operador-rebaixar', {
+                        method: 'post',
+                        body: { email: $el.dataset.email },
+                        target: 'app-shell'
+                      });
+                    })
+                  "
+                ></button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="hint mt-8">
+        Quem vem da configuração da implantação não é rebaixado por esta tela —
+        é o piso que mantém a instalação alcançável mesmo com o registro
+        corrompido. Para trocá-lo, troque a variável e reinicie.
+      </p>
+      {% else %}
+      <div class="empty">
+        <p>
+          Nenhum operador configurado. Defina <code>PROGRAMACAO_OPERADORES</code>
+          na implantação para que exista ao menos um.
+        </p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

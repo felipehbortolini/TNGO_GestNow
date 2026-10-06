@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#FFFFFF" />
+    <title>Programação Semanal de Serviços — Timenow</title>
+    <link rel="icon" type="image/png" href="/ds/assets/favicon-timenow.png" />
+
+    <!-- ============================================================
+         Design System — caminho absoluto, sem CDN.
+         Este é o ÚNICO lugar do app que carrega estilo e JS de UI.
+         Fragmentos nunca trazem <link>, <style> ou <script src>.
+         Ver docs/CONTRATO-VISUAL.md, Regras 1 e 2.
+
+         Absoluto e não relativo porque o navigationFallback reescreve
+         qualquer rota para este arquivo: num deep link em /exemplo/42,
+         "ds/tokens.css" resolveria como "/exemplo/ds/tokens.css".
+         ============================================================ -->
+    <link rel="stylesheet" href="/ds/tokens.css" />
+    <link rel="stylesheet" href="/ds/shell.css" />
+    <link rel="stylesheet" href="/ds/patterns.css" />
+    <!-- Sem media="print": o arquivo já se limita a @media print, e as
+         duas regras de fora dele existem justamente para esconder na
+         tela os blocos que só o papel usa. -->
+    <link rel="stylesheet" href="/ds/print.css" />
+
+    <script defer src="/ds/icons.js"></script>
+    <script defer src="/ds/ui.js"></script>
+    <script defer src="/ds/charts.js"></script>
+    <script defer src="/lib/alpine-ajax-0.12.7.min.js"></script>
+    <script defer src="/lib/alpinejs-3.14.8.min.js"></script>
+  </head>
+
+  <body>
+    <a href="#app-shell" class="skip-link">Pular para o conteúdo</a>
+
+    <div class="app">
+      <!-- ============================================================
+           Sidebar — servida por /api/nav depois da autenticação.
+           O servidor é dono dos links e do card de usuário, então dá
+           para variar a navegação por perfil sem tocar no shell.
+           Enquanto não chega, mostra esqueleto.
+           ============================================================ -->
+      <aside id="main-nav" class="sidebar" aria-label="Navegação principal" style="display: none">
+        <div class="sidebar__brand"><div class="skeleton-marca"></div></div>
+      </aside>
+
+      <!-- ============================================================
+           Área de conteúdo. Cada view de _views/ substitui este
+           elemento inteiro, por isso a raiz do fragmento precisa ser
+           <main id="app-shell" class="content">.
+
+           Sequência de boot:
+             1. confere o sentinela do Design System
+             2. consulta /.auth/me
+             3. sem sessão  → carrega /login.html
+             4. com sessão, mas sem ambiente escolhido (ou com recusa)
+                → carrega o seletor, que grava o cookie e recarrega
+             5. com ambiente  → configura o cabeçalho X-TN-Ambiente,
+                revela a sidebar, busca /api/nav e abre a view do
+                deep link (ou a home)
+           ============================================================ -->
+      <main
+        id="app-shell"
+        class="content"
+        x-data="{ pronto: false }"
+        x-init="
+          (async function () {
+            let logado = false;
+            try {
+              const r = await fetch('/.auth/me');
+              if (r.ok) {
+                const dados = await r.json();
+                logado = !!dados.clientPrincipal;
+              }
+            } catch (e) { /* sem sessão */ }
+
+            if (!logado) {
+              await $ajax('/login.html', { target: 'app-shell' });
+              pronto = true;
+              return;
+            }
+
+            const rota = location.pathname;
+            const inicial = (rota !== '/' && rota !== '/index.html')
+              ? rota
+              : '/_views/home.html';
+
+            // O cookie é legível por JS de propósito (decisão 5,
+            // revisão 2.1): o boot é estático e precisa decidir aqui,
+            // no cliente, se já existe escolha feita.
+            const slug = (document.cookie.match(/(?:^|;\s*)tn_ambiente=([^;]+)/) || [])[1] || '';
+            const recusa = new URLSearchParams(location.search).get('recusa') || '';
+
+            // O seletor é a tela inicial permanente (revisão 3, item 3):
+            // toda visita nova escolhe o ambiente, inclusive quem tem um
+            // só. O cookie continua valendo por requisição, mas deixa de
+            // decidir o boot sozinho.
+            //
+            // A marca de entrada é o que impede o laço: sem ela, a
+            // própria escolha grava o cookie, recarrega e cai no seletor
+            // de novo, para sempre. Ela vive em sessionStorage porque
+            // isso é POR ABA e morre com ela — aba nova e navegador novo
+            // não a têm, e um F5 no meio do trabalho não devolve ninguém
+            // ao seletor, o que descartaria trabalho não salvo a cada
+            // recarregamento.
+            //
+            // A recusa limpa a marca: quem teve o acesso revogado ou o
+            // ambiente arquivado precisa cair no seletor, e mantê-la
+            // faria o boot tentar entrar e ser recusado em laço.
+            let entrada = '';
+            try {
+              if (recusa) sessionStorage.removeItem('tn_entrada');
+              entrada = sessionStorage.getItem('tn_entrada') || '';
+            } catch (erroStorage) { entrada = ''; }
+
+            if (!slug || recusa || entrada !== slug) {
+              await $ajax(
+                '/api/ambientes-seletor?destino=' + encodeURIComponent(inicial + location.search) +
+                (recusa ? '&recusa=' + encodeURIComponent(recusa) : ''),
+                { target: 'app-shell' }
+              );
+              pronto = true;
+              return;
+            }
+
+            // Toda requisição do Alpine AJAX declara o ambiente da
+            // tela — o servidor confere contra o cookie e recusa a aba
+            // que outra aba re-apontou.
+            Alpine.ajax.configure({ headers: { 'X-TN-Ambiente': slug } });
+
+            document.getElementById('main-nav').style.display = '';
+            $ajax('/api/nav', { target: 'main-nav' });
+            await $ajax(inicial, { target: 'app-shell' });
+            pronto = true;
+          })();
+        "
+        @ajax:redirect="window.location.reload()"
+      >
+        <div x-show="!pronto" class="page-loading">
+          <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
+          <p class="page-loading__txt">Carregando...</p>
+        </div>
+      </main>
+    </div>
+
+    <!-- Raízes de overlay: modais e toasts vivem fora do shell para não
+         serem descartados quando a view é trocada.
+
+         role="status" além do aria-live: o papel já implica live="polite" e
+         atomic="true", e é o que alguns leitores de tela reconhecem de forma
+         mais confiável. A região tem que existir vazia desde o carregamento —
+         leitor de tela só anuncia o que é INSERIDO numa região já observada;
+         criar a região junto com o conteúdo não dispara anúncio. -->
+    <div id="modal-root"></div>
+    <div id="toast-root" class="toast-root" role="status" aria-live="polite"></div>
+
+    <!-- ============================================================
+         Regra 4 do contrato visual — a ausência de estilo falha alto.
+         Sem isto, um <link> quebrado (foi o caso do /kyno-theme.css que
+         apontava para arquivo inexistente) serve uma tela sem estilo e
+         ninguém percebe.
+         ============================================================ -->
+    <script>
+      (function () {
+        var carregado = getComputedStyle(document.documentElement)
+          .getPropertyValue("--ds-carregado").trim();
+        if (carregado) return;
+        document.body.innerHTML =
+          '<pre style="margin:0;padding:24px;font:14px/1.6 monospace;color:#D03636;' +
+          'white-space:pre-wrap">O Design System não carregou.\n\n' +
+          "Confira os <link> de /ds/ no <head> de index.html:\n" +
+          "  /ds/tokens.css  (define o sentinela --ds-carregado)\n" +
+          "  /ds/shell.css\n" +
+          "  /ds/patterns.css\n\n" +
+          "Ver docs/CONTRATO-VISUAL.md, Regra 4.</pre>";
+      })();
+    </script>
+  </body>
+</html>

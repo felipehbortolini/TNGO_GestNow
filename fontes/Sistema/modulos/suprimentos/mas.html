@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa de Suprimentos (MAS) · Suprimentos | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="suprimentos/mas">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Mapa de Suprimentos (MAS)</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar pacote, escopo ou fornecedor" aria-label="Buscar no MAS"></div>
+        <button type="button" class="btn btn--secondary" id="btn-filtros"><i data-icon="filter"></i>Filtros</button>
+        <div class="segmented" data-segmented id="f-modo" role="group" aria-label="Conteúdo das células">
+          <button type="button" class="segmented__opt" aria-pressed="true" data-value="datas">Datas</button>
+          <button type="button" class="segmented__opt" aria-pressed="false" data-value="desvio">Desvio em dias</button>
+        </div>
+        <div class="segmented" data-segmented id="f-fase" role="group" aria-label="Marcos exibidos">
+          <button type="button" class="segmented__opt" aria-pressed="true" data-value="todos">Todos</button>
+          <button type="button" class="segmented__opt" aria-pressed="false" data-value="aquisicao">Aquisição</button>
+          <button type="button" class="segmented__opt" aria-pressed="false" data-value="fabricacao" title="Fabricação e entrega">Fabricação</button>
+        </div>
+      </div>
+      <div class="filter-bar" id="chips"></div>
+      <div class="kpi-grid kpi-grid--3" id="kpis"></div>
+      <section class="card card--flush mt-6" aria-labelledby="t-mas">
+        <div class="card__header"><div><h2 class="card__title" id="t-mas">Mapa de Suprimentos</h2><p class="card__subtitle" id="sub-mas"></p><div class="mt-2" id="legenda"></div></div></div>
+        <div id="grade"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/pages/suprimentos/suprimentos.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/suprimentos/mas.js"></script>
+</body>
+</html>

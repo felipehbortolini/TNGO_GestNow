@@ -1,0 +1,35 @@
+{% extends "base_fragment.html" %}
+{#
+  Trocador de perfil — só no modo demonstração.
+
+  Sem provedor de identidade não há como entrar como outra pessoa, e sem
+  entrar como outra pessoa não dá para conferir se o fornecedor enxerga
+  só a própria empresa. O gesto grava um cookie e recarrega o shell; o
+  servidor lê o cookie apenas quando NÃO existe principal do Azure SWA,
+  então ligar o SSO desliga isto sozinho.
+
+  Espera: colaboradores, atual.
+#}
+{% block root %}
+<div id="{{ target_id }}" class="sidebar__extra">
+{% block fragment %}
+  <label class="sr-only" for="perfil-demo-campo">Entrar como</label>
+  <select
+    id="perfil-demo-campo"
+    class="input"
+    style="font-size: 12px; padding: 6px 8px"
+    @change="
+      document.cookie = 'tn_perfil_demo=' + $el.value + ';path=/;max-age=86400';
+      window.location.reload();
+    "
+  >
+    {% for c in colaboradores %}
+    <option value="{{ c.email }}" {% if atual and atual.email == c.email %}selected{% endif %}>
+      {{ rotulo_perfil(c.perfil) }} — {{ c.nome }}
+    </option>
+    {% endfor %}
+  </select>
+  <p class="hint" style="margin: 4px 0 0">Modo demonstração: escolha o perfil.</p>
+{% endblock %}
+</div>
+{% endblock %}

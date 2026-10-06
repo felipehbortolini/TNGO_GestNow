@@ -1,0 +1,193 @@
+{% extends "base_fragment.html" %}
+{#
+  Área do operador · Tokens de leitura.
+
+  A credencial da API JSON: emitida aqui, vinculada a um ambiente,
+  somente leitura. O valor completo aparece UMA vez, logo após a
+  emissão — depois só o prefixo. A tela diz em palavras o que a
+  credencial entrega, porque nada no mecanismo impede o consumidor de
+  ler tudo: o token não carrega identidade de pessoa, então o recorte
+  por empresa contratada não se aplica.
+
+  Espera: usuario, abas, ambientes, tokens, novo_valor, erros.
+#}
+{% block fragment %}
+<div class="page">
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Área do operador</p>
+      <h1 class="h-dash">Tokens de leitura</h1>
+      <p class="page-head__sub">
+        As credenciais da API JSON — uma por integração, vinculadas a um ambiente.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      <a href="/api/ambientes-administracao" x-target="app-shell" class="btn btn--ghost">
+        <span x-init="$el.innerHTML = window.icon('arrowLeft', 16)" aria-hidden="true"></span>
+        Voltar
+      </a>
+    </div>
+  </div>
+
+  {% include "ambientes/_abas.html" %}
+
+  {% if novo_valor %}
+  <div class="aviso aviso--warn mb-16">
+    <strong>Copie agora — este valor não será exibido de novo.</strong>
+    <span>
+      <code style="word-break: break-all">{{ novo_valor }}</code>
+    </span>
+    <span>
+      <button
+        type="button"
+        class="btn btn--secondary btn--sm"
+        data-valor="{{ novo_valor }}"
+        @click="
+          TN.copiar($el.dataset.valor).then(function (ok) {
+            TN.toast(
+              ok ? 'Token copiado.' : 'Não foi possível copiar — selecione o valor e copie à mão.',
+              ok ? 'ok' : 'erro'
+            );
+          });
+        "
+      >
+        <span x-init="$el.innerHTML = window.icon('copy', 16)" aria-hidden="true"></span>
+        Copiar
+      </button>
+    </span>
+  </div>
+  {% endif %}
+
+  {% if erros.geral %}
+  <div class="aviso aviso--erro mb-16">
+    <span>{{ erros.geral }}</span>
+  </div>
+  {% endif %}
+
+  <section class="card mb-16">
+    <div class="card__head">
+      <h2 class="h-card4">Emitir token</h2>
+    </div>
+    <div class="card__body">
+      <div class="aviso aviso--warn mb-16">
+        <strong>O token entrega o histórico inteiro do cliente, de uma vez.</strong>
+        <span>
+          Sem recorte por empresa contratada — não há pessoa atrás da credencial
+          — e sem recorte por período: quem tem o valor lê todas as semanas numa
+          chamada só. Emitir um token é, na prática, publicar a base daquele
+          cliente inteira para quem o tiver.
+        </span>
+      </div>
+      <form method="post" action="/api/ambientes-token-emitir" x-target="app-shell"
+            data-tn-loading="Emitindo o token...">
+        <div class="fgrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+          <div class="field">
+            <label for="t-ambiente">Ambiente</label>
+            <select id="t-ambiente" class="input" name="ambiente" required>
+              {% for ambiente in ambientes %}
+              <option value="{{ ambiente.id }}">{{ ambiente.projeto }} — {{ ambiente.cliente }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="t-rotulo">Rótulo</label>
+            <input id="t-rotulo" class="input" type="text" name="rotulo" required maxlength="60"
+                   autocomplete="off" placeholder="Power BI do cliente" />
+            <span class="hint">Para saber qual integração usa qual token.</span>
+          </div>
+          <div class="field">
+            <label for="t-validade">Validade (opcional)</label>
+            <input id="t-validade" class="input" type="date" name="validade" />
+            <span class="hint">Em branco, o token não expira sozinho.</span>
+          </div>
+        </div>
+        <div class="acoes-rodape mt-16">
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('key', 16)" aria-hidden="true"></span>
+            Emitir token
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Tokens emitidos</h2>
+      <span class="hint">{{ tokens | length }} token(s)</span>
+    </div>
+    <div class="card__body">
+      {% if tokens %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Tokens de leitura emitidos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Rótulo</th>
+              <th scope="col">Prefixo</th>
+              <th scope="col">Ambiente</th>
+              <th scope="col">Emitido por</th>
+              <th scope="col">Em</th>
+              <th scope="col">Validade</th>
+              <th scope="col">Último uso</th>
+              <th scope="col" class="td-center" style="width: 80px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for token in tokens %}
+            <tr>
+              <td>
+                <span class="mlinha__titulo">{{ token.rotulo }}</span>
+                {% if token.revogado %}<span class="pill pill--neutral">revogado</span>{% endif %}
+              </td>
+              <td><code>{{ token.prefixo }}</code></td>
+              <td>{{ token.ambiente }}</td>
+              <td>{{ token.emitido_por }}</td>
+              <td>{{ token.emitido_rotulo }}</td>
+              <td>{{ token.validade }}</td>
+              <td>{{ token.uso_rotulo }}</td>
+              <td class="td-center">
+                {% if not token.revogado %}
+                <button
+                  type="button"
+                  class="iconbtn"
+                  title="Revogar o token {{ token.rotulo }}"
+                  aria-label="Revogar o token {{ token.rotulo }}"
+                  data-ambiente="{{ token.ambiente }}"
+                  data-prefixo="{{ token.prefixo }}"
+                  data-rotulo="{{ token.rotulo }}"
+                  x-init="$el.innerHTML = window.icon('trash', 16)"
+                  @click="
+                    TN.confirmarExclusao({
+                      title: 'Revogar token',
+                      mensagem: 'A integração para de responder na requisição seguinte.',
+                      labelConfirmar: 'Revogar',
+                      rows: [
+                        { label: 'Rótulo', valor: $el.dataset.rotulo },
+                        { label: 'Prefixo', valor: $el.dataset.prefixo }
+                      ]
+                    }).then(function (ok) {
+                      if (ok) $ajax('/api/ambientes-token-revogar', {
+                        method: 'post',
+                        body: { ambiente: $el.dataset.ambiente, prefixo: $el.dataset.prefixo },
+                        target: 'app-shell'
+                      });
+                    })
+                  "
+                ></button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">
+        <p>Nenhum token emitido.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends "base_fragment.html" %}
+{% from "programacao/_macros.html" import grade_dias, cabecalho_dias %}
+{#
+  Painel de leitura de uma atividade, com a trilha do que aconteceu.
+
+  Existe porque a matriz é densa por escolha: o que não cabe na linha
+  cabe aqui, a um clique, sem tirar ninguém da tela de trabalho.
+
+  Espera: atividade, datas, eventos.
+#}
+{% block fragment %}
+<div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+  <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-detalhe" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="painel__titulo" id="titulo-detalhe">{{ atividade.id_exclusiva }}</h2>
+        <p class="painel__sub">{{ atividade.atividade }}</p>
+      </div>
+      <button type="button" class="iconbtn painel__fechar" aria-label="Fechar"
+              x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.remove()"></button>
+    </div>
+
+    <div class="painel__corpo">
+      <div class="resumo-lancamento mb-16">
+        <div class="resumo-lancamento__item">
+          <span class="resumo-lancamento__rotulo">Previsto</span>
+          <span class="resumo-lancamento__valor">{{ atividade.total_previsto | medida(atividade.unidade) }}</span>
+          <span class="resumo-lancamento__nota">{{ atividade.unidade }}</span>
+        </div>
+        <div class="resumo-lancamento__item">
+          <span class="resumo-lancamento__rotulo">Realizado</span>
+          <span class="resumo-lancamento__valor">{{ atividade.total_realizado | medida(atividade.unidade) }}</span>
+          <span class="resumo-lancamento__nota">{{ atividade.unidade }}</span>
+        </div>
+        <div class="resumo-lancamento__item">
+          <span class="resumo-lancamento__rotulo">PPC</span>
+          <span class="resumo-lancamento__valor {{ 'is-erro' if atividade.faixa == 'baixa' else ('is-alerta' if atividade.faixa == 'media') }}">
+            {{ atividade.ppc | pct(0) }}
+          </span>
+        </div>
+      </div>
+
+      <p class="grupo-label">Dia a dia</p>
+      {{ cabecalho_dias(datas) }}
+      <div class="mb-16">{{ grade_dias(atividade, datas) }}</div>
+
+      <p class="grupo-label mt-24">Ficha</p>
+      <div class="det">
+        <div class="det__row"><span class="det__label">Semana</span><span class="det__valor">{{ atividade.semana }} · {{ periodo_semana(atividade.semana) }}</span></div>
+        <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.local }}</span></div>
+        <div class="det__row"><span class="det__label">Contratada</span><span class="det__valor">{{ atividade.empresa }}</span></div>
+        <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.encarregado }}</span></div>
+        <div class="det__row"><span class="det__label">Fiscal</span><span class="det__valor">{{ atividade.responsavel or '—' }}</span></div>
+        <div class="det__row"><span class="det__label">Situação</span><span class="det__valor">{{ atividade.situacao | situacao }}</span></div>
+        <div class="det__row"><span class="det__label">Realizado</span><span class="det__valor">{{ atividade.aprovacao_realizado | aprovacao }}</span></div>
+        <div class="det__row"><span class="det__label">Criada em</span><span class="det__valor">{{ atividade.criado_em | data_br(com_hora=true) }} por {{ atividade.criado_por }}</span></div>
+        <div class="det__row"><span class="det__label">Atualizada em</span><span class="det__valor">{{ atividade.atualizado_em | data_br(com_hora=true) }}</span></div>
+      </div>
+
+      {% if atividade.observacoes_fornecedor %}
+      <div class="aviso aviso--warn mt-16">
+        <strong>Observações do fornecedor</strong>
+        <span>{{ atividade.observacoes_fornecedor }}</span>
+      </div>
+      {% endif %}
+
+      {% if atividade.comentarios_timenow %}
+      <div class="aviso aviso--info mt-16">
+        <strong>Comentários da Timenow</strong>
+        <span style="white-space: pre-line">{{ atividade.comentarios_timenow }}</span>
+      </div>
+      {% endif %}
+
+      {% if eventos %}
+      <p class="grupo-label mt-24">Histórico</p>
+      <div class="trilha">
+        {% for e in eventos %}
+        <div class="trilha__item">
+          <span class="trilha__ponto"></span>
+          <div class="trilha__corpo">
+            <div class="trilha__acao">{{ e.rotulo }}</div>
+            <div class="trilha__meta">{{ e.ator }} · {{ e.quando | data_br(com_hora=true) }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {#
+        O pedido de alteração aparece exatamente onde a pessoa descobre
+        que não pode mais editar: publicada ou realizado aprovado. Fora
+        desses dois casos ela simplesmente edita, e oferecer um pedido
+        seria um desvio inútil.
+      #}
+      {% if atividade.situacao == 'publicada' or atividade.aprovacao_realizado == 'aprovado' %}
+      <div class="aviso aviso--info mt-24" x-data="{ pedindo: false }">
+        <strong>Este item está fechado para edição.</strong>
+        <span>
+          {% if atividade.situacao == 'publicada' %}
+          A programação foi publicada.
+          {% else %}
+          O realizado foi aprovado pelo fiscal.
+          {% endif %}
+          Para mudar alguma coisa, abra um pedido — ele fica registrado na
+          Governança, com quem pediu e quem decidiu.
+        </span>
+        <button type="button" class="btn btn--secondary btn--sm mt-8"
+                x-show="!pedindo" @click="pedindo = true" style="align-self: flex-start">
+          Pedir alteração
+        </button>
+        <form method="post" action="/api/pedido?chave={{ atividade.key | chave_url }}"
+              x-target="drawer gov-pedidos" x-show="pedindo" class="mt-8">
+          <div class="field">
+            <label for="campo-motivo-pedido">O que precisa mudar, e por quê</label>
+            <textarea id="campo-motivo-pedido" class="input" name="motivo" rows="3" required
+                      minlength="10"
+                      placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."></textarea>
+          </div>
+          <div class="acoes-rodape mt-8">
+            <button type="button" class="btn btn--ghost btn--sm" @click="pedindo = false">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn--primary btn--sm">Enviar pedido</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="painel__rodape">
+      <span class="painel__aviso">Somente leitura.</span>
+      <div class="painel__rodape-acoes">
+        {% if pode(user, 'aprovar_realizado') and atividade.aprovacao_realizado == 'aprovado' %}
+        <button
+          type="button"
+          class="btn btn--secondary"
+          @click="
+            const motivo = window.prompt('Por que está reabrindo o realizado?');
+            if (motivo) {
+              $ajax('/api/atividade-reabrir?chave={{ atividade.key | chave_url }}&amp;motivo=' + encodeURIComponent(motivo), {
+                method: 'post', body: { motivo: motivo }, target: 'drawer prog-resumo prog-tabela'
+              });
+            }
+          "
+        >
+          <span x-init="$el.innerHTML = window.icon('desfazer', 16)" aria-hidden="true"></span>
+          Reabrir realizado
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn--primary" @click="$root.remove()">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

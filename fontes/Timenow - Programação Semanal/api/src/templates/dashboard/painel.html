@@ -1,0 +1,295 @@
+{% extends "base_fragment.html" %}
+{#
+  O dashboard inteiro.
+
+  Ordem das perguntas, de cima para baixo:
+    1. Quem está no ritmo?        → indicadores e evolução da aderência
+    2. A semana entregou?         → barras previsto × realizado
+    3. Quem está atrás?           → ranking por contratada e por frente
+    4. Onde e quando parou?       → mapa de calor dia × frente
+    5. O que fazer amanhã?        → lista de gargalos
+
+  A curva S saiu. Ela respondia "o projeto está no ritmo?" com uma linha
+  só, para o conjunto — e a mesma pergunta, quebrada por contratada, é
+  respondida pela evolução da aderência com o dado que dá para agir em
+  cima. Duas leituras do mesmo avanço na mesma tela competiam por
+  atenção, e a agregada era a que não apontava para ninguém.
+
+  Os gráficos recebem o payload num <script type="application/json"> e
+  são desenhados por ds/charts.js — fragmento não carrega <script src>,
+  e o dado precisa estar no navegador para a curva expandir o mês e
+  redesenhar ao redimensionar.
+
+  Espera: p (indicadores.painel), semana, periodo, filtros.
+#}
+{% block fragment %}
+<div class="kpis" style="--kpis-colunas: 4">
+  <div class="kpi kpi--{{ 'ok' if p.atinge_aderencia else 'erro' }}" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('chart', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Aderência</span>
+    <span class="kpi__value">{{ p.aderencia | pct(0) }}</span>
+  </div>
+  <div class="kpi kpi--{{ 'ok' if p.atinge_ppc else 'warn' }}" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">PPC médio</span>
+    <span class="kpi__value">{{ p.ppc_medio | pct(0) }}</span>
+  </div>
+  <div class="kpi kpi--neutro" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Atividades</span>
+    <span class="kpi__value">{{ p.total_atividades }}</span>
+  </div>
+  <div class="kpi kpi--info" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Contratadas</span>
+    <span class="kpi__value">{{ p.fornecedores }}</span>
+  </div>
+</div>
+
+{#
+  A evolução da aderência ocupa o bloco de largura inteira que era da
+  curva S — mesma moldura, mesma altura de tela, mesmos botões de
+  período, mesma tabela invisível para leitor de tela e papel.
+
+  Largura inteira e não meia: são uma linha por contratada, e com quatro
+  ou cinco delas num cartão de meia página as linhas se cruzam num
+  emaranhado que não se lê.
+#}
+<section class="card grafico mb-16">
+  <div class="grafico__topo">
+    <div>
+      <h2 class="grafico__titulo">Evolução da aderência por contratada</h2>
+      <p class="grafico__sub">
+        Barra é o período; linha é o acumulado. Clique no nome do mês para abrir
+        as semanas dele.
+      </p>
+    </div>
+    <div class="grafico__acoes">
+      <div class="periodo-botoes" data-grafico-anos></div>
+      <div class="grafico-legenda" data-grafico-legenda></div>
+    </div>
+  </div>
+  <div class="grafico__tela grafico__tela--alta" data-grafico="aderencia">
+    <script type="application/json">{{ p.evolucao | tojson }}</script>
+  </div>
+  {# Um bloco com o número puro, para quem lê por leitor de tela e para o
+     papel: o SVG conta a história pela forma, e a forma não é lida. #}
+  <table class="sr-only">
+    <caption>Aderência por contratada em cada semana, no período</caption>
+    <thead>
+      <tr>
+        <th scope="col">Semana</th>
+        {% for empresa in p.evolucao.series %}<th scope="col">{{ empresa }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for ponto in p.evolucao.pontos %}
+      <tr>
+        <th scope="row">{{ ponto.semana }}</th>
+        {% for empresa in p.evolucao.series %}
+        {% set v = ponto.valores.get(empresa) %}
+        <td>
+          {% if v and v.previsto %}{{ (100 * v.realizado / v.previsto) | pct(1) }}{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="grafico__rodape">
+    A <b>barra</b> é a aderência daquele período isolado; a <b>linha</b> é a
+    acumulada até ali. As duas juntas separam o mês ruim do patamar ruim — um
+    tropeço isolado derruba a barra sem mover a linha. A tracejada é a meta do
+    projeto, {{ p.meta_aderencia | default(60, true) | pct(0) }}, e a pastilha
+    na ponta de cada linha é onde a contratada fechou.
+    <br />
+    Aderência de um período é o realizado dividido pelo previsto <i>daquele</i>
+    período — não a média das aderências semanais, que daria outro número sempre
+    que as semanas tiverem tamanhos diferentes. O acumulado soma quantidade
+    período a período e divide uma vez só, no fim.
+  </div>
+</section>
+
+{#
+  Sozinho no bloco depois da saída da curva S. Largura inteira em vez de
+  meia com um vazio ao lado: um cartão de meia largura com nada à direita
+  parece um erro de carregamento, e as barras ganham de verdade com o
+  espaço — são dois valores por período.
+#}
+<section class="card grafico mb-16">
+  <div class="grafico__topo">
+    <div>
+      <h2 class="grafico__titulo">Previsto contra realizado</h2>
+      <p class="grafico__sub">
+        Por mês; clique no nome do mês para abrir as semanas dele.
+      </p>
+    </div>
+    <div class="grafico__acoes">
+      <div class="periodo-botoes" data-grafico-anos></div>
+      <div class="grafico-legenda">
+        <span><i style="background: var(--laranja-700)"></i>Previsto</span>
+        <span><i style="background: var(--verde-500)"></i>Realizado</span>
+      </div>
+    </div>
+  </div>
+  <div class="grafico__tela grafico__tela--alta" data-grafico="barras">
+    <script type="application/json">
+      {"rotulo": "Previsto contra realizado", "itens": {{ p.barras_semana | tojson }}}
+    </script>
+  </div>
+  <div class="grafico__rodape">
+    Avanço de cada período em pontos percentuais do escopo do horizonte. O mês é a
+    soma das suas semanas.
+  </div>
+</section>
+
+<div class="graficos graficos--tres mt-24">
+  {% for bloco in p.status %}
+  <section class="card">
+    <div class="card__body" style="padding-top: 20px">
+      {% include "comum/_faixa_status.html" %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+<div class="graficos graficos--duas mt-24">
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Ranking por contratada</h2>
+      <span class="hint">pior primeiro</span>
+    </div>
+    <div class="card__body">
+      {% set itens, rotulo_coluna = p.por_empresa, 'Contratada' %}
+      {% include "dashboard/_ranking.html" %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Ranking por frente</h2>
+      <span class="hint">pior primeiro</span>
+    </div>
+    <div class="card__body">
+      {% set itens, rotulo_coluna = p.por_local, 'Frente' %}
+      {% include "dashboard/_ranking.html" %}
+    </div>
+  </section>
+</div>
+
+<section class="card mt-24">
+  <div class="card__head">
+    <h2 class="h-card4">Mapa de calor — dia por frente</h2>
+    <span class="hint">percentual do previsto entregue em cada dia</span>
+  </div>
+  <div class="card__body">
+    {% if p.heatmap.linhas %}
+    <table class="heat">
+      <caption class="sr-only">Percentual do previsto entregue por frente em cada dia da semana</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="heat__linha-rotulo">Frente</th>
+          {% for coluna in p.heatmap.colunas %}<th scope="col">{{ coluna }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in p.heatmap.linhas %}
+        <tr>
+          <th scope="row" class="heat__rotulo">{{ linha.rotulo }}</th>
+          {% for celula in linha.celulas %}
+          {#
+            A cor sai de `--t`, a posição da célula na rampa de 0 a 1. O
+            CSS interpola; o Jinja não escolhe cor nenhuma. `heat--vazio`
+            é o único caso que a rampa não cobre: dia sem previsão não é
+            0% de aderência, é ausência de plano.
+          #}
+          <td class="{{ 'heat--vazio' if celula.percentual is none else 'heat--celula' }}"
+              {% if celula.percentual is not none %}style="--t: {{ celula.percentual | intensidade_calor }}"{% endif %}
+              title="{{ linha.rotulo }} · {{ DIAS_NOME[loop.index0] }} — previsto {{ celula.previsto | qtd }}, realizado {{ celula.realizado | qtd }}">
+            {% if celula.percentual is none %}—{% else %}{{ celula.percentual | pct(0) }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {#
+      A legenda acompanhou a rampa: uma faixa contínua com as duas pontas
+      marcadas, em vez de seis quadradinhos. Seis amostras para uma
+      escala contínua sugeririam seis categorias que não existem mais.
+    #}
+    <div class="heat-legenda mt-16">
+      <span class="heat-legenda__ponta">0% do previsto do dia</span>
+      <span class="heat-legenda__rampa" aria-hidden="true"></span>
+      <span class="heat-legenda__ponta">100% ou mais</span>
+      <span class="heat-legenda__vazio"><i></i>sem previsão para o dia</span>
+    </div>
+    <p class="hint mt-8">
+      O percentual é do previsto daquele dia naquela frente — não do total da semana.
+      A cor acompanha o número de forma contínua, do vermelho ao verde, sem
+      degraus: quanto mais verde a célula, mais perto de entregar o que estava
+      programado. O tom fraco no meio da escala é o previsto — não há notícia
+      em ficar na média.
+    </p>
+    {% else %}
+    <div class="empty"><p>Sem atividades para montar o mapa.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mt-24">
+  <div class="card__head">
+    <h2 class="h-card4">O que travou a semana</h2>
+    <span class="hint">atividades abaixo de {{ FAIXA_MEDIA | pct(0) }} de PPC</span>
+  </div>
+  <div class="card__body">
+    {% if p.gargalos %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Atividades com PPC abaixo da faixa de atenção</caption>
+        <thead>
+          <tr>
+            <th scope="col">Atividade</th>
+            <th scope="col">Contratada</th>
+            <th scope="col">Frente</th>
+            <th scope="col">Encarregado</th>
+            <th scope="col" class="td-num">Previsto</th>
+            <th scope="col" class="td-num">Realizado</th>
+            <th scope="col" class="td-num">PPC</th>
+            <th scope="col" class="td-center">Dias parados</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in p.gargalos %}
+          <tr>
+            <td>
+              <span class="mlinha__id">{{ g.id_exclusiva }}</span>
+              <span class="mlinha__titulo">{{ g.atividade }}</span>
+            </td>
+            <td>{{ g.empresa }}</td>
+            <td>{{ g.local }}</td>
+            <td>{{ g.encarregado }}</td>
+            <td class="td-num">{{ g.previsto | qtd }} {{ g.unidade }}</td>
+            <td class="td-num">{{ g.realizado | qtd }}</td>
+            <td class="td-num"><b style="color: var(--erro-700)">{{ g.ppc | pct(0) }}</b></td>
+            <td class="td-center">
+              {% if g.dias_sem_producao %}
+              <span class="pill pill--erro">{{ g.dias_sem_producao }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <img src="/ds/assets/ilustra-sucesso.png" alt="" />
+      <h3>Nenhum gargalo na semana</h3>
+      <p>Todas as atividades estão em {{ FAIXA_MEDIA | pct(0) }} de PPC ou acima.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

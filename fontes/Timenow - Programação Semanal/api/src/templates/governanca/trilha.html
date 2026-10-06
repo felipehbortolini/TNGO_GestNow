@@ -1,0 +1,28 @@
+{% extends "base_fragment.html" %}
+{#
+  Trilha de auditoria — append-only, do mais recente para o mais antigo.
+
+  Espera: eventos.
+#}
+{% block fragment %}
+{% if eventos %}
+<div class="trilha">
+  {% for e in eventos %}
+  <div class="trilha__item">
+    <span class="trilha__ponto"></span>
+    <div class="trilha__corpo">
+      <div class="trilha__acao">{{ e.rotulo }} — {{ e.resumo }}</div>
+      <div class="trilha__meta">
+        {{ e.ator }} · {{ e.quando | data_br(com_hora=true) }}
+        {% if e.contexto.semana %} · {{ e.contexto.semana }}{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <p>Nenhum evento registrado até agora.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão de mudanças · Governança | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="governanca/mudancas">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Gestão de mudanças</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-nova"><i data-icon="plus"></i>Nova solicitação</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar por número, título ou descrição" aria-label="Buscar solicitações de mudança"></div>
+        <label class="sr-only" for="f-situacao">Situação</label>
+        <select class="select select--curto" id="f-situacao"></select>
+        <button type="button" class="btn btn--secondary" id="btn-filtros"><i data-icon="filter"></i>Filtros</button>
+      </div>
+      <div class="filter-bar mb-4" id="chips" hidden></div>
+      <div class="tabs" role="tablist" data-tabs aria-label="Visões da gestão de mudanças">
+        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="p-registro" id="a-registro"><i data-icon="list"></i>Registro <span class="tab__count" id="n-registro"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-painel" id="a-painel"><i data-icon="barChart"></i>Painel</button>
+      </div>
+      <section class="tab-panel" id="p-registro" role="tabpanel" aria-labelledby="a-registro">
+        <div class="kpi-grid kpi-grid--3" id="kpis"></div>
+        <section class="card card--flush mt-4" aria-labelledby="t-sm">
+          <div class="card__header"><div><h2 class="card__title" id="t-sm">Solicitações de mudança</h2><p class="card__subtitle"><span id="contagem"></span> · <span>Impacto em custo e em prazo (dias no caminho crítico) vindo da análise de impacto</span></p></div></div>
+          <div id="tabela"></div>
+        </section>
+      </section>
+      <section class="tab-panel" id="p-painel" role="tabpanel" aria-labelledby="a-painel" hidden>
+        <div class="kpi-grid" id="kpis-painel"></div>
+        <div class="grid grid--2 mt-6">
+          <section class="card" aria-labelledby="t-situacao">
+            <div class="card__header"><div><h2 class="card__title" id="t-situacao">Mudanças por situação</h2><p class="card__subtitle">Todas as solicitações do projeto</p></div></div>
+            <div class="chart"><canvas id="g-situacao"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-origem">
+            <div class="card__header"><div><h2 class="card__title" id="t-origem">Pareto por origem</h2><p class="card__subtitle">Quantidade, participação e percentual acumulado</p></div></div>
+            <div id="pareto"></div>
+          </section>
+        </div>
+        <div class="grid grid--2 mt-6">
+          <section class="card" aria-labelledby="t-valor">
+            <div class="card__header"><div><h2 class="card__title" id="t-valor">Valor aprovado acumulado</h2><p class="card__subtitle">Impacto em custo das mudanças aprovadas, pelo mês da decisão</p></div></div>
+            <div class="chart"><canvas id="g-valor"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-prazo">
+            <div class="card__header"><div><h2 class="card__title" id="t-prazo">Impacto de prazo acumulado</h2><p class="card__subtitle">Dias no caminho crítico das mudanças aprovadas, pelo mês da decisão</p></div></div>
+            <div class="chart"><canvas id="g-prazo"></canvas></div>
+          </section>
+        </div>
+        <section class="card mt-6" aria-labelledby="t-tipo">
+          <div class="card__header"><div><h2 class="card__title" id="t-tipo">Mudanças por tipo</h2></div></div>
+          <div class="chart chart--sm"><canvas id="g-tipo"></canvas></div>
+        </section>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/pages/governanca/governanca.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/governanca/mudancas.js"></script>
+</body>
+</html>

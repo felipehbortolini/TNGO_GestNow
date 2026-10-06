@@ -1,0 +1,109 @@
+{% extends "base_fragment.html" %}
+{#
+  Área do operador · Criar ambiente.
+
+  O formulário chama a MESMA função que o comando de linha — não
+  revalida slug, não reimplementa a clonagem. Antes da confirmação, a
+  tela enuncia em palavras o que é copiado e o que não é: copiar
+  configuração de um cliente para outro é decisão consciente e precisa
+  parecer uma.
+
+  Espera: usuario, abas, bases, valores, erros.
+#}
+{% block fragment %}
+<div class="page">
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Área do operador</p>
+      <h1 class="h-dash">Criar ambiente</h1>
+      <p class="page-head__sub">
+        Um ambiente é a base de um cliente — programação, cadastros e acessos próprios.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      <a href="/api/ambientes-administracao" x-target="app-shell" class="btn btn--ghost">
+        <span x-init="$el.innerHTML = window.icon('arrowLeft', 16)" aria-hidden="true"></span>
+        Voltar
+      </a>
+    </div>
+  </div>
+
+  {% include "ambientes/_abas.html" %}
+
+  <form method="post" action="/api/ambientes-criar" x-target="app-shell"
+        data-tn-loading="Criando o ambiente...">
+    <section class="card">
+      <div class="card__body">
+        {% if erros.geral %}
+        <div class="aviso aviso--erro mb-16">
+          <span>{{ erros.geral }}</span>
+        </div>
+        {% endif %}
+
+        <div class="fgrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+          <div class="field">
+            <label for="c-identificador">Identificador</label>
+            <input id="c-identificador" class="input" type="text" name="identificador"
+                   value="{{ valores.identificador | default('', true) }}" required maxlength="32"
+                   pattern="[a-z0-9\-]{2,32}" autocomplete="off"
+                   placeholder="mccain, suzano-mucuri" />
+            <span class="hint">
+              De 2 a 32 letras minúsculas, números e hífens. Imutável depois de criado.
+            </span>
+          </div>
+          <div class="field">
+            <label for="c-projeto">Nome do projeto</label>
+            <input id="c-projeto" class="input" type="text" name="projeto"
+                   value="{{ valores.projeto | default('', true) }}" required maxlength="80"
+                   autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="c-cliente">Nome do cliente</label>
+            <input id="c-cliente" class="input" type="text" name="cliente"
+                   value="{{ valores.cliente | default('', true) }}" required maxlength="80"
+                   autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="c-base">Ambiente base (opcional)</label>
+            <select id="c-base" class="input" name="base">
+              <option value="">Sem base — começar vazio</option>
+              {% for base in bases %}
+              <option value="{{ base.id }}" {% if valores.base == base.id %}selected{% endif %}>
+                {{ base.projeto }} — {{ base.cliente }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-16">
+          <p class="grupo-label">O que a criação faz</p>
+          <div class="aviso aviso--ok mb-16">
+            <strong>Copiado do ambiente base</strong>
+            <span>Unidades de medida e parâmetros do projeto (metas de aderência e PPC, regra e limite de justificativa).</span>
+          </div>
+          <div class="aviso aviso--info mb-16">
+            <strong>Não copiado — o ambiente novo nasce vazio</strong>
+            <span>
+              Atividades, realizado, solicitações de governança, trilha de auditoria,
+              locais, empresas contratadas, janelas de programação e cadastro de
+              colaboradores.
+            </span>
+          </div>
+          <div class="aviso aviso--info">
+            <strong>Automático</strong>
+            <span>Você entra como administrador do ambiente novo.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="acoes-rodape mt-16">
+      <button type="submit" class="btn btn--primary">
+        <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+        Criar ambiente
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

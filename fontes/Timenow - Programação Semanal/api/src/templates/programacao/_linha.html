@@ -1,0 +1,346 @@
+{% from "programacao/_macros.html" import grade_dias %}
+{#
+  Uma atividade da matriz.
+
+  Partial: não tem raiz nem id próprios porque nunca é alvo de x-target —
+  só existe para ser incluída pela tabela.
+
+  Os textos das ações viajam em data-* e a expressão lê de $el.dataset.
+  Interpolar direto na expressão Alpine não funciona: o valor entra na
+  expressão sem escape de aspas e o atributo fecha no meio.
+
+  As ações ficam num menu, e não em seis ícones enfileirados. Ícone sozinho
+  obriga a pessoa a saber o que o desenho quer dizer antes de clicar, e seis
+  alvos de 24px encostados um no outro erram o vizinho com facilidade. No
+  menu cada ação é uma faixa de largura inteira com o verbo escrito —
+  "Validar a programação", "Aprovar o realizado" — e errar o alvo passa a
+  exigir mirar numa linha diferente, não num pixel diferente.
+
+  A exceção é a **próxima ação do fluxo**, que sai do menu e vira botão ao
+  lado dele. Qual é ela depende de quem olha e de onde a atividade está —
+  ver o comentário da célula de ações.
+
+  Espera `a` no contexto, mais user, datas, janela.
+#}
+{% set faixa = a.ppc | faixa %}
+{% set editavel = a.situacao != 'publicada' and (janela.aberta or not user.eh_fornecedor()) %}
+{# Qual degrau do fluxo é a vez desta pessoa nesta atividade. A regra
+   inteira mora em rbac.proxima_acao — aqui só se desenha o resultado. #}
+{% set principal = proxima_acao(user, a) %}
+<tr class="{{ 'is-critica' if faixa == 'baixa' and a.tem_realizado else ('is-atencao' if faixa == 'media' and a.tem_realizado) }}">
+  <td class="mt-item">
+    <span class="mlinha__item">{{ '%02d' | format(a.item) }}</span>
+  </td>
+
+  {#
+    A ID vai na linha de metadado, junto do local, e não numa linha
+    própria. Cada linha a mais aqui é uma linha a mais em TODAS as linhas
+    da matriz — e altura de linha é o que decide quantas atividades cabem
+    na tela sem rolar, que é o recurso escasso desta página.
+  #}
+  {#
+    O título é um botão. É a ação que mais se faz na tela — abrir para
+    olhar — e cobrar dois cliques por ela (menu, depois "Ver detalhes")
+    para algo que não altera nada seria caro. Botão, e não a linha inteira
+    clicável: a linha tem sete células, e clicar em qualquer lugar dela
+    surpreende quem só queria selecionar um número.
+  #}
+  <td class="mt-atividade" data-rotulo="Atividade">
+    <button
+      type="button"
+      class="mlinha__titulo mlinha__abrir"
+      title="Abrir os detalhes de {{ a.id_exclusiva }} — {{ a.atividade }}"
+      @click="$ajax('/api/atividade-detalhe?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+    >{{ a.atividade }}</button>
+    <span class="mlinha__meta">
+      <span class="mlinha__id">{{ a.id_exclusiva }}</span>
+      {{ a.local }} · {{ a.prod_prevista | medida(a.unidade) }} {{ a.unidade }}
+    </span>
+  </td>
+
+  <td class="mt-execucao" data-rotulo="Execução">
+    <span class="mlinha__empresa" title="{{ a.empresa }}">{{ a.empresa }}</span>
+    <span class="mlinha__meta" title="Encarregado: {{ a.encarregado }}">
+      <b>Enc.</b> {{ a.encarregado }}
+    </span>
+    <span class="mlinha__meta" title="Fiscal responsável: {{ a.responsavel or 'ainda não definido' }}">
+      <b>Fiscal</b> {{ a.responsavel or '—' }}
+    </span>
+  </td>
+
+  <td class="mt-dias" data-rotulo="Previsto e realizado por dia">
+    {{ grade_dias(a, datas) }}
+  </td>
+
+  {#
+    As duas pastilhas em coluna própria, empilhadas. São dois eixos
+    diferentes — onde a programação está no fluxo, e se o realizado já
+    passou pelo fiscal — e é o único lugar da linha onde duas linhas de
+    altura não custam nada: nenhuma outra célula é mais baixa que esta.
+  #}
+  <td class="mt-situacao" data-rotulo="Situação">
+    {% if a.situacao == 'publicada' %}<span class="pill pill--ok">Publicada</span>
+    {% elif a.situacao == 'validada' %}<span class="pill pill--fix">Validada</span>
+    {% else %}<span class="pill pill--warn">Elaboração</span>{% endif %}
+    {% if a.aprovacao_realizado == 'aprovado' %}<span class="pill pill--ok">Aprovado</span>
+    {% elif a.tem_realizado %}<span class="pill pill--warn">Aguarda fiscal</span>
+    {% else %}<span class="pill pill--neutral">Sem realizado</span>{% endif %}
+  </td>
+
+  <td class="mt-semana mnum" data-rotulo="Semana">
+    <span class="mnum__real">{{ a.total_realizado | medida(a.unidade) }}</span>
+    <span class="mnum__prev">de {{ a.total_previsto | medida(a.unidade) }} {{ a.unidade }}</span>
+  </td>
+
+  <td class="mt-ppc mppc mppc--{{ faixa }}" data-rotulo="PPC">
+    <span class="mppc__valor">{{ a.ppc | pct(0) }}</span>
+    <div class="medidor {{ 'medidor--media' if faixa == 'media' else ('medidor--baixa' if faixa == 'baixa') }}">
+      <div class="medidor__fill" style="--v: {{ [a.ppc, 100] | min }}%"></div>
+    </div>
+  </td>
+
+  {#
+    O botão principal é a PRÓXIMA AÇÃO DO FLUXO, não uma ação fixa.
+
+    A programação anda numa fila — elaborar, validar, lançar o realizado,
+    aprovar, publicar — e cada degrau tem um dono diferente. Quem abre a
+    matriz quase sempre veio fazer o degrau que é dele. Um botão fixo
+    acertava esse alvo para um perfil e errava para todos os outros: o
+    fiscal via "Lançar", que ele não pode fazer, e quem só consulta via
+    um botão inútil.
+
+    Aqui o botão é resolvido por perfil e por estado. O fiscal vê
+    "Aprovar" onde a contratada vê "Lançar"; quando o realizado já foi
+    aprovado, os dois viram "Publicar"; e quem só visualiza vê "Ver", que
+    é de fato tudo o que ele faz.
+
+    O que virou botão SAI do menu — nunca as duas coisas ao mesmo tempo,
+    para não haver dois caminhos idênticos lado a lado. E o menu some por
+    inteiro quando não sobra nada nele, que é o caso do visualizador.
+  #}
+  {% set rotulos = {
+    'validar':  ('Validar',  'shield',      'Validar a programação de ' ~ a.id_exclusiva),
+    'aprovar':  ('Aprovar',  'checkCircle', 'Aprovar o realizado de ' ~ a.id_exclusiva),
+    'lancar':   ('Lançar',   'clipboard',   'Lançar o realizado de ' ~ a.id_exclusiva),
+    'publicar': ('Publicar', 'megafone',    'Publicar ' ~ a.id_exclusiva),
+    'ver':      ('Ver',      'eye',         'Ver os detalhes de ' ~ a.id_exclusiva)
+  } %}
+  {% set rotulo, icone, descricao = rotulos[principal] %}
+
+  {# Quantos itens restam no menu depois de tirar o que virou botão. #}
+  {% set restantes = namespace(total=0) %}
+  {% if principal != 'ver' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'editar') and editavel %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'registrar_realizado') and a.situacao != 'em_elaboracao' and a.aprovacao_realizado != 'aprovado' and principal != 'lancar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'validar') and a.situacao == 'em_elaboracao' and principal != 'validar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'aprovar_realizado') and a.situacao != 'em_elaboracao' and a.aprovacao_realizado == 'pendente' and a.tem_realizado and principal != 'aprovar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'publicar') and a.situacao == 'validada' and principal != 'publicar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+  {% if pode(user, 'excluir') %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+
+  <td class="mt-acoes" data-rotulo="Ações">
+    <div class="acoes-linha">
+      {#
+        Publicar é a única do conjunto que confirma antes de agir. As
+        outras abrem um painel, onde a pessoa ainda decide.
+      #}
+      {% if principal == 'publicar' %}
+      <button
+        type="button"
+        class="btn-lancar"
+        title="{{ descricao }}"
+        aria-label="{{ descricao }}"
+        data-id="{{ a.id_exclusiva }}"
+        @click="
+          TN.confirmarExclusao({
+            title: 'Publicar a programação',
+            mensagem: 'Publicar libera esta programação para todos e encerra a edição.',
+            labelConfirmar: 'Publicar',
+            rows: [{ label: 'Atividade', valor: $el.dataset.id }]
+          }).then(function (ok) {
+            if (ok) $ajax('/api/atividade-publicar?chave={{ a.key | chave_url }}', {
+              method: 'post', target: 'drawer prog-resumo prog-tabela'
+            });
+          })
+        "
+      >
+        <span class="btn-lancar__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 15)" aria-hidden="true"></span>
+        {{ rotulo }}
+      </button>
+      {% else %}
+      {% set destino = {
+        'validar': 'atividade-validar', 'aprovar': 'atividade-aprovar',
+        'lancar': 'atividade-realizado', 'ver': 'atividade-detalhe'
+      }[principal] %}
+      <button
+        type="button"
+        class="btn-lancar{{ ' btn-lancar--neutro' if principal == 'ver' }}"
+        title="{{ descricao }}"
+        aria-label="{{ descricao }}"
+        @click="$ajax('/api/{{ destino }}?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+      >
+        <span class="btn-lancar__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 15)" aria-hidden="true"></span>
+        {{ rotulo }}
+      </button>
+      {% endif %}
+
+      {% if restantes.total %}
+      <button
+        type="button"
+        class="btn-acoes btn-acoes--icone"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="Mais ações para {{ a.id_exclusiva }}"
+        aria-label="Mais ações para {{ a.id_exclusiva }}"
+        @click="TN.menuAncorado($el)"
+        x-init="$el.querySelector('.btn-acoes__seta').innerHTML = window.icon('maisOpcoes', 18)"
+      >
+        <span class="btn-acoes__seta" aria-hidden="true"></span>
+      </button>
+
+      <div class="menu-acoes" data-menu role="menu" aria-label="Ações de {{ a.id_exclusiva }}" hidden>
+        <p class="menu-acoes__cabeca">{{ a.id_exclusiva }}</p>
+
+        {% if principal != 'ver' %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          @click="TN.fecharMenus(); $ajax('/api/atividade-detalhe?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('eye', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Ver detalhes
+            <small>Histórico, comentários e números do dia</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'editar') and editavel %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          @click="TN.fecharMenus(); $ajax('/api/atividade-form?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('edit', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Editar a programação
+            <small>Muda o previsto, a frente, o encarregado</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'registrar_realizado') and a.situacao != 'em_elaboracao' and a.aprovacao_realizado != 'aprovado' and principal != 'lancar' %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          @click="TN.fecharMenus(); $ajax('/api/atividade-realizado?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('clipboard', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Lançar o realizado
+            <small>O que foi produzido em cada dia</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'validar') and a.situacao == 'em_elaboracao' and principal != 'validar' %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          @click="TN.fecharMenus(); $ajax('/api/atividade-validar?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('shield', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Validar a programação
+            <small>Confere e escolhe o fiscal responsável</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'aprovar_realizado') and a.situacao != 'em_elaboracao' and a.aprovacao_realizado == 'pendente' and a.tem_realizado and principal != 'aprovar' %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          @click="TN.fecharMenus(); $ajax('/api/atividade-aprovar?chave={{ a.key | chave_url }}', { target: 'drawer' })"
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('checkCircle', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Aprovar o realizado
+            <small>Confirma o que a contratada lançou</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'publicar') and a.situacao == 'validada' and principal != 'publicar' %}
+        <button
+          type="button"
+          class="menu-acoes__item"
+          role="menuitem"
+          data-id="{{ a.id_exclusiva }}"
+          @click="
+            TN.fecharMenus();
+            TN.confirmarExclusao({
+              title: 'Publicar a programação',
+              mensagem: 'Publicar libera esta programação para todos e encerra a edição.',
+              labelConfirmar: 'Publicar',
+              rows: [{ label: 'Atividade', valor: $el.dataset.id }]
+            }).then(function (ok) {
+              if (ok) $ajax('/api/atividade-publicar?chave={{ a.key | chave_url }}', {
+                method: 'post', target: 'drawer prog-resumo prog-tabela'
+              });
+            })
+          "
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('megafone', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Publicar
+            <small>Libera para todos e encerra a edição</small>
+          </span>
+        </button>
+        {% endif %}
+
+        {% if pode(user, 'excluir') %}
+        {#
+          Separada por uma linha e em vermelho, no fim. É a única ação
+          daqui que não tem volta, e não pode ficar encostada numa ação
+          corriqueira — a mira erra por uma linha.
+        #}
+        <button
+          type="button"
+          class="menu-acoes__item menu-acoes__item--perigo"
+          role="menuitem"
+          data-id="{{ a.id_exclusiva }}"
+          data-atividade="{{ a.atividade }}"
+          data-empresa="{{ a.empresa }}"
+          @click="
+            TN.fecharMenus();
+            TN.confirmarExclusao({
+              mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.',
+              rows: [
+                { label: 'ID exclusiva', valor: $el.dataset.id },
+                { label: 'Atividade', valor: $el.dataset.atividade },
+                { label: 'Empresa', valor: $el.dataset.empresa }
+              ]
+            }).then(function (ok) {
+              if (ok) $ajax('/api/atividade-excluir?chave={{ a.key | chave_url }}', {
+                method: 'post', target: 'drawer prog-resumo prog-tabela'
+              });
+            })
+          "
+        >
+          <span class="menu-acoes__icone" x-init="$el.innerHTML = window.icon('trash', 18)" aria-hidden="true"></span>
+          <span class="menu-acoes__texto">
+            Excluir a atividade
+            <small>Não tem como desfazer</small>
+          </span>
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </td>
+</tr>

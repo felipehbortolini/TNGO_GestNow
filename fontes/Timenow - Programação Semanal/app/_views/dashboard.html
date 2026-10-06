@@ -1,0 +1,31 @@
+<!--
+  Dashboard — a semana lida como operação.
+
+  Os gráficos são desenhados por ds/charts.js a partir de um payload JSON
+  que o servidor embute no fragmento. É a exceção consciente à regra "o
+  servidor devolve HTML pronto": curva com drill de mês e redesenho ao
+  redimensionar precisam da série no navegador. Registrado em
+  docs/ARCHITECTURE.md.
+-->
+<main id="app-shell" class="content">
+  <div class="page page--larga">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Indicadores</p>
+        <h1 class="h-dash">Dashboard</h1>
+        <p class="page-head__sub">
+          Avanço físico, aderência e onde a operação está travando.
+        </p>
+      </div>
+    </div>
+
+    <div id="dash-filtros" x-init="$ajax('/api/dashboard-filtros', { target: 'dash-filtros' })"></div>
+
+    <div id="dash-painel" x-init="$ajax('/api/dashboard', { target: 'dash-painel' })">
+      <div class="page-loading">
+        <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
+        <p class="page-loading__txt">Montando os indicadores...</p>
+      </div>
+    </div>
+  </div>
+</main>

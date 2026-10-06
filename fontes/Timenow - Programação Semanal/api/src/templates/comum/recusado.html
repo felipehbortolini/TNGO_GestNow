@@ -1,0 +1,15 @@
+{% extends "base_fragment.html" %}
+{#
+  Tela de guarda: o perfil não alcança esta área.
+
+  Explica e oferece a saída — sem isto a pessoa fica olhando um bloco
+  vazio sem saber se falhou ou se não tem acesso.
+#}
+{% block fragment %}
+<div class="guard">
+  <img src="/ds/assets/ilustra-acesso-negado.png" alt="" />
+  <h1>Acesso não liberado</h1>
+  <p>{{ mensagem }}</p>
+  <a href="/_views/home.html" x-target="app-shell" class="btn btn--primary">Voltar ao início</a>
+</div>
+{% endblock %}

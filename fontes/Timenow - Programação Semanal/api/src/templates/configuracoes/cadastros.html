@@ -1,0 +1,123 @@
+{% extends "base_fragment.html" %}
+{#
+  Configurações · Cadastros de apoio.
+
+  São as listas que a validação da atividade consulta. Um valor em uso
+  não pode ser removido — o servidor recusa e diz por quantas atividades
+  ele está preso, porque apagar aqui deixaria programação órfã lá.
+
+  Fiscais e encarregados aparecem aqui em SOMENTE LEITURA. Eles são
+  pessoas, e pessoas se cadastram em Colaboradores, com perfil e e-mail.
+  Mostrá-los mesmo assim responde a pergunta que traz alguém a esta tela
+  — "quem está disponível para eu escolher na atividade?" — sem criar um
+  segundo lugar de editar os mesmos nomes.
+
+  Espera: grupos [{nome, titulo, texto, valores}], pessoas
+  [{titulo, texto, perfil, valores}], pode_gerir_pessoas, abas.
+#}
+{% block fragment %}
+{% include "configuracoes/_abas.html" %}
+
+<section class="card">
+  <div class="card__body">
+    {% for grupo in grupos %}
+    <div class="bloco-config">
+      <div>
+        <h2 class="bloco-config__titulo">{{ grupo.titulo }}</h2>
+        <p class="bloco-config__texto">{{ grupo.texto }}</p>
+        <p class="bloco-config__texto mt-8">
+          <b>{{ grupo.valores | length }}</b> cadastrado(s).
+        </p>
+      </div>
+      <div class="bloco-config__corpo">
+        {% if grupo.valores %}
+        <div class="lista-chips">
+          {% for valor in grupo.valores %}
+          <span class="chip-removivel">
+            {{ valor }}
+            {% if pode(user, 'gerir_cadastros') %}
+            <form method="post" action="/api/configuracoes-cadastro-remover"
+                  x-target="config-area" style="display: contents">
+              <input type="hidden" name="tipo" value="{{ grupo.nome }}" />
+              <input type="hidden" name="valor" value="{{ valor }}" />
+              <button type="submit" class="chip-removivel__x"
+                      aria-label="Remover {{ valor }} de {{ grupo.titulo | lower }}"
+                      title="Remover {{ valor }}">&times;</button>
+            </form>
+            {% endif %}
+          </span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="hint">Nada cadastrado ainda.</p>
+        {% endif %}
+
+        {% if pode(user, 'gerir_cadastros') %}
+        <form method="post" action="/api/configuracoes-cadastro-adicionar"
+              x-target="config-area" class="flex gap-8 items-center">
+          <input type="hidden" name="tipo" value="{{ grupo.nome }}" />
+          <label class="sr-only" for="novo-{{ grupo.nome }}">Novo item em {{ grupo.titulo }}</label>
+          <input id="novo-{{ grupo.nome }}" class="input" type="text" name="valor" required
+                 maxlength="60" placeholder="Adicionar em {{ grupo.titulo | lower }}"
+                 autocomplete="off" style="max-width: 340px" />
+          <button type="submit" class="btn btn--secondary">
+            <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+            Adicionar
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card mt-24">
+  <div class="card__head">
+    <h2 class="h-card4">Pessoas que a atividade oferece</h2>
+    <span class="hint">vem de Colaboradores</span>
+  </div>
+  <div class="card__body">
+    <div class="aviso aviso--info mb-16">
+      <p>
+        Estas duas listas não se digitam aqui. Quem aparece nelas é o colaborador
+        cadastrado com o perfil <b>Fiscal</b> ou <b>Encarregado</b> — assim a
+        pessoa existe uma vez só, com o e-mail e o acesso dela.
+        {% if pode_gerir_pessoas %}
+        Para incluir ou tirar alguém, abra
+        <button type="button" class="link-inline"
+                @click="$ajax('/api/colaboradores', { target: 'config-area' })">Colaboradores</button>.
+        {% else %}
+        Peça ao administrador para incluir ou tirar alguém.
+        {% endif %}
+      </p>
+    </div>
+
+    {% for grupo in pessoas %}
+    <div class="bloco-config">
+      <div>
+        <h3 class="bloco-config__titulo">{{ grupo.titulo }}</h3>
+        <p class="bloco-config__texto">{{ grupo.texto }}</p>
+        <p class="bloco-config__texto mt-8">
+          <b>{{ grupo.valores | length }}</b> com o perfil {{ grupo.perfil }}.
+        </p>
+      </div>
+      <div class="bloco-config__corpo">
+        {% if grupo.valores %}
+        <div class="lista-chips">
+          {% for valor in grupo.valores %}
+          <span class="chip-removivel chip-removivel--fixo">{{ valor }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="hint">
+          Nenhum colaborador com o perfil {{ grupo.perfil }} ainda. Enquanto não
+          houver, este campo fica vazio na hora de programar a atividade.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base_fragment.html" %}
+{#
+  Passo 3 — o que entrou e o que ficou de fora.
+
+  Uma linha pode passar na conferência e ainda assim ser recusada na
+  gravação: entre um passo e outro a janela pode ter fechado, ou outra
+  pessoa pode ter criado a mesma ID. Por isso a recusa aparece aqui
+  também, com o motivo.
+
+  Espera: inseridas, recusadas, total.
+#}
+{% block fragment %}
+<div class="card mt-24">
+  <div class="card__body">
+    <div class="empty">
+      <img src="/ds/assets/ilustra-{{ 'salvo' if total else 'aviso' }}.png" alt="" />
+      <h3>
+        {% if total %}{{ total }} atividade(s) importada(s){% else %}Nenhuma atividade importada{% endif %}
+      </h3>
+      <p>
+        {% if recusadas %}
+        {{ recusadas | length }} linha(s) foram recusadas na gravação — o motivo de cada uma está abaixo.
+        {% else %}
+        Tudo que passou na conferência foi gravado e já aparece na programação da semana.
+        {% endif %}
+      </p>
+      <a href="/_views/programacao.html" x-target="app-shell" class="btn btn--primary">
+        Abrir a programação
+      </a>
+    </div>
+
+    {% if recusadas %}
+    <ul class="lista-simples mt-16">
+      {% for r in recusadas %}
+      <li class="lista-simples__item">
+        <span class="pill pill--erro">{{ r.id or '—' }}</span>
+        <span class="linha__titulo">{{ r.motivo }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

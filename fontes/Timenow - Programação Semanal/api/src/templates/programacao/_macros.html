@@ -1,0 +1,152 @@
+{#
+  Macros da matriz. Existem para o cabeçalho ordenável e a grade dos sete
+  dias não serem copiados em cinco arquivos — e para que mudar a regra de
+  cor do dia seja uma edição, não cinco.
+#}
+
+{% macro ordenar(campo, rotulo, filtros, semana) -%}
+{% set ativa = filtros.ordena == campo %}
+{% set proxima = 'desc' if ativa and filtros.ordem != 'desc' else 'asc' %}
+<button
+  type="button"
+  class="ordenar{{ ' is-ativa' if ativa }}"
+  aria-label="Ordenar por {{ rotulo }}"
+  @click="$ajax('/api/programacao?{{ consulta(filtros, semana, campo, proxima) }}', { target: 'prog-resumo prog-tabela' })"
+>{{ rotulo }}<span class="ordenar__seta" aria-hidden="true">{% if ativa %}{{ '↑' if filtros.ordem != 'desc' else '↓' }}{% else %}⇅{% endif %}</span></button>
+{%- endmacro %}
+
+
+{#
+  A consulta atual em texto. `excluir` deixa um filtro de fora — é o que
+  permite a uma pastilha se remover sem nenhum JS mexendo no formulário:
+  o link já nasce apontando para "tudo isto, menos eu".
+#}
+{% macro consulta(filtros, semana, ordena, ordem, excluir='') -%}
+semana={{ semana | urlencode }}
+{%- for chave in ('local', 'empresa', 'encarregado', 'responsavel', 'situacao', 'aprovacao', 'ppc', 'busca') -%}
+{%- if filtros.get(chave) and chave != excluir %}&amp;{{ chave }}={{ filtros[chave] | urlencode }}{% endif -%}
+{%- endfor -%}
+{%- if ordena %}&amp;ordena={{ ordena }}&amp;ordem={{ ordem }}{% endif -%}
+{%- if not ordena and filtros.get('ordena') %}&amp;ordena={{ filtros.ordena }}&amp;ordem={{ filtros.ordem or 'asc' }}{% endif -%}
+{%- endmacro %}
+
+
+{#
+  O que está filtrando, em pastilhas, cada uma com o seu "×".
+
+  Fica aqui — junto do resultado — e não na barra de ferramentas, por um
+  motivo prático: aplicar um filtro recarrega o resumo e a matriz, não a
+  barra. Uma pastilha desenhada na barra só apareceria no recarregamento
+  seguinte, sempre um passo atrás do que a pessoa acabou de fazer.
+
+  Vale principalmente quando o resultado é vazio: uma tela sem nenhuma
+  linha e sem dizer o que a esvaziou é o pior momento da ferramenta.
+#}
+{% macro filtros_ativos(filtros, semana) -%}
+{% set nomes_ppc = {'alta': 'PPC alto — 80% ou mais', 'media': 'PPC médio — 60 a 79%', 'baixa': 'PPC baixo — abaixo de 60%'} %}
+{% set nomes_situacao = {'em_elaboracao': 'Em elaboração', 'validada': 'Validada', 'publicada': 'Publicada'} %}
+{% set nomes_aprovacao = {'pendente': 'Aguardando o fiscal', 'aprovado': 'Realizado aprovado'} %}
+{% set ativos = [] %}
+{% if filtros.busca %}{% set _ = ativos.append(('busca', 'Procurando por “' ~ filtros.busca ~ '”')) %}{% endif %}
+{% if filtros.local %}{% set _ = ativos.append(('local', 'Frente: ' ~ filtros.local)) %}{% endif %}
+{% if filtros.empresa %}{% set _ = ativos.append(('empresa', 'Contratada: ' ~ filtros.empresa)) %}{% endif %}
+{% if filtros.encarregado %}{% set _ = ativos.append(('encarregado', 'Encarregado: ' ~ filtros.encarregado)) %}{% endif %}
+{% if filtros.responsavel %}{% set _ = ativos.append(('responsavel', 'Fiscal: ' ~ filtros.responsavel)) %}{% endif %}
+{% if filtros.situacao %}{% set _ = ativos.append(('situacao', nomes_situacao.get(filtros.situacao, filtros.situacao))) %}{% endif %}
+{% if filtros.aprovacao %}{% set _ = ativos.append(('aprovacao', nomes_aprovacao.get(filtros.aprovacao, filtros.aprovacao))) %}{% endif %}
+{% if filtros.ppc %}{% set _ = ativos.append(('ppc', nomes_ppc.get(filtros.ppc, filtros.ppc))) %}{% endif %}
+{% if ativos %}
+<div class="filtros-ativos" role="status">
+  <span class="filtros-ativos__rotulo">Mostrando só</span>
+  {% for campo, rotulo in ativos %}
+  <button
+    type="button"
+    class="chip-removivel chip-removivel--filtro"
+    title="Tirar este filtro"
+    @click="$ajax('/api/programacao-filtros?{{ consulta(filtros, semana, '', '', campo) }}', { target: 'prog-filtros' });
+            $ajax('/api/programacao?{{ consulta(filtros, semana, '', '', campo) }}', { target: 'prog-resumo prog-tabela' })"
+  >{{ rotulo }}<span class="chip-removivel__x" aria-hidden="true">&times;</span><span class="sr-only">— tirar este filtro</span></button>
+  {% endfor %}
+  <button
+    type="button"
+    class="link-inline"
+    @click="$ajax('/api/programacao-filtros?semana={{ semana | urlencode }}', { target: 'prog-filtros' });
+            $ajax('/api/programacao?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })"
+  >Limpar tudo</button>
+</div>
+{% endif %}
+{%- endmacro %}
+
+
+{#
+  O cabeçalho da grade de dias. Oito colunas: uma para o rótulo da
+  linha e sete para os dias — exatamente a mesma grade do corpo, para
+  que "4ª" fique sempre em cima da coluna de quarta sem nenhum cálculo.
+#}
+{% macro cabecalho_dias(datas) -%}
+<div class="dias dias--cabecalho">
+  <span class="dias__rotulo" aria-hidden="true"></span>
+  {% for dia in DIAS %}
+  <span
+    class="{{ 'is-fds' if loop.index0 >= 5 }}"
+    title="{{ DIAS_NOME[loop.index0] }}{% if datas %} · {{ datas[loop.index0].strftime('%d/%m') }}{% endif %}"
+  >{{ dia }}</span>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+
+{#
+  A grade dos sete dias de uma atividade.
+
+  Duas linhas rotuladas — **Prev** em cima, **Real** embaixo — em vez de
+  dois números soltos empilhados. O rótulo aparece uma vez por linha, e
+  não catorze vezes; a unidade da atividade fica ao lado do "Prev",
+  porque é o único lugar onde ela cabe sem repetir sete vezes.
+
+  Os dois números têm o MESMO tamanho de fonte e a mesma família
+  tabular: comparar 180 com 150 exige que os dígitos fiquem alinhados na
+  vertical, e fonte diferente entre as linhas quebra isso.
+
+  A cor marca a exceção, não a regra. Entregar um pouco abaixo do
+  previsto é o caso comum da obra e fica neutro; o que salta aos olhos é
+  o dia programado que não produziu, a produção sem previsão e o dia que
+  bateu a meta.
+#}
+{% macro grade_dias(atividade, datas) -%}
+<div class="dias">
+  <span class="dias__rotulo">
+    Prev
+    {% if atividade.unidade %}<em>{{ atividade.unidade }}</em>{% endif %}
+  </span>
+  {% for i in range(7) %}
+  {% set previsto = atividade.dias_previsto[i] %}
+  <span
+    class="dia dia--prev{{ ' is-fds' if i >= 5 }}{{ ' is-nulo' if not previsto }}"
+    title="{{ DIAS_NOME[i] }}{% if datas %} {{ datas[i].strftime('%d/%m') }}{% endif %} — previsto {{ previsto | medida(atividade.unidade) }} {{ atividade.unidade }}"
+  >{{ previsto | medida(atividade.unidade) }}</span>
+  {% endfor %}
+
+  <span class="dias__rotulo dias__rotulo--real">Real</span>
+  {% for i in range(7) %}
+  {% set previsto = atividade.dias_previsto[i] %}
+  {% set realizado = atividade.dias_total[i] %}
+  {% set noite = atividade.dias_noite[i] %}
+  {% if previsto and not realizado %}
+    {% set estado, titulo = 'is-parado', 'dia programado sem produção registrada' %}
+  {% elif realizado and not previsto %}
+    {% set estado, titulo = 'is-extra', 'produção sem previsão para o dia' %}
+  {% elif realizado and realizado >= previsto %}
+    {% set estado, titulo = 'is-batido', 'meta do dia atingida' %}
+  {% elif not previsto and not realizado %}
+    {% set estado, titulo = 'is-nulo', 'sem previsão e sem produção' %}
+  {% else %}
+    {% set estado, titulo = '', 'abaixo do previsto no dia' %}
+  {% endif %}
+  <span
+    class="dia dia--real {{ estado }}{{ ' is-fds' if i >= 5 }}"
+    title="{{ DIAS_NOME[i] }}{% if datas %} {{ datas[i].strftime('%d/%m') }}{% endif %} — {{ titulo }}. Previsto {{ previsto | medida(atividade.unidade) }}, realizado {{ realizado | medida(atividade.unidade) }} {{ atividade.unidade }}{% if noite %} (inclui turno noite){% endif %}"
+  >{{ realizado | medida(atividade.unidade) }}{% if noite %}<i class="dia__noite" aria-label="inclui turno noite">N</i>{% endif %}</span>
+  {% endfor %}
+</div>
+{%- endmacro %}

@@ -1,0 +1,7 @@
+{% extends "base_fragment.html" %}
+{# Faixa de indicadores como fragmento isolado. Destino: #prog-resumo. #}
+{% block root %}
+<div id="{{ target_id }}" class="kpis" style="--kpis-colunas: 5">
+{% block fragment %}{% include "programacao/_resumo.html" %}{% endblock %}
+</div>
+{% endblock %}

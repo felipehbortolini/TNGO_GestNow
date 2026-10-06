@@ -1,0 +1,24 @@
+{#
+  Partial — a sub-navegação de Configurações.
+
+  As abas chegam já filtradas por permissão: quem não pode abrir
+  Colaboradores não recebe o item. O selo "restrito" existe para quem
+  PODE abrir entender que aquela aba não é igual às outras — é onde se
+  concede e se revoga acesso.
+
+  Espera: abas.
+#}
+<nav class="subnav" aria-label="Seções das configurações">
+  {% for aba in abas %}
+  <a
+    class="subnav__item{{ ' is-active' if aba.ativa }}"
+    href="{{ aba.href }}"
+    x-target="config-area"
+    {% if aba.ativa %}aria-current="page"{% endif %}
+  >
+    <span x-init="$el.innerHTML = window.icon('{{ aba.icone }}', 16)" aria-hidden="true"></span>
+    {{ aba.rotulo }}
+    {% if aba.restrito %}<span class="subnav__restrito">restrito</span>{% endif %}
+  </a>
+  {% endfor %}
+</nav>

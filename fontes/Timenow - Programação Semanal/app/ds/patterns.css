@@ -1,0 +1,1256 @@
+/* ============================================================
+   patterns.css — Padrões de página do Timenow Design System
+
+   Composições que já se provaram em tela real e servem a qualquer
+   app. Diferente de tokens.css (componentes atômicos) e shell.css
+   (estrutura da tela), aqui moram arranjos: KPIs, barra de
+   ferramentas, pilha de avatares, linhas de lista, painel de filtro.
+
+   Origem: triagem de Projeto_Piloto/css/app.css (825 linhas).
+   Critério de corte: se o seletor cita ata, ação ou kanban, é do app
+   e não entra. Ver docs/PADROES-DE-PAGINA.md.
+
+   Os nomes foram generalizados — .ata-row virou .linha, .ma-toolbar
+   virou .toolbar — porque o kit não pertence a nenhum projeto.
+   ============================================================ */
+
+/* ============================================================
+   Tiles de KPI
+   Uma linha, altura enxuta, conteúdo ancorado nas duas pontas:
+   rótulo à esquerda, número à direita. O trilho colorido de 4px
+   sinaliza a situação de longe, antes de a pessoa ler o rótulo —
+   é o que torna a faixa varrível num relance.
+   ============================================================ */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(var(--kpis-colunas, 3), 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.kpi {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 20px 16px 24px;
+  background: var(--branco); border: 1px solid var(--borda);
+  border-radius: var(--r-md); box-shadow: var(--shadow);
+  font-family: var(--font); text-align: left; cursor: pointer;
+  transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.kpi:hover { box-shadow: var(--shadow-hover); border-color: var(--verde-500); transform: translateY(-1px); }
+.kpi:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.kpi.is-active { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+
+/* Variantes semânticas — no piloto eram --total/--rascunho/--enviada,
+   nomes do domínio daquele app.
+
+   A variante colore SÓ o trilho. O texto fica cinza em todos os cartões,
+   e a razão é de leitura: numa faixa de quatro ou cinco KPIs, cinco
+   rótulos em cinco cores diferentes fazem a faixa inteira parecer um
+   alerta, e "PPC médio" em laranja lê como se o PPC estivesse em laranja
+   — quando a cor era do cartão, não do número. Com o texto neutro, a
+   única coisa colorida é o trilho, que é o que de fato sinaliza estado. */
+.kpi--neutro::before { background: var(--verde-500); }
+.kpi--warn::before { background: var(--warn-500); }
+.kpi--ok::before { background: var(--ok-500); }
+.kpi--erro::before { background: var(--erro-500); }
+.kpi--info::before { background: var(--azul-500); }
+
+.kpi__icone {
+  width: 32px; height: 32px; border-radius: var(--r-sm); flex: none;
+  background: var(--verde-soft); color: var(--verde-500);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kpi__label { font-size: 14px; font-weight: 700; color: var(--text-secondary); }
+.kpi__value {
+  margin-left: auto; font-size: 24px; font-weight: 600;
+  color: var(--text-primary); font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Barra de ferramentas de listagem
+   Navegação de período à esquerda, busca ocupando o resto.
+   ============================================================ */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+
+.period {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  height: 44px; padding: 0 8px;
+  background: var(--branco); border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.period .iconbtn { width: 32px; height: 32px; }
+.period__label {
+  min-width: 150px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--brand-title);
+  font-variant-numeric: tabular-nums;
+}
+.period__sep { font-size: 12px; color: var(--text-hint); }
+
+/* O select de semana mora aqui de propósito com `border: none`: a
+   moldura visível é a do `.period`, não a dele — senão duas bordas
+   competem no mesmo pixel. Mas `.input:focus` (tokens.css) desenha o
+   anel de foco no elemento que o recebe, e o próprio select é mais
+   estreito que o pill inteiro. Sem este par de regras, focar o campo
+   acende um anel colado ao texto "S.35/2026", flutuando dentro do
+   pill em vez de contornar a caixa que a pessoa está vendo — o defeito
+   reportado no print. O foco sobe para o `.period`, que é a caixa real. */
+.period .input:focus { box-shadow: none; }
+.period:focus-within {
+  border-color: var(--verde-500); box-shadow: 0 0 0 3px rgba(0, 167, 147, 0.12);
+}
+
+/* Busca com lupa dentro do campo */
+.busca { position: relative; display: flex; align-items: center; flex: 1; min-width: 240px; }
+.busca__icone {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; color: var(--text-dimmed);
+  display: inline-flex; align-items: center; justify-content: center;
+  pointer-events: none; background: transparent;
+}
+.busca__input { width: 100%; height: 44px; padding-left: 40px; }
+
+/* ============================================================
+   Linha de lista
+   Alternativa à tabela quando cada registro tem hierarquia própria
+   (título, metadados, pessoas, data) em vez de colunas comparáveis.
+   ============================================================ */
+.linha {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--neutro-100);
+  border-radius: var(--r-md); cursor: pointer;
+  transition: background .15s;
+}
+.linha:hover { background: var(--verde-50); }
+.linha:last-child { border-bottom: none; }
+.linha:focus-visible { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+
+.linha__icone {
+  width: 32px; height: 32px; border-radius: var(--r-sm); flex: none;
+  background: var(--verde-soft); color: var(--verde-500);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.linha__dot { width: 13px; height: 13px; border-radius: 9999px; flex: none; }
+.linha__main { flex: 1; min-width: 0; }
+.linha__id { font-size: 11px; font-weight: 400; color: var(--text-secondary); }
+.linha__titulo { margin-top: 2px; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.linha__meta { margin-top: 2px; font-size: 11px; color: var(--text-hint); }
+.linha__data { font-size: 11px; color: var(--text-hint); flex: none; }
+.linha__chev { color: var(--neutro-300); flex: none; }
+
+/* ============================================================
+   Facepile — pilha de avatares sobrepostos
+
+   Três detalhes fazem o padrão funcionar, e vale registrar porque
+   não são óbvios:
+
+   1. O preenchimento precisa contrastar com o anel. Com fundo claro
+      o anel branco não tem contra o que contrastar e os círculos
+      parecem fundidos — por isso o verde sólido.
+   2. O anel vai em box-shadow, não em border: com box-sizing, uma
+      borda de 2px consome 4px do diâmetro e aperta as iniciais.
+   3. O anel acompanha o fundo atrás da pilha. Branco fixo denuncia
+      a sobreposição quando a linha ganha realce no hover.
+
+   Sobreposição de 4px: valor do Fluent UI para layout "stack" na
+   faixa de 24–47px de avatar (spacingHorizontalXS).
+   ============================================================ */
+.facepile { display: flex; align-items: center; flex: none; }
+.facepile .mini-avatar { margin-left: -4px; }
+.facepile .mini-avatar:first-child { margin-left: 0; }
+.facepile__qtde { margin-left: 8px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+
+.mini-avatar {
+  width: 28px; height: 28px; border-radius: 9999px; flex: none;
+  background: var(--brand-primary); color: #fff;
+  font-size: 10px; font-weight: 700; letter-spacing: .2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px var(--branco);
+  transition: box-shadow .15s;
+}
+.linha:hover .mini-avatar { box-shadow: 0 0 0 2px var(--verde-50); }
+.mini-avatar--mais { background: var(--neutro-200); color: var(--text-primary); }
+
+/* ============================================================
+   Micro-rótulo de grupo
+   Separa blocos dentro de uma página sem o peso de um cabeçalho.
+   ============================================================ */
+.grupo-label {
+  margin: 0 0 8px;
+  font-family: var(--font-label);
+  font-size: 11px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--text-secondary);
+}
+.grupo + .grupo { margin-top: 32px; }
+
+/* ============================================================
+   Painel de filtros — sobreposto, ancorado à direita
+   ============================================================ */
+.filtro-panel {
+  position: fixed; top: 84px; right: 40px;
+  width: 410px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 120px); overflow-y: auto;
+  padding: 24px; z-index: 90;
+  background: var(--branco); border-radius: var(--r-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+  animation: fadeUp .25s var(--ease);
+}
+.filtro-panel h3 {
+  margin: 0 0 16px; font-family: var(--font-label);
+  font-size: 18px; font-weight: 700; color: var(--brand-title);
+}
+.filtro-sec { margin-bottom: 16px; }
+.filtro-sec__head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+.filtro-sec__head .period { margin: 0; padding: 0; border: none; height: auto; }
+.filtro-actions {
+  display: flex; justify-content: flex-end; gap: 12px;
+  position: sticky; bottom: -24px;
+  padding: 16px 0 0; margin-top: 8px;
+  background: linear-gradient(to top, var(--branco) 75%, transparent);
+}
+
+/* O fundo do painel. Escurece pouco — o suficiente para marcar que
+   aquilo é uma camada temporária sobre a página, sem apagar a matriz,
+   que é justamente o que a pessoa quer ver mudando enquanto filtra. */
+.filtro-fundo {
+  position: fixed; inset: 0; z-index: 89;
+  background: rgba(28, 28, 29, .18);
+  animation: fadeUp .15s var(--ease);
+}
+
+/* ---------- Pastilhas do que está filtrando ----------
+
+   O contador dentro do botão "Refinar" dizia QUANTOS filtros havia, não
+   QUAIS. Quem abrisse a tela já filtrada via uma matriz curta e nenhuma
+   explicação para o que sumiu. Cada pastilha nomeia um filtro e o tira
+   com um clique. */
+.filtros-ativos {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-sm); margin-top: var(--space-md);
+}
+.filtros-ativos__rotulo {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+}
+/* A variante em <button>: o chip base é um <span>, e o botão traz borda,
+   fundo e fonte próprios que precisam ser zerados. */
+.chip-removivel--filtro {
+  border: none; cursor: pointer; font-family: var(--font);
+  background: var(--verde-50); color: var(--verde-700);
+  min-height: 28px;
+}
+.chip-removivel--filtro:hover { background: var(--verde-100); }
+.chip-removivel--filtro:hover .chip-removivel__x { background: var(--erro-50); color: var(--erro-700); }
+.chip-removivel--filtro:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+/* ---------- Faixa de ações da semana ----------
+   Exportar, imprimir e publicar. Vivem aqui, à vista, e não dentro do
+   painel de refino: não são refino, e quem procura "baixar o Excel" não
+   procura dentro de um botão chamado "Refinar". */
+.acoes-semana {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-sm); padding-top: var(--space-xs);
+}
+.acoes-semana__rotulo {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+  margin-right: var(--space-xs);
+}
+
+/* ============================================================
+   Barra de ações no rodapé do conteúdo
+   ============================================================ */
+.acoes-rodape {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding-top: 4px; flex-wrap: wrap;
+}
+.acoes-rodape--fixa {
+  position: sticky; bottom: 0;
+  padding: 16px 0; margin-top: 24px;
+  background: linear-gradient(to top, var(--branco) 70%, transparent);
+}
+
+/* ============================================================
+   Chips
+   ============================================================ */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600;
+  background: var(--neutro-100); color: var(--text-primary);
+}
+.chip--info { background: var(--verde-50); color: var(--verde-700); }
+.chip--warn { background: var(--warn-50); color: var(--warn-800); }
+.chip--erro { background: var(--erro-50); color: var(--erro-700); }
+
+/* ============================================================
+   Utilitário de acessibilidade
+   Rótulo visível só para leitor de tela.
+   ============================================================ */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ============================================================
+   Medidor — barra de progresso com marca de meta
+
+   O número sozinho não diz se 62% é bom. A marca da meta transforma o
+   medidor numa leitura de um relance: cheio até onde chegou, risco onde
+   deveria estar.
+   ============================================================ */
+.medidor {
+  position: relative; height: 6px; border-radius: 9999px;
+  background: var(--neutro-100); overflow: hidden;
+}
+.medidor__fill {
+  height: 100%; width: var(--v, 0%); border-radius: 9999px;
+  background: var(--verde-500);
+  transition: width .5s var(--ease);
+}
+.medidor__meta {
+  position: absolute; top: -2px; bottom: -2px; left: var(--meta, 100%);
+  width: 2px; background: var(--text-dimmed); border-radius: 1px;
+}
+.medidor--media .medidor__fill { background: var(--warn-500); }
+.medidor--baixa .medidor__fill { background: var(--erro-500); }
+.medidor--alto { height: 10px; }
+
+/* ============================================================
+   Matriz da semana — a tabela de programação
+
+   Regra que define o desenho: **a linha inteira cabe na tela**. Só
+   rolagem vertical, nunca horizontal. Duas decisões sustentam isso:
+
+   1. `table-layout: fixed` com larguras em porcentagem. A tabela nunca
+      é mais larga que o container, então não há o que rolar de lado —
+      o texto quebra em vez de empurrar a coluna.
+   2. Os sete dias vivem numa célula só, como grade de 7 colunas. Isso
+      derruba a tabela de 18 para 8 colunas e é o que torna o item 1
+      possível: com 18 colunas nenhuma largura razoável coube.
+
+   Previsto e realizado ficam empilhados dentro da mesma célula do dia,
+   em vez de em duas linhas por atividade. Metade das linhas, mesma
+   informação, e a comparação do dia acontece na vertical de um olhar só.
+   ============================================================ */
+.matriz-quadro {
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--branco); box-shadow: var(--shadow); overflow: hidden;
+}
+.matriz-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--neutro-100); background: var(--neutro-50);
+}
+.matriz-topo__contagem { font-size: 13px; font-weight: 600; color: var(--brand-title); }
+.matriz-topo__legenda { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+
+.matriz-rolagem {
+  max-height: calc(100vh - 340px); min-height: 200px;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+.matriz { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.matriz thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--branco); border-bottom: 1px solid var(--borda);
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--text-secondary);
+  text-align: left; vertical-align: bottom;
+}
+.matriz tbody td {
+  padding: var(--space-xs) var(--space-md); vertical-align: top;
+  border-bottom: 1px solid var(--neutro-100); font-size: 12px;
+}
+.matriz tbody tr:last-child td { border-bottom: none; }
+.matriz tbody tr:hover td { background: var(--verde-50); }
+.matriz tbody tr:focus-within td { background: var(--verde-50); }
+.matriz tbody tr.is-critica td:first-child { box-shadow: inset 3px 0 0 var(--erro-500); }
+.matriz tbody tr.is-atencao td:first-child { box-shadow: inset 3px 0 0 var(--warn-500); }
+
+/* As larguras somam 100% de propósito: com `table-layout: fixed` é isso
+   que garante que a tabela nunca fique mais larga que o container — e
+   portanto que não exista barra de rolagem horizontal.
+
+   A coluna dos dias é a maior porque é a informação central da
+   ferramenta: são catorze números por linha, e apertá-los para caber
+   mais metadado seria otimizar a parte errada.
+
+   Execução e Ações são largas o bastante para o conteúdo caber em UMA
+   fileira. Não é folga: com Execução estreita as duas pastilhas de
+   situação empilhavam, e com Ações estreita o botão quebrava a linha —
+   cada quebra dessas aumentava a altura de TODAS as linhas da matriz.
+   Altura de linha é o que decide quantas atividades cabem na tela sem
+   rolar, que é o recurso escasso desta página.
+
+   Ações subiu de 10% para 12% para caber o botão de lançar o realizado
+   ao lado do menu. Os 2% saíram de Atividade e Execução, e não da grade
+   de dias: as duas são texto que já é cortado com reticências, e perder
+   doze pixels de um nome que continua inteiro no title custa muito menos
+   que apertar quatorze números por linha. */
+.mt-item { width: 3%; }
+.mt-atividade { width: 16%; }
+.mt-execucao { width: 11%; }
+.mt-dias { width: 34%; padding-left: var(--space-sm); padding-right: var(--space-sm); }
+.mt-situacao { width: 9%; }
+.mt-semana { width: 7%; }
+.mt-ppc { width: 8%; }
+.mt-acoes { width: 12%; text-align: right; }
+
+.mlinha__item {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  color: var(--text-dimmed); font-variant-numeric: tabular-nums;
+}
+.mlinha__id {
+  display: inline-block; margin-right: var(--space-xxs);
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  color: var(--verde-700); background: var(--verde-50);
+  padding: 0 var(--space-xs); border-radius: var(--r-sm);
+}
+/* Título em no máximo duas linhas. Cortar o nome da atividade seria
+   perder informação de verdade; deixá-lo crescer sem limite faz uma
+   linha empurrar todas as outras. Duas linhas é onde os dois custos se
+   encontram — e o texto inteiro está no `title` e no painel de detalhe. */
+.mlinha__titulo {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.3;
+}
+/* O título é o botão que abre o detalhe. Herda tipografia e recorte de
+   duas linhas do rótulo — o que muda é o cursor, o sublinhado no hover
+   e o alinhamento à esquerda, que o <button> não traz de fábrica. */
+.mlinha__abrir {
+  width: 100%; padding: 0; border: none; background: none; cursor: pointer;
+  font-family: var(--font); text-align: left;
+}
+.mlinha__abrir:hover { color: var(--verde-700); text-decoration: underline; text-underline-offset: 2px; }
+.mlinha__abrir:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; border-radius: 2px; }
+.mlinha__meta {
+  display: block; margin-top: 1px;
+  font-size: 11px; color: var(--text-hint); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* O rótulo curto existe porque dois nomes soltos na mesma célula não
+   dizem qual é o encarregado e qual é o fiscal. */
+.mlinha__meta b { font-weight: 700; color: var(--text-secondary); }
+.mlinha__empresa {
+  display: block; font-size: 12px; font-weight: 600; color: var(--text-primary);
+  line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Pastilha compacta: na matriz ela é rótulo de estado, não botão. O
+   corpo padrão de 11px com 12px de recuo lateral não cabe na coluna. */
+.mt-situacao { line-height: 1.5; }
+.mt-situacao .pill {
+  display: flex; justify-content: center; margin-bottom: 2px;
+  font-size: 10px; padding: 2px var(--space-sm);
+}
+
+/* ---------- Ações da linha: um botão, um menu ----------
+
+   Seis ícones de 24px encostados custavam duas coisas ao mesmo tempo:
+   obrigavam a decifrar o desenho antes de clicar, e punham alvos
+   pequenos e vizinhos onde metade das ações não tem volta. Um botão
+   escrito abre um menu onde cada ação é uma faixa de 240px por 44px
+   com o verbo por extenso.
+
+   A troca também é de altura: um botão de 30px numa fileira ocupa menos
+   que duas fileiras de ícones, e altura de linha é o que decide quantas
+   atividades cabem na tela sem rolar. */
+.acoes-linha {
+  position: relative; display: flex; justify-content: flex-end;
+  align-items: center; gap: var(--space-xs);
+}
+
+/* A ação da operação. Verde da marca, rótulo escrito, ao lado do menu e
+   não dentro dele: é a única do conjunto que se repete todo dia em toda
+   atividade validada, e um clique de menu antes dela era um pedágio
+   cobrado dezenas de vezes por dia. */
+.btn-lancar {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  height: 30px; padding: 0 var(--space-sm);
+  border: 1px solid var(--verde-200); border-radius: var(--r-md);
+  background: var(--verde-50); color: var(--verde-700);
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn-lancar:hover {
+  background: var(--brand-primary); border-color: var(--brand-primary); color: #fff;
+}
+.btn-lancar:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.btn-lancar__icone { display: inline-flex; }
+
+/* "Ver" não é um passo do fluxo: é o que sobra quando não há passo
+   nenhum. Fica neutro para não prometer uma ação que não existe — um
+   botão verde no lugar de "não há nada a fazer aqui" convida ao clique e
+   entrega uma tela de leitura. */
+.btn-lancar--neutro {
+  background: var(--branco); border-color: var(--borda); color: var(--text-primary);
+}
+.btn-lancar--neutro:hover {
+  background: var(--verde-50); border-color: var(--verde-500); color: var(--verde-700);
+}
+
+.btn-acoes {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  height: 30px; padding: 0 var(--space-sm) 0 var(--space-md);
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--branco); color: var(--text-primary);
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.btn-acoes:hover { background: var(--verde-50); border-color: var(--verde-500); }
+.btn-acoes[aria-expanded="true"] { background: var(--verde-50); border-color: var(--verde-500); }
+.btn-acoes__seta { display: inline-flex; color: var(--text-secondary); }
+
+/* Só o ícone quando divide a célula com o botão de lançar. Quadrado de
+   30px — o mesmo alvo do botão ao lado, não um alvo menor por ser
+   secundário. */
+.btn-acoes--icone { width: 30px; padding: 0; justify-content: center; }
+
+/* `position: fixed` porque o menu nasce dentro de .matriz-rolagem, que
+   recorta em overflow. As coordenadas vêm do JS (TN.menuAncorado), que
+   também vira o menu para cima quando a linha está no pé da tela. */
+.menu-acoes {
+  position: fixed; z-index: 120; width: 260px;
+  padding: var(--space-xs); border-radius: var(--r-md);
+  background: var(--branco); border: 1px solid var(--borda);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .16);
+  animation: fadeUp .12s var(--ease);
+}
+.menu-acoes[hidden] { display: none; }
+.menu-acoes__cabeca {
+  margin: 0; padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--text-secondary);
+  border-bottom: 1px solid var(--neutro-100);
+}
+
+/* 44px de altura: o alvo confortável da WCAG 2.5.5, não o mínimo de
+   2.5.8. Aqui cabe, e onde cabe não há motivo para ficar no mínimo. */
+.menu-acoes__item {
+  display: flex; align-items: center; gap: var(--space-md);
+  width: 100%; min-height: 44px; margin-top: 2px;
+  padding: var(--space-sm) var(--space-sm);
+  border: none; border-radius: var(--r-sm); background: none;
+  font-family: var(--font); font-size: 13px; font-weight: 600;
+  color: var(--text-primary); text-align: left; cursor: pointer;
+  transition: background .12s;
+}
+.menu-acoes__item:hover { background: var(--verde-50); }
+.menu-acoes__item:focus-visible { outline: 2px solid var(--verde-500); outline-offset: -2px; }
+.menu-acoes__icone { flex: none; display: inline-flex; color: var(--verde-700); }
+.menu-acoes__texto { display: flex; flex-direction: column; min-width: 0; }
+/* A segunda linha diz o que a ação faz. É o que permite escolher sem
+   ter usado a tela antes — o rótulo sozinho ("Validar") pressupõe que
+   a pessoa já sabe o que validar significa neste fluxo. */
+.menu-acoes__texto small {
+  margin-top: 1px; font-size: 11px; font-weight: 400;
+  color: var(--text-hint); line-height: 1.3; white-space: normal;
+}
+
+.menu-acoes__item--perigo {
+  margin-top: var(--space-xs);
+  border-top: 1px solid var(--neutro-100);
+  border-top-left-radius: 0; border-top-right-radius: 0;
+  color: var(--erro-700);
+}
+.menu-acoes__item--perigo .menu-acoes__icone { color: var(--erro-500); }
+.menu-acoes__item--perigo:hover { background: var(--erro-50); }
+
+/* Célula da semana e do PPC */
+.mnum { font-variant-numeric: tabular-nums; }
+.mnum__real { display: block; font-size: 14px; font-weight: 700; color: var(--brand-title); }
+.mnum__prev { display: block; font-size: 11px; color: var(--text-hint); }
+.mppc__valor { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mppc--alta .mppc__valor { color: var(--verde-700); }
+.mppc--media .mppc__valor { color: var(--warn-700); }
+.mppc--baixa .mppc__valor { color: var(--erro-700); }
+.mppc .medidor { margin-top: var(--space-xs); }
+
+/* ---------- Grade dos sete dias ----------
+
+   Oito colunas e duas linhas: um rótulo à esquerda — Prev e Real — e os
+   sete dias. Cabeçalho e corpo usam a MESMA grade, então "4ª" fica
+   sempre em cima da coluna de quarta sem nenhum cálculo.
+
+   Por que o rótulo à esquerda em vez de duas letras dentro de cada
+   célula: catorze marcadores para dizer duas coisas é ruído, e esta é a
+   informação mais lida da ferramenta.
+
+   Os dois números têm o MESMO tamanho e a mesma família tabular.
+   Comparar 180 com 150 depende de os dígitos caírem na mesma coluna
+   vertical, e tamanho diferente entre as linhas quebra exatamente isso.
+   O que separa as duas linhas é a cor e o peso, não o corpo da fonte. */
+/* A coluna do rótulo tem largura FIXA, e não `auto`: o cabeçalho da
+   tabela tem o rótulo vazio e o corpo tem "Prev", então `auto` daria
+   larguras diferentes nos dois e o "4ª" deixaria de cair em cima da
+   coluna de quarta. Foi exatamente o que aconteceu na primeira versão. */
+.dias {
+  display: grid;
+  grid-template-columns: 34px repeat(7, minmax(0, 1fr));
+  gap: 2px 3px;
+  align-items: stretch;
+}
+.dias__rotulo {
+  display: flex; flex-direction: column; justify-content: center;
+  padding-right: var(--space-xs);
+  font-family: var(--font-label); font-size: 9px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase;
+  color: var(--text-secondary); white-space: nowrap;
+}
+.dias__rotulo em {
+  font-family: var(--font); font-size: 9px; font-weight: 600;
+  font-style: normal; letter-spacing: 0; text-transform: none;
+  color: var(--verde-700);
+}
+.dias__rotulo--real { color: var(--brand-title); }
+
+.dias--cabecalho span {
+  text-align: center; font-size: 10px; font-weight: 700;
+  color: var(--text-secondary); letter-spacing: .3px;
+}
+.dias--cabecalho .is-fds { color: var(--text-hint); }
+
+.dia {
+  display: flex; align-items: center; justify-content: center;
+  padding: 3px 2px; border-radius: var(--r-sm);
+  font-size: 12px; font-variant-numeric: tabular-nums;
+  line-height: 1.2; white-space: nowrap;
+}
+/* Previsto: o plano, em segundo plano. Realizado: o fato, em destaque.
+   A hierarquia é de peso e cor — nunca de tamanho. */
+.dia--prev {
+  background: var(--neutro-50); color: var(--text-secondary); font-weight: 500;
+}
+.dia--real {
+  background: var(--neutro-100); color: var(--text-primary); font-weight: 700;
+}
+.dia.is-fds { opacity: .92; }
+.dia.is-nulo { background: transparent; color: var(--neutro-300); font-weight: 400; }
+
+/* Cor marca a exceção, não a regra: entregar um pouco abaixo do previsto
+   é o caso comum e fica neutro. Destacam-se o dia planejado que não
+   produziu, a produção sem previsão e o dia que bateu a meta. */
+.dia--real.is-parado { background: var(--erro-50); color: var(--erro-700); box-shadow: inset 0 -2px 0 var(--erro-500); }
+.dia--real.is-extra { background: var(--azul-50); color: var(--azul-800); box-shadow: inset 0 -2px 0 var(--azul-500); }
+.dia--real.is-batido { background: var(--ok-50); color: var(--ok-800); box-shadow: inset 0 -2px 0 var(--ok-500); }
+
+.dia__noite {
+  margin-left: 3px; padding: 0 3px; border-radius: 2px;
+  font-size: 8px; font-weight: 700; font-style: normal;
+  background: var(--roxo-50); color: var(--roxo-700);
+}
+
+.legenda-dia { display: flex; gap: var(--space-md); flex-wrap: wrap; align-items: center; }
+.legenda-dia span {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  font-size: 11px; color: var(--text-secondary);
+}
+.legenda-dia i {
+  width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+  background: var(--neutro-100);
+}
+.legenda-dia .amostra--prev { background: var(--neutro-50); border: 1px solid var(--neutro-200); }
+.legenda-dia .amostra--real { background: var(--neutro-100); border: 1px solid var(--neutro-300); }
+.legenda-dia .amostra--parado { background: var(--erro-50); border: 1px solid var(--erro-500); }
+.legenda-dia .amostra--batido { background: var(--ok-50); border: 1px solid var(--ok-500); }
+.legenda-dia .amostra--extra { background: var(--azul-50); border: 1px solid var(--azul-500); }
+
+/* Cabeçalho de coluna ordenável */
+.ordenar {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+.ordenar:hover { color: var(--brand-title); }
+.ordenar:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+.ordenar__seta { font-size: 9px; color: var(--neutro-300); }
+.ordenar.is-ativa { color: var(--brand-title); }
+.ordenar.is-ativa .ordenar__seta { color: var(--verde-500); }
+
+/* ============================================================
+   Matriz em telas estreitas — vira cartão
+
+   Abaixo de 1180px as colunas ficariam estreitas demais para o número
+   de quatro dígitos, e a saída fácil seria a barra horizontal. Em vez
+   disso a linha vira um cartão e a grade dos sete dias, que já é grade,
+   continua igual. A promessa "sem rolagem lateral" vale em toda largura.
+   ============================================================ */
+@media (max-width: 1180px) {
+  .matriz-rolagem { max-height: none; overflow: visible; }
+  .matriz, .matriz tbody, .matriz tr, .matriz td { display: block; width: auto; }
+  .matriz thead { display: none; }
+  .matriz colgroup { display: none; }
+  .matriz tbody tr {
+    position: relative;
+    margin: var(--space-md); padding: var(--space-md);
+    border: 1px solid var(--borda); border-radius: var(--r-md);
+    display: grid; gap: var(--space-sm);
+    grid-template-columns: 1fr auto;
+  }
+  .matriz tbody td { border: none; padding: 0; }
+  .matriz tbody tr:hover td { background: transparent; }
+  .matriz tbody tr.is-critica { border-left: 3px solid var(--erro-500); }
+  .matriz tbody tr.is-atencao { border-left: 3px solid var(--warn-500); }
+  .matriz .mt-item { position: absolute; right: var(--space-md); top: var(--space-md); }
+  .matriz .mt-atividade { grid-column: 1 / -1; padding-right: 40px; }
+  .matriz .mt-dias { grid-column: 1 / -1; }
+  .matriz .mt-execucao,
+  .matriz .mt-semana,
+  .matriz .mt-ppc { grid-column: span 1; }
+  .matriz .mt-acoes { grid-column: 1 / -1; text-align: left; }
+  /* No cartão do celular os dois botões ocupam a faixa inteira: não há
+     coluna estreita para respeitar, e o polegar acerta a largura toda.
+     Lançar fica com o espaço que sobra e o menu com o quadrado de 44px —
+     a proporção que diz qual das duas é a ação do dia a dia. */
+  .matriz .acoes-linha { justify-content: stretch; gap: var(--space-sm); }
+  .matriz .btn-lancar { flex: 1; height: 44px; justify-content: center; font-size: 14px; }
+  .matriz .btn-acoes { height: 44px; justify-content: center; font-size: 14px; }
+  .matriz .btn-acoes--icone { width: 44px; flex: none; }
+  .matriz .acoes-linha:not(:has(.btn-lancar)) .btn-acoes { width: 100%; }
+  .matriz td[data-rotulo]::before {
+    content: attr(data-rotulo) " ";
+    display: block; margin-bottom: 2px;
+    font-family: var(--font-label); font-size: 9px; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; color: var(--text-hint);
+  }
+  .dias--cabecalho { display: grid; }
+  .matriz .mt-dias .dias--cabecalho { margin-bottom: 2px; }
+}
+
+/* ============================================================
+   Painel deslizante (drawer)
+
+   Formulário longo não cabe num modal centrado sem virar rolagem dentro
+   de rolagem. O painel encosta na direita, ocupa a altura toda e mantém
+   o rodapé de ações sempre visível — que é onde a pessoa procura o
+   botão de salvar.
+   ============================================================ */
+.painel-fundo {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(16, 40, 36, .38); backdrop-filter: blur(3px);
+  display: flex; justify-content: flex-end;
+  animation: fadeIn .18s var(--ease);
+}
+.painel {
+  width: min(760px, 100vw); height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--branco); box-shadow: -12px 0 40px rgba(0, 0, 0, .18);
+  animation: entrarDireita .26s var(--ease);
+}
+.painel--largo { width: min(980px, 100vw); }
+.painel__topo {
+  flex: none; display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-md); padding: var(--space-lg) var(--space-xl);
+  background: var(--brand-primary); color: #fff;
+}
+.painel__titulo {
+  margin: 0; font-family: var(--font-label);
+  font-size: 18px; font-weight: 700; color: #fff;
+}
+.painel__sub { margin: var(--space-xs) 0 0; font-size: 13px; color: rgba(255, 255, 255, .85); }
+.painel__fechar { color: #fff; }
+.painel__fechar:hover { background: rgba(255, 255, 255, .16); }
+.painel__corpo { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-xl); }
+.painel__rodape {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap;
+  padding: var(--space-md) var(--space-xl);
+  border-top: 1px solid var(--borda); background: var(--neutro-50);
+}
+.painel__rodape-acoes { display: flex; gap: var(--space-md); margin-left: auto; }
+.painel__aviso { flex: 1; min-width: 220px; font-size: 12px; color: var(--text-secondary); }
+
+/* ============================================================
+   Lançamento diário — a grade de digitação do realizado
+
+   Esta é a tela que mais gente diferente usa, e a que mais erra. O
+   desenho responde a isso: um cartão por dia, com o previsto impresso
+   ao lado do campo, botão para copiar o previsto e um total que se
+   atualiza enquanto se digita. Ninguém precisa somar de cabeça para
+   saber se fechou a semana.
+   ============================================================ */
+.lancamento { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--space-sm); }
+.lancamento__dia {
+  display: flex; flex-direction: column; gap: var(--space-xs);
+  padding: var(--space-sm); border: 1px solid var(--borda);
+  border-radius: var(--r-md); background: var(--branco);
+  transition: border-color .15s, box-shadow .15s;
+}
+.lancamento__dia:focus-within { border-color: var(--verde-500); box-shadow: 0 0 0 3px rgba(0, 167, 147, .12); }
+.lancamento__dia.is-fds { background: var(--neutro-50); }
+.lancamento__dia.is-sem-plano { opacity: .72; }
+.lancamento__rotulo {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-xs);
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+}
+.lancamento__data { font-family: var(--font); font-size: 10px; font-weight: 400; color: var(--text-hint); }
+.lancamento__meta {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs);
+  font-size: 11px; color: var(--text-hint);
+}
+.lancamento__campo {
+  width: 100%; padding: var(--space-sm) var(--space-xs); text-align: center;
+  font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--neutro-200); border-radius: var(--r-sm);
+  background: var(--branco); color: var(--text-primary);
+  font-family: var(--font); outline: none;
+  transition: border-color .15s;
+}
+.lancamento__campo:focus { border-color: var(--verde-500); }
+.lancamento__campo::-webkit-outer-spin-button,
+.lancamento__campo::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.lancamento__campo[type="number"] { appearance: textfield; }
+.lancamento__campo--noite { font-size: 13px; font-weight: 600; color: var(--roxo-700); }
+.lancamento__mini {
+  display: flex; align-items: center; gap: var(--space-xxs);
+  font-size: 10px; color: var(--text-hint);
+}
+.lancamento__copiar {
+  border: none; background: var(--verde-50); color: var(--verde-700);
+  font-size: 10px; font-weight: 700; font-family: var(--font);
+  padding: 2px var(--space-xs); border-radius: var(--r-sm); cursor: pointer;
+}
+.lancamento__copiar:hover { background: var(--verde-100); }
+.lancamento__copiar:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 1px; }
+
+.resumo-lancamento {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-md); padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--neutro-50);
+}
+.resumo-lancamento__item { display: flex; flex-direction: column; gap: 2px; }
+.resumo-lancamento__rotulo {
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--text-secondary);
+}
+.resumo-lancamento__valor {
+  font-size: 20px; font-weight: 700; color: var(--brand-title);
+  font-variant-numeric: tabular-nums;
+}
+.resumo-lancamento__valor.is-alerta { color: var(--warn-700); }
+.resumo-lancamento__valor.is-erro { color: var(--erro-700); }
+.resumo-lancamento__nota { font-size: 11px; color: var(--text-hint); }
+
+/* ============================================================
+   Sub-navegação — abas internas de uma página
+
+   Configurações reúne assuntos que não se misturam: parâmetros,
+   cadastros, janelas, pessoas. Cada um é uma sub-rota própria, com
+   permissão própria, e não uma seção rolando na mesma tela.
+   ============================================================ */
+.subnav {
+  display: flex; gap: var(--space-xs); flex-wrap: wrap;
+  padding: var(--space-xs); margin-bottom: var(--space-xl);
+  background: var(--neutro-100); border-radius: var(--r-md);
+}
+.subnav__item {
+  display: inline-flex; align-items: center; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg); border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; color: var(--neutro-600);
+  text-decoration: none; transition: background .15s, color .15s, box-shadow .15s;
+}
+.subnav__item:hover { color: var(--brand-title); background: rgba(255, 255, 255, .6); }
+.subnav__item.is-active {
+  background: var(--branco); color: var(--brand-title);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .10);
+}
+.subnav__item svg { flex: none; }
+.subnav__restrito {
+  margin-left: var(--space-xs); padding: 1px var(--space-xs);
+  border-radius: var(--r-sm); font-size: 9px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase;
+  background: var(--warn-50); color: var(--warn-800);
+}
+
+/* ============================================================
+   Cartões de gráfico
+   ============================================================ */
+.graficos { display: grid; gap: var(--space-lg); }
+.graficos--duas { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.graficos--tres { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+.grafico { display: flex; flex-direction: column; min-width: 0; }
+.grafico__topo {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap;
+  padding: var(--space-lg) var(--space-xl) var(--space-sm);
+}
+.grafico__titulo { margin: 0; font-size: 15px; font-weight: 600; color: var(--brand-title); }
+.grafico__sub { margin: var(--space-xxs) 0 0; font-size: 12px; color: var(--text-secondary); }
+.grafico__acoes { display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
+.grafico__tela { position: relative; flex: 1; min-height: 0; padding: 0 var(--space-md) var(--space-md); }
+.grafico__tela svg { display: block; width: 100%; height: auto; }
+.grafico__tela--alta { min-height: 380px; }
+.grafico__tela--media { min-height: 260px; }
+.grafico__rodape {
+  padding: 0 var(--space-xl) var(--space-lg);
+  font-size: 11px; color: var(--text-hint); line-height: 1.5;
+}
+
+.grafico-legenda { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.grafico-legenda span {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+.grafico-legenda i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.grafico-legenda i.is-linha { width: 16px; height: 3px; border-radius: 2px; }
+.grafico-legenda i.is-tracejada { width: 16px; height: 0; border-top: 2px dashed var(--neutro-300); }
+
+.periodo-botoes { display: inline-flex; gap: var(--space-xs); flex-wrap: wrap; }
+.periodo-botao {
+  border: none; border-radius: var(--r-sm); cursor: pointer;
+  padding: var(--space-xs) var(--space-md);
+  font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: .4px;
+  background: var(--verde-50); color: var(--verde-700);
+  transition: background .15s, color .15s;
+}
+.periodo-botao:hover { background: var(--verde-100); }
+.periodo-botao.is-active { background: var(--brand-primary); color: #fff; }
+.periodo-botao:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+.grafico-dica {
+  position: absolute; z-index: 10; display: none; pointer-events: none;
+  min-width: 170px; padding: var(--space-sm) var(--space-md);
+  border-radius: var(--r-md); background: rgba(28, 28, 29, .96); color: #fff;
+  font-size: 11px; line-height: 1.6; box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+}
+.grafico-dica.is-visivel { display: block; }
+.grafico-dica b { font-size: 12px; }
+.grafico-dica div { display: flex; justify-content: space-between; gap: var(--space-xl); }
+
+/* ============================================================
+   Faixa de status segmentada
+   ============================================================ */
+.faixa-status { display: flex; flex-direction: column; gap: var(--space-sm); }
+.faixa-status__titulo {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  letter-spacing: .6px; text-transform: uppercase; color: var(--brand-title);
+}
+.faixa-status__trilho {
+  display: flex; height: 34px; border-radius: var(--r-md); overflow: hidden;
+  background: var(--neutro-100);
+}
+.faixa-status__seg {
+  display: flex; align-items: center; justify-content: center; min-width: 30px;
+  font-size: 13px; font-weight: 700; color: #fff;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .5);
+  animation: crescerFaixa .7s var(--ease) both;
+}
+.faixa-status__seg:last-child { box-shadow: none; }
+.faixa-status__seg--ok { background: var(--verde-500); }
+.faixa-status__seg--info { background: var(--frio-500); }
+.faixa-status__seg--warn { background: var(--warn-500); }
+.faixa-status__seg--erro { background: var(--erro-500); }
+.faixa-status__seg--neutro { background: var(--neutro-300); }
+.faixa-status__legenda { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+.faixa-status__legenda span {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+.faixa-status__legenda i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* ============================================================
+   Heatmap dia × frente
+   ============================================================ */
+.heat {
+  width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 11px;
+  /* Os três pontos da rampa. Ficam no elemento raiz da tabela para que a
+     legenda possa herdar exatamente as mesmas cores — uma legenda que
+     descreve uma escala com outros valores é pior que nenhuma. */
+  --calor-frio: #D03636;
+  --calor-morno: #E8B43B;
+  --calor-quente: #00776A;
+}
+.heat th {
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--text-secondary);
+  padding: var(--space-xs); text-align: center;
+}
+.heat th.heat__linha-rotulo { text-align: left; width: 30%; }
+.heat td {
+  padding: var(--space-sm) var(--space-xs); text-align: center;
+  border-radius: var(--r-md); font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text-primary); background: var(--neutro-50);
+}
+.heat td.heat__rotulo {
+  text-align: left; font-weight: 600; font-size: 12px;
+  background: transparent; color: var(--text-primary);
+}
+
+/* ---------- A rampa do mapa de calor ----------
+
+   Contínua, e não cinco caixinhas de cor chapada. Com faixas, 48% e 52%
+   trocavam de cor como se fossem coisas diferentes, enquanto 26% e 49%
+   dividiam exatamente o mesmo laranja — a cor deixava de acompanhar o
+   número justamente onde ele importa. Aqui `--t` (0 a 1) vem do servidor
+   por célula e o `color-mix` faz a passagem.
+
+   A rampa tem três pontos e é percorrida em dois trechos, o que o CSS
+   resolve sem condicional: `--p1` vai de 0 a 100% na primeira metade e
+   satura; `--p2` fica em 0 até a metade e então sobe. Misturar os dois
+   em sequência dá vermelho → amarelo → verde sem nenhum degrau.
+
+   `in oklab` e não sRGB: a interpolação sRGB entre vermelho e amarelo
+   passa por um marrom sujo no meio do caminho. Oklab é perceptualmente
+   uniforme e mantém a passagem limpa.
+
+   A saturação tem forma de V: forte nas duas pontas, fraca no meio.
+   Numa escala que diverge, o que interessa é o extremo — o dia que não
+   produziu e o dia que entregou tudo — e o meio é justamente onde não
+   há notícia. Uma rampa de saturação crescente deixava a ponta ruim
+   pálida, que é o oposto do que um mapa de calor existe para fazer.
+
+   `--d` é a distância até o meio, |t − 0,5|, escrita com `max()` porque
+   `abs()` ainda não é seguro em navegador. Vai de 0,5 nas pontas a 0 no
+   centro, e a diluição em branco anda de 62% para 30% junto com ela.
+
+   O texto é escuro em toda a escala. Medido nos dois extremos e no
+   meio, o contraste fica acima do mínimo de 4,5:1 da WCAG sem precisar
+   inverter a cor do texto no meio da tabela — inversão era o que fazia
+   a versão de cinco faixas parecer remendada. */
+.heat .heat--celula {
+  --p1: clamp(0%, calc(var(--t) * 200%), 100%);
+  --p2: clamp(0%, calc(var(--t) * 200% - 100%), 100%);
+  --d: max(calc(0.5 - var(--t)), calc(var(--t) - 0.5));
+  --meio: color-mix(in oklab, var(--calor-morno) var(--p1), var(--calor-frio));
+  --cor: color-mix(in oklab, var(--calor-quente) var(--p2), var(--meio));
+  background: color-mix(in oklab, var(--cor) calc(30% + var(--d) * 64%), #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cor) 30%, transparent);
+}
+/* Sem previsão para o dia. Não é 0% de aderência — é ausência de plano,
+   e por isso sai da escala inteira em vez de ocupar a ponta fria dela. */
+.heat .heat--vazio {
+  background: repeating-linear-gradient(
+    -45deg, var(--neutro-50), var(--neutro-50) 4px, var(--branco) 4px, var(--branco) 8px
+  );
+  color: var(--text-hint); font-weight: 400;
+}
+
+.heat-legenda { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+.heat-legenda span {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  font-size: 11px; color: var(--text-secondary);
+}
+/* A mesma conta da célula, esticada: as paradas em 0 / 50 / 100% do
+   gradiente são os mesmos três pontos que a interpolação percorre. */
+.heat-legenda__rampa {
+  width: 160px; height: 12px; border-radius: 9999px;
+  background: linear-gradient(
+    to right in oklab,
+    color-mix(in oklab, #D03636 62%, #fff),
+    color-mix(in oklab, #E8B43B 30%, #fff) 50%,
+    color-mix(in oklab, #00776A 62%, #fff)
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+.heat-legenda__ponta { font-variant-numeric: tabular-nums; }
+.heat-legenda__vazio { margin-left: var(--space-md); }
+.heat-legenda__vazio i {
+  width: 14px; height: 14px; border-radius: var(--r-sm); display: inline-block;
+  background: repeating-linear-gradient(
+    -45deg, var(--neutro-50), var(--neutro-50) 4px, var(--branco) 4px, var(--branco) 8px
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+
+/* ============================================================
+   Passos de um fluxo (importação)
+   ============================================================ */
+.passos { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-lg); }
+.passo {
+  display: flex; flex-direction: column; gap: var(--space-sm);
+  padding: var(--space-lg); border: 1px solid var(--borda);
+  border-radius: var(--r-md); background: var(--branco);
+}
+.passo.is-atual { border-color: var(--verde-500); box-shadow: 0 0 0 3px rgba(0, 167, 147, .10); }
+.passo.is-concluido { background: var(--verde-50); border-color: var(--verde-200); }
+.passo__numero {
+  width: 26px; height: 26px; border-radius: 9999px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--brand-primary); color: #fff; font-size: 12px; font-weight: 700;
+}
+.passo.is-pendente .passo__numero { background: var(--neutro-200); color: var(--text-secondary); }
+.passo__titulo { font-size: 14px; font-weight: 600; color: var(--brand-title); }
+.passo__texto { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Zona de arrastar arquivo */
+.solta-arquivo {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-md);
+  padding: var(--space-xxl) var(--space-lg); text-align: center;
+  border: 2px dashed var(--neutro-200); border-radius: var(--r-lg);
+  background: var(--neutro-50); cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.solta-arquivo:hover, .solta-arquivo.is-sobre {
+  border-color: var(--verde-500); background: var(--verde-50);
+}
+.solta-arquivo__icone { color: var(--verde-500); }
+.solta-arquivo__titulo { font-size: 15px; font-weight: 600; color: var(--brand-title); }
+.solta-arquivo__dica { font-size: 12px; color: var(--text-secondary); }
+.solta-arquivo input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+/* ============================================================
+   Cartão de configuração — bloco de um assunto
+   ============================================================ */
+.bloco-config {
+  display: grid; grid-template-columns: 260px 1fr; gap: var(--space-xl);
+  padding: var(--space-xl) 0; border-bottom: 1px solid var(--neutro-100);
+}
+.bloco-config:last-child { border-bottom: none; }
+.bloco-config__titulo { margin: 0 0 var(--space-xs); font-size: 15px; font-weight: 600; color: var(--brand-title); }
+.bloco-config__texto { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.bloco-config__corpo { min-width: 0; display: flex; flex-direction: column; gap: var(--space-lg); }
+
+.lista-chips { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.chip-removivel {
+  display: inline-flex; align-items: center; gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
+  border-radius: 9999px; background: var(--neutro-100);
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+}
+.chip-removivel__x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: none; border-radius: 9999px;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+  font-size: 14px; line-height: 1; font-family: var(--font);
+}
+.chip-removivel__x:hover { background: var(--erro-50); color: var(--erro-700); }
+.chip-removivel__x:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 1px; }
+
+/* Chip que só informa. Sem o "×", e com o recuo simétrico que a variante
+   removível abre mão para acomodá-lo — um chip sem botão com recuo de
+   chip com botão parece desalinhado. */
+.chip-removivel--fixo { padding: var(--space-xs) var(--space-md); }
+
+/* Link dentro de um parágrafo que na verdade é botão: navega por AJAX e
+   por isso não pode ser <a href>. Herda tamanho e alinhamento do texto
+   para não virar um botão no meio da frase. */
+.link-inline {
+  padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; color: var(--verde-700); font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.link-inline:hover { color: var(--brand-title); }
+.link-inline:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; border-radius: 2px; }
+
+/* ============================================================
+   Seletor de semanas da janela de programação
+
+   Marcar 52 caixas uma a uma era o pior momento da tela antiga. Aqui as
+   semanas viram uma grade de pastilhas com atalhos por trimestre e um
+   resumo do que está selecionado, então liberar um mês é um clique.
+   ============================================================ */
+.seletor-semanas { display: flex; flex-direction: column; gap: var(--space-md); }
+.seletor-semanas__topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap;
+}
+.seletor-semanas__atalhos { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.seletor-semanas__grade {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: var(--space-xs); max-height: 230px; overflow-y: auto;
+  padding: var(--space-sm); border: 1px solid var(--borda); border-radius: var(--r-md);
+  background: var(--neutro-50);
+}
+.pastilha-semana {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-xs) 2px; border-radius: var(--r-sm); cursor: pointer;
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: var(--branco); border: 1px solid var(--borda); color: var(--text-secondary);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.pastilha-semana:hover { border-color: var(--verde-500); }
+.pastilha-semana input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pastilha-semana.is-marcada,
+.pastilha-semana:has(input:checked) {
+  background: var(--brand-primary); border-color: var(--brand-primary); color: #fff;
+}
+.pastilha-semana:has(input:focus-visible) { outline: 2px solid var(--verde-500); outline-offset: 1px; }
+.pastilha-semana.is-passada { opacity: .55; }
+
+/* ============================================================
+   Linha do tempo da auditoria
+   ============================================================ */
+.trilha { display: flex; flex-direction: column; gap: 0; }
+.trilha__item {
+  position: relative; display: flex; gap: var(--space-md);
+  padding: var(--space-md) 0 var(--space-md) var(--space-xl);
+}
+.trilha__item::before {
+  content: ""; position: absolute; left: 7px; top: 0; bottom: 0;
+  width: 1px; background: var(--neutro-100);
+}
+.trilha__item:first-child::before { top: 22px; }
+.trilha__item:last-child::before { bottom: calc(100% - 22px); }
+.trilha__ponto {
+  position: absolute; left: 2px; top: 18px;
+  width: 11px; height: 11px; border-radius: 9999px;
+  background: var(--verde-500); border: 2px solid var(--branco);
+}
+.trilha__corpo { flex: 1; min-width: 0; }
+.trilha__acao { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.trilha__meta { margin-top: 2px; font-size: 11px; color: var(--text-hint); }
+
+/* ============================================================
+   Faixa de aviso de janela
+   ============================================================ */
+.janela-aviso {
+  display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap;
+  padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-lg);
+  border-radius: var(--r-md); border-left: 3px solid var(--verde-500);
+  background: var(--verde-50);
+}
+.janela-aviso--fechada { border-left-color: var(--warn-500); background: var(--warn-50); }
+.janela-aviso__icone { flex: none; color: var(--verde-700); }
+.janela-aviso--fechada .janela-aviso__icone { color: var(--warn-700); }
+.janela-aviso__texto { flex: 1; min-width: 200px; font-size: 13px; color: var(--text-primary); }
+.janela-aviso__texto strong { color: var(--brand-title); }
+
+/* ============================================================
+   Responsivo
+   ============================================================ */
+@media (max-width: 1100px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .bloco-config { grid-template-columns: 1fr; gap: var(--space-md); }
+  .graficos--duas { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .lancamento { grid-template-columns: repeat(4, 1fr); }
+  .painel { width: 100vw; }
+  .painel__corpo { padding: var(--space-lg); }
+  .painel__topo, .painel__rodape { padding-left: var(--space-lg); padding-right: var(--space-lg); }
+}
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: 1fr; gap: 12px; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .period { justify-content: space-between; }
+  .filtro-panel { top: 16px; right: 16px; left: 16px; width: auto; }
+  .linha__data { display: none; }
+  .lancamento { grid-template-columns: repeat(2, 1fr); }
+  .subnav { flex-direction: column; }
+  .matriz tbody tr { grid-template-columns: 1fr; }
+}
+
+/* Movimento reduzido dos padrões deste arquivo. O bloco equivalente dos
+   componentes base fica em tokens.css — cada arquivo cuida das classes
+   que declara, senão o verificador de colisão acusa. */
+@media (prefers-reduced-motion: reduce) {
+  .painel, .painel-fundo, .faixa-status__seg, .medidor__fill { animation: none; transition: none; }
+}

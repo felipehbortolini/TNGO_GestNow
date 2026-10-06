@@ -1,0 +1,276 @@
+{% extends "base_fragment.html" %}
+{#
+  Barra de ferramentas da programação: semana, busca, refino e ações.
+
+  O formulário inteiro tem x-target="prog-resumo prog-tabela": mudar a
+  semana, digitar na busca ou aplicar um refino trocam os mesmos dois
+  blocos, e a barra permanece — quem está filtrando não perde o campo em
+  que está.
+
+  Três decisões de arrumação, cada uma por um motivo:
+
+  1. O refino usa `.filtro-panel` do design system — painel sobreposto,
+     ancorado à direita — e não um cartão empurrando a tabela para baixo.
+     O cartão custava duas coisas: abria um bloco quadrado no meio da
+     página e afastava a matriz da barra justamente quando a pessoa está
+     olhando as duas ao mesmo tempo.
+
+  2. O que está filtrando aparece como pastilha, cada uma com o seu "×".
+     Sem isso a única pista de filtro ativo era um contador dentro do
+     botão "Refinar" — quem abrisse a tela filtrada por outra pessoa via
+     uma matriz curta e nenhuma explicação.
+
+  3. Exportar, imprimir e publicar SAÍRAM do painel de refino. Não são
+     refino, e escondê-las atrás de um botão chamado "Refinar" é o mesmo
+     que não tê-las. Agora ficam numa faixa própria, sempre visível.
+
+  As pastilhas do que está filtrando não estão neste arquivo. Aplicar um
+  filtro recarrega o resumo e a matriz, não esta barra — uma pastilha
+  desenhada aqui ficaria sempre um passo atrás. Ver `filtros_ativos` em
+  programacao/_macros.html.
+
+  Espera: semana, semanas, periodo, filtros, locais, empresas,
+  encarregados, fiscais, janela, user.
+#}
+{% block fragment %}
+{#
+  Quantos refinos estão ativos — só o número, para o distintivo do botão
+  "Refinar". Quais são eles é assunto da matriz: ver `filtros_ativos` em
+  programacao/_macros.html.
+#}
+{% set refinos = ['busca', 'local', 'empresa', 'encarregado', 'responsavel', 'situacao', 'aprovacao', 'ppc'] %}
+{% set quantos = namespace(total=0) %}
+{% for campo in refinos %}{% if filtros.get(campo) %}{% set quantos.total = quantos.total + 1 %}{% endif %}{% endfor %}
+<form
+  method="get"
+  action="/api/programacao"
+  x-target="prog-resumo prog-tabela"
+  x-data="{ refinando: false }"
+  @keydown.escape.window="refinando = false"
+  class="mb-16"
+>
+  <div class="toolbar">
+    <div class="period">
+      <label class="sr-only" for="campo-semana">Semana</label>
+      <select
+        id="campo-semana"
+        name="semana"
+        class="input"
+        style="border: none; min-width: 190px; font-weight: 600"
+        @change="$el.form.requestSubmit()"
+      >
+        {% for s in semanas %}
+        <option value="{{ s.id }}" {% if s.id == semana %}selected{% endif %}>
+          {{ s.id }} · {{ s.periodo }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="busca">
+      <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+      <label class="sr-only" for="campo-busca">Buscar na programação</label>
+      <input
+        id="campo-busca"
+        type="search"
+        name="busca"
+        class="input busca__input"
+        value="{{ filtros.busca }}"
+        placeholder="Digite para procurar: atividade, frente, empresa, encarregado ou fiscal"
+        autocomplete="off"
+        x-data="{ espera: null }"
+        @input="clearTimeout(espera); espera = setTimeout(() => $el.form.requestSubmit(), 300)"
+      />
+    </div>
+
+    <button
+      type="button"
+      class="btn btn--secondary"
+      :aria-expanded="refinando"
+      aria-controls="painel-refino"
+      @click="refinando = !refinando"
+    >
+      <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
+      Refinar
+      {% if quantos.total %}<span class="chip chip--info">{{ quantos.total }}</span>{% endif %}
+    </button>
+
+    {% if pode(user, 'gerar') and janela.aberta %}
+    <button
+      type="button"
+      class="btn btn--primary"
+      @click="$ajax('/api/atividade-form?semana={{ semana | urlencode }}', { target: 'drawer' })"
+    >
+      <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+      Nova atividade
+    </button>
+    {% endif %}
+  </div>
+
+  {#
+    Fundo do painel: fecha ao clicar fora e, mais importante, escurece o
+    resto da tela o suficiente para deixar claro que aquilo é uma camada
+    temporária, e não um pedaço novo da página.
+  #}
+  <div class="filtro-fundo" x-show="refinando" x-cloak @click="refinando = false"></div>
+
+  <div
+    id="painel-refino"
+    class="filtro-panel"
+    x-show="refinando"
+    x-cloak
+    role="dialog"
+    aria-modal="false"
+    aria-label="Refinar a programação"
+  >
+    <h3>Refinar a programação</h3>
+    <p class="hint mb-16">
+      Cada escolha aplica na hora. Deixe em “todas” o que não quiser filtrar.
+    </p>
+
+    <div class="filtro-sec">
+      <div class="filtro-sec__head">Onde e quem</div>
+      <div class="field mb-16">
+        <label for="f-local">Frente / local</label>
+        <select id="f-local" name="local" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todas as frentes</option>
+          {% for l in locais %}
+          <option value="{{ l }}" {% if filtros.local == l %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if not user.eh_fornecedor() %}
+      <div class="field mb-16">
+        <label for="f-empresa">Contratada</label>
+        <select id="f-empresa" name="empresa" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todas as contratadas</option>
+          {% for e in empresas %}
+          <option value="{{ e }}" {% if filtros.empresa == e %}selected{% endif %}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="field mb-16">
+        <label for="f-encarregado">Encarregado</label>
+        <select id="f-encarregado" name="encarregado" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todos os encarregados</option>
+          {% for e in encarregados %}
+          <option value="{{ e }}" {% if filtros.encarregado == e %}selected{% endif %}>{{ e }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="f-fiscal">Fiscal responsável</label>
+        <select id="f-fiscal" name="responsavel" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todos os fiscais</option>
+          {% for f in fiscais %}
+          <option value="{{ f }}" {% if filtros.responsavel == f %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="filtro-sec">
+      <div class="filtro-sec__head">Em que pé está</div>
+      <div class="field mb-16">
+        <label for="f-situacao">Situação da programação</label>
+        <select id="f-situacao" name="situacao" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todas</option>
+          <option value="em_elaboracao" {% if filtros.situacao == 'em_elaboracao' %}selected{% endif %}>Em elaboração</option>
+          <option value="validada" {% if filtros.situacao == 'validada' %}selected{% endif %}>Validada</option>
+          <option value="publicada" {% if filtros.situacao == 'publicada' %}selected{% endif %}>Publicada</option>
+        </select>
+      </div>
+
+      <div class="field mb-16">
+        <label for="f-aprovacao">Realizado</label>
+        <select id="f-aprovacao" name="aprovacao" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Qualquer</option>
+          <option value="pendente" {% if filtros.aprovacao == 'pendente' %}selected{% endif %}>Aguardando o fiscal</option>
+          <option value="aprovado" {% if filtros.aprovacao == 'aprovado' %}selected{% endif %}>Aprovado</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="f-ppc">Faixa de PPC</label>
+        <select id="f-ppc" name="ppc" class="input" @change="$el.form.requestSubmit()">
+          <option value="">Todas</option>
+          <option value="alta" {% if filtros.ppc == 'alta' %}selected{% endif %}>Alta — 80% ou mais</option>
+          <option value="media" {% if filtros.ppc == 'media' %}selected{% endif %}>Média — 60 a 79%</option>
+          <option value="baixa" {% if filtros.ppc == 'baixa' %}selected{% endif %}>Baixa — abaixo de 60%</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filtro-actions">
+      <button
+        type="button"
+        class="btn btn--ghost"
+        @click="refinando = false;
+                $ajax('/api/programacao-filtros?semana={{ semana | urlencode }}', { target: 'prog-filtros' });
+                $ajax('/api/programacao?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })"
+      >
+        Limpar refinos
+      </button>
+      <button type="button" class="btn btn--primary" @click="refinando = false">
+        Ver o resultado
+      </button>
+    </div>
+  </div>
+</form>
+
+{#
+  Faixa das ações da semana. Fora do formulário de refino de propósito:
+  exportar e publicar não dependem do que está filtrado, e enterrá-las
+  dentro de "Refinar" era a razão de ninguém as achar.
+#}
+{% if pode(user, 'exportar') or pode(user, 'publicar') %}
+<div class="acoes-semana mb-16">
+  <span class="acoes-semana__rotulo">Semana {{ semana }}:</span>
+  {% if pode(user, 'exportar') %}
+  {# noajax: link só com .away nunca tem o alvo padrão que a
+     biblioteca lê primeiro, e o clique quebrava antes do download
+     começar. Ver o comentário em ambientes/lista.html. #}
+  <a
+    class="btn btn--ghost"
+    href="/api/exportar-semana?semana={{ semana | urlencode }}&ambiente={{ slug_do_ambiente() }}"
+    noajax
+  >
+    <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+    Baixar em Excel
+  </a>
+  <button
+    type="button"
+    class="btn btn--ghost"
+    @click="$ajax('/api/relatorio?semana={{ semana | urlencode }}&ambiente={{ slug_do_ambiente() }}', { target: 'app-shell' })"
+  >
+    <span x-init="$el.innerHTML = window.icon('print', 16)" aria-hidden="true"></span>
+    Gerar relatório para imprimir
+  </button>
+  {% endif %}
+  {% if pode(user, 'publicar') %}
+  <button
+    type="button"
+    class="btn btn--secondary"
+    @click="
+      TN.confirmarExclusao({
+        title: 'Publicar a semana',
+        mensagem: 'Publicar todas as programações validadas da semana {{ semana }}?',
+        labelConfirmar: 'Publicar todas'
+      }).then(function (ok) {
+        if (ok) $ajax('/api/atividade-publicar-semana?semana={{ semana | urlencode }}', {
+          method: 'post', target: 'drawer prog-resumo prog-tabela'
+        });
+      })
+    "
+  >
+    <span x-init="$el.innerHTML = window.icon('megafone', 16)" aria-hidden="true"></span>
+    Publicar as validadas
+  </button>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

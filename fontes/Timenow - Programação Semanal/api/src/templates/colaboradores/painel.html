@@ -1,0 +1,265 @@
+{% extends "base_fragment.html" %}
+{#
+  Configurações · Colaboradores — a subaba restrita.
+
+  Esta tela concede e revoga o acesso à aplicação: o cadastro daqui é o
+  que `core/auth.py` consulta em toda requisição. Um e-mail que não está
+  nesta lista não entra, com ou sem sessão do Azure; um e-mail removido
+  para de entrar na requisição seguinte.
+
+  Por isso ela é uma subaba própria, com permissão própria, e não uma
+  seção da tela de cadastros. O planejador configura janelas e listas e
+  nunca chega aqui.
+
+  O e-mail aparece mascarado para quem não tem `ver_pii` — mas quem
+  chegou nesta tela tem, então na prática o mascaramento protege o caso
+  em que o perfil for afrouxado no futuro.
+
+  Espera: colaboradores, por_perfil, perfis, vinculos, empresas, erros,
+  valores, abas.
+#}
+{% block fragment %}
+{% include "configuracoes/_abas.html" %}
+
+<div class="aviso aviso--warn mb-16">
+  <strong>Esta tela controla quem entra no sistema.</strong>
+  <span>
+    O perfil define o que a pessoa pode fazer; o vínculo define o que ela enxerga.
+    Fornecedor só vê a própria empresa — sempre, em toda tela.
+  </span>
+</div>
+
+{# É aqui que o fiscal e o encarregado de cada atividade passam a existir.
+   Quem chega nesta tela pensando "vim liberar um acesso" precisa saber
+   que o mesmo cadastro alimenta os dois campos da programação — senão
+   procura a lista em Cadastros de apoio, onde ela não está mais. #}
+<div class="aviso aviso--info mb-16">
+  <strong>Fiscais e encarregados saem daqui.</strong>
+  <span>
+    Ao programar uma atividade, os campos <b>Fiscal responsável</b> e
+    <b>Encarregado</b> oferecem exatamente as pessoas ativas cadastradas abaixo
+    com esses perfis. Quem não estiver aqui não aparece na lista lá.
+  </span>
+</div>
+
+<div class="kpis mb-16" style="--kpis-colunas: 6">
+  {% for p in perfis %}
+  <div class="kpi kpi--{{ 'neutro' if p.id == 'admin' else ('info' if p.id in ('planejador', 'fiscal', 'encarregado') else 'warn') }}"
+       style="cursor: default" title="{{ p.descricao }}">
+    <span class="kpi__label">{{ p.rotulo }}</span>
+    <span class="kpi__value">{{ por_perfil[p.id] }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Liberar um novo acesso</h2>
+  </div>
+  <div class="card__body">
+    <form method="post" action="/api/colaborador" x-target="config-area"
+          data-tn-loading="Liberando o acesso..."
+          x-data="{ vinculo: '{{ valores.vinculo | default('timenow', true) }}' }">
+      <input type="hidden" name="novo" value="sim" />
+
+      <div class="fgrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+        <div class="field">
+          <label for="n-nome">Nome completo</label>
+          <input id="n-nome" class="input{{ ' input--erro' if erros.nome }}" type="text" name="nome"
+                 value="{{ valores.nome | default('', true) }}" required maxlength="80"
+                 autocomplete="off" placeholder="Como a pessoa assina" />
+          {% if erros.nome %}<span class="field__erro">{{ erros.nome }}</span>{% endif %}
+        </div>
+
+        <div class="field">
+          <label for="n-email">E-mail corporativo</label>
+          <input id="n-email" class="input{{ ' input--erro' if erros.email }}" type="email" name="email"
+                 value="{{ valores.email | default('', true) }}" required
+                 autocomplete="off" placeholder="nome@empresa.com.br" />
+          {% if erros.email %}<span class="field__erro">{{ erros.email }}</span>
+          {% else %}<span class="hint">É por ele que o login reconhece a pessoa.</span>{% endif %}
+        </div>
+
+        <div class="field">
+          <label for="n-cargo">Cargo</label>
+          <input id="n-cargo" class="input" type="text" name="cargo"
+                 value="{{ valores.cargo | default('', true) }}" maxlength="60"
+                 autocomplete="off" placeholder="Opcional" />
+        </div>
+
+        <div class="field">
+          <label for="n-perfil">Perfil</label>
+          <select id="n-perfil" class="input{{ ' input--erro' if erros.perfil }}" name="perfil">
+            {% for p in perfis %}
+            <option value="{{ p.id }}" {% if valores.perfil == p.id %}selected{% endif %}>{{ p.rotulo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.perfil %}<span class="field__erro">{{ erros.perfil }}</span>{% endif %}
+        </div>
+
+        <div class="field">
+          <label for="n-vinculo">Vínculo</label>
+          <select id="n-vinculo" class="input{{ ' input--erro' if erros.vinculo }}" name="vinculo"
+                  x-model="vinculo">
+            {% for v in vinculos %}
+            <option value="{{ v.id }}">{{ v.rotulo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.vinculo %}<span class="field__erro">{{ erros.vinculo }}</span>{% endif %}
+        </div>
+
+        <div class="field" x-show="vinculo === 'fornecedor'">
+          <label for="n-empresa">Empresa</label>
+          <select id="n-empresa" class="input{{ ' input--erro' if erros.empresa }}" name="empresa">
+            <option value="">Selecione...</option>
+            {% for e in empresas %}
+            <option value="{{ e }}" {% if valores.empresa == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.empresa %}<span class="field__erro">{{ erros.empresa }}</span>{% endif %}
+        </div>
+      </div>
+
+      <div class="mt-16">
+        <p class="grupo-label">O que cada perfil pode fazer</p>
+        <ul class="lista-simples">
+          {% for p in perfis %}
+          <li class="lista-simples__item">
+            <span class="chip">{{ p.rotulo }}</span>
+            <span class="linha__titulo" style="font-weight: 400">{{ p.descricao }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="acoes-rodape mt-16">
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('userPlus', 16)" aria-hidden="true"></span>
+          Liberar acesso
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Quem tem acesso hoje</h2>
+    <span class="hint">{{ colaboradores | length }} pessoa(s)</span>
+  </div>
+  <div class="card__body">
+    {% if colaboradores %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Colaboradores com acesso liberado</caption>
+        <thead>
+          <tr>
+            <th scope="col">Pessoa</th>
+            <th scope="col">Perfil e vínculo</th>
+            <th scope="col" class="td-center">Situação</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in colaboradores %}
+          <tr>
+            <td>
+              <span class="mlinha__titulo">{{ c.nome }}</span>
+              <span class="mlinha__meta">{{ c.email }}</span>
+              {% if c.cargo %}<span class="mlinha__meta">{{ c.cargo }}</span>{% endif %}
+              {% if c.operador %}<span class="pill pill--fix">Operador Timenow</span>{% endif %}
+            </td>
+            <td>
+              {% if c.operador %}
+              <span class="mlinha__meta">Acesso de operação da Timenow — entra em todo ambiente e não é removido por esta tela.</span>
+              {% else %}
+              <form method="post" action="/api/colaborador" x-target="config-area"
+                    class="flex gap-8 items-center" style="flex-wrap: wrap"
+                    x-data="{ vinculo: '{{ c.vinculo }}' }">
+                <input type="hidden" name="novo" value="nao" />
+                <input type="hidden" name="email" value="{{ c.email }}" />
+                <input type="hidden" name="nome" value="{{ c.nome }}" />
+                <input type="hidden" name="cargo" value="{{ c.cargo | default('', true) }}" />
+
+                <label class="sr-only" for="perfil-{{ loop.index }}">Perfil de {{ c.nome }}</label>
+                <select id="perfil-{{ loop.index }}" class="input" name="perfil" style="max-width: 160px">
+                  {% for p in perfis %}
+                  <option value="{{ p.id }}" {% if c.perfil == p.id %}selected{% endif %}>{{ p.rotulo }}</option>
+                  {% endfor %}
+                </select>
+
+                <label class="sr-only" for="vinculo-{{ loop.index }}">Vínculo de {{ c.nome }}</label>
+                <select id="vinculo-{{ loop.index }}" class="input" name="vinculo"
+                        x-model="vinculo" style="max-width: 170px">
+                  {% for v in vinculos %}
+                  <option value="{{ v.id }}" {% if c.vinculo == v.id %}selected{% endif %}>{{ v.rotulo }}</option>
+                  {% endfor %}
+                </select>
+
+                <label class="sr-only" for="empresa-{{ loop.index }}">Empresa de {{ c.nome }}</label>
+                <select id="empresa-{{ loop.index }}" class="input" name="empresa"
+                        x-show="vinculo === 'fornecedor'" style="max-width: 170px">
+                  <option value="">Selecione...</option>
+                  {% for e in empresas %}
+                  <option value="{{ e }}" {% if c.empresa == e %}selected{% endif %}>{{ e }}</option>
+                  {% endfor %}
+                </select>
+
+                <button type="submit" class="btn btn--secondary btn--sm">Salvar</button>
+              </form>
+              {% endif %}
+            </td>
+            <td class="td-center">
+              {% if c.ativo %}
+              <span class="pill pill--ok">Ativo</span>
+              {% else %}
+              <span class="pill pill--neutral">Suspenso</span>
+              {% endif %}
+            </td>
+            <td class="td-center">
+              {% if not c.operador %}
+              <button
+                type="button"
+                class="iconbtn"
+                title="Revogar o acesso de {{ c.nome }}"
+                aria-label="Revogar o acesso de {{ c.nome }}"
+                data-nome="{{ c.nome }}"
+                data-email="{{ c.email }}"
+                data-perfil="{{ rotulo_perfil(c.perfil) }}"
+                x-init="$el.innerHTML = window.icon('trash', 16)"
+                @click="
+                  TN.confirmarExclusao({
+                    title: 'Revogar acesso',
+                    mensagem: 'Esta pessoa perde o acesso ao sistema imediatamente.',
+                    labelConfirmar: 'Revogar acesso',
+                    rows: [
+                      { label: 'Nome', valor: $el.dataset.nome },
+                      { label: 'E-mail', valor: $el.dataset.email },
+                      { label: 'Perfil', valor: $el.dataset.perfil }
+                    ]
+                  }).then(function (ok) {
+                    if (ok) $ajax('/api/colaborador-remover', {
+                      method: 'post',
+                      body: { email: $el.dataset.email },
+                      target: 'config-area'
+                    });
+                  })
+                "
+              ></button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3>Ninguém cadastrado</h3>
+      <p>Libere o primeiro acesso no formulário acima.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

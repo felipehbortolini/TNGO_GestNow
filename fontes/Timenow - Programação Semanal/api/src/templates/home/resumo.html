@@ -1,0 +1,171 @@
+{% extends "base_fragment.html" %}
+{#
+  O estado da semana em uma tela.
+
+  Ordem escolhida por urgência, não por assunto: primeiro o que bloqueia
+  (janela fechada), depois o que espera decisão de quem está lendo,
+  depois os números, depois onde agir. Quem abre o app de manhã precisa
+  ver o que fazer antes de ver como está indo.
+
+  Espera: r (resumo_semana), janela, status, turnos, projeto, user.
+#}
+{% block fragment %}
+{% if janela.eh_fornecedor %}
+<div class="janela-aviso {{ '' if janela.aberta else 'janela-aviso--fechada' }}" role="status">
+  <span class="janela-aviso__icone"
+        x-init="$el.innerHTML = window.icon('{{ 'checkCircle' if janela.aberta else 'lock' }}', 20)"
+        aria-hidden="true"></span>
+  <span class="janela-aviso__texto">
+    {% if janela.aberta %}
+    <strong>Janela aberta.</strong> {{ janela.motivo }}
+    {% else %}
+    <strong>Janela fechada.</strong> {{ janela.motivo }}
+    {% endif %}
+  </span>
+  <a href="/_views/programacao.html" x-target="app-shell" class="btn btn--secondary btn--sm">
+    Ir para a programação
+  </a>
+</div>
+{% endif %}
+
+{% if r.aguardando_aprovacao and pode(user, 'aprovar_realizado') %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>{{ r.aguardando_aprovacao | length }} realizado(s) aguardando a sua aprovação.</strong>
+  <span>
+    Abra a programação filtrada por “aguardando o fiscal” para avaliar cada registro.
+  </span>
+</div>
+{% endif %}
+
+{% if r.situacao.em_elaboracao and pode(user, 'validar') %}
+<div class="aviso aviso--info mb-16" role="status">
+  <strong>{{ r.situacao.em_elaboracao }} programação(ões) em elaboração.</strong>
+  <span>Validar libera o fornecedor a reportar o realizado da semana.</span>
+</div>
+{% endif %}
+
+<div class="kpis" style="--kpis-colunas: 4">
+  <div class="kpi kpi--{{ 'ok' if r.aderencia >= r.meta_aderencia else 'erro' }}" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('chart', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Aderência</span>
+    <span class="kpi__value">{{ r.aderencia | pct(0) }}</span>
+  </div>
+  <div class="kpi kpi--{{ 'ok' if r.ppc_medio >= r.meta_ppc else 'warn' }}" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">PPC médio</span>
+    <span class="kpi__value">{{ r.ppc_medio | pct(0) }}</span>
+  </div>
+  <div class="kpi kpi--neutro" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Atividades</span>
+    <span class="kpi__value">{{ r.total_atividades }}</span>
+  </div>
+  <div class="kpi kpi--info" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Frentes ativas</span>
+    <span class="kpi__value">{{ r.frentes_ativas }}</span>
+  </div>
+</div>
+
+<div class="graficos graficos--duas">
+  <section class="card grafico">
+    <div class="grafico__topo">
+      <div>
+        <h2 class="grafico__titulo">Aderência da semana {{ r.semana }}</h2>
+        <p class="grafico__sub">{{ r.periodo }} · meta de {{ r.meta_aderencia | pct(0) }}</p>
+      </div>
+    </div>
+    <div class="grafico__tela" style="min-height: 220px; display: flex; justify-content: center"
+         data-grafico="rosca">
+      <script type="application/json">
+        {"valor": {{ r.aderencia }}, "meta": {{ r.meta_aderencia }}, "rotulo": "Aderência"}
+      </script>
+    </div>
+    <div class="grafico__rodape">
+      Aderência é o total realizado dividido pelo total previsto da semana.
+    </div>
+  </section>
+
+  <section class="card grafico">
+    <div class="grafico__topo">
+      <div>
+        <h2 class="grafico__titulo">Onde a semana está</h2>
+        <p class="grafico__sub">Distribuição das atividades no fluxo de liberação</p>
+      </div>
+    </div>
+    <div class="card__body" style="display: flex; flex-direction: column; gap: 20px">
+      {% for bloco in status %}{% include "comum/_faixa_status.html" %}{% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="graficos graficos--duas mt-24">
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Produção por dia</h2>
+    </div>
+    <div class="card__body">
+      {# barras-simples e não o gráfico com drill: os sete dias de uma
+         semana não têm mês nem ano para agrupar. #}
+      <div class="grafico__tela grafico__tela--media" data-grafico="barras-simples">
+        <script type="application/json">
+          {"rotulo": "Produção por dia da semana",
+           "itens": [
+             {% for d in turnos %}
+             {"rotulo": {{ d.rotulo | tojson }},
+              "detalhe": {{ d.nome | tojson }},
+              "previsto": {{ d.previsto }},
+              "realizado": {{ (d.dia + d.noite) | round(2) }}}{{ "," if not loop.last }}
+             {% endfor %}
+           ]}
+        </script>
+      </div>
+      <div class="grafico-legenda" style="justify-content: center; padding-bottom: 8px">
+        <span><i style="background: var(--laranja-700)"></i>Previsto</span>
+        <span><i style="background: var(--verde-500)"></i>Realizado</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Precisa de atenção</h2>
+      <span class="hint">PPC mais baixo da semana</span>
+    </div>
+    <div class="card__body">
+      {% if r.criticas %}
+      <ul class="lista-simples">
+        {% for a in r.criticas %}
+        <li class="lista-simples__item">
+          <span class="linha__dot" style="background: var(--{{ 'erro' if a.faixa == 'baixa' else ('warn' if a.faixa == 'media' else 'ok') }}-500)"></span>
+          <div class="linha__main">
+            <div class="linha__id">{{ a.id_exclusiva }} · {{ a.empresa }}</div>
+            <div class="linha__titulo">{{ a.atividade }}</div>
+            <div class="linha__meta">{{ a.local }} · {{ a.encarregado }}</div>
+          </div>
+          <span class="mppc mppc--{{ a.faixa }}">
+            <span class="mppc__valor">{{ a.ppc | pct(0) }}</span>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty">
+        <img src="/ds/assets/ilustra-sucesso.png" alt="" />
+        <h3>Nada em alerta</h3>
+        <p>Nenhuma atividade da semana está abaixo da faixa de atenção.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<div class="acoes-rodape mt-24">
+  <a href="/_views/dashboard.html" x-target="app-shell" class="btn btn--secondary">
+    Ver o dashboard completo
+  </a>
+  <a href="/_views/programacao.html" x-target="app-shell" class="btn btn--primary">
+    Abrir a programação
+  </a>
+</div>
+{% endblock %}

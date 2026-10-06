@@ -1,0 +1,53 @@
+{#
+  Partial — a faixa de indicadores da semana.
+
+  Os números são contados no servidor. Cada tile é um botão que filtra a
+  matriz: o indicador não é só leitura, é o caminho para a lista que ele
+  resume.
+
+  Espera: total, aderencia, ppc_medio, meta_aderencia, situacao, semana.
+#}
+{% set faixa_ader = aderencia | faixa %}
+<button
+  type="button"
+  class="kpi kpi--neutro"
+  @click="$ajax('/api/programacao?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })"
+>
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">Atividades</span>
+  <span class="kpi__value">{{ total }}</span>
+</button>
+
+<div class="kpi kpi--{{ 'ok' if faixa_ader == 'alta' else ('warn' if faixa_ader == 'media' else 'erro') }}" style="cursor: default">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('chart', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">Aderência</span>
+  <span class="kpi__value">{{ aderencia | pct(0) }}</span>
+</div>
+
+<div class="kpi kpi--info" style="cursor: default">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">PPC médio</span>
+  <span class="kpi__value">{{ ppc_medio | pct(0) }}</span>
+</div>
+
+<button
+  type="button"
+  class="kpi kpi--warn"
+  title="Realizados registrados aguardando o fiscal"
+  @click="$ajax('/api/programacao?semana={{ semana | urlencode }}&amp;aprovacao=pendente', { target: 'prog-resumo prog-tabela' })"
+>
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">Aguardando fiscal</span>
+  <span class="kpi__value">{{ situacao.pendentes }}</span>
+</button>
+
+<button
+  type="button"
+  class="kpi kpi--erro"
+  title="Atividades sem nenhum realizado registrado"
+  @click="$ajax('/api/programacao?semana={{ semana | urlencode }}&amp;ppc=baixa', { target: 'prog-resumo prog-tabela' })"
+>
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+  <span class="kpi__label">PPC abaixo de 60%</span>
+  <span class="kpi__value">{{ situacao.sem_realizado }}</span>
+</button>

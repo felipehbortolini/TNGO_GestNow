@@ -1,0 +1,23 @@
+<!--
+  Configurações — quatro assuntos em sub-abas, cada um com sua permissão.
+
+  A sub-navegação vem do servidor junto do conteúdo: quem não pode abrir
+  Colaboradores não recebe a aba, e não só deixa de vê-la.
+-->
+<main id="app-shell" class="content">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Administração</p>
+        <h1 class="h-dash">Configurações</h1>
+        <p class="page-head__sub">
+          Parâmetros do projeto, cadastros de apoio, janelas de programação e acessos.
+        </p>
+      </div>
+    </div>
+
+    <div id="config-area" x-init="$ajax('/api/configuracoes-geral', { target: 'config-area' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+</main>

@@ -1,0 +1,241 @@
+/* ==========================================================================
+   tokens.css | Gestão Integrada AMT (Timenow)
+   ÚNICA origem de cor do sistema. Nenhum outro arquivo declara hexadecimal.
+
+   Camadas:
+     1. Paleta oficial (PDF "Cores Padrões - MODELO BI - Rev.00")
+     2. Derivadas (misturas de tons oficiais com branco; valor e fórmula
+        documentados ao lado)
+     3. Semânticas (o que as telas usam)
+     4. Tipografia, espaçamento, raios, sombras, camadas, tamanhos, movimento
+
+   Breakpoints (media queries não aceitam variáveis; ficam documentados aqui):
+     mobile pequeno  <= 480px
+     mobile          <= 768px   (sidebar vira gaveta; modais em tela cheia)
+     tablet          <= 1024px  (sidebar recolhida em trilho de ícones)
+     desktop         >  1024px
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------------
+     1. PALETA OFICIAL
+     ------------------------------------------------------------------------ */
+
+  /* 1.1 Institucional (PDF, pág. 1 e 2) */
+  --brand-verde:   #006357; /* Verde Timenow: principais, títulos, fundos. RGB 0 99 87 */
+  --brand-cinza:   #54605e; /* Cinza Timenow: texto. RGB 84 96 94 */
+  --brand-detalhe: #00a793; /* Detalhes */
+  --brand-laranja: #eb6100; /* Detalhes (usado como destaque: ver README 2.5 D1) */
+  --brand-branco:  #ffffff;
+  --brand-preto:   #000000;
+
+  /* 1.2 Escalas tonais (PDF, pág. 1). Tom 5 = base da família. */
+  --teal-1: #ccede9; --teal-2: #99dcd4; --teal-3: #66cabe; --teal-4: #33b9a9; --teal-5: #00a793;
+  --teal-6: #008676; --teal-7: #006458; --teal-8: #00433b; --teal-9: #00211d;
+
+  --roxo-1: #e3d7ef; --roxo-2: #c7afdf; --roxo-3: #ac88d0; --roxo-4: #9060c0; --roxo-5: #7438b0;
+  --roxo-6: #5d2d8d; --roxo-7: #46226a; --roxo-8: #2e1646; --roxo-9: #170b23;
+
+  --laranja-1: #fbdfcc; --laranja-2: #f7c099; --laranja-3: #f3a066; --laranja-4: #ef8133; --laranja-5: #eb6100;
+  --laranja-6: #bc4e00; --laranja-7: #8d3a00; --laranja-8: #5e2700; --laranja-9: #2f1300;
+
+  --azul-1: #e0e9ec; --azul-2: #c1d2d9; --azul-3: #a2bcc6; --azul-4: #83a5b3; --azul-5: #648fa0;
+  --azul-6: #507280; --azul-7: #3c5660; --azul-8: #283940; --azul-9: #141d20;
+
+  --areia-1: #efebe3; --areia-2: #dfd6c8; --areia-3: #d0c2ac; --areia-4: #c0ad91; --areia-5: #b09975;
+  --areia-6: #8d7a5e; --areia-7: #6a5c46; --areia-8: #463d2f; --areia-9: #231f17;
+
+  --cinza-1: #eaeaea; --cinza-2: #c4c6c6; --cinza-3: #959b9a; --cinza-4: #6b7775; --cinza-5: #54605e;
+  --cinza-6: #4a5452; --cinza-7: #414948; --cinza-8: #343a39; --cinza-9: #1f2322;
+
+  /* 1.3 EXCEÇÃO E1 (fora da paleta oficial, aprovada em 24/09/2026)
+     Vermelho financeiro: derivado da escala Laranja oficial (mesma luminosidade
+     e croma por tom, matiz girado para OKLCH 27 graus). Uso restrito a desvio
+     desfavorável de custo (sobrecusto). Ver README 2.7. */
+  --vermelho-1: #ffdcd7; --vermelho-2: #feb9b0; --vermelho-3: #fb968b; --vermelho-4: #f7756a; --vermelho-5: #ef574e;
+  --vermelho-6: #c0463e; --vermelho-7: #90332d; --vermelho-8: #61221d; --vermelho-9: #310f0d;
+
+  /* ------------------------------------------------------------------------
+     2. DERIVADAS (mistura linear sRGB; "x% A" = x% do tom A + restante branco)
+     ------------------------------------------------------------------------ */
+  --derivada-fundo:          #f4f4f4; /* 50% cinza-1: fundo de página */
+  --derivada-fundo-sutil:    #fafafa; /* 25% cinza-1: cabeçalho de tabela, zebra */
+  --derivada-borda:          #e2e2e2; /* 50% cinza-2: bordas de card e divisórias */
+  --derivada-borda-controle: #808988; /* 50% cinza-3 + 50% cinza-4: borda de campo (3,6:1, AA não textual) */
+  --derivada-teal-sutil:     #ebf8f6; /* 40% teal-1: seleção, hover de linha */
+  --derivada-laranja-sutil:  #fdefe6; /* 50% laranja-1: linha em alerta */
+  --derivada-texto-2:        #606c6a; /* 50% cinza-5 + 50% cinza-4: texto secundário (4,96:1 sobre o fundo) */
+
+  /* Transparências (canais RGB de tons oficiais) */
+  --derivada-sombra-rgb:  0, 67, 59;    /* teal-8 */
+  --derivada-overlay:     rgba(31, 35, 34, 0.52);   /* cinza-9 */
+  --derivada-branco-10:   rgba(255, 255, 255, 0.10);
+  --derivada-branco-16:   rgba(255, 255, 255, 0.16);
+  --derivada-branco-72:   rgba(255, 255, 255, 0.72);
+  --derivada-area-real:   rgba(0, 99, 87, 0.10);    /* brand-verde a 10%: área sob a linha */
+
+  /* ------------------------------------------------------------------------
+     3. SEMÂNTICAS
+     ------------------------------------------------------------------------ */
+
+  /* Marca */
+  --color-primary:              var(--brand-verde);
+  --color-primary-hover:        var(--teal-8);
+  --color-primary-soft:         var(--teal-1);
+  --color-on-primary:           var(--brand-branco);
+  --color-accent:               var(--brand-detalhe);   /* bordas, foco, ícones, gráficos */
+  --color-accent-text:          var(--teal-7);          /* texto verde-água (7,09:1) */
+  --color-highlight:            var(--brand-laranja);   /* só decorativo, sem texto em cima */
+  --color-highlight-fill:       var(--laranja-6);       /* botão de destaque (4,97:1) */
+  --color-highlight-fill-hover: var(--laranja-7);
+
+  /* Texto */
+  --text-default:  var(--brand-cinza);
+  --text-strong:   var(--cinza-8);
+  --text-muted:    var(--derivada-texto-2);
+  --text-heading:  var(--brand-verde);
+  --text-link:     var(--brand-verde);
+  --text-inverse:  var(--brand-branco);
+  --text-on-dark-muted: var(--teal-1);                 /* texto secundário sobre o verde (5,77:1) */
+  --text-on-dark-label: var(--teal-2);                 /* rótulos de grupo na sidebar (4,63:1) */
+
+  /* Superfícies */
+  --surface-page:     var(--derivada-fundo);
+  --surface-card:     var(--brand-branco);
+  --surface-sunken:   var(--derivada-fundo-sutil);
+  --surface-selected: var(--derivada-teal-sutil);
+  --surface-alert:    var(--derivada-laranja-sutil);
+  --surface-dark:     var(--brand-verde);
+  --surface-dark-hover:  var(--derivada-branco-10);
+  --surface-dark-active: var(--brand-branco);
+  --surface-overlay:  var(--derivada-overlay);
+
+  /* Bordas e foco */
+  --border-default: var(--derivada-borda);
+  --border-strong:  var(--cinza-2);
+  --border-control: var(--derivada-borda-controle);
+  --border-focus:   var(--brand-detalhe);
+  --focus-on-dark:  var(--brand-branco);
+
+  /* Módulos (faixa de destaque dos cards da Home e da sidebar) */
+  --module-central:      var(--brand-verde);   /* 01 */
+  --module-planejamento: var(--brand-detalhe); /* 02 */
+  --module-financeiro:   var(--azul-5);        /* 03 */
+  --module-suprimentos:  var(--azul-7);        /* 04 */
+  --module-riscos:       var(--brand-laranja); /* 05 */
+  --module-qualidade:    var(--roxo-5);        /* 06 */
+  --module-hse:          var(--areia-6);       /* 07 */
+  --module-governanca:   var(--cinza-5);       /* 08 */
+
+  /* Estados (fundo claro + texto escuro da mesma família; "solid" para barras e pontos) */
+  --status-success-bg: var(--teal-1);    --status-success-fg: var(--teal-8);    --status-success-solid: var(--teal-6);
+  --status-danger-bg:  var(--laranja-1); --status-danger-fg:  var(--laranja-7); --status-danger-solid:  var(--laranja-6);
+  --status-warning-bg: var(--areia-1);   --status-warning-fg: var(--areia-7);   --status-warning-solid: var(--areia-5);
+  --status-info-bg:    var(--azul-1);    --status-info-fg:    var(--azul-7);    --status-info-solid:    var(--azul-6);
+  --status-purple-bg:  var(--roxo-1);    --status-purple-fg:  var(--roxo-6);    --status-purple-solid:  var(--roxo-5);
+  --status-neutral-bg: var(--cinza-1);   --status-neutral-fg: var(--cinza-7);   --status-neutral-solid: var(--cinza-4);
+
+  /* Severidade de risco (matriz 5x5) */
+  --sev-baixo-bg:    var(--teal-2);    --sev-baixo-fg:    var(--teal-8);      /* 7,26:1 */
+  --sev-moderado-bg: var(--laranja-2); --sev-moderado-fg: var(--cinza-9);     /* 9,80:1 */
+  --sev-alto-bg:     var(--laranja-5); --sev-alto-fg:     var(--cinza-9);     /* 4,72:1 */
+  --sev-critico-bg:  var(--laranja-7); --sev-critico-fg:  var(--brand-branco);/* 7,67:1 */
+  --sev-vazio-bg:    var(--derivada-fundo-sutil);
+  /* Oportunidades: mesma escala, leitura invertida (score alto = prioridade de captura) */
+  --oport-baixo-bg:    var(--teal-1); --oport-baixo-fg:    var(--teal-8);      /* 9,03:1 */
+  --oport-moderado-bg: var(--teal-3); --oport-moderado-fg: var(--cinza-9);     /* 8,14:1 */
+  --oport-alto-bg:     var(--teal-5); --oport-alto-fg:     var(--cinza-9);     /* 5,26:1 */
+  --oport-critico-bg:  var(--teal-7); --oport-critico-fg:  var(--brand-branco);/* 7,09:1 */
+
+  /* Financeiro: mapa de calor do desvio (projeção no término x orçado atual) */
+  --fin-sobrecusto-3-bg: var(--vermelho-6); --fin-sobrecusto-3-fg: var(--brand-branco); /* acima de 10% (5,02:1) */
+  --fin-sobrecusto-2-bg: var(--vermelho-3); --fin-sobrecusto-2-fg: var(--cinza-9);      /* 5% a 10% (7,44:1) */
+  --fin-sobrecusto-1-bg: var(--vermelho-1); --fin-sobrecusto-1-fg: var(--vermelho-7);   /* 1% a 5% (6,11:1) */
+  --fin-neutro-bg:       var(--cinza-1);    --fin-neutro-fg:       var(--cinza-7);      /* menos de 1% (7,69:1) */
+  --fin-economia-1-bg:   var(--teal-1);     --fin-economia-1-fg:   var(--teal-8);       /* 1% a 5% (9,03:1) */
+  --fin-economia-2-bg:   var(--teal-3);     --fin-economia-2-fg:   var(--cinza-9);      /* 5% a 10% (8,14:1) */
+  --fin-economia-3-bg:   var(--teal-7);     --fin-economia-3-fg:   var(--brand-branco); /* acima de 10% (7,09:1) */
+  --fin-sobrecusto-texto: var(--vermelho-7); /* valor em texto sobre branco (7,79:1) */
+  --fin-economia-texto:   var(--teal-7);     /* valor em texto sobre branco (7,09:1) */
+
+  /* HSE: pirâmide de Heinrich/Bird (ordinal: topo = mais grave) */
+  --pyramid-1-bg: var(--laranja-7); --pyramid-1-fg: var(--brand-branco); /* lesão grave (7,67:1) */
+  --pyramid-2-bg: var(--laranja-5); --pyramid-2-fg: var(--cinza-9);      /* lesão leve (4,72:1) */
+  --pyramid-3-bg: var(--laranja-3); --pyramid-3-fg: var(--cinza-9);      /* dano material (7,59:1) */
+  --pyramid-4-bg: var(--laranja-2); --pyramid-4-fg: var(--cinza-9);      /* quase acidente (9,80:1) */
+  --pyramid-5-bg: var(--laranja-1); --pyramid-5-fg: var(--cinza-9);      /* desvios */
+
+  /* Gráficos (validados com o validador de paleta: ver README) */
+  --chart-1: var(--teal-6);     /* categórica, ordem fixa */
+  --chart-2: var(--laranja-5);
+  --chart-3: var(--roxo-5);
+  --chart-4: var(--azul-6);
+  --chart-outros: var(--cinza-3);
+  --chart-baseline: var(--azul-5);      /* Curva S */
+  --chart-real:     var(--brand-verde);
+  --chart-forecast: var(--laranja-5);
+  --chart-area-real: var(--derivada-area-real);
+  --chart-capex-planejado:   var(--azul-5);      /* Curva S financeira */
+  --chart-capex-comprometido: var(--roxo-5);
+  --chart-capex-realizado:   var(--brand-verde);
+  --chart-cascata-total:     var(--brand-verde); /* Contratos: valor original, atual, saldo */
+  --chart-cascata-aumento:   var(--laranja-5);   /* aditivos */
+  --chart-cascata-reducao:   var(--roxo-5);      /* medido */
+  --chart-desembolso-previsto: var(--azul-5);
+  --chart-desembolso-realizado: var(--brand-verde);
+  --chart-seq-1: var(--teal-1); --chart-seq-2: var(--teal-3); --chart-seq-3: var(--teal-5);
+  --chart-seq-4: var(--teal-6); --chart-seq-5: var(--teal-8);
+  --chart-grid:    var(--derivada-borda);
+  --chart-axis:    var(--text-muted);
+  --chart-surface: var(--brand-branco);
+  --chart-tooltip-bg: var(--cinza-9);
+  --chart-tooltip-fg: var(--brand-branco);
+
+  /* ------------------------------------------------------------------------
+     4. TIPOGRAFIA
+     ------------------------------------------------------------------------ */
+  --font-title: "Montserrat", "Segoe UI", Arial, sans-serif;
+  --font-text:  "Roboto", "Segoe UI", Arial, sans-serif;
+
+  --fs-100: 0.75rem;   /* 12px: legendas, rótulos de badge */
+  --fs-200: 0.8125rem; /* 13px: texto auxiliar, células densas */
+  --fs-300: 0.875rem;  /* 14px: texto padrão */
+  --fs-400: 1rem;      /* 16px: campos no mobile, subtítulos */
+  --fs-500: 1.125rem;  /* 18px: título de card */
+  --fs-600: 1.375rem;  /* 22px: título de seção */
+  --fs-700: 1.75rem;   /* 28px: título de página */
+  --fs-800: 2.25rem;   /* 36px: valor de KPI */
+
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+  --lh-tight: 1.2; --lh-snug: 1.35; --lh-normal: 1.5;
+
+  /* ------------------------------------------------------------------------
+     5. ESPAÇAMENTO (base 4px), RAIOS, SOMBRAS
+     ------------------------------------------------------------------------ */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px; --space-5: 20px;
+  --space-6: 24px; --space-7: 32px; --space-8: 40px; --space-9: 48px; --space-10: 64px;
+
+  --radius-xs: 4px; --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 22px;
+  --radius-pill: 999px; /* TODOS os botões */
+
+  --shadow-sm: 0 1px 2px rgba(var(--derivada-sombra-rgb), 0.06), 0 1px 3px rgba(var(--derivada-sombra-rgb), 0.06);
+  --shadow-md: 0 4px 16px rgba(var(--derivada-sombra-rgb), 0.08);
+  --shadow-lg: 0 18px 48px rgba(var(--derivada-sombra-rgb), 0.20);
+
+  /* ------------------------------------------------------------------------
+     6. CAMADAS, TAMANHOS, MOVIMENTO
+     ------------------------------------------------------------------------ */
+  --z-sidebar: 40; --z-header: 50; --z-backdrop: 60; --z-drawer: 70; --z-modal: 80; --z-toast: 90;
+
+  --header-h: 64px;
+  --sidebar-w: 272px;
+  --sidebar-w-rail: 76px;
+  --content-max: 1440px;
+  --control-h: 44px;     /* alvo de toque mínimo */
+  --control-h-sm: 36px;  /* só com mouse (pointer: fine) */
+  --icon-size: 18px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 220ms;
+}

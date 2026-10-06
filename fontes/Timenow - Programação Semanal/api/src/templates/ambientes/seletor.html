@@ -1,0 +1,95 @@
+{% extends "base_fragment.html" %}
+{#
+  O seletor de ambientes — a primeira tela depois do SSO.
+
+  Uma caixa por ambiente acessível, com o nome do projeto e do cliente.
+  Escolher grava o cookie (legível por JS — decisão 5, revisão 2.1) e
+  pede a validação ao servidor; a resposta redireciona, o shell recarrega
+  e o boot segue para o destino que preservou. Com um ambiente só, a
+  caixa escolhe sozinha — não existe clique sem alternativa. Com nenhum,
+  a tela explica e diz a quem pedir liberação, nunca uma lista vazia.
+
+  O cookie é de sessão, SameSite=Lax, caminho raiz, e Secure fora do
+  modo local.
+#}
+{% block fragment %}
+<div
+  class="page"
+  data-seguro="{{ 'sim' if seguro else 'nao' }}"
+  x-data="{
+    escolher(ambiente, destino) {
+      const seguro = $root.dataset.seguro === 'sim' ? ';Secure' : '';
+      document.cookie = 'tn_ambiente=' + ambiente + ';path=/;SameSite=Lax' + seguro;
+      // A marca de entrada desta aba: é ela que autoriza o boot a
+      // seguir para dentro em vez de mostrar o seletor de novo
+      // (revisão 3, item 3). Sem ela a escolha entraria em laço.
+      TN.marcarEntrada(ambiente);
+      // O alvo é o shell, e não o elemento da chamada: a resposta é o
+      // redirecionamento da decisão 16, capturado pelo @ajax:redirect
+      // do #app-shell. Sem alvo declarado, o Alpine AJAX cai no
+      // elemento de origem — que não tem id — e a escolha morre num
+      // IDError antes de o redirecionamento ser processado.
+      $ajax('/api/ambiente-escolher', {
+        method: 'post',
+        body: { ambiente, destino },
+        target: 'app-shell'
+      });
+    }
+  }"
+>
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Programação semanal de serviços</p>
+      <h1 class="h-dash">Escolha onde trabalhar</h1>
+      <p class="page-head__sub">
+        Cada caixa é a base de um cliente. Escolha a sua para começar.
+      </p>
+    </div>
+    {% if operador %}
+    <div class="page-head__actions">
+      <a href="/api/ambientes-administracao" x-target="app-shell" class="btn btn--ghost">
+        <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
+        Administração
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if recusa %}
+  <div class="aviso aviso--erro">
+    <p>{{ recusa }}</p>
+  </div>
+  {% endif %}
+
+  {% if ambientes %}
+  <ul class="lista-simples">
+    {% for ambiente in ambientes %}
+    <li class="lista-simples__item">
+      <span class="linha__main">
+        <span class="linha__titulo">{{ ambiente.projeto }}</span>
+        <span class="linha__meta">{{ ambiente.cliente }}</span>
+      </span>
+      <button
+        type="button"
+        class="btn btn--primary"
+        data-ambiente="{{ ambiente.id }}"
+        data-destino="{{ destino }}"
+        @click="escolher($el.dataset.ambiente, $el.dataset.destino)"
+      >
+        Entrar
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty">
+    <img src="/ds/assets/ilustra-acesso-negado.png" alt="" />
+    <h3>Nenhum ambiente disponível</h3>
+    <p>
+      O seu e-mail não tem acesso a nenhum ambiente de cliente.
+      Peça a liberação à equipe Timenow.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

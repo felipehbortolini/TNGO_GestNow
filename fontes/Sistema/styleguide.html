@@ -1,0 +1,1394 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Styleguide | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    /* Estilos exclusivos do styleguide (sem cor própria: só variáveis) */
+    .sg-toc { position: sticky; top: calc(var(--header-h) + 8px); z-index: 5; margin-bottom: var(--space-7); }
+    .sg-toc .tabs { width: auto; flex-wrap: nowrap; box-shadow: var(--shadow-sm); }
+    .sg-section { scroll-margin-top: calc(var(--header-h) + 80px); }
+    .sg-lead { margin: var(--space-2) 0 var(--space-5); color: var(--text-muted); max-width: 80ch; }
+    .sg-demo { padding: var(--space-5); border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-card); }
+    .sg-label { display: block; margin-bottom: var(--space-2); font-size: var(--fs-100); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+    .sg-scale-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--space-4); align-items: center; }
+    .sg-scale-row + .sg-scale-row { margin-top: var(--space-3); }
+    .sg-type-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--space-4); align-items: baseline; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-default); }
+    .sg-type-row:last-child { border-bottom: 0; }
+    .sg-space { display: flex; align-items: center; gap: var(--space-3); font-size: var(--fs-200); }
+    .sg-space__bar { height: 12px; border-radius: var(--radius-pill); background: var(--color-accent); }
+    .sg-box { display: grid; place-items: center; height: 72px; background: var(--surface-card); border: 1px solid var(--border-default); font-size: var(--fs-100); color: var(--text-muted); text-align: center; }
+    .sg-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--space-2); }
+    .sg-icon { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: var(--space-3) var(--space-1); border-radius: var(--radius-md); background: var(--surface-sunken); font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; text-align: center; }
+    .sg-icon svg { width: 22px; height: 22px; color: var(--text-strong); }
+    .sg-contrast td:nth-child(3) { font-variant-numeric: tabular-nums; }
+    .sg-sample { display: inline-grid; place-items: center; min-width: 64px; padding: 6px 12px; border-radius: var(--radius-sm); font-weight: var(--fw-semibold); background: var(--sg-bg); color: var(--sg-fg); }
+    @media (max-width: 768px) {
+      .sg-scale-row, .sg-type-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+      .sg-toc { top: calc(var(--header-h) + 4px); }
+    }
+  </style>
+</head>
+<body data-root="" data-page="styleguide">
+<div class="app">
+  <main class="app-main" id="conteudo" data-sem-traducao>
+    <div class="container">
+
+      <h1 class="sr-only">Styleguide</h1>
+
+      <!-- Sumário -->
+      <nav class="sg-toc" aria-label="Seções do styleguide">
+        <div class="tabs">
+          <a class="tab" href="#paleta">Paleta</a>
+          <a class="tab" href="#semanticas">Cores aplicadas</a>
+          <a class="tab" href="#tipografia">Tipografia</a>
+          <a class="tab" href="#fundamentos">Fundamentos</a>
+          <a class="tab" href="#icones">Ícones</a>
+          <a class="tab" href="#botoes">Botões</a>
+          <a class="tab" href="#badges">Badges</a>
+          <a class="tab" href="#formularios">Formulários</a>
+          <a class="tab" href="#cards">Cards e KPIs</a>
+          <a class="tab" href="#tabelas">Tabelas</a>
+          <a class="tab" href="#abas">Abas</a>
+          <a class="tab" href="#modais">Modais</a>
+          <a class="tab" href="#upload">Upload</a>
+          <a class="tab" href="#alertas">Alertas</a>
+          <a class="tab" href="#progresso">Progresso</a>
+          <a class="tab" href="#kanban">Kanban e matriz</a>
+          <a class="tab" href="#graficos">Gráficos</a>
+          <a class="tab" href="#financeiro">Financeiro</a>
+          <a class="tab" href="#suprimentos">Suprimentos</a>
+          <a class="tab" href="#hse">HSE</a>
+          <a class="tab" href="#estrutura">Estrutura</a>
+        </div>
+      </nav>
+
+      <!-- ================================================================
+           1. PALETA OFICIAL
+           ================================================================ -->
+      <section class="sg-section section" id="paleta" aria-labelledby="t-paleta">
+        <h2 class="section-title" id="t-paleta">1. Paleta oficial</h2>
+        <p class="sg-lead">Paleta oficial "Cores Padrões - MODELO BI - Rev.00", extraída do PDF (prevalece sobre a transcrição .md) e aprovada em 25/09/2026. Todas as cores vêm de <code>css/tokens.css</code>; os hexadecimais abaixo são lidos das variáveis em tempo real. Institucionais na primeira linha; escalas tonais de 9 tons abaixo, com o tom 5 (contornado) como base da família.</p>
+
+        <div class="grid grid--auto">
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-verde)"></div>
+            <div class="swatch__info"><b>Verde Timenow</b><code data-hex="brand-verde"></code><span>Principais, títulos, fundos</span></div></div>
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-cinza)"></div>
+            <div class="swatch__info"><b>Cinza Timenow</b><code data-hex="brand-cinza"></code><span>Texto</span></div></div>
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-detalhe)"></div>
+            <div class="swatch__info"><b>Detalhe verde-água</b><code data-hex="brand-detalhe"></code><span>Detalhes (bordas, foco, ícones)</span></div></div>
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-laranja)"></div>
+            <div class="swatch__info"><b>Laranja</b><code data-hex="brand-laranja"></code><span>Detalhes (destaque decorativo)</span></div></div>
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-branco)"></div>
+            <div class="swatch__info"><b>Branco</b><code data-hex="brand-branco"></code><span>Superfícies</span></div></div>
+          <div class="swatch swatch--lg"><div class="swatch__color" style="--sw: var(--brand-preto)"></div>
+            <div class="swatch__info"><b>Preto</b><code data-hex="brand-preto"></code><span>Institucional</span></div></div>
+        </div>
+
+        <div class="card mt-6">
+          <div class="card__header"><div><h3 class="card__title">Escalas tonais</h3><p class="card__subtitle">Tokens <code>--familia-1</code> (mais claro) a <code>--familia-9</code> (mais escuro). O Vermelho é a exceção E1, fora da paleta, derivado do Laranja e restrito ao sobrecusto financeiro.</p></div></div>
+          <div id="sg-escalas"></div>
+        </div>
+
+        <div class="alert mt-4">
+          <i data-icon="info"></i>
+          <div class="alert__body"><span class="alert__title">Paletas auxiliares Time Connect</span>
+            O PDF traz duas amostras de outro produto (Time Connect). Estão registradas no README, mas não fazem parte deste design system.</div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           2. CORES APLICADAS
+           ================================================================ -->
+      <section class="sg-section section" id="semanticas" aria-labelledby="t-sem">
+        <h2 class="section-title" id="t-sem">2. Cores aplicadas (tokens semânticos)</h2>
+        <p class="sg-lead">As telas nunca usam a escala diretamente: usam papéis. A paleta não tem vermelho nem amarelo, então alerta e perigo usam o laranja escuro e atenção usa a areia.</p>
+
+        <div class="grid grid--2">
+          <div class="card">
+            <h3 class="card__title mb-4">Estados</h3>
+            <div class="stack stack--sm">
+              <div class="split"><span class="badge badge--success badge--dot">Concluída</span><span class="text-small text-muted">Sucesso · verde-água</span></div>
+              <div class="split"><span class="badge badge--danger badge--dot">Atrasada</span><span class="text-small text-muted">Alerta e perigo · laranja 1 e 7</span></div>
+              <div class="split"><span class="badge badge--warning badge--dot">Pendente</span><span class="text-small text-muted">Atenção · areia 1 e 7</span></div>
+              <div class="split"><span class="badge badge--info badge--dot">Em andamento</span><span class="text-small text-muted">Informação · azul 1 e 7</span></div>
+              <div class="split"><span class="badge badge--purple badge--dot">Informação</span><span class="text-small text-muted">Tipo de item da ata · roxo 1 e 6</span></div>
+              <div class="split"><span class="badge badge--neutral badge--dot">Encerrado</span><span class="text-small text-muted">Neutro · cinza 1 e 7</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Severidade de risco (5x5)</h3>
+            <div class="stack stack--sm">
+              <div class="split"><span class="sev sev--baixo">Baixo · 1 a 4</span><span class="text-small text-muted">teal 2 + teal 8</span></div>
+              <div class="split"><span class="sev sev--moderado">Moderado · 5 a 9</span><span class="text-small text-muted">laranja 2 + cinza 9</span></div>
+              <div class="split"><span class="sev sev--alto">Alto · 10 a 14</span><span class="text-small text-muted">laranja 5 + cinza 9</span></div>
+              <div class="split"><span class="sev sev--critico">Crítico · 15 a 25</span><span class="text-small text-muted">laranja 7 + branco</span></div>
+            </div>
+            <hr>
+            <h3 class="card__title mb-4">Séries de gráfico (ordem fixa)</h3>
+            <ul class="legend">
+              <li class="legend__item"><span class="legend__key legend__key--box" style="--key: var(--chart-1)"></span>1 · teal 6</li>
+              <li class="legend__item"><span class="legend__key legend__key--box" style="--key: var(--chart-2)"></span>2 · laranja 5</li>
+              <li class="legend__item"><span class="legend__key legend__key--box" style="--key: var(--chart-3)"></span>3 · roxo 5</li>
+              <li class="legend__item"><span class="legend__key legend__key--box" style="--key: var(--chart-4)"></span>4 · azul 6</li>
+              <li class="legend__item"><span class="legend__key legend__key--box" style="--key: var(--chart-outros)"></span>Outros · cinza 3</li>
+            </ul>
+            <hr>
+            <h3 class="card__title mb-4">Desvio de custo (mapa de calor)</h3>
+            <div class="cluster">
+              <span class="heat heat--sobrecusto-3"><i data-icon="arrowUp"></i>+12,0%</span>
+              <span class="heat heat--sobrecusto-2"><i data-icon="arrowUp"></i>+7,5%</span>
+              <span class="heat heat--sobrecusto-1"><i data-icon="arrowUp"></i>+2,5%</span>
+              <span class="heat heat--neutro">0,3%</span>
+              <span class="heat heat--economia-1"><i data-icon="arrowDown"></i>&minus;2,5%</span>
+              <span class="heat heat--economia-2"><i data-icon="arrowDown"></i>&minus;7,5%</span>
+              <span class="heat heat--economia-3"><i data-icon="arrowDown"></i>&minus;12,0%</span>
+            </div>
+            <p class="text-xs text-muted mt-2 mb-0">Sobrecusto em vermelho (exceção E1), economia em verde-água, neutro (menos de 1%) em cinza.</p>
+          </div>
+        </div>
+
+        <div class="card card--flush mt-6">
+          <div class="card__header"><div><h3 class="card__title">Contraste medido (WCAG 2.1)</h3><p class="card__subtitle">Calculado ao abrir a página a partir das variáveis. AA exige 4,5:1 para texto normal e 3:1 para texto grande e elementos gráficos.</p></div></div>
+          <div class="table-wrap table-wrap--stack mt-4">
+            <table class="table table--stack sg-contrast">
+              <thead><tr><th>Amostra</th><th>Combinação</th><th class="num">Contraste</th><th>Uso</th><th>Resultado</th></tr></thead>
+              <tbody id="sg-contraste">
+                <tr data-fg="text-inverse" data-bg="color-primary" data-uso="Botão primário, sidebar" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre Verde Timenow</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-default" data-bg="surface-card" data-uso="Texto padrão" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Cinza Timenow sobre branco</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-muted" data-bg="surface-page" data-uso="Texto secundário no fundo da página" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Texto secundário (derivado) sobre fundo</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-inverse" data-bg="color-highlight-fill" data-uso="Botão de destaque" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre laranja 6</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-inverse" data-bg="brand-laranja" data-uso="Não usado com texto (só decoração)" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre Laranja base</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-inverse" data-bg="brand-detalhe" data-uso="Não usado com texto (só decoração)" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre Detalhe base</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="color-accent-text" data-bg="surface-card" data-uso="Texto verde-água, sobrelinhas" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Teal 7 sobre branco</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="status-danger-fg" data-bg="status-danger-bg" data-uso="Badge Atrasada" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Laranja 7 sobre laranja 1</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="sev-alto-fg" data-bg="sev-alto-bg" data-uso="Célula Alto da matriz" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Cinza 9 sobre laranja 5</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="text-on-dark-muted" data-bg="surface-dark" data-uso="Ícones e texto secundário na sidebar" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Teal 1 sobre Verde Timenow</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="fin-sobrecusto-3-fg" data-bg="fin-sobrecusto-3-bg" data-uso="Sobrecusto acima de 10%" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre vermelho 6 (E1)</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="fin-sobrecusto-1-fg" data-bg="fin-sobrecusto-1-bg" data-uso="Sobrecusto de 1% a 5%" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Vermelho 7 sobre vermelho 1 (E1)</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="fin-economia-3-fg" data-bg="fin-economia-3-bg" data-uso="Economia acima de 10%" data-min="4.5"><td data-label="Amostra"></td><td data-label="Combinação">Branco sobre teal 7</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="border-control" data-bg="surface-card" data-uso="Borda de campo (elemento gráfico)" data-min="3"><td data-label="Amostra"></td><td data-label="Combinação">Borda de controle sobre branco</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+                <tr data-fg="border-focus" data-bg="surface-card" data-uso="Anel de foco (elemento gráfico)" data-min="3"><td data-label="Amostra"></td><td data-label="Combinação">Detalhe sobre branco</td><td data-label="Contraste" class="num"></td><td data-label="Uso"></td><td data-label="Resultado"></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           3. TIPOGRAFIA
+           ================================================================ -->
+      <section class="sg-section section" id="tipografia" aria-labelledby="t-tipo">
+        <h2 class="section-title" id="t-tipo">3. Tipografia</h2>
+        <p class="sg-lead">Montserrat para títulos e números de destaque; Roboto para texto, tabelas e formulários. Fontes embutidas em <code>css/fonts.css</code> (funcionam offline via <code>file://</code>).</p>
+        <div class="card">
+          <div class="sg-type-row"><span class="text-small text-muted">Página · Montserrat 700 · 28px</span><h1 class="mb-0">Programação Semanal</h1></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Seção · Montserrat 700 · 22px</span><h2>Curva S do projeto</h2></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Card · Montserrat 600 · 18px</span><h3>Pauta de escalonamento</h3></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Subtítulo · Montserrat 600 · 16px</span><h4>Anotações e Ações</h4></div>
+          <div class="sg-type-row"><span class="text-small text-muted">KPI · Montserrat 700 · 36px</span><span class="kpi__value">72,4<span class="kpi__unit">%</span></span></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Texto · Roboto 400 · 14px</span><p class="mb-0">A programação só vai ao Fiscal após a validação do Planejador. Validar não é aprovar: a aprovação do realizado é do Fiscal.</p></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Texto forte · Roboto 700</span><p class="mb-0"><b class="text-strong">Ação atrasada há 5 dias</b> · responsável Marina Alves</p></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Auxiliar · Roboto 400 · 13px</span><span class="text-small text-muted">Atualizado em 24/09/2026 às 17:40 · fonte: mock</span></div>
+          <div class="sg-type-row"><span class="text-small text-muted">Legenda · Roboto 500 · 12px</span><span class="text-xs">Valores financeiros em centavos, formatados só na exibição: <span class="num" id="sg-moeda"></span></span></div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           4. FUNDAMENTOS
+           ================================================================ -->
+      <section class="sg-section section" id="fundamentos" aria-labelledby="t-fund">
+        <h2 class="section-title" id="t-fund">4. Espaçamento, raios e sombras</h2>
+        <div class="grid grid--3">
+          <div class="card">
+            <h3 class="card__title mb-4">Espaçamento (base 4px)</h3>
+            <div class="stack stack--sm">
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-1)"></span>space-1 · 4px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-2)"></span>space-2 · 8px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-3)"></span>space-3 · 12px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-4)"></span>space-4 · 16px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-6)"></span>space-6 · 24px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-7)"></span>space-7 · 32px</div>
+              <div class="sg-space"><span class="sg-space__bar" style="width: var(--space-9)"></span>space-9 · 48px</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Raios</h3>
+            <div class="grid grid--2">
+              <div class="sg-box" style="border-radius: var(--radius-sm)">sm · 6px</div>
+              <div class="sg-box" style="border-radius: var(--radius-md)">md · 10px<br>campos</div>
+              <div class="sg-box" style="border-radius: var(--radius-lg)">lg · 16px<br>cards</div>
+              <div class="sg-box" style="border-radius: var(--radius-xl)">xl · 22px<br>modais</div>
+              <div class="sg-box col-span-2" style="border-radius: var(--radius-pill)">pill · 999px · todos os botões</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Sombras</h3>
+            <div class="stack">
+              <div class="sg-box" style="border-radius: var(--radius-md); box-shadow: var(--shadow-sm)">shadow-sm · cards</div>
+              <div class="sg-box" style="border-radius: var(--radius-md); box-shadow: var(--shadow-md)">shadow-md · hover</div>
+              <div class="sg-box" style="border-radius: var(--radius-md); box-shadow: var(--shadow-lg)">shadow-lg · modais, gaveta</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           5. ÍCONES
+           ================================================================ -->
+      <section class="sg-section section" id="icones" aria-labelledby="t-ico">
+        <h2 class="section-title" id="t-ico">5. Ícones</h2>
+        <p class="sg-lead">SVG em linha, traço de 2px, cor herdada do texto (<code>currentColor</code>). Uso: <code>&lt;i data-icon="upload"&gt;&lt;/i&gt;</code>.</p>
+        <div class="card"><div class="sg-icons" id="sg-icones"></div></div>
+      </section>
+
+      <!-- ================================================================
+           6. BOTÕES
+           ================================================================ -->
+      <section class="sg-section section" id="botoes" aria-labelledby="t-btn">
+        <h2 class="section-title" id="t-btn">6. Botões (sempre pílula)</h2>
+        <p class="sg-lead">Altura de 44px (alvo de toque). O tamanho pequeno tem 36px só com mouse; em telas de toque volta a 44px. Laranja com texto usa o tom 6 para atingir AA.</p>
+        <div class="card stack">
+          <div>
+            <span class="sg-label">Variantes</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--primary">Primário</button>
+              <button type="button" class="btn btn--secondary">Secundário</button>
+              <button type="button" class="btn btn--highlight">Destaque</button>
+              <button type="button" class="btn btn--ghost">Fantasma</button>
+              <button type="button" class="btn btn--danger">Excluir</button>
+              <button type="button" class="btn">Neutro</button>
+            </div>
+          </div>
+          <div>
+            <span class="sg-label">Com ícone e tamanhos</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--primary btn--lg"><i data-icon="plus"></i>Nova ata</button>
+              <button type="button" class="btn btn--primary"><i data-icon="plus"></i>Nova ação</button>
+              <button type="button" class="btn btn--secondary btn--sm"><i data-icon="filter"></i>Filtros</button>
+              <button type="button" class="btn btn--ghost btn--sm"><i data-icon="refresh"></i>Atualizar</button>
+            </div>
+          </div>
+          <div>
+            <span class="sg-label">Exportação (padrão de toda tabela e dashboard)</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Exportar Excel</button>
+              <button type="button" class="btn btn--secondary btn--sm"><i data-icon="filePdf"></i>Exportar PDF</button>
+            </div>
+          </div>
+          <div>
+            <span class="sg-label">Somente ícone (circular = pílula de largura igual à altura)</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--primary btn--icon" aria-label="Adicionar"><i data-icon="plus"></i></button>
+              <button type="button" class="btn btn--secondary btn--icon" aria-label="Editar"><i data-icon="edit"></i></button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Visualizar"><i data-icon="eye"></i></button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Histórico"><i data-icon="history"></i></button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Excluir"><i data-icon="trash"></i></button>
+            </div>
+          </div>
+          <div>
+            <span class="sg-label">Estados</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--primary" disabled>Desabilitado</button>
+              <button type="button" class="btn btn--primary is-loading" aria-busy="true">Salvando</button>
+              <button type="button" class="btn btn--secondary" id="sg-btn-loading">Clique para simular envio</button>
+            </div>
+          </div>
+          <div class="sg-demo" style="background: var(--surface-dark)">
+            <span class="sg-label" style="color: var(--text-on-dark-muted)">Sobre fundo verde</span>
+            <div class="cluster">
+              <button type="button" class="btn btn--on-dark"><i data-icon="logout"></i>Sair</button>
+              <button type="button" class="btn btn--on-dark btn--icon" aria-label="Menu"><i data-icon="menu"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           7. BADGES E CHIPS
+           ================================================================ -->
+      <section class="sg-section section" id="badges" aria-labelledby="t-badge">
+        <h2 class="section-title" id="t-badge">7. Badges, chips e pontuação</h2>
+        <div class="grid grid--2">
+          <div class="card stack">
+            <div><span class="sg-label">Status da ação (motor de status único)</span>
+              <div class="cluster"><span class="badge badge--info badge--dot">Em andamento</span><span class="badge badge--danger badge--dot">Atrasada</span><span class="badge badge--success badge--dot">Concluída</span><span class="badge badge--purple">Informação</span></div></div>
+            <div><span class="sg-label">Programação semanal</span>
+              <div class="cluster"><span class="badge badge--neutral">Em elaboração</span><span class="badge badge--info">Validada</span><span class="badge badge--success">Publicada</span><span class="badge badge--warning badge--dot">Realizado pendente</span><span class="badge badge--success badge--dot">Realizado aprovado</span></div></div>
+            <div><span class="sg-label">Origem da ação (Central)</span>
+              <div class="cluster"><span class="badge badge--primary">Ata</span><span class="badge badge--outline">Punch list</span><span class="badge badge--outline">Contrato</span><span class="badge badge--outline">Suprimentos</span><span class="badge badge--outline">Risco</span><span class="badge badge--outline">RNC</span><span class="badge badge--outline">HSE</span><span class="badge badge--outline">Mudança</span><span class="badge badge--outline">Lição</span><span class="badge badge--warning"><i data-icon="clock"></i>Revisão vencida</span></div></div>
+            <div><span class="sg-label">Punch list</span>
+              <div class="cluster"><span class="badge badge--danger">Cat. A</span><span class="badge badge--warning">Cat. B</span><span class="badge badge--neutral">Cat. C</span><span class="badge badge--info badge--dot">Em tratamento</span><span class="badge badge--purple badge--dot">Aguardando verificação</span><span class="badge badge--success badge--dot">Fechado</span></div></div>
+            <div><span class="sg-label">Contratos (claims, EOT, marcos, avaliação)</span>
+              <div class="cluster"><span class="badge badge--warning badge--dot">Em negociação</span><span class="badge badge--danger"><i data-icon="clock"></i>Notificado fora do prazo</span><span class="badge badge--info badge--dot">EOT em análise</span><span class="badge badge--purple badge--dot">Evidência enviada</span><span class="badge badge--success badge--dot">Pago</span><span class="badge badge--success">Classe A</span><span class="badge badge--info">Classe B</span><span class="badge badge--warning">Classe C</span><span class="badge badge--danger">Classe D</span></div></div>
+            <div><span class="sg-label">Suprimentos e HSE</span>
+              <div class="cluster"><span class="badge badge--info badge--dot">Equalização técnica</span><span class="badge badge--success badge--dot">Adjudicado</span><span class="badge badge--outline">LLI</span><span class="badge badge--danger badge--dot">Folga negativa</span><span class="badge badge--danger"><i data-icon="alertTriangle"></i>Alto potencial</span><span class="badge badge--warning badge--dot">Em investigação</span><span class="badge badge--success badge--dot">Eficácia verificada</span></div></div>
+            <div><span class="sg-label">Gestão de mudanças e lições</span>
+              <div class="cluster"><span class="badge badge--warning badge--dot">Em análise de impacto</span><span class="badge badge--info badge--dot">Aguardando comitê</span><span class="badge badge--success badge--dot">Aprovada</span><span class="badge badge--neutral badge--dot">Rejeitada</span><span class="badge badge--success"><i data-icon="check"></i>A repetir</span><span class="badge badge--danger"><i data-icon="alertCircle"></i>A evitar</span></div></div>
+          </div>
+          <div class="card stack">
+            <div><span class="sg-label">Pontuação P x I e severidade</span>
+              <div class="cluster"><span class="score" style="--sev-bg: var(--sev-critico-bg); --sev-fg: var(--sev-critico-fg)">20</span><span class="score" style="--sev-bg: var(--sev-alto-bg); --sev-fg: var(--sev-alto-fg)">12</span><span class="score" style="--sev-bg: var(--sev-moderado-bg); --sev-fg: var(--sev-moderado-fg)">6</span><span class="score" style="--sev-bg: var(--sev-baixo-bg); --sev-fg: var(--sev-baixo-fg)">3</span><span class="sev sev--critico">Crítico</span><span class="sev sev--baixo">Baixo</span></div></div>
+            <div><span class="sg-label">Chips de filtro aplicado</span>
+              <div class="filter-bar mb-0" id="sg-chips">
+                <span class="filter-bar__label">Filtros:</span>
+                <span class="chip"><span class="chip__label">Status: Em andamento</span><button type="button" class="chip__remove" aria-label="Remover filtro Status"><i data-icon="x"></i></button></span>
+                <span class="chip"><span class="chip__label">Projeto: Construção de uma nova fábrica</span><button type="button" class="chip__remove" aria-label="Remover filtro Projeto"><i data-icon="x"></i></button></span>
+                <button type="button" class="btn btn--ghost btn--sm">Limpar tudo</button>
+              </div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           8. FORMULÁRIOS
+           ================================================================ -->
+      <section class="sg-section section" id="formularios" aria-labelledby="t-form">
+        <h2 class="section-title" id="t-form">8. Formulários</h2>
+        <div class="card">
+          <form class="form-grid" onsubmit="return false" novalidate>
+            <div class="field">
+              <label class="field__label" for="sg-f1">Data da reunião<span class="field__required" aria-hidden="true">*</span></label>
+              <input class="input" id="sg-f1" type="date" value="2026-09-24" required>
+              <span class="field__hint">dd/mm/aaaa</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="sg-f2">Tipo de reunião<span class="field__required" aria-hidden="true">*</span></label>
+              <select class="select" id="sg-f2" required>
+                <option value="">Selecione...</option>
+                <option selected>Reunião de Acompanhamento</option>
+                <option>Kickoff</option>
+              </select>
+            </div>
+            <div class="field field--full">
+              <div class="field__row">
+                <label class="field__label" for="sg-f3">Assunto<span class="field__required" aria-hidden="true">*</span></label>
+                <span class="field__counter" data-counter-for="sg-f3"></span>
+              </div>
+              <textarea class="textarea" id="sg-f3" maxlength="150" data-counter rows="2">Reunião de acompanhamento semanal da montagem eletromecânica</textarea>
+              <span class="field__hint">Máximo de 150 caracteres.</span>
+            </div>
+            <div class="field has-error">
+              <label class="field__label" for="sg-f4">Responsável<span class="field__required" aria-hidden="true">*</span></label>
+              <select class="select" id="sg-f4" aria-invalid="true" aria-describedby="sg-f4-e"><option value="">Selecione...</option></select>
+              <span class="field__error" id="sg-f4-e"><i data-icon="alertCircle"></i>Informe o responsável.</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="sg-f5">Impacto em custo (R$)</label>
+              <input class="input num" id="sg-f5" inputmode="decimal" value="1.250.000,00">
+              <span class="field__hint">Gravado em centavos (125000000).</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="sg-f6">PEP / Nº do projeto</label>
+              <input class="input" id="sg-f6" value="PEP-4501" readonly>
+              <span class="field__hint">Somente leitura, derivado do projeto.</span>
+            </div>
+            <div class="field">
+              <label class="field__label" for="sg-f7">Busca</label>
+              <div class="input-icon"><i data-icon="search"></i><input class="input input--pill" id="sg-f7" type="search" placeholder="Assunto, ata, responsável..."></div>
+            </div>
+            <fieldset class="field field--full" style="border:0; padding:0; margin:0">
+              <legend class="field__label">Natureza<span class="field__required" aria-hidden="true">*</span></legend>
+              <div class="cluster cluster--lg">
+                <label class="check"><input type="radio" name="sg-nat" checked> Ameaça</label>
+                <label class="check"><input type="radio" name="sg-nat"> Oportunidade</label>
+                <label class="check"><input type="checkbox" checked> Requer aprovação do gestor</label>
+                <label class="check"><input type="checkbox" class="switch" checked> Notificar dono por e-mail</label>
+              </div>
+            </fieldset>
+            <div class="field field--full">
+              <span class="field__label">Controle segmentado</span>
+              <div class="segmented" data-segmented role="group" aria-label="Avaliação exibida">
+                <button type="button" class="segmented__opt" aria-pressed="false" data-value="inerente">Inerente</button>
+                <button type="button" class="segmented__opt" aria-pressed="true" data-value="residual">Residual</button>
+              </div>
+            </div>
+          </form>
+          <div class="card__footer">
+            <span class="text-small text-muted"><span class="field__required">*</span> campo obrigatório</span>
+            <div class="btn-group"><button type="button" class="btn btn--secondary">Cancelar</button><button type="button" class="btn btn--primary">Salvar</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           9. CARDS E KPIs
+           ================================================================ -->
+      <section class="sg-section section" id="cards" aria-labelledby="t-cards">
+        <h2 class="section-title" id="t-cards">9. Cards e KPI tiles</h2>
+        <span class="sg-label">KPIs (1 coluna em 480px, 2 em 768px)</span>
+        <div class="kpi-grid">
+          <div class="kpi kpi--primary">
+            <span class="kpi__label"><i data-icon="gauge"></i>SPI</span>
+            <span class="kpi__value">0,94</span>
+            <span class="kpi__foot"><span class="kpi__delta kpi__delta--down"><i data-icon="arrowDown"></i>0,03</span>vs. período anterior</span>
+          </div>
+          <div class="kpi kpi--success">
+            <span class="kpi__label"><i data-icon="trendingUp"></i>Avanço físico real</span>
+            <span class="kpi__value">61,8<span class="kpi__unit">%</span></span>
+            <span class="kpi__foot">Previsto 65,7% · desvio <b class="text-strong">-3,9 p.p.</b></span>
+          </div>
+          <div class="kpi kpi--danger">
+            <span class="kpi__label"><i data-icon="alertTriangle"></i>Ações atrasadas</span>
+            <span class="kpi__value">14</span>
+            <span class="kpi__foot"><span class="kpi__delta kpi__delta--down"><i data-icon="arrowUp"></i>3</span>na semana</span>
+          </div>
+          <div class="kpi kpi--highlight">
+            <span class="kpi__label"><i data-icon="target"></i>Exposição (VME)</span>
+            <span class="kpi__value" id="sg-vme"></span>
+            <span class="kpi__foot">soma em centavos, formatada na exibição</span>
+          </div>
+        </div>
+
+        <span class="sg-label mt-6">KPI que filtra (Central de Ações): o botão pílula estende a área de clique ao card</span>
+        <div class="kpi-grid" id="sg-kpi-filtro">
+          <div class="kpi kpi--info kpi--filter is-active"><span class="kpi__label">Em dia</span><span class="kpi__value">38</span><button type="button" class="btn btn--ghost btn--sm kpi__action btn--stretch" aria-pressed="true">Filtrando</button></div>
+          <div class="kpi kpi--danger kpi--filter"><span class="kpi__label">Atrasadas</span><span class="kpi__value">14</span><button type="button" class="btn btn--ghost btn--sm kpi__action btn--stretch" aria-pressed="false">Filtrar</button></div>
+          <div class="kpi kpi--success kpi--filter"><span class="kpi__label">Concluídas</span><span class="kpi__value">52</span><button type="button" class="btn btn--ghost btn--sm kpi__action btn--stretch" aria-pressed="false">Filtrar</button></div>
+          <div class="kpi kpi--primary kpi--filter"><span class="kpi__label">Total de ações</span><span class="kpi__value">104</span><button type="button" class="btn btn--ghost btn--sm kpi__action btn--stretch" aria-pressed="false">Filtrar</button></div>
+        </div>
+
+        <span class="sg-label mt-6">Cards de módulo (Home)</span>
+        <div class="grid grid--4">
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-central)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="actions"></i></span><span class="module-card__num">01</span></div>
+            <h3 class="module-card__title">Central de Ações</h3>
+            <p class="module-card__text">Ações de todas as origens em um só lugar.</p>
+            <div class="module-card__links"><span class="badge badge--danger badge--dot">14 atrasadas</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-planejamento)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="curve"></i></span><span class="module-card__num">02</span></div>
+            <h3 class="module-card__title">Planejamento</h3>
+            <p class="module-card__text">Curva S, KPIs, 6WLA, programação semanal e punch list.</p>
+            <div class="module-card__links"><span class="badge badge--info badge--dot">SPI 0,94</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-financeiro)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="money"></i></span><span class="module-card__num">03</span></div>
+            <h3 class="module-card__title">Gestão Financeira</h3>
+            <p class="module-card__text">EAC, mapa de controle, desembolso, KPIs, Curva S e contratos.</p>
+            <div class="module-card__links"><span class="heat heat--sobrecusto-1"><i data-icon="arrowUp"></i>+2,4% projeção</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-suprimentos)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="cart"></i></span><span class="module-card__num">04</span></div>
+            <h3 class="module-card__title">Suprimentos</h3>
+            <p class="module-card__text">Plano de compras, RFx, diligenciamento e fornecedores.</p>
+            <div class="module-card__links"><span class="badge badge--danger badge--dot">3 pedidos críticos</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-riscos)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="alertTriangle"></i></span><span class="module-card__num">05</span></div>
+            <h3 class="module-card__title">Gestão de Riscos</h3>
+            <p class="module-card__text">Registro, matriz 5x5, ficha e painel.</p>
+            <div class="module-card__links"><span class="sev sev--critico">2 críticos</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-qualidade)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="shieldCheck"></i></span><span class="module-card__num">06</span></div>
+            <h3 class="module-card__title">Gestão da Qualidade</h3>
+            <p class="module-card__text">RNC, inspeções/ITP e auditorias.</p>
+            <div class="module-card__links"><span class="badge badge--warning badge--dot">5 RNC abertas</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-hse)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="hardHat"></i></span><span class="module-card__num">07</span></div>
+            <h3 class="module-card__title">HSE</h3>
+            <p class="module-card__text">Ocorrências, pirâmide de Bird, inspeções, APR/HAZOP e HHT.</p>
+            <div class="module-card__links"><span class="badge badge--success badge--dot">263 dias sem afastamento</span></div>
+          </article>
+          <article class="card card--interactive module-card" style="--module-accent: var(--module-governanca)">
+            <div class="module-card__top"><span class="module-card__icon"><i data-icon="landmark"></i></span><span class="module-card__num">08</span></div>
+            <h3 class="module-card__title">Governança</h3>
+            <p class="module-card__text">Gestão de mudanças e lições aprendidas.</p>
+            <div class="module-card__links"><span class="badge badge--info badge--dot">3 mudanças no comitê</span></div>
+          </article>
+        </div>
+
+        <span class="sg-label mt-6">Card com cabeçalho, corpo e rodapé</span>
+        <div class="grid grid--2">
+          <div class="card">
+            <div class="card__header">
+              <div><h3 class="card__title">Pauta de escalonamento</h3><p class="card__subtitle">Riscos que exigem decisão do gestor</p></div>
+              <button type="button" class="btn btn--secondary btn--sm"><i data-icon="mail"></i>Enviar por e-mail</button>
+            </div>
+            <dl class="dl">
+              <dt>RSK-TN-2026-0003</dt><dd>Interferência no subsolo da fundação <span class="score" style="--sev-bg: var(--sev-critico-bg); --sev-fg: var(--sev-critico-fg)">15</span></dd>
+              <dt>RSK-TN-2026-0001</dt><dd>Atraso na licença de operação <span class="score" style="--sev-bg: var(--sev-alto-bg); --sev-fg: var(--sev-alto-fg)">12</span></dd>
+            </dl>
+            <div class="card__footer"><span class="text-small text-muted">Atualizado em 24/09/2026</span><a href="#cards" class="btn btn--ghost btn--sm">Ver registro<i data-icon="arrowRight"></i></a></div>
+          </div>
+          <div class="card">
+            <div class="empty">
+              <span class="empty__icon"><i data-icon="search"></i></span>
+              <span class="empty__title">Nenhuma consulta feita ainda</span>
+              <span class="text-small">Escolha os filtros e clique em Consultar. A Central não carrega tudo sozinha.</span>
+              <button type="button" class="btn btn--primary btn--sm mt-2"><i data-icon="filter"></i>Definir filtros</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           10. TABELAS
+           ================================================================ -->
+      <section class="sg-section section" id="tabelas" aria-labelledby="t-tab">
+        <h2 class="section-title" id="t-tab">10. Tabelas</h2>
+        <p class="sg-lead">Duas estratégias no mobile: <b>empilhar</b> (cada linha vira card; ideal para listas) ou <b>rolagem horizontal contida</b> (grades largas). A página nunca rola na horizontal.</p>
+
+        <span class="sg-label">Empilhada no mobile (Central de Ações)</span>
+        <div class="card card--flush">
+          <div class="card__header">
+            <div><h3 class="card__title">Ações</h3><p class="card__subtitle">5 de 104 registros</p></div>
+          </div>
+          <div style="padding: 0 var(--space-6) var(--space-4)">
+            <div class="table-toolbar mb-0">
+              <div class="table-toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" placeholder="Buscar nas ações" aria-label="Buscar nas ações"></div>
+              <div class="table-toolbar__actions">
+                <button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Exportar Excel</button>
+                <button type="button" class="btn btn--secondary btn--sm"><i data-icon="filePdf"></i>Exportar PDF</button>
+              </div>
+            </div>
+          </div>
+          <div class="table-wrap table-wrap--stack">
+            <table class="table table--stack">
+              <thead>
+                <tr>
+                  <th>Origem</th>
+                  <th aria-sort="ascending"><button type="button" class="th-sort">Ata<i data-icon="chevronUp"></i></button></th>
+                  <th>Item</th>
+                  <th>Assunto / Descrição</th>
+                  <th>Responsável</th>
+                  <th><button type="button" class="th-sort">Prevista<i data-icon="sort"></i></button></th>
+                  <th>Replanejada</th>
+                  <th>Status</th>
+                  <th class="cell-actions"><span class="sr-only">Ações da linha</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="is-alert">
+                  <td data-label="Origem"><span class="badge badge--primary">Ata</span></td>
+                  <td data-label="Ata" class="nowrap">TN-2026-0031</td>
+                  <td data-label="Item" class="num">1.2</td>
+                  <td data-label="Assunto"><div class="cell-title"><b>Aprovar orçamento da fase 2</b><small>Consolidar propostas das três montadoras</small></div></td>
+                  <td data-label="Responsável">Maria Souza</td>
+                  <td data-label="Prevista" class="num">10/09/2026</td>
+                  <td data-label="Replanejada" class="num">18/09/2026</td>
+                  <td data-label="Status"><span class="badge badge--danger badge--dot">Atrasada</span></td>
+                  <td data-label="Ações" class="cell-actions"><div class="btn-group"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Editar"><i data-icon="edit"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Histórico"><i data-icon="history"></i></button></div></td>
+                </tr>
+                <tr>
+                  <td data-label="Origem"><span class="badge badge--outline">Risco</span></td>
+                  <td data-label="Ata" class="nowrap">RSK-TN-2026-0001</td>
+                  <td data-label="Item" class="num">1</td>
+                  <td data-label="Assunto"><div class="cell-title"><b>Protocolar programa de monitoramento de efluentes</b><small>Condicionante da licença de operação</small></div></td>
+                  <td data-label="Responsável">Marina Alves</td>
+                  <td data-label="Prevista" class="num">05/10/2026</td>
+                  <td data-label="Replanejada" class="num">·</td>
+                  <td data-label="Status"><span class="badge badge--info badge--dot">Em andamento</span></td>
+                  <td data-label="Ações" class="cell-actions"><div class="btn-group"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Editar"><i data-icon="edit"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Histórico"><i data-icon="history"></i></button></div></td>
+                </tr>
+                <tr>
+                  <td data-label="Origem"><span class="badge badge--primary">Ata</span></td>
+                  <td data-label="Ata" class="nowrap">TN-2026-0030</td>
+                  <td data-label="Item" class="num">2.1</td>
+                  <td data-label="Assunto"><div class="cell-title"><b>Publicar ata assinada</b><small>Enviar aos participantes</small></div></td>
+                  <td data-label="Responsável">João Gestor</td>
+                  <td data-label="Prevista" class="num">05/09/2026</td>
+                  <td data-label="Replanejada" class="num">12/09/2026</td>
+                  <td data-label="Status"><span class="badge badge--success badge--dot">Concluída</span></td>
+                  <td data-label="Ações" class="cell-actions"><div class="btn-group"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Editar"><i data-icon="edit"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Histórico"><i data-icon="history"></i></button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot">
+            <span>Mostrando 1 a 3 de 104</span>
+            <nav class="pagination" aria-label="Paginação">
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Página anterior" disabled><i data-icon="chevronLeft"></i></button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-current="page">1</button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm">2</button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm">3</button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Próxima página"><i data-icon="chevronRight"></i></button>
+            </nav>
+          </div>
+        </div>
+
+        <span class="sg-label mt-6">Rolagem horizontal contida (grade diária da Programação Semanal)</span>
+        <div class="table-wrap">
+          <table class="table table--compact table--zebra">
+            <thead>
+              <tr><th>Item</th><th>ID Exclusiva</th><th>Atividade</th><th>Local</th><th>Empresa</th><th class="num">Prev.</th><th>Und.</th><th>Linha</th><th class="num">2ª</th><th class="num">3ª</th><th class="num">4ª</th><th class="num">5ª</th><th class="num">6ª</th><th class="num">Sáb</th><th class="num">PPC</th><th>Situação</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="num">01</td><td class="nowrap">PS1-ARM-014</td><td class="nowrap">Armação das paredes Eixo 1@10</td><td class="nowrap">Potato Storage 1</td><td>M.Roscoe</td><td class="num">1.001,4</td><td>kg</td><td>P</td><td class="num">200,0</td><td class="num">200,0</td><td class="num">200,0</td><td class="num">200,0</td><td class="num">201,4</td><td class="num">0,0</td><td class="num">60%</td><td><span class="badge badge--info">Validada</span></td></tr>
+              <tr><td class="num"></td><td></td><td class="text-muted">Realizado (Dia / Noite)</td><td></td><td></td><td class="num">500,0</td><td>kg</td><td>D/N</td><td class="num">180,0</td><td class="num">120,0</td><td class="num">200,0</td><td class="num">0,0</td><td class="num">0,0</td><td class="num">0,0</td><td class="num"></td><td><span class="badge badge--warning badge--dot">Pendente</span></td></tr>
+              <tr><td class="num">02</td><td class="nowrap">SUB-ELE-003</td><td class="nowrap">Lançamento de cabos 15 kV</td><td class="nowrap">Subestação</td><td>Bremmer</td><td class="num">480,0</td><td>m</td><td>P</td><td class="num">80,0</td><td class="num">80,0</td><td class="num">80,0</td><td class="num">80,0</td><td class="num">80,0</td><td class="num">80,0</td><td class="num">83%</td><td><span class="badge badge--success">Publicada</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           11. ABAS
+           ================================================================ -->
+      <section class="sg-section section" id="abas" aria-labelledby="t-abas">
+        <h2 class="section-title" id="t-abas">11. Abas</h2>
+        <div class="card">
+          <div class="tabs" role="tablist" aria-label="Seções da ata" data-tabs>
+            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="sg-p1" id="sg-t1">Dados da Reunião</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="sg-p2" id="sg-t2">Lista de Presença <span class="tab__count">12</span></button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="sg-p3" id="sg-t3">Anotações e Ações <span class="tab__count">18</span></button>
+          </div>
+          <section class="tab-panel" id="sg-p1" role="tabpanel" aria-labelledby="sg-t1">
+            <dl class="dl"><dt>Nº da ata / Rev</dt><dd>TN-2026-0031 · Rev 002</dd><dt>Tipo de reunião</dt><dd>Reunião de Acompanhamento</dd><dt>Elaborado por</dt><dd>João Gestor</dd></dl>
+          </section>
+          <section class="tab-panel" id="sg-p2" role="tabpanel" aria-labelledby="sg-t2" hidden>
+            <p class="mb-0">12 participantes · 10 presentes · 2 justificados.</p>
+          </section>
+          <section class="tab-panel" id="sg-p3" role="tabpanel" aria-labelledby="sg-t3" hidden>
+            <p class="mb-0">18 itens em 4 grupos (PRAZO, SSQV, CUSTO, ESCOPO).</p>
+          </section>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           12. MODAIS
+           ================================================================ -->
+      <section class="sg-section section" id="modais" aria-labelledby="t-modais">
+        <h2 class="section-title" id="t-modais">12. Modais</h2>
+        <p class="sg-lead">Fecham com ESC, com o botão X ou clicando no fundo; o foco fica preso no modal e volta ao botão de origem. No mobile ocupam a tela inteira.</p>
+        <div class="card cluster">
+          <button type="button" class="btn btn--primary" data-modal-open="sg-modal-acao"><i data-icon="plus"></i>Nova anotação/ação</button>
+          <button type="button" class="btn btn--secondary" data-modal-open="sg-modal-filtros"><i data-icon="filter"></i>Filtros (grande)</button>
+          <button type="button" class="btn btn--danger" id="sg-confirmar"><i data-icon="trash"></i>Confirmação de exclusão</button>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           13. UPLOAD
+           ================================================================ -->
+      <section class="sg-section section" id="upload" aria-labelledby="t-up">
+        <h2 class="section-title" id="t-up">13. Upload</h2>
+        <p class="sg-lead">Componente único: arrastar e soltar ou botão; aceita .xlsx, .xls, .csv, .pdf, .png, .jpg. Estados visuais abaixo; o comportamento completo (validação, prévia real, "TODO: API") entra na etapa 6.</p>
+        <div class="grid grid--3">
+          <div><span class="sg-label">Padrão</span>
+            <div class="upload__drop">
+              <span class="upload__icon"><i data-icon="uploadCloud"></i></span>
+              <span class="upload__title">Arraste arquivos aqui</span>
+              <span class="upload__hint">Planilhas, PDF ou imagens · até 10 MB</span>
+              <button type="button" class="btn btn--secondary btn--sm mt-2"><i data-icon="upload"></i>Selecionar arquivos</button>
+            </div></div>
+          <div><span class="sg-label">Arrastando</span>
+            <div class="upload__drop is-dragover">
+              <span class="upload__icon"><i data-icon="uploadCloud"></i></span>
+              <span class="upload__title">Solte para adicionar</span>
+              <span class="upload__hint">3 arquivos</span>
+            </div></div>
+          <div><span class="sg-label">Erro de validação</span>
+            <div class="upload__drop has-error">
+              <span class="upload__icon"><i data-icon="alertTriangle"></i></span>
+              <span class="upload__title">Tipo não permitido</span>
+              <span class="upload__hint">relatorio.exe · use .xlsx, .xls, .csv, .pdf, .png ou .jpg</span>
+            </div></div>
+        </div>
+
+        <div class="grid grid--2 mt-6">
+          <div><span class="sg-label">Lista de arquivos</span>
+            <ul class="upload__list">
+              <li class="upload-item">
+                <span class="upload-item__thumb"><img src="assets/logos/timenow-icone.png" alt=""></span>
+                <div><span class="upload-item__name">foto-fundacao-eixo-3.png</span><span class="upload-item__meta">Imagem · 842 KB <span class="badge badge--success">Válido</span></span></div>
+                <div class="upload-item__actions"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Pré-visualizar"><i data-icon="eye"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Remover"><i data-icon="x"></i></button></div>
+              </li>
+              <li class="upload-item">
+                <span class="upload-item__thumb upload-item__thumb--pdf"><i data-icon="filePdf"></i></span>
+                <div><span class="upload-item__name">ITP-civil-rev03.pdf</span><span class="upload-item__meta">PDF · 1,2 MB <span class="badge badge--success">Válido</span></span></div>
+                <div class="upload-item__actions"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Pré-visualizar"><i data-icon="eye"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Remover"><i data-icon="x"></i></button></div>
+              </li>
+              <li class="upload-item is-selected">
+                <span class="upload-item__thumb upload-item__thumb--sheet"><i data-icon="fileSheet"></i></span>
+                <div><span class="upload-item__name">programacao-S30-2026.xlsx</span><span class="upload-item__meta">Planilha · 48 KB · 83 linhas <span class="badge badge--success">Válido</span></span></div>
+                <div class="upload-item__actions"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Pré-visualizar" aria-pressed="true"><i data-icon="eye"></i></button><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Remover"><i data-icon="x"></i></button></div>
+              </li>
+              <li class="upload-item has-error">
+                <span class="upload-item__thumb"><i data-icon="alertTriangle"></i></span>
+                <div><span class="upload-item__name">levantamento-topografico.dwg</span><span class="upload-item__meta"><span class="badge badge--danger">Tipo não permitido</span></span></div>
+                <div class="upload-item__actions"><button type="button" class="btn btn--ghost btn--icon btn--sm" aria-label="Remover"><i data-icon="x"></i></button></div>
+              </li>
+            </ul></div>
+          <div><span class="sg-label">Prévia (planilha: primeiras linhas)</span>
+            <div class="upload-preview">
+              <div class="upload-preview__head"><span><b class="text-strong">programacao-S30-2026.xlsx</b> · aba "Programação"</span><span>primeiras 4 de 83 linhas</span></div>
+              <div class="upload-preview__body">
+                <table class="table table--compact">
+                  <thead><tr><th>Item</th><th>Semana</th><th>ID Exclusiva</th><th>Atividade Detalhada</th><th>Local</th></tr></thead>
+                  <tbody>
+                    <tr><td>01</td><td>S.30/2026</td><td>PS1-ARM-014</td><td class="nowrap">Armação das paredes Eixo 1@10</td><td class="nowrap">Potato Storage 1</td></tr>
+                    <tr><td>02</td><td>S.30/2026</td><td>SUB-ELE-003</td><td class="nowrap">Lançamento de cabos 15 kV</td><td>Subestação</td></tr>
+                    <tr><td>03</td><td>S.30/2026</td><td>PP-CIV-021</td><td class="nowrap">Concretagem laje nível 2</td><td class="nowrap">Prédio Produção</td></tr>
+                    <tr><td>04</td><td>S.30/2026</td><td>BC-MEC-007</td><td class="nowrap">Montagem de tubulação de vapor</td><td class="nowrap">Base Caldeira</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div></div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           14. ALERTAS E TOASTS
+           ================================================================ -->
+      <section class="sg-section section" id="alertas" aria-labelledby="t-alertas">
+        <h2 class="section-title" id="t-alertas">14. Alertas e toasts</h2>
+        <div class="grid grid--2">
+          <div class="stack">
+            <div class="alert"><i data-icon="info"></i><div class="alert__body"><span class="alert__title">Numeração reservada ao salvar</span>O número do risco é gerado a partir do padrão do projeto (RSK-TN-2026).</div></div>
+            <div class="alert alert--success"><i data-icon="checkCircle"></i><div class="alert__body"><span class="alert__title">Programação validada</span>Enviada ao Fiscal para acompanhamento.</div></div>
+            <div class="alert alert--warning"><i data-icon="alertCircle"></i><div class="alert__body"><span class="alert__title">Janela de programação fecha às 15:00</span>Após esse horário o fornecedor fica bloqueado.</div></div>
+            <div class="alert alert--danger"><i data-icon="alertTriangle"></i><div class="alert__body"><span class="alert__title">1 risco com revisão vencida</span>RSK-TN-2026-0003 deveria ter sido reavaliado em 22/08/2026.</div></div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Toasts (canto inferior direito)</h3>
+            <div class="cluster">
+              <button type="button" class="btn btn--secondary btn--sm" data-toast="success">Sucesso</button>
+              <button type="button" class="btn btn--secondary btn--sm" data-toast="info">Informação</button>
+              <button type="button" class="btn btn--secondary btn--sm" data-toast="warning">Atenção</button>
+              <button type="button" class="btn btn--secondary btn--sm" data-toast="danger">Erro</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           15. PROGRESSO E ETAPAS
+           ================================================================ -->
+      <section class="sg-section section" id="progresso" aria-labelledby="t-prog">
+        <h2 class="section-title" id="t-prog">15. Progresso e etapas</h2>
+        <div class="grid grid--2">
+          <div class="card stack">
+            <div><div class="split text-small mb-2"><span>Avanço físico real</span><b class="num text-strong">61,8%</b></div><div class="progress" role="progressbar" aria-valuenow="61.8" aria-valuemin="0" aria-valuemax="100" aria-label="Avanço físico real"><span class="progress__bar" style="--value: 61.8%"></span></div></div>
+            <div><div class="split text-small mb-2"><span>PPC da semana</span><b class="num text-strong">83%</b></div><div class="progress progress--success" role="progressbar" aria-valuenow="83" aria-valuemin="0" aria-valuemax="100" aria-label="PPC da semana"><span class="progress__bar" style="--value: 83%"></span></div></div>
+            <div><div class="split text-small mb-2"><span>Restrições removidas (6WLA)</span><b class="num text-strong">40%</b></div><div class="progress progress--danger" role="progressbar" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" aria-label="Restrições removidas"><span class="progress__bar" style="--value: 40%"></span></div></div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Importação Excel</h3>
+            <ol class="stepper" aria-label="Etapas da importação">
+              <li class="step is-done"><span class="step__dot" aria-hidden="true"></span><span class="step__label">Upload</span></li>
+              <li class="step is-done"><span class="step__dot" aria-hidden="true"></span><span class="step__label">Validação</span></li>
+              <li class="step is-current" aria-current="step"><span class="step__dot" aria-hidden="true"></span><span class="step__label">Pré-visualização</span></li>
+              <li class="step"><span class="step__dot" aria-hidden="true"></span><span class="step__label">Confirmação</span></li>
+              <li class="step"><span class="step__dot" aria-hidden="true"></span><span class="step__label">Inserção</span></li>
+            </ol>
+            <div class="split"><button type="button" class="btn btn--secondary btn--sm"><i data-icon="chevronLeft"></i>Voltar</button><button type="button" class="btn btn--primary btn--sm">Avançar<i data-icon="chevronRight"></i></button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           16. KANBAN E MATRIZ
+           ================================================================ -->
+      <section class="sg-section section" id="kanban" aria-labelledby="t-kanban">
+        <h2 class="section-title" id="t-kanban">16. Kanban e matriz 5x5</h2>
+        <div class="grid grid--sidebar">
+          <div class="kanban">
+            <div class="kanban__col">
+              <div class="kanban__head">Em andamento <span class="badge badge--info">2</span></div>
+              <article class="kanban-card"><span class="kanban-card__title">Protocolar programa de monitoramento</span><span class="kanban-card__meta"><span>Marina Alves</span><span class="num">05/10/2026</span></span></article>
+              <article class="kanban-card"><span class="kanban-card__title">Revisar ITP de concreto</span><span class="kanban-card__meta"><span>Renata Lima</span><span class="num">08/10/2026</span></span></article>
+            </div>
+            <div class="kanban__col">
+              <div class="kanban__head">Atrasadas <span class="badge badge--danger">1</span></div>
+              <article class="kanban-card kanban-card--danger"><span class="kanban-card__title">Aprovar orçamento da fase 2</span><span class="kanban-card__meta"><span>Maria Souza</span><span class="num">18/09/2026</span></span></article>
+            </div>
+            <div class="kanban__col">
+              <div class="kanban__head">Concluídas <span class="badge badge--success">1</span></div>
+              <article class="kanban-card kanban-card--success"><span class="kanban-card__title">Publicar ata assinada</span><span class="kanban-card__meta"><span>João Gestor</span><span class="num">12/09/2026</span></span></article>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card__title mb-4">Matriz P x I (residual)</h3>
+            <div class="matrix" id="sg-matriz" aria-label="Matriz de riscos 5 por 5"></div>
+            <p class="text-xs text-muted mt-2 mb-0">Linhas: probabilidade (5 no topo). Colunas: impacto (1 a 5). Número = quantidade de riscos.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           17. GRÁFICOS
+           ================================================================ -->
+      <section class="sg-section section" id="graficos" aria-labelledby="t-graf">
+        <h2 class="section-title" id="t-graf">17. Gráficos (Chart.js, cores lidas dos tokens)</h2>
+        <p class="sg-lead">Paletas conferidas com o validador de cores da skill de visualização: série categórica (teal 6, laranja 5, roxo 5) passa em todos os critérios; o azul 6 como 4ª série e o Verde Timenow ficam abaixo do piso de croma por limitação da paleta oficial, compensado por legenda, tracejado e rótulos.</p>
+        <div class="grid grid--sidebar">
+          <div class="card">
+            <div class="card__header"><div><h3 class="card__title">Curva S do projeto</h3><p class="card__subtitle">% acumulado por mês · Baseline, Real e Tendência</p></div>
+              <div class="btn-group"><button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Excel</button><button type="button" class="btn btn--secondary btn--sm"><i data-icon="filePdf"></i>PDF</button></div></div>
+            <div class="chart chart--lg"><canvas id="sg-curva"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card__header"><div><h3 class="card__title">PPC por área</h3><p class="card__subtitle">S.30/2026 · % de plano concluído</p></div></div>
+            <div class="chart chart--lg"><canvas id="sg-ppc"></canvas></div>
+          </div>
+        </div>
+        <div class="card mt-4">
+          <div class="card__header"><div><h3 class="card__title">Aderência por contratada</h3><p class="card__subtitle">S.25 a S.30 · %</p></div></div>
+          <div class="chart"><canvas id="sg-aderencia"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           18. GESTÃO FINANCEIRA (prévia dos componentes)
+           ================================================================ -->
+      <section class="sg-section section" id="financeiro" aria-labelledby="t-fin">
+        <h2 class="section-title" id="t-fin">18. Gestão Financeira (prévia)</h2>
+        <p class="sg-lead">Componentes do módulo 03 com dados fictícios em centavos, formatados só na exibição. Sobrecusto usa o vermelho da exceção E1; economia, o verde-água. As telas completas entram na etapa 5.</p>
+
+        <span class="sg-label">KPIs de custo</span>
+        <div class="kpi-grid">
+          <div class="kpi kpi--danger">
+            <span class="kpi__label"><i data-icon="gauge"></i>CPI</span>
+            <span class="kpi__value">0,96</span>
+            <span class="kpi__foot"><span class="kpi__delta kpi__delta--down"><i data-icon="arrowDown"></i>0,02</span>vs. mês anterior</span>
+          </div>
+          <div class="kpi kpi--info">
+            <span class="kpi__label"><i data-icon="gauge"></i>SPI</span>
+            <span class="kpi__value">0,94</span>
+            <span class="kpi__foot"><span class="kpi__delta kpi__delta--flat">estável</span>vs. mês anterior</span>
+          </div>
+          <div class="kpi kpi--warning">
+            <span class="kpi__label"><i data-icon="coins"></i>Consumo da contingência</span>
+            <span class="kpi__value">38<span class="kpi__unit">%</span></span>
+            <span class="kpi__foot"><span id="sg-conting"></span></span>
+          </div>
+          <div class="kpi kpi--primary">
+            <span class="kpi__label"><i data-icon="money"></i>Comprometido</span>
+            <span class="kpi__value">91<span class="kpi__unit">%</span></span>
+            <span class="kpi__foot">do orçado atual</span>
+          </div>
+        </div>
+
+        <div class="card card--flush mt-6">
+          <div class="card__header">
+            <div><h3 class="card__title">Mapa de controle da EAC</h3><p class="card__subtitle">Item a item, com subtotal por pacote · Rev 2 · corte em 20/09/2026</p></div>
+            <div class="btn-group"><button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Exportar Excel</button><button type="button" class="btn btn--secondary btn--sm"><i data-icon="filePdf"></i>Exportar PDF</button></div>
+          </div>
+          <div class="table-wrap table-wrap--stack mt-4">
+            <table class="table table--stack table--compact">
+              <thead><tr><th>Código</th><th>Descrição</th><th class="num">Orçado atual</th><th class="num">Comprometido</th><th class="num">Realizado</th><th class="num">Projeção no término</th><th class="num">Desvio (R$)</th><th class="num">Desvio (%)</th></tr></thead>
+              <tbody id="sg-mapa"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid grid--2 mt-4">
+          <div class="card">
+            <div class="card__header"><div><h3 class="card__title">Curva S financeira</h3><p class="card__subtitle">CAPEX acumulado por mês</p></div></div>
+            <div class="chart"><canvas id="sg-curva-fin"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card__header"><div><h3 class="card__title">Contrato CT-2026-014</h3><p class="card__subtitle">Montagem eletromecânica · valor original, aditivos e saldo a faturar</p></div></div>
+            <div class="chart"><canvas id="sg-cascata"></canvas></div>
+          </div>
+        </div>
+        <div class="card mt-4">
+          <div class="card__header"><div><h3 class="card__title">Cronograma de desembolso</h3><p class="card__subtitle">Pagamentos previstos x realizados por mês (gerado do mapa de controle)</p></div></div>
+          <div class="chart chart--sm"><canvas id="sg-desembolso"></canvas></div>
+        </div>
+
+        <div class="grid grid--2 mt-4">
+          <div class="card">
+            <div class="card__header"><div><h3 class="card__title">Avaliação de desempenho da contratada</h3><p class="card__subtitle">Alfa Montagens · CT-2026-014 · setembro/2026</p></div><span id="sg-aval-classe"></span></div>
+            <div class="stack stack--sm" id="sg-aval"></div>
+            <div class="card__footer"><span class="text-small text-muted">Nota 1 ou 2 em qualquer critério exige plano de melhoria.</span><b class="num text-strong" id="sg-aval-nota"></b></div>
+          </div>
+          <div class="card card--flush">
+            <div class="card__header"><div><h3 class="card__title">Claims e extensões de prazo</h3><p class="card__subtitle">CT-2026-014 · exposição em aberto <b id="sg-claim-exp"></b></p></div></div>
+            <div class="table-wrap table-wrap--stack">
+              <table class="table table--stack table--compact">
+                <thead><tr><th>Nº</th><th>Direção / tipo</th><th class="num">Pleiteado</th><th class="num">Reconhecido</th><th>Situação</th></tr></thead>
+                <tbody id="sg-claims"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           19. SUPRIMENTOS (prévia)
+           ================================================================ -->
+      <section class="sg-section section" id="suprimentos" aria-labelledby="t-sup">
+        <h2 class="section-title" id="t-sup">19. Suprimentos (prévia)</h2>
+        <p class="sg-lead">Indicadores e diligenciamento do módulo 04. A folga compara a previsão de entrega com a data necessária na obra (ROS).</p>
+        <div class="kpi-grid">
+          <div class="kpi kpi--primary"><span class="kpi__label"><i data-icon="listChecks"></i>Aderência ao plano de compras</span><span class="kpi__value">82<span class="kpi__unit">%</span></span><span class="kpi__foot">23 de 28 pacotes adjudicados</span></div>
+          <div class="kpi kpi--success"><span class="kpi__label"><i data-icon="coins"></i>Saving sobre estimativa</span><span class="kpi__value">6,4<span class="kpi__unit">%</span></span><span class="kpi__foot" id="sg-saving"></span></div>
+          <div class="kpi kpi--info"><span class="kpi__label"><i data-icon="truck"></i>Entrega no prazo (OTD)</span><span class="kpi__value">88<span class="kpi__unit">%</span></span><span class="kpi__foot">44 de 50 entregas</span></div>
+          <div class="kpi kpi--danger"><span class="kpi__label"><i data-icon="alertTriangle"></i>Pedidos críticos</span><span class="kpi__value">3</span><span class="kpi__foot">folga negativa em relação ao ROS</span></div>
+        </div>
+        <div class="card card--flush mt-4">
+          <div class="card__header"><div><h3 class="card__title">Diligenciamento de pedidos</h3><p class="card__subtitle">Itens de longo prazo de entrega e pedidos em fabricação</p></div>
+            <div class="btn-group"><button type="button" class="btn btn--secondary btn--sm"><i data-icon="upload"></i>Importar pedidos (Excel)</button><button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Exportar Excel</button></div></div>
+          <div class="table-wrap table-wrap--stack mt-4">
+            <table class="table table--stack table--compact">
+              <thead><tr><th>Pedido</th><th>Fornecedor</th><th>Item</th><th>Próximo marco</th><th class="num">ROS</th><th class="num">Previsão</th><th>Folga</th></tr></thead>
+              <tbody id="sg-dilig"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           20. HSE (prévia)
+           ================================================================ -->
+      <section class="sg-section section" id="hse" aria-labelledby="t-hse">
+        <h2 class="section-title" id="t-hse">20. HSE (prévia)</h2>
+        <p class="sg-lead">Taxas pela NBR 14280 (base 1.000.000 de horas-homem trabalhadas) e pirâmide de Heinrich/Bird com as ocorrências do período. A largura das faixas é ilustrativa; os valores estão sempre escritos.</p>
+        <div class="kpi-grid">
+          <div class="kpi kpi--success"><span class="kpi__label"><i data-icon="hardHat"></i>Taxa de frequência (TF)</span><span class="kpi__value" id="sg-tf"></span><span class="kpi__foot">com afastamento, por 1 milhão de HHT</span></div>
+          <div class="kpi kpi--warning"><span class="kpi__label"><i data-icon="hardHat"></i>Lesões registráveis (TRIF)</span><span class="kpi__value" id="sg-trif"></span><span class="kpi__foot">por 1 milhão de HHT</span></div>
+          <div class="kpi kpi--info"><span class="kpi__label"><i data-icon="clock"></i>Taxa de gravidade (TG)</span><span class="kpi__value" id="sg-tg"></span><span class="kpi__foot">dias perdidos e debitados</span></div>
+          <div class="kpi kpi--success"><span class="kpi__label"><i data-icon="calendar"></i>Dias sem afastamento</span><span class="kpi__value">263</span><span class="kpi__foot"><span class="badge badge--danger"><i data-icon="alertTriangle"></i>1 HiPo no mês</span></span></div>
+        </div>
+        <div class="grid grid--sidebar mt-4">
+          <div class="card">
+            <div class="card__header">
+              <div><h3 class="card__title">Pirâmide de segurança</h3><p class="card__subtitle">Jan a set/2026 · todas as empresas</p></div>
+              <div class="segmented" data-segmented id="sg-pir-ref" role="group" aria-label="Proporção de referência">
+                <button type="button" class="segmented__opt" aria-pressed="true" data-value="bird">Bird</button>
+                <button type="button" class="segmented__opt" aria-pressed="false" data-value="heinrich">Heinrich</button>
+              </div>
+            </div>
+            <div class="pyramid" id="sg-piramide"></div>
+            <div class="alert alert--warning mt-4" id="sg-pir-leitura"><i data-icon="alertCircle"></i><div class="alert__body"></div></div>
+          </div>
+          <div class="card stack">
+            <h3 class="card__title">Indicadores proativos</h3>
+            <div><div class="split text-small mb-2"><span>DDS realizados</span><b class="num text-strong">94%</b></div><div class="progress progress--success" role="progressbar" aria-valuenow="94" aria-valuemin="0" aria-valuemax="100" aria-label="DDS realizados"><span class="progress__bar" style="--value: 94%"></span></div></div>
+            <div><div class="split text-small mb-2"><span>Conformidade em inspeções</span><b class="num text-strong">87%</b></div><div class="progress progress--success" role="progressbar" aria-valuenow="87" aria-valuemin="0" aria-valuemax="100" aria-label="Conformidade em inspeções"><span class="progress__bar" style="--value: 87%"></span></div></div>
+            <div><div class="split text-small mb-2"><span>Ações HSE no prazo</span><b class="num text-strong">72%</b></div><div class="progress" role="progressbar" aria-valuenow="72" aria-valuemin="0" aria-valuemax="100" aria-label="Ações HSE no prazo"><span class="progress__bar" style="--value: 72%"></span></div></div>
+            <div><div class="split text-small mb-2"><span>Recomendações de APR/HAZOP fechadas</span><b class="num text-strong">64%</b></div><div class="progress progress--danger" role="progressbar" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100" aria-label="Recomendações de APR e HAZOP fechadas"><span class="progress__bar" style="--value: 64%"></span></div></div>
+            <div class="split text-small"><span>Observações comportamentais</span><b class="num text-strong">41 por 10.000 HHT</b></div>
+            <button type="button" class="btn btn--primary btn--sm"><i data-icon="plus"></i>Nova ocorrência</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+           19. ESTRUTURA
+           ================================================================ -->
+      <section class="sg-section section" id="estrutura" aria-labelledby="t-estr">
+        <h2 class="section-title" id="t-estr">21. Estrutura</h2>
+        <p class="sg-lead">Header e sidebar desta página são os reais, montados por <code>js/layout.js</code> a partir de uma única lista de navegação. Cada página declara só <code>data-root</code> e <code>data-page</code> no <code>body</code>; o item ativo, o contexto do header e as abas do módulo saem dessa lista.</p>
+        <div class="grid grid--2" style="align-items: start">
+          <div class="card card--flush">
+            <div class="card__header"><div><h3 class="card__title">Comportamento por largura</h3><p class="card__subtitle">Redimensione a janela para testar.</p></div></div>
+            <div class="table-wrap table-wrap--stack">
+              <table class="table table--stack table--compact">
+                <thead><tr><th>Largura</th><th>Sidebar</th><th>Botão do header</th></tr></thead>
+                <tbody>
+                  <tr><td data-label="Largura">Acima de 1024px</td><td data-label="Sidebar">Expandida; pode virar trilho de ícones</td><td data-label="Botão do header">Recolhe ou expande (preferência salva no navegador)</td></tr>
+                  <tr><td data-label="Largura">769 a 1024px</td><td data-label="Sidebar">Trilho de ícones</td><td data-label="Botão do header">Abre sobreposta; fecha com ESC ou clique fora</td></tr>
+                  <tr><td data-label="Largura">Até 768px</td><td data-label="Sidebar">Gaveta com fundo escurecido</td><td data-label="Botão do header">Abre a gaveta; foco preso até fechar</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <span class="sg-label">Cabeçalho de página com abas do módulo</span>
+            <div class="page-header mb-4">
+              <div class="page-header__text"><div class="page-eyebrow"><i data-icon="curve"></i>02 Planejamento</div><h3 class="page-title" style="font-size: var(--fs-600)">Curva S</h3><p class="page-subtitle">Construção de uma nova fábrica · corte em 25/09/2026</p></div>
+              <div class="page-actions"><button type="button" class="btn btn--secondary btn--sm"><i data-icon="fileSheet"></i>Exportar Excel</button><button type="button" class="btn btn--secondary btn--sm"><i data-icon="filePdf"></i>Exportar PDF</button></div>
+            </div>
+            <nav class="tabs mb-0" aria-label="Exemplo de abas do módulo Planejamento">
+              <a class="tab" href="#estrutura" aria-current="page"><i data-icon="curve"></i>Curva S</a>
+              <a class="tab" href="#estrutura"><i data-icon="gauge"></i>KPIs</a>
+              <a class="tab" href="#estrutura"><i data-icon="calendarRange"></i>6WLA</a>
+              <a class="tab" href="#estrutura"><i data-icon="calendarDays"></i>Programação Semanal</a>
+              <a class="tab" href="#estrutura"><i data-icon="listChecks"></i>Punch list</a>
+            </nav>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ==================== Modais de demonstração ==================== -->
+<div class="modal" id="sg-modal-acao" hidden>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="sg-modal-acao-t">
+    <header class="modal__header">
+      <h2 class="modal__title" id="sg-modal-acao-t">Nova anotação/ação<span class="modal__subtitle">Ata TN-2026-0031 · Rev 002</span></h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Fechar"><i data-icon="x"></i></button>
+    </header>
+    <div class="modal__body">
+      <div class="form-grid">
+        <div class="field"><label class="field__label" for="sg-m1">Tipo<span class="field__required" aria-hidden="true">*</span></label><select class="select" id="sg-m1"><option>Ação</option><option>Informação</option></select></div>
+        <div class="field"><label class="field__label" for="sg-m2">Grupo / Área<span class="field__required" aria-hidden="true">*</span></label><select class="select" id="sg-m2"><option>PRAZO</option><option>SSQV</option></select></div>
+        <div class="field field--full"><label class="field__label" for="sg-m3">Assunto<span class="field__required" aria-hidden="true">*</span></label><input class="input" id="sg-m3" value="Enviar cronograma atualizado"></div>
+        <div class="field field--full"><label class="field__label" for="sg-m4">Descrição<span class="field__required" aria-hidden="true">*</span></label><textarea class="textarea" id="sg-m4">Consolidar os marcos do mês com as três montadoras.</textarea></div>
+        <div class="field"><label class="field__label" for="sg-m5">Solicitante<span class="field__required" aria-hidden="true">*</span></label><select class="select" id="sg-m5"><option>João Gestor</option></select></div>
+        <div class="field"><label class="field__label" for="sg-m6">Responsável<span class="field__required" aria-hidden="true">*</span></label><select class="select" id="sg-m6"><option>Maria Souza</option></select></div>
+        <div class="field"><label class="field__label" for="sg-m7">Data prevista<span class="field__required" aria-hidden="true">*</span></label><input class="input" type="date" id="sg-m7" value="2026-10-05"></div>
+        <div class="field"><label class="field__label" for="sg-m8">Data de conclusão</label><input class="input" type="date" id="sg-m8"><span class="field__hint">Preenchida define Concluída.</span></div>
+      </div>
+    </div>
+    <footer class="modal__footer">
+      <button type="button" class="btn btn--secondary" data-modal-close>Cancelar</button>
+      <button type="button" class="btn btn--primary" id="sg-salvar-acao">Salvar</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal" id="sg-modal-filtros" hidden>
+  <div class="modal__dialog modal__dialog--lg" role="dialog" aria-modal="true" aria-labelledby="sg-modal-filtros-t">
+    <header class="modal__header">
+      <h2 class="modal__title" id="sg-modal-filtros-t">Filtros da Central</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Fechar"><i data-icon="x"></i></button>
+    </header>
+    <div class="modal__body">
+      <div class="form-grid">
+        <div class="field field--full"><label class="field__label" for="sg-q1">Busca livre</label><div class="input-icon"><i data-icon="search"></i><input class="input input--pill" id="sg-q1" placeholder="Assunto, descrição, ata, responsável..."></div></div>
+        <div class="field"><label class="field__label" for="sg-q2">Origem</label><select class="select" id="sg-q2"><option>Todas as origens</option><option>Ata</option><option>Pendências</option><option>Riscos</option></select></div>
+        <div class="field"><label class="field__label" for="sg-q3">Status</label><select class="select" id="sg-q3"><option>Em andamento (inclui atrasadas)</option><option>Somente atrasadas</option><option>Concluídas</option><option>Todos</option></select></div>
+        <div class="field"><label class="field__label" for="sg-q4">Área</label><select class="select" id="sg-q4"><option>Todas</option></select></div>
+        <div class="field"><label class="field__label" for="sg-q5">Projeto</label><select class="select" id="sg-q5"><option>Todos</option></select></div>
+        <div class="field field--full"><label class="field__label" for="sg-q6">Responsável</label><select class="select" id="sg-q6"><option>Todos</option></select></div>
+      </div>
+    </div>
+    <footer class="modal__footer">
+      <button type="button" class="btn btn--ghost modal__footer-start">Limpar</button>
+      <button type="button" class="btn btn--secondary" data-modal-close>Cancelar</button>
+      <button type="button" class="btn btn--primary" data-modal-close>Consultar</button>
+    </footer>
+  </div>
+</div>
+
+<script src="js/i18n.js"></script>
+<script src="js/i18n/en.js"></script>
+<script src="js/siglas.js"></script>
+<script src="data/mock-config.js"></script>
+<script src="data/mock-base.js"></script>
+<script src="js/services/regras.js"></script>
+<script src="js/services/api.js"></script>
+<script src="assets/vendor/chart.umd.min.js"></script>
+<script src="js/components/icons.js"></script>
+<script src="js/components/ui.js"></script>
+<script src="js/components/modal.js"></script>
+<script src="js/components/charts.js"></script>
+<script src="js/layout.js"></script>
+<script>
+/* Demonstrações do styleguide. Nenhuma cor declarada aqui: tudo vem das variáveis. */
+(function () {
+  "use strict";
+  var raiz = getComputedStyle(document.documentElement);
+  function v(nome) { return raiz.getPropertyValue("--" + nome).trim(); }
+
+  /* --- Contraste WCAG a partir de valores calculados --- */
+  function rgb(cor) {
+    var c = cor.replace("#", "");
+    if (c.length === 3) c = c.replace(/(.)/g, "$1$1");
+    return [0, 2, 4].map(function (i) { return parseInt(c.substr(i, 2), 16) / 255; });
+  }
+  function lum(cor) {
+    var l = rgb(cor).map(function (x) { return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); });
+    return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
+  }
+  function contraste(a, b) {
+    var la = lum(a), lb = lum(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  }
+
+  /* --- Hex lidos das variáveis --- */
+  document.querySelectorAll("[data-hex]").forEach(function (el) { el.textContent = v(el.getAttribute("data-hex")); });
+
+  /* --- Escalas tonais --- */
+  var familias = [["teal", "Verde-água"], ["roxo", "Roxo"], ["laranja", "Laranja"], ["azul", "Azul-acinzentado"], ["areia", "Areia"], ["cinza", "Cinza"], ["vermelho", "Vermelho (exceção E1)"]];
+  var escalas = document.getElementById("sg-escalas");
+  familias.forEach(function (f) {
+    var linha = document.createElement("div");
+    linha.className = "sg-scale-row";
+    var nome = document.createElement("b");
+    nome.className = "text-strong text-small";
+    nome.textContent = f[1];
+    var grade = document.createElement("div");
+    grade.className = "scale";
+    for (var i = 1; i <= 9; i++) {
+      var tok = f[0] + "-" + i, hex = v(tok);
+      var passo = document.createElement("div");
+      passo.className = "scale__step" + (i === 5 ? " is-base" : "");
+      passo.style.setProperty("--sw", "var(--" + tok + ")");
+      passo.style.setProperty("--swfg", contraste(hex, v("cinza-9")) >= 4.5 ? "var(--cinza-9)" : "var(--brand-branco)");
+      passo.title = "--" + tok;
+      passo.textContent = i + " " + hex;
+      grade.appendChild(passo);
+    }
+    linha.appendChild(nome);
+    linha.appendChild(grade);
+    escalas.appendChild(linha);
+  });
+
+  /* --- Tabela de contraste --- */
+  document.querySelectorAll("#sg-contraste tr").forEach(function (tr) {
+    var fg = tr.getAttribute("data-fg"), bg = tr.getAttribute("data-bg"), min = parseFloat(tr.getAttribute("data-min"));
+    var r = contraste(v(fg), v(bg));
+    var tds = tr.children;
+    tds[0].innerHTML = '<span class="sg-sample" style="--sg-bg: var(--' + bg + '); --sg-fg: var(--' + fg + ')">Aa</span>';
+    tds[2].textContent = r.toFixed(2).replace(".", ",") + ":1";
+    tds[3].textContent = tr.getAttribute("data-uso");
+    var ok = r >= min;
+    tds[4].innerHTML = ok
+      ? '<span class="badge badge--success badge--dot">Aprovado (mín. ' + String(min).replace(".", ",") + ':1)</span>'
+      : '<span class="badge badge--danger badge--dot">Reprovado para texto</span>';
+  });
+
+  /* --- Ícones --- */
+  var grade = document.getElementById("sg-icones");
+  GI.icons.names.forEach(function (n) {
+    var d = document.createElement("div");
+    d.className = "sg-icon";
+    d.innerHTML = GI.icons.svg(n) + "<span>" + n + "</span>";
+    grade.appendChild(d);
+  });
+
+  /* --- Valores financeiros em centavos --- */
+  document.getElementById("sg-moeda").textContent = "125000000 centavos = " + GI.fmt.moeda(125000000);
+  document.getElementById("sg-vme").textContent = GI.fmt.moeda(340000000).replace(",00", "");
+
+  /* --- Matriz 5x5 (contagens fictícias) --- */
+  var contagem = { "4-3": 1, "4-4": 1, "4-5": 1, "3-3": 1, "3-4": 2, "3-5": 1, "2-4": 1 };
+  function faixa(s) { return s >= 15 ? "critico" : s >= 10 ? "alto" : s >= 5 ? "moderado" : "baixo"; }
+  var matriz = document.getElementById("sg-matriz");
+  for (var p = 5; p >= 1; p--) {
+    var eixo = document.createElement("span");
+    eixo.className = "matrix__axis";
+    eixo.textContent = "P" + p;
+    matriz.appendChild(eixo);
+    for (var i = 1; i <= 5; i++) {
+      var n = contagem[p + "-" + i] || 0, s = p * i;
+      var a = document.createElement("a");
+      a.className = "matrix__cell matrix__cell--" + faixa(s) + (n ? "" : " is-empty");
+      a.href = "#kanban";
+      a.setAttribute("aria-label", "Probabilidade " + p + ", impacto " + i + ", score " + s + ": " + n + " risco(s)");
+      a.innerHTML = "<b>" + n + "</b><small>" + p + "x" + i + "=" + s + "</small>";
+      matriz.appendChild(a);
+    }
+  }
+  matriz.appendChild(document.createElement("span"));
+  for (var j = 1; j <= 5; j++) {
+    var ex = document.createElement("span");
+    ex.className = "matrix__axis";
+    ex.textContent = "I" + j;
+    matriz.appendChild(ex);
+  }
+
+  /* --- Gráficos --- */
+  var meses = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  GI.charts.sCurve("sg-curva", {
+    labels: meses,
+    baseline: [3, 8, 15, 24, 35, 47, 58, 68, 77, 85, 93, 100],
+    real:     [2, 6, 12, 20, 30, 41, 51, 58, 61.8, null, null, null],
+    forecast: [null, null, null, null, null, null, null, null, 61.8, 70, 79, 88]
+  });
+  GI.charts.bar("sg-ppc", {
+    labels: ["Potato St. 1", "Potato St. 2", "Potato St. 3", "Prédio Prod.", "Subestação", "Base Caldeira"],
+    horizontal: true, percent: true, max: 100,
+    series: [{ label: "PPC", data: [85, 72, 63, 45, 58, 40] }]
+  });
+  GI.charts.line("sg-aderencia", {
+    labels: ["S.25", "S.26", "S.27", "S.28", "S.29", "S.30"],
+    percent: true, max: 100,
+    series: [
+      { label: "M.Roscoe", data: [58, 61, 66, 69, 70, 74] },
+      { label: "Bremmer", data: [64, 60, 63, 67, 69, 71] },
+      { label: "McCain", data: [52, 57, 62, 64, 68, 70] }
+    ]
+  });
+
+  /* --- Gestão financeira (valores em centavos) --- */
+  var eac = [
+    { cod: "1", desc: "Engenharia", itens: [
+      { cod: "1.1", desc: "Projeto básico", atual: 120000000, comp: 118000000, real: 110000000, proj: 118500000 },
+      { cod: "1.2", desc: "Projeto detalhado", atual: 345000000, comp: 340000000, real: 210000000, proj: 372000000 } ] },
+    { cod: "2", desc: "Suprimentos", itens: [
+      { cod: "2.1", desc: "Equipamentos mecânicos", atual: 1835000000, comp: 1790000000, real: 950000000, proj: 1640000000 },
+      { cod: "2.2", desc: "Materiais elétricos", atual: 420000000, comp: 380000000, real: 150000000, proj: 468000000 } ] },
+    { cod: "3", desc: "Construção e montagem", itens: [
+      { cod: "3.1", desc: "Obras civis", atual: 960000000, comp: 960000000, real: 610000000, proj: 995000000 },
+      { cod: "3.2", desc: "Montagem eletromecânica", atual: 780000000, comp: 520000000, real: 120000000, proj: 782000000 } ] }
+  ];
+  function faixaHeat(pct) {
+    var a = Math.abs(pct);
+    if (a < 1) return "heat--neutro";
+    var n = a > 10 ? 3 : a > 5 ? 2 : 1;
+    return (pct > 0 ? "heat--sobrecusto-" : "heat--economia-") + n;
+  }
+  function celulaDesvio(desvio, base) {
+    var pct = base ? desvio / base * 100 : 0;
+    var icone = Math.abs(pct) < 1 ? "" : GI.icons.svg(pct > 0 ? "arrowUp" : "arrowDown");
+    var txt = (pct > 0 ? "+" : pct < 0 ? "\u2212" : "") + GI.fmt.num(Math.abs(pct), 1) + "%";
+    return '<span class="heat ' + faixaHeat(pct) + '">' + icone + txt + "</span>";
+  }
+  function moedaSinal(v) {
+    var cls = v > 0 ? "valor--sobrecusto" : v < 0 ? "valor--economia" : "";
+    return '<span class="' + cls + '">' + (v > 0 ? "+" : v < 0 ? "\u2212" : "") + GI.fmt.moeda(Math.abs(v)) + "</span>";
+  }
+  function linhaMapa(cls, r) {
+    var d = r.proj - r.atual;
+    return '<tr class="' + cls + '">' +
+      '<td data-label="Código">' + r.cod + "</td>" +
+      '<td data-label="Descrição">' + r.desc + "</td>" +
+      '<td data-label="Orçado atual" class="num">' + GI.fmt.moeda(r.atual) + "</td>" +
+      '<td data-label="Comprometido" class="num">' + GI.fmt.moeda(r.comp) + "</td>" +
+      '<td data-label="Realizado" class="num">' + GI.fmt.moeda(r.real) + "</td>" +
+      '<td data-label="Projeção no término" class="num">' + GI.fmt.moeda(r.proj) + "</td>" +
+      '<td data-label="Desvio (R$)" class="num">' + moedaSinal(d) + "</td>" +
+      '<td data-label="Desvio (%)" class="num">' + celulaDesvio(d, r.atual) + "</td></tr>";
+  }
+  var total = { cod: "", desc: "Total do projeto", atual: 0, comp: 0, real: 0, proj: 0 };
+  var html = "";
+  eac.forEach(function (pac) {
+    var sub = { cod: pac.cod, desc: pac.desc, atual: 0, comp: 0, real: 0, proj: 0 };
+    pac.itens.forEach(function (it) { ["atual", "comp", "real", "proj"].forEach(function (k) { sub[k] += it[k]; total[k] += it[k]; }); });
+    html += linhaMapa("row--nivel-1", sub);
+    pac.itens.forEach(function (it) { html += linhaMapa("row--nivel-2", it); });
+  });
+  html += linhaMapa("row--total", total);
+  document.getElementById("sg-mapa").innerHTML = html;
+  document.getElementById("sg-conting").textContent = GI.fmt.moeda(68400000) + " de " + GI.fmt.moeda(180000000);
+
+  GI.charts.sCurveFinanceira("sg-curva-fin", {
+    labels: meses,
+    planejado:    [90000000, 260000000, 520000000, 900000000, 1400000000, 1950000000, 2500000000, 3000000000, 3450000000, 3850000000, 4200000000, 4460000000],
+    comprometido: [600000000, 1500000000, 2300000000, 2900000000, 3300000000, 3600000000, 3800000000, 3950000000, 4108000000, null, null, null],
+    realizado:    [60000000, 190000000, 410000000, 720000000, 1100000000, 1480000000, 1720000000, 1980000000, 2150000000, null, null, null]
+  });
+  GI.charts.waterfall("sg-cascata", {
+    labelTotal: "Valor do contrato / saldo", labelAumento: "Aditivos", labelReducao: "Medido",
+    steps: [
+      { label: "Valor original", value: 650000000, type: "total" },
+      { label: "Aditivo 01", value: 85000000, type: "aumento" },
+      { label: "Aditivo 02", value: 45000000, type: "aumento" },
+      { label: "Valor atual", type: "total" },
+      { label: "Medido", value: 120000000, type: "reducao" },
+      { label: "Saldo a faturar", type: "total" }
+    ]
+  });
+  GI.charts.bar("sg-desembolso", {
+    labels: ["jul", "ago", "set", "out", "nov", "dez", "jan", "fev"],
+    money: true,
+    series: [
+      { label: "Previsto", data: [240000000, 260000000, 250000000, 420000000, 380000000, 300000000, 180000000, 110000000], color: "chart-desembolso-previsto" },
+      { label: "Realizado", data: [210000000, 265000000, 170000000, null, null, null, null, null], color: "chart-desembolso-realizado" }
+    ]
+  });
+
+  /* --- Contratos: avaliação de desempenho e claims --- */
+  var criterios = [["HSE", 25, 4], ["Qualidade", 20, 4], ["Prazo", 20, 3], ["Gestão contratual e comercial", 15, 4], ["Recursos e mobilização", 10, 5], ["Documentação e comunicação", 10, 3]];
+  var somaNota = 0, htmlAval = "";
+  criterios.forEach(function (c) {
+    somaNota += c[1] / 100 * c[2];
+    var cls = c[2] <= 2 ? "progress--danger" : c[2] >= 4 ? "progress--success" : "";
+    htmlAval += '<div><div class="split text-small mb-2"><span>' + c[0] + ' <span class="text-muted">(' + c[1] + '%)</span></span><b class="num text-strong">' + c[2] + ' / 5</b></div>' +
+      '<div class="progress progress--sm ' + cls + '" role="progressbar" aria-valuenow="' + c[2] + '" aria-valuemin="0" aria-valuemax="5" aria-label="' + c[0] + '"><span class="progress__bar" style="--value: ' + (c[2] * 20) + '%"></span></div></div>';
+  });
+  var nota100 = Math.round(somaNota / 5 * 100);
+  var classe = nota100 >= 85 ? ["A", "success"] : nota100 >= 70 ? ["B", "info"] : nota100 >= 50 ? ["C", "warning"] : ["D", "danger"];
+  document.getElementById("sg-aval").innerHTML = htmlAval;
+  document.getElementById("sg-aval-nota").textContent = "Nota " + nota100 + " / 100";
+  document.getElementById("sg-aval-classe").innerHTML = '<span class="badge badge--' + classe[1] + '">Classe ' + classe[0] + "</span>";
+
+  var claims = [
+    { n: "CLM-TN-2026-0003", dir: "Da contratada · prazo e custo", pleit: 184000000, rec: null, sit: ["Em negociação", "warning"] },
+    { n: "CLM-TN-2026-0005", dir: "Do contratante · back-charge", pleit: 23500000, rec: 23500000, sit: ["Acordado", "success"] },
+    { n: "EOT-TN-2026-0002", dir: "Extensão de prazo · justificável e compensável", pleit: null, rec: null, dias: "45 dias solicitados", sit: ["Em análise", "info"] }
+  ];
+  var expo = 0;
+  document.getElementById("sg-claims").innerHTML = claims.map(function (c) {
+    if (c.pleit && !c.rec) expo += c.pleit;
+    return '<tr><td data-label="Nº" class="nowrap">' + c.n + '</td><td data-label="Direção / tipo">' + c.dir + '</td>' +
+      '<td data-label="Pleiteado" class="num">' + (c.pleit ? GI.fmt.moeda(c.pleit) : c.dias) + '</td>' +
+      '<td data-label="Reconhecido" class="num">' + (c.rec ? GI.fmt.moeda(c.rec) : "·") + '</td>' +
+      '<td data-label="Situação"><span class="badge badge--' + c.sit[1] + ' badge--dot">' + c.sit[0] + "</span></td></tr>";
+  }).join("");
+  document.getElementById("sg-claim-exp").textContent = GI.fmt.moeda(expo);
+
+  /* --- Suprimentos: diligenciamento (datas ISO, folga = ROS - previsão) --- */
+  document.getElementById("sg-saving").textContent = GI.fmt.moeda(612000000) + " sobre " + GI.fmt.moeda(9560000000);
+  var pedidos = [
+    ["PO-4500123", "Beta Transformadores", "Transformador 138 kV (LLI)", "Inspeção/FAT", "2026-11-20", "2026-12-08"],
+    ["PO-4500131", "Gama Válvulas", "Válvulas de controle", "Fabricação", "2026-10-30", "2026-10-26"],
+    ["PO-4500140", "Delta Estruturas", "Estrutura metálica eixo 3", "Embarque", "2026-10-15", "2026-10-02"]
+  ];
+  function dias(a, b) { return Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000); }
+  document.getElementById("sg-dilig").innerHTML = pedidos.map(function (p) {
+    var folga = dias(p[4], p[5]);
+    var tipo = folga < 0 ? "danger" : folga < 7 ? "warning" : "success";
+    var txt = (folga > 0 ? "+" : folga < 0 ? "\u2212" : "") + Math.abs(folga) + " dias";
+    return '<tr' + (folga < 0 ? ' class="is-alert"' : "") + '><td data-label="Pedido" class="nowrap">' + p[0] + '</td><td data-label="Fornecedor">' + p[1] + '</td><td data-label="Item">' + p[2] + '</td><td data-label="Próximo marco">' + p[3] + '</td>' +
+      '<td data-label="ROS" class="num">' + GI.fmt.data(p[4]) + '</td><td data-label="Previsão" class="num">' + GI.fmt.data(p[5]) + '</td>' +
+      '<td data-label="Folga"><span class="badge badge--' + tipo + ' badge--dot">' + txt + "</span></td></tr>";
+  }).join("");
+
+  /* --- HSE: taxas NBR 14280 e pirâmide --- */
+  var hht = 2360000, lti = 0, registraveis = 6, diasDebitados = 0;
+  document.getElementById("sg-tf").textContent = GI.fmt.num(lti * 1e6 / hht, 2);
+  document.getElementById("sg-trif").textContent = GI.fmt.num(registraveis * 1e6 / hht, 2);
+  document.getElementById("sg-tg").textContent = GI.fmt.num(diasDebitados * 1e6 / hht, 0);
+  var niveis = [
+    { label: "Lesões graves", sub: "Fatalidade e acidente com afastamento", value: 0 },
+    { label: "Lesões leves", sub: "Restrição, tratamento médico, primeiros socorros", value: 16 },
+    { label: "Danos materiais", sub: "Sem lesão, com dano", value: 31 },
+    { label: "Quase acidentes", sub: "Sem lesão e sem dano", value: 190 },
+    { label: "Desvios", sub: "Atos e condições inseguras", value: 1240 }
+  ];
+  function desenharPiramide(ref) {
+    var r = GI.charts.pyramid("sg-piramide", { levels: niveis, reference: ref });
+    var alerta = document.getElementById("sg-pir-leitura");
+    var baixo = r.razaoQuaseAcidente != null && r.razaoQuaseAcidente < r.referenciaQuaseAcidente / 2;
+    alerta.className = "alert mt-4 " + (baixo ? "alert--warning" : "alert--success");
+    alerta.querySelector(".alert__body").innerHTML = "<span class=\"alert__title\">" +
+      (ref === "bird" ? "Quase acidentes por lesão: " : "Eventos sem lesão por lesão: ") + GI.fmt.num(r.razaoQuaseAcidente, 1) +
+      " (referência " + GI.fmt.num(r.referenciaQuaseAcidente, 1) + ")</span>" +
+      (baixo ? "Relato abaixo da metade da referência sugere subnotificação: reforçar a cultura de relato. " : "Relato compatível com a referência. ") +
+      "Referência " + r.referencia + " " + r.proporcaoReferencia + (r.nota ? " " + r.nota : "") + ".";
+  }
+  desenharPiramide("bird");
+  document.getElementById("sg-pir-ref").addEventListener("segmented:change", function (ev) { desenharPiramide(ev.detail.value); });
+
+  /* --- Interações de demonstração --- */
+  document.querySelectorAll("[data-toast]").forEach(function (b) {
+    var textos = { success: "Ata salva com sucesso.", info: "Consulta atualizada: 104 ações.", warning: "3 responsáveis sem e-mail foram ignorados.", danger: "Não foi possível exportar: nenhum registro." };
+    b.addEventListener("click", function () { GI.ui.toast(textos[b.getAttribute("data-toast")], b.getAttribute("data-toast")); });
+  });
+  document.getElementById("sg-btn-loading").addEventListener("click", function () {
+    var b = this; b.classList.add("is-loading"); b.setAttribute("aria-busy", "true");
+    setTimeout(function () { b.classList.remove("is-loading"); b.removeAttribute("aria-busy"); GI.ui.toast("Envio simulado concluído.", "success"); }, 1200);
+  });
+  document.getElementById("sg-confirmar").addEventListener("click", function () {
+    GI.modal.confirm({ title: "Excluir risco", message: "Excluir o risco RSK-TN-2026-0005? A exclusão é lógica e pode ser revertida por um Admin.", okText: "Excluir risco", danger: true })
+      .then(function (ok) { GI.ui.toast(ok ? "Risco excluído (simulação)." : "Exclusão cancelada.", ok ? "success" : "info"); });
+  });
+  document.getElementById("sg-salvar-acao").addEventListener("click", function () {
+    GI.modal.close("sg-modal-acao"); GI.ui.toast("Ação salva (simulação).", "success");
+  });
+  document.querySelectorAll("#sg-chips .chip__remove").forEach(function (b) {
+    b.addEventListener("click", function () { b.closest(".chip").remove(); });
+  });
+  document.querySelectorAll("#sg-kpi-filtro .kpi__action").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll("#sg-kpi-filtro .kpi").forEach(function (k) {
+        var ativo = k.contains(b);
+        k.classList.toggle("is-active", ativo);
+        var bt = k.querySelector(".kpi__action");
+        bt.setAttribute("aria-pressed", ativo ? "true" : "false");
+        bt.textContent = ativo ? "Filtrando" : "Filtrar";
+      });
+    });
+  });
+  GI.ui.init();
+})();
+</script>
+</body>
+</html>

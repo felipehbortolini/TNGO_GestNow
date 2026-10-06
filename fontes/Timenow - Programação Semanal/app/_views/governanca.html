@@ -1,0 +1,20 @@
+<!--
+  Governança — o fluxo visto de cima, uma linha por empresa e semana.
+-->
+<main id="app-shell" class="content">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Controle</p>
+        <h1 class="h-dash">Governança</h1>
+        <p class="page-head__sub">
+          Onde cada contratada está no fluxo, o que aguarda decisão e quem mexeu por último.
+        </p>
+      </div>
+    </div>
+
+    <div id="gov-painel" x-init="$ajax('/api/governanca', { target: 'gov-painel' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+</main>

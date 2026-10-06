@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatório gerencial | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/relatorio.css">
+</head>
+<!-- Relatório gerencial: página própria, sem menu, com folhas A4 na horizontal para impressão ou PDF -->
+<body class="relatorio-body" data-root="" data-page="relatorio">
+  <div class="relatorio-barra">
+    <a class="btn btn--secondary" href="index.html"><i data-icon="chevronLeft"></i>Início</a>
+    <div class="relatorio-barra__titulo"><b id="rel-titulo">Relatório gerencial</b><span id="rel-sub">Montando o relatório...</span></div>
+    <div class="relatorio-barra__acoes">
+      <a class="btn btn--secondary" id="btn-alterar" href="index.html?relatorio=1"><i data-icon="calendarRange"></i>Alterar período</a>
+      <button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i>Excel</button>
+      <button type="button" class="btn btn--primary" id="btn-imprimir" title="Imprimir ou salvar em PDF pela impressão do navegador"><i data-icon="printer"></i>Imprimir / PDF</button>
+    </div>
+  </div>
+  <h1 class="sr-only">Relatório gerencial</h1>
+  <div class="relatorio-aviso" id="aviso" aria-live="polite"></div>
+  <main class="relatorio-folhas" id="conteudo">
+    <div class="relatorio-folhas__pilha" id="folhas"></div>
+  </main>
+
+<!-- Dados (mock) e fachada de dados: trocar pelos endpoints na fase com backend -->
+<script src="js/i18n.js"></script>
+<script src="js/i18n/en.js"></script>
+<script src="js/siglas.js"></script>
+<script src="data/mock-config.js"></script>
+<script src="data/mock-base.js"></script>
+<script src="data/mock-central.js"></script>
+<script src="data/mock-planejamento.js"></script>
+<script src="data/mock-financeiro.js"></script>
+<script src="data/mock-suprimentos.js"></script>
+<script src="data/mock-riscos.js"></script>
+<script src="data/mock-qualidade.js"></script>
+<script src="data/mock-hse.js"></script>
+<script src="data/mock-governanca.js"></script>
+<script src="data/mock-portfolio.js"></script>
+<script src="js/services/regras.js"></script>
+<script src="js/services/api.js"></script>
+<script src="assets/vendor/chart.umd.min.js"></script>
+<!-- Componentes -->
+<script src="js/components/icons.js"></script>
+<script src="js/components/ui.js"></script>
+<script src="js/components/modal.js"></script>
+<script src="js/components/comum.js"></script>
+<script src="js/components/exportar.js"></script>
+<script src="js/components/charts.js"></script>
+<script src="js/components/formulario.js"></script>
+<script src="js/components/analise.js"></script>
+<!-- Tela -->
+<script src="js/pages/relatorio.js"></script>
+</body>
+</html>

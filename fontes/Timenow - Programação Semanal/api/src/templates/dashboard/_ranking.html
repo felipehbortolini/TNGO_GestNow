@@ -1,0 +1,54 @@
+{#
+  Partial — ranking com medidor.
+
+  Tabela e não gráfico de barras: os rótulos são nomes de empresa e de
+  frente, que quebram linha, e a comparação aqui é de valor exato contra
+  a meta, não de proporção. O medidor dá a leitura visual sem tirar o
+  número da frente.
+
+  Espera: itens (indicadores.ranking) e rotulo_coluna.
+#}
+{% if itens %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Aderência por {{ rotulo_coluna | lower }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">{{ rotulo_coluna }}</th>
+        <th scope="col" class="td-num">Atividades</th>
+        <th scope="col" class="td-num">Realizado / previsto</th>
+        <th scope="col" style="width: 34%">Aderência</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itens %}
+      {% set faixa = item.valor | faixa %}
+      <tr>
+        <td class="fw-600">
+          {{ item.rotulo }}
+          {% if item.pendentes %}
+          <span class="chip chip--warn" title="Realizados aguardando o fiscal">
+            {{ item.pendentes }} pendente(s)
+          </span>
+          {% endif %}
+        </td>
+        <td class="td-num">{{ item.atividades }}</td>
+        <td class="td-num">{{ item.realizado | qtd }} / {{ item.previsto | qtd }}</td>
+        <td>
+          <div class="flex items-center gap-8">
+            <span class="mppc mppc--{{ faixa }}" style="min-width: 48px">
+              <span class="mppc__valor">{{ item.valor | pct(0) }}</span>
+            </span>
+            <div class="medidor flex-1 {{ 'medidor--media' if faixa == 'media' else ('medidor--baixa' if faixa == 'baixa') }}">
+              <div class="medidor__fill" style="--v: {{ [item.valor, 100] | min }}%"></div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><p>Sem dados para este corte.</p></div>
+{% endif %}

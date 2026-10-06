@@ -1,0 +1,265 @@
+/* ============================================================
+   shell.css — Estrutura de tela (padrão Timenow)
+   Complementa tokens.css: sidebar, layout de página, telas de
+   guarda, loading e utilitários.
+
+   Extraído da Central de Ações e Atas (app-web/css/app.css).
+   Só o que serve a qualquer app — o CSS específico daquele
+   projeto (kanban, formulário de ata, agenda do Teams) ficou
+   de fora de propósito.
+
+   Carga: sempre depois de tokens.css. Desde a v2.4 nenhuma classe
+   é declarada nos dois arquivos, então a ordem não altera o
+   resultado — mas as variáveis precisam existir antes.
+   ============================================================ */
+
+/* ---------- Skip link (acessibilidade) ---------- */
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: 200;
+  background: var(--brand-title); color: #fff; padding: 8px 16px;
+  border-radius: var(--r-sm); font-size: 13px; font-weight: 500; text-decoration: none;
+  transition: top .15s;
+}
+.skip-link:focus { top: 8px; }
+
+/* ============================================================
+   Sidebar (padrão Timenow — 300px, marca + itens de 52px)
+   ============================================================ */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: 300px; flex: none;
+  display: flex; flex-direction: column;
+  background: var(--branco);
+  border-right: 1px solid var(--borda);
+  overflow-y: auto;
+}
+
+/* Divergência deliberada da spec do Kyno, por causa do ativo.
+   Lá o bloco usa pl=8px porque o Kyno.svg tem respiro interno — 8px de
+   padding + 8px internos = 16px visuais. Nosso LOGO_FULL não tem: um dos
+   paths chega a x=0, o símbolo encosta na borda do viewBox. Com pl=8 a
+   marca ficava 8px à esquerda de tudo. Aqui 16px são 16px visuais.
+
+   O padding vertical sobe para 24px pelo mesmo motivo: a assinatura da
+   Timenow é mais achatada (208:41) que a do Kyno (108:33), então a 108px
+   de largura rende 21px de altura em vez de 33. Com 16px o bloco daria
+   53px contra os 65px do Kyno — era o aperto. 24 + 21 + 24 = 69px. */
+.sidebar__brand {
+  display: flex; align-items: center;
+  gap: 8px; padding: 24px 16px; flex: none;
+}
+.sidebar__logo-link { display: inline-flex; align-items: center; text-decoration: none; border-radius: var(--r-sm); }
+.sidebar__logo-link svg { width: 108px; height: auto; display: block; }
+
+/* Divisor abaixo da marca, como no Kyno — separa identidade de navegação */
+.sidebar__divisor {
+  height: 1px; border: 0; flex: none;
+  margin: 0; background: var(--borda);
+}
+
+.sidebar__section-label {
+  margin: 0; padding: 8px 16px; flex: none;
+  font-size: 12px; font-weight: 400; line-height: 16px;
+  color: var(--text-dimmed);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+
+/* Faixa de largura total, como na Área Administrativa — o ícone alinha
+   em 16px com o rótulo de seção acima. */
+.sidebar__nav { display: flex; flex-direction: column; }
+/* 12px + 28px de ícone + 12px = 52px de altura, exatamente como o Kyno */
+.sidebar__item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 16px;
+  color: var(--text-nav); text-decoration: none;
+  transition: background .15s;
+}
+.sidebar__item:hover { background: var(--surface-hover); }
+.sidebar__item.is-active { background: var(--surface-hover); }
+.sidebar__item.is-active .sidebar__item-label { font-weight: 500; }
+
+.sidebar__item-icon {
+  width: 28px; height: 28px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  background: var(--verde-soft); color: var(--verde-500);
+}
+.sidebar__item-icon svg { width: 16px; height: 16px; display: block; }
+.sidebar__item-label { font-size: 14px; font-weight: 400; line-height: 20px; }
+
+/* Medidas lidas do inspect do Kyno: avatar 38×38, nome SemiBold/sm
+   (14px / peso 600 / altura de linha 20px), gap nome-email "xs" 4px e
+   padding do botão "md" 12px — com 16px na horizontal para o avatar
+   alinhar na mesma vertical dos ícones da navegação. */
+.sidebar__user {
+  margin-top: auto; flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border-top: 1px solid var(--borda);
+  cursor: pointer; transition: background .15s;
+}
+.sidebar__user:hover { background: var(--surface-hover-suave); }
+.sidebar__user .avatar { width: 38px; height: 38px; font-size: 13px; }
+.sidebar__user .userchip__info {
+  min-width: 0; text-align: left;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sidebar__user .userchip__name {
+  font-size: 14px; font-weight: 500; line-height: 20px; color: var(--text-nav);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar__user .userchip__role {
+  font-size: 12px; line-height: 16px; color: var(--text-dimmed);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar__user-chev { margin-left: auto; color: var(--neutro-300); flex: none; }
+
+/* Indicador de saúde da API, no rodapé da navegação. No template original
+   ficava na navbar horizontal; com a sidebar, desceu para cá. `margin-top:
+   auto` empurra este bloco e o card de usuário para o fim da coluna. */
+.sidebar__saude { margin-top: auto; flex: none; padding: 12px 16px 0; }
+.sidebar__saude + .sidebar__user { margin-top: 12px; }
+
+/* Bloco de apoio da barra lateral — hoje só o seletor de perfil do modo
+   demonstração. Classe própria, e não `sidebar__saude` emprestada, para
+   que o comportamento responsivo dos dois possa divergir. */
+.sidebar__extra { flex: none; padding: 12px 16px 0; }
+.sidebar__extra + .sidebar__saude { margin-top: 12px; padding-top: 0; }
+
+/* Esqueleto exibido enquanto /api/nav não responde */
+.skeleton-marca {
+  width: 108px; height: 21px; border-radius: var(--r-sm);
+  background: var(--neutro-100);
+  animation: pulso 1.4s ease-in-out infinite;
+}
+@keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.content { flex: 1; min-width: 0; overflow-y: auto; }
+
+/* Foco visível em toda a navegação */
+.sidebar__item:focus-visible,
+.sidebar__logo-link:focus-visible {
+  outline: 2px solid var(--verde-500); outline-offset: 2px;
+}
+
+/* ---------- Layout de página ---------- */
+.page { max-width: 1280px; margin: 0 auto; padding: 32px 32px 56px; }
+
+/* Página de tabela densa.
+   Os 1280px existem para texto: linha longa demais cansa a leitura. Uma
+   matriz de catorze números por linha tem o problema oposto — cada pixel
+   a mais é uma coluna que respira, e sobrar espaço em branco nas laterais
+   de um monitor de 27" enquanto a linha quebra em duas é desperdício.
+   O teto de 1720px existe só para a linha não virar uma faixa ilegível
+   em tela ultrawide. */
+.page--larga { max-width: 1720px; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.page-head .h-dash { font-size: 24px; }
+.page-head__sub { font-size: 13px; color: var(--text-secondary); margin: 4px 0 0; }
+.page-head__actions { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- Card ----------
+   .card, .card__head e .card__body vivem só em tokens.css desde a v2.4.
+   Este arquivo os redefinia, e qual das duas versões valia dependia da
+   ordem de carga (C1). A versão com borda venceu e foi consolidada lá. */
+
+/* ---------- Hero / home ---------- */
+.home {
+  position: relative; overflow: hidden; min-height: 100%;
+  display: flex; align-items: center;
+  padding: 64px 48px; background: var(--branco);
+}
+.home__bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: right center;
+  opacity: .45; pointer-events: none;
+}
+.home__conteudo { position: relative; z-index: 1; max-width: 620px; }
+.home__eyebrow {
+  margin: 0 0 12px; font-size: 12px; font-weight: 400; line-height: 16px;
+  color: var(--text-dimmed); text-transform: uppercase; letter-spacing: .06em;
+}
+.home__titulo {
+  margin: 0 0 16px; font-size: clamp(32px, 4vw, 48px); line-height: 1.1;
+  font-weight: 700; letter-spacing: -.02em; color: var(--brand-title);
+  text-wrap: balance;
+}
+.home__sub {
+  margin: 0 0 32px; font-size: 16px; line-height: 1.6;
+  color: var(--text-secondary); max-width: 52ch;
+}
+.home__acoes { display: flex; gap: 12px; flex-wrap: wrap; }
+.home__credito {
+  position: absolute; right: 24px; bottom: 16px; z-index: 1;
+  font-size: 12px; color: var(--text-dimmed);
+}
+
+/* ---------- Telas de guarda (acesso negado, manutenção...) ---------- */
+.guard { max-width: 640px; margin: 40px auto; text-align: center; padding: 0 24px; }
+.guard img { width: 280px; max-width: 90vw; margin-bottom: 24px; }
+.guard h1 { font-family: var(--font-label); font-size: 24px; font-weight: 700; color: var(--text-primary); margin: 0 0 8px; }
+.guard p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 24px; }
+
+/* ---------- Loading ---------- */
+.page-loading { min-height: calc(100vh - 64px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+.page-loading__img { width: 380px; max-width: 80vw; }
+.page-loading__txt { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.overlay-msg { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+
+/* ---------- Estado vazio (complementa o .empty do tokens.css) ---------- */
+.empty img { width: 150px; }
+
+/* ---------- Utilitários ---------- */
+.mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; }
+.mb-16 { margin-bottom: 16px; }
+.flex { display: flex; } .flex-1 { flex: 1; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; }
+.items-center { align-items: center; } .justify-between { justify-content: space-between; }
+.txt-muted { color: var(--text-secondary); } .txt-11 { font-size: 11px; } .txt-12 { font-size: 12px; } .txt-13 { font-size: 13px; }
+.fw-600 { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- Responsivo ----------
+
+   Abaixo de 900px a barra lateral de 300px deixa de ser barra lateral.
+   Num tablet em retrato ela consumia mais de um terço da largura, e num
+   celular sobravam 32px de conteúdo — a tela não ficava apertada, ficava
+   inutilizável.
+
+   Vira uma faixa horizontal no topo, com rolagem lateral própria: a
+   navegação é curta e rolar seis itens é aceitável; rolar a matriz da
+   programação não é. O conteúdo passa a rolar com a página, em vez de
+   dentro de `.content`, que é o que o polegar espera no celular. */
+@media (max-width: 900px) {
+  .app { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+  .content { overflow: visible; }
+
+  .sidebar {
+    width: 100%; flex-direction: row; align-items: center;
+    gap: var(--space-xs); overflow-x: auto; overflow-y: hidden;
+    border-right: none; border-bottom: 1px solid var(--borda);
+    position: sticky; top: 0; z-index: 40; background: var(--branco);
+  }
+  .sidebar__brand { padding: var(--space-md); }
+  .sidebar__logo-link svg { width: 84px; }
+  .sidebar__divisor, .sidebar__section-label { display: none; }
+  .sidebar__nav { flex-direction: row; }
+  .sidebar__item { padding: var(--space-md) var(--space-sm); white-space: nowrap; }
+  .sidebar__item-label { font-size: 13px; }
+  .sidebar__extra, .sidebar__saude { margin-top: 0; padding: 0 var(--space-sm); }
+  .sidebar__extra { max-width: 180px; }
+  .sidebar__user {
+    margin-top: 0; margin-left: auto; flex: none;
+    border-top: none; padding: var(--space-sm) var(--space-md);
+  }
+  .sidebar__user .userchip__info { display: none; }
+}
+
+@media (max-width: 760px) {
+  .page { padding: 24px 16px 40px; }
+  .home { padding: 48px 24px; }
+  .home__bg { opacity: .2; }
+  .sidebar__item-label { display: none; }
+  .sidebar__extra { display: none; }
+}
+/* O bloco de movimento reduzido para .modal/.modal-backdrop foi para
+   tokens.css, junto das classes que ele afeta. */

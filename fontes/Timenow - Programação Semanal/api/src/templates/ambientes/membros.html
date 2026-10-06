@@ -1,0 +1,136 @@
+{% extends "base_fragment.html" %}
+{#
+  Área do operador · Membros de um ambiente.
+
+  Quem pode entrar naquele ambiente — a primeira camada do acesso. Os
+  operadores aparecem marcados e sem controle de remoção: eles entram em
+  todo ambiente implicitamente, e omiti-los faria a tela mentir. Cada
+  concessão e revogação vira evento na trilha do registro.
+
+  Espera: usuario, abas, ambiente, membros, erros.
+#}
+{% block fragment %}
+<div class="page">
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Área do operador</p>
+      <h1 class="h-dash">Membros · {{ ambiente.projeto }}</h1>
+      <p class="page-head__sub">{{ ambiente.cliente }} · {{ ambiente.id }}</p>
+    </div>
+    <div class="page-head__actions">
+      <a href="/api/ambientes-administracao" x-target="app-shell" class="btn btn--ghost">
+        <span x-init="$el.innerHTML = window.icon('arrowLeft', 16)" aria-hidden="true"></span>
+        Voltar
+      </a>
+    </div>
+  </div>
+
+  {% include "ambientes/_abas.html" %}
+
+  {% if erros.geral %}
+  <div class="aviso aviso--erro mb-16">
+    <span>{{ erros.geral }}</span>
+  </div>
+  {% endif %}
+
+  <section class="card mb-16">
+    <div class="card__head">
+      <h2 class="h-card4">Conceder acesso</h2>
+    </div>
+    <div class="card__body">
+      <form method="post" action="/api/ambientes-membro-conceder" x-target="app-shell"
+            data-tn-loading="Concedendo o acesso...">
+        <input type="hidden" name="ambiente" value="{{ ambiente.id }}" />
+        <div class="fgrid" style="grid-template-columns: 1fr auto; align-items: end">
+          <div class="field">
+            <label for="m-email">E-mail</label>
+            <input id="m-email" class="input" type="email" name="email" required
+                   autocomplete="off" placeholder="nome@empresa.com.br" />
+            <span class="hint">
+              Decide o que aparece no seletor da pessoa — o perfil é decidido no
+              cadastro de colaboradores daquele ambiente.
+            </span>
+          </div>
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('userPlus', 16)" aria-hidden="true"></span>
+            Conceder
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Quem pode entrar</h2>
+      <span class="hint">{{ membros | length }} pessoa(s)</span>
+    </div>
+    <div class="card__body">
+      {% if membros %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Membros do ambiente {{ ambiente.id }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">E-mail</th>
+              <th scope="col">Papel</th>
+              <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for membro in membros %}
+            <tr>
+              <td>
+                <span class="mlinha__titulo">{{ membro.email }}</span>
+              </td>
+              <td>
+                {% if membro.operador %}
+                <span class="pill pill--fix">Operador Timenow</span>
+                {% else %}
+                <span class="pill pill--neutral">Membro</span>
+                {% endif %}
+              </td>
+              <td class="td-center">
+                {% if not membro.operador %}
+                <button
+                  type="button"
+                  class="iconbtn"
+                  title="Revogar o acesso de {{ membro.email }}"
+                  aria-label="Revogar o acesso de {{ membro.email }}"
+                  data-ambiente="{{ ambiente.id }}"
+                  data-email="{{ membro.email }}"
+                  x-init="$el.innerHTML = window.icon('trash', 16)"
+                  @click="
+                    TN.confirmarExclusao({
+                      title: 'Revogar acesso',
+                      mensagem: 'A pessoa deixa de ver este ambiente na requisição seguinte.',
+                      labelConfirmar: 'Revogar acesso',
+                      rows: [
+                        { label: 'Ambiente', valor: $el.dataset.ambiente },
+                        { label: 'E-mail', valor: $el.dataset.email }
+                      ]
+                    }).then(function (ok) {
+                      if (ok) $ajax('/api/ambientes-membro-revogar', {
+                        method: 'post',
+                        body: { ambiente: $el.dataset.ambiente, email: $el.dataset.email },
+                        target: 'app-shell'
+                      });
+                    })
+                  "
+                ></button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">
+        <p>Nenhum membro concedido — só os operadores entram neste ambiente.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

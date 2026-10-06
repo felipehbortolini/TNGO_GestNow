@@ -1,0 +1,23 @@
+<!--
+  Importar planilha — três passos, e nada é gravado antes do segundo.
+-->
+<main id="app-shell" class="content">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <p class="aglutinador aglutinador--sm">Entrada de dados</p>
+        <h1 class="h-dash">Importar planilha</h1>
+        <p class="page-head__sub">
+          Envie o modelo preenchido. O sistema confere tudo e mostra o que vai gravar
+          antes de gravar.
+        </p>
+      </div>
+    </div>
+
+    <div id="import-inicio" x-init="$ajax('/api/importar-inicio', { target: 'import-inicio' })">
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+
+    <div id="import-conferencia"></div>
+  </div>
+</main>

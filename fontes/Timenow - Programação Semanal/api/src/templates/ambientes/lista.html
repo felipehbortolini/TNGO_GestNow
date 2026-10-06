@@ -1,0 +1,145 @@
+{% extends "base_fragment.html" %}
+{#
+  Área do operador · Ambientes — a listagem de todos.
+
+  Ativos e arquivados, com a quantidade de pessoas com acesso. A
+  contagem inclui os operadores: eles entram em todo ambiente
+  implicitamente, e omiti-los faria a tela mentir sobre quem tem mais
+  poder.
+
+  Espera: usuario, abas, ambientes (cada um com `pessoas`).
+#}
+{% block fragment %}
+<div class="page">
+  <div class="page-head">
+    <div>
+      <p class="aglutinador aglutinador--sm">Área do operador</p>
+      <h1 class="h-dash">Ambientes</h1>
+      <p class="page-head__sub">
+        Todos os ambientes da instalação — ativos e arquivados.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      {# Limpa a marca de entrada desta aba antes de navegar: com ela
+         posta, o boot entraria no ambiente em vez de mostrar o seletor
+         (revisão 3, item 3). #}
+      {# noajax, e não x-target.away sozinho: o Alpine AJAX sempre lê o
+         alvo padrão ("xxx") antes de olhar os modificadores, e um link
+         só com .away nunca tem esse alvo — o clique quebra com
+         "Cannot read properties of undefined (reading 'ids')" antes de
+         chegar à navegação. noajax entrega o clique direto ao
+         navegador, que é o que este link sempre quis fazer. #}
+      <a
+        href="/"
+        noajax
+        class="btn btn--ghost"
+        @click="TN.esquecerEntrada()"
+      >
+        <span x-init="$el.innerHTML = window.icon('arrowLeft', 16)" aria-hidden="true"></span>
+        Voltar ao seletor
+      </a>
+    </div>
+  </div>
+
+  {% include "ambientes/_abas.html" %}
+
+  <section class="card">
+    <div class="card__body">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <caption class="sr-only">Ambientes da instalação</caption>
+          <thead>
+            <tr>
+              <th scope="col">Identificador</th>
+              <th scope="col">Projeto</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Situação</th>
+              <th scope="col" class="td-center">Pessoas</th>
+              <th scope="col" class="td-center" style="width: 210px">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ambiente in ambientes %}
+            <tr>
+              <td><span class="mlinha__titulo">{{ ambiente.id }}</span></td>
+              <td>{{ ambiente.projeto }}</td>
+              <td>{{ ambiente.cliente }}</td>
+              <td>
+                {% if ambiente.situacao == "ativo" %}
+                <span class="pill pill--ok">Ativo</span>
+                {% else %}
+                <span class="pill pill--neutral">Arquivado</span>
+                {% endif %}
+              </td>
+              <td class="td-center">{{ ambiente.pessoas }}</td>
+              <td class="td-center">
+                <a
+                  class="btn btn--secondary btn--sm"
+                  href="/api/ambientes-membros?ambiente={{ ambiente.id | urlencode }}"
+                  x-target="app-shell"
+                >
+                  Membros
+                </a>
+                {% if ambiente.situacao == "ativo" %}
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--sm"
+                  data-ambiente="{{ ambiente.id }}"
+                  data-projeto="{{ ambiente.projeto }}"
+                  @click="
+                    TN.confirmarExclusao({
+                      title: 'Arquivar ambiente',
+                      mensagem: 'O ambiente sai do seletor de todos. Nada é apagado — desarquivar devolve tudo, inclusive os membros.',
+                      labelConfirmar: 'Arquivar',
+                      rows: [
+                        { label: 'Ambiente', valor: $el.dataset.ambiente },
+                        { label: 'Projeto', valor: $el.dataset.projeto }
+                      ]
+                    }).then(function (ok) {
+                      if (ok) $ajax('/api/ambientes-arquivar', {
+                        method: 'post',
+                        body: { ambiente: $el.dataset.ambiente },
+                        target: 'app-shell'
+                      });
+                    })
+                  "
+                >
+                  Arquivar
+                </button>
+                {% else %}
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--sm"
+                  data-ambiente="{{ ambiente.id }}"
+                  data-projeto="{{ ambiente.projeto }}"
+                  @click="
+                    TN.confirmarExclusao({
+                      title: 'Desarquivar ambiente',
+                      mensagem: 'O ambiente volta ao seletor com os membros como estavam.',
+                      labelConfirmar: 'Desarquivar',
+                      rows: [
+                        { label: 'Ambiente', valor: $el.dataset.ambiente },
+                        { label: 'Projeto', valor: $el.dataset.projeto }
+                      ]
+                    }).then(function (ok) {
+                      if (ok) $ajax('/api/ambientes-desarquivar', {
+                        method: 'post',
+                        body: { ambiente: $el.dataset.ambiente },
+                        target: 'app-shell'
+                      });
+                    })
+                  "
+                >
+                  Desarquivar
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,178 @@
+/* ==========================================================================
+   relatorio.css | Relatório gerencial (Início): folhas A4 na horizontal, uma por
+   seção (Planejamento em duas; HSE em uma). Na tela as folhas aparecem sobre o fundo da
+   página; na impressão cada folha é uma página (@page A4 landscape, sem margem:
+   a margem está dentro da folha). Cores só por variáveis de css/tokens.css.
+   ========================================================================== */
+
+.relatorio-body { background: var(--surface-page); margin: 0; }
+
+/* ---------- Barra da tela (não imprime) ---------- */
+.relatorio-barra {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-card); border-bottom: 1px solid var(--border-default);
+}
+.relatorio-barra__titulo { flex: 1 1 260px; min-width: 0; }
+.relatorio-barra__titulo b { display: block; font-family: var(--font-title); color: var(--text-heading); font-size: var(--fs-400); }
+.relatorio-barra__titulo span { font-size: var(--fs-200); color: var(--text-muted); }
+.relatorio-barra__acoes { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ---------- Área das folhas: folha larga rola dentro do contêiner, nunca a página ---------- */
+.relatorio-folhas { position: relative; overflow-x: auto; padding: var(--space-6) var(--space-4) var(--space-8); }
+.relatorio-folhas__pilha { display: flex; flex-direction: column; align-items: center; gap: var(--space-6); width: max-content; margin: 0 auto; }
+.relatorio-aviso { max-width: 960px; margin: var(--space-4) auto 0; }
+
+/* ---------- Folha ---------- */
+.folha {
+  --rel-fs: 8.6pt;
+  position: relative; width: 297mm; height: 210mm; box-sizing: border-box; padding: 8mm 10mm 7mm;
+  background: var(--surface-card); color: var(--text-default);
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column; overflow: hidden;
+  font-family: var(--font-text); font-size: var(--rel-fs); line-height: 1.35;
+}
+.folha__cabecalho {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6mm;
+  padding-bottom: 3mm; border-bottom: 0.4mm solid var(--border-default);
+}
+.folha__logo { height: 8mm; width: auto; display: block; }
+.folha__titulo { min-width: 0; }
+.folha__titulo b { display: block; font-family: var(--font-title); font-size: 13pt; line-height: 1.15; color: var(--text-heading); }
+.folha__titulo span { display: block; font-size: 8.5pt; color: var(--text-muted); }
+.folha__projeto { text-align: right; font-size: 8pt; color: var(--text-muted); }
+.folha__projeto b { display: block; font-size: 9pt; color: var(--text-strong); }
+
+.folha__secao {
+  display: flex; align-items: center; gap: 3mm; margin: 3mm 0 2.5mm;
+  font-family: var(--font-title); font-weight: var(--fw-bold); font-size: 11pt; color: var(--text-strong);
+}
+.folha__secao::before { content: ""; width: 1.4mm; height: 5.5mm; border-radius: 1mm; background: var(--acento, var(--color-primary)); }
+.folha__secao small { font-family: var(--font-text); font-weight: var(--fw-regular); font-size: 8pt; color: var(--text-muted); }
+
+.folha__corpo { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 3mm; overflow: hidden; }
+.folha__rodape {
+  display: flex; justify-content: space-between; gap: 6mm; padding-top: 2mm; margin-top: 2mm;
+  border-top: 0.3mm solid var(--border-default); font-size: 7pt; color: var(--text-muted);
+}
+.folha__rodape span:nth-child(2) { flex: 1; text-align: center; }
+
+/* ---------- Blocos internos ---------- */
+.rel-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2.5mm; }
+.rel-kpi {
+  border: 0.3mm solid var(--border-default); border-left: 1.2mm solid var(--kpi-cor, var(--color-primary));
+  border-radius: 1.5mm; padding: 2mm 2.5mm; min-width: 0;
+}
+/* Cores dos cards do relatório (somente cards):
+   previsto = azul e realizado = verde, iguais às séries dos gráficos (--chart-baseline / --chart-real);
+   indicador ruim (desvio negativo, abaixo da meta, data atrasada) = vermelho; bom = verde; neutro = cinza.
+   warning e danger são tratados como "ruim" (vermelho) no relatório. */
+.rel-kpi { --kpi-ruim: var(--vermelho-6); }
+.rel-kpi--previsto { --kpi-cor: var(--chart-baseline); }
+.rel-kpi--real     { --kpi-cor: var(--chart-real); }
+.rel-kpi--success  { --kpi-cor: var(--status-success-fg); }
+.rel-kpi--warning,
+.rel-kpi--danger   { --kpi-cor: var(--kpi-ruim); }
+.rel-kpi--info     { --kpi-cor: var(--cinza-4); }
+.rel-kpi--previsto .rel-kpi__valor,
+.rel-kpi--real .rel-kpi__valor,
+.rel-kpi--warning .rel-kpi__valor,
+.rel-kpi--danger .rel-kpi__valor { color: var(--kpi-cor); }
+.rel-kpi .valor--negativo,
+.rel-kpi .valor--sobrecusto { color: var(--kpi-ruim); font-weight: var(--fw-semibold); }
+.rel-kpi__rotulo { display: block; font-size: 7.5pt; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-kpi__valor { display: block; font-family: var(--font-title); font-weight: var(--fw-bold); font-size: 15pt; line-height: 1.2; color: var(--text-strong); white-space: nowrap; }
+.rel-kpi__valor small { font-size: 8pt; font-weight: var(--fw-semibold); color: var(--text-muted); margin-left: 0.6mm; }
+.rel-kpi__esperado { display: block; font-size: 7pt; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-kpi__esperado b { color: var(--text-strong); font-weight: var(--fw-semibold); }
+.rel-kpi__esperado span + span { margin-left: 2mm; }
+.rel-kpi__rodape { display: block; font-size: 7pt; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.rel-grade { display: grid; gap: 4mm; min-height: 0; }
+.rel-grade--60-40 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.rel-grade--50-50 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.rel-grade--40-60 { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+.rel-grade--55-45 { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+.rel-grade--45-55 { grid-template-columns: minmax(0, 9fr) minmax(0, 11fr); }
+.rel-bloco { min-width: 0; display: flex; flex-direction: column; gap: 1.5mm; }
+.rel-bloco__titulo { font-family: var(--font-title); font-weight: var(--fw-bold); font-size: 9pt; color: var(--text-heading); margin: 0; }
+.rel-bloco__titulo small { font-family: var(--font-text); font-weight: var(--fw-regular); font-size: 7.5pt; color: var(--text-muted); margin-left: 1.5mm; }
+
+.rel-grafico { position: relative; width: 100%; }
+.rel-grafico--g { height: 98mm; }
+.rel-grafico--c { height: 86mm; }
+.rel-grafico--m { height: 60mm; }
+.rel-grafico--p { height: 46mm; }
+.folha .legend { margin: 0; gap: 1mm 3mm; font-size: 7.5pt; }
+
+.rel-tabela { width: 100%; border-collapse: collapse; font-size: 0.95em; table-layout: auto; }
+.rel-tabela th {
+  text-align: left; font-weight: var(--fw-semibold); color: var(--text-strong); background: var(--surface-sunken);
+  border-bottom: 0.3mm solid var(--border-strong); padding: 1.2mm 1.6mm; white-space: nowrap;
+}
+.rel-tabela td { padding: 1.1mm 1.6mm; border-bottom: 0.2mm solid var(--border-default); vertical-align: top; }
+.rel-tabela .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rel-tabela tr.rel-total td { font-weight: var(--fw-bold); background: var(--surface-selected); }
+.rel-tabela .nowrap { white-space: nowrap; }
+.rel-mais { font-size: 7.5pt; color: var(--text-muted); }
+.rel-vazio { font-size: 8pt; color: var(--text-muted); padding: 2mm 0; margin: 0; }
+.folha .badge { font-size: 7pt; padding: 0.3mm 1.6mm; }
+.folha .sev { font-size: 7.5pt; padding: 0.3mm 1.8mm; min-width: 0; }
+.folha .heat { font-size: 7.5pt; padding: 0.3mm 1.6mm; }
+
+.rel-lista { margin: 0; padding-left: 4.5mm; display: grid; gap: 0.8mm; }
+.rel-lista li { line-height: 1.35; }
+
+.rel-nota { margin: 0; font-size: 7pt; color: var(--text-muted); }
+.rel-alerta {
+  border: 0.3mm solid var(--status-warning-fg); background: var(--status-warning-bg); color: var(--status-warning-fg);
+  border-radius: 1.5mm; padding: 2mm 3mm; font-size: 8.5pt;
+}
+
+/* Análise do período: texto executivo e tabela de desvios negativos com o comentário de cada um */
+.rel-bloco--analise { gap: 1.2mm; }
+.rel-analise { border-left: 0.8mm solid var(--acento, var(--color-primary)); padding: 0.4mm 0 0.4mm 2.5mm; }
+.rel-analise p { margin: 0 0 1mm; line-height: 1.38; }
+.rel-analise p:last-child { margin-bottom: 0; }
+.rel-tabela--desvios td:first-child { width: 42%; }
+.rel-tabela--desvios td { line-height: 1.3; }
+
+/* Pirâmide de segurança (par mês x acumulado) em escala de folha */
+.folha .rel-piramide { --pyramid-altura: 11mm; max-width: 100%; column-gap: 2mm; row-gap: 0.4mm; }
+.folha .rel-piramide .pyramid-pair__titulo,
+.folha .rel-piramide .pyramid-pair__ratio,
+.folha .rel-piramide .pyramid-pair__label { font-size: 7.5pt; }
+.folha .rel-piramide .pyramid-pair__titulo { padding-bottom: 1mm; }
+.folha .rel-piramide .pyramid-pair__ratio { padding-top: 1mm; }
+.folha .rel-piramide .pyramid__band { font-size: 7.5pt; }
+
+/* Matriz P x I compacta */
+.rel-matriz { display: grid; grid-template-columns: 5mm repeat(5, minmax(0, 1fr)); gap: 0.8mm; font-size: 7.5pt; }
+.rel-matriz__eixo { display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: var(--fw-semibold); }
+.rel-matriz__cel {
+  height: 8.5mm; border-radius: 1mm; display: flex; align-items: center; justify-content: center; gap: 1.2mm;
+  background: var(--sev-bg); color: var(--sev-fg); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums;
+}
+.rel-matriz__cel.sev--baixo    { --sev-bg: var(--sev-baixo-bg);    --sev-fg: var(--sev-baixo-fg); }
+.rel-matriz__cel.sev--moderado { --sev-bg: var(--sev-moderado-bg); --sev-fg: var(--sev-moderado-fg); }
+.rel-matriz__cel.sev--alto     { --sev-bg: var(--sev-alto-bg);     --sev-fg: var(--sev-alto-fg); }
+.rel-matriz__cel.sev--critico  { --sev-bg: var(--sev-critico-bg);  --sev-fg: var(--sev-critico-fg); }
+.rel-matriz__rotulo-x { grid-column: 2 / -1; text-align: center; color: var(--text-muted); font-size: 7pt; }
+
+/* ---------- Impressão ---------- */
+@page { size: A4 landscape; margin: 0; }
+@media print {
+  html, body, .relatorio-body { background: var(--surface-card); }
+  .relatorio-barra, .relatorio-aviso, .toast-stack { display: none !important; }
+  .relatorio-folhas { padding: 0; overflow: visible; }
+  .relatorio-folhas__pilha { display: block; width: auto; gap: 0; }
+  .folha { box-shadow: none; margin: 0; break-after: page; page-break-after: always; }
+  .folha:last-child { break-after: auto; page-break-after: auto; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Telas estreitas: a barra não fica fixa no topo (ocuparia boa parte da altura) */
+@media (max-width: 768px) {
+  .relatorio-barra { position: static; }
+}

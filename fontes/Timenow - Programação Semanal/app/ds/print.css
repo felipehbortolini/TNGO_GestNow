@@ -1,0 +1,146 @@
+/* ============================================================
+   print.css — o PDF da programação semanal
+
+   Não existe um "modo PDF" separado no app: o PDF é esta folha de
+   estilo aplicada à tela do relatório e a impressão do navegador
+   (Ctrl+P → Salvar como PDF). Gerar PDF no servidor exigiria um motor
+   de renderização inteiro como dependência, e ele produziria um
+   documento diferente do que a pessoa vê antes de imprimir.
+
+   O que esta folha faz, e por que:
+
+   1. Tira do papel tudo que é navegação. Sidebar, botões e filtros não
+      têm função impressos.
+   2. Repete o cabeçalho da tabela em toda página. Sem isso, a partir da
+      segunda folha ninguém sabe qual coluna é qual.
+   3. Impede que uma linha da atividade se parta entre duas páginas.
+   4. Troca fundo colorido por borda. Faixa cheia de cor consome tinta e
+      some na impressora monocromática — a borda sobrevive às duas.
+   5. Imprime a referência do endereço só onde ela ajuda: nunca depois de
+      cada link, que é o padrão do navegador e polui a leitura.
+   ============================================================ */
+
+/* O cabeçalho e o rodapé de folha existem no DOM o tempo todo para que a
+   impressão não dependa de uma rota separada — mas só aparecem no papel.
+   Declarados ANTES do bloco @media: assim a regra de impressão vence por
+   ordem de origem, e nenhuma delas precisa de !important. */
+.so-impressao { display: none; }
+.folha-rodape { display: none; }
+
+@media print {
+  /* Margem da folha: `margin` dentro de @page é CSS válido, mas o
+     parser do @eslint/css ainda não o conhece e acusaria a regra. O
+     equivalente aceito é `size` aqui e a margem no corpo — a folha sai
+     igual, e a verificação continua ligada para o resto do arquivo. */
+  @page { size: A4 landscape; }
+
+  body { padding: 0; margin: 10mm; }
+
+  html, body {
+    height: auto;
+    background: #FFFFFF;
+    font-size: 9.5pt;
+  }
+
+  /* --- fora do papel --- */
+  .sidebar,
+  .skip-link,
+  .toolbar,
+  .filtro-panel,
+  .subnav,
+  .page-head__actions,
+  .acoes-rodape,
+  .mt-acoes,
+  .mlinha__acoes,
+  .toast-root,
+  .painel-fundo,
+  .grafico__acoes,
+  .periodo-botoes,
+  .grafico-dica,
+  .nao-imprime {
+    display: none;
+  }
+
+  .app { display: block; height: auto; overflow: visible; }
+  .content { overflow: visible; }
+  .page { max-width: none; padding: 0; }
+
+  /* --- cabeçalho do relatório --- */
+  .so-impressao { display: block; }
+
+  .folha-cabecalho {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12mm;
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+    border-bottom: 1.5pt solid #006457;
+  }
+  .folha-cabecalho h1 {
+    margin: 0;
+    font-family: "Montserrat", "Segoe UI", sans-serif;
+    font-size: 15pt;
+    color: #006457;
+  }
+  .folha-cabecalho p { margin: 1mm 0 0; font-size: 8.5pt; color: #535358; }
+  .folha-cabecalho__emissao { text-align: right; font-size: 8pt; color: #535358; }
+
+  /* --- cartões viram blocos de papel --- */
+  .card,
+  .matriz-quadro,
+  .kpi,
+  .grafico {
+    box-shadow: none;
+    border: 0.6pt solid #B9B9BC;
+    break-inside: avoid;
+  }
+  .kpis { gap: 4mm; margin-bottom: 6mm; }
+  .kpi { padding: 3mm 4mm; }
+  .kpi__value { font-size: 14pt; }
+
+  /* --- a matriz no papel --- */
+  .matriz-rolagem { max-height: none; overflow: visible; }
+  .matriz { font-size: 8pt; }
+  .matriz thead { display: table-header-group; }
+  .matriz tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  .matriz thead th {
+    position: static;
+    background: #F1F1F1;
+    border-bottom: 0.8pt solid #767676;
+    color: #2A2A2A;
+  }
+  .matriz tbody td { padding: 1.4mm 2mm; }
+  .matriz tbody tr:hover td { background: transparent; }
+
+  /* Fundo colorido some na impressora monocromática; a borda não. */
+  .dia { background: transparent; padding: 0; }
+  .dia.is-parado { border: 0.8pt solid #D03636; }
+  .dia.is-batido { border: 0.8pt solid #4EB76D; }
+  .dia.is-extra { border: 0.8pt solid #2288C3; }
+  .pill, .chip {
+    background: transparent;
+    border: 0.6pt solid currentcolor;
+    padding: 0.4mm 1.6mm;
+  }
+
+  /* --- gráficos --- */
+  .grafico__tela svg { max-width: 100%; height: auto; }
+  .graficos { display: block; }
+  .graficos > * { margin-bottom: 6mm; break-inside: avoid; }
+
+  /* --- ligações --- */
+  a { color: #2A2A2A; text-decoration: none; }
+  a[href]::after { content: ""; }
+
+  /* --- rodapé de continuidade --- */
+  .folha-rodape {
+    display: block;
+    margin-top: 6mm;
+    padding-top: 2mm;
+    border-top: 0.6pt solid #DCDCDC;
+    font-size: 7.5pt;
+    color: #535358;
+  }
+}
+

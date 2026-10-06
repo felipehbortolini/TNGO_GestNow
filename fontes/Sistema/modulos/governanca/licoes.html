@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lições aprendidas · Governança | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="governanca/licoes">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Lições aprendidas</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-nova"><i data-icon="plus"></i>Nova lição</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar por palavra-chave, título ou recomendação" aria-label="Buscar no acervo de lições"></div>
+        <label class="sr-only" for="f-tipo">Tipo</label>
+        <select class="select select--curto" id="f-tipo"></select>
+        <label class="sr-only" for="f-situacao">Situação</label>
+        <select class="select select--curto" id="f-situacao"></select>
+        <button type="button" class="btn btn--secondary" id="btn-filtros"><i data-icon="filter"></i>Filtros</button>
+      </div>
+      <div class="filter-bar mb-4" id="chips" hidden></div>
+      <div class="tabs" role="tablist" data-tabs aria-label="Visões das lições aprendidas">
+        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="p-acervo" id="a-acervo"><i data-icon="lightbulb"></i>Acervo <span class="tab__count" id="n-acervo"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-painel" id="a-painel"><i data-icon="barChart"></i>Painel</button>
+      </div>
+      <section class="tab-panel" id="p-acervo" role="tabpanel" aria-labelledby="a-acervo">
+        <p class="text-small text-muted mb-4" id="escopo"></p>
+        <div id="kickoff"></div>
+        <div class="licao-grid" id="cards"></div>
+        <div class="mt-4" id="mais"></div>
+      </section>
+      <section class="tab-panel" id="p-painel" role="tabpanel" aria-labelledby="a-painel" hidden>
+        <div class="kpi-grid" id="kpis-painel"></div>
+        <div class="grid grid--2 mt-6">
+          <section class="card" aria-labelledby="t-fase">
+            <div class="card__header"><div><h2 class="card__title" id="t-fase">Lições por fase</h2><p class="card__subtitle">A repetir e a evitar, no acervo do projeto</p></div></div>
+            <div class="chart"><canvas id="g-fase"></canvas></div>
+          </section>
+          <section class="card" aria-labelledby="t-area">
+            <div class="card__header"><div><h2 class="card__title" id="t-area">Lições por área de conhecimento</h2></div></div>
+            <div class="chart"><canvas id="g-area"></canvas></div>
+          </section>
+        </div>
+        <div class="grid grid--2 mt-6">
+          <section class="card card--flush" aria-labelledby="t-sit">
+            <div class="card__header"><div><h2 class="card__title" id="t-sit">Lições por situação</h2><p class="card__subtitle">Fluxo de validação: Rascunho, Em validação, Validada e Publicada</p></div></div>
+            <div id="t-situacao"></div>
+          </section>
+          <section class="card card--flush" aria-labelledby="t-reuso">
+            <div class="card__header"><div><h2 class="card__title" id="t-reuso">Lições mais reusadas</h2><p class="card__subtitle">Publicadas com aplicação registrada</p></div></div>
+            <div id="t-reusadas"></div>
+          </section>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../assets/vendor/chart.umd.min.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/charts.js"></script>
+<script src="../../js/pages/governanca/governanca.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/governanca/licoes.js"></script>
+</body>
+</html>

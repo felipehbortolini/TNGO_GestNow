@@ -1,0 +1,121 @@
+{% extends "base_fragment.html" %}
+{#
+  Passos 1 e 2 da importação: baixar o modelo e enviar o arquivo.
+
+  A zona de arrastar existe porque o campo de arquivo nativo é pequeno,
+  não diz o que aceita e não mostra o que foi escolhido. Aqui o arquivo
+  aparece com nome e tamanho antes de qualquer envio, e o botão só
+  habilita depois que existe um arquivo.
+
+  Espera: semana, semanas, cadastros.
+#}
+{% block fragment %}
+<div class="passos mb-16">
+  <div class="passo is-concluido">
+    <span class="passo__numero">1</span>
+    <span class="passo__titulo">Baixe o modelo</span>
+    <span class="passo__texto">
+      Já vem com as colunas na ordem certa, um exemplo preenchido e a lista do que é
+      aceito em Local, Empresa e Unidade.
+    </span>
+  </div>
+  <div class="passo is-atual">
+    <span class="passo__numero">2</span>
+    <span class="passo__titulo">Envie e confira</span>
+    <span class="passo__texto">
+      O sistema valida linha a linha e mostra o que vai gravar. Nada é salvo neste passo.
+    </span>
+  </div>
+  <div class="passo is-pendente">
+    <span class="passo__numero">3</span>
+    <span class="passo__titulo">Confirme</span>
+    <span class="passo__texto">
+      Só o que passou na conferência é gravado, com registro na trilha de auditoria.
+    </span>
+  </div>
+</div>
+
+<div class="graficos graficos--duas">
+  <section class="card">
+    <div class="card__head"><h2 class="h-card4">Modelo da planilha</h2></div>
+    <div class="card__body">
+      <p class="body-txt muted mb-16">
+        Uma atividade ocupa duas linhas: <b>Prev.</b> com o que será programado e
+        <b>Real.</b> com o que foi executado. A linha Real. é opcional.
+      </p>
+      <ul class="lista-simples mb-16">
+        <li class="lista-simples__item">
+          <span class="linha__main">
+            <span class="linha__titulo">Locais cadastrados</span>
+            <span class="linha__meta">{{ cadastros.locais | join(' · ') }}</span>
+          </span>
+        </li>
+        <li class="lista-simples__item">
+          <span class="linha__main">
+            <span class="linha__titulo">Empresas cadastradas</span>
+            <span class="linha__meta">{{ cadastros.empresas | join(' · ') }}</span>
+          </span>
+        </li>
+        <li class="lista-simples__item">
+          <span class="linha__main">
+            <span class="linha__titulo">Unidades aceitas</span>
+            <span class="linha__meta">{{ cadastros.unidades | join(' · ') }}</span>
+          </span>
+        </li>
+      </ul>
+      {# noajax — ver o comentário em ambientes/lista.html. #}
+      <a class="btn btn--secondary" href="/api/modelo-planilha?semana={{ semana | urlencode }}&ambiente={{ slug_do_ambiente() }}" noajax>
+        <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+        Baixar o modelo (.xlsx)
+      </a>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head"><h2 class="h-card4">Enviar preenchido</h2></div>
+    <div class="card__body">
+      <form
+        method="post"
+        action="/api/importar-conferir"
+        enctype="multipart/form-data"
+        x-target="import-conferencia"
+        data-tn-loading="Conferindo a planilha..."
+        x-data="{ nome: '', tamanho: 0, sobre: false }"
+      >
+        <label
+          class="solta-arquivo"
+          :class="sobre ? 'solta-arquivo is-sobre' : 'solta-arquivo'"
+          @dragover.prevent="sobre = true"
+          @dragleave.prevent="sobre = false"
+          @drop.prevent="
+            sobre = false;
+            $refs.campo.files = $event.dataTransfer.files;
+            nome = $refs.campo.files[0] ? $refs.campo.files[0].name : '';
+            tamanho = $refs.campo.files[0] ? $refs.campo.files[0].size : 0;
+          "
+        >
+          <span class="solta-arquivo__icone" x-init="$el.innerHTML = window.icon('upload', 32)" aria-hidden="true"></span>
+          <span class="solta-arquivo__titulo" x-text="nome || 'Arraste a planilha aqui ou clique para escolher'"></span>
+          <span class="solta-arquivo__dica" x-show="!nome">Somente .xlsx, até 8 MB</span>
+          <span class="solta-arquivo__dica" x-show="nome" x-text="Math.round(tamanho / 1024) + ' KB selecionados'"></span>
+          <input
+            type="file"
+            name="arquivo"
+            accept=".xlsx"
+            required
+            x-ref="campo"
+            @change="nome = $el.files[0] ? $el.files[0].name : ''; tamanho = $el.files[0] ? $el.files[0].size : 0"
+          />
+        </label>
+
+        <div class="acoes-rodape mt-16">
+          <button type="submit" class="btn btn--primary" :disabled="!nome">
+            <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+            Conferir a planilha
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base_fragment.html" %}
+{#
+  Validação da programação — o passo do planejador.
+
+  Validar é o gate que libera o realizado: enquanto não acontece, o
+  fornecedor não reporta nada. Por isso a tela pede o fiscal na mesma
+  ação — programação validada sem responsável é uma pendência que só
+  aparece depois, quando alguém procura quem aprova.
+
+  Espera: atividade, fiscais, erros.
+#}
+{% block fragment %}
+<div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+  <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-validar" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="painel__titulo" id="titulo-validar">Validar a programação</h2>
+        <p class="painel__sub">{{ atividade.id_exclusiva }} · {{ atividade.empresa }}</p>
+      </div>
+      <button type="button" class="iconbtn painel__fechar" aria-label="Fechar"
+              x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.remove()"></button>
+    </div>
+
+    <form method="post" action="/api/atividade-validar?chave={{ atividade.key | chave_url }}"
+          x-target="drawer prog-resumo prog-tabela" data-tn-loading="Validando...">
+      <div class="painel__corpo">
+        <div class="aviso aviso--info mb-16">
+          <strong>O que a validação faz</strong>
+          <span>
+            Confirma que a programação está coerente e libera o fornecedor a reportar o
+            realizado. O fiscal escolhido passa a ser quem aprova esse reporte.
+          </span>
+        </div>
+
+        <div class="det mb-16">
+          <div class="det__row"><span class="det__label">Atividade</span><span class="det__valor">{{ atividade.atividade }}</span></div>
+          <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.local }}</span></div>
+          <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.encarregado }}</span></div>
+          <div class="det__row"><span class="det__label">Previsto</span><span class="det__valor">{{ atividade.total_previsto | qtd }} {{ atividade.unidade }}</span></div>
+        </div>
+
+        <div class="field">
+          <label for="campo-fiscal-validacao">Fiscal responsável</label>
+          <select id="campo-fiscal-validacao" class="input{{ ' input--erro' if erros.responsavel }}"
+                  name="responsavel" required>
+            <option value="">Selecione o fiscal...</option>
+            {% for f in fiscais %}
+            <option value="{{ f }}" {% if atividade.responsavel == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.responsavel %}<span class="field__erro">{{ erros.responsavel }}</span>{% endif %}
+        </div>
+
+        <div class="field mt-16">
+          <label for="campo-comentarios-validacao">Comentários ao fornecedor</label>
+          <textarea id="campo-comentarios-validacao" class="input" name="comentarios" rows="3"
+                    placeholder="Opcional — ajustes combinados, pontos de atenção"></textarea>
+        </div>
+      </div>
+
+      <div class="painel__rodape">
+        <span class="painel__aviso">A situação passa de “em elaboração” para “validada”.</span>
+        <div class="painel__rodape-acoes">
+          <button type="button" class="btn btn--secondary" @click="$root.remove()">Cancelar</button>
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
+            Validar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.python_packages/
+
+# Azure Functions / Azurite
+local.settings.json
+__blobstorage__
+__queuestorage__
+__tablestorage__/
+__azurite_db*__.json
+AzuriteConfig
+bin/
+obj/
+
+# SWA CLI
+.swa/
+
+# Node
+node_modules/
+
+# Editor / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Base local
+#
+# `data/` é o banco de quem roda em arquivos locais: programação,
+# colaboradores, janelas e a trilha de auditoria. Não vai para o
+# repositório — é dado de operação, muda a cada uso e conteria e-mail de
+# gente real. A primeira execução recria a carga inicial sozinha.
+data/*.json
+data/*.jsonl
+data/*.tmp

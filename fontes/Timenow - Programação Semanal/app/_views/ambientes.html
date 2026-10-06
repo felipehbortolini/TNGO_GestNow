@@ -1,0 +1,25 @@
+<!--
+  Seletor de ambientes — a primeira tela depois do SSO.
+
+  A view é só o esqueleto: quem traz as caixas é /api/ambientes-seletor,
+  que conhece o registro de ambientes e a identidade da sessão. Assim a
+  mesma view serve a lista inteira, a entrada automática de quem tem um
+  ambiente só e a tela explicativa de quem não tem nenhum.
+-->
+<main id="app-shell" class="content">
+  <div
+    class="page"
+    x-data
+    x-init="
+      const destino = encodeURIComponent(location.pathname + location.search);
+      const recusa = new URLSearchParams(location.search).get('recusa');
+      const extra = recusa ? '&recusa=' + encodeURIComponent(recusa) : '';
+      $ajax('/api/ambientes-seletor?destino=' + destino + extra, { target: 'app-shell' });
+    "
+  >
+    <div class="page-loading">
+      <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
+      <p class="page-loading__txt">Procurando seus ambientes...</p>
+    </div>
+  </div>
+</main>

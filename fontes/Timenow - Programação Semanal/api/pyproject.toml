@@ -1,0 +1,187 @@
+[project]
+name = "api"
+version = "1.0.0"
+description = "Programação Semanal de Serviços — Timenow Engenharia (Azure SWA + Functions V4)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "azure-functions>=2.2.0",
+    "jinja2>=3.1.6",
+    # Importação e exportação da planilha padrão da programação semanal.
+    # É a única dependência de domínio: o restante do app não lê nem
+    # escreve binário.
+    "openpyxl>=3.1.5",
+]
+# Removido em 13/08/2026: "httpx2>=2.9.1".
+# Nenhum código do projeto importa cliente HTTP, e o pacote (publicado em
+# 24/07/2026, junto de "httpcore2") tem nome adjacente ao canônico "httpx",
+# que não consta do lockfile. Como a dependência não era usada, foi retirada
+# em vez de auditada. Se for intencional, basta reinserir a linha e rodar
+# `uv lock`. Ver C7 em ../../PLANO-DE-ACAO.md.
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.2",
+    "ty>=0.0.69",
+]
+
+[tool.azure-functions]
+# The directory where function_app.py lives (relative to project root).
+app_location = "."
+# Python programming model version.
+programming_model = "v2"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Ruff — linter e formatador
+#
+# Antes desta configuração o ruff rodava só com os defaults (E4, E7, E9, F),
+# que é um punhado de regras. O conjunto abaixo é rigoroso mas prático: entra
+# o que pega defeito de verdade, fica de fora o que só gera ruído em revisão.
+#
+#   ruff check .          conferir
+#   ruff check . --fix    corrigir o que é automático
+#   ruff format .         formatar
+# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# pytest — as regras que o linter não vê
+#
+# Cobre o que quebraria em silêncio mostrando um número plausível: semana
+# ISO, janela de programação e o avanço físico da curva S. Roda na porta
+# de qualidade, junto do ruff e do ty.
+#
+#   .venv/Scripts/python.exe -m pytest
+# ═══════════════════════════════════════════════════════════════════════════
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+# O ruff também formata blocos de código Python dentro de Markdown. Nos
+# nossos .md os exemplos são didáticos — quebras e alinhamentos foram
+# escolhidos para ilustrar, não para compilar. Deixar o formatador reescrevê-los
+# faria a documentação mudar sozinha a cada `ruff format`.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle — espaçamento, linha em branco no fim do arquivo
+    "F",       # pyflakes — variável não usada, import morto, nome indefinido
+    "I",       # isort — ordem dos imports
+    "N",       # pep8-naming
+    "UP",      # pyupgrade — sintaxe obsoleta para a versão de Python alvo
+    "B",       # bugbear — armadilhas reais (mutável como default, etc.)
+    "C4",      # comprehensions
+    "DTZ",     # datetime sem fuso — fonte clássica de bug silencioso
+    "SIM",     # simplificações
+    "RET",     # returns redundantes
+    "PTH",     # prefira pathlib a os.path
+    "ARG",     # argumento não usado
+    "PIE",     # sobras
+    "ISC",     # concatenação implícita de string
+    "TID",     # imports ordenados por origem
+    "S",       # bandit — segurança
+    "RUF",     # regras do próprio ruff
+
+    # ── Clean code, na parte que é mecânica ──────────────────────────
+    # Princípios de docs/CLEAN-CODE.md que dá para verificar sem
+    # julgamento. O que exige leitura humana ficou de fora e está na
+    # checklist de revisão.
+    "C90",     # complexidade ciclomática — "faça uma coisa só"
+    "PLR09",   # excesso de argumento, retorno, ramo e statement
+    "FBT",     # flag booleana como parâmetro — o guia chama de armadilha
+    "ERA",     # código comentado esquecido no arquivo
+    "TRY",     # tratamento de exceção
+]
+
+ignore = [
+    # Comprimento de linha fica com o formatador, não com o linter — senão os
+    # dois brigam em comentário longo e string que não dá para quebrar.
+    "E501",
+    # Conflita com `ruff format`, conforme a própria documentação do ruff.
+    "ISC001",
+    # ── TRY003: mensagem longa fora da classe da exceção ──────────────
+    # Falso positivo estrutural neste projeto, e não preguiça.
+    #
+    # `RecusadoError` e `InvalidoError` (core/dados.py) não são exceções
+    # técnicas: elas são o CANAL da mensagem que a pessoa lê na tela. O
+    # blueprint captura, tira `args[0]` e renderiza — "A semana S.31/2026
+    # não está liberada para esta empresa." nasce no ponto onde a regra é
+    # avaliada, que é o único lugar que sabe qual semana e qual empresa.
+    #
+    # Obedecer à regra significaria uma subclasse por mensagem (são mais
+    # de quarenta) ou mover o texto para longe da condição que o explica.
+    # As duas saídas pioram exatamente o que a regra quer proteger.
+    "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+# Limite 10 é o padrão do ruff e o mais citado na literatura. O código
+# atual passa com folga — serve de alarme, não de meta.
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# AlpineAjaxResponse.__init__ tem 6 parâmetros, e é assim de propósito:
+# depois do `*` são todos KEYWORD-ONLY (request, target_id, root_class,
+# status_code). A regra dos "2 argumentos, idealmente" do clean code
+# existe porque parâmetro posicional cria ordem que se erra na chamada —
+# problema que argumento nomeado não tem. Reduzir aqui significaria criar
+# um objeto de opções, que é a mesma coisa com mais indireção.
+"src/core/responses.py" = ["PLR0913"]
+# exportar_semana monta a planilha a partir de cinco entradas distintas
+# (semana, atividades, resumo, curva, emissão) e a identificação entra
+# keyword-only, como o par emissão. Agrupá-las num objeto de opções é a
+# mesma coisa com mais indireção — o mesmo caso de responses.py.
+"src/core/planilha.py" = ["PLR0913"]
+# O modelo de programação V2 do Azure Functions EXIGE o parâmetro `req` na
+# assinatura de todo handler, mesmo quando a rota não lê nada da requisição
+# (o caso de /api/health). Não é argumento esquecido — é contrato do
+# framework, e "corrigir" quebraria o registro da função.
+"src/blueprints/*.py" = ["ARG001"]
+
+# assert em teste é o ponto do teste; S101 aqui seria ruído. ARG001 e
+# ARG005 também: o handler falso que os decoradores embrulham precisa
+# aceitar (req, user) para casar com a assinatura que a costura entrega
+# — é contrato do decorador, não argumento esquecido. PLR0913 idem: o
+# construtor de requisição dos testes tem parâmetros só keyword-only
+# (cookie, cabeçalho, email...), sem ordem posicional para errar — o
+# mesmo caso estrutural de `responses.py`.
+"**/test_*.py" = ["S101", "ARG001", "ARG005", "PLR0913"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ty — verificador de tipos
+#
+# O ruff pega estilo e armadilha sintática; o ty pega o que só aparece
+# seguindo o tipo pelo código — atributo que não existe, retorno que não
+# bate com a anotação, None que escapa sem checagem.
+#
+#   ty check
+# ═══════════════════════════════════════════════════════════════════════════
+[tool.ty.environment]
+python-version = "3.13"
+# `src/` é a raiz dos pacotes; sem isto o ty não resolve `from src.core...`
+# do mesmo jeito que o runtime do Functions resolve.
+root = ["."]
+
+[tool.ty.src]
+include = ["src", "function_app.py"]
+exclude = [".venv", "__pycache__"]
+
+[tool.ty.rules]
+# O padrão do ty já é sensato. Estas duas sobem para `error` porque são
+# exatamente a classe de defeito que passou despercebida neste projeto
+# antes — atributo lido de objeto que não o tem, e nome que só existe em
+# um dos caminhos de execução.
+possibly-unresolved-reference = "error"
+unresolved-attribute = "error"

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contratos · Gestão Financeira | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="financeiro/contratos">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">Contratos</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="kpi-grid kpi-grid--3" id="kpis"></div>
+      <div class="toolbar mt-6">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar número, contratada ou descrição" aria-label="Buscar nos contratos"></div>
+        <label class="sr-only" for="f-contrato">Contrato</label><select class="select" id="f-contrato"></select>
+      </div>
+      <div class="tabs" role="tablist" data-tabs aria-label="Registros da administração contratual">
+        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="p-contratos" id="a-contratos"><i data-icon="fileContract"></i>Contratos <span class="tab__count" id="n-contratos"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-claims" id="a-claims"><i data-icon="gavel"></i>Claims <span class="tab__count" id="n-claims"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-eot" id="a-eot"><i data-icon="calendar"></i>Extensões de prazo <span class="tab__count" id="n-eot"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-marcos" id="a-marcos"><i data-icon="flag"></i>Marcos de pagamento <span class="tab__count" id="n-marcos"></span></button>
+        <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="p-aval" id="a-aval"><i data-icon="star"></i>Avaliações <span class="tab__count" id="n-aval"></span></button>
+      </div>
+      <section class="tab-panel card card--flush" id="p-contratos" role="tabpanel" aria-labelledby="a-contratos">
+        <div class="card__header"><div><h2 class="card__title">Contratos</h2><p class="card__subtitle" id="sub-contratos"></p></div></div>
+        <div id="t-contratos"></div>
+      </section>
+      <section class="tab-panel card card--flush" id="p-claims" role="tabpanel" aria-labelledby="a-claims" hidden>
+        <div class="card__header"><div><h2 class="card__title">Claims</h2><p class="card__subtitle" id="sub-claims"></p></div></div>
+        <div id="t-claims"></div>
+      </section>
+      <section class="tab-panel card card--flush" id="p-eot" role="tabpanel" aria-labelledby="a-eot" hidden>
+        <div class="card__header"><div><h2 class="card__title">Extensões de prazo</h2><p class="card__subtitle" id="sub-eot"></p></div></div>
+        <div id="t-eot"></div>
+      </section>
+      <section class="tab-panel card card--flush" id="p-marcos" role="tabpanel" aria-labelledby="a-marcos" hidden>
+        <div class="card__header"><div><h2 class="card__title">Marcos de pagamento</h2><p class="card__subtitle" id="sub-marcos"></p></div></div>
+        <div id="t-marcos"></div>
+      </section>
+      <section class="tab-panel card card--flush" id="p-aval" role="tabpanel" aria-labelledby="a-aval" hidden>
+        <div class="card__header"><div><h2 class="card__title">Avaliações de desempenho</h2><p class="card__subtitle" id="sub-aval"></p></div></div>
+        <div id="t-aval"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/pages/financeiro/financeiro.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/financeiro/contratos.js"></script>
+</body>
+</html>

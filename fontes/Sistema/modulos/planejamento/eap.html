@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EAP · Planejamento | Gestão Integrada AMT</title>
+  <link rel="icon" type="image/png" href="../../assets/logos/timenow-icone.png">
+  <link rel="stylesheet" href="../../css/fonts.css">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/layout.css">
+  <link rel="stylesheet" href="../../css/components.css">
+</head>
+<body data-root="../../" data-page="planejamento/eap">
+<div class="app">
+  <main class="app-main" id="conteudo">
+    <div class="container">
+
+      <h1 class="sr-only" id="titulo">EAP</h1>
+      <div class="page-bar">
+        <nav data-module-tabs></nav>
+        <div class="page-actions" id="acoes-pagina"><button type="button" class="btn btn--primary" id="btn-novo"><i data-icon="plus"></i>Novo pacote</button><button type="button" class="btn btn--secondary" id="btn-importar"><i data-icon="upload"></i>Importar Excel</button><button type="button" class="btn btn--secondary" data-exportar="excel" title="Exportar Excel"><i data-icon="fileSheet"></i><span><span class="btn__prefixo">Exportar </span>Excel</span></button><button type="button" class="btn btn--secondary" data-exportar="pdf" title="Exportar PDF"><i data-icon="filePdf"></i><span><span class="btn__prefixo">Exportar </span>PDF</span></button></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar__search input-icon"><i data-icon="search"></i><input class="input input--pill" type="search" id="busca" placeholder="Buscar código ou descrição" aria-label="Buscar na EAP"></div>
+        <label class="sr-only" for="f-nivel">Mostrar até</label>
+        <select class="select" id="f-nivel">
+          <option value="1">Mostrar áreas</option>
+          <option value="2">Mostrar subáreas</option>
+          <option value="3" selected>Mostrar pacotes</option>
+        </select>
+        <label class="sr-only" for="f-criterio">Critério de medição</label><select class="select" id="f-criterio"></select>
+        <label class="sr-only" for="f-situacao">Situação</label>
+        <select class="select" id="f-situacao">
+          <option value="">Todas as situações</option>
+          <option value="atrasado">Desvio fora da faixa</option>
+          <option value="vencido">Término vencido</option>
+          <option value="planejamento">Pacotes de planejamento</option>
+        </select>
+      </div>
+      <div class="kpi-grid" id="kpis"></div>
+      <section class="card card--flush mt-6" aria-labelledby="t-eap">
+        <div class="card__header"><div><h2 class="card__title" id="t-eap">Estrutura analítica do projeto</h2><p class="card__subtitle" id="sub-eap"></p></div>
+          <div class="btn-group"><button type="button" class="btn btn--secondary btn--sm" id="btn-importar-avanco"><i data-icon="upload"></i>Importar avanço</button><button type="button" class="btn btn--secondary btn--sm" id="btn-colunas"><i data-icon="columns"></i>Colunas</button></div></div>
+        <div id="tabela"></div>
+      </section>
+      <section class="card card--flush mt-4" aria-labelledby="t-rev">
+        <div class="card__header"><div><h2 class="card__title" id="t-rev">Revisões da EAP</h2><p class="card__subtitle">Rev 0 é a linha de base aprovada; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo</p></div>
+          <button type="button" class="btn btn--secondary btn--sm" id="btn-revisao"><i data-icon="history"></i>Nova revisão</button></div>
+        <div id="revisoes"></div>
+      </section>
+      <section class="card card--flush mt-4" aria-labelledby="t-des">
+        <div class="card__header"><div><h2 class="card__title" id="t-des">Desdobramentos da revisão vigente</h2><p class="card__subtitle" id="sub-des"></p></div>
+          <button type="button" class="btn btn--secondary btn--sm" id="btn-desdobrar"><i data-icon="listTree"></i>Desdobrar</button></div>
+        <div id="desdobramentos"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="../../js/i18n.js"></script>
+<script src="../../js/i18n/en.js"></script>
+<script src="../../js/siglas.js"></script>
+<script src="../../data/mock-config.js"></script>
+<script src="../../data/mock-base.js"></script>
+<script src="../../data/mock-central.js"></script>
+<script src="../../data/mock-planejamento.js"></script>
+<script src="../../data/mock-financeiro.js"></script>
+<script src="../../data/mock-suprimentos.js"></script>
+<script src="../../data/mock-riscos.js"></script>
+<script src="../../data/mock-qualidade.js"></script>
+<script src="../../data/mock-hse.js"></script>
+<script src="../../data/mock-governanca.js"></script>
+<script src="../../data/mock-portfolio.js"></script>
+<script src="../../js/services/regras.js"></script>
+<script src="../../js/services/api.js"></script>
+<script src="../../js/components/icons.js"></script>
+<script src="../../js/components/ui.js"></script>
+<script src="../../js/components/modal.js"></script>
+<script src="../../js/components/comum.js"></script>
+<script src="../../js/components/tabela.js"></script>
+<script src="../../js/components/exportar.js"></script>
+<script src="../../js/components/formulario.js"></script>
+<script src="../../js/components/upload.js"></script>
+<script src="../../js/components/importar.js"></script>
+<script src="../../js/pages/financeiro/financeiro.js"></script>
+<script src="../../js/layout.js"></script>
+<script src="../../js/pages/planejamento/eap.js"></script>
+</body>
+</html>

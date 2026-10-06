@@ -1,0 +1,76 @@
+{% extends "base_fragment.html" %}
+{#
+  Aprovação do realizado — o passo do fiscal.
+
+  A tela mostra o que está sendo aprovado dia a dia, e não só o total.
+  Aprovar sem ver a distribuição é assinar embaixo de um número.
+
+  Espera: atividade, datas, erros.
+#}
+{% from "programacao/_macros.html" import grade_dias, cabecalho_dias %}
+{% block fragment %}
+<div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+  <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-aprovar" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="painel__titulo" id="titulo-aprovar">Aprovar o realizado</h2>
+        <p class="painel__sub">{{ atividade.id_exclusiva }} · {{ atividade.empresa }}</p>
+      </div>
+      <button type="button" class="iconbtn painel__fechar" aria-label="Fechar"
+              x-init="$el.innerHTML = window.icon('dismiss', 18)" @click="$root.remove()"></button>
+    </div>
+
+    <form method="post" action="/api/atividade-aprovar?chave={{ atividade.key | chave_url }}"
+          x-target="drawer prog-resumo prog-tabela" data-tn-loading="Aprovando...">
+      <div class="painel__corpo">
+        <div class="resumo-lancamento mb-16">
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">Previsto</span>
+            <span class="resumo-lancamento__valor">{{ atividade.total_previsto | medida(atividade.unidade) }}</span>
+            <span class="resumo-lancamento__nota">{{ atividade.unidade }}</span>
+          </div>
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">Realizado</span>
+            <span class="resumo-lancamento__valor">{{ atividade.total_realizado | medida(atividade.unidade) }}</span>
+            <span class="resumo-lancamento__nota">{{ atividade.unidade }}</span>
+          </div>
+          <div class="resumo-lancamento__item">
+            <span class="resumo-lancamento__rotulo">PPC</span>
+            <span class="resumo-lancamento__valor {{ 'is-erro' if atividade.faixa == 'baixa' else ('is-alerta' if atividade.faixa == 'media') }}">
+              {{ atividade.ppc | pct(0) }}
+            </span>
+          </div>
+        </div>
+
+        <p class="grupo-label">Dia a dia reportado</p>
+        {{ cabecalho_dias(datas) }}
+        {{ grade_dias(atividade, datas) }}
+
+        {% if atividade.observacoes_fornecedor %}
+        <div class="aviso aviso--warn mt-16">
+          <strong>Justificativa do fornecedor</strong>
+          <span>{{ atividade.observacoes_fornecedor }}</span>
+        </div>
+        {% endif %}
+
+        <div class="field mt-16">
+          <label for="campo-comentarios-aprovacao">Comentários da fiscalização</label>
+          <textarea id="campo-comentarios-aprovacao" class="input" name="comentarios" rows="3"
+                    placeholder="Opcional — registro do que foi conferido em campo"></textarea>
+        </div>
+      </div>
+
+      <div class="painel__rodape">
+        <span class="painel__aviso">Depois de aprovado, o realizado não pode mais ser alterado pelo fornecedor.</span>
+        <div class="painel__rodape-acoes">
+          <button type="button" class="btn btn--secondary" @click="$root.remove()">Cancelar</button>
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+            Aprovar
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

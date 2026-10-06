@@ -1,0 +1,38 @@
+<!--
+  Componente estático reutilizável — bloco de dica.
+
+  A pasta _components/ era documentada na arquitetura do template original
+  mas nunca chegou a existir no disco. Este é o primeiro morador e serve de
+  forma para os próximos.
+
+  Quando usar _components/ em vez de um endpoint da API:
+    - o conteúdo é fixo e não depende de dados do servidor
+    - vai aparecer em mais de uma view
+    - não precisa de autorização diferente da view que o carrega
+
+  Se precisar de dados, é fragmento de API (ver exemplo/resumo.html).
+
+  Regras de um componente:
+    1. Fragmento puro: sem <html>, <head>, <body> ou <script src>.
+    2. A raiz tem id igual ao container que o carrega na view pai.
+    3. Autocontido: não depende de nada que a view pai tenha montado.
+    4. JavaScript curto e local, por atributo do Alpine.
+
+  Uso na view pai:
+    <div id="dica" x-init="$ajax('/_components/dica.html', { target: 'dica' })"></div>
+-->
+<!--
+  O nível do cabeçalho é semântico, a classe é visual. Este bloco vem logo
+  depois do <h1> da página, então precisa ser <h2> — mesmo usando .h-card5,
+  que é o menor tamanho da escala. Usar <h3> aqui quebraria o esboço que o
+  leitor de tela oferece para navegar por cabeçalhos.
+-->
+<div id="dica" class="aviso aviso--info">
+  <h2 class="h-card5">Este é o modelo de referência</h2>
+  <p class="body-txt">
+    A listagem, o formulário e a exclusão abaixo são o ciclo completo do
+    padrão: o servidor devolve HTML pronto, o Alpine AJAX troca o pedaço
+    certo da tela e o Design System cuida da aparência. Copie esta tela
+    como ponto de partida — veja <code>docs/CHECKLIST-NOVA-PAGINA.md</code>.
+  </p>
+</div>

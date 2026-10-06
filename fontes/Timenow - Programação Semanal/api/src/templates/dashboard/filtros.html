@@ -1,0 +1,60 @@
+{% extends "base_fragment.html" %}
+{#
+  Filtros do dashboard.
+
+  Mudança de qualquer campo recarrega só #dash-painel: a barra fica onde
+  está, e quem está comparando contratadas não perde o seletor a cada
+  troca.
+
+  Espera: semana, semanas, filtros, empresas, locais, encarregados.
+#}
+{% block fragment %}
+<form method="get" action="/api/dashboard" x-target="dash-painel" class="toolbar">
+  <div class="period">
+    <label class="sr-only" for="d-semana">Semana</label>
+    <select id="d-semana" name="semana" class="input"
+            style="border: none; min-width: 190px; font-weight: 600"
+            @change="$el.form.requestSubmit()">
+      {% for s in semanas %}
+      <option value="{{ s.id }}" {% if s.id == semana %}selected{% endif %}>{{ s.id }} · {{ s.periodo }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field" style="flex: 1; min-width: 170px">
+    <label class="sr-only" for="d-empresa">Contratada</label>
+    <select id="d-empresa" name="empresa" class="input" @change="$el.form.requestSubmit()">
+      <option value="">Todas as contratadas</option>
+      {% for e in empresas %}
+      <option value="{{ e }}" {% if filtros.empresa == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field" style="flex: 1; min-width: 170px">
+    <label class="sr-only" for="d-local">Frente</label>
+    <select id="d-local" name="local" class="input" @change="$el.form.requestSubmit()">
+      <option value="">Todas as frentes</option>
+      {% for l in locais %}
+      <option value="{{ l }}" {% if filtros.local == l %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field" style="flex: 1; min-width: 170px">
+    <label class="sr-only" for="d-encarregado">Encarregado</label>
+    <select id="d-encarregado" name="encarregado" class="input" @change="$el.form.requestSubmit()">
+      <option value="">Todos os encarregados</option>
+      {% for e in encarregados %}
+      <option value="{{ e }}" {% if filtros.encarregado == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button type="button" class="btn btn--ghost"
+          @click="$ajax('/api/dashboard-filtros?semana={{ semana | urlencode }}', { target: 'dash-filtros' });
+                  $ajax('/api/dashboard?semana={{ semana | urlencode }}', { target: 'dash-painel' })">
+    Limpar
+  </button>
+</form>
+{% endblock %}

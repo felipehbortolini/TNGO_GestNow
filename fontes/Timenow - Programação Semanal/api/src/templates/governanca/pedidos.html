@@ -1,0 +1,80 @@
+{% extends "base_fragment.html" %}
+{#
+  A fila de pedidos de alteração — Request → Apply.
+
+  Programação publicada e realizado aprovado deixam de ser editáveis, e às
+  vezes precisam mudar mesmo assim. Sem a fila isso vira telefonema para o
+  administrador, que altera direto e sem rastro.
+
+  **Aplicar não altera o dado sozinho.** Ele registra a decisão, libera o
+  item e anota o combinado nos comentários da atividade — quem executa é a
+  pessoa, pela tela normal. Um aplicador automático precisaria de um diff
+  que o pedido não carrega, e adivinhar o que mudar é pior que não mudar.
+
+  Espera: pendentes, resolvidos, total_pendentes.
+#}
+{% block fragment %}
+{% if pendentes %}
+<ul class="lista-simples mb-16">
+  {% for p in pendentes %}
+  <li class="lista-simples__item" style="align-items: flex-start">
+    <span class="linha__dot" style="background: var(--warn-500); margin-top: 6px"></span>
+    <span class="linha__main">
+      <span class="linha__id">{{ p.id_exclusiva }} · {{ p.empresa }} · {{ p.semana }}</span>
+      <span class="linha__titulo">{{ p.motivo }}</span>
+      <span class="linha__meta">
+        {{ p.solicitado_nome or p.solicitado_por }} · {{ p.solicitado_em | data_br(com_hora=true) }}
+      </span>
+    </span>
+
+    {% if pode(user, 'aplicar') %}
+    <form method="post" action="/api/pedido-decidir" x-target="gov-pedidos"
+          class="flex gap-8 items-center" style="flex-wrap: wrap">
+      <input type="hidden" name="id" value="{{ p.id }}" />
+      <label class="sr-only" for="resposta-{{ loop.index }}">Resposta ao pedido</label>
+      <input id="resposta-{{ loop.index }}" class="input" type="text" name="resposta"
+             placeholder="Resposta (obrigatória para recusar)" style="max-width: 260px" />
+      <button type="submit" class="btn btn--primary btn--sm" name="decisao" value="aplicar">
+        Liberar
+      </button>
+      <button type="submit" class="btn btn--secondary btn--sm" name="decisao" value="rejeitar">
+        Recusar
+      </button>
+    </form>
+    {% else %}
+    <span class="pill pill--warn">Aguardando decisão</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty" style="min-height: 140px">
+  <p>Nenhum pedido de alteração aguardando decisão.</p>
+</div>
+{% endif %}
+
+{% if resolvidos %}
+<p class="grupo-label mt-16">Decididos recentemente</p>
+<div class="trilha">
+  {% for p in resolvidos %}
+  <div class="trilha__item">
+    <span class="trilha__ponto"
+          style="background: var(--{{ 'verde' if p.situacao == 'aplicado' else 'neutro' }}-{{ '500' if p.situacao == 'aplicado' else '300' }})"></span>
+    <div class="trilha__corpo">
+      <div class="trilha__acao">
+        {{ p.id_exclusiva }} —
+        {% if p.situacao == 'aplicado' %}liberado para alteração{% else %}recusado{% endif %}
+      </div>
+      <div class="trilha__meta">
+        {{ p.motivo }}
+        {% if p.resposta %} · resposta: {{ p.resposta }}{% endif %}
+      </div>
+      <div class="trilha__meta">
+        {{ p.decidido_por }} · {{ p.decidido_em | data_br(com_hora=true) }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

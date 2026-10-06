@@ -1,0 +1,158 @@
+{% extends "base_fragment.html" %}
+{#
+  Configurações · Geral — identificação do ambiente (em leitura), metas
+  e a regra de justificativa de desvio.
+
+  As metas não são decoração: elas definem a cor do medidor, a faixa do
+  KPI e a linha de referência do gráfico. Estão aqui, e não no código,
+  porque mudam de contrato para contrato.
+
+  O nome do projeto e do cliente NÃO é editado aqui: a fonte única é o
+  registro de ambientes, administrado pelo operador. Duas moradas para
+  o mesmo fato fariam o seletor discordar da sidebar.
+
+  Espera: config, ambiente, semanas, semana_atual, origem, abas.
+#}
+{% block fragment %}
+{% include "configuracoes/_abas.html" %}
+
+<form method="post" action="/api/configuracoes-geral" x-target="config-area"
+      data-tn-loading="Salvando parâmetros...">
+  <section class="card">
+    <div class="card__body">
+      <div class="bloco-config">
+        <div>
+          <h2 class="bloco-config__titulo">Identificação</h2>
+          <p class="bloco-config__texto">
+            De qual ambiente esta tela está falando. O nome vive no registro de
+            ambientes — só o operador o altera.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="fgrid">
+            <div class="field">
+              <label for="c-projeto">Projeto</label>
+              <p id="c-projeto" class="body-txt">{{ ambiente.projeto or "—" }}</p>
+            </div>
+            <div class="field">
+              <label for="c-cliente">Cliente</label>
+              <p id="c-cliente" class="body-txt">{{ ambiente.cliente or "—" }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h2 class="bloco-config__titulo">Metas de desempenho</h2>
+          <p class="bloco-config__texto">
+            Definem a faixa de cor dos indicadores e a marca de meta nos medidores.
+            Abaixo de 75% da meta o indicador vira vermelho.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="fgrid">
+            <div class="field">
+              <label for="c-meta-aderencia">Meta de aderência (%)</label>
+              <input id="c-meta-aderencia" class="input" type="number" step="1" min="0" max="100"
+                     name="meta_aderencia" value="{{ config.meta_aderencia }}" />
+              <span class="hint">Total realizado sobre o total previsto da semana.</span>
+            </div>
+            <div class="field">
+              <label for="c-meta-ppc">Meta de PPC médio (%)</label>
+              <input id="c-meta-ppc" class="input" type="number" step="1" min="0" max="100"
+                     name="meta_ppc" value="{{ config.meta_ppc }}" />
+              <span class="hint">Média do PPC das atividades programadas.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h2 class="bloco-config__titulo">Justificativa de desvio</h2>
+          <p class="bloco-config__texto">
+            Quando o realizado se afasta demais do previsto, o sistema pode exigir uma
+            explicação antes de salvar. É o que transforma o desvio em informação em vez
+            de em número solto.
+          </p>
+        </div>
+        <div class="bloco-config__corpo" x-data="{ exige: {{ 'true' if config.exige_justificativa_desvio else 'false' }} }">
+          <div class="field">
+            <label class="toggle" :class="exige ? 'toggle is-active' : 'toggle'">
+              <input type="checkbox" class="sr-only" x-model="exige"
+                     aria-label="Exigir justificativa quando o desvio passar do limite" />
+              <span class="toggle__track"><span class="toggle__thumb"></span></span>
+              Exigir justificativa acima do limite
+            </label>
+            <input type="hidden" name="exige_justificativa_desvio" :value="exige ? 'sim' : 'nao'" />
+          </div>
+          <div class="field" x-show="exige">
+            <label for="c-limite">Limite de desvio sem justificativa (%)</label>
+            <input id="c-limite" class="input" type="number" step="1" min="0" max="100"
+                   name="limite_desvio_justificativa" value="{{ config.limite_desvio_justificativa }}"
+                   style="max-width: 180px" />
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h2 class="bloco-config__titulo">Semana de referência</h2>
+          <p class="bloco-config__texto">
+            A semana que o app abre por padrão. Em branco, ele usa a semana corrente do
+            calendário ISO — que é o certo em operação e só atrapalha em demonstração.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="field">
+            <label for="c-semana">Abrir o app em</label>
+            <select id="c-semana" class="input" name="semana_referencia" style="max-width: 320px">
+              <option value="">Semana corrente ({{ semana_atual }})</option>
+              {% for s in semanas %}
+              <option value="{{ s.id }}" {% if config.semana_referencia == s.id %}selected{% endif %}>
+                {{ s.id }} · {{ s.periodo }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="bloco-config">
+        <div>
+          <h2 class="bloco-config__titulo">Onde os dados ficam</h2>
+          <p class="bloco-config__texto">
+            A origem é escolhida por variável de ambiente, não por esta tela: trocar de
+            base é uma decisão de implantação.
+          </p>
+        </div>
+        <div class="bloco-config__corpo">
+          <div class="aviso {{ 'aviso--info' if origem.local else 'aviso--ok' }}">
+            <strong>{{ origem.rotulo }}</strong>
+            {% if origem.local %}
+            <span>
+              Os dados moram em <code>{{ origem.caminho }}</code>. Para publicar em listas do
+              SharePoint, defina <code>PROGRAMACAO_ORIGEM=sharepoint</code> e as credenciais —
+              o mapa de listas e colunas já está escrito em
+              <code>api/src/integracoes/sharepoint.py</code>.
+            </span>
+            {% else %}
+            <span>A aplicação está lendo e gravando nas listas do SharePoint.</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% if pode(user, 'gerir_cadastros') %}
+  <div class="acoes-rodape acoes-rodape--fixa">
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Salvar parâmetros
+    </button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

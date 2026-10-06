@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture Review — Template</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { background: '#F8F9FA', primaryColor: '#008676', primaryTextColor: '#fff', secondaryColor: '#5D2D8D', tertiaryColor: '#E9ECEF' } })</script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .card { transition: box-shadow .2s; }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .badge-strong { background: #008676; color: #fff; }
+    .badge-explore { background: #5D2D8D; color: #fff; }
+    .badge-speculative { background: #F59F00; color: #212529; }
+    .mermaid-box { background: #fff; border-radius: .5rem; padding: 1rem; border: 1px solid #DEE2E6; overflow-x: auto; }
+    .adr-warning { border-left: 4px solid #F59F00; background: #FFF9E6; padding: .75rem 1rem; border-radius: .25rem; margin: .75rem 0; }
+    .card-divider { border: 0; border-top: 1px solid #E9ECEF; margin: 1.5rem 0; }
+  </style>
+</head>
+<body class="bg-base-200 text-base-content">
+
+<div class="max-w-5xl mx-auto px-6 py-10 space-y-10">
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <header class="space-y-2">
+    <div class="flex items-center gap-3">
+      <h1 class="text-3xl font-bold tracking-tight">Architecture Review</h1>
+      <span class="badge badge-soft badge-neutral text-xs">2025-08-10</span>
+    </div>
+    <p class="text-base-content/60 text-lg">
+      Deepening opportunities in the <strong>Template</strong> codebase —
+      Azure SWA + Functions V4 + Alpine.js + Alpine AJAX.
+    </p>
+    <p class="text-sm text-base-content/40">
+      Interfaces &amp; implementations evaluated using the
+      <em>depth</em>, <em>leverage</em>, and <em>locality</em> framework.
+    </p>
+  </header>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- CANDIDATE 1                                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4">
+
+    <div class="flex items-start justify-between">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold">1. Boot sequence monolith in <code>index.html</code></h2>
+        <p class="text-sm text-base-content/40">
+          <code>app/index.html</code> — <code>#app-shell x-init</code>
+        </p>
+      </div>
+      <span class="badge badge-lg badge-strong py-2 px-3">Strong</span>
+    </div>
+
+    <!-- Problem -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Problem</h3>
+      <p>
+        The entire boot sequence lives in a single <code>x-init</code> async IIFE
+        on <code>#app-shell</code>. In one anonymous block it:
+      </p>
+      <ul class="list-disc list-inside mt-1 space-y-1 text-sm">
+        <li>Fetches <code>/.auth/me</code> to check auth state</li>
+        <li>Conditionally loads the login gate or the nav + deep-linked view</li>
+        <li>Contains the routing logic (which view for which path)</li>
+        <li>Handles no obvious error boundaries — any exception in the IIFE
+            leaves the user staring at a spinner forever</li>
+      </ul>
+      <p class="mt-2">
+        <strong>The interface (a single <code>x-init</code> attribute)</strong> is
+        nearly as complex as the implementation. This is a textbook <strong>shallow</strong>
+        module: the <em>deletion test</em> — if you delete this block, the complexity
+        doesn't vanish; it's all still needed, just scattered across even more places.
+      </p>
+    </div>
+
+    <!-- Solution -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Solution</h3>
+      <p>
+        Extract the boot sequence into a small JavaScript module in
+        <code>app/_shared/boot.js</code> with a clear interface:
+      </p>
+      <ul class="list-disc list-inside mt-1 space-y-1 text-sm">
+        <li><code>boot()</code> — orchestrates the flow: auth → gate or nav + route</li>
+        <li><code>checkAuth() → { user | null }</code> — single auth check, cached</li>
+        <li><code>loadView(path)</code> — loads a fragment into <code>#app-shell</code></li>
+        <li><code>showLoginGate()</code> — loads <code>/login.html</code></li>
+      </ul>
+      <p class="mt-2 text-sm">
+        <code>index.html</code> then calls <code>boot()</code> in its <code>x-init</code>.
+        The nav template no longer calls <code>/.auth/me</code>; it reads from the
+        shared cache.
+      </p>
+    </div>
+
+    <!-- Benefits -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Benefits</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Leverage</strong> — a one-line <code>&lt;main x-init="boot()"&gt;</code>
+        replaces ~40 lines of inline code. Callers (future views) get a cache of auth state.</li>
+        <li><strong>Locality</strong> — auth logic, routing, error handling live in one
+        file instead of being split between <code>index.html</code> and
+        <code>nav/main_nav.html</code>.</li>
+        <li><strong>Testability</strong> — unit-testable: mock <code>fetch</code>, call
+        <code>checkAuth()</code>, assert it only hits <code>/.auth/me</code> once.</li>
+        <li><strong>Eliminates the duplicate auth call</strong> — the nav currently
+        fetches <code>/.auth/me</code> again independently.</li>
+      </ul>
+    </div>
+
+    <!-- Before / After diagram -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-2">Before / After</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="mermaid-box">
+          <div class="mermaid">
+flowchart TB
+  subgraph Before["Before: inline x-init monolith"]
+    A[`index.html<br/>x-init async IIFE:<br/>fetch('/.auth/me')<br/>if(!ok) load login<br/>else load nav + view`] --> B["nav/main_nav.html<br/>fetches /.auth/me AGAIN"]
+  end
+          </div>
+        </div>
+        <div class="mermaid-box">
+          <div class="mermaid">
+flowchart TB
+  subgraph After["After: boot.js module"]
+    C["app/_shared/boot.js"]
+    C --> D["checkAuth()"]
+    C --> E["loadView()"]
+    C --> F["showLoginGate()"]
+    D --> G["cached user"]
+    H["index.html&lt;br/>&lt;main x-init=&quot;boot()&quot;"] --> C
+    I["nav/main_nav.html&lt;br/>reads cached user"] -.-> G
+  end
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- CANDIDATE 2                                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4">
+
+    <div class="flex items-start justify-between">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold">2. Duplicated auth check across front-end modules</h2>
+        <p class="text-sm text-base-content/40">
+          <code>app/index.html</code> + <code>api/src/templates/nav/main_nav.html</code>
+        </p>
+      </div>
+      <span class="badge badge-lg badge-strong py-2 px-3">Strong</span>
+    </div>
+
+    <!-- Problem -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Problem</h3>
+      <p>
+        The <code>/.auth/me</code> endpoint is called <strong>twice</strong> on every
+        page load:
+      </p>
+      <ol class="list-decimal list-inside space-y-1 text-sm mt-1">
+        <li><strong>In <code>index.html</code></strong> — <code>fetch('/.auth/me')</code>
+        inside the boot <code>x-init</code>, used only to decide gate vs content.</li>
+        <li><strong>In <code>nav/main_nav.html</code></strong> — <code>fetch('/.auth/me')</code>
+        inside the nav component's <code>x-data init()</code>, used to display user
+        identity.</li>
+      </ol>
+      <p class="mt-2">
+        This means every navigation (including deep-link refreshes) triggers two
+        sequential HTTP round-trips to the same endpoint, for data that is already
+        available in the browser's SWA auth layer.
+      </p>
+    </div>
+
+    <!-- Solution -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Solution</h3>
+      <p>
+        Lift <code>checkAuth()</code> into the shared boot module (Candidate 1)
+        and make the nav component read from a shared cache (e.g., an Alpine store
+        or a DOM data attribute set during boot).
+      </p>
+      <p class="text-sm mt-1">
+        Specifically: after the boot sequence resolves auth, store
+        <code>window.__auth = data.clientPrincipal</code> or set it into an
+        <code>Alpine.store('auth', ...)</code>. The nav template reads from
+        <code>Alpine.store('auth').user</code> instead of calling <code>/.auth/me</code>.
+      </p>
+    </div>
+
+    <!-- Benefits -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Benefits</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Leverage</strong> — one shared seam for auth state instead of
+        two ad-hoc <code>fetch</code> calls with no coordination.</li>
+        <li><strong>Locality</strong> — if the auth data model changes (e.g., claims
+        structure), there's one place to update.</li>
+        <li><strong>Performance</strong> — saves one HTTP round-trip per navigation.</li>
+      </ul>
+    </div>
+
+    <!-- Before / After diagram -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-2">Before / After</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="mermaid-box">
+          <div class="mermaid">
+sequenceDiagram
+    participant Shell as index.html
+    participant Nav as nav/main_nav.html
+    participant Auth as /.auth/me
+    Shell->>Auth: fetch() [check gate]
+    Note over Shell: decides login vs content
+    Nav->>Auth: fetch() [for user display]
+    Note over Nav: reads claims again
+          </div>
+        </div>
+        <div class="mermaid-box">
+          <div class="mermaid">
+sequenceDiagram
+    participant Shell as index.html
+    participant Store as Alpine.store('auth')
+    participant Nav as nav/main_nav.html
+    participant Auth as /.auth/me
+    Shell->>Auth: fetch() [check gate]
+    Shell->>Store: set user
+    Nav->>Store: read user
+    Note over Nav: no fetch needed
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- CANDIDATE 3                                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4">
+
+    <div class="flex items-start justify-between">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold">3. Missing data/domain layer behind the API handlers</h2>
+        <p class="text-sm text-base-content/40">
+          <code>api/src/blueprints/api_routes.py</code> (and beyond)
+        </p>
+      </div>
+      <span class="badge badge-lg badge-explore py-2 px-3">Worth exploring</span>
+    </div>
+
+    <!-- Problem -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Problem</h3>
+      <p>
+        The API handlers in <code>api_routes.py</code> hardcode mock data and
+        inline business logic (validation) directly in the HTTP handler. The
+        <code>local.settings.json</code> contains <code>DATA_SOURCE=mock</code>,
+        suggesting the template intended an abstraction, but it was never built.
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li><strong>Validation</strong> lives inside the <code>greet()</code> handler.
+        If validation rules change, the HTTP handler changes — even though validation
+        is a domain concern, not a transport concern.</li>
+        <li><strong>Data access</strong> is inline: <code>items = [dict(...)]</code>.
+        Swapping to a database means editing the handler for every endpoint.</li>
+        <li><strong>No seam</strong> to unit test business logic without an HTTP context.</li>
+      </ul>
+    </div>
+
+    <!-- Solution -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Solution</h3>
+      <p>
+        Introduce a thin domain layer under <code>api/src/domain/</code>:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li><code>domain/greeting.py</code> — <code>validate_name(name) → dict[str, str]</code>
+        and <code>create_greeting(name) → dict</code> (pure functions, testable without
+        Azure Functions SDK).</li>
+        <li><code>domain/repository.py</code> — an abstract <code>ItemRepository</code>
+        protocol with methods like <code>list_items() → list[Item]</code>.</li>
+        <li><code>domain/models.py</code> — dataclasses for <code>Item</code>,
+        <code>Greeting</code>, etc.</li>
+      </ul>
+      <p class="text-sm mt-1">
+        Handlers become thin: read from request, call domain function, wrap in
+        <code>AlpineAjaxResponse</code>. The <code>DATA_SOURCE</code> config selects
+        between a <code>MockItemRepository</code> and a future <code>CosmosItemRepository</code>.
+      </p>
+    </div>
+
+    <!-- Benefits -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Benefits</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Leverage</strong> — a <code>validate_name()</code> function with
+        a small interface (string → errors dict) provides validation for all current
+        and future name inputs.</li>
+        <li><strong>Locality</strong> — business rules live in one place, not scattered
+        across handlers.</li>
+        <li><strong>Testability</strong> — domain functions are pure Python, testable
+        with <code>pytest</code> and no Azure emulator. Repository protocol can be
+        mocked for handler tests.</li>
+      </ul>
+    </div>
+
+    <!-- Before / After diagram -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-2">Before / After</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="mermaid-box">
+          <div class="mermaid">
+flowchart LR
+    subgraph Before["Today"]
+        H["HTTP Handler&lt;br/>api_routes.py"] --> D["Validation inline"]
+        H --> M["Mock data inline"]
+    end
+    T["Test"] -.->|"can't test&lt;br/>without HTTP"| H
+          </div>
+        </div>
+        <div class="mermaid-box">
+          <div class="mermaid">
+flowchart LR
+    subgraph After["With domain layer"]
+        H2["HTTP Handler&lt;br/>(thin)"] --> S["domain/greeting.py&lt;br/>validate_name()"]
+        H2 --> R["domain/repository.py&lt;br/>ItemRepository protocol"]
+        R --> M2["MockItemRepository"]
+        R --> C["CosmosItemRepository&lt;br/>(future)"]
+    end
+    T2["pytest"] --> S
+    T2 --> M2
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- CANDIDATE 4                                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4">
+
+    <div class="flex items-start justify-between">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold">4. <code>AlpineAjaxResponse</code> — hidden dependency on global <code>jinja_env</code></h2>
+        <p class="text-sm text-base-content/40">
+          <code>api/src/core/responses.py</code> ← <code>api/src/core/jinja_env.py</code>
+        </p>
+      </div>
+      <span class="badge badge-lg badge-explore py-2 px-3">Worth exploring</span>
+    </div>
+
+    <!-- Problem -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Problem</h3>
+      <p>
+        <code>AlpineAjaxResponse.__init__()</code> directly references the
+        <code>jinja_env</code> module-level singleton from <code>jinja_env.py</code>:
+      </p>
+      <pre class="bg-base-200 p-3 rounded text-sm mt-1 overflow-x-auto"><code>from .jinja_env import jinja_env
+
+class AlpineAjaxResponse(func.HttpResponse):
+    def __init__(self, template_name, ...):
+        ...
+        html_content = jinja_env.get_template(template_name).render(**context)</code></pre>
+      <p class="mt-2">
+        This means:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li>Every test that constructs an <code>AlpineAjaxResponse</code> needs a real
+        <code>jinja2.Environment</code> with real template files on disk.</li>
+        <li>There's no seam to inject a different renderer (e.g., for testing, or for
+        a future template engine).</li>
+        <li>The <code>AlpineAjaxResponse</code> is doing <strong>two things</strong>:
+        it's both an HTTP response constructor <em>and</em> a template renderer.</li>
+      </ul>
+    </div>
+
+    <!-- Solution -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Solution</h3>
+      <p>
+        Separate the rendering concern from the response construction:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li>Keep <code>AlpineAjaxResponse</code> as a response builder, but accept
+        a <code>renderer</code> callable with signature
+        <code>(template_name, context) → str</code>.</li>
+        <li>Default it to the global <code>jinja_env</code> render, but allow injection
+        for tests: <code>AlpineAjaxResponse(..., renderer=lambda t, c: "&lt;div&gt;test&lt;/div&gt;")</code>.</li>
+        <li>Or: extract a <code>FragmentRenderer</code> protocol/class that owns the
+        Jinja2 environment, and pass it to the constructor.</li>
+      </ul>
+    </div>
+
+    <!-- Benefits -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Benefits</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Testability</strong> — tests don't need real template files.</li>
+        <li><strong>Locality</strong> — if the rendering engine changes (e.g., add
+        template caching or switch to JinjaX), only the <code>FragmentRenderer</code>
+        changes, not the response class.</li>
+        <li><strong>Leverage</strong> — small interface: <code>render(template, context) → str</code>.</li>
+      </ul>
+    </div>
+
+    <!-- Before / After diagram -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="mermaid-box">
+        <div class="mermaid">
+flowchart LR
+    subgraph Before["responses.py"]
+        AAR["AlpineAjaxResponse"] --> JE["jinja_env&lt;br/>(global singleton)"]
+    end
+    Test["Test"] -->|"must create&lt;br/>jinja_env"| AAR
+        </div>
+      </div>
+      <div class="mermaid-box">
+        <div class="mermaid">
+flowchart LR
+    subgraph After["injectable renderer"]
+        AAR2["AlpineAjaxResponse"] -->|"accepts"| R["render(template, context)"]
+        R --> JE2["jinja_env (default)"]
+        R ..-> M["mock_render (test)"]
+    end
+    Test2["Test"] --> M
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- CANDIDATE 5                                                 -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4">
+
+    <div class="flex items-start justify-between">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold">5. No error boundaries for fragment loading</h2>
+        <p class="text-sm text-base-content/40">
+          <code>app/index.html</code>, <code>app/_views/page2.html</code>
+        </p>
+      </div>
+      <span class="badge badge-lg badge-speculative py-2 px-3">Speculative</span>
+    </div>
+
+    <!-- Problem -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Problem</h3>
+      <p>
+        Every <code>x-init="$ajax(...)"</code> call lacks error handling. Alpine AJAX
+        does not automatically surface network or server errors. When a fragment
+        request fails:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li>The user sees a permanent "Loading…" or blank area.</li>
+        <li>No retry, no fallback, no user-facing error message.</li>
+        <li>Errors are silently swallowed unless a <code>@ajax:error</code> event
+        listener is attached.</li>
+      </ul>
+    </div>
+
+    <!-- Solution -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Solution</h3>
+      <p>
+        Add a lightweight wrapper or a global event listener:
+      </p>
+      <ul class="list-disc list-inside space-y-1 text-sm mt-1">
+        <li><strong>Option A</strong> — Attach a <code>@ajax:error</code> listener on
+        <code>#app-shell</code> (or <code>document.body</code>) that replaces the
+        fragment's placeholder with a DaisyUI <code>alert alert-error</code> containing
+        "Failed to load this section."</li>
+        <li><strong>Option B</strong> — Use <code>$ajax(...).catch(...)</code> in
+        <code>x-init</code> for critical fragments (boot sequence, nav).</li>
+      </ul>
+    </div>
+
+    <!-- Benefits -->
+    <div>
+      <h3 class="font-semibold text-base-content/80 text-sm uppercase tracking-wide mb-1">Benefits</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><strong>Locality</strong> — one handler catches all fragment failures.
+        No per-component error handling needed.</li>
+        <li><strong>Leverage</strong> — a small global listener provides consistent
+        error UX across all current and future fragments.</li>
+      </ul>
+    </div>
+
+    <!-- Before / After diagram -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="mermaid-box">
+        <div class="mermaid">
+flowchart LR
+    A[`x-init="$ajax('/api/items')"`] --> B["Network fails"]
+    B --> C["User sees 'Loading...' forever"]
+        </div>
+      </div>
+      <div class="mermaid-box">
+        <div class="mermaid">
+flowchart LR
+    A2[`x-init="$ajax('/api/items')"`] --> B2["Network fails"]
+    B2 --> D["@ajax:error listener"]
+    D --> E["Shows error alert in placeholder"]
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- TOP RECOMMENDATION                                          -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <section class="card bg-base-100 shadow-sm border border-base-300 p-6 space-y-4" style="border-left: 4px solid #008676;">
+    <div class="flex items-start gap-3">
+      <div class="text-primary text-2xl">★</div>
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold">Top Recommendation</h2>
+        <p class="text-base">
+          <strong>Tackle Candidates 1 + 2 together: Extract the boot sequence into
+          a shared module with cached auth.</strong>
+        </p>
+        <p>
+          These two candidates are interdependent — solving the boot monolith naturally
+          creates a home for the shared auth cache, which eliminates the duplicate
+          <code>/.auth/me</code> call in the nav. Together they deliver the highest
+          leverage per change:
+        </p>
+        <ul class="list-disc list-inside space-y-1 text-sm">
+          <li><strong>One module</strong> (<code>app/_shared/boot.js</code>) replaces
+          two scattered fetch-and-decide blocks.</li>
+          <li><strong>Auth is cached</strong> — the nav reads from the store instead
+          of making a second HTTP call.</li>
+          <li><strong>Error handling</strong> can be added in one place (boot + global
+          listener).</li>
+          <li><strong>No interface changes</strong> to the backend — purely a front-end
+          refactor.</li>
+        </ul>
+        <p class="text-sm text-base-content/60 mt-2">
+          Why not Candidate 3 (domain layer)? It's the right long-term investment,
+          but for a template that's still proving its shape, premature domain
+          extraction adds ceremony. The boot/auth refactor pays immediate dividends
+          in every session.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="card-divider" />
+
+  <!-- ── Footer ──────────────────────────────────────────────── -->
+  <footer class="text-center text-sm text-base-content/40">
+    Generated from <code>docs/ARCHITECTURE.md</code> and source exploration.
+    Architecture vocabulary from LANGUAGE.md (improve-codebase-architecture skill).
+  </footer>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,246 @@
+{% extends "base_fragment.html" %}
+{% from "programacao/_macros.html" import grade_dias, cabecalho_dias %}
+{#
+  O relatório impresso — a folha que vira PDF pelo Ctrl+P.
+
+  Não é uma rota separada nem um gerador de PDF no servidor: é esta tela
+  mais `ds/print.css`. A vantagem é que o que se vê antes de imprimir é
+  exatamente o que sai, e o app não carrega um motor de renderização
+  inteiro como dependência.
+
+  O cabeçalho e o rodapé de folha vivem no DOM o tempo todo e só
+  aparecem no papel — daí a classe `so-impressao`.
+
+  Espera: semana, periodo, datas, atividades, r, por_empresa, por_local,
+  por_dia, projeto, cliente, user.
+
+  Sobrescreve {% raw %}{% block root %}{% endraw %} porque a folha substitui a área de
+  conteúdo inteira: a raiz precisa ser <main class="content">, como a de
+  qualquer view.
+#}
+{% block root %}
+<main id="{{ target_id }}" class="content">
+{% block fragment %}
+<div class="page">
+  <div class="page-head nao-imprime">
+    <div>
+      <p class="aglutinador aglutinador--sm">Relatório</p>
+      <h1 class="h-dash">Programação da semana {{ semana }}</h1>
+      <p class="page-head__sub">
+        Confira a folha abaixo e use <b>Imprimir</b> para salvar em PDF. O layout de
+        impressão já está aplicado — o que você vê é o que sai.
+      </p>
+    </div>
+    <div class="page-head__actions">
+      <a href="/_views/programacao.html" x-target="app-shell" class="btn btn--secondary">Voltar</a>
+      {# noajax — ver o comentário em ambientes/lista.html. #}
+      <a class="btn btn--ghost" href="/api/exportar-semana?semana={{ semana | urlencode }}&ambiente={{ slug_do_ambiente() }}" noajax>
+        <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+        Baixar Excel
+      </a>
+      <button type="button" class="btn btn--primary" @click="window.print()">
+        <span x-init="$el.innerHTML = window.icon('print', 16)" aria-hidden="true"></span>
+        Imprimir ou salvar em PDF
+      </button>
+    </div>
+  </div>
+
+  <div class="folha-cabecalho so-impressao">
+    <div>
+      <h1>Programação semanal de serviços — {{ semana }}</h1>
+      <p>{{ projeto }}{% if cliente %} · {{ cliente }}{% endif %} · {{ periodo }}</p>
+    </div>
+    <div class="folha-cabecalho__emissao">
+      <p><b>Emitido em</b> {{ agora_br() }}</p>
+      <p><b>Por</b> {{ user.nome }} — {{ user.perfil_rotulo }}</p>
+    </div>
+  </div>
+
+  <div class="kpis" style="--kpis-colunas: 4">
+    <div class="kpi kpi--{{ 'ok' if r.aderencia >= r.meta_aderencia else 'erro' }}" style="cursor: default">
+      <span class="kpi__label">Aderência</span>
+      <span class="kpi__value">{{ r.aderencia | pct(0) }}</span>
+    </div>
+    <div class="kpi kpi--{{ 'ok' if r.ppc_medio >= r.meta_ppc else 'warn' }}" style="cursor: default">
+      <span class="kpi__label">PPC médio</span>
+      <span class="kpi__value">{{ r.ppc_medio | pct(0) }}</span>
+    </div>
+    <div class="kpi kpi--neutro" style="cursor: default">
+      <span class="kpi__label">Atividades</span>
+      <span class="kpi__value">{{ atividades | length }}</span>
+    </div>
+    <div class="kpi kpi--info" style="cursor: default">
+      <span class="kpi__label">Contratadas</span>
+      <span class="kpi__value">{{ por_empresa | length }}</span>
+    </div>
+  </div>
+
+  {% if atividades %}
+  <div class="matriz-quadro">
+    <div class="matriz-topo">
+      <span class="matriz-topo__contagem">Atividades da semana</span>
+      <div class="matriz-topo__legenda legenda-dia">
+        <span><i class="amostra--parado"></i>Programado sem produção</span>
+        <span><i class="amostra--batido"></i>Meta do dia atingida</span>
+        <span><i class="amostra--extra"></i>Produção sem previsão</span>
+      </div>
+    </div>
+    <div class="matriz-rolagem">
+      <table class="matriz">
+        <caption class="sr-only">Programação da semana {{ semana }}</caption>
+        <colgroup>
+          <col class="mt-item" />
+          <col class="mt-atividade" />
+          <col class="mt-execucao" />
+          <col class="mt-dias" />
+          <col class="mt-situacao" />
+          <col class="mt-semana" />
+          <col class="mt-ppc" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col" class="mt-item">#</th>
+            <th scope="col" class="mt-atividade">Atividade</th>
+            <th scope="col" class="mt-execucao">Execução</th>
+            <th scope="col" class="mt-dias">{{ cabecalho_dias(datas) }}</th>
+            <th scope="col" class="mt-situacao">Situação</th>
+            <th scope="col" class="mt-semana">Semana</th>
+            <th scope="col" class="mt-ppc">PPC</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in atividades %}
+          <tr>
+            <td class="mt-item"><span class="mlinha__item">{{ '%02d' | format(a.item) }}</span></td>
+            <td class="mt-atividade" data-rotulo="Atividade">
+              <span class="mlinha__titulo">{{ a.atividade }}</span>
+              <span class="mlinha__meta">
+                <span class="mlinha__id">{{ a.id_exclusiva }}</span>
+                {{ a.local }}
+              </span>
+            </td>
+            <td class="mt-execucao" data-rotulo="Execução">
+              <span class="mlinha__empresa">{{ a.empresa }}</span>
+              <span class="mlinha__meta"><b>Enc.</b> {{ a.encarregado }}</span>
+              <span class="mlinha__meta"><b>Fiscal</b> {{ a.responsavel or '—' }}</span>
+            </td>
+            <td class="mt-dias" data-rotulo="Dia a dia">{{ grade_dias(a, datas) }}</td>
+            <td class="mt-situacao" data-rotulo="Situação">
+              <span class="pill">{{ a.situacao | situacao }}</span>
+              <span class="pill">{{ a.aprovacao_realizado | aprovacao }}</span>
+            </td>
+            <td class="mt-semana mnum" data-rotulo="Semana">
+              <span class="mnum__real">{{ a.total_realizado | medida(a.unidade) }}</span>
+              <span class="mnum__prev">de {{ a.total_previsto | medida(a.unidade) }} {{ a.unidade }}</span>
+            </td>
+            <td class="mt-ppc mppc mppc--{{ a.ppc | faixa }}" data-rotulo="PPC">
+              <span class="mppc__valor">{{ a.ppc | pct(0) }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="graficos graficos--duas mt-24">
+    <section class="card">
+      <div class="card__head"><h2 class="h-card4">Por contratada</h2></div>
+      <div class="card__body">
+        <table class="tbl">
+          <caption class="sr-only">Aderência por contratada</caption>
+          <thead>
+            <tr>
+              <th scope="col">Contratada</th>
+              <th scope="col" class="td-num">Atividades</th>
+              <th scope="col" class="td-num">Aderência</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in por_empresa %}
+            <tr>
+              <td class="fw-600">{{ g.chave }}</td>
+              <td class="td-num">{{ g.atividades }}</td>
+              <td class="td-num">{{ g.aderencia | pct(0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__head"><h2 class="h-card4">Por frente</h2></div>
+      <div class="card__body">
+        <table class="tbl">
+          <caption class="sr-only">Aderência por frente</caption>
+          <thead>
+            <tr>
+              <th scope="col">Frente</th>
+              <th scope="col" class="td-num">Atividades</th>
+              <th scope="col" class="td-num">Aderência</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in por_local %}
+            <tr>
+              <td class="fw-600">{{ g.chave }}</td>
+              <td class="td-num">{{ g.atividades }}</td>
+              <td class="td-num">{{ g.aderencia | pct(0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="card mt-24">
+    <div class="card__head"><h2 class="h-card4">Produção dia a dia</h2></div>
+    <div class="card__body">
+      <table class="tbl">
+        <caption class="sr-only">Produção prevista e realizada por dia</caption>
+        <thead>
+          <tr>
+            <th scope="col">Dia</th>
+            <th scope="col" class="td-num">Previsto</th>
+            <th scope="col" class="td-num">Realizado dia</th>
+            <th scope="col" class="td-num">Realizado noite</th>
+            <th scope="col" class="td-num">Aderência</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in por_dia %}
+          <tr>
+            <td class="fw-600">{{ d.nome }}{% if datas %} · {{ datas[d.indice].strftime('%d/%m') }}{% endif %}</td>
+            <td class="td-num">{{ d.previsto | qtd }}</td>
+            <td class="td-num">{{ d.dia | qtd }}</td>
+            <td class="td-num">{{ d.noite | qtd }}</td>
+            <td class="td-num">
+              {% if d.previsto %}{{ (d.realizado / d.previsto * 100) | pct(0) }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% else %}
+  <div class="card">
+    <div class="empty">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3>Nenhuma atividade na semana {{ semana }}</h3>
+      <p>Não há o que imprimir para este período.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="folha-rodape">
+    {{ projeto }} · Programação semanal de serviços · {{ semana }} ({{ periodo }}) ·
+    emitido em {{ agora_br() }} por {{ user.nome }}. Total semanal, PPC e aderência são
+    calculados pelo sistema a partir dos lançamentos diários.
+  </p>
+</div>
+{% endblock %}
+</main>
+{% endblock %}

@@ -1,0 +1,24 @@
+{#
+  Resposta que atualiza vários blocos de uma vez.
+
+  Não estende base_fragment.html: em vez de uma raiz, emite três irmãs
+  com id fixo. É a única exceção à regra "o servidor nunca fixa id" — os
+  destinos são conhecidos e foram declarados pelo cliente no x-target.
+
+  Por que existe: alvo declarado que NÃO vem na resposta é esvaziado pelo
+  Alpine AJAX. Devolver só a tabela apagaria os indicadores; devolver só
+  os indicadores apagaria a tabela.
+
+  O #drawer entra na mesma resposta e é o que abre e fecha o painel:
+  preenchido no 422 (formulário de volta com os erros), vazio no 200
+  (salvou, pode fechar).
+#}
+{% if incluir_drawer %}
+<div id="drawer">{% if drawer %}{% include drawer %}{% endif %}</div>
+{% endif %}
+
+<div id="prog-resumo" class="kpis" style="--kpis-colunas: 5">
+{% include "programacao/_resumo.html" %}
+</div>
+
+<div id="prog-tabela">{% include "programacao/_tabela.html" %}</div>

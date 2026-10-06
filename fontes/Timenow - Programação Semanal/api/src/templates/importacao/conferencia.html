@@ -1,0 +1,147 @@
+{% extends "base_fragment.html" %}
+{#
+  Passo 2 — o que a planilha traz, antes de gravar.
+
+  Erro e aviso são coisas diferentes e ficam separados: erro impede a
+  linha de entrar, aviso não. Misturar os dois faz a pessoa corrigir o
+  que não precisava e ignorar o que precisava.
+
+  Cada mensagem carrega o número da linha da planilha — é o único
+  endereço que serve para quem vai voltar ao Excel e consertar.
+
+  Espera: arquivo, resultado, validas, com_erro, carga.
+#}
+{% block fragment %}
+{% if resultado.fatal %}
+<div class="aviso aviso--erro mt-24" role="alert">
+  <strong>{{ arquivo }} não pôde ser lido</strong>
+  <span>{{ resultado.fatal }}</span>
+</div>
+{% else %}
+
+<div class="kpis mt-24" style="--kpis-colunas: 3">
+  <div class="kpi kpi--ok" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Prontas para gravar</span>
+    <span class="kpi__value">{{ validas | length }}</span>
+  </div>
+  <div class="kpi kpi--erro" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('errorCircle', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Linhas com erro</span>
+    <span class="kpi__value">{{ com_erro | length }}</span>
+  </div>
+  <div class="kpi kpi--warn" style="cursor: default">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">Avisos</span>
+    <span class="kpi__value">{{ resultado.avisos | length }}</span>
+  </div>
+</div>
+
+{% if resultado.erros %}
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Corrija na planilha e reenvie</h2>
+    <span class="hint">estas linhas não serão gravadas</span>
+  </div>
+  <div class="card__body">
+    <ul class="lista-simples">
+      {% for e in resultado.erros %}
+      <li class="lista-simples__item">
+        <span class="pill pill--erro">Linha {{ e.linha }}</span>
+        <span class="linha__main">
+          <span class="linha__titulo">{{ e.mensagem }}</span>
+          {% if e.campo %}<span class="linha__meta">Coluna: {{ e.campo }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+{% if resultado.avisos %}
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Avisos</h2>
+    <span class="hint">não impedem a importação</span>
+  </div>
+  <div class="card__body">
+    <ul class="lista-simples">
+      {% for a in resultado.avisos %}
+      <li class="lista-simples__item">
+        <span class="pill pill--warn">Linha {{ a.linha }}</span>
+        <span class="linha__titulo">{{ a.mensagem }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="card__head">
+    <h2 class="h-card4">{{ arquivo }}</h2>
+    <span class="hint">{{ resultado.linhas | length }} atividade(s) lida(s)</span>
+  </div>
+  <div class="card__body">
+    {% if resultado.linhas %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Atividades encontradas na planilha</caption>
+        <thead>
+          <tr>
+            <th scope="col">Linha</th>
+            <th scope="col">Semana</th>
+            <th scope="col">ID exclusiva</th>
+            <th scope="col">Atividade</th>
+            <th scope="col">Frente</th>
+            <th scope="col">Contratada</th>
+            <th scope="col" class="td-num">Previsto</th>
+            <th scope="col" class="td-num">Soma dos dias</th>
+            <th scope="col" class="td-center">Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in resultado.linhas %}
+          <tr>
+            <td class="num muted">{{ linha.linha_previsto }}</td>
+            <td>{{ linha.semana }}</td>
+            <td class="fw-600">{{ linha.id_exclusiva }}</td>
+            <td>{{ linha.atividade }}</td>
+            <td>{{ linha.local }}</td>
+            <td>{{ linha.empresa }}</td>
+            <td class="td-num">{{ linha.prod_prevista | qtd }} {{ linha.unidade }}</td>
+            <td class="td-num">{{ linha.dias_previsto | sum | qtd }}</td>
+            <td class="td-center">
+              {% if linha.valida %}
+              <span class="pill pill--ok">Vai entrar</span>
+              {% else %}
+              <span class="pill pill--erro" title="{{ linha.erros | join(' ') }}">Bloqueada</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if validas %}
+    <form method="post" action="/api/importar-confirmar" x-target="import-conferencia"
+          data-tn-loading="Importando..." class="acoes-rodape mt-24">
+      <input type="hidden" name="carga" value="{{ carga }}" />
+      <button type="submit" class="btn btn--primary">
+        <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+        Importar {{ validas | length }} atividade(s)
+      </button>
+    </form>
+    {% else %}
+    <div class="aviso aviso--erro mt-16">
+      <strong>Nada a importar</strong>
+      <span>Nenhuma linha passou na conferência. Corrija os erros acima e reenvie o arquivo.</span>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
