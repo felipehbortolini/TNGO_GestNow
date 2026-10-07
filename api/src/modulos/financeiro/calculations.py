@@ -6,6 +6,7 @@ the clock, the database or the request. Money is integer cents (D5).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -979,3 +980,91 @@ def claim_notification_late(notification_date: date, deadline: date) -> bool:
 def extension_new_end_date(current_end: date, granted_days: int) -> date:
     """Término vigente prorrogado pela EOT: a data vigente mais os dias concedidos."""
     return current_end + timedelta(days=granted_days)
+
+
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+EVALUATION_KIND_MONTHLY = "Mensal"
+EVALUATION_KIND_FINAL = "Final"
+EVALUATION_KINDS = (EVALUATION_KIND_MONTHLY, EVALUATION_KIND_FINAL)
+EVALUATION_MAX_NOTE = 5
+EVALUATION_SCORE_TOTAL = Decimal(100)
+EVALUATION_HALF = Decimal("0.5")
+
+
+@dataclass(frozen=True)
+class EvaluationClass:
+    """Uma classe da avaliação dos parâmetros: nome, nota mínima e descrição."""
+
+    name: str
+    minimum: int
+    description: str = ""
+
+
+def evaluation_weighted_score(notas: Mapping[str, int], pesos: Mapping[str, int]) -> int | None:
+    """Nota ponderada de 0 a 100, meio para cima, ou ``None`` sem critério com nota.
+
+    Soma as notas pelos pesos gravados na avaliação, divide pelo peso somado e pela escala de 1
+    a 5, como o protótipo (o arredondamento do JavaScript é o meio para cima); o critério sem
+    nota não conta nem o seu peso, e sem peso algum não há nota.
+    """
+    weighted = 0
+    total = 0
+    for criterion, weight in pesos.items():
+        note = notas.get(criterion)
+        if not note:
+            continue
+        weighted += note * weight
+        total += weight
+    if not total:
+        return None
+    score = Decimal(weighted) / total / EVALUATION_MAX_NOTE * EVALUATION_SCORE_TOTAL
+    return math.floor(score + EVALUATION_HALF)
+
+
+def evaluation_class(
+    score: int | None, classes: Sequence[EvaluationClass]
+) -> EvaluationClass | None:
+    """Classe da nota: a de maior mínimo que ela alcança; no empate, a primeira da lista.
+
+    No protótipo A começa em 85, B em 70, C em 50 e D em 0; a nota no próprio mínimo entra na
+    classe (a comparação é ``>=``). Sem nota não há classe.
+    """
+    if score is None:
+        return None
+    chosen: EvaluationClass | None = None
+    for candidate in classes:
+        if score >= candidate.minimum and (chosen is None or candidate.minimum > chosen.minimum):
+            chosen = candidate
+    return chosen
+
+
+def evaluation_requires_plan(notas: Mapping[str, int], limite: int) -> bool:
+    """Alguma nota alcança o limite que exige plano de melhoria (nota 1 ou 2 nos parâmetros)."""
+    return any(note and note <= limite for note in notas.values())
+
+
+@dataclass(frozen=True)
+class EvaluationFact:
+    """Uma avaliação gravada: o período, as notas e os pesos congelados dos critérios."""
+
+    period: date
+    notes: Mapping[str, int]
+    weights: Mapping[str, int]
+
+
+def evaluation_trend_points(evaluations: Sequence[EvaluationFact]) -> tuple[dict[str, int], ...]:
+    """Série do Gráfico de Áreas de Avaliação: um ponto por avaliação, em ordem de período.
+
+    Cada ponto leva o ano, o mês e a nota ponderada; a avaliação sem nota ponderada fica de fora.
+    """
+    points: list[dict[str, int]] = []
+    for evaluation in sorted(evaluations, key=lambda item: item.period):
+        score = evaluation_weighted_score(evaluation.notes, evaluation.weights)
+        if score is None:
+            continue
+        points.append(
+            {"ano": evaluation.period.year, "mes": evaluation.period.month, "valor": score}
+        )
+    return tuple(points)

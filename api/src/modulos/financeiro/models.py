@@ -4,8 +4,9 @@ Class and attribute names are English (D1); tables and columns are Portuguese sn
 as in ``docs/MODELO-DE-DADOS.md``. This module owns the cost breakdown item, its revisions with
 the frozen baseline of each item, the reallocations applied to it (ISSUE-029, ISSUE-030), the
 projection history of the item and the costs imported from the ERP (ISSUE-031), the contract
-with its addenda and measurements (ISSUE-032), and its payment milestones, claims and time
-extensions (ISSUE-033).
+with its addenda and measurements (ISSUE-032), its payment milestones, claims and time
+extensions (ISSUE-033), and the contractor performance evaluation with its frozen criteria
+(ISSUE-034).
 """
 
 from __future__ import annotations
@@ -307,3 +308,42 @@ class ContractTimeExtension(Base):
     decided_on: Mapped[date | None] = mapped_column("data_decisao", Date)
     situation: Mapped[str] = mapped_column("situacao", Text)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractEvaluation(Base):
+    """Contractor performance evaluation: monthly during execution or final at closing.
+
+    The weighted score and the class are not columns: they come from the notes and the weights
+    frozen in the criteria (D5b, the contractor evaluation exception). ``parametro_versao_id``
+    records the parameter version in force when the evaluation was made.
+    """
+
+    __tablename__ = "contrato_avaliacao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    evaluator_id: Mapped[int] = mapped_column("avaliador_id", ForeignKey("pessoa.id"))
+    parameter_version_id: Mapped[int] = mapped_column(
+        "parametro_versao_id", ForeignKey("parametro_versao.id")
+    )
+    period: Mapped[date] = mapped_column("periodo", Date)
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    comment: Mapped[str | None] = mapped_column("comentario", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractEvaluationCriterion(Base):
+    """Weight and note of each criterion, frozen in the evaluation (D5b exception).
+
+    The evaluation does not change when the parameter weights change: the frozen weight is the
+    one in force on the date it was made. UK: evaluation + criterion. Without ``versao``.
+    """
+
+    __tablename__ = "contrato_avaliacao_criterio"
+    __table_args__ = (UniqueConstraint("avaliacao_id", "criterio"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    evaluation_id: Mapped[int] = mapped_column("avaliacao_id", ForeignKey("contrato_avaliacao.id"))
+    criterion: Mapped[str] = mapped_column("criterio", Text)
+    weight: Mapped[int] = mapped_column("peso", Integer)
+    note: Mapped[int] = mapped_column("nota", Integer)

@@ -1292,3 +1292,73 @@ def _granted_problem(target: str, granted: int | None, requested_days: int) -> s
     if target == calculations.EXTENSION_PARTIALLY_GRANTED and granted >= requested_days:
         return EXTENSION_GRANTED_PARTIAL
     return ""
+
+
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+EVALUATION_COMMENT_MAX = 400
+
+FIELD_EVALUATION_PERIOD = "periodo"
+FIELD_EVALUATION_KIND = "tipo"
+FIELD_EVALUATION_COMMENT = "comentario"
+
+EVALUATION_PERIOD_REQUIRED = "Informe o período da avaliação (AAAA-MM)."
+EVALUATION_KIND_REQUIRED = "Escolha o tipo da avaliação: Mensal ou Final."
+EVALUATION_NOTE_REQUIRED = "Informe uma nota de 1 a 5."
+EVALUATION_COMMENT_MAX_MESSAGE = f"Use até {EVALUATION_COMMENT_MAX} caracteres."
+
+
+@dataclass(frozen=True)
+class EvaluationForm:
+    """A avaliação nova pedida pela tela: período, tipo, as notas por critério e o comentário."""
+
+    period: date
+    kind: str
+    notes: Mapping[str, int]
+    comment: str
+
+
+def parse_evaluation_form(
+    form: Mapping[str, str | None], *, criteria_ids: Collection[str]
+) -> EvaluationForm:
+    """Check the evaluation form; refuse with 422, one message per field of the criterion.
+
+    The criteria are the ones in force in the parameters and each note is required and goes from
+    1 to 5; the period is the month the evaluation refers to. The comment is optional and within
+    400 characters; the evidence that a note 1 or 2 requires is an attachment, checked by the
+    service, not here.
+    """
+    period = _month(_text(form, FIELD_EVALUATION_PERIOD))
+    kind = _text(form, FIELD_EVALUATION_KIND)
+    comment = _text(form, FIELD_EVALUATION_COMMENT)
+    notes = {criterion: _note(form, criterion) for criterion in criteria_ids}
+    problems = {
+        FIELD_EVALUATION_PERIOD: "" if period else EVALUATION_PERIOD_REQUIRED,
+        FIELD_EVALUATION_KIND: ""
+        if kind in calculations.EVALUATION_KINDS
+        else EVALUATION_KIND_REQUIRED,
+        FIELD_EVALUATION_COMMENT: (
+            "" if len(comment) <= EVALUATION_COMMENT_MAX else EVALUATION_COMMENT_MAX_MESSAGE
+        ),
+    }
+    problems.update(
+        {
+            criterion: "" if note is not None else EVALUATION_NOTE_REQUIRED
+            for criterion, note in notes.items()
+        }
+    )
+    _refuse(problems)
+    return EvaluationForm(
+        period=period or date.min,
+        kind=kind,
+        notes={criterion: note or 0 for criterion, note in notes.items()},
+        comment=comment,
+    )
+
+
+def _note(form: Mapping[str, str | None], criterion: str) -> int | None:
+    note = _digit(_text(form, criterion))
+    if note is None or not 1 <= note <= calculations.EVALUATION_MAX_NOTE:
+        return None
+    return note
