@@ -1,16 +1,38 @@
 /* ============================================================
    mapa_controle.css — Estilo da tela Mapa de controle (financeiro/mapa_controle)
 
-   Orçado, comprometido, realizado, saldo, projeção no término e desvio por item.
+   Orçado, comprometido, realizado, saldo, projeção no término e desvio por
+   item, com o mapa de calor do desvio no visual Tabela Heatmap.
 
-   Escopo: tudo que morar aqui começa por .pagina--financeiro-mapa_controle, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-031.
+   Escopo: tudo que morar aqui começa por .pagina--financeiro-mapa_controle, a classe da raiz
+   da view, para não vazar entre telas. Só tokens do Design System: nenhum valor
+   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em três
+   telas sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--financeiro-mapa_controle .mapa-formulario:not(:empty) {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--financeiro-mapa_controle .mapa-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--financeiro-mapa_controle .mapa-acoes .hint { margin: 0; }
+
+.pagina--financeiro-mapa_controle .mapa-grafico .tbl tbody tr.mapa-linha--nivel-1,
+.pagina--financeiro-mapa_controle .mapa-grafico .tbl tbody tr.mapa-linha--nivel-2 {
+  font-weight: 600;
+}
+
+.pagina--financeiro-mapa_controle .mapa-grafico .tbl tbody tr.mapa-linha--nivel-1 > td:first-child,
+.pagina--financeiro-mapa_controle .mapa-grafico .tbl tfoot tr.mapa-linha--total > td:first-child {
+  background: var(--verde-50);
+}

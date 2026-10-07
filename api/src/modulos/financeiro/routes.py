@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from urllib.parse import urlencode
 
 import azure.functions as func
@@ -70,7 +70,7 @@ from src.core.routing import (
 from src.core.scope import Scope
 from src.core.spreadsheet_reader import MAX_DATA_ROWS, MAX_FILE_BYTES, MEGABYTE
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.financeiro import export, importers, service, validation
+from src.modulos.financeiro import calculations, export, importers, service, validation
 from src.modulos.financeiro.calculations import LEAF_LEVEL, PORTFOLIO_MAIN_LEVEL, TreeRow
 from src.modulos.financeiro.service import EacFilters, EacView, ItemForm
 
@@ -134,6 +134,25 @@ ERP_IMPORT_RESULT_TEMPLATE = "financeiro/custos_importacao_resultado.html"
 
 MAP_TARGET = "mapa-conteudo"
 PROJECTION_FORM_TARGET = "mapa-projecao-formulario"
+
+MIL_CENTS = 100_000
+MIL_ONE_PLACE = Decimal("0.1")
+MAP_TITLE_PROJECT = "Mapa de controle da EAC"
+MAP_TITLE_PORTFOLIO = "Mapa de controle da carteira"
+MAP_ITEM_ROW_LABEL = "Código"
+MAP_PROJECT_ROW_LABEL = "Projeto"
+MAP_DESCRIPTION_ID = "descricao"
+MAP_PERCENT_ID = "desvio_pct"
+MAP_MONEY_COLUMNS: tuple[tuple[str, str, bool, str], ...] = (
+    ("orcado", "Orçado", False, "baseline_cents"),
+    ("remanejamentos", "Remanejamentos", True, "reallocation_cents"),
+    ("atual", "Orçado atual", False, "current_cents"),
+    ("comprometido", "Comprometido", False, "committed_cents"),
+    ("realizado", "Realizado", False, "actual_cents"),
+    ("saldo", "Saldo a comprometer", False, "saldo_cents"),
+    ("projecao", "Projeção no término", False, "projection_cents"),
+    ("desvio", "Desvio", True, "deviation_cents"),
+)
 
 PROJECTION_SAVED_MESSAGE = "Projeção de {code} atualizada."
 PROJECTION_PORTFOLIO_MESSAGE = (
@@ -1178,6 +1197,8 @@ def _mapa_context(
         "total": _mapa_line(view.total, pode_gravar=False),
         "carteira": view.is_portfolio,
         "pode_gravar": pode_gravar,
+        "resultado": "conteudo" if view.rows else "vazio-origem",
+        "grafico": _mapa_grafico(view, pode_gravar=pode_gravar),
         "alvo_conteudo": MAP_TARGET,
         "alvo_formulario": PROJECTION_FORM_TARGET,
         "erro": erro,
@@ -1196,8 +1217,94 @@ def _mapa_line(row: service.MapaRow, *, pode_gravar: bool) -> MapaLineView:
         projection=_money(row.projection_cents),
         deviation=_signed_money(row.deviation_cents),
         deviation_percent=_percent(row.deviation_percent),
-        can_project=pode_gravar and row.item_id is not None,
+        can_project=pode_gravar and row.level >= LEAF_LEVEL and row.item_id is not None,
     )
+
+
+def _mil(cents: int) -> float:
+    """O valor em R$ mil, com uma casa, como a grade do mapa mostra (a exportação é integral)."""
+    return float((Decimal(cents) / MIL_CENTS).quantize(MIL_ONE_PLACE, rounding=ROUND_HALF_UP))
+
+
+def _mapa_grafico(view: service.MapaControleView, *, pode_gravar: bool) -> dict[str, object]:
+    """O mapa no contrato do visual Tabela Heatmap (D11): R$ mil e o desvio pintado pelas faixas.
+
+    As faixas são as dos parâmetros vigentes e chegam prontas no JSON; a coluna do desvio
+    percentual é a única pintada, e o valor de cada item mostra o sinal e o ícone da faixa,
+    nunca só a cor. Com escrita, a célula do desvio do item carrega o id que abre a projeção.
+    """
+    faixas = list(calculations.deviation_heatmap_faixas(view.bands))
+    return {
+        "titulo": MAP_TITLE_PORTFOLIO if view.is_portfolio else MAP_TITLE_PROJECT,
+        "rotulo_linhas": MAP_PROJECT_ROW_LABEL if view.is_portfolio else MAP_ITEM_ROW_LABEL,
+        "cabecalho": "horizontal",
+        "casas": 1,
+        "colunas": _mapa_grafico_colunas(view.total, carteira=view.is_portfolio),
+        "linhas": [
+            _mapa_grafico_linha(row, carteira=view.is_portfolio, pode_gravar=pode_gravar)
+            for row in view.rows
+        ],
+        "total": {"linha": view.total.description, "coluna": False},
+        "faixas": {"padrao": faixas, "total": faixas},
+    }
+
+
+def _mapa_grafico_colunas(total: service.MapaRow, *, carteira: bool) -> list[dict[str, object]]:
+    colunas: list[dict[str, object]] = []
+    if not carteira:
+        colunas.append({"id": MAP_DESCRIPTION_ID, "rotulo": "Descrição", "calor": False})
+    colunas.extend(
+        {
+            "id": coluna,
+            "rotulo": rotulo,
+            "calor": False,
+            "casas": 1,
+            "sinal": sinal,
+            "total": _mil(getattr(total, campo)),
+        }
+        for coluna, rotulo, sinal, campo in MAP_MONEY_COLUMNS
+    )
+    colunas.append(_mapa_grafico_coluna_percentual(total.deviation_percent))
+    return colunas
+
+
+def _mapa_grafico_coluna_percentual(percent: Decimal | None) -> dict[str, object]:
+    coluna: dict[str, object] = {
+        "id": MAP_PERCENT_ID,
+        "rotulo": "Desvio %",
+        "casas": 1,
+        "unidade": "%",
+        "sinal": True,
+        "somar": False,
+    }
+    if percent is not None:
+        coluna["total"] = float(percent)
+    return coluna
+
+
+def _mapa_grafico_linha(
+    row: service.MapaRow, *, carteira: bool, pode_gravar: bool
+) -> dict[str, object]:
+    valores: dict[str, object] = {
+        coluna: _mil(getattr(row, campo)) for coluna, _rotulo, _sinal, campo in MAP_MONEY_COLUMNS
+    }
+    if not carteira:
+        valores[MAP_DESCRIPTION_ID] = {"texto": row.description}
+    valores[MAP_PERCENT_ID] = _mapa_grafico_celula_percentual(row, pode_gravar=pode_gravar)
+    return {
+        "id": row.code,
+        "rotulo": row.project_label if carteira else row.code,
+        "valores": valores,
+    }
+
+
+def _mapa_grafico_celula_percentual(row: service.MapaRow, *, pode_gravar: bool) -> object:
+    percent = row.deviation_percent
+    if percent is None:
+        return None
+    if pode_gravar and row.level >= LEAF_LEVEL and row.item_id is not None:
+        return {"valor": float(percent), "selecionavel": True, "id": row.item_id}
+    return float(percent)
 
 
 def _signed_money(cents: int) -> str:

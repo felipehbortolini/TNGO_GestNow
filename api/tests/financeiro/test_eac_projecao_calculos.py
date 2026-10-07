@@ -20,6 +20,7 @@ from src.modulos.financeiro.calculations import (
     baseline_base_cents,
     deviation_band,
     deviation_cents,
+    deviation_heatmap_faixas,
     deviation_percent,
     erp_totals_until,
     latest_projections,
@@ -138,6 +139,50 @@ def test_desvio_percentual_e_classificado_pelas_faixas_vigentes() -> None:
     band = deviation_band(percent, (1, 5, 10))
 
     assert band.key == "sobrecusto-1"
+
+
+def test_faixas_do_visual_tabela_heatmap_seguem_o_mapa_de_calor() -> None:
+    faixas = deviation_heatmap_faixas((1, 5, 10))
+
+    assert [faixa["nivel"] for faixa in faixas] == [3, 2, 1, 1, 3, 2, 1]
+    assert [faixa["tom"] for faixa in faixas] == [
+        "erro",
+        "erro",
+        "erro",
+        "neutro",
+        "ok",
+        "ok",
+        "ok",
+    ]
+    assert [faixa["icone"] for faixa in faixas] == [
+        "sobe",
+        "sobe",
+        "sobe",
+        "igual",
+        "desce",
+        "desce",
+        "desce",
+    ]
+    assert faixas[0]["rotulo"] == "Sobrecusto acima de 10%"
+    assert faixas[3]["rotulo"] == "Até 1%"
+    assert faixas[6]["rotulo"] == "Economia de 1% a 5%"
+
+
+def test_limites_das_faixas_do_visual_seguem_os_parametros_vigentes() -> None:
+    faixas = deviation_heatmap_faixas((2, 5, 20))
+
+    assert faixas[0]["maior_que"] == 20.0
+    assert faixas[2] == {
+        "de": 2.0,
+        "ate": 5.0,
+        "tom": "erro",
+        "nivel": 1,
+        "icone": "sobe",
+        "rotulo": "Sobrecusto de 2% a 5%",
+    }
+    assert faixas[3]["maior_que"] == -2.0
+    assert faixas[3]["menor_que"] == 2.0
+    assert faixas[4]["menor_que"] == -20.0
 
 
 # ── Projeção vigente e projeção no término ───────────────────────────────

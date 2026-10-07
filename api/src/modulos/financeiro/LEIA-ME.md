@@ -7,7 +7,7 @@ Módulo `financeiro`. Mantém a Estrutura Analítica de Custos, o desempenho de 
 | Tela | Conteúdo | Issue |
 |---|---|---|
 | EAC | Árvore de custo, itens, revisões, remanejamentos e importação | ISSUE-029, ISSUE-030 |
-| Mapa de controle | Orçado, comprometido, realizado, saldo, projeção e desvio | ISSUE-031 |
+| Mapa de controle | Orçado, comprometido, realizado, saldo, projeção no término e desvio, com mapa de calor | ISSUE-031 |
 | Cronograma de desembolso | Saldo futuro por item/mês, previsto e realizado | ISSUE-043 |
 | KPIs de custo e Curva S financeira | Índices de custo, valor agregado e séries | ISSUE-042 |
 | Contingência | Reservas, consumo, liberações, exposição e cobertura | ISSUE-041 |
@@ -61,6 +61,14 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 * **Exportação**: o Excel e a versão imprimível da tela levam as tabelas "Revisões do orçamento" e "Remanejamentos" no mesmo documento da árvore.
 * **Carga e oráculo**: a parte `governanca-eac` (`governanca/seed.py`) grava as transferências do protótipo em `mudanca_remanejamento` e chama `financeiro/seed.py::load_revisions`, que grava as revisões com a linha de base congelada e os remanejamentos aplicados apontando para a próxima revisão; `tests/financeiro/test_eac_revisoes_oraculo.py` confere os números do mock.
 
+## O que a ISSUE-031 trouxe
+
+* **Tela Mapa de controle** (`financeiro/mapa_controle`): os cinco KPIs do escopo (orçado atual, comprometido, realizado, projeção no término e desvio no término, cada um com a faixa do desvio no rótulo) e a grade item a item, com subtotal de pacote e subpacote e a linha do projeto; na carteira, um registro por projeto e a coluna Projeto. A grade visível é o visual **Tabela Heatmap** (`data-grafico`/`data-dados`, D11): os valores em R$ mil e o desvio pintado pelas faixas vigentes — sobrecusto na família `erro` e economia na família `ok` —, sempre com sinal, ícone e o nome da faixa na dica e para o leitor de tela; a cor nunca é o único sinal. A tabela servidora que vai dentro do visual (em reais integrais) é a versão sem JavaScript e a que os testes de rota leem. Botões **Excel** e **PDF** pelos mecanismos genéricos da plataforma (D12, ISSUE-017), com o mesmo conteúdo em reais integrais.
+* **Projeção no término por item**: o botão de projeção da tabela, ou a célula pintada do desvio no visual, abre o formulário no alvo `mapa-projecao-formulario` (`GET /mapa-de-controle/projecao/{item_id}/formulario`); a gravação (`POST /mapa-de-controle/projecao/{item_id}`) exige justificativa, recusa valor negativo ou abaixo do realizado do ERP e entra como fato manual datado no histórico do item (`service.update_projection`, tabela `eac_projecao`). O fato mais recente é a projeção vigente e, no empate de data, o do ERP vence (`calculations.latest_projections`); sem fato algum vale o orçado atual.
+* **Importação dos custos do ERP**: o botão abre o formulário genérico (`GET /custos/importar/formulario`) no modal; a conferência (`POST .../importar/conferir`) lê a planilha e não grava nada, e a confirmação (`POST .../importar/confirmar`) checa de novo e grava um fato por item e mês (`service.import_erp_costs`, tabela `erp_custo`), substituindo o mês reimportado. O importador é o `custos-erp` (`importers.py`), com o modelo da ISSUE-018; no Portfólio a rota pede o projeto.
+* **Rotas** (`routes.py`): `GET /api/financeiro/mapa-de-controle` (conteúdo do escopo), `GET .../mapa-de-controle/excel` e `GET .../mapa-de-controle/imprimivel` (os dois exports, em reais integrais e com a coluna Projeto na carteira), `GET .../mapa-de-controle/projecao/{item_id}/formulario` e `POST .../mapa-de-controle/projecao/{item_id}`, `GET /api/financeiro/custos/importar/formulario`, `POST .../custos/importar/conferir` e `POST .../custos/importar/confirmar`.
+* **Carga e oráculo**: a parte `financeiro-custos` (`seed.py::load_erp_costs`) grava o fechamento do ERP do protótipo no mês da data de referência; `tests/financeiro/test_eac_mapa_oraculo.py` afirma a projeção no término do projeto 1 em R$ 45,26 mi e a soma da carteira.
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |
@@ -78,7 +86,14 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 | CPI | Valor agregado dividido pelo custo real (`EV / AC`) | `calculations.cost_performance_index` |
 | SPI de custo | Valor agregado dividido pelo valor planejado (`EV / PV`) | `calculations.cost_schedule_index` |
 | VAC | Orçamento no término menos Projeção no término | `calculations.variance_at_completion` |
-| Desvio da projeção | Projeção no término menos orçado atual; positivo significa sobrecusto | `calculations.projected_cost_variance` |
+| Linha de base do mapa | Base congelada da última revisão, sem os remanejamentos aplicados e ainda não consolidados | `calculations.baseline_base_cents` |
+| Remanejamentos não consolidados | Orçado atual menos a linha de base do item | `calculations.reallocation_cents` |
+| Saldo a comprometer | Orçado atual menos comprometido; negativo é sobrecusto | `calculations.saldo_a_comprometer_cents` |
+| Desvio do mapa | Projeção no término menos orçado atual; positivo significa sobrecusto | `calculations.deviation_cents` |
+| Desvio percentual | Desvio sobre o orçado atual, com uma casa; nenhum quando o orçado atual é zero | `calculations.deviation_percent` |
+| Faixa do mapa de calor | Percentual do desvio classificado pelas faixas vigentes: neutro até a primeira, níveis 1 a 3 pelo segundo e o terceiro limites; sobrecusto na família `erro` e economia na `ok` | `calculations.deviation_band`, `calculations.deviation_heatmap_faixas` |
+| Projeção no término do item e do projeto | Fato mais recente do histórico do item (manual ou do fechamento do ERP) e a soma dos filhos nos pacotes e subpacotes; sem fato, o orçado atual | `calculations.latest_projections`, `calculations.projected_total_cents` |
+| Comprometido e realizado do mapa | Soma dos fatos do ERP do item até a data de corte (o mês do corte entra) | `calculations.erp_totals_until` |
 | Saldo a pagar | Projeção no término menos realizado, distribuído pelos períodos futuros conforme o perfil previsto | `calculations.remaining_cash_flow` |
 | Tendência financeira do relatório | `AC + (BAC - EV) / CPI` no corte do relatório, distribuída pelo perfil planejado e sem dados posteriores ao corte | `calculations.financial_eac_trend` |
 
@@ -86,11 +101,11 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 
 ## Fluxos
 
-Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. A importação de itens por planilha passa pela conferência e gera uma revisão vinculada à SM aprovada. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
+Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. A importação de itens por planilha passa pela conferência e gera uma revisão vinculada à SM aprovada. A projeção no término entra como fato datado com justificativa e a importação dos custos do ERP grava um fato por item e mês só na confirmação, substituindo o mês reimportado. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
 
 ## Integrações
 
-Suprimentos compromete custo quando emite pedido/contrato. Governança fornece SMs aprovadas e a alçada/comitê para remanejamentos e reservas. Contratos alimentam comprometido/realizado e desembolso. Riscos fornece VME para cobertura; Financeiro entrega KPIs à carteira e ao relatório. A comunicação entre módulos passa pelas fachadas donas.
+Suprimentos compromete custo quando emite pedido/contrato. Governança fornece SMs aprovadas e a alçada/comitê para remanejamentos e reservas. Contratos alimentam comprometido/realizado e desembolso. O ERP entrega, por planilha, o fechamento do mês com comprometido, realizado e projeção; esses fatos são a base da Curva S financeira e do valor agregado (ISSUE-042), e a contingência compara o saldo com o desvio projetado (ISSUE-041). Riscos fornece VME para cobertura; Financeiro entrega KPIs à carteira e ao relatório. A comunicação entre módulos passa pelas fachadas donas.
 
 ## Parâmetros
 
@@ -104,10 +119,13 @@ Incluem faixas do mapa de calor (1%, 5%, 10% inicialmente), tolerância de consu
 | Fluxo, permissões e integrações | `service.py` |
 | Índices, projeções e desvios | `calculations.py` |
 | Validações monetárias e de revisão | `validation.py` |
+| Importadores de planilha (itens da EAC e custos do ERP) | `importers.py` |
+| Carga de demonstração | `seed.py` |
 | Excel/imprimível específico | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/financeiro/` |
 | Tela, estilo e comportamento | `app/_views/financeiro/` e `app/paginas/financeiro/` |
+| Visual Tabela Heatmap | `app/ds/graficos/tabela-heatmap.js`; contrato em `docs/styleguide-graficos.html` |
 | Testes | `api/tests/financeiro/` |
 
 Todos os arquivos Python são stubs intencionais na ISSUE-002. As issues de Financeiro completam este documento e acrescentam testes de fronteira para cada cálculo.

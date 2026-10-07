@@ -172,6 +172,34 @@ def test_o_mapa_da_carteira_tem_um_registro_por_projeto() -> None:
     assert "Projeto" in body
 
 
+def test_o_mapa_usa_o_visual_tabela_heatmap_com_as_faixas_do_servidor(
+    cenario: EacScenario,
+) -> None:
+    response = routes.mapa_content(
+        _request("/api/financeiro/mapa-de-controle", projeto=str(cenario.first.id))
+    )
+
+    body = _body(response)
+    assert 'data-grafico="tabela-heatmap"' in body
+    assert '"desvio_pct"' in body
+    assert '"selecionavel"' in body
+    assert '"projecao"' in body
+    assert '"maior_que"' in body
+    assert "Sobrecusto acima de 10%" in body
+    assert "Economia de 1% a 5%" in body
+
+
+@pytest.mark.usefixtures("cenario")
+def test_o_mapa_da_carteira_nao_oferece_a_projecao() -> None:
+    response = routes.mapa_content(
+        _request("/api/financeiro/mapa-de-controle", projeto="portfolio")
+    )
+
+    body = _body(response)
+    assert '"selecionavel"' not in body
+    assert "Importar custos do ERP" in body
+
+
 @pytest.mark.usefixtures("cenario")
 def test_sem_o_cabecalho_do_alpine_o_mapa_manda_para_o_shell() -> None:
     response = routes.mapa_content(

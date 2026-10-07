@@ -32,6 +32,9 @@ SAVING_KEY = "economia"
 OVERCOST_TONE = "erro"
 SAVING_TONE = "ok"
 NEUTRAL_TONE = "neutro"
+OVERCOST_ICON = "sobe"
+SAVING_ICON = "desce"
+NEUTRAL_ICON = "igual"
 DEVIATION_BANDS_MESSAGE = "As faixas do desvio precisam de três limites."
 
 
@@ -594,6 +597,80 @@ def _band_label(family: str, level: int, *, limits: tuple[Decimal, Decimal, Deci
     if level == 2:
         return f"{name} de {_limit_text(middle)}% a {_limit_text(last)}%"
     return f"{name} acima de {_limit_text(last)}%"
+
+
+def _heatmap_faixa(
+    limites: Mapping[str, float], *, tom: str, nivel: int, icone: str, rotulo: str
+) -> dict[str, object]:
+    return {**limites, "tom": tom, "nivel": nivel, "icone": icone, "rotulo": rotulo}
+
+
+def deviation_heatmap_faixas(
+    bands: Sequence[Decimal | int | float] = DEFAULT_DEVIATION_BANDS,
+) -> tuple[dict[str, object], ...]:
+    """As faixas do desvio no contrato do visual Tabela Heatmap (D11).
+
+    Os limites são os parâmetros vigentes e a classificação é a mesma de ``deviation_band``:
+    dentro da primeira faixa o desvio é neutro, até o segundo limite é nível 1, até o terceiro
+    é 2 e acima dele é 3. Sobrecusto usa a família ``erro`` e economia a ``ok``; o ícone
+    (``sobe``, ``desce`` ou ``igual``) é o sinal além da cor. A lista vai da faixa mais
+    específica para a mais geral, como o visual procura a faixa do valor.
+    """
+    limits = tuple(_limit_of(band) for band in bands)
+    if len(limits) != 3:
+        raise ValueError(DEVIATION_BANDS_MESSAGE)
+    first, middle, last = limits
+    return (
+        _heatmap_faixa(
+            {"maior_que": float(last)},
+            tom=OVERCOST_TONE,
+            nivel=3,
+            icone=OVERCOST_ICON,
+            rotulo=_band_label(OVERCOST_KEY, 3, limits=limits),
+        ),
+        _heatmap_faixa(
+            {"maior_que": float(middle), "ate": float(last)},
+            tom=OVERCOST_TONE,
+            nivel=2,
+            icone=OVERCOST_ICON,
+            rotulo=_band_label(OVERCOST_KEY, 2, limits=limits),
+        ),
+        _heatmap_faixa(
+            {"de": float(first), "ate": float(middle)},
+            tom=OVERCOST_TONE,
+            nivel=1,
+            icone=OVERCOST_ICON,
+            rotulo=_band_label(OVERCOST_KEY, 1, limits=limits),
+        ),
+        _heatmap_faixa(
+            {"maior_que": float(-first), "menor_que": float(first)},
+            tom=NEUTRAL_TONE,
+            nivel=1,
+            icone=NEUTRAL_ICON,
+            rotulo=f"Até {_limit_text(first)}%",
+        ),
+        _heatmap_faixa(
+            {"menor_que": float(-last)},
+            tom=SAVING_TONE,
+            nivel=3,
+            icone=SAVING_ICON,
+            rotulo=_band_label(SAVING_KEY, 3, limits=limits),
+        ),
+        _heatmap_faixa(
+            {"de": float(-last), "menor_que": float(-middle)},
+            tom=SAVING_TONE,
+            nivel=2,
+            icone=SAVING_ICON,
+            rotulo=_band_label(SAVING_KEY, 2, limits=limits),
+        ),
+        _heatmap_faixa(
+            {"de": float(-middle), "ate": float(-first)},
+            tom=SAVING_TONE,
+            nivel=1,
+            icone=SAVING_ICON,
+            rotulo=_band_label(SAVING_KEY, 1, limits=limits),
+        ),
+    )
 
 
 @dataclass(frozen=True)
