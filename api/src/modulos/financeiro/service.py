@@ -21,8 +21,9 @@ from typing import TYPE_CHECKING, Any, Protocol
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.core import attachment_origins, audit, calendario, rbac, recording
+from src.core import attachment_origins, attachments, audit, calendario, rbac, recording
 from src.core.errors import AccessDeniedError, InvalidDataError
+from src.core.file_storage import FileStorage
 from src.core.models import AuditEntry
 from src.core.money import format_brl
 from src.core.rbac import Permission, User
@@ -40,7 +41,10 @@ from src.modulos.financeiro.calculations import (
 from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
+    ContractClaim,
     ContractMeasurement,
+    ContractPaymentMilestone,
+    ContractTimeExtension,
     EacItem,
     EacProjection,
     EacReallocation,
@@ -2101,7 +2105,27 @@ CONTRACT_OTHER_PROJECT_MESSAGE = (
 )
 MEASUREMENT_NOT_FOUND_MESSAGE = "Medição do contrato não encontrada."
 ADDENDUM_SM_MESSAGE = "A SM informada não é do projeto do contrato ou não está aprovada."
+MILESTONE_NOT_FOUND_MESSAGE = "Marco de pagamento não encontrado."
+CLAIM_NOT_FOUND_MESSAGE = "Claim do contrato não encontrado."
+EXTENSION_NOT_FOUND_MESSAGE = "Extensão de prazo não encontrada."
+EXTENSION_CLAIM_MESSAGE = "O claim de origem não pertence ao contrato."
+CLAIM_DECISION_MESSAGE = "A decisão do claim é Acordado ou Rejeitado."
 ATTACHMENT_TABLE = "contrato"
+MILESTONE_ATTACHMENT_TABLE = "contrato_marco_pagamento"
+CLAIM_ATTACHMENT_TABLE = "contrato_claim"
+DEFAULT_CODE_PATTERN = "TN-2026"
+CLAIM_CODE_KIND = "CLM"
+EXTENSION_CODE_KIND = "EOT"
+CLAIM_SM_ORIGIN_CONTRACTOR = "Contratada"
+CLAIM_SM_ORIGIN_CLIENT = "Cliente"
+CLAIM_SM_ORIGIN_INTERNAL = "Interna"
+CLAIM_SM_KIND = {
+    validation.CLAIM_KIND_TIME: "Prazo",
+    validation.CLAIM_KIND_COST: "Custo",
+    validation.CLAIM_KIND_BOTH: "Contratual",
+}
+CLAIM_DECISIONS = (calculations.CLAIM_AGREED, calculations.CLAIM_REJECTED)
+CHANGE_PRIORITY_NORMAL = "Normal"
 
 
 @dataclass(frozen=True)
@@ -2136,8 +2160,76 @@ class AddendumView:
 
 
 @dataclass(frozen=True)
+class MilestoneView:
+    """Um marco da ficha: percentual, valor e retenção calculados, e a evidência da aprovação."""
+
+    id: int
+    number: str
+    description: str
+    criteria: str
+    pct: int
+    value_cents: int
+    retention_cents: int
+    expected_on: date
+    completed_on: date | None
+    situation: str
+    attachment_id: int | None
+    has_evidence: bool
+    version: int = 1
+
+
+@dataclass(frozen=True)
+class ClaimView:
+    """Um claim da ficha: datas, valores, situação e o alerta de notificação fora do prazo."""
+
+    id: int
+    code: str
+    direction: str
+    kind: str
+    cause: str
+    description: str
+    clause: str
+    event_date: date
+    notification_date: date
+    claimed_cents: int
+    claimed_days: int
+    recognized_cents: int | None
+    recognized_days: int | None
+    situation: str
+    closed_on: date | None
+    change_id: int | None
+    change_code: str
+    notification_days: int
+    notification_late: bool
+    version: int = 1
+
+
+@dataclass(frozen=True)
+class ExtensionView:
+    """Uma EOT da ficha: dias, classificação, decisão e a SM da linha de base do cronograma."""
+
+    id: int
+    code: str
+    claim_id: int | None
+    claim_code: str
+    event: str
+    requested_days: int
+    granted_days: int | None
+    classification: str
+    method: str
+    affected_milestone: str
+    requested_on: date
+    decided_on: date | None
+    situation: str
+    change_id: int | None
+    change_code: str
+    is_open: bool
+    version: int = 1
+
+
+@dataclass(frozen=True)
 class ContractView:
-    """A ficha do contrato: campos comuns, cascata, saldo e as listas de medições e aditivos."""
+    """A ficha do contrato: campos comuns, cascata, saldo e as listas do contrato."""
 
     id: int
     project_id: int
@@ -2164,6 +2256,10 @@ class ContractView:
     cascade: tuple[dict[str, Any], ...]
     measurements: tuple[MeasurementView, ...]
     addenda: tuple[AddendumView, ...]
+    milestone_pct_total: int
+    milestones: tuple[MilestoneView, ...]
+    claims: tuple[ClaimView, ...]
+    extensions: tuple[ExtensionView, ...]
 
 
 def contract_detail(session: Session, *, user: User, contract_id: int) -> ContractView:
@@ -2172,13 +2268,18 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
     O valor atual é o original mais os aditivos e o saldo a faturar é o valor atual menos o
     medido aprovado, ambos calculados na leitura; o disponível a medir desconta ainda as
     medições Em análise, como no protótipo. As listas vêm da mais recente para a mais antiga,
-    com a retenção do contrato em cada medição. Quem lê precisa alcançar o módulo.
+    com a retenção do contrato em cada medição; os marcos vêm na ordem de cadastro, com o valor
+    e a retenção calculados e a soma dos percentuais, e os claims trazem o alerta de notificação
+    fora do prazo do contrato. Quem lê precisa alcançar o módulo.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.VIEW)
     contract = _contract_or_refuse(session, contract_id)
     addenda = _addendum_rows(session, contract_id=contract_id)
     measurements = _measurement_rows(session, contract_id=contract_id)
+    milestones = _milestone_rows(session, contract_id=contract_id)
+    claims = _claim_rows(session, contract_id=contract_id)
+    extensions = _extension_rows(session, contract_id=contract_id)
     addendum_lines = _addendum_lines(addenda)
     measurement_lines = _measurement_lines(measurements)
     current = calculations.contract_current_value_cents(
@@ -2189,7 +2290,15 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
     people = configuracoes.person_names(session, [contract.manager_id, contract.fiscal_id])
     companies = configuracoes.list_company_names(session)
     codes = eac_item_codes(session, [contract.eac_item_id] if contract.eac_item_id else [])
-    change_codes = _change_codes(session, [row.change_id for row in addenda])
+    change_codes = _change_codes(
+        session,
+        [
+            *(row.change_id for row in addenda),
+            *(row.change_id for row in claims),
+            *(row.change_id for row in extensions),
+        ],
+    )
+    claim_codes = {row.id: row.code for row in claims}
     return ContractView(
         id=contract.id,
         project_id=contract.project_id,
@@ -2220,6 +2329,13 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
         ),
         measurements=tuple(_measurement_view(contract, row) for row in measurements),
         addenda=tuple(_addendum_view(row, change_codes=change_codes) for row in addenda),
+        milestone_pct_total=calculations.milestone_pct_total([row.pct for row in milestones]),
+        milestones=tuple(_milestone_view(current, contract, row) for row in milestones),
+        claims=tuple(_claim_view(contract, row, change_codes=change_codes) for row in claims),
+        extensions=tuple(
+            _extension_view(row, claim_codes=claim_codes, change_codes=change_codes)
+            for row in extensions
+        ),
     )
 
 
@@ -2278,6 +2394,8 @@ def transition_measurement(
     aprovado; com fato, o bruto entra somado ao realizado. O próprio fluxo impede reprocessar
     a mesma medição (a Aprovada não volta a Em análise), então o bruto entra uma vez; um mês
     reimportado do ERP substitui o fato e a contribuição da medição se perde, como no mapa.
+    A medição de marco acompanha o faturamento e o pagamento: o marco vai a Faturado ou Pago
+    junto, como no protótipo.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.MANAGE)
@@ -2299,6 +2417,8 @@ def transition_measurement(
     )
     if target == calculations.SITUATION_APPROVED:
         _apply_measurement_to_eac(session, user=user, contract=contract, measurement=measurement)
+    if target in (calculations.SITUATION_INVOICED, calculations.SITUATION_PAID):
+        _apply_measurement_to_milestone(session, user=user, measurement=measurement, target=target)
     return _measurement_view(contract, measurement)
 
 
@@ -2353,6 +2473,526 @@ def create_addendum(
         )
     change_codes = _change_codes(session, [parsed.change_id])
     return _addendum_view(record, change_codes=change_codes)
+
+
+# ── Marcos, claims e EOT (ISSUE-033) ─────────────────────────────────────
+
+
+def create_milestone(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+) -> MilestoneView:
+    """Cadastra um marco Previsto, com o percentual que ainda cabe nos 100% do contrato.
+
+    Descrição, critério de aceite, percentual inteiro e data prevista são obrigatórios; a soma
+    dos percentuais dos marcos não pode passar de 100%, como o protótipo impede. O valor e a
+    retenção saem do percentual sobre o valor atual do contrato, calculados na leitura. A
+    operação é de quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    parsed = validation.parse_milestone_form(form)
+    milestones = _milestone_rows(session, contract_id=contract.id)
+    used = calculations.milestone_pct_total([row.pct for row in milestones])
+    validation.check_milestone_pct(used_pct=used, new_pct=parsed.pct)
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractPaymentMilestone(
+            contract_id=contract.id,
+            number=_next_milestone_number(session, contract_id=contract.id),
+            description=parsed.description,
+            acceptance_criteria=parsed.criteria,
+            pct=parsed.pct,
+            expected_on=parsed.expected_on,
+            situation=calculations.MILESTONE_FORECAST,
+        ),
+    )
+    return _milestone_view(_current_value_cents(session, contract=contract), contract, record)
+
+
+def send_milestone_evidence(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    milestone_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+    file_name: str | None = None,
+    content: bytes = b"",
+    storage: FileStorage | None = None,
+) -> MilestoneView:
+    """Envia a evidência do marco: grava a data de conclusão e o anexo que a comprova.
+
+    A data de conclusão é obrigatória e o arquivo é um anexo de verdade do marco, pelo mecanismo
+    de anexos (D5a), com os limites do grupo Anexos vigentes; a aprovação só passa a aceitar o
+    marco com esse anexo gravado. A operação é de quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    milestone, contract = _milestone_and_contract(session, scope=scope, milestone_id=milestone_id)
+    validation.check_milestone_transition(milestone.situation, calculations.MILESTONE_EVIDENCE_SENT)
+    completed_on = validation.parse_milestone_evidence_form(form)
+    attachment = attachments.upload(
+        session,
+        user=user,
+        new=attachments.NewAttachment(
+            origin_table=MILESTONE_ATTACHMENT_TABLE,
+            origin_record_id=milestone.id,
+            file_name=file_name,
+            content=content,
+        ),
+        reference_date=reference_date,
+        storage=storage,
+    )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=milestone,
+        changes={
+            "situation": calculations.MILESTONE_EVIDENCE_SENT,
+            "completed_on": completed_on,
+            "attachment_id": attachment.id,
+        },
+        version=form.get(validation.FIELD_VERSION),
+    )
+    return _milestone_view(_current_value_cents(session, contract=contract), contract, milestone)
+
+
+def approve_milestone(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    milestone_id: int,
+    form: Mapping[str, str | None] | None = None,
+) -> MilestoneView:
+    """Aprova o marco (Evidência enviada → Aprovado), com o aceite do fiscal e do gestor.
+
+    A aprovação exige o anexo de evidência gravado (D5a); o registro do aceite é de quem gere o
+    contrato, como o protótipo pede.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    milestone, contract = _milestone_and_contract(session, scope=scope, milestone_id=milestone_id)
+    validation.check_milestone_transition(milestone.situation, calculations.MILESTONE_APPROVED)
+    validation.check_milestone_evidence(has_evidence=milestone.attachment_id is not None)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=milestone,
+        changes={"situation": calculations.MILESTONE_APPROVED},
+        version=(form or {}).get(validation.FIELD_VERSION),
+    )
+    return _milestone_view(_current_value_cents(session, contract=contract), contract, milestone)
+
+
+def transition_milestone(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    milestone_id: int,
+    target: str,
+    form: Mapping[str, str | None] | None = None,
+) -> MilestoneView:
+    """Move o marco no fluxo de faturamento (Aprovado → Faturado → Pago).
+
+    A situação atual só admite a próxima, como no protótipo; a medição vinculada ao marco
+    acompanha o faturamento e o pagamento por ``transition_measurement``. A operação é de quem
+    gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    milestone, contract = _milestone_and_contract(session, scope=scope, milestone_id=milestone_id)
+    validation.check_milestone_transition(milestone.situation, target)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=milestone,
+        changes={"situation": target},
+        version=(form or {}).get(validation.FIELD_VERSION),
+    )
+    return _milestone_view(_current_value_cents(session, contract=contract), contract, milestone)
+
+
+def create_claim(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+) -> ClaimView:
+    """Registra um claim Notificado, com o código sequencial do projeto (``CLM-...-0001``).
+
+    Direção, tipo e causa vêm das listas do contrato e o valor/dias pleiteados seguem o tipo
+    (Prazo pede dias, Custo pede valor e Prazo e custo pede os dois). O alerta de notificação
+    compara a data da notificação com o prazo do contrato e viaja na visão. A operação é de
+    quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    parsed = validation.parse_claim_form(form)
+    prefix = _code_prefix(session, contract=contract, kind=CLAIM_CODE_KIND)
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractClaim(
+            contract_id=contract.id,
+            code=_next_code(
+                session.scalars(
+                    select(ContractClaim.code).where(ContractClaim.code.startswith(prefix))
+                ).all(),
+                prefix=prefix,
+            ),
+            direction=parsed.direction,
+            kind=parsed.kind,
+            cause=parsed.cause,
+            description=parsed.description,
+            clause=parsed.clause,
+            event_date=parsed.event_date,
+            notification_date=parsed.notification_date,
+            claimed_cents=parsed.claimed_cents,
+            claimed_days=parsed.claimed_days,
+            situation=calculations.CLAIM_NOTIFIED,
+        ),
+    )
+    return _claim_view(contract, record, change_codes={})
+
+
+def update_claim(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    claim_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+) -> ClaimView:
+    """Atualiza um claim no fluxo, com o parecer e o reconhecido do acordo.
+
+    A situação atual só admite a próxima do fluxo e o parecer é obrigatório; o reconhecido só
+    entra no Acordado, que também abre a SM na Governança pela fachada dela, na mesma
+    transação, e grava o vínculo em ``mudanca_id``. No Rejeitado o reconhecido zera e no
+    Encerrado entra a data de referência, como o protótipo faz. A operação é de quem gere o
+    contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    claim, contract = _claim_and_contract(session, scope=scope, claim_id=claim_id)
+    parsed = validation.parse_claim_update_form(form, claimed_cents=claim.claimed_cents)
+    validation.check_claim_transition(claim.situation, parsed.target)
+    changes: dict[str, Any] = {"situation": parsed.target}
+    if parsed.target == calculations.CLAIM_AGREED:
+        changes["recognized_cents"] = parsed.recognized_cents
+        changes["recognized_days"] = parsed.recognized_days
+        changes["change_id"] = _create_claim_change(
+            session,
+            user=user,
+            contract=contract,
+            claim=claim,
+            statement=parsed.statement,
+            reference_date=reference_date,
+        )
+    elif parsed.target == calculations.CLAIM_REJECTED:
+        changes["recognized_cents"] = 0
+        changes["recognized_days"] = 0
+    elif parsed.target == calculations.CLAIM_CLOSED:
+        changes["closed_on"] = reference_date
+    recording.update(
+        session,
+        user_id=user.id,
+        record=claim,
+        changes=changes,
+        version=form.get(validation.FIELD_VERSION),
+    )
+    return _claim_view(contract, claim, change_codes=_change_codes(session, [claim.change_id]))
+
+
+def decide_claim(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    claim_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+) -> ClaimView:
+    """A decisão de mérito do claim: Acordado (com a SM) ou Rejeitado.
+
+    É a porta restrita de ``update_claim`` para a decisão; a negociação e as demais transições
+    usam ``update_claim``. A operação é de quem gere o contrato.
+    """
+    target = (form.get(validation.FIELD_CLAIM_SITUATION) or "").strip()
+    if target not in CLAIM_DECISIONS:
+        raise InvalidDataError({validation.FIELD_CLAIM_SITUATION: CLAIM_DECISION_MESSAGE})
+    return update_claim(
+        session,
+        user=user,
+        scope=scope,
+        claim_id=claim_id,
+        form=form,
+        reference_date=reference_date,
+    )
+
+
+def create_extension(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+) -> ExtensionView:
+    """Registra uma EOT Solicitada, com o claim de origem opcional do contrato.
+
+    O evento causador, os dias solicitados, o marco contratual afetado e o método de análise de
+    atraso são obrigatórios; o claim de origem, quando informado, precisa ser do contrato. A
+    data da solicitação é a data de referência, como o protótipo. A operação é de quem gere o
+    contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    parsed = validation.parse_extension_form(form)
+    _check_extension_claim(session, contract=contract, claim_id=parsed.claim_id)
+    prefix = _code_prefix(session, contract=contract, kind=EXTENSION_CODE_KIND)
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractTimeExtension(
+            contract_id=contract.id,
+            claim_id=parsed.claim_id,
+            code=_next_code(
+                session.scalars(
+                    select(ContractTimeExtension.code).where(
+                        ContractTimeExtension.code.startswith(prefix)
+                    )
+                ).all(),
+                prefix=prefix,
+            ),
+            event=parsed.event,
+            requested_days=parsed.requested_days,
+            method=parsed.method,
+            affected_milestone=parsed.affected_milestone,
+            requested_on=reference_date,
+            situation=calculations.EXTENSION_REQUESTED,
+        ),
+    )
+    return _extension_view(
+        record,
+        claim_codes=_claim_codes(session, [parsed.claim_id]),
+        change_codes={},
+    )
+
+
+def decide_extension(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    extension_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+) -> ExtensionView:
+    """Decide a EOT; a concessão prorroga o término vigente e cria a SM do cronograma.
+
+    Concedida integral ou parcialmente exige os dias concedidos e a classificação, prorroga
+    ``termino_vigente`` por eles e abre a SM na Governança pela fachada dela, na mesma
+    transação, gravando o vínculo em ``mudanca_id``; a Negada encerra a análise sem efeito no
+    contrato. A situação atual só admite a decisão do fluxo, e a operação é de quem gere o
+    contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    extension, contract = _extension_and_contract(session, scope=scope, extension_id=extension_id)
+    parsed = validation.parse_extension_decision_form(form, requested_days=extension.requested_days)
+    validation.check_extension_transition(extension.situation, parsed.target)
+    granted = parsed.target in (
+        calculations.EXTENSION_GRANTED,
+        calculations.EXTENSION_PARTIALLY_GRANTED,
+    )
+    changes: dict[str, Any] = {
+        "situation": parsed.target,
+        "decided_on": reference_date,
+        "granted_days": parsed.granted_days,
+        "classification": parsed.classification or None,
+    }
+    if granted:
+        new_end = calculations.extension_new_end_date(contract.current_end, parsed.granted_days)
+        recording.update(
+            session,
+            user_id=user.id,
+            record=contract,
+            changes={"current_end": new_end},
+            version=contract.version,
+        )
+        changes["change_id"] = _create_extension_change(
+            session,
+            user=user,
+            contract=contract,
+            extension=extension,
+            target=parsed.target,
+            statement=parsed.statement,
+            reference_date=reference_date,
+        )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=extension,
+        changes=changes,
+        version=form.get(validation.FIELD_VERSION),
+    )
+    return _extension_view(
+        extension,
+        claim_codes=_claim_codes(session, [extension.claim_id]),
+        change_codes=_change_codes(session, [extension.change_id]),
+    )
+
+
+def _create_claim_change(
+    session: Session,
+    *,
+    user: User,
+    contract: Contract,
+    claim: ContractClaim,
+    statement: str,
+    reference_date: date,
+) -> int:
+    """A SM do claim acordado, pela fachada da Governança, na transação do chamador (D9)."""
+    from src.modulos.governanca import service as governanca
+
+    form: Mapping[str, str] = {
+        "titulo": f"Claim {claim.code} acordado",
+        "tipo": CLAIM_SM_KIND[claim.kind],
+        "origem": _claim_sm_origin(claim.direction),
+        "prioridade": CHANGE_PRIORITY_NORMAL,
+        "data_solicitacao": reference_date.isoformat(),
+        "descricao": f"Claim {claim.code}: {claim.description} Parecer: {statement}",
+    }
+    created = governanca.create_change(
+        session,
+        user=user,
+        scope=Scope(project_id=contract.project_id, source="url"),
+        form=form,
+        reference_date=reference_date,
+    )
+    return created.id
+
+
+def _create_extension_change(
+    session: Session,
+    *,
+    user: User,
+    contract: Contract,
+    extension: ContractTimeExtension,
+    target: str,
+    statement: str,
+    reference_date: date,
+) -> int:
+    """A SM da EOT concedida para a linha de base do cronograma, pela fachada da Governança."""
+    from src.modulos.governanca import service as governanca
+
+    form: Mapping[str, str] = {
+        "titulo": f"EOT {extension.code}: {target}",
+        "tipo": "Prazo",
+        "origem": _extension_sm_origin(session, extension=extension),
+        "prioridade": CHANGE_PRIORITY_NORMAL,
+        "data_solicitacao": reference_date.isoformat(),
+        "descricao": f"EOT {extension.code}: {extension.event} Parecer: {statement}",
+    }
+    created = governanca.create_change(
+        session,
+        user=user,
+        scope=Scope(project_id=contract.project_id, source="url"),
+        form=form,
+        reference_date=reference_date,
+    )
+    return created.id
+
+
+def _claim_sm_origin(direction: str) -> str:
+    if direction == validation.CLAIM_DIRECTION_CONTRACTOR:
+        return CLAIM_SM_ORIGIN_CONTRACTOR
+    return CLAIM_SM_ORIGIN_CLIENT
+
+
+def _extension_sm_origin(session: Session, *, extension: ContractTimeExtension) -> str:
+    if extension.claim_id is None:
+        return CLAIM_SM_ORIGIN_INTERNAL
+    claim = session.get(ContractClaim, extension.claim_id)
+    return _claim_sm_origin(claim.direction) if claim is not None else CLAIM_SM_ORIGIN_INTERNAL
+
+
+def _check_extension_claim(session: Session, *, contract: Contract, claim_id: int | None) -> None:
+    """O claim de origem da EOT, quando informado, precisa existir e ser do contrato."""
+    if claim_id is None:
+        return
+    claim = session.get(ContractClaim, claim_id)
+    if claim is None or claim.contract_id != contract.id:
+        raise InvalidDataError({validation.FIELD_EXTENSION_CLAIM: EXTENSION_CLAIM_MESSAGE})
+
+
+def _milestone_and_contract(
+    session: Session, *, scope: Scope, milestone_id: int
+) -> tuple[ContractPaymentMilestone, Contract]:
+    milestone = session.get(ContractPaymentMilestone, milestone_id)
+    if milestone is None:
+        raise InvalidDataError(MILESTONE_NOT_FOUND_MESSAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=milestone.contract_id)
+    return milestone, contract
+
+
+def _claim_and_contract(
+    session: Session, *, scope: Scope, claim_id: int
+) -> tuple[ContractClaim, Contract]:
+    claim = session.get(ContractClaim, claim_id)
+    if claim is None:
+        raise InvalidDataError(CLAIM_NOT_FOUND_MESSAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=claim.contract_id)
+    return claim, contract
+
+
+def _extension_and_contract(
+    session: Session, *, scope: Scope, extension_id: int
+) -> tuple[ContractTimeExtension, Contract]:
+    extension = session.get(ContractTimeExtension, extension_id)
+    if extension is None:
+        raise InvalidDataError(EXTENSION_NOT_FOUND_MESSAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=extension.contract_id)
+    return extension, contract
+
+
+def _current_value_cents(session: Session, *, contract: Contract) -> int:
+    """Valor atual do contrato na leitura: original mais os aditivos aprovados."""
+    addenda = _addendum_lines(_addendum_rows(session, contract_id=contract.id))
+    return calculations.contract_current_value_cents(contract.original_value_cents, addenda)
+
+
+def _code_prefix(session: Session, *, contract: Contract, kind: str) -> str:
+    """O prefixo do código do projeto (``CLM-TN-2026-``), como o protótipo o monta."""
+    project = configuracoes.find_project(session, contract.project_id)
+    pattern = (project.ata_pattern if project is not None else None) or DEFAULT_CODE_PATTERN
+    return f"{kind}-{pattern}-"
+
+
+def _next_code(codes: Sequence[str], *, prefix: str) -> str:
+    """O próximo código sequencial do prefixo: o maior número existente mais um, com 4 dígitos."""
+    numbers = [
+        int(code[len(prefix) :])
+        for code in codes
+        if code.startswith(prefix) and code[len(prefix) :].isdigit()
+    ]
+    return f"{prefix}{max(numbers, default=0) + 1:04d}"
 
 
 def _contract_or_refuse(session: Session, contract_id: int) -> Contract:
@@ -2436,6 +3076,118 @@ def _addendum_view(row: ContractAddendum, *, change_codes: Mapping[int, str]) ->
     )
 
 
+def _milestone_rows(session: Session, *, contract_id: int) -> list[ContractPaymentMilestone]:
+    statement = (
+        select(ContractPaymentMilestone)
+        .where(ContractPaymentMilestone.contract_id == contract_id)
+        .order_by(ContractPaymentMilestone.id)
+    )
+    return list(session.scalars(statement))
+
+
+def _claim_rows(session: Session, *, contract_id: int) -> list[ContractClaim]:
+    statement = (
+        select(ContractClaim)
+        .where(ContractClaim.contract_id == contract_id)
+        .order_by(ContractClaim.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
+def _extension_rows(session: Session, *, contract_id: int) -> list[ContractTimeExtension]:
+    statement = (
+        select(ContractTimeExtension)
+        .where(ContractTimeExtension.contract_id == contract_id)
+        .order_by(ContractTimeExtension.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
+def _milestone_view(
+    current_value_cents: int, contract: Contract, row: ContractPaymentMilestone
+) -> MilestoneView:
+    value = calculations.milestone_value_cents(current_value_cents, row.pct)
+    return MilestoneView(
+        id=row.id,
+        number=row.number,
+        description=row.description,
+        criteria=row.acceptance_criteria,
+        pct=row.pct,
+        value_cents=value,
+        retention_cents=calculations.milestone_retention_cents(value, contract.retention_pct),
+        expected_on=row.expected_on,
+        completed_on=row.completed_on,
+        situation=row.situation,
+        attachment_id=row.attachment_id,
+        has_evidence=row.attachment_id is not None,
+        version=row.version,
+    )
+
+
+def _claim_view(
+    contract: Contract, row: ContractClaim, *, change_codes: Mapping[int, str]
+) -> ClaimView:
+    deadline = calculations.claim_notification_deadline(row.event_date, contract.claim_notice_days)
+    return ClaimView(
+        id=row.id,
+        code=row.code,
+        direction=row.direction,
+        kind=row.kind,
+        cause=row.cause,
+        description=row.description,
+        clause=row.clause or "",
+        event_date=row.event_date,
+        notification_date=row.notification_date,
+        claimed_cents=row.claimed_cents,
+        claimed_days=row.claimed_days,
+        recognized_cents=row.recognized_cents,
+        recognized_days=row.recognized_days,
+        situation=row.situation,
+        closed_on=row.closed_on,
+        change_id=row.change_id,
+        change_code=change_codes.get(row.change_id or 0, ""),
+        notification_days=(row.notification_date - row.event_date).days,
+        notification_late=calculations.claim_notification_late(row.notification_date, deadline),
+        version=row.version,
+    )
+
+
+def _extension_view(
+    row: ContractTimeExtension,
+    *,
+    claim_codes: Mapping[int, str],
+    change_codes: Mapping[int, str],
+) -> ExtensionView:
+    return ExtensionView(
+        id=row.id,
+        code=row.code,
+        claim_id=row.claim_id,
+        claim_code=claim_codes.get(row.claim_id or 0, ""),
+        event=row.event,
+        requested_days=row.requested_days,
+        granted_days=row.granted_days,
+        classification=row.classification or "",
+        method=row.method,
+        affected_milestone=row.affected_milestone,
+        requested_on=row.requested_on,
+        decided_on=row.decided_on,
+        situation=row.situation,
+        change_id=row.change_id,
+        change_code=change_codes.get(row.change_id or 0, ""),
+        is_open=row.situation
+        in (calculations.EXTENSION_REQUESTED, calculations.EXTENSION_UNDER_REVIEW),
+        version=row.version,
+    )
+
+
+def _claim_codes(session: Session, claim_ids: Sequence[int | None]) -> dict[int, str]:
+    wanted = [claim_id for claim_id in claim_ids if claim_id is not None]
+    if not wanted:
+        return {}
+    statement = select(ContractClaim).where(ContractClaim.id.in_(wanted))
+    return {row.id: row.code for row in session.scalars(statement)}
+
+
 def _retention_cents(gross_cents: int, retention_pct: int) -> int:
     """Retenção da medição: o bruto pela retenção do contrato, em centavos, meio centavo para cima."""
     return int(
@@ -2474,6 +3226,44 @@ def _next_addendum_number(session: Session, *, contract_id: int) -> str:
         .where(ContractAddendum.contract_id == contract_id)
     )
     return f"AD-{(count or 0) + 1:02d}"
+
+
+def _next_milestone_number(session: Session, *, contract_id: int) -> str:
+    count = session.scalar(
+        select(func.count())
+        .select_from(ContractPaymentMilestone)
+        .where(ContractPaymentMilestone.contract_id == contract_id)
+    )
+    return f"M{(count or 0) + 1}"
+
+
+def _apply_measurement_to_milestone(
+    session: Session, *, user: User, measurement: ContractMeasurement, target: str
+) -> None:
+    """A medição de marco acompanha o faturamento e o pagamento, como no protótipo.
+
+    A medição Faturada leva o marco a Faturado e a Paga leva a Pago; sem marco vinculado ou
+    quando ele já está na situação de destino, nada muda.
+    """
+    if measurement.milestone_id is None:
+        return
+    milestone = session.get(ContractPaymentMilestone, measurement.milestone_id)
+    if milestone is None:
+        return
+    wanted = (
+        calculations.MILESTONE_INVOICED
+        if target == calculations.SITUATION_INVOICED
+        else calculations.MILESTONE_PAID
+    )
+    if milestone.situation == wanted:
+        return
+    recording.update(
+        session,
+        user_id=user.id,
+        record=milestone,
+        changes={"situation": wanted},
+        version=str(milestone.version),
+    )
 
 
 def _apply_measurement_to_eac(
@@ -2576,6 +3366,44 @@ def read_contract_origin(
     return attachment_origins.OriginRecord(project_id=contract.project_id)
 
 
+def read_milestone_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """Quem lê a evidência de um marco: quem alcança o módulo (D5a)."""
+    rbac.require_module(user, MODULE)
+    milestone = session.get(ContractPaymentMilestone, record_id)
+    if milestone is None:
+        return None
+    contract = session.get(Contract, milestone.contract_id)
+    if contract is None:
+        return None
+    return attachment_origins.OriginRecord(project_id=contract.project_id)
+
+
+def read_claim_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """Quem lê os documentos de um claim: quem alcança o módulo (D5a)."""
+    rbac.require_module(user, MODULE)
+    claim = session.get(ContractClaim, record_id)
+    if claim is None:
+        return None
+    contract = session.get(Contract, claim.contract_id)
+    if contract is None:
+        return None
+    return attachment_origins.OriginRecord(project_id=contract.project_id)
+
+
 attachment_origins.register(
     attachment_origins.OriginType(table=ATTACHMENT_TABLE, module=MODULE, read=read_contract_origin)
+)
+attachment_origins.register(
+    attachment_origins.OriginType(
+        table=MILESTONE_ATTACHMENT_TABLE, module=MODULE, read=read_milestone_origin
+    )
+)
+attachment_origins.register(
+    attachment_origins.OriginType(
+        table=CLAIM_ATTACHMENT_TABLE, module=MODULE, read=read_claim_origin
+    )
 )
