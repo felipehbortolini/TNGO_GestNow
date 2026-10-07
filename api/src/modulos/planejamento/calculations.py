@@ -17,6 +17,11 @@ date also comes in as an argument (D6).
 The measurement rules (ISSUE-037): the conversion of an accumulated percent
 into the entries of the criterion (used by the import of the advance), the
 degrees a milestone accepts and the detection of a reversal.
+
+The revision of the EAP and the breakdown (ISSUE-038): the rescale of the
+weights to a target by the largest remainder (the others close at 100%) and the
+linear predicted of a package between the dates of its baseline. The reference
+date comes in as an argument (D6).
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 from src.core import calendario
 from src.modulos.planejamento.validation import MONTHLY, OPPORTUNITY, THREAT, WEEKLY
@@ -788,3 +793,43 @@ def _milestone_entries(
     if state is None:
         return EapPercentEntries(error=message)
     return EapPercentEntries(state=state)
+
+
+def eap_rescale_weights(
+    weights: Sequence[tuple[str, Decimal]], target: Decimal
+) -> dict[str, Decimal]:
+    """Reescala os pesos para somarem o alvo, pelo maior resto, com 2 casas.
+
+    O alvo vira centésimos; cada chave fica com o piso da sua proporção e a sobra de um
+    centésimo vai para os maiores restos, com o empate resolvido pela ordem de entrada.
+    Sem peso na entrada não há proporção: todas as chaves saem zeradas (o protótipo
+    distribuía a sobra do alvo a esmo, o que não fechava o alvo).
+    """
+    total = sum((weight for _, weight in weights), ZERO)
+    if total == ZERO:
+        return {code: ZERO for code, _ in weights}
+    target_cents = int((target * PERCENT).to_integral_value(rounding=ROUND_HALF_UP))
+    rows = [(code, weight * target_cents / total) for code, weight in weights]
+    bases = [int(share.to_integral_value(rounding=ROUND_FLOOR)) for _, share in rows]
+    remainders = [share - base for (_, share), base in zip(rows, bases, strict=True)]
+    leftover = target_cents - sum(bases)
+    if leftover > 0:
+        order = sorted(range(len(rows)), key=lambda index: -remainders[index])
+        for index in order[:leftover]:
+            bases[index] += 1
+    return {code: _round_two(base / PERCENT) for (code, _), base in zip(rows, bases, strict=True)}
+
+
+def eap_linear_predicted(start: date | None, finish: date | None, reference_date: date) -> Decimal:
+    """O previsto do pacote novo na referência, pela distribuição linear da linha de base.
+
+    Zero sem datas ou com a referência até o início; 100 da referência a partir do término;
+    no meio, os dias corridos entre o início e a referência sobre o prazo, com 1 casa.
+    """
+    if start is None or finish is None or reference_date <= start:
+        return ZERO
+    if reference_date >= finish:
+        return PERCENT
+    elapsed = Decimal((reference_date - start).days)
+    span = Decimal((finish - start).days)
+    return (elapsed * PERCENT / span).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)

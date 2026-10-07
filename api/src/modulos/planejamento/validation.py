@@ -20,6 +20,10 @@ parameters (100% of the project and the maximum per package).
 The measurement of the package by its criterion (ISSUE-037): the entries of the
 advance per criterion, the reversal gate (Gestor and justification) and the
 import of the accumulated progress line by line, each refusal with its motive.
+
+The revision of the EAP and the breakdown (ISSUE-038): the new package and the
+adjustment of a package from a change request, with the limits of the
+parameters and the gate that keeps weight for the other packages.
 """
 
 from __future__ import annotations
@@ -29,7 +33,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.core.errors import AccessDeniedError, InvalidDataError
 
@@ -1013,3 +1017,527 @@ def _plain_number(value: Decimal) -> str:
     """O número sem zeros à direita: ``1400.0000`` vira ``1400`` e ``5.00`` vira ``5``."""
     text = format(value, "f")
     return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+BREAKDOWN = "desdobramento"
+
+
+REVISION = "revisao"
+
+
+PACKAGE_RESOURCES = (BREAKDOWN, REVISION)
+
+
+PARENT_LEVEL = 2
+
+
+PACKAGE_LEVEL = 3
+
+
+FIELD_RESOURCE = "recurso"
+
+
+FIELD_ORIGIN = "origem"
+
+
+FIELD_CHANGE = "sm"
+
+
+FIELD_PACKAGE_KIND = "tipo"
+
+
+FIELD_PARENT = "pai"
+
+
+FIELD_CRITERION = "criterio"
+
+
+FIELD_STAGE_MODEL = "modelo"
+
+
+FIELD_UNIT = "unidade"
+
+
+FIELD_QUANTITY = "quantidade"
+
+
+FIELD_WEIGHT = "peso"
+
+
+FIELD_START = "inicio"
+
+
+FIELD_FINISH = "termino"
+
+
+FIELD_COMPANY = "empresa"
+
+
+FIELD_OWNER = "responsavel"
+
+
+FIELD_EAC = "eac"
+
+
+FIELD_DELIVERABLE = "entregavel"
+
+
+FIELD_ACCEPTANCE = "aceitacao"
+
+
+FIELD_PACKAGE = "pacote"
+
+
+RESOURCE_MESSAGE = "Escolha a origem do peso."
+
+
+PARENT_MESSAGE = "Escolha a subárea do pacote."
+
+
+PACKAGE_KIND_MESSAGE = "Escolha o tipo do pacote."
+
+
+CRITERION_MESSAGE = "Escolha o critério de medição."
+
+
+STAGE_MODEL_MESSAGE = "Escolha o modelo de etapas."
+
+
+UNIT_MESSAGE = "Escolha a unidade."
+
+
+QUANTITY_MESSAGE = "Informe a quantidade da linha de base."
+
+
+ORIGIN_MESSAGE = "Escolha o pacote de planejamento de origem."
+
+
+BREAKDOWN_WEIGHT_MESSAGE = "O pacote de planejamento {code} só tem {weight}% de peso a desdobrar."
+
+
+BREAKDOWN_JUSTIFICATION_MESSAGE = "Justifique o desdobramento (mínimo de 10 caracteres)."
+
+
+CHANGE_MESSAGE = "Escolha uma SM aprovada com impacto em escopo ainda não incorporada à EAP."
+
+
+REVISION_JUSTIFICATION_MESSAGE = "Justifique a revisão (mínimo de 10 caracteres)."
+
+
+REVISION_PACKAGE_MESSAGE = "Escolha o pacote afetado."
+
+
+REVISION_PACKAGE_NOT_FOUND_MESSAGE = "Pacote {code} não encontrado."
+
+
+REVISION_QUANTITY_MESSAGE = "A nova quantidade não pode ser menor que o executado ({executed})."
+
+
+REVISION_WEIGHT_MAX_MESSAGE = "O peso passa o máximo de {maximum}% por pacote."
+
+
+REVISION_FINISH_MESSAGE = "O término não pode ser anterior ao início ({start})."
+
+
+FINISH_MESSAGE = "O término não pode ser anterior ao início."
+
+
+REVISION_FIXED_WEIGHT_MESSAGE = (
+    "Os pesos alterados somam 100% ou mais; os demais pacotes ficariam sem peso."
+)
+
+
+@dataclass(frozen=True)
+class PackageState:
+    """O pacote existente como as regras da revisão o leem: o peso, o executado e as pontas."""
+
+    code: str
+    level: int
+    kind: str
+    criterion: str | None
+    weight: Decimal
+    quantity: Decimal | None = None
+    executed: Decimal | None = None
+    start: date | None = None
+    finish: date | None = None
+
+
+@dataclass(frozen=True)
+class RevisionLimits:
+    """Os parâmetros vigentes da EAP que a revisão respeita: os tetos de peso."""
+
+    max_package_weight: Decimal
+    max_estimated_weight: Decimal
+
+
+@dataclass(frozen=True)
+class RevisionAdjustment:
+    """O ajuste de um pacote da revisão: o peso novo e, se mudarem, a quantidade e o término."""
+
+    code: str
+    weight: Decimal
+    quantity: Decimal | None = None
+    finish: date | None = None
+
+
+@dataclass(frozen=True)
+class RevisionData:
+    """A revisão validada do formulário: a SM, a justificativa e o ajuste do pacote afetado."""
+
+    change_code: str
+    justification: str
+    adjustment: RevisionAdjustment
+
+
+@dataclass(frozen=True)
+class NewPackageData:
+    """O pacote novo validado: a origem do peso, o dicionário, as datas e as etapas do modelo."""
+
+    resource: str
+    parent_code: str
+    description: str
+    kind: str
+    criterion: str | None
+    model: str | None
+    unit: str
+    quantity: Decimal | None
+    weight: Decimal
+    start: date
+    finish: date
+    company_id: int | None
+    owner_id: int
+    eac_code: str | None
+    deliverable: str
+    acceptance: str
+    justification: str
+    source_code: str | None
+    change_code: str | None
+    steps: tuple[EapStep, ...] = ()
+
+
+def parse_package_form(
+    raw: Mapping[str, str],
+    *,
+    packages: Mapping[str, PackageState],
+    limits: RevisionLimits,
+    stage_models: Sequence[Mapping[str, Any]],
+) -> NewPackageData:
+    """O pacote novo do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado.
+
+    O desdobramento sai de um pacote de planejamento existente: o pacote novo é de trabalho e
+    não passa o peso da origem. A revisão entra por uma SM aprovada com impacto em escopo e
+    aceita pacote de trabalho (com critério, modelo, unidade e quantidade) ou de planejamento.
+    O peso acima do máximo do parâmetro tem precedência sobre o limite da origem.
+    """
+    from src.modulos.planejamento import calculations
+
+    errors: dict[str, str] = {}
+    resource = _resource(raw, errors)
+    parent_code = _text(raw, FIELD_PARENT)
+    parent = packages.get(parent_code)
+    if parent is None or parent.level != PARENT_LEVEL:
+        errors[FIELD_PARENT] = PARENT_MESSAGE
+        parent_code = ""
+    description = _package_description(raw, errors)
+    kind = _package_kind(raw, resource, errors)
+    weight = _decimal(_text(raw, FIELD_WEIGHT)) or ZERO
+    weight_message = package_weight_error(weight, maximum=limits.max_package_weight)
+    if weight_message:
+        errors[FIELD_WEIGHT] = weight_message
+    criterion = _package_criterion(raw, kind, errors)
+    model, steps = _package_stages(raw, criterion, stage_models, errors)
+    unit, quantity = _package_units(raw, criterion, errors)
+    if criterion == calculations.CRITERION_ESTIMATED and weight > limits.max_estimated_weight:
+        errors[FIELD_CRITERION] = ESTIMATED_WEIGHT_MESSAGE.format(
+            maximum=_plain_number(limits.max_estimated_weight)
+        )
+    start = _required_date(raw, FIELD_START, label="o início da linha de base", errors=errors)
+    finish = _required_date(raw, FIELD_FINISH, label="o término da linha de base", errors=errors)
+    if date.min not in (start, finish) and finish < start:
+        errors[FIELD_FINISH] = FINISH_MESSAGE
+    owner_id = _required_id(raw, FIELD_OWNER, label="o responsável", errors=errors)
+    company_id = _optional_id(raw, FIELD_COMPANY, label="a empresa", errors=errors)
+    eac_code = _text(raw, FIELD_EAC) or None
+    deliverable = _optional_text(
+        raw, FIELD_DELIVERABLE, label="o entregável", limit=PACKAGE_TEXT_MAX, errors=errors
+    )
+    acceptance = _optional_text(
+        raw,
+        FIELD_ACCEPTANCE,
+        label="o critério de aceitação",
+        limit=PACKAGE_TEXT_MAX,
+        errors=errors,
+    )
+    justification = _justification(
+        raw,
+        short_message=(
+            BREAKDOWN_JUSTIFICATION_MESSAGE
+            if resource == BREAKDOWN
+            else REVISION_JUSTIFICATION_MESSAGE
+        ),
+        errors=errors,
+    )
+    source_code, change_code = _package_link(raw, resource, packages, weight, errors)
+    if errors:
+        raise InvalidDataError(errors)
+    return NewPackageData(
+        resource=resource,
+        parent_code=parent_code,
+        description=description,
+        kind=kind,
+        criterion=criterion,
+        model=model,
+        unit=unit,
+        quantity=quantity,
+        weight=weight,
+        start=start,
+        finish=finish,
+        company_id=company_id,
+        owner_id=owner_id,
+        eac_code=eac_code,
+        deliverable=deliverable,
+        acceptance=acceptance,
+        justification=justification,
+        source_code=source_code,
+        change_code=change_code,
+        steps=steps,
+    )
+
+
+def parse_revision_form(
+    raw: Mapping[str, str],
+    *,
+    packages: Mapping[str, PackageState],
+    limits: RevisionLimits,
+) -> RevisionData:
+    """A revisão do formulário (um ajuste), ou ``InvalidDataError`` com a mensagem de cada campo.
+
+    A SM aprovada com impacto em escopo e a justificativa abrem a revisão; o pacote é de nível
+    3, o peso novo fica até o máximo do parâmetro, a quantidade (só em Unidades) não fica
+    abaixo do executado e o término vazio mantém o da linha de base.
+    """
+    errors: dict[str, str] = {}
+    change_code = _text(raw, FIELD_CHANGE)
+    if not change_code:
+        errors[FIELD_CHANGE] = CHANGE_MESSAGE
+    justification = _justification(raw, short_message=REVISION_JUSTIFICATION_MESSAGE, errors=errors)
+    package_code = _text(raw, FIELD_PACKAGE)
+    package = _revision_package(package_code, packages, errors)
+    weight = _decimal(_text(raw, FIELD_WEIGHT))
+    weight_message = _revision_weight_error(weight, maximum=limits.max_package_weight)
+    if weight_message:
+        errors[FIELD_WEIGHT] = weight_message
+    quantity = _revision_quantity(raw, package, errors)
+    finish = _revision_finish(raw, package, errors)
+    if errors:
+        raise InvalidDataError(errors)
+    return RevisionData(
+        change_code=change_code,
+        justification=justification,
+        adjustment=RevisionAdjustment(
+            code=package_code,
+            weight=weight if weight is not None else ZERO,
+            quantity=quantity,
+            finish=finish,
+        ),
+    )
+
+
+def revision_fixed_weight_error(total: Decimal) -> str | None:
+    """A soma dos pesos alterados: 100 ou mais deixa os demais pacotes sem peso."""
+    if total >= HUNDRED:
+        return REVISION_FIXED_WEIGHT_MESSAGE
+    return None
+
+
+def _resource(raw: Mapping[str, str], errors: dict[str, str]) -> str:
+    resource = _text(raw, FIELD_RESOURCE)
+    if resource not in PACKAGE_RESOURCES:
+        errors[FIELD_RESOURCE] = RESOURCE_MESSAGE
+    return resource
+
+
+def _package_kind(raw: Mapping[str, str], resource: str, errors: dict[str, str]) -> str:
+    from src.modulos.planejamento import calculations
+
+    if resource == BREAKDOWN:
+        return calculations.WORK_PACKAGE
+    kind = _text(raw, FIELD_PACKAGE_KIND)
+    if kind not in (calculations.WORK_PACKAGE, calculations.PLANNING_PACKAGE):
+        errors[FIELD_PACKAGE_KIND] = PACKAGE_KIND_MESSAGE
+        return calculations.WORK_PACKAGE
+    return kind
+
+
+def _package_criterion(raw: Mapping[str, str], kind: str, errors: dict[str, str]) -> str | None:
+    from src.modulos.planejamento import calculations
+
+    if kind == calculations.PLANNING_PACKAGE:
+        return None
+    criterion = _text(raw, FIELD_CRITERION)
+    if criterion not in calculations.EAP_CRITERIA:
+        errors[FIELD_CRITERION] = CRITERION_MESSAGE
+        return None
+    return criterion
+
+
+def _package_stages(
+    raw: Mapping[str, str],
+    criterion: str | None,
+    stage_models: Sequence[Mapping[str, Any]],
+    errors: dict[str, str],
+) -> tuple[str | None, tuple[EapStep, ...]]:
+    from src.modulos.planejamento import calculations
+
+    if criterion != calculations.CRITERION_STEPS:
+        return None, ()
+    model = _text(raw, FIELD_STAGE_MODEL)
+    chosen = next((item for item in stage_models if str(item.get("id", "")) == model), None)
+    if chosen is None:
+        errors[FIELD_STAGE_MODEL] = STAGE_MODEL_MESSAGE
+        return None, ()
+    return model, _stage_steps(chosen)
+
+
+def _stage_steps(model: Mapping[str, Any]) -> tuple[EapStep, ...]:
+    from src.modulos.planejamento.calculations import EapStep
+
+    stages = model.get("etapas") or ()
+    return tuple(
+        EapStep(name=str(stage.get("nome", "")), weight=_stage_weight(stage.get("peso")))
+        for stage in stages
+    )
+
+
+def _stage_weight(value: Any) -> Decimal:
+    weight = _decimal(str(value))
+    return weight if weight is not None else ZERO
+
+
+def _package_units(
+    raw: Mapping[str, str], criterion: str | None, errors: dict[str, str]
+) -> tuple[str, Decimal | None]:
+    from src.modulos.planejamento import calculations
+
+    if criterion != calculations.CRITERION_UNITS:
+        return "", None
+    unit = _text(raw, FIELD_UNIT)
+    if not unit:
+        errors[FIELD_UNIT] = UNIT_MESSAGE
+    quantity = _decimal(_text(raw, FIELD_QUANTITY))
+    if quantity is None or quantity <= ZERO:
+        errors[FIELD_QUANTITY] = QUANTITY_MESSAGE
+    return unit, quantity
+
+
+def _package_link(
+    raw: Mapping[str, str],
+    resource: str,
+    packages: Mapping[str, PackageState],
+    weight: Decimal,
+    errors: dict[str, str],
+) -> tuple[str | None, str | None]:
+    from src.modulos.planejamento import calculations
+
+    if resource == REVISION:
+        change_code = _text(raw, FIELD_CHANGE)
+        if not change_code:
+            errors[FIELD_CHANGE] = CHANGE_MESSAGE
+        return None, change_code or None
+    if resource != BREAKDOWN:
+        return None, None
+    source_code = _text(raw, FIELD_ORIGIN)
+    origin = packages.get(source_code)
+    if origin is None or origin.kind != calculations.PLANNING_PACKAGE:
+        errors[FIELD_ORIGIN] = ORIGIN_MESSAGE
+        return None, None
+    if weight > origin.weight and FIELD_WEIGHT not in errors:
+        errors[FIELD_WEIGHT] = BREAKDOWN_WEIGHT_MESSAGE.format(
+            code=origin.code, weight=_plain_number(origin.weight)
+        )
+    return source_code or None, None
+
+
+def _justification(raw: Mapping[str, str], *, short_message: str, errors: dict[str, str]) -> str:
+    value = _text(raw, FIELD_JUSTIFICATION)
+    if len(value) < JUSTIFICATION_MIN_CHARACTERS:
+        errors[FIELD_JUSTIFICATION] = short_message
+    return value
+
+
+def _required_id(raw: Mapping[str, str], field: str, *, label: str, errors: dict[str, str]) -> int:
+    text = _text(raw, field)
+    if not text:
+        errors[field] = REQUIRED_MESSAGE.format(label=label)
+        return 0
+    found = parse_id(text)
+    if found is None:
+        errors[field] = UNKNOWN_CHOICE_MESSAGE.format(label=label)
+        return 0
+    return found
+
+
+def _optional_id(
+    raw: Mapping[str, str], field: str, *, label: str, errors: dict[str, str]
+) -> int | None:
+    text = _text(raw, field)
+    if not text:
+        return None
+    found = parse_id(text)
+    if found is None:
+        errors[field] = UNKNOWN_CHOICE_MESSAGE.format(label=label)
+        return None
+    return found
+
+
+def _revision_package(
+    code: str, packages: Mapping[str, PackageState], errors: dict[str, str]
+) -> PackageState | None:
+    if not code:
+        errors[FIELD_PACKAGE] = REVISION_PACKAGE_MESSAGE
+        return None
+    package = packages.get(code)
+    if package is None or package.level != PACKAGE_LEVEL:
+        errors[FIELD_PACKAGE] = REVISION_PACKAGE_NOT_FOUND_MESSAGE.format(code=code)
+        return None
+    return package
+
+
+def _revision_weight_error(weight: Decimal | None, *, maximum: Decimal) -> str | None:
+    if weight is None or weight <= ZERO:
+        return PACKAGE_WEIGHT_ZERO_MESSAGE
+    if weight > maximum:
+        return REVISION_WEIGHT_MAX_MESSAGE.format(maximum=_plain_number(maximum))
+    return None
+
+
+def _revision_quantity(
+    raw: Mapping[str, str], package: PackageState | None, errors: dict[str, str]
+) -> Decimal | None:
+    from src.modulos.planejamento import calculations
+
+    text = _text(raw, FIELD_QUANTITY)
+    if not text or package is None or package.criterion != calculations.CRITERION_UNITS:
+        return None
+    quantity = _decimal(text)
+    executed = package.executed if package.executed is not None else ZERO
+    if quantity is None or quantity < executed:
+        errors[FIELD_QUANTITY] = REVISION_QUANTITY_MESSAGE.format(executed=_plain_number(executed))
+        return None
+    return quantity
+
+
+def _revision_finish(
+    raw: Mapping[str, str], package: PackageState | None, errors: dict[str, str]
+) -> date | None:
+    text = _text(raw, FIELD_FINISH)
+    if not text:
+        return None
+    try:
+        finish = date.fromisoformat(text)
+    except ValueError:
+        errors[FIELD_FINISH] = INVALID_DATE_MESSAGE.format(label="o término")
+        return None
+    if package is not None and package.start is not None and finish < package.start:
+        errors[FIELD_FINISH] = REVISION_FINISH_MESSAGE.format(start=f"{package.start:%d/%m/%Y}")
+    return finish
