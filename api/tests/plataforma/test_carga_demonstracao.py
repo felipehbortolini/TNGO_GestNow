@@ -36,6 +36,13 @@ from src.modulos.configuracoes.models import (
     System,
     Unit,
 )
+from src.modulos.financeiro.models import (
+    Contract,
+    ContractAddendum,
+    ContractMeasurement,
+    EacItem,
+)
+from src.modulos.governanca.models import ChangeRequest
 
 # A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
 PARTS = [
@@ -46,6 +53,7 @@ PARTS = [
     "governanca",
     "governanca-licoes",
     "governanca-eac",
+    "financeiro-contratos",
     "hse",
     "planejamento",
     "programacao_semanal",
@@ -139,6 +147,43 @@ def test_carga_cobre_os_numeros_da_plataforma(db_session: Session) -> None:
         740000000,
     ]
     assert db_session.scalars(select(Client)).one().acronym == "MHS"
+
+
+def test_carga_grava_os_contratos_do_mock(db_session: Session) -> None:
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, Contract) == 9
+    assert _count(db_session, ContractAddendum) == 3
+    assert _count(db_session, ContractMeasurement) == 33
+
+    contract = db_session.scalars(select(Contract).where(Contract.number == "CT-2026-011")).one()
+    project = db_session.scalars(select(Project).where(Project.id == contract.project_id)).one()
+    assert project.code == "TN-2026-014"
+    item = db_session.scalars(select(EacItem).where(EacItem.id == contract.eac_item_id)).one()
+    assert item.code == "1.2"
+    assert contract.purchase_package_id is None
+    assert (contract.start, contract.current_end) == (date(2026, 1, 12), date(2026, 11, 20))
+
+    addendum = db_session.scalars(
+        select(ContractAddendum).where(ContractAddendum.contract_id == contract.id)
+    ).one()
+    change = db_session.scalars(
+        select(ChangeRequest).where(ChangeRequest.id == addendum.change_id)
+    ).one()
+    assert change.code == "SM-TN-2026-0001"
+    assert addendum.claim_id is None
+
+    measurement = db_session.scalars(
+        select(ContractMeasurement).where(
+            ContractMeasurement.contract_id == contract.id,
+            ContractMeasurement.number == "BM-01",
+        )
+    ).one()
+    assert (measurement.period, measurement.gross_cents, measurement.situation) == (
+        date(2026, 1, 1),
+        34_500_000,
+        "Paga",
+    )
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

@@ -1615,6 +1615,31 @@ def eac_revision_sources(session: Session, *, project_id: int) -> tuple[ChangeEa
     )
 
 
+@dataclass(frozen=True)
+class ApprovedChange:
+    """Uma SM aprovada do projeto como um select de origem a lista."""
+
+    id: int
+    code: str
+    title: str
+
+
+def approved_changes(session: Session, *, project_id: int) -> tuple[ApprovedChange, ...]:
+    """As SM aprovadas do projeto, para o select de origem de um registro (aditivo, ISSUE-032)."""
+    statement = (
+        select(ChangeRequest.id, ChangeRequest.code, ChangeRequest.title)
+        .where(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.situation.in_(models.APPROVED_SITUATIONS),
+        )
+        .order_by(ChangeRequest.id)
+    )
+    return tuple(
+        ApprovedChange(id=row.id, code=row.code, title=row.title)
+        for row in session.execute(statement)
+    )
+
+
 def incorporate_eac_revision(
     session: Session, *, user: User, change_id: int, revision: int
 ) -> None:

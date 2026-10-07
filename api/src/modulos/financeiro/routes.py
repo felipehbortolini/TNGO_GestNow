@@ -30,6 +30,15 @@ The map of ISSUE-031 lives under ``/api/financeiro/mapa-de-controle`` and ``/api
 * ``GET /custos/importar/formulario`` is the import form of the ERP closing; the check
   (``POST .../conferir``) reads and never writes and the confirmation (``POST .../confirmar``)
   checks the file again and writes one fact per item and month, replacing a reimported month.
+
+The ficha do contrato of ISSUE-032 lives under ``/api/financeiro/contrato``, opened by the contract
+number (``?numero=``): ``GET /contrato/resumo``, ``/contrato/medicoes`` and ``/contrato/aditivos``
+are the content of each tab; ``GET /contrato/medicoes/nova``, ``/contrato/medicoes/{id}/devolucao``
+and ``/contrato/aditivos/novo`` are the forms; ``POST /contrato/medicoes`` and
+``POST /contrato/aditivos`` create the record; ``POST /contrato/medicoes/{id}/aprovar``,
+``.../faturar``, ``.../pagar`` and ``.../devolver`` move the measurement through the flow; the
+saved answers bring the panels again (a multi-target response, with the form emptied).
+``GET /contrato/excel`` and ``GET /contrato/imprimivel`` are the two exports of the ficha.
 """
 
 from __future__ import annotations
@@ -134,6 +143,52 @@ ERP_IMPORT_RESULT_TEMPLATE = "financeiro/custos_importacao_resultado.html"
 
 MAP_TARGET = "mapa-conteudo"
 PROJECTION_FORM_TARGET = "mapa-projecao-formulario"
+
+CONTRACT_CONTENT_BASE = "financeiro/contrato"
+CONTRACT_RESUME_ROUTE = f"{CONTRACT_CONTENT_BASE}/resumo"
+CONTRACT_MEASUREMENTS_ROUTE = f"{CONTRACT_CONTENT_BASE}/medicoes"
+CONTRACT_ADDENDA_ROUTE = f"{CONTRACT_CONTENT_BASE}/aditivos"
+CONTRACT_MEASUREMENT_FORM_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/nova"
+CONTRACT_MEASUREMENT_CREATE_ROUTE = CONTRACT_MEASUREMENTS_ROUTE
+CONTRACT_MEASUREMENT_APPROVE_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/{{medicao_id}}/aprovar"
+CONTRACT_MEASUREMENT_INVOICE_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/{{medicao_id}}/faturar"
+CONTRACT_MEASUREMENT_PAY_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/{{medicao_id}}/pagar"
+CONTRACT_MEASUREMENT_RETURN_FORM_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/{{medicao_id}}/devolucao"
+CONTRACT_MEASUREMENT_RETURN_ROUTE = f"{CONTRACT_MEASUREMENTS_ROUTE}/{{medicao_id}}/devolver"
+CONTRACT_ADDENDUM_FORM_ROUTE = f"{CONTRACT_ADDENDA_ROUTE}/novo"
+CONTRACT_ADDENDUM_CREATE_ROUTE = CONTRACT_ADDENDA_ROUTE
+CONTRACT_EXCEL_ROUTE = f"{CONTRACT_CONTENT_BASE}/excel"
+CONTRACT_PRINTABLE_ROUTE = f"{CONTRACT_CONTENT_BASE}/imprimivel"
+
+CONTRACT_RESUME_TEMPLATE = "financeiro/contrato_resumo.html"
+CONTRACT_MEASUREMENTS_TEMPLATE = "financeiro/contrato_medicoes.html"
+CONTRACT_ADDENDA_TEMPLATE = "financeiro/contrato_aditivos.html"
+CONTRACT_SAVED_TEMPLATE = "financeiro/contrato_salvo.html"
+CONTRACT_MEASUREMENT_FORM_TEMPLATE = "financeiro/contrato_medicao_form.html"
+CONTRACT_MEASUREMENT_RETURN_TEMPLATE = "financeiro/contrato_medicao_devolucao.html"
+CONTRACT_ADDENDUM_FORM_TEMPLATE = "financeiro/contrato_aditivo_form.html"
+
+CONTRACT_RESUME_TARGET = "contrato-resumo"
+CONTRACT_MEASUREMENTS_TARGET = "contrato-medicoes"
+CONTRACT_ADDENDA_TARGET = "contrato-aditivos"
+CONTRACT_FORM_TARGET = "contrato-formulario"
+
+CONTRACT_NUMBER_PARAMETER = "numero"
+CONTRACT_MEASUREMENT_PARAMETER = "medicao_id"
+
+CONTRACT_MEASUREMENT_CREATED_MESSAGE = "Medição {number} registrada em análise."
+CONTRACT_MEASUREMENT_MOVED_MESSAGE = "Medição {number}: {situation}."
+CONTRACT_MEASUREMENT_RETURNED_MESSAGE = "Medição {number} devolvida à contratada."
+CONTRACT_ADDENDUM_CREATED_MESSAGE = "Aditivo {number} registrado."
+CONTRACT_ADDENDUM_EXTENDED_SUFFIX = " Término vigente prorrogado em {days} dias."
+
+_SITUATION_PILLS = {
+    calculations.SITUATION_UNDER_REVIEW: "warn",
+    calculations.SITUATION_APPROVED: "fix",
+    calculations.SITUATION_INVOICED: "fix",
+    calculations.SITUATION_PAID: "ok",
+    calculations.SITUATION_RETURNED: "erro",
+}
 
 MIL_CENTS = 100_000
 MIL_ONE_PLACE = Decimal("0.1")
@@ -1343,3 +1398,558 @@ def _erp_imported_notice(result: importing.ImportResult) -> str:
     if result.skipped:
         return notice + ERP_SKIPPED_SUFFIX.format(count=len(result.skipped))
     return notice
+
+
+# ── Ficha do contrato: medições e aditivos (ISSUE-032) ───────────────────
+
+
+@dataclass(frozen=True)
+class MedicaoLineView:
+    """Uma medição como a tabela a imprime: os textos prontos e as transições que a situação admite."""
+
+    medicao: service.MeasurementView
+    periodo: str
+    bruto: str
+    retencao: str
+    liquido: str
+    situacao_tom: str
+    pode_aprovar: bool
+    pode_faturar: bool
+    pode_pagar: bool
+    pode_devolver: bool
+
+
+@bp.route(route=CONTRACT_RESUME_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_resumo(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Resumo da ficha: os KPIs, a cascata do valor e os dados do contrato."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_RESUME_TEMPLATE,
+        context=_contrato_resumo_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_MEASUREMENTS_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_medicoes(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """As medições da ficha, da mais recente para a mais antiga, com as transições do fluxo."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MEASUREMENTS_TEMPLATE,
+        context=_contrato_medicoes_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_ADDENDA_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_aditivos(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os aditivos da ficha, do mais recente para o mais antigo."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_ADDENDA_TEMPLATE,
+        context=_contrato_aditivos_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contrato_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da ficha: o Resumo com os KPIs e as tabelas de medições e aditivos."""
+    return excel_response(_contrato_document_of(req, session, context))
+
+
+@bp.route(route=CONTRACT_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da ficha: o mesmo documento do Excel, com a cascata desenhada."""
+    return printable_response(_contrato_document_of(req, session, context), req)
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_medicao_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da medição nova, com o saldo disponível do contrato."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MEASUREMENT_FORM_TEMPLATE,
+        context=_contrato_medicao_form_context(view, values={}, problems={}),
+        request=req,
+    )
+
+
+def _render_medicao_form_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário da medição de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MEASUREMENT_FORM_TEMPLATE,
+        context=_contrato_medicao_form_context(
+            view,
+            values=_posted_medicao(req.form),
+            problems=problems,
+            message="" if problems else str(error),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_medicao_form_error)
+def contrato_medicao_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o boletim de medição Em análise e devolve a ficha atualizada."""
+    view = _contract_of(req, session, context)
+    medicao = service.create_measurement(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_medicao(req.form),
+    )
+    return _contrato_saved(
+        req,
+        session,
+        context,
+        toast=CONTRACT_MEASUREMENT_CREATED_MESSAGE.format(number=medicao.number),
+    )
+
+
+def _render_contrato_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """A ficha de volta, com a recusa no painel das medições, no 422 ou no 409."""
+    if not isinstance(error, InvalidDataError | VersionConflictError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    data = _contrato_context(view, user=context.user)
+    data["erro"] = str(error)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_APPROVE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_contrato_error)
+def contrato_medicao_approve(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Aprova a medição: o bruto passa a contar como medido e alimenta a EAC."""
+    return _move_measurement(req, session, context, target=calculations.SITUATION_APPROVED)
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_INVOICE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_contrato_error)
+def contrato_medicao_invoice(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o faturamento da medição aprovada."""
+    return _move_measurement(req, session, context, target=calculations.SITUATION_INVOICED)
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_PAY_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_contrato_error)
+def contrato_medicao_pay(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o pagamento da medição faturada."""
+    return _move_measurement(req, session, context, target=calculations.SITUATION_PAID)
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_RETURN_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_medicao_return_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da devolução da medição, com o motivo obrigatório."""
+    view = _contract_of(req, session, context)
+    medicao = _medicao_of(view, _medicao_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MEASUREMENT_RETURN_TEMPLATE,
+        context=_contrato_devolucao_context(view, medicao, values={}, problems={}),
+        request=req,
+    )
+
+
+def _render_devolucao_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário da devolução de volta, com o motivo digitado, no 422 ou no 409."""
+    if not isinstance(error, InvalidDataError | VersionConflictError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+            medicao = _medicao_of(view, _medicao_id_of(req))
+    except DomainError:
+        return None
+    problems = (
+        error.detail
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
+        else {}
+    )
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MEASUREMENT_RETURN_TEMPLATE,
+        context=_contrato_devolucao_context(
+            view,
+            medicao,
+            values=_posted_transition(req.form),
+            problems=problems,
+            message=str(error) if isinstance(error, VersionConflictError) else "",
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_MEASUREMENT_RETURN_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_devolucao_error)
+def contrato_medicao_return(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Devolve a medição à contratada, com o motivo obrigatório."""
+    return _move_measurement(req, session, context, target=calculations.SITUATION_RETURNED)
+
+
+@bp.route(route=CONTRACT_ADDENDUM_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_aditivo_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do aditivo novo, com as SM aprovadas do projeto."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_ADDENDUM_FORM_TEMPLATE,
+        context=_contrato_aditivo_form_context(session, view, values={}, problems={}),
+        request=req,
+    )
+
+
+def _render_aditivo_form_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário do aditivo de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_ADDENDUM_FORM_TEMPLATE,
+        context=_contrato_aditivo_form_context(
+            session,
+            view,
+            values=_posted_aditivo(req.form),
+            problems=problems,
+            message="" if problems else str(error),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_ADDENDUM_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_aditivo_form_error)
+def contrato_aditivo_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o aditivo aprovado e prorroga o término vigente quando ele tem dias."""
+    view = _contract_of(req, session, context)
+    aditivo = service.create_addendum(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_aditivo(req.form),
+    )
+    message = CONTRACT_ADDENDUM_CREATED_MESSAGE.format(number=aditivo.number)
+    if aditivo.days:
+        message += CONTRACT_ADDENDUM_EXTENDED_SUFFIX.format(days=aditivo.days)
+    return _contrato_saved(req, session, context, toast=message)
+
+
+# ── Montagem da ficha do contrato ────────────────────────────────────────
+
+
+def _contract_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> service.ContractView:
+    """A ficha do contrato do número pedido; número ausente ou desconhecido é 422."""
+    return service.contract_by_number(
+        session, user=context.user, number=req.params.get(CONTRACT_NUMBER_PARAMETER) or ""
+    )
+
+
+def _medicao_id_of(req: func.HttpRequest) -> int:
+    raw = req.route_params.get(CONTRACT_MEASUREMENT_PARAMETER) or ""
+    if not raw.isdigit():
+        raise InvalidDataError(service.MEASUREMENT_NOT_FOUND_MESSAGE)
+    return int(raw)
+
+
+def _medicao_of(view: service.ContractView, medicao_id: int) -> service.MeasurementView:
+    medicao = next((row for row in view.measurements if row.id == medicao_id), None)
+    if medicao is None:
+        raise InvalidDataError(service.MEASUREMENT_NOT_FOUND_MESSAGE)
+    return medicao
+
+
+def _move_measurement(
+    req: func.HttpRequest, session: Session, context: RequestContext, *, target: str
+) -> func.HttpResponse:
+    view = _contract_of(req, session, context)
+    medicao = _medicao_of(view, _medicao_id_of(req))
+    moved = service.transition_measurement(
+        session,
+        user=context.user,
+        scope=context.scope,
+        measurement_id=medicao.id,
+        target=target,
+        form=_posted_transition(req.form),
+    )
+    return _contrato_saved(req, session, context, toast=_moved_message(moved))
+
+
+def _moved_message(medicao: service.MeasurementView) -> str:
+    if medicao.situation == calculations.SITUATION_RETURNED:
+        return CONTRACT_MEASUREMENT_RETURNED_MESSAGE.format(number=medicao.number)
+    return CONTRACT_MEASUREMENT_MOVED_MESSAGE.format(
+        number=medicao.number, situation=medicao.situation.lower()
+    )
+
+
+def _contrato_saved(
+    req: func.HttpRequest, session: Session, context: RequestContext, *, toast: str
+) -> func.HttpResponse:
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_SAVED_TEMPLATE,
+        context=_contrato_context(view, user=context.user),
+        request=req,
+        toast=toast,
+        toast_tipo="ok",
+    )
+
+
+def _contrato_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view = _contract_of(req, session, context)
+    return export.contrato_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _contrato_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    data = _contrato_resumo_context(view, user=user)
+    data |= _contrato_medicoes_context(view, user=user)
+    data |= _contrato_aditivos_context(view, user=user)
+    return data
+
+
+def _contrato_resumo_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "pode_gerir": rbac.can(user, Permission.MANAGE),
+        "cascata": _cascata_data(view),
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _contrato_medicoes_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    pode_gerir = rbac.can(user, Permission.MANAGE)
+    return {
+        "ficha": view,
+        "pode_gerir": pode_gerir,
+        "linhas": [_medicao_line(row, pode_gerir=pode_gerir) for row in view.measurements],
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _contrato_aditivos_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "pode_gerir": rbac.can(user, Permission.MANAGE),
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _contrato_medicao_form_context(
+    view: service.ContractView,
+    *,
+    values: Mapping[str, str | None],
+    problems: Mapping[str, str],
+    message: str = "",
+) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "valores": values,
+        "erros": problems,
+        "mensagem": message,
+        "disponivel": _money(view.available_to_measure_cents),
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _contrato_devolucao_context(
+    view: service.ContractView,
+    medicao: service.MeasurementView,
+    *,
+    values: Mapping[str, str | None],
+    problems: Mapping[str, str],
+    message: str = "",
+) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "medicao": medicao,
+        "bruto": _money(medicao.gross_cents),
+        "valores": values,
+        "erros": problems,
+        "mensagem": message,
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _contrato_aditivo_form_context(
+    session: Session,
+    view: service.ContractView,
+    *,
+    values: Mapping[str, str | None],
+    problems: Mapping[str, str],
+    message: str = "",
+) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "valores": values,
+        "erros": problems,
+        "mensagem": message,
+        "sms": service.change_options(session, project_id=view.project_id),
+        "hoje": calendario.today(),
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+    }
+
+
+def _cascata_data(view: service.ContractView) -> dict[str, object]:
+    return {
+        "titulo": "Composição do valor do contrato",
+        "formato": {"divisor": 100, "moeda": "BRL", "casas": 0},
+        "etapas": [dict(step) for step in view.cascade],
+    }
+
+
+def _medicao_line(medicao: service.MeasurementView, *, pode_gerir: bool) -> MedicaoLineView:
+    return MedicaoLineView(
+        medicao=medicao,
+        periodo=medicao.period.strftime("%m/%Y"),
+        bruto=_money(medicao.gross_cents),
+        retencao=_money(medicao.retention_cents),
+        liquido=_money(medicao.net_cents),
+        situacao_tom=_SITUATION_PILLS.get(medicao.situation, "neutral"),
+        pode_aprovar=pode_gerir
+        and validation.measurement_transition_allowed(
+            medicao.situation, calculations.SITUATION_APPROVED
+        ),
+        pode_faturar=pode_gerir
+        and validation.measurement_transition_allowed(
+            medicao.situation, calculations.SITUATION_INVOICED
+        ),
+        pode_pagar=pode_gerir
+        and validation.measurement_transition_allowed(
+            medicao.situation, calculations.SITUATION_PAID
+        ),
+        pode_devolver=pode_gerir
+        and validation.measurement_transition_allowed(
+            medicao.situation, calculations.SITUATION_RETURNED
+        ),
+    )
+
+
+def _posted_medicao(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_MEASUREMENT_PERIOD,
+        validation.FIELD_MEASUREMENT_VALUE,
+        validation.FIELD_MEASUREMENT_MILESTONE,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _posted_transition(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (validation.FIELD_VERSION, validation.FIELD_MEASUREMENT_REASON)
+    return {name: form.get(name) for name in names}
+
+
+def _posted_aditivo(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_ADDENDUM_DATE,
+        validation.FIELD_ADDENDUM_VALUE,
+        validation.FIELD_ADDENDUM_DAYS,
+        validation.FIELD_ADDENDUM_CHANGE,
+        validation.FIELD_ADDENDUM_REASON,
+    )
+    return {name: form.get(name) for name in names}

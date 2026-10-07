@@ -1,0 +1,99 @@
+{#
+  Medições da ficha do contrato (ISSUE-032): o boletim, o período, o bruto, a retenção, o líquido
+  e a situação, com as transições do fluxo do protótipo (Em análise → Aprovada → Faturada → Paga
+  ou Devolvida com motivo). A devolução abre o formulário no alvo contrato-formulario; as demais
+  transições são formulários de um botão com a versão do registro. A recusa volta neste painel.
+
+  Espera: ficha (ContractView), linhas (MedicaoLineView), pode_gerir, erro e os alvos.
+#}
+<section class="card" aria-labelledby="contrato-medicoes-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contrato-medicoes-titulo">Medições</h2>
+      <span class="hint">Em análise → Aprovada → Faturada → Paga (ou Devolvida com motivo) · retenção de {{ ficha.retention_pct }}%</span>
+    </div>
+    {% if pode_gerir %}
+    <div>
+      <a class="btn btn--primary" href="/api/financeiro/contrato/medicoes/nova?numero={{ ficha.number }}"
+        x-target="{{ alvo_formulario }}">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Nova medição
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if erro %}
+    <div class="aviso aviso--erro" role="alert">
+      <strong>Não foi possível concluir.</strong>
+      <span>{{ erro }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Medições do contrato</caption>
+        <thead>
+          <tr>
+            <th scope="col">Nº</th>
+            <th scope="col">Período</th>
+            <th scope="col" class="td-num">Valor bruto</th>
+            <th scope="col" class="td-num">Retenção</th>
+            <th scope="col" class="td-num">Valor líquido</th>
+            <th scope="col">Situação</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr data-medicao="{{ linha.medicao.id }}">
+            <td class="num fw-600">{{ linha.medicao.number }}</td>
+            <td class="num">{{ linha.periodo }}</td>
+            <td class="td-num">{{ linha.bruto }}</td>
+            <td class="td-num">{{ linha.retencao }}</td>
+            <td class="td-num">{{ linha.liquido }}</td>
+            <td>
+              <span class="pill pill--{{ linha.situacao_tom }}">{{ linha.medicao.situation }}</span>
+              {% if linha.medicao.return_reason %}
+              <br /><span class="hint">{{ linha.medicao.return_reason }}</span>
+              {% endif %}
+            </td>
+            {% if pode_gerir %}
+            <td class="td-center">
+              {% if linha.pode_aprovar %}
+              <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/aprovar?numero={{ ficha.number }}"
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Aprovando a medição...">
+                <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Aprovar</button>
+              </form>
+              {% endif %}
+              {% if linha.pode_faturar %}
+              <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/faturar?numero={{ ficha.number }}"
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Faturando a medição...">
+                <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Faturar</button>
+              </form>
+              {% endif %}
+              {% if linha.pode_pagar %}
+              <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/pagar?numero={{ ficha.number }}"
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Registrando o pagamento...">
+                <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Registrar pagamento</button>
+              </form>
+              {% endif %}
+              {% if linha.pode_devolver %}
+              <a class="btn btn--sm btn--ghost"
+                href="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/devolucao?numero={{ ficha.number }}"
+                x-target="{{ alvo_formulario }}">Devolver</a>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 7 if pode_gerir else 6 }}" class="muted">Nenhuma medição registrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

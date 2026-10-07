@@ -1,0 +1,22 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta das operações da ficha do contrato (nova medição, transições e novo aditivo): raízes
+  irmãs com id fixo — a exceção da resposta multi-alvo —, porque a tela declara mais de um alvo
+  (os painéis e o formulário). O formulário volta vazio (fechado) e os painéis voltam
+  atualizados: a cascata e o saldo do Resumo, a tabela de Medições e a de Aditivos.
+
+  Espera: ficha, linhas, cascata, pode_gerir, erro e os alvos (alvo_resumo, alvo_medicoes,
+  alvo_aditivos, alvo_formulario).
+#}
+{% block root %}
+<div id="{{ alvo_resumo }}">
+{% include "financeiro/_contrato_resumo.html" %}
+</div>
+<div id="{{ alvo_medicoes }}">
+{% include "financeiro/_contrato_medicoes.html" %}
+</div>
+<div id="{{ alvo_aditivos }}">
+{% include "financeiro/_contrato_aditivos.html" %}
+</div>
+<div id="{{ alvo_formulario }}"></div>
+{% endblock %}

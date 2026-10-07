@@ -1,0 +1,8 @@
+{% extends "base_fragment.html" %}
+{#
+  Fragmento das Medições da ficha do contrato (ISSUE-032). A raiz leva o id que a tela pediu
+  ({{ target_id }}); o miolo é o parcial, que a resposta das operações também usa.
+#}
+{% block fragment %}
+{% include "financeiro/_contrato_medicoes.html" %}
+{% endblock %}

@@ -1,0 +1,75 @@
+{#
+  Resumo da ficha do contrato (ISSUE-032): os quatro KPIs do protótipo (valor atual, medido
+  aprovado, saldo a faturar e término vigente), a cascata do valor no visual cascata-contrato
+  (D11) e os dados do contrato. A cascata chega pronta no contrato de dados do visual; o mesmo
+  conteúdo vai para o Excel e o imprimível na tabela "Composição do valor".
+
+  Espera: ficha (ContractView), cascata, pode_gerir e os alvos (alvo_formulario, alvo_resumo,
+  alvo_medicoes, alvo_aditivos).
+#}
+<section class="card" aria-labelledby="contrato-resumo-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contrato-resumo-titulo">Composição do valor</h2>
+      <span class="hint">Valor atual = original + aditivos; saldo a faturar = valor atual - medido aprovado.</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="kpis" style="--kpis-colunas: 4">
+      <div class="kpi kpi--neutro kpi--estatico">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
+        <span class="kpi__label">Valor atual</span>
+        <span class="kpi__value">{{ ficha.current_value_cents | brl }}</span>
+      </div>
+      <div class="kpi kpi--info kpi--estatico">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+        <span class="kpi__label">Medido aprovado</span>
+        <span class="kpi__value">{{ ficha.measured_cents | brl }}</span>
+      </div>
+      <div class="kpi kpi--info kpi--estatico">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+        <span class="kpi__label">Saldo a faturar</span>
+        <span class="kpi__value">{{ ficha.balance_to_invoice_cents | brl }}</span>
+      </div>
+      <div class="kpi kpi--{{ 'warn' if ficha.current_end > ficha.original_end else 'ok' }} kpi--estatico">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+        <span class="kpi__label">Término vigente</span>
+        <span class="kpi__value">{{ ficha.current_end.strftime('%d/%m/%Y') }}</span>
+      </div>
+    </div>
+
+    <div data-grafico="cascata-contrato" data-dados='{{ cascata | tojson }}'></div>
+
+    <div class="tbl-wrap mt-16">
+      <table class="tbl">
+        <caption class="sr-only">Dados do contrato</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Contratada</th><td>{{ ficha.company }}</td>
+            <th scope="row">Objeto</th><td>{{ ficha.object }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Modalidade</th><td>{{ ficha.modality }}</td>
+            <th scope="row">Item da EAC</th><td>{{ ficha.eac_code or '·' }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Início</th><td class="num">{{ ficha.start.strftime('%d/%m/%Y') }}</td>
+            <th scope="row">Término original</th><td class="num">{{ ficha.original_end.strftime('%d/%m/%Y') }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Gestor do contrato</th><td>{{ ficha.manager }}</td>
+            <th scope="row">Fiscal</th><td>{{ ficha.fiscal }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Retenção contratual</th><td class="num">{{ ficha.retention_pct }}%</td>
+            <th scope="row">Prazo de notificação de claims</th><td class="num">{{ ficha.claim_notice_days }} dias</td>
+          </tr>
+          <tr>
+            <th scope="row">Disponível a medir</th><td class="num">{{ ficha.available_to_measure_cents | brl }}</td>
+            <th scope="row">Situação</th><td>{{ ficha.situation }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

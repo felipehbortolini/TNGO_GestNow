@@ -16,6 +16,14 @@ were decided, and those only exist after the changes are loaded.
 projections of the prototype enter as the monthly closing of the ERP, one fact per cost item in
 the month of the run's reference date. The prototype has no ``historicoProjecao``, so the load
 writes no ``eac_projecao``.
+
+:func:`load_contracts` is the part of ISSUE-032: the contracts of ``contratos`` with their addenda
+and measurements. It is registered by ``governanca/seed.py`` (the ``financeiro-contratos`` part)
+because the addendum points at the SM that originated it, and the changes only exist after
+``governanca`` — the same reason ``load_revisions`` runs in the ``governanca-eac`` part. The
+measurements do **not** feed ``custo_erp``: in the mock the realized value of the item already
+comes from the ERP closing, and it is the approval through the screen that adds the gross value
+(``service.transition_measurement``).
 """
 
 from __future__ import annotations
@@ -36,6 +44,9 @@ from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service
 from src.modulos.financeiro.calculations import CODE_SEPARATOR, LEAF_LEVEL, code_key
 from src.modulos.financeiro.models import (
+    Contract,
+    ContractAddendum,
+    ContractMeasurement,
     EacReallocation,
     EacRevision,
     EacRevisionItem,
@@ -44,6 +55,7 @@ from src.modulos.financeiro.models import (
 
 PART_NAME = "financeiro"
 ERP_PART_NAME = "financeiro-custos"
+CONTRACTS_PART_NAME = "financeiro-contratos"
 
 
 def load(session: Session, _reference_date: date) -> None:
@@ -335,6 +347,127 @@ def load_erp_costs(session: Session, reference_date: date) -> None:
                 actual_cents=int(source["realizado"]),
                 projection_cents=int(source["projecao"]),
                 imported_at=imported_at,
+            ),
+        )
+
+
+# ── Contratos, aditivos e medições (ISSUE-032) ───────────────────────────
+
+
+@dataclass(frozen=True)
+class _ContractLookup:
+    """Os ids reais que o mock dos contratos aponta: projeto, pessoa, empresa e SM por código."""
+
+    projects: Mapping[int, int]
+    people: Mapping[int, int]
+    companies: Mapping[int, int]
+    changes: Mapping[str, int]
+
+    @classmethod
+    def build(cls, session: Session) -> _ContractLookup:
+        from src.modulos.governanca import service as governanca
+
+        real_projects = {
+            project.code: project.id for project in configuracoes.list_projects(session)
+        }
+        projects = {
+            source["id"]: real_projects[source["codigo"]]
+            for source in prototype_collection("projetos")
+        }
+        people = {
+            source["id"]: person_id
+            for source in prototype_collection("pessoas")
+            if (person_id := configuracoes.find_person_id_by_email(session, source["email"]))
+        }
+        real_companies = {
+            option.name: option.id for option in configuracoes.list_company_options(session)
+        }
+        companies = {
+            source["id"]: real_companies[source["nome"]]
+            for source in prototype_collection("empresas")
+        }
+        changes = governanca.change_ids_by_code(
+            session, codes=[source["codigo"] for source in prototype_collection("mudancas")]
+        )
+        return cls(projects=projects, people=people, companies=companies, changes=changes)
+
+
+def load_contracts(session: Session, reference_date: date) -> None:
+    """Grava os contratos do protótipo, com os aditivos e as medições, no modo demonstração.
+
+    O contrato nasce da adjudicação no 04 (ISSUE-060); na demonstração ele vem do mock, com o
+    item da EAC ligado pelo código (``eacCodigo``) e o ``pacoteCompra`` nulo — a ``pacote_compra``
+    só nasce na ISSUE-058/060. O aditivo liga à SM pelo código (``smRef``) e o ``claimRef`` fica
+    sem vínculo até a ISSUE-033 criar ``contrato_claim``. O ``terminoVigente`` do mock é gravado
+    como está: os aditivos da carga não recalculam o término. As medições entram com a situação
+    do protótipo e não alimentam ``custo_erp``: no mock o realizado do item já vem do fechamento
+    do ERP, e é a aprovação pela tela que soma o bruto ao realizado (``service``).
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    lookup = _ContractLookup.build(session)
+    contracts: dict[int, int] = {}
+    for source in prototype_collection("contratos"):
+        project_id = lookup.projects[source["projetoId"]]
+        item_id = service.eac_item_ids_by_code(
+            session, project_id=project_id, codes=[source["eacCodigo"]]
+        ).get(source["eacCodigo"])
+        record = recording.create(
+            session,
+            user_id=admin.id,
+            record=Contract(
+                project_id=project_id,
+                company_id=lookup.companies[source["empresaId"]],
+                eac_item_id=item_id,
+                purchase_package_id=None,
+                manager_id=lookup.people[source["gestorId"]],
+                fiscal_id=lookup.people[source["fiscalId"]],
+                number=source["numero"],
+                object=source["objeto"],
+                modality=source["modalidade"],
+                original_value_cents=int(source["valorOriginalCentavos"]),
+                start=shift_date(date.fromisoformat(source["inicio"]), reference_date),
+                original_end=shift_date(
+                    date.fromisoformat(source["terminoOriginal"]), reference_date
+                ),
+                current_end=shift_date(
+                    date.fromisoformat(source["terminoVigente"]), reference_date
+                ),
+                retention_pct=int(source["retencaoPct"]),
+                claim_notice_days=int(source["prazoNotificacaoClaimDias"]),
+                situation=source["situacao"],
+            ),
+        )
+        contracts[source["id"]] = record.id
+    for source in prototype_collection("aditivos"):
+        recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractAddendum(
+                contract_id=contracts[source["contratoId"]],
+                change_id=lookup.changes.get(source.get("smRef") or ""),
+                claim_id=None,
+                number=source["numero"],
+                signed_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+                value_cents=int(source["valorCentavos"]),
+                days=int(source["dias"]),
+                reason=source["motivo"],
+            ),
+        )
+    for source in prototype_collection("medicoes"):
+        period = shift_date(date.fromisoformat(f"{source['periodo']}-01"), reference_date)
+        recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractMeasurement(
+                contract_id=contracts[source["contratoId"]],
+                milestone_id=source.get("marcoId"),
+                number=source["numero"],
+                period=period.replace(day=1),
+                gross_cents=int(source["brutoCentavos"]),
+                situation=source["situacao"],
+                return_reason=None,
             ),
         )
 

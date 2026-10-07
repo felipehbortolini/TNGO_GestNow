@@ -11,6 +11,11 @@ between EAC items (``remanejamentos``) enter ``mudanca_remanejamento`` — appli
 prototype applied, pending for the one still open — and then the part calls
 ``financeiro.seed.load_revisions``, which writes the revisions with their frozen baselines and the
 applied reallocations. It runs after ``governanca`` because the transfers point at the changes.
+
+The ``financeiro-contratos`` part (ISSUE-032) writes the contracts of the prototype with their
+addenda and measurements. It is registered here, after ``governanca``, for the same reason: the
+addendum points at the SM that originated it by its code, and the changes only exist after the
+``governanca`` part. The loader lives in ``financeiro/seed.py``.
 """
 
 from __future__ import annotations
@@ -347,3 +352,4 @@ def _next_revisions() -> dict[int, int]:
 register(PART_NAME, load)
 register(LESSONS_PART_NAME, load_lessons)
 register(EAC_PART_NAME, load_eac)
+register(financeiro_seed.CONTRACTS_PART_NAME, financeiro_seed.load_contracts)

@@ -1,0 +1,44 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da devolução da medição (ISSUE-032): o motivo obrigatório, como no protótipo. A
+  gravação move a medição para Devolvida e devolve os painéis; o 422 e o 409 voltam aqui, com o
+  motivo digitado e a mensagem no campo.
+
+  Espera: ficha (ContractView), medicao (MeasurementView), bruto, valores, erros, mensagem e os
+  alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Devolver a medição {{ medicao.number }}</h2>
+    <span class="hint">{{ bruto }} · o valor deixa de contar como em análise</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" action="/api/financeiro/contrato/medicoes/{{ medicao.id }}/devolver?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_medicoes }} {{ alvo_resumo }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Devolvendo a medição...">
+      <input type="hidden" name="versao" value="{{ medicao.version }}" />
+      <div class="fgrid">
+        <div class="field field--full">
+          <label for="contrato-medicao-motivo">Motivo da devolução</label>
+          <textarea id="contrato-medicao-motivo" name="motivo"
+            class="input{{ ' input--erro' if erros.motivo else '' }}" maxlength="300" required
+            {% if erros.motivo %}aria-invalid="true" aria-describedby="contrato-medicao-motivo-erro"{% endif %}>{{ valores.motivo or '' }}</textarea>
+          {% if erros.motivo %}<span class="field__erro" id="contrato-medicao-motivo-erro">{{ erros.motivo }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--danger">
+          <span x-init="$el.innerHTML = window.icon('dismiss', 16)" aria-hidden="true"></span>
+          Devolver à contratada
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

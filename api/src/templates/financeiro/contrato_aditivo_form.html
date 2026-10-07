@@ -1,0 +1,73 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do aditivo novo (ISSUE-032): data de assinatura, valor (negativo é supressão), dias
+  de prorrogação, SM aprovada de origem e motivo. A gravação devolve os painéis atualizados; o
+  422 volta aqui, com o que a pessoa digitou e a mensagem no campo.
+
+  Espera: ficha (ContractView), valores, erros, sms (ChangeOption), hoje e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Novo aditivo</h2>
+    <span class="hint">{{ ficha.number }} · o aditivo nasce aprovado</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" action="/api/financeiro/contrato/aditivos?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_aditivos }} {{ alvo_resumo }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando o aditivo...">
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-aditivo-data">Data de assinatura</label>
+          <input id="contrato-aditivo-data" name="data" type="date"
+            class="input{{ ' input--erro' if erros.data else '' }}"
+            value="{{ valores.data or hoje.isoformat() }}" required
+            {% if erros.data %}aria-invalid="true" aria-describedby="contrato-aditivo-data-erro"{% endif %} />
+          {% if erros.data %}<span class="field__erro" id="contrato-aditivo-data-erro">{{ erros.data }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-aditivo-valor">Valor</label>
+          <input id="contrato-aditivo-valor" name="valor"
+            class="input{{ ' input--erro' if erros.valor else '' }}" inputmode="decimal"
+            value="{{ valores.valor or '' }}"
+            {% if erros.valor %}aria-invalid="true" aria-describedby="contrato-aditivo-valor-erro"{% endif %} />
+          {% if erros.valor %}<span class="field__erro" id="contrato-aditivo-valor-erro">{{ erros.valor }}</span>{% endif %}
+          <span class="hint">Use valor negativo para supressão.</span>
+        </div>
+        <div class="field">
+          <label for="contrato-aditivo-dias">Prorrogação (dias)</label>
+          <input id="contrato-aditivo-dias" name="dias" type="number" min="0" step="1" class="input"
+            value="{{ valores.dias or '0' }}" />
+        </div>
+        <div class="field">
+          <label for="contrato-aditivo-sm">SM de origem (opcional)</label>
+          <select id="contrato-aditivo-sm" name="sm" class="input">
+            <option value="">Nenhuma</option>
+            {% for sm in sms %}
+            <option value="{{ sm.id }}"{% if valores.sm == sm.id|string %} selected{% endif %}>{{ sm.code }} · {{ sm.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="contrato-aditivo-motivo">Motivo</label>
+          <textarea id="contrato-aditivo-motivo" name="motivo"
+            class="input{{ ' input--erro' if erros.motivo else '' }}" maxlength="300" required
+            {% if erros.motivo %}aria-invalid="true" aria-describedby="contrato-aditivo-motivo-erro"{% endif %}>{{ valores.motivo or '' }}</textarea>
+          {% if erros.motivo %}<span class="field__erro" id="contrato-aditivo-motivo-erro">{{ erros.motivo }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Registrar aditivo
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

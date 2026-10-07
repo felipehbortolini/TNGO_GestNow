@@ -2106,7 +2106,7 @@ ATTACHMENT_TABLE = "contrato"
 
 @dataclass(frozen=True)
 class MeasurementView:
-    """Uma medição da ficha: período, bruto, retenção, líquido e a situação do fluxo."""
+    """Uma medição da ficha: período, bruto, retenção, líquido, a situação e a versão do registro."""
 
     id: int
     number: str
@@ -2117,6 +2117,7 @@ class MeasurementView:
     milestone_id: int | None
     situation: str
     return_reason: str
+    version: int = 1
 
 
 @dataclass(frozen=True)
@@ -2160,7 +2161,7 @@ class ContractView:
     measured_cents: int
     balance_to_invoice_cents: int
     available_to_measure_cents: int
-    cascade: tuple[dict[str, object], ...]
+    cascade: tuple[dict[str, Any], ...]
     measurements: tuple[MeasurementView, ...]
     addenda: tuple[AddendumView, ...]
 
@@ -2417,6 +2418,7 @@ def _measurement_view(contract: Contract, row: ContractMeasurement) -> Measureme
         milestone_id=row.milestone_id,
         situation=row.situation,
         return_reason=row.return_reason or "",
+        version=row.version,
     )
 
 
@@ -2526,6 +2528,41 @@ def _change_codes(session: Session, change_ids: Sequence[int | None]) -> dict[in
     from src.modulos.governanca import service as governanca
 
     return governanca.change_codes(session, change_ids=wanted)
+
+
+@dataclass(frozen=True)
+class ChangeOption:
+    """Uma SM aprovada do projeto como o select de origem do aditivo a lista."""
+
+    id: int
+    code: str
+    title: str
+
+
+def change_options(session: Session, *, project_id: int) -> tuple[ChangeOption, ...]:
+    """As SM aprovadas do projeto, para o select do aditivo, pela fachada da Governança (D9)."""
+    from src.modulos.governanca import service as governanca
+
+    return tuple(
+        ChangeOption(id=option.id, code=option.code, title=option.title)
+        for option in governanca.approved_changes(session, project_id=project_id)
+    )
+
+
+def contract_by_number(session: Session, *, user: User, number: str) -> ContractView:
+    """A ficha do contrato pelo número, como a tela de detalhe a abre (ISSUE-032).
+
+    Número vazio ou desconhecido é recusado com a mensagem da ficha; a leitura não é filtrada
+    pelo escopo — quem alcança o módulo lê o contrato, como no protótipo —, mas a escrita
+    continua exigindo o projeto do contrato.
+    """
+    wanted = number.strip()
+    contract_id = (
+        session.scalar(select(Contract.id).where(Contract.number == wanted)) if wanted else None
+    )
+    if contract_id is None:
+        raise InvalidDataError(CONTRACT_NOT_FOUND_MESSAGE)
+    return contract_detail(session, user=user, contract_id=contract_id)
 
 
 def read_contract_origin(

@@ -10,6 +10,7 @@ from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
+from typing import Any
 
 from src.core.import_values import normalize_text
 
@@ -851,7 +852,7 @@ def contract_cascade_steps(
     original_cents: int,
     addenda: Sequence[ContractAddendumLine],
     measurements: Sequence[ContractMeasurementLine],
-) -> tuple[dict[str, object], ...]:
+) -> tuple[dict[str, Any], ...]:
     """Degraus da cascata do contrato no contrato de dados do visual ``cascata-contrato``.
 
     O valor original é um total; os aditivos aprovados são a variação (negativa na supressão);

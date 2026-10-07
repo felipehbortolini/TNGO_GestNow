@@ -5,7 +5,8 @@ the spreadsheet. The EAC exports the structure as the screen shows it: the lines
 leave, the root line (code 0) with the total, and, in the Portfólio, the weight of each project.
 The revisions and the reallocations of ISSUE-030 come in the same document, as the screen shows
 them: the frozen baseline of each revision with its variation, and the applied and pending
-transfers with the free balance of the origin.
+transfers with the free balance of the origin. The contract of ISSUE-032 brings its own document:
+the KPIs of the ficha, the cascade of the value and the tables of measurements and addenda.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from datetime import date
 from src.core.export_document import (
     Cell,
     CellValue,
+    Chart,
     Column,
     Document,
     Kpi,
@@ -23,14 +25,26 @@ from src.core.export_document import (
     Table,
     Tone,
     ValueKind,
+    format_value,
     row,
 )
-from src.modulos.financeiro.calculations import LEAF_LEVEL, TreeRow
+from src.modulos.financeiro.calculations import (
+    LEAF_LEVEL,
+    SITUATION_APPROVED,
+    SITUATION_INVOICED,
+    SITUATION_PAID,
+    SITUATION_RETURNED,
+    SITUATION_UNDER_REVIEW,
+    TreeRow,
+)
 from src.modulos.financeiro.service import (
     PORTFOLIO_LABEL,
+    AddendumView,
+    ContractView,
     EacView,
     MapaControleView,
     MapaRow,
+    MeasurementView,
     ReallocationRow,
     RevisionRow,
 )
@@ -356,3 +370,171 @@ def _deviation_tone(deviation_cents: int) -> Tone:
     if deviation_cents < 0:
         return Tone.OK
     return Tone.NEUTRAL
+
+
+# ── Ficha do contrato (ISSUE-032) ────────────────────────────────────────
+
+
+CONTRACT_TITLE = "Contrato {number}"
+CONTRACT_CASCADE_TITLE = "Composição do valor"
+CONTRACT_MEASUREMENTS_TITLE = "Medições"
+CONTRACT_ADDENDA_TITLE = "Aditivos"
+CONTRACT_MEASURED_REFERENCE = "Disponível a medir = saldo a faturar - em análise"
+CONTRACT_BALANCE_REFERENCE = "Valor atual - medido aprovado"
+CONTRACT_NO_EXTRA_DAYS = "No prazo original"
+
+_SITUATION_TONES = {
+    SITUATION_UNDER_REVIEW: Tone.WARN,
+    SITUATION_APPROVED: Tone.INFO,
+    SITUATION_INVOICED: Tone.INFO,
+    SITUATION_PAID: Tone.OK,
+    SITUATION_RETURNED: Tone.ERROR,
+}
+_CASCADE_FORMAT = {"divisor": 100, "moeda": "BRL", "casas": 0}
+
+
+def contrato_document(view: ContractView, *, scope_label: str, generated_on: date) -> Document:
+    """A ficha do contrato como documento: os KPIs, a cascata e as tabelas de medições e aditivos.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. O gráfico da
+    cascata só aparece no imprimível: o Excel leva os mesmos números na tabela "Composição do
+    valor", para nenhum dos dois ter menos que o outro.
+    """
+    return Document(
+        title=CONTRACT_TITLE.format(number=view.number),
+        scope_label=scope_label,
+        generated_on=generated_on,
+        context=_contract_context(view),
+        kpis=_contract_kpis(view),
+        charts=(
+            Chart(
+                CONTRACT_CASCADE_TITLE,
+                "cascata-contrato",
+                {
+                    "titulo": CONTRACT_CASCADE_TITLE,
+                    "formato": dict(_CASCADE_FORMAT),
+                    "etapas": [dict(step) for step in view.cascade],
+                },
+            ),
+        ),
+        tables=(_cascade_table(view), _measurements_table(view), _addenda_table(view)),
+    )
+
+
+def _contract_context(view: ContractView) -> tuple[tuple[str, str], ...]:
+    return (
+        ("Contratada", view.company),
+        ("Objeto", view.object),
+        ("Modalidade", view.modality),
+        ("Item da EAC", view.eac_code),
+        ("Início", format_value(ValueKind.DATE, view.start)),
+        ("Término original", format_value(ValueKind.DATE, view.original_end)),
+        ("Gestor do contrato", view.manager),
+        ("Fiscal", view.fiscal),
+        ("Retenção contratual", f"{view.retention_pct}%"),
+        ("Prazo de notificação de claims", f"{view.claim_notice_days} dias"),
+        ("Situação", view.situation),
+    )
+
+
+def _contract_kpis(view: ContractView) -> tuple[Kpi, ...]:
+    extra_days = (view.current_end - view.original_end).days
+    status = f"+{extra_days} dias sobre o original" if extra_days > 0 else CONTRACT_NO_EXTRA_DAYS
+    return (
+        Kpi(
+            "Valor atual",
+            view.current_value_cents,
+            f"Linha de base: {format_value(ValueKind.MONEY, view.original_value_cents)}",
+            ValueKind.MONEY,
+            status=f"Aditivos: {format_value(ValueKind.MONEY, view.addenda_cents)}",
+        ),
+        Kpi(
+            "Medido aprovado",
+            view.measured_cents,
+            CONTRACT_MEASURED_REFERENCE,
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=(
+                "Disponível a medir: "
+                f"{format_value(ValueKind.MONEY, view.available_to_measure_cents)}"
+            ),
+        ),
+        Kpi(
+            "Saldo a faturar",
+            view.balance_to_invoice_cents,
+            CONTRACT_BALANCE_REFERENCE,
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=f"Retenção contratual: {view.retention_pct}%",
+        ),
+        Kpi(
+            "Término vigente",
+            view.current_end,
+            f"Original: {format_value(ValueKind.DATE, view.original_end)}",
+            ValueKind.DATE,
+            tone=Tone.WARN if extra_days > 0 else Tone.OK,
+            status=status,
+        ),
+    )
+
+
+def _cascade_table(view: ContractView) -> Table:
+    return Table(
+        title=CONTRACT_CASCADE_TITLE,
+        columns=(Column("Etapa", width=34), Column("Valor", ValueKind.MONEY)),
+        rows=tuple(row(str(step["rotulo"]), step["valor"]) for step in view.cascade),
+    )
+
+
+def _measurements_table(view: ContractView) -> Table:
+    return Table(
+        title=CONTRACT_MEASUREMENTS_TITLE,
+        columns=(
+            Column("Nº", width=10),
+            Column("Período", ValueKind.DATE),
+            Column("Valor bruto", ValueKind.MONEY),
+            Column("Retenção", ValueKind.MONEY),
+            Column("Valor líquido", ValueKind.MONEY),
+            Column("Situação", width=16),
+            Column("Motivo da devolução", width=40),
+        ),
+        rows=tuple(_measurement_row(line) for line in view.measurements),
+    )
+
+
+def _measurement_row(line: MeasurementView) -> Row:
+    return row(
+        line.number,
+        line.period,
+        line.gross_cents,
+        line.retention_cents,
+        line.net_cents,
+        Cell(line.situation, _SITUATION_TONES.get(line.situation)),
+        line.return_reason,
+    )
+
+
+def _addenda_table(view: ContractView) -> Table:
+    return Table(
+        title=CONTRACT_ADDENDA_TITLE,
+        columns=(
+            Column("Nº", width=10),
+            Column("Data", ValueKind.DATE),
+            Column("Valor", ValueKind.MONEY),
+            Column("Dias", ValueKind.INTEGER),
+            Column("Motivo", width=48),
+            Column("SM", width=20),
+        ),
+        rows=tuple(_addendum_row(line) for line in view.addenda),
+    )
+
+
+def _addendum_row(line: AddendumView) -> Row:
+    return row(
+        line.number,
+        line.signed_on,
+        line.value_cents,
+        line.days,
+        line.reason,
+        line.change_code,
+    )
