@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -42,6 +42,8 @@ from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
     ContractClaim,
+    ContractEvaluation,
+    ContractEvaluationCriterion,
     ContractMeasurement,
     ContractPaymentMilestone,
     ContractTimeExtension,
@@ -2260,6 +2262,8 @@ class ContractView:
     milestones: tuple[MilestoneView, ...]
     claims: tuple[ClaimView, ...]
     extensions: tuple[ExtensionView, ...]
+    evaluations: tuple[EvaluationView, ...]
+    evaluation_trend: tuple[dict[str, int], ...]
 
 
 def contract_detail(session: Session, *, user: User, contract_id: int) -> ContractView:
@@ -2270,7 +2274,9 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
     medições Em análise, como no protótipo. As listas vêm da mais recente para a mais antiga,
     com a retenção do contrato em cada medição; os marcos vêm na ordem de cadastro, com o valor
     e a retenção calculados e a soma dos percentuais, e os claims trazem o alerta de notificação
-    fora do prazo do contrato. Quem lê precisa alcançar o módulo.
+    fora do prazo do contrato. As avaliações vêm da mais recente para a mais antiga, com os pesos
+    congelados em cada critério e a série do Gráfico de Áreas de Avaliação. Quem lê precisa
+    alcançar o módulo.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.VIEW)
@@ -2280,6 +2286,7 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
     milestones = _milestone_rows(session, contract_id=contract_id)
     claims = _claim_rows(session, contract_id=contract_id)
     extensions = _extension_rows(session, contract_id=contract_id)
+    evaluations = _evaluation_views(session, _evaluation_rows(session, contract_id=contract_id))
     addendum_lines = _addendum_lines(addenda)
     measurement_lines = _measurement_lines(measurements)
     current = calculations.contract_current_value_cents(
@@ -2336,6 +2343,8 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
             _extension_view(row, claim_codes=claim_codes, change_codes=change_codes)
             for row in extensions
         ),
+        evaluations=evaluations,
+        evaluation_trend=_evaluation_trend(evaluations),
     )
 
 
@@ -3355,6 +3364,422 @@ def contract_by_number(session: Session, *, user: User, number: str) -> Contract
     return contract_detail(session, user=user, contract_id=contract_id)
 
 
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+EVALUATION_GROUP = "avaliacaoContratada"
+EVALUATION_ATTACHMENT_TABLE = "contrato_avaliacao"
+EVALUATION_ACTION_ORIGIN = "Contrato"
+EVALUATION_ACTION_GROUP = "Avaliação da contratada"
+EVALUATION_PLAN_DAYS = 15
+EVALUATION_EVIDENCE_FIELD = "evidencias"
+EVALUATION_PARAMETERS_MISSING = "Os parâmetros da avaliação de contratada não estão configurados."
+EVALUATION_EVIDENCE_REQUIRED = "A nota {limit} ou menor em algum critério exige anexo de evidência."
+EVALUATION_DUPLICATE_MESSAGE = "Já existe avaliação {kind} neste período."
+EVALUATION_LESSON_PHASE = "Encerramento"
+EVALUATION_LESSON_AREA = "Aquisições"
+EVALUATION_LESSON_REPEAT = "A repetir"
+EVALUATION_LESSON_AVOID = "A evitar"
+
+
+@dataclass(frozen=True)
+class EvaluationCriterionSpec:
+    """Um critério dos parâmetros vigentes: o id, o nome e o peso que ele grava na avaliação."""
+
+    id: str
+    name: str
+    weight: int
+
+
+@dataclass(frozen=True)
+class EvaluationSettings:
+    """O grupo da avaliação vigente: os critérios, as classes e a nota que exige plano."""
+
+    criteria: tuple[EvaluationCriterionSpec, ...]
+    classes: tuple[calculations.EvaluationClass, ...]
+    plan_limit: int
+
+
+@dataclass(frozen=True)
+class EvaluationCriterionView:
+    """O peso e a nota de um critério, congelados na avaliação (D5b)."""
+
+    criterion: str
+    weight: int
+    note: int
+
+
+@dataclass(frozen=True)
+class EvaluationView:
+    """Uma avaliação da ficha: período, tipo, avaliador, nota, classe, plano e evidência."""
+
+    id: int
+    period: date
+    kind: str
+    evaluator: str
+    comment: str
+    score: int | None
+    score_class: str
+    class_description: str
+    requires_plan: bool
+    criteria: tuple[EvaluationCriterionView, ...]
+    has_evidence: bool
+    version: int = 1
+
+
+def create_evaluation(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+    reference_date: date,
+    file_name: str | None = None,
+    content: bytes = b"",
+    storage: FileStorage | None = None,
+) -> EvaluationView:
+    """Registra a avaliação de desempenho da contratada, com os pesos congelados dos parâmetros.
+
+    A versão vigente do grupo ``avaliacaoContratada`` dá os critérios, as classes e a nota que
+    exige plano; cada critério entra na avaliação com o seu peso e a nota, então mudar o
+    parâmetro depois não muda a avaliação gravada (D5b). A nota 1 ou 2 em algum critério exige
+    um anexo de evidência e abre a ação de plano de melhoria na Central, com origem Contrato e
+    vínculo no número do contrato; a avaliação final abre a lição em Rascunho pela fachada de
+    Lições, com origem no contrato. A ação e a lição entram na mesma transação da avaliação
+    (D9). A operação é de quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    version = configuracoes.current_version(
+        session, group=EVALUATION_GROUP, reference_date=reference_date
+    )
+    if version is None:
+        raise InvalidDataError(EVALUATION_PARAMETERS_MISSING)
+    settings = _settings_of(configuracoes.parameter_values(session, version))
+    parsed = validation.parse_evaluation_form(
+        form, criteria_ids=[criterion.id for criterion in settings.criteria]
+    )
+    _check_evaluation_duplicate(
+        session, contract_id=contract.id, period=parsed.period, kind=parsed.kind
+    )
+    notes = parsed.notes
+    requires_plan = calculations.evaluation_requires_plan(notes, settings.plan_limit)
+    if requires_plan and not content:
+        raise InvalidDataError(
+            {
+                EVALUATION_EVIDENCE_FIELD: EVALUATION_EVIDENCE_REQUIRED.format(
+                    limit=settings.plan_limit
+                )
+            }
+        )
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractEvaluation(
+            contract_id=contract.id,
+            evaluator_id=user.person_id,
+            parameter_version_id=version.id,
+            period=parsed.period,
+            kind=parsed.kind,
+            comment=parsed.comment or None,
+        ),
+    )
+    criteria = [
+        ContractEvaluationCriterion(
+            evaluation_id=record.id,
+            criterion=spec.id,
+            weight=spec.weight,
+            note=notes[spec.id],
+        )
+        for spec in settings.criteria
+    ]
+    session.add_all(criteria)
+    session.flush()
+    if content:
+        attachments.upload(
+            session,
+            user=user,
+            new=attachments.NewAttachment(
+                origin_table=EVALUATION_ATTACHMENT_TABLE,
+                origin_record_id=record.id,
+                file_name=file_name,
+                content=content,
+            ),
+            reference_date=reference_date,
+            storage=storage,
+        )
+    if requires_plan:
+        _create_evaluation_plan_action(
+            session,
+            user=user,
+            contract=contract,
+            period=parsed.period,
+            weak=_weak_criterion_names(settings, notes),
+            reference_date=reference_date,
+        )
+    if parsed.kind == calculations.EVALUATION_KIND_FINAL:
+        _create_evaluation_lesson(
+            session,
+            user=user,
+            contract=contract,
+            score=_weighted_score(settings, notes) or 0,
+            requires_plan=requires_plan,
+            reference_date=reference_date,
+        )
+    return _evaluation_view(
+        session, record, criteria=criteria, settings=settings, evaluator=user.name
+    )
+
+
+def _evaluation_rows(session: Session, *, contract_id: int) -> list[ContractEvaluation]:
+    statement = (
+        select(ContractEvaluation)
+        .where(ContractEvaluation.contract_id == contract_id)
+        .order_by(ContractEvaluation.period.desc(), ContractEvaluation.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
+def _evaluation_criteria_by_evaluation(
+    session: Session, evaluation_ids: Sequence[int]
+) -> dict[int, list[ContractEvaluationCriterion]]:
+    if not evaluation_ids:
+        return {}
+    statement = (
+        select(ContractEvaluationCriterion)
+        .where(ContractEvaluationCriterion.evaluation_id.in_(evaluation_ids))
+        .order_by(ContractEvaluationCriterion.id)
+    )
+    grouped: dict[int, list[ContractEvaluationCriterion]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.evaluation_id, []).append(row)
+    return grouped
+
+
+def _evaluation_views(
+    session: Session, rows: Sequence[ContractEvaluation]
+) -> tuple[EvaluationView, ...]:
+    criteria_by_evaluation = _evaluation_criteria_by_evaluation(session, [row.id for row in rows])
+    names = configuracoes.person_names(session, [row.evaluator_id for row in rows])
+    settings_by_period: dict[date, EvaluationSettings] = {}
+    views: list[EvaluationView] = []
+    for row in rows:
+        settings = settings_by_period.get(row.period)
+        if settings is None:
+            settings = _evaluation_settings(session, reference_date=row.period)
+            settings_by_period[row.period] = settings
+        views.append(
+            _evaluation_view(
+                session,
+                row,
+                criteria=criteria_by_evaluation.get(row.id, []),
+                settings=settings,
+                evaluator=names.get(row.evaluator_id, ""),
+            )
+        )
+    return tuple(views)
+
+
+def _evaluation_view(
+    session: Session,
+    row: ContractEvaluation,
+    *,
+    criteria: Sequence[ContractEvaluationCriterion],
+    settings: EvaluationSettings,
+    evaluator: str,
+) -> EvaluationView:
+    notes = {criterion.criterion: criterion.note for criterion in criteria}
+    weights = {criterion.criterion: criterion.weight for criterion in criteria}
+    score = calculations.evaluation_weighted_score(notes, weights)
+    chosen = calculations.evaluation_class(score, settings.classes)
+    return EvaluationView(
+        id=row.id,
+        period=row.period,
+        kind=row.kind,
+        evaluator=evaluator,
+        comment=row.comment or "",
+        score=score,
+        score_class=chosen.name if chosen else "",
+        class_description=chosen.description if chosen else "",
+        requires_plan=calculations.evaluation_requires_plan(notes, settings.plan_limit),
+        criteria=tuple(
+            EvaluationCriterionView(criterion=item.criterion, weight=item.weight, note=item.note)
+            for item in criteria
+        ),
+        has_evidence=attachments.has_evidence(
+            session, origin_table=EVALUATION_ATTACHMENT_TABLE, origin_record_id=row.id
+        ),
+        version=row.version,
+    )
+
+
+def _evaluation_trend(
+    evaluations: Sequence[EvaluationView],
+) -> tuple[dict[str, int], ...]:
+    return calculations.evaluation_trend_points(
+        tuple(
+            calculations.EvaluationFact(
+                period=evaluation.period,
+                notes={item.criterion: item.note for item in evaluation.criteria},
+                weights={item.criterion: item.weight for item in evaluation.criteria},
+            )
+            for evaluation in evaluations
+        )
+    )
+
+
+def _settings_of(values: Mapping[str, Any]) -> EvaluationSettings:
+    """O grupo como a fachada o entrega, com o valor inicial de cada parte que faltar."""
+    initial = configuracoes.INITIAL_PARAMETERS[EVALUATION_GROUP]
+    criteria = values.get("criterios") or initial["criterios"]
+    classes = values.get("classes") or initial["classes"]
+    limit = values.get("notaExigePlano") or initial["notaExigePlano"]
+    return EvaluationSettings(
+        criteria=tuple(
+            EvaluationCriterionSpec(
+                id=str(criterion["id"]),
+                name=str(criterion.get("nome") or criterion["id"]),
+                weight=int(criterion["peso"]),
+            )
+            for criterion in criteria
+        ),
+        classes=tuple(
+            calculations.EvaluationClass(
+                name=str(item["classe"]),
+                minimum=int(item["minimo"]),
+                description=str(item.get("descricao", "")),
+            )
+            for item in classes
+        ),
+        plan_limit=int(limit),
+    )
+
+
+def _evaluation_settings(session: Session, *, reference_date: date) -> EvaluationSettings:
+    """O grupo da avaliação vigente na data; sem versão, os valores iniciais do grupo."""
+    values = configuracoes.current_group(
+        session, group=EVALUATION_GROUP, reference_date=reference_date
+    )
+    return _settings_of(values)
+
+
+def _weighted_score(settings: EvaluationSettings, notes: Mapping[str, int]) -> int | None:
+    weights = {criterion.id: criterion.weight for criterion in settings.criteria}
+    return calculations.evaluation_weighted_score(notes, weights)
+
+
+def _weak_criterion_names(
+    settings: EvaluationSettings, notes: Mapping[str, int]
+) -> tuple[str, ...]:
+    return tuple(
+        criterion.name
+        for criterion in settings.criteria
+        if notes.get(criterion.id, 0) <= settings.plan_limit
+    )
+
+
+def _check_evaluation_duplicate(
+    session: Session, *, contract_id: int, period: date, kind: str
+) -> None:
+    found = session.scalar(
+        select(ContractEvaluation.id).where(
+            ContractEvaluation.contract_id == contract_id,
+            ContractEvaluation.period == period,
+            ContractEvaluation.kind == kind,
+        )
+    )
+    if found is not None:
+        raise InvalidDataError(
+            {
+                validation.FIELD_EVALUATION_PERIOD: EVALUATION_DUPLICATE_MESSAGE.format(
+                    kind=kind.lower()
+                )
+            }
+        )
+
+
+def _create_evaluation_plan_action(
+    session: Session,
+    *,
+    user: User,
+    contract: Contract,
+    period: date,
+    weak: Sequence[str],
+    reference_date: date,
+) -> int:
+    """A ação de plano de melhoria, pela costura única da Central, na transação do chamador."""
+    from src.modulos.central_acoes import service as central_acoes
+    from src.modulos.central_acoes.validation import NewAction
+
+    company = configuracoes.list_company_names(session).get(contract.company_id, "")
+    created = central_acoes.create_action(
+        session,
+        user=user,
+        new=NewAction(
+            project_id=contract.project_id,
+            origin=EVALUATION_ACTION_ORIGIN,
+            origin_ref=contract.number,
+            subject=f"Plano de melhoria da {company}",
+            description=(
+                f"Notas baixas em {', '.join(weak)} na avaliação de {_period_text(period)}."
+            ),
+            requester_id=user.person_id,
+            responsible_id=contract.manager_id,
+            planned_date=reference_date + timedelta(days=EVALUATION_PLAN_DAYS),
+            group=EVALUATION_ACTION_GROUP,
+        ),
+        reference_date=reference_date,
+    )
+    return created.id
+
+
+def _create_evaluation_lesson(
+    session: Session,
+    *,
+    user: User,
+    contract: Contract,
+    score: int,
+    requires_plan: bool,
+    reference_date: date,
+) -> int:
+    """A lição em Rascunho da avaliação final, pela fachada de Lições, na transação do chamador."""
+    from src.modulos.governanca import lessons_models as lessons
+    from src.modulos.governanca import lessons_service
+    from src.modulos.governanca.lessons_validation import DraftInput
+
+    company = configuracoes.list_company_names(session).get(contract.company_id, "")
+    created = lessons_service.create_draft_lesson(
+        session,
+        user=user,
+        project_id=contract.project_id,
+        draft=DraftInput(
+            title=f"Avaliação final do contrato {contract.number}",
+            kind=EVALUATION_LESSON_AVOID if requires_plan else EVALUATION_LESSON_REPEAT,
+            phase=EVALUATION_LESSON_PHASE,
+            area=EVALUATION_LESSON_AREA,
+            origin=lessons.ORIGIN_CONTRACT,
+            origin_ref=contract.number,
+            what_happened=(
+                f"Avaliação final da contratada {company} no contrato {contract.number}: "
+                f"nota {score}."
+            ),
+            cause=f"Desempenho da contratada no encerramento do contrato {contract.number}.",
+            recommendation=(
+                "Considerar o resultado da avaliação de desempenho na qualificação do "
+                "fornecedor e nas próximas contratações."
+            ),
+        ),
+        reference_date=reference_date,
+    )
+    return created.id
+
+
+def _period_text(period: date) -> str:
+    return f"{period.month:02d}/{period.year}"
+
+
 def read_contract_origin(
     session: Session, *, user: User, record_id: int
 ) -> attachment_origins.OriginRecord | None:
@@ -3394,6 +3819,33 @@ def read_claim_origin(
     return attachment_origins.OriginRecord(project_id=contract.project_id)
 
 
+def read_evaluation_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """Quem lê a evidência de uma avaliação: quem alcança o módulo (D5a)."""
+    rbac.require_module(user, MODULE)
+    evaluation = session.get(ContractEvaluation, record_id)
+    if evaluation is None:
+        return None
+    contract = session.get(Contract, evaluation.contract_id)
+    if contract is None:
+        return None
+    return attachment_origins.OriginRecord(project_id=contract.project_id)
+
+
+def _contract_exists(session: Session, reference: str) -> bool:
+    """O contrato que uma lição aponta, pelo número: a conferência da fachada de Lições (D9)."""
+    return session.scalar(select(Contract.id).where(Contract.number == reference)) is not None
+
+
+def _register_lesson_origin() -> None:
+    """Diz à fachada de Lições como confirmar o número do contrato (D9)."""
+    from src.modulos.governanca import lessons_models as lessons
+    from src.modulos.governanca import lessons_service
+
+    lessons_service.register_origin(lessons.ORIGIN_CONTRACT, _contract_exists)
+
+
 attachment_origins.register(
     attachment_origins.OriginType(table=ATTACHMENT_TABLE, module=MODULE, read=read_contract_origin)
 )
@@ -3407,3 +3859,9 @@ attachment_origins.register(
         table=CLAIM_ATTACHMENT_TABLE, module=MODULE, read=read_claim_origin
     )
 )
+attachment_origins.register(
+    attachment_origins.OriginType(
+        table=EVALUATION_ATTACHMENT_TABLE, module=MODULE, read=read_evaluation_origin
+    )
+)
+_register_lesson_origin()
