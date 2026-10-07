@@ -634,3 +634,164 @@ def _erp_month_problem(month: date | None, reference_date: date) -> str:
 
 def _erp_value_problem(value: int | None) -> str:
     return ERP_VALUE_NEGATIVE if value is not None and value < 0 else ""
+
+
+# ── Medições e aditivos do contrato (ISSUE-032) ──────────────────────────
+
+
+MEASUREMENT_TRANSITIONS: Mapping[str, tuple[str, ...]] = {
+    calculations.SITUATION_UNDER_REVIEW: (
+        calculations.SITUATION_APPROVED,
+        calculations.SITUATION_RETURNED,
+    ),
+    calculations.SITUATION_APPROVED: (calculations.SITUATION_INVOICED,),
+    calculations.SITUATION_INVOICED: (calculations.SITUATION_PAID,),
+}
+
+CONTRACT_REASON_MAX = 300
+
+FIELD_MEASUREMENT_PERIOD = "periodo"
+FIELD_MEASUREMENT_VALUE = "bruto"
+FIELD_MEASUREMENT_MILESTONE = "marco"
+FIELD_MEASUREMENT_SITUATION = "situacao"
+FIELD_MEASUREMENT_REASON = "motivo"
+FIELD_ADDENDUM_DATE = "data"
+FIELD_ADDENDUM_VALUE = "valor"
+FIELD_ADDENDUM_DAYS = "dias"
+FIELD_ADDENDUM_REASON = "motivo"
+FIELD_ADDENDUM_CHANGE = "sm"
+FIELD_ADDENDUM_CLAIM = "claim"
+
+MEASUREMENT_PERIOD_REQUIRED = "Informe o período da medição."
+MEASUREMENT_VALUE_REQUIRED = "Informe um valor maior que zero."
+MEASUREMENT_OVER_BALANCE = (
+    "O valor de {value} supera o saldo disponível de {available}. Registre um aditivo antes."
+)
+MEASUREMENT_RETURN_REASON_ASK = "Informe o motivo da devolução."
+MEASUREMENT_TRANSITION_REFUSED = "A medição {current} não pode ir para {target}."
+ADDENDUM_DATE_REQUIRED = "Informe a data de assinatura."
+ADDENDUM_VALUE_OR_DAYS_REQUIRED = "Informe valor, prorrogação ou ambos."
+ADDENDUM_REASON_ASK = "Informe o motivo do aditivo."
+
+
+@dataclass(frozen=True)
+class MeasurementForm:
+    """A medição nova pedida pela tela: o período, o valor bruto e o marco opcional."""
+
+    period: date
+    value_cents: int
+    milestone_id: int | None
+
+
+@dataclass(frozen=True)
+class AddendumForm:
+    """O aditivo pedido pela tela: valor e/ou dias, motivo e as origens opcionais."""
+
+    signed_on: date
+    value_cents: int
+    days: int
+    reason: str
+    change_id: int | None
+    claim_id: int | None
+
+
+def measurement_transition_allowed(current: str, target: str) -> bool:
+    """A situação atual admite a próxima, pelo fluxo do protótipo."""
+    return target in MEASUREMENT_TRANSITIONS.get(current, ())
+
+
+def check_measurement_transition(current: str, target: str) -> None:
+    """Transição fora do fluxo é recusada com 422 e a mensagem no campo da situação."""
+    if not measurement_transition_allowed(current, target):
+        raise InvalidDataError(
+            {
+                FIELD_MEASUREMENT_SITUATION: MEASUREMENT_TRANSITION_REFUSED.format(
+                    current=current, target=target
+                )
+            }
+        )
+
+
+def parse_measurement_form(form: Mapping[str, str | None]) -> MeasurementForm:
+    """A medição nova: período obrigatório e valor bruto maior que zero; o marco é opcional."""
+    period = _month(_text(form, FIELD_MEASUREMENT_PERIOD))
+    value = parse_money(_text(form, FIELD_MEASUREMENT_VALUE))
+    milestone_id = _digit(_text(form, FIELD_MEASUREMENT_MILESTONE))
+    _refuse(
+        {
+            FIELD_MEASUREMENT_PERIOD: "" if period else MEASUREMENT_PERIOD_REQUIRED,
+            FIELD_MEASUREMENT_VALUE: "" if value and value > 0 else MEASUREMENT_VALUE_REQUIRED,
+        }
+    )
+    return MeasurementForm(
+        period=period or date.min,
+        value_cents=value or 0,
+        milestone_id=milestone_id,
+    )
+
+
+def check_measurement_balance(*, value_cents: int, available_cents: int) -> None:
+    """Medição acima do saldo disponível do contrato: 422 com a mensagem no valor."""
+    if value_cents > available_cents:
+        raise InvalidDataError(
+            {
+                FIELD_MEASUREMENT_VALUE: MEASUREMENT_OVER_BALANCE.format(
+                    value=format_brl(value_cents), available=format_brl(available_cents)
+                )
+            }
+        )
+
+
+def parse_return_form(form: Mapping[str, str | None]) -> str:
+    """A devolução exige o motivo, preenchido e dentro do limite; volta no campo do motivo."""
+    reason = _text(form, FIELD_MEASUREMENT_REASON)
+    _refuse({FIELD_MEASUREMENT_REASON: _reason_problem(reason, MEASUREMENT_RETURN_REASON_ASK)})
+    return reason
+
+
+def parse_addendum_form(form: Mapping[str, str | None]) -> AddendumForm:
+    """O aditivo: data e motivo obrigatórios e valor ou dias (não ambos zero)."""
+    signed_on = _date(_text(form, FIELD_ADDENDUM_DATE))
+    value = parse_money(_text(form, FIELD_ADDENDUM_VALUE)) or 0
+    days = _digit(_text(form, FIELD_ADDENDUM_DAYS)) or 0
+    reason = _text(form, FIELD_ADDENDUM_REASON)
+    _refuse(
+        {
+            FIELD_ADDENDUM_DATE: "" if signed_on else ADDENDUM_DATE_REQUIRED,
+            FIELD_ADDENDUM_VALUE: "" if value or days else ADDENDUM_VALUE_OR_DAYS_REQUIRED,
+            FIELD_ADDENDUM_REASON: _reason_problem(reason, ADDENDUM_REASON_ASK),
+        }
+    )
+    return AddendumForm(
+        signed_on=signed_on or date.min,
+        value_cents=value,
+        days=days,
+        reason=reason,
+        change_id=_digit(_text(form, FIELD_ADDENDUM_CHANGE)),
+        claim_id=_digit(_text(form, FIELD_ADDENDUM_CLAIM)),
+    )
+
+
+def _month(text: str) -> date | None:
+    """The first day of the month of a ``AAAA-MM`` label, or ``None`` when it is not one."""
+    try:
+        return date.fromisoformat(f"{text}-01")
+    except ValueError:
+        return None
+
+
+def _date(text: str) -> date | None:
+    """A date as the date field sends it, or ``None`` when empty or invalid."""
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _reason_problem(reason: str, ask: str) -> str:
+    """Filled reason within the limit, as the prototype's ``motivo`` fields ask."""
+    if not reason:
+        return ask
+    if len(reason) > CONTRACT_REASON_MAX:
+        return f"Use até {CONTRACT_REASON_MAX} caracteres."
+    return ""

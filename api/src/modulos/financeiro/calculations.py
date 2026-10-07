@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 from src.core.import_values import normalize_text
@@ -778,3 +778,115 @@ def erp_totals_until(facts: Sequence[ErpCostFact], *, cutoff: date) -> dict[int,
             actual_cents=previous.actual_cents + (fact.actual_cents or 0),
         )
     return totals
+
+
+# ── Ficha do contrato: valor, medido, saldo e término (ISSUE-032) ────────
+
+
+SITUATION_UNDER_REVIEW = "Em análise"
+SITUATION_APPROVED = "Aprovada"
+SITUATION_INVOICED = "Faturada"
+SITUATION_PAID = "Paga"
+SITUATION_RETURNED = "Devolvida"
+MEASUREMENT_SITUATIONS = (
+    SITUATION_UNDER_REVIEW,
+    SITUATION_APPROVED,
+    SITUATION_INVOICED,
+    SITUATION_PAID,
+    SITUATION_RETURNED,
+)
+MEASURED_SITUATIONS = (SITUATION_APPROVED, SITUATION_INVOICED, SITUATION_PAID)
+
+CASCADE_ORIGINAL = "original"
+CASCADE_ADDENDA = "aditivos"
+CASCADE_CURRENT = "atual"
+CASCADE_MEASURED = "medido"
+CASCADE_BALANCE = "saldo"
+
+
+@dataclass(frozen=True)
+class ContractAddendumLine:
+    """Um aditivo do contrato: valor em centavos (negativo é supressão) e dias de prorrogação."""
+
+    value_cents: int = 0
+    days: int = 0
+
+
+@dataclass(frozen=True)
+class ContractMeasurementLine:
+    """Uma medição do contrato: valor bruto em centavos e a situação do fluxo."""
+
+    value_cents: int
+    situation: str
+
+
+def contract_current_value_cents(
+    original_cents: int, addenda: Sequence[ContractAddendumLine]
+) -> int:
+    """Valor atual do contrato: o valor original mais os aditivos aprovados."""
+    return original_cents + sum(addendum.value_cents for addendum in addenda)
+
+
+def contract_measured_cents(measurements: Sequence[ContractMeasurementLine]) -> int:
+    """Medido aprovado: a soma do bruto das medições Aprovada, Faturada ou Paga."""
+    return sum(
+        measurement.value_cents
+        for measurement in measurements
+        if measurement.situation in MEASURED_SITUATIONS
+    )
+
+
+def contract_balance_to_invoice_cents(current_value_cents: int, measured_cents: int) -> int:
+    """Saldo a faturar: o valor atual menos o medido aprovado."""
+    return current_value_cents - measured_cents
+
+
+def contract_current_end_date(original_end: date, addenda: Sequence[ContractAddendumLine]) -> date:
+    """Término vigente: o término original mais os dias dos aditivos."""
+    return original_end + timedelta(days=sum(addendum.days for addendum in addenda))
+
+
+def contract_cascade_steps(
+    *,
+    original_cents: int,
+    addenda: Sequence[ContractAddendumLine],
+    measurements: Sequence[ContractMeasurementLine],
+) -> tuple[dict[str, object], ...]:
+    """Degraus da cascata do contrato no contrato de dados do visual ``cascata-contrato``.
+
+    O valor original é um total; os aditivos aprovados são a variação (negativa na supressão);
+    o valor atual e o saldo a faturar são totais; o medido é a redução, com o sinal que o
+    visual lê.
+    """
+    current_cents = contract_current_value_cents(original_cents, addenda)
+    measured_cents = contract_measured_cents(measurements)
+    return (
+        {
+            "id": CASCADE_ORIGINAL,
+            "rotulo": "Valor original",
+            "tipo": "total",
+            "valor": original_cents,
+        },
+        {
+            "id": CASCADE_ADDENDA,
+            "rotulo": "Aditivos aprovados",
+            "valor": sum(addendum.value_cents for addendum in addenda),
+        },
+        {
+            "id": CASCADE_CURRENT,
+            "rotulo": "Valor atual",
+            "tipo": "total",
+            "valor": current_cents,
+        },
+        {
+            "id": CASCADE_MEASURED,
+            "rotulo": "Medido",
+            "valor": -measured_cents,
+        },
+        {
+            "id": CASCADE_BALANCE,
+            "rotulo": "Saldo a faturar",
+            "tipo": "total",
+            "valor": contract_balance_to_invoice_cents(current_cents, measured_cents),
+        },
+    )

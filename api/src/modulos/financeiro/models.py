@@ -3,7 +3,8 @@
 Class and attribute names are English (D1); tables and columns are Portuguese snake_case,
 as in ``docs/MODELO-DE-DADOS.md``. This module owns the cost breakdown item, its revisions with
 the frozen baseline of each item, the reallocations applied to it (ISSUE-029, ISSUE-030), the
-projection history of the item and the costs imported from the ERP (ISSUE-031).
+projection history of the item and the costs imported from the ERP (ISSUE-031), and the contract
+with its addenda and measurements (ISSUE-032).
 """
 
 from __future__ import annotations
@@ -152,3 +153,74 @@ class ErpCost(Base):
     imported_at: Mapped[datetime] = mapped_column(
         "importado_em", DateTime(timezone=True), server_default=func.now()
     )
+
+
+class Contract(Base):
+    """Contrato da administração contratual: valor original, datas, retenção e prazos.
+
+    ``pacote_compra_id`` entra como coluna sem chave estrangeira: a ``pacote_compra`` só nasce na
+    ISSUE-058/060, que acrescenta a chave (D9). Valor atual, medido e saldo são calculados.
+    """
+
+    __tablename__ = "contrato"
+    __table_args__ = (UniqueConstraint("numero"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    eac_item_id: Mapped[int | None] = mapped_column("eac_item_id", ForeignKey("eac_item.id"))
+    purchase_package_id: Mapped[int | None] = mapped_column("pacote_compra_id", BigInteger)
+    manager_id: Mapped[int] = mapped_column("gestor_id", ForeignKey("pessoa.id"))
+    fiscal_id: Mapped[int] = mapped_column("fiscal_id", ForeignKey("pessoa.id"))
+    number: Mapped[str] = mapped_column("numero", Text)
+    object: Mapped[str] = mapped_column("objeto", Text)
+    modality: Mapped[str] = mapped_column("modalidade", Text)
+    original_value_cents: Mapped[int] = mapped_column("valor_original_centavos", Centavos)
+    start: Mapped[date] = mapped_column("inicio", Date)
+    original_end: Mapped[date] = mapped_column("termino_original", Date)
+    current_end: Mapped[date] = mapped_column("termino_vigente", Date)
+    retention_pct: Mapped[int] = mapped_column("retencao_pct", Integer)
+    claim_notice_days: Mapped[int] = mapped_column("prazo_notificacao_claim_dias", Integer)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractAddendum(Base):
+    """Aditivo do contrato: valor e/ou dias, com motivo, SM e claim de origem.
+
+    Fato imutável (D5b): sem ``versao``. O aditivo é aprovado ao ser registrado: soma ao valor
+    atual e, quando tem dias, prorroga o término vigente. ``claim_id`` entra sem chave estrangeira
+    até a ISSUE-033 criar ``contrato_claim``.
+    """
+
+    __tablename__ = "contrato_aditivo"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    claim_id: Mapped[int | None] = mapped_column("claim_id", BigInteger)
+    number: Mapped[str] = mapped_column("numero", Text)
+    signed_on: Mapped[date] = mapped_column("data", Date)
+    value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    days: Mapped[int] = mapped_column("dias", Integer)
+    reason: Mapped[str] = mapped_column("motivo", Text)
+
+
+class ContractMeasurement(Base):
+    """Boletim de medição do contrato: período, valor bruto e a situação do fluxo.
+
+    ``marco_id`` entra sem chave estrangeira até a ISSUE-033 criar
+    ``contrato_marco_pagamento``. Retenção e líquido são calculados pela retenção do contrato.
+    """
+
+    __tablename__ = "contrato_medicao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    milestone_id: Mapped[int | None] = mapped_column("marco_id", BigInteger)
+    number: Mapped[str] = mapped_column("numero", Text)
+    period: Mapped[date] = mapped_column("periodo", Date)
+    gross_cents: Mapped[int] = mapped_column("bruto_centavos", Centavos)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    return_reason: Mapped[str | None] = mapped_column("motivo_devolucao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
