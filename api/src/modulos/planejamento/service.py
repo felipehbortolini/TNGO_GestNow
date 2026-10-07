@@ -37,6 +37,15 @@ of the prototype. ``freeze_curve`` runs inside ``create_revision``; the read
 side lives in ``curva_fisica_overview``, which also serves the weekly payload of
 the DS curve. In the Portfólio the curve is the weighted average of the projects
 by the weights of the portfolio (D8), in the calendar of the union of months.
+
+The planning KPIs (ISSUE-040): ``planning_kpis_overview`` serves the SPI screen,
+which calculates the advance with no record of its own. The rows are the level-1
+areas of the EAP, whose weighted average closes with the physical S-curve; in
+the Portfólio the rows are the projects with their weight in the portfolio and
+the SPI is the weighted one of the portfolio. The attention figures of the EAP
+(overdue packages and change requests still to incorporate) come from the same
+reading of ``eap_overview``. The chart payloads follow the DS library (D11) and
+the business labels live in the templates. Nothing here reads the clock (D6).
 """
 
 from __future__ import annotations
@@ -1934,7 +1943,7 @@ def _portfolio_indicators(root: EapNode, entries: Sequence[_PortfolioEntry]) -> 
         actual=root.actual,
         predicted=root.predicted,
         deviation_pp=root.deviation_pp,
-        spi=_spi(root.actual, root.predicted),
+        spi=calculations.spi_index(root.actual, root.predicted),
         work_packages=sum(entry.snapshot.indicators.work_packages for entry in entries),
         planning_packages=sum(entry.snapshot.indicators.planning_packages for entry in entries),
         planning_weight=None,
@@ -2152,7 +2161,7 @@ def _indicators(nodes: Sequence[EapNode], *, projects: int) -> EapIndicators:
         actual=root.actual,
         predicted=root.predicted,
         deviation_pp=root.deviation_pp,
-        spi=_spi(root.actual, root.predicted),
+        spi=calculations.spi_index(root.actual, root.predicted),
         work_packages=len(work),
         planning_packages=len(planning),
         planning_weight=_weight_of(planning),
@@ -3571,12 +3580,6 @@ def _weight_of(nodes: Sequence[EapNode]) -> Decimal:
     return total.quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
-def _spi(actual: Decimal, predicted: Decimal) -> Decimal | None:
-    if predicted == 0:
-        return None
-    return (actual / predicted).quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
-
-
 def _code_key(code: str) -> tuple[int, ...]:
     return tuple(int(part) for part in code.split(".") if part.isdigit())
 
@@ -3993,13 +3996,13 @@ def _curve_indicators(series: calculations.CurvaFisicaSeries) -> CurvaFisicaIndi
         predicted=predicted,
         actual=actual,
         deviation_pp=_round_one(actual - predicted),
-        spi=_spi(actual, predicted),
+        spi=calculations.spi_index(actual, predicted),
         previous_predicted=previous_predicted,
         previous_actual=previous_actual,
         previous_spi=(
             None
             if previous_predicted is None
-            else _spi(previous_actual or calculations.ZERO, previous_predicted)
+            else calculations.spi_index(previous_actual or calculations.ZERO, previous_predicted)
         ),
         trend_finish=_first_month(series.months, series.trend),
         baseline_finish=_first_month(series.months, series.baseline),
@@ -4186,3 +4189,289 @@ def _round_one(value: Decimal) -> Decimal:
 
 def _round_two(value: Decimal) -> Decimal:
     return value.quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+# ── KPIs de planejamento (ISSUE-040) ──────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PlanningKpiLine:
+    """Uma linha do avanço: a área da EAP (peso, previsto, real, desvio, SPI, contribuição, faixa)."""
+
+    id: int | None
+    project_id: int | None
+    code: str
+    name: str
+    weight: Decimal
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    contribution_pp: Decimal
+    band: str | None
+
+
+@dataclass(frozen=True)
+class PlanningKpisOverview:
+    """Os KPIs de planejamento do escopo: a curva, o SPI por mês e as linhas de avanço (D6, D11)."""
+
+    reference_date: date
+    scope_label: str
+    curve: CurvaFisicaOverview
+    spi_series: tuple[Decimal | None, ...]
+    rows: tuple[PlanningKpiLine, ...]
+    worst: PlanningKpiLine | None
+    overdue_packages: int
+    pending_changes: int
+    spi_chart: Mapping[str, Any]
+    comparison_chart: Mapping[str, Any]
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no frozen curve: the screen shows the empty state."""
+        return self.curve.is_empty
+
+    @property
+    def is_portfolio(self) -> bool:
+        """Whether the view is the portfolio: the rows are the projects, not the areas."""
+        return self.curve.is_portfolio
+
+    @property
+    def project_id(self) -> int | None:
+        """O projeto do escopo; ``None`` no Portfólio."""
+        return self.curve.project_id
+
+    @property
+    def indicators(self) -> CurvaFisicaIndicators:
+        """Os indicadores da curva: SPI, previsto, real, desvio, mês anterior e términos."""
+        return self.curve.indicators
+
+
+@dataclass(frozen=True)
+class _KpiEap:
+    """A leitura da EAP que os KPIs usam: os projetos, a árvore de cada um e as faixas de desvio."""
+
+    projects: tuple[configuracoes.ProjectSummary, ...]
+    snapshots: Mapping[int, _ProjectSnapshot]
+    bands: tuple[Decimal, Decimal]
+
+    @property
+    def overdue(self) -> int:
+        """Quantos pacotes de trabalho já passaram do término sem concluir."""
+        return sum(snapshot.indicators.overdue for snapshot in self.snapshots.values())
+
+
+def planning_kpis_overview(
+    session: Session, *, scope: Scope, reference_date: date
+) -> PlanningKpisOverview:
+    """Os KPIs de planejamento do escopo: SPI, avanço por área (ou projeto) e atenção (D6).
+
+    A curva é a da ISSUE-039 — a revisão vigente no projeto, a média ponderada da carteira no
+    Portfólio — e o SPI por mês sai dela. As linhas por área são o nível 1 da árvore da EAP,
+    lido como ``eap_overview`` o lê, com o real medido pelos pacotes; no Portfólio as linhas
+    são os projetos da composição, com o peso da carteira. Os indicadores de atenção da EAP
+    (pacotes vencidos e SMs a incorporar) saem da mesma leitura. Sem curva a visão sai vazia.
+    Nada aqui lê o relógio (D6).
+    """
+    curve = curva_fisica_overview(session, scope=scope, reference_date=reference_date)
+    spi = calculations.spi_series(curve.series.baseline, curve.series.real)
+    eap = _kpi_eap(session, scope=scope, reference_date=reference_date)
+    rows, worst = _kpi_rows(curve=curve, eap=eap)
+    return PlanningKpisOverview(
+        reference_date=reference_date,
+        scope_label=curve.scope_label,
+        curve=curve,
+        spi_series=spi,
+        rows=rows,
+        worst=worst,
+        overdue_packages=eap.overdue,
+        pending_changes=_pending_change_count(session, eap=eap, is_portfolio=scope.is_portfolio),
+        spi_chart=_spi_chart(curve.series, spi),
+        comparison_chart=_comparison_chart(rows, is_portfolio=scope.is_portfolio),
+    )
+
+
+def _kpi_rows(
+    *, curve: CurvaFisicaOverview, eap: _KpiEap
+) -> tuple[tuple[PlanningKpiLine, ...], PlanningKpiLine | None]:
+    """As linhas de avanço — as áreas do projeto ou os projetos da carteira — e o pior desvio."""
+    if curve.is_empty:
+        return (), None
+    if curve.is_portfolio:
+        rows = _portfolio_kpi_rows(curve, eap=eap)
+    else:
+        rows = _area_kpi_rows(curve.project_id, eap=eap)
+    return rows, _worst_row(rows)
+
+
+def _area_kpi_rows(project_id: int | None, *, eap: _KpiEap) -> tuple[PlanningKpiLine, ...]:
+    """As áreas de nível 1 da EAP do projeto, como a média ponderada que fecha com a curva."""
+    if project_id is None:
+        return ()
+    snapshot = eap.snapshots.get(project_id)
+    if snapshot is None:
+        return ()
+    return tuple(_area_kpi_row(node) for node in _area_nodes(snapshot))
+
+
+def _area_kpi_row(node: EapNode) -> PlanningKpiLine:
+    return PlanningKpiLine(
+        id=node.id,
+        project_id=node.project_id,
+        code=node.code,
+        name=node.description,
+        weight=node.weight,
+        predicted=node.predicted,
+        actual=node.actual,
+        deviation_pp=node.deviation_pp,
+        spi=calculations.spi_index(node.actual, node.predicted),
+        contribution_pp=calculations.area_contribution(node.weight, node.actual),
+        band=node.band,
+    )
+
+
+def _portfolio_kpi_rows(curve: CurvaFisicaOverview, *, eap: _KpiEap) -> tuple[PlanningKpiLine, ...]:
+    """Os projetos da composição da carteira: peso na carteira, avanço, SPI e contribuição."""
+    projects = {project.id: project for project in eap.projects}
+    rows: list[PlanningKpiLine] = []
+    for item in curve.composition:
+        project = projects.get(item.project_id)
+        if project is None:
+            continue
+        rows.append(
+            PlanningKpiLine(
+                id=item.project_id,
+                project_id=item.project_id,
+                code=project.code,
+                name=project.name,
+                weight=item.weight,
+                predicted=item.predicted,
+                actual=item.actual,
+                deviation_pp=item.deviation_pp,
+                spi=item.spi,
+                contribution_pp=calculations.area_contribution(item.weight, item.actual),
+                band=calculations.eap_deviation_band(item.deviation_pp, eap.bands),
+            )
+        )
+    return tuple(rows)
+
+
+def _worst_row(rows: Sequence[PlanningKpiLine]) -> PlanningKpiLine | None:
+    """A linha de pior desvio entre as que têm previsto: onde o atraso pesa mais."""
+    candidates = [row for row in rows if row.predicted > 0]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda row: row.deviation_pp)
+
+
+def _kpi_eap(session: Session, *, scope: Scope, reference_date: date) -> _KpiEap:
+    """A árvore de cada projeto do escopo como ``eap_overview`` a lê, e as faixas de desvio.
+
+    Os KPIs só precisam das áreas de nível 1 e dos vencidos: a leitura chama
+    ``_project_snapshot`` direto, sem montar as linhas, os desdobramentos e as SMs da tela.
+    """
+    projects = _scope_projects(scope, configuracoes.list_projects(session))
+    items_by_project = _items_by_project(session, [project.id for project in projects])
+    parameters = _parameters(session, reference_date=reference_date)
+    reading = _Reading(
+        session=session,
+        parameters=parameters,
+        reference_date=reference_date,
+        lookups=_lookups(
+            session, items=[item for group in items_by_project.values() for item in group]
+        ),
+    )
+    snapshots = {
+        project.id: _project_snapshot(reading, project, items_by_project[project.id])
+        for project in projects
+        if items_by_project.get(project.id)
+    }
+    return _KpiEap(projects=projects, snapshots=snapshots, bands=parameters.deviation_bands)
+
+
+def _pending_change_count(session: Session, *, eap: _KpiEap, is_portfolio: bool) -> int:
+    """As SMs aprovadas com impacto em escopo que nenhuma revisão da EAP incorporou.
+
+    A lista é a mesma da revisão (``eap_revision_sources``); no Portfólio ela só olha os
+    projetos com EAP, como o ``eap_overview`` faz com as suas linhas.
+    """
+    from src.modulos.governanca import service as governanca
+
+    projects = (
+        [project for project in eap.projects if project.id in eap.snapshots]
+        if is_portfolio
+        else list(eap.projects)
+    )
+    return sum(
+        len(governanca.eap_revision_sources(session, project_id=project.id)) for project in projects
+    )
+
+
+_KPI_BAND_PAPEIS = {
+    calculations.SUCCESS_BAND: "ok",
+    calculations.WARNING_BAND: "alerta",
+    calculations.DANGER_BAND: "erro",
+}
+
+
+def _spi_chart(
+    series: calculations.CurvaFisicaSeries, spi: Sequence[Decimal | None]
+) -> dict[str, Any]:
+    """O ``data-dados`` do SPI por mês (linhas-multiplas): o índice e a meta 1,00.
+
+    Só os meses até o corte entram: depois dele não há real e não há índice. O eixo se
+    ajusta ao dado (``base_zero`` falso), como a biblioteca recomenda para índices.
+    """
+    periodos = [
+        {
+            "ano": month.year,
+            "mes": month.month,
+            "valores": {"spi": None if value is None else float(value)},
+        }
+        for month, value in zip(series.months[: len(spi)], spi, strict=True)
+    ]
+    return {
+        "titulo": "SPI por mês",
+        "base_zero": False,
+        "casas": 2,
+        "unidade": "",
+        "series": [{"id": "spi", "rotulo": "SPI", "papel": "realizado"}],
+        "referencias": [{"valor": 1, "rotulo": "Meta (1,00)", "papel": "linha-base"}],
+        "periodos": periodos,
+    }
+
+
+def _comparison_chart(rows: Sequence[PlanningKpiLine], *, is_portfolio: bool) -> dict[str, Any]:
+    """O ``data-dados`` do previsto x real por área ou projeto (comparativo-barras).
+
+    Cada categoria — a área ou o projeto — é um segmento das duas barras, o previsto e o
+    real, com a variação de cada uma abaixo, colorida pelo sentido bom (subir é bom).
+    """
+    titulo = "Previsto x real por projeto" if is_portfolio else "Previsto x real por área"
+    paineis: list[dict[str, Any]] = []
+    if rows:
+        paineis.append(
+            {
+                "titulo": "Avanço por projeto" if is_portfolio else "Avanço por área",
+                "categorias": [
+                    {
+                        "id": row.code,
+                        "rotulo": row.code if is_portfolio else row.name,
+                        "papel": _KPI_BAND_PAPEIS.get(row.band or "", "neutro"),
+                        "favoravel": "sobe",
+                    }
+                    for row in rows
+                ],
+                "linhas": [
+                    {
+                        "rotulo": "Previsto",
+                        "valores": {row.code: float(row.predicted) for row in rows},
+                    },
+                    {
+                        "rotulo": "Real",
+                        "valores": {row.code: float(row.actual) for row in rows},
+                    },
+                ],
+            }
+        )
+    return {"titulo": titulo, "paineis": paineis}

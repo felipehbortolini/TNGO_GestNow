@@ -28,6 +28,11 @@ weight, the baseline of each month by the linear predicted of the package, the
 real from the dated measurements and the trend that follows the baseline from
 the cut, plus the weighted curve of the portfolio. The reference date comes in
 as an argument (D6).
+
+The planning KPIs (ISSUE-040): the SPI (real over predicted), the monthly SPI
+series up to the cut and the contribution of an area to the real of the project
+(weight times real). The cut already lives in the series, so no function here
+reads the clock (D6).
 """
 
 from __future__ import annotations
@@ -1121,3 +1126,34 @@ def curva_fisica_portfolio(
         real=tuple(real),
         trend=tuple(trend),
     )
+
+
+# ── KPIs de planejamento (ISSUE-040) ─────────────────────────────────────
+
+
+def spi_index(real: Decimal | None, previsto: Decimal | None) -> Decimal | None:
+    """O SPI físico: real ÷ previsto, com 2 casas; sem previsto (zero ou ausente) não há índice."""
+    if real is None or previsto is None or previsto == ZERO:
+        return None
+    return (real / previsto).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def spi_series(
+    baseline: Sequence[Decimal], real: Sequence[Decimal | None]
+) -> tuple[Decimal | None, ...]:
+    """O SPI de cada mês até o corte: real ÷ previsto do mês; sem real ou sem previsto, ``None``.
+
+    O corte é o último mês com real; os meses seguintes não entram na série.
+    """
+    cut = next((index for index in range(len(real) - 1, -1, -1) if real[index] is not None), -1)
+    if cut < 0:
+        return ()
+    return tuple(
+        spi_index(actual, planned)
+        for planned, actual in zip(baseline[: cut + 1], real[: cut + 1], strict=True)
+    )
+
+
+def area_contribution(weight: Decimal, real: Decimal) -> Decimal:
+    """A contribuição da área para o real do projeto: peso vezes real dividido por 100, 1 casa."""
+    return (weight * real / PERCENT).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
