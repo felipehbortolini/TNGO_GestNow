@@ -10,13 +10,17 @@ the KPIs of the ficha, the cascade of the value and the tables of measurements a
 contractor evaluation of ISSUE-034 brings the period, the type, the evaluator, each criterion with
 the note and the weight frozen in the evaluation, the score and the class. The consolidated vision
 of ISSUE-035 brings the KPIs of contract administration and the five tables (contracts, claims,
-EOT, payment milestones and evaluations) of the scope, with the filters of the screen.
+EOT, payment milestones and evaluations) of the scope, with the filters of the screen. The
+Contingência of ISSUE-041 brings its own document: the four indicators, the chart of the real
+against the expected balance (and, for the spreadsheet, the same numbers in the burn table), the
+composition of the budget, the statement of movements and, in the Portfólio, the table per project.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from src.core.export_document import (
     Cell,
@@ -64,6 +68,8 @@ from src.modulos.financeiro.service import (
     PORTFOLIO_LABEL,
     AddendumView,
     ClaimView,
+    ContingencyOverview,
+    ContingencyProjectRow,
     ContractsOverview,
     ContractView,
     EacView,
@@ -76,6 +82,7 @@ from src.modulos.financeiro.service import (
     MeasurementView,
     MilestoneView,
     ReallocationRow,
+    ReserveLine,
     RevisionRow,
 )
 
@@ -1180,3 +1187,357 @@ def _consolidated_evaluations_table(view: ContractsOverview) -> Table:
             for item in view.evaluations
         ),
     )
+
+
+# ── Contingência e reservas (ISSUE-041) ──────────────────────────────────
+
+
+CONTINGENCY_TITLE = "Contingência e reservas"
+CONTINGENCY_CHART_TITLE = "Saldo da contingência"
+CONTINGENCY_BURN_TITLE = "Saldo real x previsto"
+CONTINGENCY_COMPOSITION_TITLE = "Linha de base de custo e reservas"
+CONTINGENCY_MOVEMENTS_TITLE = "Extrato de movimentos"
+CONTINGENCY_PROJECTS_TITLE = "Reservas por projeto"
+
+CONTINGENCY_KPI_SALDO = "Saldo da contingência"
+CONTINGENCY_KPI_CONSUMPTION = "Consumo da contingência"
+CONTINGENCY_KPI_ANALYSIS = "Pedido em SMs em análise"
+CONTINGENCY_KPI_MANAGEMENT = "Reserva gerencial"
+
+CONTINGENCY_MANAGEMENT_STATUS = "fora da linha de base · só o Comitê libera"
+CONTINGENCY_NO_VALUE = "·"
+CONTINGENCY_MIL_CENTS = 100_000
+CONTINGENCY_MIL_ONE_PLACE = Decimal("0.1")
+
+MONTH_NAMES = (
+    "jan",
+    "fev",
+    "mar",
+    "abr",
+    "mai",
+    "jun",
+    "jul",
+    "ago",
+    "set",
+    "out",
+    "nov",
+    "dez",
+)
+
+
+def contingencia_document(
+    view: ContingencyOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """A tela de Contingência como documento: os indicadores, o gráfico, a composição e o extrato.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. O Excel não tem
+    gráfico: os números do burn vão na tabela "Saldo da contingência", para nenhum dos dois ter
+    menos que o outro. No Portfólio a tabela por projeto entra antes do extrato e a coluna Projeto
+    vem pelo mecanismo genérico (HU-016).
+    """
+    return Document(
+        title=CONTINGENCY_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        kpis=contingencia_kpis(view),
+        charts=(Chart(CONTINGENCY_CHART_TITLE, "linhas-multiplas", contingencia_chart(view)),),
+        tables=_contingencia_tables(view),
+    )
+
+
+def contingencia_kpis(view: ContingencyOverview) -> tuple[Kpi, ...]:
+    """Os quatro indicadores da tela, com a referência de gestão e a situação em palavras."""
+    contingency = view.contingency
+    management = view.management
+    consumption_high = _contingency_consumption_high(view)
+    return (
+        Kpi(
+            CONTINGENCY_KPI_SALDO,
+            contingency.balance_cents if contingency is not None else None,
+            f"Previsto: {_contingency_money(view.expected_balance_cents)}",
+            ValueKind.MONEY,
+            tone=_contingency_balance_tone(view),
+            status=_contingency_balance_status(contingency),
+        ),
+        Kpi(
+            CONTINGENCY_KPI_CONSUMPTION,
+            contingency.consumption_pct if contingency is not None else None,
+            f"Limite: {_contingency_percent(view.consumption_limit_pct)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=(
+                Tone.WARN
+                if consumption_high
+                else Tone.OK
+                if contingency is not None
+                else Tone.NEUTRAL
+            ),
+            status=_contingency_limit_status(view),
+        ),
+        Kpi(
+            CONTINGENCY_KPI_ANALYSIS,
+            contingency.in_analysis_cents if contingency is not None else None,
+            "Saldo se aprovadas: "
+            f"{_contingency_money(contingency.balance_after_analysis_cents if contingency else None)}",
+            ValueKind.MONEY,
+            tone=_contingency_analysis_tone(contingency),
+            status=_contingency_analysis_status(view.analysis_count),
+        ),
+        Kpi(
+            CONTINGENCY_KPI_MANAGEMENT,
+            management.balance_cents if management is not None else None,
+            f"Constituída: {_contingency_money(management.total_cents if management else None)}",
+            ValueKind.MONEY,
+            tone=(
+                Tone.WARN
+                if management is not None and management.balance_cents < management.total_cents
+                else Tone.INFO
+                if management is not None
+                else Tone.NEUTRAL
+            ),
+            status=CONTINGENCY_MANAGEMENT_STATUS,
+        ),
+    )
+
+
+def contingencia_chart(view: ContingencyOverview) -> dict[str, object]:
+    """O ``data-dados`` do saldo real x previsto (linhas-multiplas), em R$ mil.
+
+    O real é o saldo após os consumos e liberações do mês e fica nulo depois do corte; o previsto
+    é o constituído menos a parte vencida pelo avanço planejado, como o protótipo o desenhava.
+    """
+    return {
+        "titulo": CONTINGENCY_CHART_TITLE,
+        "casas": 0,
+        "unidade": "",
+        "series": [
+            {"id": "real", "rotulo": "Saldo real", "papel": "realizado"},
+            {"id": "previsto", "rotulo": "Saldo previsto pelo avanço", "papel": "linha-base"},
+        ],
+        "periodos": [
+            {
+                "ano": point.month.year,
+                "mes": point.month.month,
+                "valores": {
+                    "real": None
+                    if point.actual_cents is None
+                    else _contingency_mil(point.actual_cents),
+                    "previsto": _contingency_mil(point.expected_cents),
+                },
+            }
+            for point in view.burn
+        ],
+    }
+
+
+def _contingencia_tables(view: ContingencyOverview) -> tuple[Table, ...]:
+    tables = [
+        _contingencia_composition_table(view),
+        _contingencia_burn_table(view),
+        _contingencia_movements_table(view),
+    ]
+    if view.is_portfolio:
+        tables.insert(0, _contingencia_projects_table(view))
+    return tuple(tables)
+
+
+def _contingencia_composition_table(view: ContingencyOverview) -> Table:
+    contingency = view.contingency.balance_cents if view.contingency else 0
+    management = view.management.balance_cents if view.management else 0
+    return Table(
+        title=CONTINGENCY_COMPOSITION_TITLE,
+        columns=(Column("Composição", width=52), Column("Valor", ValueKind.MONEY)),
+        rows=(
+            row("Orçado atual da EAC (linha de base de medição)", view.eac_current_cents),
+            row("Saldo da reserva de contingência", contingency),
+            row("Linha de base de custo", view.cost_baseline_cents),
+            row("Saldo da reserva gerencial", management),
+            row("Orçamento do projeto", view.project_budget_cents),
+        ),
+        per_project=False,
+    )
+
+
+def _contingencia_burn_table(view: ContingencyOverview) -> Table:
+    return Table(
+        title=CONTINGENCY_BURN_TITLE,
+        columns=(
+            Column("Mês", width=12),
+            Column("Saldo previsto", ValueKind.MONEY),
+            Column("Saldo real", ValueKind.MONEY),
+        ),
+        rows=tuple(
+            row(_month_label(point.month), point.expected_cents, point.actual_cents)
+            for point in view.burn
+        ),
+        per_project=False,
+    )
+
+
+def _contingencia_movements_table(view: ContingencyOverview) -> Table:
+    return Table(
+        title=CONTINGENCY_MOVEMENTS_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Reserva", width=14),
+            Column("Movimento", width=14),
+            Column("Descrição", width=48),
+            Column("SM", width=20),
+            Column("Situação", width=18),
+            Column("Valor", ValueKind.MONEY),
+            Column("Saldo", ValueKind.MONEY),
+        ),
+        rows=tuple(
+            row(
+                line.on,
+                line.reserve_kind,
+                line.kind,
+                line.description,
+                line.change_code,
+                line.situation,
+                line.value_cents,
+                line.balance_cents,
+                project=line.project_label,
+            )
+            for line in view.movements
+        ),
+    )
+
+
+def _contingencia_projects_table(view: ContingencyOverview) -> Table:
+    columns = (
+        Column("Projeto", width=32),
+        Column("Constituída", ValueKind.MONEY),
+        Column("Consumida", ValueKind.MONEY),
+        Column("Saldo", ValueKind.MONEY),
+        Column("Consumo", ValueKind.PERCENT, digits=1),
+        Column("Em análise", ValueKind.MONEY),
+        Column("Reserva gerencial", ValueKind.MONEY),
+    )
+    return Table(
+        title=CONTINGENCY_PROJECTS_TITLE,
+        columns=columns,
+        rows=tuple(_contingencia_project_row(item) for item in view.projects),
+        totals=_contingencia_projects_totals(view),
+        per_project=False,
+    )
+
+
+def _contingencia_project_row(item: ContingencyProjectRow) -> Row:
+    contingency = item.contingency
+    management = item.management
+    return row(
+        item.project_label,
+        contingency.total_cents if contingency else None,
+        contingency.consumed_cents if contingency else None,
+        contingency.balance_cents if contingency else None,
+        (
+            Cell(contingency.consumption_pct, _contingency_row_tone(item, contingency))
+            if contingency
+            else None
+        ),
+        contingency.in_analysis_cents if contingency else None,
+        management.balance_cents if management else None,
+    )
+
+
+def _contingencia_projects_totals(view: ContingencyOverview) -> tuple[Cell, ...]:
+    contingency = view.contingency
+    management = view.management
+    return (
+        Cell("Total"),
+        Cell(contingency.total_cents if contingency else None),
+        Cell(contingency.consumed_cents if contingency else None),
+        Cell(contingency.balance_cents if contingency else None),
+        Cell(contingency.consumption_pct if contingency else None),
+        Cell(contingency.in_analysis_cents if contingency else None),
+        Cell(management.balance_cents if management else None),
+    )
+
+
+def _contingency_row_tone(item: ContingencyProjectRow, contingency: ReserveLine) -> Tone | None:
+    limit = item.consumption_limit_pct
+    pct = contingency.consumption_pct
+    if limit is None or pct is None or pct <= limit:
+        return None
+    return Tone.ERROR
+
+
+def _contingency_consumption_high(view: ContingencyOverview) -> bool:
+    contingency = view.contingency
+    if contingency is None or contingency.consumption_pct is None:
+        return False
+    limit = view.consumption_limit_pct
+    return limit is not None and contingency.consumption_pct > limit
+
+
+def _contingency_balance_tone(view: ContingencyOverview) -> Tone:
+    contingency = view.contingency
+    if contingency is None:
+        return Tone.NEUTRAL
+    if contingency.balance_cents < 0:
+        return Tone.ERROR
+    return Tone.WARN if _contingency_consumption_high(view) else Tone.OK
+
+
+def _contingency_analysis_tone(contingency: ReserveLine | None) -> Tone:
+    if contingency is None:
+        return Tone.NEUTRAL
+    if contingency.in_analysis_cents > contingency.balance_cents:
+        return Tone.ERROR
+    return Tone.WARN if contingency.in_analysis_cents else Tone.OK
+
+
+def _contingency_balance_status(contingency: ReserveLine | None) -> str:
+    if contingency is None:
+        return ""
+    status = (
+        f"constituída {_contingency_money(contingency.total_cents)}"
+        f" · consumida {_contingency_money(contingency.consumed_cents)}"
+    )
+    if contingency.released_cents:
+        status += f" · liberada {_contingency_money(contingency.released_cents)}"
+    return status
+
+
+def _contingency_limit_status(view: ContingencyOverview) -> str:
+    physical = view.physical_actual
+    advance = (
+        CONTINGENCY_NO_VALUE if physical is None else format_value(ValueKind.DECIMAL, physical, 1)
+    )
+    return (
+        f"avanço físico real {advance} + tolerância de "
+        f"{_contingency_points(view.tolerance_pp)} p.p."
+    )
+
+
+def _contingency_analysis_status(count: int) -> str:
+    if count == 1:
+        return "1 SM aguardando decisão"
+    return f"{count} SMs aguardando decisão"
+
+
+def _contingency_money(cents: int | None) -> str:
+    return CONTINGENCY_NO_VALUE if cents is None else format_value(ValueKind.MONEY, cents)
+
+
+def _contingency_percent(value: Decimal | None) -> str:
+    return CONTINGENCY_NO_VALUE if value is None else format_value(ValueKind.PERCENT, value, 1)
+
+
+def _contingency_points(value: Decimal) -> str:
+    text = format_value(ValueKind.DECIMAL, value, 1)
+    return text[:-2] if text.endswith(",0") else text
+
+
+def _contingency_mil(cents: int) -> float:
+    return float(
+        (Decimal(cents) / CONTINGENCY_MIL_CENTS).quantize(
+            CONTINGENCY_MIL_ONE_PLACE, rounding=ROUND_HALF_UP
+        )
+    )
+
+
+def _month_label(month: date) -> str:
+    return f"{MONTH_NAMES[month.month - 1]}/{month.year}"

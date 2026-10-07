@@ -1,0 +1,195 @@
+{% extends "base_fragment.html" %}
+{#
+  Conteúdo da tela Contingência (ISSUE-041, HU-094): os quatro indicadores com a referência de
+  gestão, os alertas do consumo e do pedido em análise, o gráfico do saldo real x previsto no
+  visual Linhas Múltiplas (D11), a composição do orçamento, a tabela por projeto no Portfólio e o
+  extrato de movimentos. A raiz leva o id que a tela pediu ({{ target_id }}); o marcador
+  data-situacao diz à tela qual estado mostrar (conteudo ou vazio-origem). Sem <link>, <style> nem
+  <script>: o gráfico nasce do elemento com data-grafico e data-dados.
+
+  O extrato mostra a constituição, os consumos das SMs aprovadas e os pedidos em análise (sem
+  efeito no saldo): a SM linkada abre a ficha em Governança e a situação acompanha a linha "Em
+  análise". O valor é assinado e o saldo é o acumulado depois do efetivado.
+
+  Espera: visao, carteira, situacao, kpis, grafico, composicao, movimentos, projetos, totais,
+  subtitulo e alvo_conteudo.
+#}
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
+
+{% if situacao == 'vazio-origem' %}
+<p class="body-txt">{{ 'Nenhum projeto da carteira tem reservas constituídas.' if carteira else 'Este projeto ainda não tem reservas constituídas.' }}</p>
+{% else %}
+<div class="kpis" role="group" aria-label="Indicadores da Contingência">
+  {% for kpi in kpis %}
+  {% if kpi.href %}<a class="kpi kpi--{{ kpi.tom }}" href="{{ kpi.href }}" data-tn-tela>{% else %}<div class="kpi kpi--{{ kpi.tom }} kpi--estatico">{% endif %}
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.rotulo }}
+      <small class="hint">{{ kpi.referencia }}</small>
+      {% if kpi.rodape %}<small class="hint">{{ kpi.rodape }}</small>{% endif %}
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  {% if kpi.href %}</a>{% else %}</div>{% endif %}
+  {% endfor %}
+</div>
+
+{% if visao.alerts %}
+<div class="aviso aviso--warn mb-16" data-alertas role="alert">
+  <strong>{{ '1 ponto de atenção' if visao.alerts|length == 1 else visao.alerts|length ~ ' pontos de atenção' }}</strong>
+  {% for alerta in visao.alerts %}<span>{{ alerta.text }}</span>{% endfor %}
+</div>
+{% endif %}
+
+<section class="card mb-16" aria-labelledby="contingencia-grafico-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contingencia-grafico-titulo">Saldo da contingência</h2>
+      <span class="hint">{{ subtitulo }} · valores em R$ mil</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="linhas-multiplas" data-dados='{{ grafico | tojson }}'></div>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="contingencia-composicao-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contingencia-composicao-titulo">Linha de base de custo e reservas</h2>
+      <span class="hint">Orçado da EAC mais o saldo da contingência; a reserva gerencial fica fora da linha de base</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-composicao>
+        <caption class="sr-only">Composição do orçamento</caption>
+        <thead>
+          <tr>
+            <th scope="col">Composição</th>
+            <th scope="col" class="td-num">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in composicao %}
+          <tr{% if linha.total %} class="fw-600"{% endif %}>
+            <td>{{ linha.rotulo }}</td>
+            <td class="td-num">{% if linha.sinal %}<span class="muted">{{ linha.sinal }}</span> {% endif %}{{ linha.valor }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Contingência consumida por SM aprovada sai da reserva e entra no orçado da EAC pela nova revisão; o total da linha de base de custo não muda.</p>
+  </div>
+</section>
+
+{% if carteira %}
+<section class="card mb-16" aria-labelledby="contingencia-projetos-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contingencia-projetos-titulo">Reservas por projeto</h2>
+      <span class="hint">Consumo comparado ao avanço físico real de cada projeto</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-projetos>
+        <caption class="sr-only">Reservas por projeto</caption>
+        <thead>
+          <tr>
+            <th scope="col">Projeto</th>
+            <th scope="col" class="td-num">Constituída</th>
+            <th scope="col" class="td-num">Consumida</th>
+            <th scope="col" class="td-num">Saldo</th>
+            <th scope="col" class="td-num">Consumo</th>
+            <th scope="col" class="td-num">Em análise</th>
+            <th scope="col" class="td-num">Reserva gerencial</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in projetos %}
+          <tr>
+            <td>
+              <a href="/financeiro/contingencia?projeto={{ linha.projeto_id }}" data-tn-tela><b>{{ linha.codigo }}</b></a><br>
+              <small class="muted">{{ linha.nome }}</small>
+            </td>
+            <td class="td-num">{{ linha.constituida }}</td>
+            <td class="td-num">{{ linha.consumida }}</td>
+            <td class="td-num">{{ linha.saldo }}</td>
+            <td class="td-num">
+              {% if linha.consumo_alto %}<span class="pill pill--erro">{{ linha.consumo }}</span>{% else %}{{ linha.consumo }}{% endif %}<br>
+              <small class="muted">limite {{ linha.limite }}</small>
+            </td>
+            <td class="td-num">{{ linha.em_analise }}</td>
+            <td class="td-num">{{ linha.gerencial }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="fw-600">
+            <td>{{ totais.codigo }}</td>
+            <td class="td-num">{{ totais.constituida }}</td>
+            <td class="td-num">{{ totais.consumida }}</td>
+            <td class="td-num">{{ totais.saldo }}</td>
+            <td class="td-num">
+              {% if totais.consumo_alto %}<span class="pill pill--erro">{{ totais.consumo }}</span>{% else %}{{ totais.consumo }}{% endif %}<br>
+              <small class="muted">limite {{ totais.limite }}</small>
+            </td>
+            <td class="td-num">{{ totais.em_analise }}</td>
+            <td class="td-num">{{ totais.gerencial }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="card mb-16" aria-labelledby="contingencia-movimentos-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contingencia-movimentos-titulo">Extrato de movimentos</h2>
+      <span class="hint">Constituição na linha de base, consumos por SM aprovada e pedidos em análise (ainda sem efeito no saldo)</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-movimentos>
+        <caption class="sr-only">Extrato de movimentos das reservas</caption>
+        <thead>
+          <tr>
+            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Data</th>
+            <th scope="col">Reserva</th>
+            <th scope="col">Movimento</th>
+            <th scope="col">Descrição</th>
+            <th scope="col" class="td-num">Valor</th>
+            <th scope="col" class="td-num">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in movimentos %}
+          <tr>
+            {% if carteira %}<td>{{ linha.movimento.project_label or '' }}</td>{% endif %}
+            <td>{{ linha.data }}</td>
+            <td>{{ linha.reserva }}</td>
+            <td><span class="pill pill--{{ linha.tipo_tom }}">{{ linha.movimento.kind }}</span></td>
+            <td>
+              {{ linha.movimento.description }}
+              {% if linha.movimento.change_code %}
+              <br><small><a href="/governanca/mudanca?codigo={{ linha.movimento.change_code }}" data-tn-tela>{{ linha.movimento.change_code }}</a>{% if linha.movimento.kind == 'Em análise' %} · {{ linha.movimento.situation }}{% endif %}</small>
+              {% endif %}
+            </td>
+            <td class="td-num{% if linha.movimento.kind == 'Em análise' %} muted{% endif %}">{{ linha.valor }}</td>
+            <td class="td-num">{{ linha.saldo }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">Nenhum movimento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

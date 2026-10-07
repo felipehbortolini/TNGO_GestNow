@@ -46,7 +46,7 @@ def _reservar(
     kind: str,
     value_cents: int,
     project: Project | None = None,
-    dia: date = HOJE,
+    dia: date = date(2026, 1, 5),
 ) -> Reserve:
     projeto = project or cenario.first
     reserve = Reserve(
@@ -269,13 +269,12 @@ def test_visao_soma_constituicao_consumo_e_liberacao(cenario: EacScenario) -> No
     assert view.eac_current_cents == EAC_FIRST_CENTS
     assert view.cost_baseline_cents == EAC_FIRST_CENTS + 16_000_000
     assert view.project_budget_cents == EAC_FIRST_CENTS + 16_000_000 + 5_000_000
-    assert [line.kind for line in view.movements] == [
-        calculations.MOVEMENT_CONSUMPTION,
-        calculations.MOVEMENT_RELEASE,
-        calculations.MOVEMENT_CONSTITUTION,
-        calculations.MOVEMENT_CONSTITUTION,
-    ]
-    assert view.movements[-1].balance_cents == 21_000_000
+    assert [(line.reserve_kind, line.kind, line.balance_cents) for line in view.movements] == [
+        (calculations.RESERVE_CONTINGENCY, calculations.MOVEMENT_CONSTITUTION, 20_000_000),
+        (calculations.RESERVE_MANAGEMENT, calculations.MOVEMENT_CONSTITUTION, 5_000_000),
+        (calculations.RESERVE_CONTINGENCY, calculations.MOVEMENT_CONSUMPTION, 17_000_000),
+        (calculations.RESERVE_CONTINGENCY, calculations.MOVEMENT_RELEASE, 16_000_000),
+    ], "cada movimento leva o saldo corrente da própria reserva, não a soma das duas"
     assert view.movements[-1].situation == service.SITUATION_EFFECTIVE
     assert view.expected_balance_cents is None
 

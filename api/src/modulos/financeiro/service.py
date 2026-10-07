@@ -4448,7 +4448,7 @@ class ReserveAlert:
 
 @dataclass(frozen=True)
 class ReserveMovementView:
-    """Uma linha do extrato da reserva: o fato, a situação e o saldo depois do efetivado."""
+    """Uma linha do extrato da reserva: o fato, a situação e o saldo corrente da própria reserva."""
 
     on: date
     kind: str
@@ -4911,6 +4911,13 @@ def _movement_views(
     movements: Sequence[ReserveMovement],
     requests: Sequence[OpenReserveRequest],
 ) -> tuple[ReserveMovementView, ...]:
+    """As linhas do extrato: os fatos e os pedidos em análise, com o saldo corrente da reserva.
+
+    O saldo é o da própria reserva (contingência e gerencial independentes), como o protótipo o
+    calcula dentro do extrato de cada uma antes de juntá-los: a linha "Em análise" não altera
+    saldo algum. A ordenação final por data preserva a ordem de cada reserva, então o saldo
+    corrente de cada uma sai correto na leitura única.
+    """
     from src.modulos.governanca import service as governanca
 
     codes = governanca.change_codes(
@@ -4946,13 +4953,14 @@ def _movement_views(
             )
         )
     lines.sort(key=lambda line: line.on)
-    balance = 0
+    balances: dict[str, int] = {}
     result: list[ReserveMovementView] = []
     for line in lines:
         if line.kind == calculations.MOVEMENT_IN_ANALYSIS:
             result.append(line)
             continue
-        balance += line.value_cents
+        balance = balances.get(line.reserve_kind, 0) + line.value_cents
+        balances[line.reserve_kind] = balance
         result.append(replace(line, balance_cents=balance))
     return tuple(result)
 

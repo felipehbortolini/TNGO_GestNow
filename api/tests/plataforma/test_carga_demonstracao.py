@@ -41,6 +41,8 @@ from src.modulos.configuracoes.models import (
     System,
     Unit,
 )
+from src.modulos.financeiro import service as financeiro
+from src.modulos.financeiro.calculations import MOVEMENT_CONSUMPTION, MOVEMENT_IN_ANALYSIS
 from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
@@ -51,6 +53,8 @@ from src.modulos.financeiro.models import (
     ContractPaymentMilestone,
     ContractTimeExtension,
     EacItem,
+    Reserve,
+    ReserveMovement,
 )
 from src.modulos.governanca.models import ChangeRequest
 from src.modulos.planejamento import calculations
@@ -74,6 +78,7 @@ PARTS = [
     "governanca",
     "governanca-licoes",
     "governanca-eac",
+    "financeiro-reservas",
     "financeiro-contratos",
     "financeiro-contratos-avaliacoes",
     "hse",
@@ -426,6 +431,82 @@ def test_oraculo_dos_kpis_de_planejamento_com_a_data_deslocada(db_session: Sessi
         "TN-2026-027",
     ], "uma linha por projeto com curva"
     assert all(row.weight > 0 for row in carteira.rows), "cada projeto tem peso na carteira"
+
+
+def test_oraculo_das_reservas_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-041: as reservas do protótipo no projeto 1, com a data deslocada.
+
+    A mesma referência do oráculo da Curva S (a âncora mais cinco dias), que mantém o corte em
+    set/26: o limite de consumo é o avanço físico real (61,8%) mais a tolerância de 10 p.p. =
+    71,8%. O consumo de 40 mi vem da SM-TN-2026-0004, aprovada com a fonte da reserva; as SMs ainda
+    em análise (36 e 12 mi) não geram movimento e somam 48 mi no pedido derivado. A carteira soma os
+    três projetos (saldo de 269 mi), a reserva gerencial fica fora da linha de base de custo e o
+    total da carteira fecha a soma dos projetos.
+    """
+    reference_date = DEMO_ANCHOR + timedelta(days=5)
+    run_demonstration(db_session, reference_date=reference_date)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    visao = financeiro.contingency_overview(
+        db_session,
+        scope=Scope(project_id=project.id, source="url"),
+        reference_date=reference_date,
+    )
+
+    assert visao.contingency is not None, "o projeto 1 tem a reserva de contingência do mock"
+    assert (
+        visao.contingency.total_cents,
+        visao.contingency.consumed_cents,
+        visao.contingency.balance_cents,
+    ) == (200_000_000, 40_000_000, 160_000_000)
+    assert visao.contingency.consumption_pct == Decimal("20.0")
+    assert visao.contingency.in_analysis_cents == 48_000_000
+    assert visao.contingency.balance_after_analysis_cents == 112_000_000
+    assert visao.analysis_count == 2
+    assert visao.management is not None, "o projeto 1 tem a reserva gerencial do mock"
+    assert (visao.management.total_cents, visao.management.balance_cents) == (
+        90_000_000,
+        90_000_000,
+    )
+    assert visao.physical_actual == Decimal("61.8"), "o real da curva no corte"
+    assert visao.consumption_limit_pct == Decimal("71.8"), "o real mais a tolerância de 10 p.p."
+    assert visao.cost_baseline_cents == visao.eac_current_cents + 160_000_000, (
+        "a linha de base de custo é o orçado atual da EAC mais o saldo da contingência"
+    )
+    assert visao.project_budget_cents == visao.cost_baseline_cents + 90_000_000, (
+        "o orçamento do projeto soma a reserva gerencial, fora da linha de base"
+    )
+
+    consumos = [line for line in visao.movements if line.kind == MOVEMENT_CONSUMPTION]
+    assert [(line.change_code, line.value_cents, line.balance_cents) for line in consumos] == [
+        ("SM-TN-2026-0004", -40_000_000, 160_000_000)
+    ], "o consumo aprovado com a fonte da reserva é o único movimento negativo do projeto"
+    em_analise = [line for line in visao.movements if line.kind == MOVEMENT_IN_ANALYSIS]
+    assert [(line.change_code, line.value_cents) for line in em_analise] == [
+        ("SM-TN-2026-0006", -36_000_000),
+        ("SM-TN-2026-0003", -12_000_000),
+    ], "as SMs abertas aparecem como Em análise, sem efeito no saldo"
+
+    assert _count(db_session, Reserve) == PROJECTS * 2, "as duas reservas de cada projeto"
+    assert _count(db_session, ReserveMovement) == PROJECTS * 2 + 2, (
+        "as constituições mais os dois consumos aprovados; as SMs em análise não geram movimento"
+    )
+
+    carteira = financeiro.contingency_overview(
+        db_session,
+        scope=Scope(project_id=None, source="padrao"),
+        reference_date=reference_date,
+    )
+    assert carteira.is_portfolio
+    assert carteira.contingency is not None
+    assert carteira.contingency.balance_cents == 269_000_000, "160 + 72 + 37 mi da carteira"
+    assert carteira.management is not None
+    assert carteira.management.balance_cents == 141_000_000, "90 + 36 + 15 mi da carteira"
+    assert [row.project_code for row in carteira.projects] == [
+        "TN-2026-014",
+        "TN-2026-021",
+        "TN-2026-027",
+    ]
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

@@ -38,6 +38,14 @@ the flow part is the last of the demonstration.
 parameter version in force on the run's reference date. It is registered by ``governanca/seed.py``
 right after ``financeiro-contratos`` — the contract of each evaluation is linked by its number, and
 the contracts only exist after that part.
+
+:func:`load_reserves` is the part of ISSUE-041: the contingency and management reserves of
+``reservas`` with their constitution movement, and the consumption of each SM approved with the
+reserve as its resource source (and the release of each approved release SM), recorded through the
+facade of the module with the date of the decision. It is registered by ``governanca/seed.py``
+after ``governanca`` — the movements point at the changes, and the changes only exist after that
+part. The SMs still open stay out of the statement: they appear as "Em análise", derived by the
+facade, and never as a movement.
 """
 
 from __future__ import annotations
@@ -57,7 +65,14 @@ from src.core import calendario, recording
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service
-from src.modulos.financeiro.calculations import CODE_SEPARATOR, LEAF_LEVEL, code_key
+from src.modulos.financeiro.calculations import (
+    CODE_SEPARATOR,
+    LEAF_LEVEL,
+    MOVEMENT_CONSTITUTION,
+    RESERVE_CONTINGENCY,
+    RESERVE_MANAGEMENT,
+    code_key,
+)
 from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
@@ -71,6 +86,8 @@ from src.modulos.financeiro.models import (
     EacRevision,
     EacRevisionItem,
     ErpCost,
+    Reserve,
+    ReserveMovement,
 )
 
 PART_NAME = "financeiro"
@@ -78,6 +95,7 @@ ERP_PART_NAME = "financeiro-custos"
 CONTRACTS_PART_NAME = "financeiro-contratos"
 EVALUATIONS_PART_NAME = "financeiro-contratos-avaliacoes"
 FLOWS_PART_NAME = "financeiro-contratos-fluxos"
+RESERVES_PART_NAME = "financeiro-reservas"
 
 
 def load(session: Session, _reference_date: date) -> None:
@@ -789,3 +807,108 @@ def load_evaluations(session: Session, reference_date: date) -> None:
             for criterion, weight in source["pesos"].items()
         )
         session.flush()
+
+
+# ── Reservas de contingência e gerencial (ISSUE-041) ─────────────────────
+
+
+def load_reserves(session: Session, reference_date: date) -> None:
+    """Grava as reservas do protótipo e os movimentos das SMs aprovadas, no modo demonstração.
+
+    Cada projeto de ``reservas`` recebe as duas ``Reserve`` (contingência e gerencial) com o
+    primeiro ``ReserveMovement`` de Constituição, na data da linha de base deslocada pela âncora,
+    com a base de cálculo do mock na justificativa. Em seguida, para cada SM semeada pela Governança
+    já aprovada com a fonte da reserva e custo maior que zero, o consumo entra pela fachada do
+    módulo (``record_reserve_consumption``), com o valor negativo, a data da decisão, a SM e o
+    autor; as SMs de liberação aprovadas seguem o mesmo caminho (``record_reserve_release``). A SM
+    em análise não gera movimento: a tela a deriva como "Em análise", sem efeito no saldo.
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    user = _admin_user(session)
+    if user is None:
+        return
+    project_ids = {project.code: project.id for project in configuracoes.list_projects(session)}
+    mock_codes = {project["id"]: project["codigo"] for project in prototype_collection("projetos")}
+    for source in prototype_collection("reservas"):
+        project_id = project_ids[mock_codes[source["projetoId"]]]
+        constituted_on = shift_date(date.fromisoformat(source["constituidaEm"]), reference_date)
+        for kind, value_key in (
+            (RESERVE_CONTINGENCY, "contingenciaCentavos"),
+            (RESERVE_MANAGEMENT, "gerencialCentavos"),
+        ):
+            reserve = recording.create(
+                session,
+                user_id=admin.id,
+                record=Reserve(
+                    project_id=project_id,
+                    kind=kind,
+                    calculation_basis=source["base"],
+                ),
+            )
+            recording.create(
+                session,
+                user_id=admin.id,
+                record=ReserveMovement(
+                    reserve_id=reserve.id,
+                    change_id=None,
+                    registered_by_id=admin.person_id,
+                    kind=MOVEMENT_CONSTITUTION,
+                    registered_on=constituted_on,
+                    value_cents=int(source[value_key]),
+                    justification=source["base"],
+                ),
+            )
+    _load_reserve_movements(session, user=user)
+
+
+def _load_reserve_movements(session: Session, *, user: User) -> None:
+    """Grava o consumo ou a liberação de cada SM aprovada que movimenta a reserva.
+
+    A SM e a decisão vêm do que a Governança semeou; o impacto vigente diz o valor. A aprovação é
+    reconhecida pela decisão (resultado aprovado) e a data do movimento é a da decisão.
+    """
+    from src.modulos.governanca import models as governanca_models
+
+    changes = session.scalars(select(governanca_models.ChangeRequest)).all()
+    ids = [change.id for change in changes]
+    impacts = _latest_by_change(session, governanca_models.ChangeImpact, ids)
+    decisions = _latest_by_change(session, governanca_models.ChangeDecision, ids)
+    for change in changes:
+        decision = decisions.get(change.id)
+        impact = impacts.get(change.id)
+        if decision is None or impact is None:
+            continue
+        if decision.result not in governanca_models.APPROVED_SITUATIONS:
+            continue
+        if (
+            change.kind == governanca_models.TYPE_RESERVE_RELEASE
+            and impact.release_reserve
+            and impact.release_value_cents
+        ):
+            service.record_reserve_release(
+                session,
+                user=user,
+                change=change,
+                reserve_kind=impact.release_reserve,
+                value_cents=impact.release_value_cents,
+                on=decision.decision_date,
+            )
+        elif impact.cost_cents > 0 and change.resource_source:
+            service.record_reserve_consumption(
+                session,
+                user=user,
+                change=change,
+                source=change.resource_source,
+                value_cents=impact.cost_cents,
+                on=decision.decision_date,
+            )
+
+
+def _latest_by_change(session: Session, model: type[Any], ids: Sequence[int]) -> dict[int, Any]:
+    """O fato vigente (maior id) de cada SM: o último impacto e a última decisão, como a Governança lê."""
+    if not ids:
+        return {}
+    statement = select(model).where(model.change_id.in_(ids)).order_by(model.id)
+    return {row.change_id: row for row in session.scalars(statement)}

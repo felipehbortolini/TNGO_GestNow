@@ -65,6 +65,14 @@ The consolidated vision of ISSUE-035 lives under ``/api/financeiro/contratos/con
 tables (``contratos-<código do projeto|portfolio>``) and ``GET .../imprimivel`` renders the same
 document for the PDF button. New records are born in the ficha of the contract, so no tab of this
 screen carries an inclusion button.
+
+The Contingência screen of ISSUE-041 lives under ``/api/financeiro/contingencia``:
+``GET`` is the content of the screen for the scope of the request (the four indicators with their
+management reference, the alerts, the chart of the real against the expected balance, the
+composition of the budget, the statement of movements and, in the Portfólio, the table per
+project); ``GET .../contingencia/excel`` and ``GET .../contingencia/imprimivel`` are its two
+exports, with the same content — the numbers behind the chart travel in the burn table of the
+document, because the spreadsheet has no chart.
 """
 
 from __future__ import annotations
@@ -3944,3 +3952,264 @@ def _days_or_dot(value: int | None) -> str:
 
 def _period_text(period: date) -> str:
     return period.strftime("%m/%Y")
+
+
+# ── Contingência e reservas (ISSUE-041) ──────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ContingenciaKpi:
+    """Um indicador da faixa do topo, com a referência e o rodapé; o pedido leva o link das SMs."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    rodape: str
+    tom: str
+    icone: str
+    href: str = ""
+
+
+@dataclass(frozen=True)
+class ContingenciaComposicaoLinha:
+    """Uma linha da composição do orçamento: o rótulo, o valor e o sinal da parcela."""
+
+    rotulo: str
+    valor: str
+    sinal: str = ""
+    total: bool = False
+
+
+@dataclass(frozen=True)
+class ContingenciaMovimentoLinha:
+    """Uma linha do extrato: o movimento do serviço e os textos que a tabela imprime."""
+
+    movimento: service.ReserveMovementView
+    data: str
+    reserva: str
+    tipo_tom: str
+    valor: str
+    saldo: str
+
+
+@dataclass(frozen=True)
+class ContingenciaProjetoLinha:
+    """Uma linha da tabela da carteira: o projeto e os números formatados de suas reservas."""
+
+    projeto_id: int
+    codigo: str
+    nome: str
+    constituida: str
+    consumida: str
+    saldo: str
+    consumo: str
+    limite: str
+    em_analise: str
+    gerencial: str
+    consumo_alto: bool
+
+
+CONTINGENCY_ROUTE = "financeiro/contingencia"
+CONTINGENCY_EXCEL_ROUTE = f"{CONTINGENCY_ROUTE}/excel"
+CONTINGENCY_PRINTABLE_ROUTE = f"{CONTINGENCY_ROUTE}/imprimivel"
+
+CONTINGENCY_TEMPLATE = "financeiro/contingencia.html"
+CONTINGENCY_TARGET = "contingencia-conteudo"
+
+CONTINGENCY_CHANGES_SCREEN = "/governanca/mudancas"
+
+CONTINGENCY_KPI_ICONS = ("shield", "warning", "file", "lock")
+CONTINGENCY_MOVEMENT_PILLS = {
+    calculations.MOVEMENT_CONSTITUTION: "fix",
+    calculations.MOVEMENT_CONSUMPTION: "warn",
+    calculations.MOVEMENT_RELEASE: "ok",
+    calculations.MOVEMENT_IN_ANALYSIS: "neutral",
+}
+CONTINGENCY_SUBTITLE = (
+    "Saldo real e saldo previsto pelo avanço físico planejado "
+    "(consumo proporcional à linha de base)"
+)
+CONTINGENCY_NO_VALUE = "·"
+
+
+@bp.route(route=CONTINGENCY_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contingencia_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A tela de Contingência do escopo: indicadores, alertas, gráfico, composição e extrato."""
+    view = _contingencia_view(session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTINGENCY_TEMPLATE,
+        context=_contingencia_context(view, context=context),
+        request=req,
+    )
+
+
+@bp.route(route=CONTINGENCY_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contingencia_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da Contingência: os indicadores, as tabelas e os números do gráfico."""
+    del req
+    return excel_response(_contingencia_document_of(session, context))
+
+
+@bp.route(route=CONTINGENCY_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contingencia_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da Contingência: o mesmo documento do Excel, com o gráfico."""
+    return printable_response(_contingencia_document_of(session, context), req)
+
+
+def _contingencia_view(session: Session, context: RequestContext) -> service.ContingencyOverview:
+    """A leitura do escopo do pedido; a única da rota que vê o relógio."""
+    return service.contingency_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _contingencia_document_of(session: Session, context: RequestContext) -> Document:
+    view = _contingencia_view(session, context)
+    return export.contingencia_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _contingencia_context(
+    view: service.ContingencyOverview, *, context: RequestContext
+) -> dict[str, object]:
+    """O que o fragmento imprime: a visão, os indicadores, o gráfico, as tabelas e o estado."""
+    return {
+        "visao": view,
+        "carteira": view.is_portfolio,
+        "situacao": "vazio-origem" if view.is_empty else "conteudo",
+        "kpis": _contingencia_kpis(view, projeto=context.scope.parameter),
+        "grafico": export.contingencia_chart(view),
+        "composicao": _contingencia_composicao(view),
+        "movimentos": _contingencia_movimentos(view),
+        "projetos": _contingencia_projetos(view),
+        "totais": _contingencia_total(view),
+        "subtitulo": _contingencia_subtitulo(view),
+        "alvo_conteudo": CONTINGENCY_TARGET,
+    }
+
+
+def _contingencia_kpis(
+    view: service.ContingencyOverview, *, projeto: str
+) -> tuple[ContingenciaKpi, ...]:
+    """Os quatro indicadores do serviço como a faixa os imprime; o pedido leva o link das SMs."""
+    changes_url = f"{CONTINGENCY_CHANGES_SCREEN}?projeto={projeto}"
+    return tuple(
+        ContingenciaKpi(
+            rotulo=kpi.label,
+            valor=(
+                CONTINGENCY_NO_VALUE
+                if kpi.value is None
+                else format_value(kpi.kind, kpi.value, kpi.digits)
+            ),
+            referencia=kpi.reference,
+            rodape=kpi.status,
+            tom=kpi.tone.value if kpi.tone is not None else "neutro",
+            icone=icone,
+            href=changes_url if kpi.label == export.CONTINGENCY_KPI_ANALYSIS else "",
+        )
+        for kpi, icone in zip(export.contingencia_kpis(view), CONTINGENCY_KPI_ICONS, strict=True)
+    )
+
+
+def _contingencia_subtitulo(view: service.ContingencyOverview) -> str:
+    if view.is_portfolio:
+        return f"{CONTINGENCY_SUBTITLE} · carteira: soma dos projetos"
+    return CONTINGENCY_SUBTITLE
+
+
+def _contingencia_composicao(
+    view: service.ContingencyOverview,
+) -> tuple[ContingenciaComposicaoLinha, ...]:
+    contingency = view.contingency.balance_cents if view.contingency else 0
+    management = view.management.balance_cents if view.management else 0
+    return (
+        ContingenciaComposicaoLinha(
+            "Orçado atual da EAC (linha de base de medição)", _money(view.eac_current_cents)
+        ),
+        ContingenciaComposicaoLinha(
+            "Saldo da reserva de contingência", _money(contingency), sinal="+"
+        ),
+        ContingenciaComposicaoLinha(
+            "Linha de base de custo", _money(view.cost_baseline_cents), total=True
+        ),
+        ContingenciaComposicaoLinha("Saldo da reserva gerencial", _money(management), sinal="+"),
+        ContingenciaComposicaoLinha(
+            "Orçamento do projeto", _money(view.project_budget_cents), total=True
+        ),
+    )
+
+
+def _contingencia_movimentos(
+    view: service.ContingencyOverview,
+) -> tuple[ContingenciaMovimentoLinha, ...]:
+    return tuple(
+        ContingenciaMovimentoLinha(
+            movimento=linha,
+            data=format_value(ValueKind.DATE, linha.on),
+            reserva=linha.reserve_kind,
+            tipo_tom=CONTINGENCY_MOVEMENT_PILLS.get(linha.kind, "neutral"),
+            valor=_signed_money(linha.value_cents),
+            saldo=(
+                CONTINGENCY_NO_VALUE if linha.balance_cents is None else _money(linha.balance_cents)
+            ),
+        )
+        for linha in view.movements
+    )
+
+
+def _contingencia_projetos(
+    view: service.ContingencyOverview,
+) -> tuple[ContingenciaProjetoLinha, ...]:
+    linhas: list[ContingenciaProjetoLinha] = []
+    for item in view.projects:
+        codigo, _, nome = item.project_label.partition(" · ")
+        linhas.append(
+            _contingencia_linha(projeto_id=item.project_id, codigo=codigo, nome=nome, reservas=item)
+        )
+    return tuple(linhas)
+
+
+def _contingencia_total(view: service.ContingencyOverview) -> ContingenciaProjetoLinha:
+    return _contingencia_linha(projeto_id=0, codigo="Total", nome="", reservas=view)
+
+
+def _contingencia_linha(
+    *,
+    projeto_id: int,
+    codigo: str,
+    nome: str,
+    reservas: service.ContingencyProjectRow | service.ContingencyOverview,
+) -> ContingenciaProjetoLinha:
+    contingency = reservas.contingency
+    management = reservas.management
+    limit = reservas.consumption_limit_pct
+    pct = contingency.consumption_pct if contingency is not None else None
+    return ContingenciaProjetoLinha(
+        projeto_id=projeto_id,
+        codigo=codigo,
+        nome=nome,
+        constituida=_money_or_dot(contingency.total_cents if contingency else None),
+        consumida=_money_or_dot(contingency.consumed_cents if contingency else None),
+        saldo=_money_or_dot(contingency.balance_cents if contingency else None),
+        consumo=_percent_or_dot(pct),
+        limite=_percent_or_dot(limit),
+        em_analise=_money_or_dot(contingency.in_analysis_cents if contingency else None),
+        gerencial=_money_or_dot(management.balance_cents if management else None),
+        consumo_alto=pct is not None and limit is not None and pct > limit,
+    )
+
+
+def _money_or_dot(cents: int | None) -> str:
+    return CONTINGENCY_NO_VALUE if cents is None else _money(cents)
