@@ -3615,19 +3615,24 @@ def _evaluation_view(
     )
 
 
+def _evaluation_facts(
+    evaluations: Sequence[EvaluationView],
+) -> tuple[calculations.EvaluationFact, ...]:
+    """As avaliações como fatos de nota: o período e as notas e pesos congelados dos critérios."""
+    return tuple(
+        calculations.EvaluationFact(
+            period=evaluation.period,
+            notes={item.criterion: item.note for item in evaluation.criteria},
+            weights={item.criterion: item.weight for item in evaluation.criteria},
+        )
+        for evaluation in evaluations
+    )
+
+
 def _evaluation_trend(
     evaluations: Sequence[EvaluationView],
 ) -> tuple[dict[str, int], ...]:
-    return calculations.evaluation_trend_points(
-        tuple(
-            calculations.EvaluationFact(
-                period=evaluation.period,
-                notes={item.criterion: item.note for item in evaluation.criteria},
-                weights={item.criterion: item.weight for item in evaluation.criteria},
-            )
-            for evaluation in evaluations
-        )
-    )
+    return calculations.evaluation_trend_points(_evaluation_facts(evaluations))
 
 
 def _settings_of(values: Mapping[str, Any]) -> EvaluationSettings:
@@ -3778,6 +3783,507 @@ def _create_evaluation_lesson(
 
 def _period_text(period: date) -> str:
     return f"{period.month:02d}/{period.year}"
+
+
+# ── Visão consolidada da administração contratual (ISSUE-035) ────────────
+
+
+@dataclass(frozen=True)
+class ContractOverviewRow:
+    """Um contrato da lista consolidada: valor atual, medido, saldo, término, claims e avaliação."""
+
+    id: int
+    project_id: int
+    project_label: str
+    number: str
+    company: str
+    object: str
+    modality: str
+    situation: str
+    start: date
+    original_end: date
+    current_end: date
+    days_added: int
+    original_value_cents: int
+    addenda_cents: int
+    current_value_cents: int
+    measured_cents: int
+    measured_pct: Decimal | None
+    balance_to_invoice_cents: int
+    open_claims: int
+    exposure_cents: int
+    last_evaluation: EvaluationView | None
+
+
+@dataclass(frozen=True)
+class ClaimOverviewRow:
+    """Um claim da lista consolidada, com o contrato, o prazo de notificação e o alerta."""
+
+    id: int
+    project_id: int
+    project_label: str
+    contract_id: int
+    contract_number: str
+    code: str
+    direction: str
+    kind: str
+    cause: str
+    description: str
+    event_date: date
+    notification_date: date
+    notification_days: int
+    notification_late: bool
+    notice_days: int
+    claimed_cents: int
+    claimed_days: int
+    recognized_cents: int | None
+    recognized_days: int | None
+    situation: str
+    closed_on: date | None
+    is_open: bool
+
+
+@dataclass(frozen=True)
+class ExtensionOverviewRow:
+    """Uma EOT da lista consolidada, com o contrato, o claim de origem e os dias."""
+
+    id: int
+    project_id: int
+    project_label: str
+    contract_id: int
+    contract_number: str
+    code: str
+    claim_code: str
+    event: str
+    requested_days: int
+    granted_days: int | None
+    classification: str
+    method: str
+    affected_milestone: str
+    requested_on: date
+    decided_on: date | None
+    situation: str
+    is_open: bool
+
+
+@dataclass(frozen=True)
+class MilestoneOverviewRow:
+    """Um marco da lista consolidada, com o valor calculado e o atraso dos pendentes."""
+
+    id: int
+    project_id: int
+    project_label: str
+    contract_id: int
+    contract_number: str
+    number: str
+    description: str
+    criteria: str
+    pct: int
+    value_cents: int
+    expected_on: date
+    completed_on: date | None
+    situation: str
+    is_late: bool
+    late_days: int
+
+
+@dataclass(frozen=True)
+class EvaluationOverviewRow:
+    """Uma avaliação da lista consolidada, com o contrato, a empresa e a nota/classe da ficha."""
+
+    view: EvaluationView
+    project_id: int
+    project_label: str
+    contract_id: int
+    contract_number: str
+    company: str
+
+
+@dataclass(frozen=True)
+class ContractsOverview:
+    """A visão consolidada da administração contratual: as listas, o resumo e os indicadores."""
+
+    scope_label: str
+    is_portfolio: bool
+    contracts: tuple[ContractOverviewRow, ...]
+    claims: tuple[ClaimOverviewRow, ...]
+    extensions: tuple[ExtensionOverviewRow, ...]
+    milestones: tuple[MilestoneOverviewRow, ...]
+    evaluations: tuple[EvaluationOverviewRow, ...]
+    summary: calculations.ContractsSummary
+    indicators: calculations.ContractIndicators
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no contract at all (the empty state of origin)."""
+        return not self.contracts
+
+
+@dataclass(frozen=True)
+class _ContractValues:
+    """O que a leitura de um contrato calcula: os aditivos, o valor atual, o medido e o saldo."""
+
+    addenda_cents: int
+    current_cents: int
+    measured_cents: int
+    balance_cents: int
+
+
+@dataclass(frozen=True)
+class _ContractSlice:
+    """O que a leitura de um contrato devolve para a visão consolidada: as linhas e os fatos."""
+
+    contract: ContractOverviewRow
+    claims: tuple[ClaimOverviewRow, ...]
+    extensions: tuple[ExtensionOverviewRow, ...]
+    milestones: tuple[MilestoneOverviewRow, ...]
+    evaluations: tuple[EvaluationOverviewRow, ...]
+    contract_fact: calculations.ContractFact
+    claim_facts: tuple[calculations.ClaimFact, ...]
+    extension_facts: tuple[calculations.ExtensionFact, ...]
+    milestone_facts: tuple[calculations.MilestoneFact, ...]
+    last_evaluation_fact: calculations.EvaluationFact | None
+
+
+def contracts_overview(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> ContractsOverview:
+    """A visão consolidada da administração contratual do escopo (HU-098).
+
+    As listas são as cinco abas da tela (contratos, claims, EOTs, marcos e avaliações) e cada
+    valor sai das fatias anteriores: o valor atual, o medido, o saldo e o percentual do contrato,
+    o valor do marco, o alerta de notificação e o atraso do marco; a nota e a classe de cada
+    avaliação vêm dos pesos congelados. O resumo e os indicadores fecham a leitura, com a data de
+    referência injetada. Quem lê precisa alcançar o módulo.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.VIEW)
+    projects = configuracoes.list_projects(session)
+    chosen = _overview_projects(projects, scope)
+    labels = {project.id: _label(project) for project in chosen}
+    companies = configuracoes.list_company_names(session)
+    slices = [
+        _contract_slice(
+            session,
+            contract=contract,
+            project=project,
+            label=labels[project.id],
+            companies=companies,
+            reference_date=reference_date,
+        )
+        for project in chosen
+        for contract in _project_contracts(session, project_id=project.id)
+    ]
+    facts = calculations.ContractFacts(
+        contracts=tuple(item.contract_fact for item in slices),
+        claims=tuple(fact for item in slices for fact in item.claim_facts),
+        extensions=tuple(fact for item in slices for fact in item.extension_facts),
+        milestones=tuple(fact for item in slices for fact in item.milestone_facts),
+        evaluations=tuple(
+            item.last_evaluation_fact for item in slices if item.last_evaluation_fact is not None
+        ),
+    )
+    return ContractsOverview(
+        scope_label=PORTFOLIO_LABEL if scope.is_portfolio else labels[chosen[0].id],
+        is_portfolio=scope.is_portfolio,
+        contracts=tuple(sorted((item.contract for item in slices), key=lambda row: row.number)),
+        claims=tuple(
+            sorted(
+                (row for item in slices for row in item.claims),
+                key=lambda row: row.code,
+                reverse=True,
+            )
+        ),
+        extensions=tuple(
+            sorted(
+                (row for item in slices for row in item.extensions),
+                key=lambda row: row.code,
+                reverse=True,
+            )
+        ),
+        milestones=tuple(
+            sorted(
+                (row for item in slices for row in item.milestones),
+                key=lambda row: (row.expected_on, row.id),
+            )
+        ),
+        evaluations=tuple(
+            sorted(
+                (row for item in slices for row in item.evaluations),
+                key=lambda row: (row.view.period, row.view.id),
+                reverse=True,
+            )
+        ),
+        summary=calculations.contracts_summary(facts, reference_date=reference_date),
+        indicators=calculations.contract_indicators(facts, reference_date=reference_date),
+    )
+
+
+def _overview_projects(
+    projects: Sequence[configuracoes.ProjectSummary], scope: Scope
+) -> tuple[configuracoes.ProjectSummary, ...]:
+    """Os projetos do escopo: todos no Portfólio, só o escolhido no projeto."""
+    if scope.is_portfolio:
+        return tuple(projects)
+    return (_project_of(projects, scope),)
+
+
+def _project_contracts(session: Session, *, project_id: int) -> list[Contract]:
+    statement = select(Contract).where(Contract.project_id == project_id).order_by(Contract.number)
+    return list(session.scalars(statement))
+
+
+def _contract_slice(
+    session: Session,
+    *,
+    contract: Contract,
+    project: configuracoes.ProjectSummary,
+    label: str,
+    companies: Mapping[int, str],
+    reference_date: date,
+) -> _ContractSlice:
+    """A leitura de um contrato: as cinco listas da visão e os fatos dos indicadores."""
+    values = _contract_values(session, contract=contract)
+    claims = tuple(
+        _claim_overview_row(contract, row, project=project, label=label)
+        for row in _claim_rows(session, contract_id=contract.id)
+    )
+    milestones = tuple(
+        _milestone_overview_row(
+            contract,
+            row,
+            project=project,
+            label=label,
+            current_value_cents=values.current_cents,
+            reference_date=reference_date,
+        )
+        for row in _milestone_rows(session, contract_id=contract.id)
+    )
+    extension_rows = _extension_rows(session, contract_id=contract.id)
+    claim_codes = _claim_codes(session, [row.claim_id for row in extension_rows])
+    extensions = tuple(
+        _extension_overview_row(
+            contract, row, project=project, label=label, claim_codes=claim_codes
+        )
+        for row in extension_rows
+    )
+    evaluations = tuple(
+        EvaluationOverviewRow(
+            view=view,
+            project_id=project.id,
+            project_label=label,
+            contract_id=contract.id,
+            contract_number=contract.number,
+            company=companies.get(contract.company_id, ""),
+        )
+        for view in _evaluation_views(session, _evaluation_rows(session, contract_id=contract.id))
+    )
+    claim_facts = tuple(_claim_fact(row) for row in claims)
+    contract_row = _contract_overview_row(
+        contract,
+        project=project,
+        label=label,
+        companies=companies,
+        claim_facts=claim_facts,
+        evaluations=evaluations,
+        values=values,
+    )
+    return _ContractSlice(
+        contract=contract_row,
+        claims=claims,
+        extensions=extensions,
+        milestones=milestones,
+        evaluations=evaluations,
+        contract_fact=_contract_fact(contract_row),
+        claim_facts=claim_facts,
+        extension_facts=tuple(_extension_fact(row) for row in extensions),
+        milestone_facts=tuple(_milestone_fact(row) for row in milestones),
+        last_evaluation_fact=(
+            _evaluation_facts((evaluations[0].view,))[0] if evaluations else None
+        ),
+    )
+
+
+def _contract_values(session: Session, *, contract: Contract) -> _ContractValues:
+    """Os valores calculados do contrato, pelas fórmulas da ficha (ISSUE-032)."""
+    addenda = _addendum_lines(_addendum_rows(session, contract_id=contract.id))
+    measurements = _measurement_lines(_measurement_rows(session, contract_id=contract.id))
+    current = calculations.contract_current_value_cents(contract.original_value_cents, addenda)
+    measured = calculations.contract_measured_cents(measurements)
+    return _ContractValues(
+        addenda_cents=sum(line.value_cents for line in addenda),
+        current_cents=current,
+        measured_cents=measured,
+        balance_cents=calculations.contract_balance_to_invoice_cents(current, measured),
+    )
+
+
+def _contract_overview_row(
+    contract: Contract,
+    *,
+    project: configuracoes.ProjectSummary,
+    label: str,
+    companies: Mapping[int, str],
+    claim_facts: Sequence[calculations.ClaimFact],
+    evaluations: Sequence[EvaluationOverviewRow],
+    values: _ContractValues,
+) -> ContractOverviewRow:
+    return ContractOverviewRow(
+        id=contract.id,
+        project_id=project.id,
+        project_label=label,
+        number=contract.number,
+        company=companies.get(contract.company_id, ""),
+        object=contract.object,
+        modality=contract.modality,
+        situation=contract.situation,
+        start=contract.start,
+        original_end=contract.original_end,
+        current_end=contract.current_end,
+        days_added=(contract.current_end - contract.original_end).days,
+        original_value_cents=contract.original_value_cents,
+        addenda_cents=values.addenda_cents,
+        current_value_cents=values.current_cents,
+        measured_cents=values.measured_cents,
+        measured_pct=calculations.contract_measured_percent(
+            values.measured_cents, values.current_cents
+        ),
+        balance_to_invoice_cents=values.balance_cents,
+        open_claims=calculations.open_claim_count(claim_facts),
+        exposure_cents=calculations.claim_exposure_cents(
+            claim_facts, direction=calculations.CLAIM_DIRECTION_CONTRACTOR
+        ),
+        last_evaluation=evaluations[0].view if evaluations else None,
+    )
+
+
+def _claim_overview_row(
+    contract: Contract,
+    row: ContractClaim,
+    *,
+    project: configuracoes.ProjectSummary,
+    label: str,
+) -> ClaimOverviewRow:
+    deadline = calculations.claim_notification_deadline(row.event_date, contract.claim_notice_days)
+    return ClaimOverviewRow(
+        id=row.id,
+        project_id=project.id,
+        project_label=label,
+        contract_id=contract.id,
+        contract_number=contract.number,
+        code=row.code,
+        direction=row.direction,
+        kind=row.kind,
+        cause=row.cause,
+        description=row.description,
+        event_date=row.event_date,
+        notification_date=row.notification_date,
+        notification_days=(row.notification_date - row.event_date).days,
+        notification_late=calculations.claim_notification_late(row.notification_date, deadline),
+        notice_days=contract.claim_notice_days,
+        claimed_cents=row.claimed_cents,
+        claimed_days=row.claimed_days,
+        recognized_cents=row.recognized_cents,
+        recognized_days=row.recognized_days,
+        situation=row.situation,
+        closed_on=row.closed_on,
+        is_open=row.situation in calculations.CLAIM_OPEN_SITUATIONS,
+    )
+
+
+def _extension_overview_row(
+    contract: Contract,
+    row: ContractTimeExtension,
+    *,
+    project: configuracoes.ProjectSummary,
+    label: str,
+    claim_codes: Mapping[int, str],
+) -> ExtensionOverviewRow:
+    return ExtensionOverviewRow(
+        id=row.id,
+        project_id=project.id,
+        project_label=label,
+        contract_id=contract.id,
+        contract_number=contract.number,
+        code=row.code,
+        claim_code=claim_codes.get(row.claim_id or 0, ""),
+        event=row.event,
+        requested_days=row.requested_days,
+        granted_days=row.granted_days,
+        classification=row.classification or "",
+        method=row.method,
+        affected_milestone=row.affected_milestone,
+        requested_on=row.requested_on,
+        decided_on=row.decided_on,
+        situation=row.situation,
+        is_open=row.situation
+        in (calculations.EXTENSION_REQUESTED, calculations.EXTENSION_UNDER_REVIEW),
+    )
+
+
+def _milestone_overview_row(
+    contract: Contract,
+    row: ContractPaymentMilestone,
+    *,
+    project: configuracoes.ProjectSummary,
+    label: str,
+    current_value_cents: int,
+    reference_date: date,
+) -> MilestoneOverviewRow:
+    is_late = calculations.milestone_is_late(row.expected_on, row.situation, reference_date)
+    return MilestoneOverviewRow(
+        id=row.id,
+        project_id=project.id,
+        project_label=label,
+        contract_id=contract.id,
+        contract_number=contract.number,
+        number=row.number,
+        description=row.description,
+        criteria=row.acceptance_criteria,
+        pct=row.pct,
+        value_cents=calculations.milestone_value_cents(current_value_cents, row.pct),
+        expected_on=row.expected_on,
+        completed_on=row.completed_on,
+        situation=row.situation,
+        is_late=is_late,
+        late_days=(
+            calculations.milestone_late_days(row.expected_on, reference_date) if is_late else 0
+        ),
+    )
+
+
+def _contract_fact(row: ContractOverviewRow) -> calculations.ContractFact:
+    evaluation = row.last_evaluation
+    return calculations.ContractFact(
+        start=row.start,
+        original_end=row.original_end,
+        evaluation_class=(evaluation.score_class or None) if evaluation is not None else None,
+    )
+
+
+def _claim_fact(row: ClaimOverviewRow) -> calculations.ClaimFact:
+    return calculations.ClaimFact(
+        direction=row.direction,
+        situation=row.situation,
+        claimed_cents=row.claimed_cents,
+        event_date=row.event_date,
+        notification_date=row.notification_date,
+        notice_days=row.notice_days,
+        recognized_cents=row.recognized_cents,
+        closed_on=row.closed_on,
+    )
+
+
+def _extension_fact(row: ExtensionOverviewRow) -> calculations.ExtensionFact:
+    return calculations.ExtensionFact(
+        requested_days=row.requested_days, granted_days=row.granted_days
+    )
+
+
+def _milestone_fact(row: MilestoneOverviewRow) -> calculations.MilestoneFact:
+    return calculations.MilestoneFact(
+        value_cents=row.value_cents, expected_on=row.expected_on, situation=row.situation
+    )
 
 
 def read_contract_origin(

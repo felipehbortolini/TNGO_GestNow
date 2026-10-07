@@ -534,11 +534,7 @@ def deviation_cents(projection_cents: int, current_cents: int) -> int:
 
 def deviation_percent(deviation: int, current_cents: int) -> Decimal | None:
     """Desvio percentual sobre o orçado atual, com uma casa; nenhum quando o orçado atual é zero."""
-    if current_cents == 0:
-        return None
-    return (Decimal(deviation) / Decimal(current_cents) * HUNDREDTHS).quantize(
-        ONE_PLACE, rounding=ROUND_HALF_UP
-    )
+    return _percent_of(deviation, current_cents)
 
 
 @dataclass(frozen=True)
@@ -1068,3 +1064,299 @@ def evaluation_trend_points(evaluations: Sequence[EvaluationFact]) -> tuple[dict
             {"ano": evaluation.period.year, "mes": evaluation.period.month, "valor": score}
         )
     return tuple(points)
+
+
+# ── Indicadores da administração contratual (ISSUE-035) ──────────────────
+
+
+CLAIM_OPEN_SITUATIONS = (
+    CLAIM_NOTIFIED,
+    CLAIM_UNDER_REVIEW,
+    CLAIM_IN_NEGOTIATION,
+    CLAIM_IN_DISPUTE,
+)
+CLAIM_RESOLVED_SITUATIONS = (CLAIM_AGREED, CLAIM_CLOSED, CLAIM_REJECTED)
+CLAIM_DIRECTION_CONTRACTOR = "Da contratada"
+CLAIM_DIRECTION_CLIENT = "Do contratante"
+CONTRACTOR_LOW_CLASSES = ("C", "D")
+
+
+@dataclass(frozen=True)
+class ClaimFact:
+    """Um claim como os indicadores o leem: a direção, a situação, os valores e as datas do prazo."""
+
+    direction: str
+    situation: str
+    claimed_cents: int
+    event_date: date
+    notification_date: date
+    notice_days: int
+    recognized_cents: int | None = None
+    closed_on: date | None = None
+
+
+@dataclass(frozen=True)
+class ExtensionFact:
+    """Uma EOT como os indicadores a leem: os dias solicitados e os concedidos."""
+
+    requested_days: int
+    granted_days: int | None = None
+
+
+@dataclass(frozen=True)
+class MilestoneFact:
+    """Um marco como os indicadores o leem: o valor calculado, a data prevista e a situação."""
+
+    value_cents: int
+    expected_on: date
+    situation: str
+
+
+@dataclass(frozen=True)
+class ContractFact:
+    """Um contrato como os indicadores o leem: a duração original e a classe da última avaliação."""
+
+    start: date
+    original_end: date
+    evaluation_class: str | None = None
+
+
+@dataclass(frozen=True)
+class ContractFacts:
+    """Os fatos de um escopo que o resumo e os indicadores da administração contratual leem."""
+
+    contracts: Sequence[ContractFact]
+    claims: Sequence[ClaimFact]
+    extensions: Sequence[ExtensionFact]
+    milestones: Sequence[MilestoneFact]
+    evaluations: Sequence[EvaluationFact]
+
+
+@dataclass(frozen=True)
+class ClaimExposure:
+    """A exposição de claims abertos por direção, em centavos."""
+
+    contractor_cents: int
+    client_cents: int
+
+
+@dataclass(frozen=True)
+class ExtensionDays:
+    """Os dias de extensão de prazo das EOTs: os solicitados e os concedidos."""
+
+    requested: int
+    granted: int
+
+
+@dataclass(frozen=True)
+class ContractsSummary:
+    """O resumo da administração contratual: as contagens e a exposição da contratada."""
+
+    contracts: int
+    exposure_cents: int
+    open_claims: int
+    late_notifications: int
+    late_milestones: int
+    contractors_c_or_d: int
+
+
+@dataclass(frozen=True)
+class ContractIndicators:
+    """Os indicadores da administração contratual do escopo, na ordem dos KPIs do protótipo."""
+
+    contractor_exposure_cents: int
+    client_exposure_cents: int
+    recognition_rate: Decimal | None
+    average_resolution_days: int | None
+    requested_days: int
+    granted_days: int
+    extension_percent: Decimal | None
+    approved_not_invoiced_cents: int
+    paid_forecast_percent: Decimal | None
+    average_score: Decimal | None
+
+
+def _percent_of(part: int, total: int) -> Decimal | None:
+    """A razão percentual com uma casa, meio para cima; nenhuma quando o total é zero."""
+    if total == 0:
+        return None
+    return (Decimal(part) / Decimal(total) * HUNDREDTHS).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def contract_measured_percent(measured_cents: int, current_value_cents: int) -> Decimal | None:
+    """Medido percentual do contrato: o medido aprovado sobre o valor atual, com uma casa."""
+    return _percent_of(measured_cents, current_value_cents)
+
+
+def claim_exposure_cents(claims: Sequence[ClaimFact], *, direction: str) -> int:
+    """Exposição de claims: a soma do pleiteado dos claims abertos de uma direção."""
+    return sum(
+        claim.claimed_cents
+        for claim in claims
+        if claim.direction == direction and claim.situation in CLAIM_OPEN_SITUATIONS
+    )
+
+
+def exposure_by_direction(claims: Sequence[ClaimFact]) -> ClaimExposure:
+    """Exposição de claims por direção: o pleiteado dos abertos da contratada e do contratante."""
+    return ClaimExposure(
+        contractor_cents=claim_exposure_cents(claims, direction=CLAIM_DIRECTION_CONTRACTOR),
+        client_cents=claim_exposure_cents(claims, direction=CLAIM_DIRECTION_CLIENT),
+    )
+
+
+def open_claim_count(claims: Sequence[ClaimFact]) -> int:
+    """Claims abertos: quantos estão Notificado, Em análise, Em negociação ou Em disputa."""
+    return sum(1 for claim in claims if claim.situation in CLAIM_OPEN_SITUATIONS)
+
+
+def late_notification_count(claims: Sequence[ClaimFact]) -> int:
+    """Notificações fora do prazo: as que passaram do evento mais os dias do contrato."""
+    return sum(
+        1
+        for claim in claims
+        if claim_notification_late(
+            claim.notification_date,
+            claim_notification_deadline(claim.event_date, claim.notice_days),
+        )
+    )
+
+
+def recognition_rate(claims: Sequence[ClaimFact]) -> Decimal | None:
+    """Taxa de reconhecimento: o reconhecido sobre o pleiteado dos claims da contratada encerrados.
+
+    Entram os claims Acordado, Encerrado ou Rejeitado da contratada (o Rejeitado reconhece zero);
+    sem pleiteado encerrado não há taxa.
+    """
+    resolved = [
+        claim
+        for claim in claims
+        if claim.situation in CLAIM_RESOLVED_SITUATIONS
+        and claim.direction == CLAIM_DIRECTION_CONTRACTOR
+    ]
+    claimed = sum(claim.claimed_cents for claim in resolved)
+    if claimed == 0:
+        return None
+    recognized = sum(claim.recognized_cents or 0 for claim in resolved)
+    return _percent_of(recognized, claimed)
+
+
+def average_resolution_days(claims: Sequence[ClaimFact]) -> int | None:
+    """Tempo médio de resolução: a média dos dias da notificação ao encerramento, arredondada.
+
+    Só entram os claims com data de encerramento; sem nenhum não há tempo médio.
+    """
+    days = [
+        (claim.closed_on - claim.notification_date).days
+        for claim in claims
+        if claim.closed_on is not None
+    ]
+    if not days:
+        return None
+    return math.floor(Decimal(sum(days)) / len(days) + EVALUATION_HALF)
+
+
+def extension_days(extensions: Sequence[ExtensionFact]) -> ExtensionDays:
+    """Dias de extensão de prazo: a soma dos solicitados e a dos concedidos das EOTs."""
+    return ExtensionDays(
+        requested=sum(extension.requested_days for extension in extensions),
+        granted=sum(extension.granted_days or 0 for extension in extensions),
+    )
+
+
+def contract_duration_days(start: date, original_end: date) -> int:
+    """Duração original do contrato: os dias entre o início e o término original."""
+    return (original_end - start).days
+
+
+def extension_percent(*, granted_days: int, duration_days: int) -> Decimal | None:
+    """Extensão de prazo acumulada: os dias concedidos sobre a duração original, com uma casa."""
+    return _percent_of(granted_days, duration_days)
+
+
+def approved_not_invoiced_cents(milestones: Sequence[MilestoneFact]) -> int:
+    """Aprovado não faturado: a soma do valor dos marcos Aprovado."""
+    return sum(
+        milestone.value_cents
+        for milestone in milestones
+        if milestone.situation == MILESTONE_APPROVED
+    )
+
+
+def paid_forecast_percent(
+    milestones: Sequence[MilestoneFact], *, reference_date: date
+) -> Decimal | None:
+    """Pago x previsto: o valor dos marcos Pago sobre o previsto até a data, com uma casa.
+
+    O previsto é a soma dos marcos com data prevista igual ou anterior à data de referência; o
+    pago soma todos os marcos Pago. Sem previsto até a data não há percentual.
+    """
+    forecast = sum(
+        milestone.value_cents for milestone in milestones if milestone.expected_on <= reference_date
+    )
+    paid = sum(
+        milestone.value_cents for milestone in milestones if milestone.situation == MILESTONE_PAID
+    )
+    return _percent_of(paid, forecast)
+
+
+def average_evaluation_score(evaluations: Sequence[EvaluationFact]) -> Decimal | None:
+    """Nota média das contratadas: a média das notas das últimas avaliações, com uma casa.
+
+    A avaliação sem nota ponderada fica de fora; sem nenhuma avaliação com nota não há média.
+    """
+    scores = [
+        score
+        for evaluation in evaluations
+        if (score := evaluation_weighted_score(evaluation.notes, evaluation.weights)) is not None
+    ]
+    if not scores:
+        return None
+    return (Decimal(sum(scores)) / len(scores)).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def late_milestone_count(milestones: Sequence[MilestoneFact], *, reference_date: date) -> int:
+    """Marcos atrasados: quantos marcos pendentes têm a data prevista anterior à referência."""
+    return sum(
+        1
+        for milestone in milestones
+        if milestone_is_late(milestone.expected_on, milestone.situation, reference_date)
+    )
+
+
+def contracts_summary(facts: ContractFacts, *, reference_date: date) -> ContractsSummary:
+    """Resumo da administração contratual: contratos, exposição, claims, prazos e contratadas C ou D."""
+    return ContractsSummary(
+        contracts=len(facts.contracts),
+        exposure_cents=claim_exposure_cents(facts.claims, direction=CLAIM_DIRECTION_CONTRACTOR),
+        open_claims=open_claim_count(facts.claims),
+        late_notifications=late_notification_count(facts.claims),
+        late_milestones=late_milestone_count(facts.milestones, reference_date=reference_date),
+        contractors_c_or_d=sum(
+            1 for contract in facts.contracts if contract.evaluation_class in CONTRACTOR_LOW_CLASSES
+        ),
+    )
+
+
+def contract_indicators(facts: ContractFacts, *, reference_date: date) -> ContractIndicators:
+    """Indicadores da administração contratual do escopo, com a data de referência injetada."""
+    exposure = exposure_by_direction(facts.claims)
+    days = extension_days(facts.extensions)
+    duration = sum(
+        contract_duration_days(contract.start, contract.original_end)
+        for contract in facts.contracts
+    )
+    return ContractIndicators(
+        contractor_exposure_cents=exposure.contractor_cents,
+        client_exposure_cents=exposure.client_cents,
+        recognition_rate=recognition_rate(facts.claims),
+        average_resolution_days=average_resolution_days(facts.claims),
+        requested_days=days.requested,
+        granted_days=days.granted,
+        extension_percent=extension_percent(granted_days=days.granted, duration_days=duration),
+        approved_not_invoiced_cents=approved_not_invoiced_cents(facts.milestones),
+        paid_forecast_percent=paid_forecast_percent(
+            facts.milestones, reference_date=reference_date
+        ),
+        average_score=average_evaluation_score(facts.evaluations),
+    )
