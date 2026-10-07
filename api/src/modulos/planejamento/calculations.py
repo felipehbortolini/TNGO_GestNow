@@ -13,6 +13,10 @@ The WBS rules (ISSUE-036): the real of a package comes from the entries of its
 measuring criterion, the nodes of the tree add up the children by weight (the
 100% rule) and the deviation uses the bands of the parameters. The reference
 date also comes in as an argument (D6).
+
+The measurement rules (ISSUE-037): the conversion of an accumulated percent
+into the entries of the criterion (used by the import of the advance), the
+degrees a milestone accepts and the detection of a reversal.
 """
 
 from __future__ import annotations
@@ -553,9 +557,12 @@ def _milestone_half_progress(state: str | None) -> Decimal:
     return ZERO
 
 
+def _round_two(value: Decimal) -> Decimal:
+    return value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
 def _clamp_progress(value: Decimal) -> Decimal:
-    clamped = min(PERCENT, max(ZERO, value))
-    return clamped.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return _round_two(min(PERCENT, max(ZERO, value)))
 
 
 def eap_weighted_progress(values: Sequence[EapWeightedValue]) -> Decimal:
@@ -564,7 +571,7 @@ def eap_weighted_progress(values: Sequence[EapWeightedValue]) -> Decimal:
     if total_weight == ZERO:
         return ZERO
     weighted = sum((item.weight * item.value for item in values), ZERO)
-    return (weighted / total_weight).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return _round_two(weighted / total_weight)
 
 
 def eap_deviation_pp(actual: Decimal, predicted: Decimal) -> Decimal:
@@ -663,3 +670,121 @@ def eap_node_totals(children: Sequence[EapTotals]) -> EapTotals:
 def eap_root_totals(children: Sequence[EapTotals]) -> EapTotals:
     """A linha 0 da árvore: o total do projeto (ou do portfólio) a partir dos nós de nível 1."""
     return eap_node_totals(children)
+
+
+EAP_PERCENT_RANGE_MESSAGE = "O avanço precisa ficar entre 0 e 100%."
+
+
+MILESTONE_0_100_OPTIONS_MESSAGE = "Marco 0/100 só aceita 0 ou 100%."
+
+
+MILESTONE_50_50_OPTIONS_MESSAGE = "Marco 50/50 só aceita 0, 50 ou 100%."
+
+
+EAP_NO_CRITERION_MESSAGE = "Pacote sem critério de medição."
+
+
+MILESTONE_0_100_PERCENT_STATES = (
+    (ZERO, MILESTONE_NOT_STARTED),
+    (PERCENT, MILESTONE_DONE),
+)
+
+
+MILESTONE_0_100_STATES = tuple(state for _, state in MILESTONE_0_100_PERCENT_STATES)
+
+
+MILESTONE_50_50_PERCENT_STATES = (
+    (ZERO, MILESTONE_NOT_STARTED),
+    (HALF, MILESTONE_STARTED),
+    (PERCENT, MILESTONE_DONE),
+)
+
+
+MILESTONE_50_50_STATES = tuple(state for _, state in MILESTONE_50_50_PERCENT_STATES)
+
+
+@dataclass(frozen=True)
+class EapPercentEntries:
+    """As entradas do critério convertidas de um % acumulado; ``error`` diz por que não converteu."""
+
+    etapas: tuple[EapStep, ...] = ()
+    executed: Decimal | None = None
+    state: str | None = None
+    estimated_pct: Decimal | None = None
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        """Se o percentual virou as entradas do critério."""
+        return self.error is None
+
+
+def eap_entries_from_percent(
+    criterion: str | None,
+    percent: Decimal | None,
+    *,
+    etapas: Sequence[EapStep] = (),
+    quantity: Decimal | None = None,
+) -> EapPercentEntries:
+    """Converte um % acumulado nas entradas do critério (a importação do avanço).
+
+    As Etapas são preenchidas em sequência pelo peso de cada uma; os marcos só aceitam os
+    degraus do critério; o Percentual estimado guarda o próprio valor. O ``error`` traz o
+    motivo quando o percentual não vira entradas.
+    """
+    if percent is None or not percent.is_finite() or percent < ZERO or percent > PERCENT:
+        return EapPercentEntries(error=EAP_PERCENT_RANGE_MESSAGE)
+    return _entries_of_criterion(criterion, percent, etapas=etapas, quantity=quantity)
+
+
+def _entries_of_criterion(
+    criterion: str | None,
+    percent: Decimal,
+    *,
+    etapas: Sequence[EapStep],
+    quantity: Decimal | None,
+) -> EapPercentEntries:
+    if criterion == CRITERION_STEPS:
+        entries = EapPercentEntries(etapas=_steps_from_percent(etapas, percent))
+    elif criterion == CRITERION_UNITS:
+        base = quantity if quantity is not None else ZERO
+        entries = EapPercentEntries(executed=_round_two(base * percent / PERCENT))
+    elif criterion == CRITERION_MILESTONE_0_100:
+        entries = _milestone_entries(
+            MILESTONE_0_100_PERCENT_STATES, percent, MILESTONE_0_100_OPTIONS_MESSAGE
+        )
+    elif criterion == CRITERION_MILESTONE_50_50:
+        entries = _milestone_entries(
+            MILESTONE_50_50_PERCENT_STATES, percent, MILESTONE_50_50_OPTIONS_MESSAGE
+        )
+    elif criterion == CRITERION_ESTIMATED:
+        entries = EapPercentEntries(estimated_pct=_round_two(percent))
+    else:
+        entries = EapPercentEntries(error=EAP_NO_CRITERION_MESSAGE)
+    return entries
+
+
+def eap_progress_regression(before: Decimal, after: Decimal) -> bool:
+    """O acumulado regrediu: o real depois ficou abaixo do real antes."""
+    return after < before
+
+
+def _steps_from_percent(etapas: Sequence[EapStep], percent: Decimal) -> tuple[EapStep, ...]:
+    remaining = percent
+    converted: list[EapStep] = []
+    for step in etapas:
+        weight = step.weight or ZERO
+        used = min(weight, max(ZERO, remaining))
+        remaining -= used
+        pct = _round_two(used * PERCENT / weight) if weight else ZERO
+        converted.append(EapStep(name=step.name, weight=step.weight, pct=pct))
+    return tuple(converted)
+
+
+def _milestone_entries(
+    degrees: Sequence[tuple[Decimal, str]], percent: Decimal, message: str
+) -> EapPercentEntries:
+    state = next((state for degree, state in degrees if degree == percent), None)
+    if state is None:
+        return EapPercentEntries(error=message)
+    return EapPercentEntries(state=state)

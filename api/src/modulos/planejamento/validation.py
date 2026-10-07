@@ -16,6 +16,10 @@ The dictionary of the WBS package and the weight rules (ISSUE-036): the
 descriptive fields of the package (description, deliverable, acceptance,
 company, owner and the EAC item) and the rules that keep the weights within the
 parameters (100% of the project and the maximum per package).
+
+The measurement of the package by its criterion (ISSUE-037): the entries of the
+advance per criterion, the reversal gate (Gestor and justification) and the
+import of the accumulated progress line by line, each refusal with its motive.
 """
 
 from __future__ import annotations
@@ -25,8 +29,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING
 
-from src.core.errors import InvalidDataError
+from src.core.errors import AccessDeniedError, InvalidDataError
+
+if TYPE_CHECKING:
+    from src.modulos.planejamento.calculations import EapPercentEntries, EapStep
 
 # The two kinds of report, as the register keeps them.
 WEEKLY = "Semanal"
@@ -625,3 +633,383 @@ def package_weight_error(weight: Decimal, *, maximum: Decimal) -> str | None:
     if weight > maximum:
         return PACKAGE_WEIGHT_MAX_MESSAGE.format(maximum=maximum)
     return None
+
+
+ZERO = Decimal(0)
+
+
+FIELD_MEASURED_ON = "data"
+
+
+FIELD_EXECUTED = "executado"
+
+
+FIELD_MILESTONE_STATE = "estado"
+
+
+FIELD_ESTIMATED_PCT = "estimadoPct"
+
+
+FIELD_NOTE = "obs"
+
+
+FIELD_JUSTIFICATION = "justificativa"
+
+
+JUSTIFICATION_MIN_CHARACTERS = 10
+
+
+MEASUREMENT_DATE_REQUIRED_MESSAGE = "Informe a data da medição."
+
+
+MEASUREMENT_DATE_FUTURE_MESSAGE = "A data não pode ser posterior à referência."
+
+
+STEP_PCT_RANGE_MESSAGE = "Use um valor entre 0 e 100%."
+
+
+EXECUTED_REQUIRED_MESSAGE = "Informe a quantidade executada acumulada."
+
+
+EXECUTED_OVER_QUANTITY_MESSAGE = (
+    "O executado passa a quantidade da linha de base ({quantity} {unit}). "
+    "Registre uma SM (08) para revisar a EAP."
+)
+
+
+MILESTONE_STATE_MESSAGE = "Escolha a situação do marco."
+
+
+ESTIMATED_PCT_RANGE_MESSAGE = "Informe um avanço entre 0 e 100%."
+
+
+ESTIMATED_WEIGHT_MESSAGE = (
+    "Percentual estimado só vale para pacotes de até {maximum}% de peso; use etapas ou unidades."
+)
+
+
+REVERSAL_MANAGER_MESSAGE = "Estorno de avanço exige papel Gestor."
+
+
+REVERSAL_JUSTIFICATION_MESSAGE = (
+    "Estorno de avanço (de {from_pct}% para {to_pct}%) exige justificativa."
+)
+
+
+IMPORT_PACKAGE_NOT_FOUND_MESSAGE = "{code}: pacote não encontrado."
+
+
+IMPORT_PLANNING_MESSAGE = "{code}: pacote de planejamento não recebe medição."
+
+
+IMPORT_REGRESSION_MESSAGE = (
+    "{code}: o avanço não pode regredir (de {from_pct}% para {to_pct}%); "
+    "estorno só pela tela, com justificativa."
+)
+
+
+@dataclass(frozen=True)
+class ProgressEntries:
+    """As entradas do critério da medição; só as do critério do pacote vêm preenchidas."""
+
+    steps: tuple[EapStep, ...] = ()
+    executed: Decimal | None = None
+    state: str | None = None
+    estimated_pct: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class ProgressPackage:
+    """O pacote de nível 3 como a validação pura da medição o lê.
+
+    ``current`` é o real corrente do critério; ``steps`` são as etapas correntes do critério
+    Etapas; ``kind`` separa o pacote de trabalho do de planejamento, que não recebe medição.
+    """
+
+    kind: str
+    criterion: str | None
+    weight: Decimal
+    current: Decimal
+    quantity: Decimal | None = None
+    unit: str = ""
+    steps: tuple[EapStep, ...] = ()
+
+
+@dataclass(frozen=True)
+class ProgressData:
+    """A medição validada do formulário: a data, o de/para, as entradas e a observação."""
+
+    measured_on: date
+    from_pct: Decimal
+    to_pct: Decimal
+    entries: ProgressEntries
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class ImportRowInput:
+    """Uma linha da planilha de avanço: o código do pacote e o % acumulado ou a quantidade."""
+
+    code: str = ""
+    percent: Decimal | None = None
+    executed: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class ImportRowResult:
+    """O resultado de uma linha da importação: a medição aceita ou o motivo da recusa.
+
+    ``entries`` nulo sem ``error`` é linha sem mudança: não há o que gravar.
+    """
+
+    code: str
+    entries: ProgressEntries | None = None
+    from_pct: Decimal | None = None
+    to_pct: Decimal | None = None
+    error: str = ""
+
+
+def parse_progress_form(
+    raw: Mapping[str, str],
+    package: ProgressPackage,
+    *,
+    reference_date: date,
+    is_manager: bool,
+    max_estimated_weight: Decimal,
+) -> ProgressData:
+    """A medição do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado.
+
+    O acumulado não regride: uma medição abaixo do real corrente exige papel Gestor
+    (``AccessDeniedError``) e justificativa de 10 caracteres ou mais.
+    """
+    from src.modulos.planejamento import calculations
+
+    if package.criterion not in calculations.EAP_CRITERIA:
+        raise InvalidDataError(calculations.EAP_NO_CRITERION_MESSAGE)
+    errors: dict[str, str] = {}
+    measured_on = _measurement_date(raw, reference_date, errors)
+    entries = _progress_entries(raw, package, max_estimated_weight, errors)
+    if errors:
+        raise InvalidDataError(errors)
+    to_pct = _progress_after(package, entries)
+    _require_reversal_terms(raw, package, to_pct, is_manager=is_manager)
+    note = _text(raw, FIELD_NOTE) or _text(raw, FIELD_JUSTIFICATION)
+    return ProgressData(
+        measured_on=measured_on,
+        from_pct=package.current,
+        to_pct=to_pct,
+        entries=entries,
+        note=note,
+    )
+
+
+def parse_import_rows(
+    rows: Sequence[ImportRowInput], packages: Mapping[str, ProgressPackage]
+) -> tuple[ImportRowResult, ...]:
+    """A importação do avanço, linha a linha: a medição aceita ou o motivo da recusa.
+
+    O pacote de planejamento, o percentual fora dos degraus do marco e a linha que regride
+    são recusados com o motivo; a linha sem mudança não tem o que gravar.
+    """
+    return tuple(_import_row(row, packages) for row in rows)
+
+
+def _measurement_date(raw: Mapping[str, str], reference_date: date, errors: dict[str, str]) -> date:
+    text = _text(raw, FIELD_MEASURED_ON)
+    try:
+        found = date.fromisoformat(text)
+    except ValueError:
+        errors[FIELD_MEASURED_ON] = MEASUREMENT_DATE_REQUIRED_MESSAGE
+        return reference_date
+    if found > reference_date:
+        errors[FIELD_MEASURED_ON] = MEASUREMENT_DATE_FUTURE_MESSAGE
+    return found
+
+
+def _progress_entries(
+    raw: Mapping[str, str],
+    package: ProgressPackage,
+    max_estimated_weight: Decimal,
+    errors: dict[str, str],
+) -> ProgressEntries:
+    from src.modulos.planejamento import calculations
+
+    if package.criterion == calculations.CRITERION_STEPS:
+        return ProgressEntries(steps=_steps_input(raw, package, errors))
+    if package.criterion == calculations.CRITERION_UNITS:
+        return ProgressEntries(executed=_executed_input(raw, package, errors))
+    if package.criterion == calculations.CRITERION_MILESTONE_0_100:
+        return ProgressEntries(state=_state_input(raw, calculations.MILESTONE_0_100_STATES, errors))
+    if package.criterion == calculations.CRITERION_MILESTONE_50_50:
+        return ProgressEntries(state=_state_input(raw, calculations.MILESTONE_50_50_STATES, errors))
+    return ProgressEntries(
+        estimated_pct=_estimated_input(raw, package, max_estimated_weight, errors)
+    )
+
+
+def _steps_input(
+    raw: Mapping[str, str], package: ProgressPackage, errors: dict[str, str]
+) -> tuple[EapStep, ...]:
+    from src.modulos.planejamento.calculations import EapStep
+
+    steps: list[EapStep] = []
+    for index, step in enumerate(package.steps):
+        field = f"etapa{index}"
+        text = _text(raw, field)
+        if not text:
+            steps.append(step)
+            continue
+        value = _decimal(text)
+        if value is None or value < ZERO or value > HUNDRED:
+            errors[field] = STEP_PCT_RANGE_MESSAGE
+            value = step.pct
+        steps.append(EapStep(name=step.name, weight=step.weight, pct=value))
+    return tuple(steps)
+
+
+def _executed_input(
+    raw: Mapping[str, str], package: ProgressPackage, errors: dict[str, str]
+) -> Decimal | None:
+    value = _decimal(_text(raw, FIELD_EXECUTED))
+    message = _executed_error(value, package)
+    if message:
+        errors[FIELD_EXECUTED] = message
+    return value
+
+
+def _executed_error(executed: Decimal | None, package: ProgressPackage) -> str | None:
+    if executed is None or executed < ZERO:
+        return EXECUTED_REQUIRED_MESSAGE
+    if package.quantity is not None and executed > package.quantity:
+        return EXECUTED_OVER_QUANTITY_MESSAGE.format(
+            quantity=_plain_number(package.quantity), unit=package.unit
+        )
+    return None
+
+
+def _state_input(raw: Mapping[str, str], states: Sequence[str], errors: dict[str, str]) -> str:
+    value = _text(raw, FIELD_MILESTONE_STATE)
+    if value not in states:
+        errors[FIELD_MILESTONE_STATE] = MILESTONE_STATE_MESSAGE
+    return value
+
+
+def _estimated_input(
+    raw: Mapping[str, str],
+    package: ProgressPackage,
+    max_estimated_weight: Decimal,
+    errors: dict[str, str],
+) -> Decimal | None:
+    value = _decimal(_text(raw, FIELD_ESTIMATED_PCT))
+    if package.weight > max_estimated_weight:
+        errors[FIELD_ESTIMATED_PCT] = ESTIMATED_WEIGHT_MESSAGE.format(
+            maximum=_plain_number(max_estimated_weight)
+        )
+    elif value is None or value < ZERO or value > HUNDRED:
+        errors[FIELD_ESTIMATED_PCT] = ESTIMATED_PCT_RANGE_MESSAGE
+    return value
+
+
+def _progress_after(package: ProgressPackage, entries: ProgressEntries) -> Decimal:
+    from src.modulos.planejamento import calculations
+
+    return calculations.eap_package_progress(
+        package.criterion,
+        etapas=entries.steps,
+        quantity=package.quantity,
+        executed=entries.executed,
+        state=entries.state,
+        estimated_pct=entries.estimated_pct,
+    )
+
+
+def _require_reversal_terms(
+    raw: Mapping[str, str], package: ProgressPackage, to_pct: Decimal, *, is_manager: bool
+) -> None:
+    from src.modulos.planejamento import calculations
+
+    if not calculations.eap_progress_regression(package.current, to_pct):
+        return
+    if not is_manager:
+        raise AccessDeniedError(REVERSAL_MANAGER_MESSAGE)
+    if len(_text(raw, FIELD_JUSTIFICATION)) < JUSTIFICATION_MIN_CHARACTERS:
+        raise InvalidDataError(
+            {
+                FIELD_JUSTIFICATION: REVERSAL_JUSTIFICATION_MESSAGE.format(
+                    from_pct=_plain_number(package.current), to_pct=_plain_number(to_pct)
+                )
+            }
+        )
+
+
+def _import_row(row: ImportRowInput, packages: Mapping[str, ProgressPackage]) -> ImportRowResult:
+    from src.modulos.planejamento import calculations
+
+    package = packages.get(row.code)
+    if package is None:
+        return ImportRowResult(
+            code=row.code, error=IMPORT_PACKAGE_NOT_FOUND_MESSAGE.format(code=row.code)
+        )
+    if package.kind == calculations.PLANNING_PACKAGE:
+        return ImportRowResult(code=row.code, error=IMPORT_PLANNING_MESSAGE.format(code=row.code))
+    entries, message = _import_entries(row, package)
+    if message:
+        return ImportRowResult(code=row.code, error=f"{row.code}: {message}")
+    to_pct = _progress_after(package, entries)
+    if calculations.eap_progress_regression(package.current, to_pct):
+        return ImportRowResult(
+            code=row.code,
+            error=IMPORT_REGRESSION_MESSAGE.format(
+                code=row.code,
+                from_pct=_plain_number(package.current),
+                to_pct=_plain_number(to_pct),
+            ),
+        )
+    if to_pct == package.current:
+        return ImportRowResult(code=row.code)
+    return ImportRowResult(code=row.code, entries=entries, from_pct=package.current, to_pct=to_pct)
+
+
+def _import_entries(row: ImportRowInput, package: ProgressPackage) -> tuple[ProgressEntries, str]:
+    from src.modulos.planejamento import calculations
+
+    if package.criterion == calculations.CRITERION_UNITS and row.executed is not None:
+        entries = ProgressEntries(executed=row.executed)
+    else:
+        conversion = calculations.eap_entries_from_percent(
+            package.criterion,
+            row.percent,
+            etapas=package.steps,
+            quantity=package.quantity,
+        )
+        if conversion.error:
+            return ProgressEntries(), conversion.error
+        entries = _converted_entries(conversion)
+    if package.criterion == calculations.CRITERION_UNITS:
+        message = _executed_error(entries.executed, package)
+        if message:
+            return ProgressEntries(), message
+    return entries, ""
+
+
+def _converted_entries(conversion: EapPercentEntries) -> ProgressEntries:
+    return ProgressEntries(
+        steps=conversion.etapas,
+        executed=conversion.executed,
+        state=conversion.state,
+        estimated_pct=conversion.estimated_pct,
+    )
+
+
+def _decimal(text: str) -> Decimal | None:
+    try:
+        value = Decimal(text)
+    except ArithmeticError:
+        return None
+    return value if value.is_finite() else None
+
+
+def _plain_number(value: Decimal) -> str:
+    """O número sem zeros à direita: ``1400.0000`` vira ``1400`` e ``5.00`` vira ``5``."""
+    text = format(value, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
