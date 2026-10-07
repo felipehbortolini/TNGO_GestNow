@@ -163,6 +163,13 @@ max-complexity = 10
 # a mesma coisa com mais indireção.
 "src/modulos/planejamento/calculations.py" = ["PLR0913"]
 
+# `register_progress` e `import_progress` têm 6 parâmetros, e é assim de propósito: depois do `*`
+# são todos KEYWORD-ONLY (user, scope, item_id ou rows, form ou measurement_date, reference_date),
+# as fachadas da medição do avanço da EAP (ISSUE-037) que a rota chama. A regra existe para
+# argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de
+# opções, a mesma coisa com mais indireção.
+"src/modulos/planejamento/service.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 

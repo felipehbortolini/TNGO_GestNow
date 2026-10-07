@@ -2443,6 +2443,308 @@ def dictionary_fields(node: EapNode) -> dict[str, str]:
     }
 
 
+# ── Medição do avanço (ISSUE-037) ─────────────────────────────────────────
+
+
+PLANNING_PACKAGE_PROGRESS_MESSAGE = (
+    "Pacote de planejamento não recebe medição: desdobre-o em pacotes de trabalho antes."
+)
+
+
+IMPORT_NOTE = "Importação do avanço"
+
+
+@dataclass(frozen=True)
+class ProgressView:
+    """A medição registrada: o código do pacote, de quanto para quanto, o estorno e o item."""
+
+    code: str
+    from_pct: Decimal
+    to_pct: Decimal
+    is_reversal: bool
+    item: EapItem
+
+
+@dataclass(frozen=True)
+class ProgressImport:
+    """O resultado da importação: quantas linhas gravaram e o motivo de cada linha recusada."""
+
+    applied: int
+    errors: tuple[str, ...]
+
+
+def register_progress(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: Mapping[str, str],
+    reference_date: date,
+) -> ProgressView:
+    """Registra o avanço de um pacote de trabalho pelas entradas do seu critério.
+
+    The entries of the criterion (the % of each step, the executed quantity, the milestone state
+    or the estimated %) are written to the item and its steps, and the measurement is born as an
+    immutable fact with the date, de/para, author and note. The accumulated progress does not go
+    back: a reversal needs Gestor (403) and a justification of 10 characters or more (422), and
+    the justification travels in the note. Writing asks for Membro, the date cannot pass the
+    reference date and the Portfólio is read-only (D8). The version the screen opened protects
+    the item (409).
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    item = _measurable_package(session, scope=scope, item_id=item_id)
+    data = validation.parse_progress_form(
+        form,
+        _progress_package(
+            item,
+            _steps_of(session, item.id),
+            unit=_unit_code(session, item.unit_id),
+        ),
+        reference_date=reference_date,
+        is_manager=rbac.can(user, Permission.MANAGE),
+        max_estimated_weight=_parameters(
+            session, reference_date=reference_date
+        ).max_estimated_weight,
+    )
+    _write_entries(
+        session,
+        user=user,
+        item=item,
+        entries=data.entries,
+        version=form.get("versao"),
+    )
+    _record_measurement(
+        session,
+        user=user,
+        item=item,
+        measured_on=data.measured_on,
+        from_pct=data.from_pct,
+        to_pct=data.to_pct,
+        note=data.note or None,
+    )
+    return ProgressView(
+        code=item.code,
+        from_pct=data.from_pct,
+        to_pct=data.to_pct,
+        is_reversal=calculations.eap_progress_regression(data.from_pct, data.to_pct),
+        item=item,
+    )
+
+
+def import_progress(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    rows: Sequence[validation.ImportRowInput],
+    measurement_date: date,
+    reference_date: date,
+) -> ProgressImport:
+    """Importa o avanço acumulado por pacote, linha a linha, sem estorno.
+
+    Every line is checked on its own (``parse_import_rows``): a package that does not exist, a
+    planning package, a milestone off its degrees, an executed quantity above the baseline and a
+    line that regresses are refused with the motive; a line without change has nothing to write.
+    An accepted line writes the entries and one measurement, dated with ``measurement_date`` and
+    noted as an import. The import never reverses: a reversal only goes through the screen, with
+    justification. Writing asks for Membro and the date cannot pass the reference date. Everything
+    runs in the transaction the route opened.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    project_id = scope.require_project()
+    if measurement_date > reference_date:
+        raise InvalidDataError(
+            {validation.FIELD_MEASURED_ON: validation.MEASUREMENT_DATE_FUTURE_MESSAGE}
+        )
+    items = _progress_items(session, project_id=project_id)
+    packages = _progress_packages(session, tuple(items.values()))
+    applied, errors = 0, []
+    for row in rows:
+        result = validation.parse_import_rows((row,), packages)[0]
+        if result.error:
+            errors.append(result.error)
+            continue
+        if result.entries is None or result.from_pct is None or result.to_pct is None:
+            continue
+        item = items[result.code]
+        _write_entries(
+            session,
+            user=user,
+            item=item,
+            entries=result.entries,
+            version=str(item.version),
+        )
+        _record_measurement(
+            session,
+            user=user,
+            item=item,
+            measured_on=measurement_date,
+            from_pct=result.from_pct,
+            to_pct=result.to_pct,
+            note=IMPORT_NOTE,
+        )
+        packages[result.code] = replace(packages[result.code], current=result.to_pct)
+        applied += 1
+    return ProgressImport(applied=applied, errors=tuple(errors))
+
+
+def _measurable_package(session: Session, *, scope: Scope, item_id: int) -> EapItem:
+    """O pacote de trabalho do escopo que pode receber medição."""
+    item = _editable_package(session, scope=scope, item_id=item_id)
+    if item.kind == calculations.PLANNING_PACKAGE:
+        raise InvalidDataError(PLANNING_PACKAGE_PROGRESS_MESSAGE)
+    return item
+
+
+def _write_entries(
+    session: Session,
+    *,
+    user: User,
+    item: EapItem,
+    entries: validation.ProgressEntries,
+    version: int | str | None,
+) -> None:
+    """Grava as entradas do critério no item e nas etapas, com a trilha de cada mudança."""
+    recording.update(
+        session,
+        user_id=user.id,
+        record=item,
+        changes=_entry_changes(entries),
+        version=version,
+    )
+    _save_steps(session, user=user, item=item, steps=entries.steps)
+
+
+def _entry_changes(entries: validation.ProgressEntries) -> dict[str, Any]:
+    """Os campos do item que o critério atualiza; as etapas mudam nas linhas filhas."""
+    values = {
+        "executed": entries.executed,
+        "state": entries.state,
+        "estimated_pct": entries.estimated_pct,
+    }
+    return {field: value for field, value in values.items() if value is not None}
+
+
+def _save_steps(
+    session: Session, *, user: User, item: EapItem, steps: Sequence[calculations.EapStep]
+) -> None:
+    """Grava o % concluído das etapas que mudaram, com a trilha de cada uma."""
+    if not steps:
+        return
+    records = session.scalars(
+        select(EapItemStep)
+        .where(EapItemStep.item_id == item.id)
+        .order_by(EapItemStep.order, EapItemStep.id)
+    ).all()
+    for record, step in zip(records, steps, strict=False):
+        if step.pct is None or record.pct == step.pct:
+            continue
+        before = audit.snapshot(record)
+        record.pct = step.pct
+        session.flush()
+        audit.changed(
+            session, user_id=user.id, entity=record.__tablename__, record=record, before=before
+        )
+
+
+def _record_measurement(
+    session: Session,
+    *,
+    user: User,
+    item: EapItem,
+    measured_on: date,
+    from_pct: Decimal,
+    to_pct: Decimal,
+    note: str | None,
+) -> EapMeasurement:
+    """Grava a medição como fato imutável, com o autor sendo a pessoa do usuário."""
+    return recording.create(
+        session,
+        user_id=user.id,
+        record=EapMeasurement(
+            item_id=item.id,
+            author_id=user.person_id,
+            measured_on=measured_on,
+            from_pct=from_pct,
+            to_pct=to_pct,
+            note=note,
+        ),
+    )
+
+
+def _progress_items(session: Session, *, project_id: int) -> dict[str, EapItem]:
+    """Os pacotes (nível 3) do projeto pelo código, inclusive os de planejamento."""
+    statement = (
+        select(EapItem)
+        .where(EapItem.project_id == project_id, EapItem.level == LEVEL_PACKAGE)
+        .order_by(EapItem.id)
+    )
+    return {item.code: item for item in session.scalars(statement)}
+
+
+def _progress_packages(
+    session: Session, items: Sequence[EapItem]
+) -> dict[str, validation.ProgressPackage]:
+    """Os pacotes como a validação da importação os lê, com a unidade e as etapas correntes."""
+    steps = _steps_by_item(session, [item.id for item in items])
+    units = {unit.id: unit.code for unit in configuracoes.list_measure_units(session)}
+    return {
+        item.code: _progress_package(
+            item, steps.get(item.id, ()), unit=units.get(item.unit_id or 0, "")
+        )
+        for item in items
+    }
+
+
+def _progress_package(
+    item: EapItem, steps: Sequence[EapItemStep], *, unit: str
+) -> validation.ProgressPackage:
+    """O pacote de nível 3 com o real corrente e as entradas correntes do seu critério."""
+    return validation.ProgressPackage(
+        kind=item.kind or "",
+        criterion=item.criterion,
+        weight=item.weight or Decimal(0),
+        current=_item_progress(item, steps),
+        quantity=item.quantity,
+        unit=unit,
+        steps=tuple(
+            calculations.EapStep(name=step.name, weight=step.weight, pct=step.pct) for step in steps
+        ),
+    )
+
+
+def _item_progress(item: EapItem, steps: Sequence[EapItemStep]) -> Decimal:
+    """O real corrente do pacote, calculado das entradas do critério (D5b)."""
+    return calculations.eap_package_progress(
+        item.criterion,
+        etapas=tuple(
+            calculations.EapStep(name=step.name, weight=step.weight, pct=step.pct) for step in steps
+        ),
+        quantity=item.quantity,
+        executed=item.executed,
+        state=item.state,
+        estimated_pct=item.estimated_pct,
+    )
+
+
+def _steps_of(session: Session, item_id: int) -> tuple[EapItemStep, ...]:
+    """As etapas correntes de um pacote, na ordem."""
+    return _steps_by_item(session, [item_id]).get(item_id, ())
+
+
+def _unit_code(session: Session, unit_id: int | None) -> str:
+    """O código da unidade de medida do pacote; vazio sem unidade."""
+    if unit_id is None:
+        return ""
+    return next(
+        (unit.code for unit in configuracoes.list_measure_units(session) if unit.id == unit_id),
+        "",
+    )
+
+
 # ── Apoio da árvore ───────────────────────────────────────────────────────
 
 
