@@ -12,7 +12,7 @@ Nothing here reads the clock: the routes pass the reference date.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -47,6 +47,8 @@ from src.modulos.financeiro.models import (
     ContractMeasurement,
     ContractPaymentMilestone,
     ContractTimeExtension,
+    CurvaFinanceiraMonth,
+    CurvaFinanceiraRevision,
     EacItem,
     EacProjection,
     EacReallocation,
@@ -1421,6 +1423,7 @@ def create_revision(
     )
     session.add_all(frozen)
     session.flush()
+    freeze_financial_curve(session, revision=record)
     governanca.incorporate_eac_revision(
         session, user=user, change_id=source.change_id, revision=revision
     )
@@ -5219,6 +5222,937 @@ def _empty_contingency(
         expected_balance_cents=None,
         analysis_count=0,
         alerts=(),
+    )
+
+
+# ── Curva S financeira e KPIs de custo (ISSUE-042) ───────────────────────
+
+
+@dataclass(frozen=True)
+class FinancialCurveSeries:
+    """As séries acumuladas da Curva S financeira: os meses, o corte e as quatro linhas."""
+
+    months: tuple[date, ...]
+    cut_index: int
+    planned: tuple[int, ...]
+    committed: tuple[int | None, ...]
+    actual: tuple[int | None, ...]
+    trend: tuple[int | None, ...]
+
+
+@dataclass(frozen=True)
+class FinancialCurvePoint:
+    """Um mês da tabela período a período: o acumulado das quatro linhas e o corte."""
+
+    month: date
+    planned_cents: int
+    committed_cents: int | None
+    actual_cents: int | None
+    trend_cents: int | None
+    is_cut: bool
+
+
+@dataclass(frozen=True)
+class FinancialCurveKpis:
+    """Os KPIs do topo da Curva S financeira, no corte."""
+
+    budget_cents: int
+    planned_cents: int
+    committed_cents: int | None
+    actual_cents: int | None
+    trend_cents: int | None
+    deviation_cents: int | None
+    committed_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class FinancialCurveOverview:
+    """A Curva S financeira do escopo: a revisão vigente, as séries, a tabela e os KPIs."""
+
+    reference_date: date
+    is_portfolio: bool
+    scope_label: str
+    project_id: int | None
+    revision: int | None
+    revision_date: date | None
+    series: FinancialCurveSeries
+    points: tuple[FinancialCurvePoint, ...]
+    kpis: FinancialCurveKpis | None
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no frozen financial curve: the empty state of origin."""
+        return not self.series.months
+
+
+@dataclass(frozen=True)
+class CostKpiMonth:
+    """Um mês do valor agregado: PV, EV, AC, os desvios e os índices acumulados até ele."""
+
+    month: date
+    pv_cents: int
+    ev_cents: int
+    ac_cents: int
+    cv_cents: int
+    sv_cents: int
+    cpi: Decimal | None
+    spi: Decimal | None
+    eac_by_cpi_cents: int | None
+    tcpi: Decimal | None
+
+
+@dataclass(frozen=True)
+class CostKpiProjectRow:
+    """A linha de um projeto na tabela de desempenho de custo da carteira."""
+
+    project_id: int
+    project_code: str
+    project_label: str
+    bac_cents: int
+    ev_cents: int
+    ac_cents: int
+    cpi: Decimal | None
+    spi: Decimal | None
+    projection_cents: int | None
+    vac_cents: int | None
+    contingency_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class CostKpisOverview:
+    """Os KPIs de custo do escopo: o corte, os índices, a série mês a mês e a tabela."""
+
+    reference_date: date
+    is_portfolio: bool
+    scope_label: str
+    project_id: int | None
+    cut_month: date | None
+    budget_cents: int
+    indicators: calculations.CostIndicators | None
+    projection_cents: int | None
+    vac_cents: int | None
+    committed_cents: int | None
+    committed_pct: Decimal | None
+    contingency_total_cents: int
+    contingency_consumed_cents: int
+    contingency_pct: Decimal | None
+    actual: CostKpiMonth | None
+    previous: CostKpiMonth | None
+    history: tuple[CostKpiMonth, ...]
+    projects: tuple[CostKpiProjectRow, ...] = ()
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no EAC and curve to aggregate: the empty state of origin."""
+        return self.actual is None
+
+
+@dataclass(frozen=True)
+class _FinancialRecord:
+    """A revisão congelada da curva de um projeto, como o banco a guarda."""
+
+    project_id: int
+    revision: int
+    revision_date: date
+    total_cents: int
+    months: tuple[date, ...]
+    planned: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class _FrozenFinancialCurve:
+    """A curva de um projeto pronta: orçamento, séries e a curva física do valor agregado."""
+
+    project_id: int
+    revision: int
+    revision_date: date
+    budget_cents: int
+    series: FinancialCurveSeries
+    physical: CurvaFisicaSeries
+
+
+def freeze_financial_curve(session: Session, *, revision: EacRevision) -> None:
+    """Congela a linha de base da Curva S financeira na revisão da EAC (D5b, HU-093).
+
+    O planejado de cada mês é o total da revisão distribuído pelo perfil da curva física vigente
+    do projeto; sem curva física congelada, o perfil é a distribuição linear das datas dos pacotes
+    de nível 3 da EAP; sem pacote com peso e datas, não há o que congelar. A revisão nova
+    recongela e a anterior fica. A revisão da curva e os seus meses entram na transação do
+    chamador — é o gancho do ``create_revision`` da EAC.
+    """
+    profile = _financial_profile(
+        session, project_id=revision.project_id, reference_date=revision.revision_date
+    )
+    if profile is None:
+        return
+    months, baseline = profile
+    record = CurvaFinanceiraRevision(
+        project_id=revision.project_id,
+        eac_revision_id=revision.id,
+        generated_at=calendario.now(),
+    )
+    session.add(record)
+    session.flush()
+    planned = calculations.curva_financeira_planejado(
+        baseline, _revision_total_cents(session, revision=revision)
+    )
+    session.add_all(
+        CurvaFinanceiraMonth(revision_id=record.id, month=month, planned_cents=cents)
+        for month, cents in zip(months, planned, strict=True)
+    )
+    session.flush()
+
+
+def _financial_profile(
+    session: Session, *, project_id: int, reference_date: date
+) -> tuple[tuple[date, ...], tuple[Decimal, ...]] | None:
+    from src.modulos.planejamento import service as planejamento
+
+    overview = planejamento.curva_fisica_overview(
+        session, scope=Scope(project_id=project_id, source="url"), reference_date=reference_date
+    )
+    if not overview.is_empty:
+        return overview.series.months, overview.series.baseline
+    return planejamento.linear_curve_profile(
+        session, project_id=project_id, reference_date=reference_date
+    )
+
+
+def _revision_total_cents(session: Session, *, revision: EacRevision) -> int:
+    statement = select(EacRevisionItem.base_cents).where(EacRevisionItem.revision_id == revision.id)
+    return sum(session.scalars(statement))
+
+
+def financial_curve_overview(
+    session: Session, *, scope: Scope, reference_date: date
+) -> FinancialCurveOverview:
+    """A Curva S financeira do escopo: a linha de base congelada da revisão vigente (HU-093).
+
+    No projeto a curva é a da revisão vigente da EAC: o planejado congelado, o comprometido e o
+    realizado acumulados dos fatos do ERP até o corte, a tendência calculada e a tabela período a
+    período. No Portfólio os valores dos projetos somam em reais, no calendário da união dos
+    meses; a tendência é a soma das linhas dos projetos. Sem curva congelada, a visão sai vazia.
+    """
+    projects = configuracoes.list_projects(session)
+    if scope.is_portfolio:
+        return _portfolio_financial_curve(session, projects=projects, reference_date=reference_date)
+    project = _project_of(projects, scope)
+    curve = _frozen_financial_curves(
+        session, _current_financial_records(session, [project.id]), reference_date=reference_date
+    ).get(project.id)
+    if curve is None:
+        return _empty_financial_curve(
+            reference_date=reference_date, is_portfolio=False, scope_label=_label(project)
+        )
+    return FinancialCurveOverview(
+        reference_date=reference_date,
+        is_portfolio=False,
+        scope_label=_label(project),
+        project_id=project.id,
+        revision=curve.revision,
+        revision_date=curve.revision_date,
+        series=curve.series,
+        points=_financial_points(curve.series),
+        kpis=_financial_kpis(curve.series, budget_cents=curve.budget_cents),
+    )
+
+
+def _portfolio_financial_curve(
+    session: Session,
+    *,
+    projects: Sequence[configuracoes.ProjectSummary],
+    reference_date: date,
+) -> FinancialCurveOverview:
+    curves = {
+        project_id: curve
+        for project_id, curve in _frozen_financial_curves(
+            session,
+            _current_financial_records(session, [project.id for project in projects]),
+            reference_date=reference_date,
+        ).items()
+        if curve.series.months
+    }
+    if not curves:
+        return _empty_financial_curve(
+            reference_date=reference_date, is_portfolio=True, scope_label=PORTFOLIO_LABEL
+        )
+    months = tuple(sorted({month for curve in curves.values() for month in curve.series.months}))
+    cut_index = _cut_index(months, reference_date)
+    cut_month = months[cut_index] if cut_index >= 0 else None
+    series = FinancialCurveSeries(
+        months=months,
+        cut_index=cut_index,
+        planned=tuple(
+            sum(
+                _series_at(curve.series.months, curve.series.planned, month) or 0
+                for curve in curves.values()
+            )
+            for month in months
+        ),
+        committed=tuple(
+            None
+            if cut_month is None or month > cut_month
+            else _sum_optional(
+                _series_at(curve.series.months, curve.series.committed, month)
+                for curve in curves.values()
+            )
+            for month in months
+        ),
+        actual=tuple(
+            None
+            if cut_month is None or month > cut_month
+            else _sum_optional(
+                _series_at(curve.series.months, curve.series.actual, month)
+                for curve in curves.values()
+            )
+            for month in months
+        ),
+        trend=tuple(
+            None
+            if cut_month is None or month < cut_month
+            else _sum_optional(
+                _series_at(curve.series.months, curve.series.trend, month)
+                for curve in curves.values()
+            )
+            for month in months
+        ),
+    )
+    return FinancialCurveOverview(
+        reference_date=reference_date,
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        project_id=None,
+        revision=None,
+        revision_date=None,
+        series=series,
+        points=_financial_points(series),
+        kpis=_financial_kpis(
+            series, budget_cents=sum(curve.budget_cents for curve in curves.values())
+        ),
+    )
+
+
+def _current_financial_records(
+    session: Session, project_ids: Sequence[int]
+) -> dict[int, _FinancialRecord]:
+    """A curva congelada vigente de cada projeto: a da maior revisão da EAC."""
+    if not project_ids:
+        return {}
+    curves = session.scalars(
+        select(CurvaFinanceiraRevision).where(
+            CurvaFinanceiraRevision.project_id.in_(sorted(set(project_ids)))
+        )
+    ).all()
+    if not curves:
+        return {}
+    revisions = {
+        revision.id: revision
+        for revision in session.scalars(
+            select(EacRevision).where(
+                EacRevision.id.in_({curve.eac_revision_id for curve in curves})
+            )
+        )
+    }
+    latest: dict[int, CurvaFinanceiraRevision] = {}
+    for curve in curves:
+        revision = revisions.get(curve.eac_revision_id)
+        if revision is None:
+            continue
+        current = latest.get(curve.project_id)
+        if current is None or revision.revision > revisions[current.eac_revision_id].revision:
+            latest[curve.project_id] = curve
+    totals = _revision_totals(
+        session, revision_ids=[curve.eac_revision_id for curve in latest.values()]
+    )
+    months: dict[int, list[CurvaFinanceiraMonth]] = {}
+    for row in session.scalars(
+        select(CurvaFinanceiraMonth)
+        .where(CurvaFinanceiraMonth.revision_id.in_({curve.id for curve in latest.values()}))
+        .order_by(CurvaFinanceiraMonth.revision_id, CurvaFinanceiraMonth.month)
+    ):
+        months.setdefault(row.revision_id, []).append(row)
+    records: dict[int, _FinancialRecord] = {}
+    for project_id, curve in latest.items():
+        revision = revisions[curve.eac_revision_id]
+        rows = months.get(curve.id, [])
+        if not rows:
+            continue
+        records[project_id] = _FinancialRecord(
+            project_id=project_id,
+            revision=revision.revision,
+            revision_date=revision.revision_date,
+            total_cents=totals.get(curve.eac_revision_id, 0),
+            months=tuple(row.month for row in rows),
+            planned=tuple(row.planned_cents for row in rows),
+        )
+    return records
+
+
+def _revision_totals(session: Session, *, revision_ids: Sequence[int]) -> dict[int, int]:
+    if not revision_ids:
+        return {}
+    statement = (
+        select(EacRevisionItem.revision_id, func.sum(EacRevisionItem.base_cents))
+        .where(EacRevisionItem.revision_id.in_(sorted(set(revision_ids))))
+        .group_by(EacRevisionItem.revision_id)
+    )
+    return {row[0]: int(row[1] or 0) for row in session.execute(statement)}
+
+
+def _frozen_financial_curves(
+    session: Session,
+    records: Mapping[int, _FinancialRecord],
+    *,
+    reference_date: date,
+) -> dict[int, _FrozenFinancialCurve]:
+    if not records:
+        return {}
+    erp_months = _erp_months_by_project(session, project_ids=list(records))
+    facts = _erp_facts_by_project(session, project_ids=list(records))
+    curves: dict[int, _FrozenFinancialCurve] = {}
+    for project_id, record in records.items():
+        months = tuple(sorted({*record.months, *erp_months.get(project_id, ())}))
+        if not months:
+            continue
+        planned = tuple(_planned_at(record, month) for month in months)
+        points = calculations.curva_financeira_erp(
+            facts.get(project_id, ()), months, cutoff=reference_date
+        )
+        committed = tuple(point.committed_cents for point in points)
+        actual = tuple(point.actual_cents for point in points)
+        cut_index = _cut_index(months, reference_date)
+        physical = _curve_series(session, project_id=project_id, reference_date=reference_date)
+        curves[project_id] = _FrozenFinancialCurve(
+            project_id=project_id,
+            revision=record.revision,
+            revision_date=record.revision_date,
+            budget_cents=record.total_cents,
+            series=FinancialCurveSeries(
+                months=months,
+                cut_index=cut_index,
+                planned=planned,
+                committed=committed,
+                actual=actual,
+                trend=_curve_trend(
+                    physical,
+                    months,
+                    planned,
+                    actual,
+                    cut_index,
+                    budget_cents=record.total_cents,
+                ),
+            ),
+            physical=physical,
+        )
+    return curves
+
+
+def _erp_months_by_project(
+    session: Session, *, project_ids: Sequence[int]
+) -> dict[int, tuple[date, ...]]:
+    statement = (
+        select(ErpCost.project_id, ErpCost.month)
+        .where(ErpCost.project_id.in_(sorted(set(project_ids))))
+        .distinct()
+        .order_by(ErpCost.project_id, ErpCost.month)
+    )
+    grouped: dict[int, list[date]] = {}
+    for project_id, month in session.execute(statement):
+        grouped.setdefault(project_id, []).append(month)
+    return {project_id: tuple(months) for project_id, months in grouped.items()}
+
+
+def _erp_facts_by_project(
+    session: Session, *, project_ids: Sequence[int]
+) -> dict[int, tuple[calculations.ErpCostFact, ...]]:
+    statement = select(ErpCost).where(ErpCost.project_id.in_(sorted(set(project_ids))))
+    grouped: dict[int, list[calculations.ErpCostFact]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.project_id, []).append(
+            calculations.ErpCostFact(
+                item_id=row.item_id,
+                month=row.month,
+                committed_cents=row.committed_cents,
+                actual_cents=row.actual_cents,
+                projection_cents=row.projection_cents,
+            )
+        )
+    return {project_id: tuple(facts) for project_id, facts in grouped.items()}
+
+
+def _planned_at(record: _FinancialRecord, month: date) -> int:
+    if not record.months:
+        return 0
+    if month in record.months:
+        return record.planned[record.months.index(month)]
+    if month < record.months[0]:
+        return 0
+    return record.planned[-1]
+
+
+def _cut_index(months: Sequence[date], reference_date: date) -> int:
+    cut_month = reference_date.replace(day=1)
+    index = -1
+    for position, month in enumerate(months):
+        if month <= cut_month:
+            index = position
+    return index
+
+
+def _series_at[T](months: Sequence[date], values: Sequence[T | None], month: date) -> T | None:
+    """O valor acumulado da série num mês: antes do início, nada; depois do fim, o último."""
+    if not months:
+        return None
+    if month < months[0]:
+        return None
+    if month > months[-1]:
+        return next((value for value in reversed(values) if value is not None), None)
+    return values[months.index(month)]
+
+
+def _sum_optional(values: Iterable[int | None]) -> int | None:
+    present = [value for value in values if value is not None]
+    return sum(present) if present else None
+
+
+def _curve_trend(
+    physical: CurvaFisicaSeries,
+    months: Sequence[date],
+    planned: Sequence[int],
+    actual: Sequence[int | None],
+    cut_index: int,
+    *,
+    budget_cents: int,
+) -> tuple[int | None, ...]:
+    """A tendência da curva: EV do avanço físico no corte sobre o BAC da revisão vigente."""
+    if cut_index < 0:
+        return (None,) * len(months)
+    physical_actual, _ = _physical_indicators(physical)
+    value = calculations.value_aggregated_month(
+        month=months[cut_index],
+        bac_cents=budget_cents,
+        physical_actual_pct=physical_actual,
+        pv_cents=planned[cut_index],
+        ac_cents=actual[cut_index],
+    )
+    ev_cents = value.ev_cents if value is not None else 0
+    return calculations.curva_financeira_trend(
+        planned, actual, cut_index, bac_cents=budget_cents, ev_cents=ev_cents
+    )
+
+
+def _financial_points(series: FinancialCurveSeries) -> tuple[FinancialCurvePoint, ...]:
+    return tuple(
+        FinancialCurvePoint(
+            month=month,
+            planned_cents=series.planned[index],
+            committed_cents=series.committed[index],
+            actual_cents=series.actual[index],
+            trend_cents=series.trend[index],
+            is_cut=index == series.cut_index,
+        )
+        for index, month in enumerate(series.months)
+    )
+
+
+def _financial_kpis(
+    series: FinancialCurveSeries, *, budget_cents: int
+) -> FinancialCurveKpis | None:
+    if series.cut_index < 0:
+        return None
+    index = series.cut_index
+    planned = series.planned[index]
+    committed = series.committed[index]
+    actual = series.actual[index]
+    trend = next((value for value in reversed(series.trend) if value is not None), None)
+    return FinancialCurveKpis(
+        budget_cents=budget_cents,
+        planned_cents=planned,
+        committed_cents=committed,
+        actual_cents=actual,
+        trend_cents=trend,
+        deviation_cents=None if actual is None else actual - planned,
+        committed_pct=(
+            None if committed is None else calculations.committed_percent(committed, budget_cents)
+        ),
+    )
+
+
+def _empty_financial_curve(
+    *, reference_date: date, is_portfolio: bool, scope_label: str
+) -> FinancialCurveOverview:
+    empty = FinancialCurveSeries(
+        months=(), cut_index=-1, planned=(), committed=(), actual=(), trend=()
+    )
+    return FinancialCurveOverview(
+        reference_date=reference_date,
+        is_portfolio=is_portfolio,
+        scope_label=scope_label,
+        project_id=None,
+        revision=None,
+        revision_date=None,
+        series=empty,
+        points=(),
+        kpis=None,
+    )
+
+
+def cost_kpis_overview(session: Session, *, scope: Scope, reference_date: date) -> CostKpisOverview:
+    """Os KPIs de custo do escopo: CPI, SPI, CV, VAC, contingência e comprometido (HU-092).
+
+    O EV é o avanço físico real sobre o BAC, o PV a linha de base e o AC o realizado acumulado do
+    ERP; a série mês a mês acumula os índices até cada mês e a variação compara o corte com o mês
+    anterior. No Portfólio o PV, o EV e o AC somam os projetos e o CPI e o SPI saem da soma. Sem
+    EAC ou sem curva congelada, a visão sai vazia.
+    """
+    projects = configuracoes.list_projects(session)
+    if scope.is_portfolio:
+        return _portfolio_cost_kpis(session, projects=projects, reference_date=reference_date)
+    project = _project_of(projects, scope)
+    return _project_cost_kpis(session, project=project, reference_date=reference_date)
+
+
+def _project_cost_kpis(
+    session: Session,
+    *,
+    project: configuracoes.ProjectSummary,
+    reference_date: date,
+) -> CostKpisOverview:
+    curve = _frozen_financial_curves(
+        session, _current_financial_records(session, [project.id]), reference_date=reference_date
+    ).get(project.id)
+    if curve is None or not curve.physical.months:
+        return _empty_cost_kpis(
+            reference_date=reference_date, is_portfolio=False, scope_label=_label(project)
+        )
+    history = _value_history(curve)
+    cut_value = _value_at_cut(curve)
+    actual = None if cut_value is None else _cost_kpi_month(cut_value, bac_cents=curve.budget_cents)
+    indicators = (
+        None
+        if actual is None
+        else calculations.cost_indicators(
+            bac_cents=curve.budget_cents,
+            ev_cents=actual.ev_cents,
+            pv_cents=actual.pv_cents,
+            ac_cents=actual.ac_cents,
+        )
+    )
+    projection = _project_projection_cents(session, project_id=project.id)
+    committed = _committed_at_cut(curve)
+    contingency = contingency_consumption(session, scope=Scope(project_id=project.id, source="url"))
+    return CostKpisOverview(
+        reference_date=reference_date,
+        is_portfolio=False,
+        scope_label=_label(project),
+        project_id=project.id,
+        cut_month=_curve_cut_month(curve),
+        budget_cents=curve.budget_cents,
+        indicators=indicators,
+        projection_cents=projection,
+        vac_cents=(
+            None
+            if projection is None
+            else calculations.estimate_variance(curve.budget_cents, projection)
+        ),
+        committed_cents=committed,
+        committed_pct=(
+            None
+            if committed is None
+            else calculations.committed_percent(committed, curve.budget_cents)
+        ),
+        contingency_total_cents=contingency.total_cents if contingency is not None else 0,
+        contingency_consumed_cents=(contingency.consumed_cents if contingency is not None else 0),
+        contingency_pct=(
+            None
+            if contingency is None
+            else calculations.reserve_consumption_pct(
+                contingency.consumed_cents, contingency.total_cents
+            )
+        ),
+        actual=actual,
+        previous=_previous_of(history, _curve_cut_month(curve)),
+        history=history,
+    )
+
+
+def _portfolio_cost_kpis(
+    session: Session,
+    *,
+    projects: Sequence[configuracoes.ProjectSummary],
+    reference_date: date,
+) -> CostKpisOverview:
+    curves = {
+        project_id: curve
+        for project_id, curve in _frozen_financial_curves(
+            session,
+            _current_financial_records(session, [project.id for project in projects]),
+            reference_date=reference_date,
+        ).items()
+        if curve.physical.months and curve.series.months
+    }
+    if not curves:
+        return _empty_cost_kpis(
+            reference_date=reference_date, is_portfolio=True, scope_label=PORTFOLIO_LABEL
+        )
+    budget = sum(curve.budget_cents for curve in curves.values())
+    months = tuple(sorted({month for curve in curves.values() for month in curve.series.months}))
+    cut_index = _cut_index(months, reference_date)
+    cut_month = months[cut_index] if cut_index >= 0 else None
+    history = _portfolio_value_history(curves, months, cut_month, bac_cents=budget)
+    actual = next((row for row in history if row.month == cut_month), None)
+    indicators = (
+        None
+        if actual is None
+        else calculations.cost_indicators(
+            bac_cents=budget,
+            ev_cents=actual.ev_cents,
+            pv_cents=actual.pv_cents,
+            ac_cents=actual.ac_cents,
+        )
+    )
+    projection = _portfolio_projection_cents(session, project_ids=list(curves))
+    committed = _portfolio_committed(curves, cut_month)
+    contingency = contingency_consumption(session, scope=Scope(project_id=None, source="url"))
+    by_id = {project.id: project for project in projects}
+    return CostKpisOverview(
+        reference_date=reference_date,
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        project_id=None,
+        cut_month=cut_month,
+        budget_cents=budget,
+        indicators=indicators,
+        projection_cents=projection,
+        vac_cents=None
+        if projection is None
+        else calculations.estimate_variance(budget, projection),
+        committed_cents=committed,
+        committed_pct=(
+            None if committed is None else calculations.committed_percent(committed, budget)
+        ),
+        contingency_total_cents=contingency.total_cents if contingency is not None else 0,
+        contingency_consumed_cents=(contingency.consumed_cents if contingency is not None else 0),
+        contingency_pct=(
+            None
+            if contingency is None
+            else calculations.reserve_consumption_pct(
+                contingency.consumed_cents, contingency.total_cents
+            )
+        ),
+        actual=actual,
+        previous=_previous_of(history, cut_month),
+        history=history,
+        projects=tuple(
+            _cost_kpi_project_row(session, curves[project_id], project=by_id.get(project_id))
+            for project_id in sorted(curves)
+        ),
+    )
+
+
+def _cost_kpi_project_row(
+    session: Session,
+    curve: _FrozenFinancialCurve,
+    *,
+    project: configuracoes.ProjectSummary | None,
+) -> CostKpiProjectRow:
+    cut_value = _value_at_cut(curve)
+    projection = _project_projection_cents(session, project_id=curve.project_id)
+    contingency = contingency_consumption(
+        session, scope=Scope(project_id=curve.project_id, source="url")
+    )
+    return CostKpiProjectRow(
+        project_id=curve.project_id,
+        project_code=project.code if project is not None else "",
+        project_label=_label(project) if project is not None else "",
+        bac_cents=curve.budget_cents,
+        ev_cents=cut_value.ev_cents if cut_value is not None else 0,
+        ac_cents=cut_value.ac_cents if cut_value is not None else 0,
+        cpi=cut_value.cpi if cut_value is not None else None,
+        spi=cut_value.spi if cut_value is not None else None,
+        projection_cents=projection,
+        vac_cents=(
+            None
+            if projection is None
+            else calculations.estimate_variance(curve.budget_cents, projection)
+        ),
+        contingency_pct=(
+            None
+            if contingency is None
+            else calculations.reserve_consumption_pct(
+                contingency.consumed_cents, contingency.total_cents
+            )
+        ),
+    )
+
+
+def _value_history(curve: _FrozenFinancialCurve) -> tuple[CostKpiMonth, ...]:
+    rows: list[CostKpiMonth] = []
+    for month in curve.series.months:
+        value = _project_value_at(curve, month)
+        if value is None:
+            continue
+        rows.append(_cost_kpi_month(value, bac_cents=curve.budget_cents))
+    return tuple(rows)
+
+
+def _portfolio_value_history(
+    curves: Mapping[int, _FrozenFinancialCurve],
+    months: Sequence[date],
+    cut_month: date | None,
+    *,
+    bac_cents: int,
+) -> tuple[CostKpiMonth, ...]:
+    if cut_month is None:
+        return ()
+    rows: list[CostKpiMonth] = []
+    for month in months:
+        if month > cut_month:
+            break
+        values = [
+            value
+            for curve in curves.values()
+            if (value := _project_value_at(curve, month)) is not None
+        ]
+        if not values:
+            continue
+        rows.append(_sum_cost_kpi_month(values, month=month, bac_cents=bac_cents))
+    return tuple(rows)
+
+
+def _project_value_at(
+    curve: _FrozenFinancialCurve, month: date
+) -> calculations.ValueAggregatedMonth | None:
+    physical = _physical_at(curve.physical, month)
+    if physical is None:
+        return None
+    return calculations.value_aggregated_month(
+        month=month,
+        bac_cents=curve.budget_cents,
+        physical_actual_pct=physical,
+        pv_cents=_series_at(curve.series.months, curve.series.planned, month) or 0,
+        ac_cents=_series_at(curve.series.months, curve.series.actual, month),
+    )
+
+
+def _physical_at(physical: CurvaFisicaSeries, month: date) -> Decimal | None:
+    if month not in physical.months:
+        return None
+    return physical.real[physical.months.index(month)]
+
+
+def _value_at_cut(curve: _FrozenFinancialCurve) -> calculations.ValueAggregatedMonth | None:
+    cut_month = _curve_cut_month(curve)
+    return None if cut_month is None else _project_value_at(curve, cut_month)
+
+
+def _curve_cut_month(curve: _FrozenFinancialCurve) -> date | None:
+    if curve.series.cut_index < 0:
+        return None
+    return curve.series.months[curve.series.cut_index]
+
+
+def _cost_kpi_month(value: calculations.ValueAggregatedMonth, *, bac_cents: int) -> CostKpiMonth:
+    return CostKpiMonth(
+        month=value.month,
+        pv_cents=value.pv_cents,
+        ev_cents=value.ev_cents,
+        ac_cents=value.ac_cents,
+        cv_cents=value.cv_cents,
+        sv_cents=value.sv_cents,
+        cpi=value.cpi,
+        spi=value.spi,
+        eac_by_cpi_cents=calculations.estimate_at_completion_by_cpi(
+            bac_cents, value.ev_cents, value.ac_cents
+        ),
+        tcpi=calculations.to_complete_performance_index(bac_cents, value.ev_cents, value.ac_cents),
+    )
+
+
+def _sum_cost_kpi_month(
+    values: Sequence[calculations.ValueAggregatedMonth], *, month: date, bac_cents: int
+) -> CostKpiMonth:
+    ev_cents = sum(value.ev_cents for value in values)
+    pv_cents = sum(value.pv_cents for value in values)
+    ac_cents = sum(value.ac_cents for value in values)
+    return CostKpiMonth(
+        month=month,
+        pv_cents=pv_cents,
+        ev_cents=ev_cents,
+        ac_cents=ac_cents,
+        cv_cents=calculations.cost_variance(ev_cents, ac_cents),
+        sv_cents=calculations.schedule_variance(ev_cents, pv_cents),
+        cpi=calculations.cost_performance_index(ev_cents, ac_cents),
+        spi=calculations.cost_schedule_index(ev_cents, pv_cents),
+        eac_by_cpi_cents=calculations.estimate_at_completion_by_cpi(bac_cents, ev_cents, ac_cents),
+        tcpi=calculations.to_complete_performance_index(bac_cents, ev_cents, ac_cents),
+    )
+
+
+def _previous_of(history: Sequence[CostKpiMonth], cut_month: date | None) -> CostKpiMonth | None:
+    if cut_month is None:
+        return None
+    previous_month = (cut_month - timedelta(days=1)).replace(day=1)
+    return next((row for row in history if row.month == previous_month), None)
+
+
+def _committed_at_cut(curve: _FrozenFinancialCurve) -> int | None:
+    cut_month = _curve_cut_month(curve)
+    if cut_month is None:
+        return None
+    return _series_at(curve.series.months, curve.series.committed, cut_month)
+
+
+def _portfolio_committed(
+    curves: Mapping[int, _FrozenFinancialCurve], cut_month: date | None
+) -> int | None:
+    if cut_month is None:
+        return None
+    return _sum_optional(_committed_at_cut(curve) for curve in curves.values())
+
+
+def _project_projection_cents(session: Session, *, project_id: int) -> int | None:
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    if not items:
+        return None
+    projected = calculations.projected_total_cents(
+        items,
+        current_bases=_current_bases(session, project_id=project_id, items=items),
+        facts=_projection_facts(session, item_ids=[item.id for item in items]),
+    )
+    return projected.total_cents
+
+
+def _portfolio_projection_cents(session: Session, *, project_ids: Sequence[int]) -> int | None:
+    projections = [
+        projection
+        for project_id in project_ids
+        if (projection := _project_projection_cents(session, project_id=project_id)) is not None
+    ]
+    return sum(projections) if projections else None
+
+
+def _empty_cost_kpis(
+    *, reference_date: date, is_portfolio: bool, scope_label: str
+) -> CostKpisOverview:
+    return CostKpisOverview(
+        reference_date=reference_date,
+        is_portfolio=is_portfolio,
+        scope_label=scope_label,
+        project_id=None,
+        cut_month=None,
+        budget_cents=0,
+        indicators=None,
+        projection_cents=None,
+        vac_cents=None,
+        committed_cents=None,
+        committed_pct=None,
+        contingency_total_cents=0,
+        contingency_consumed_cents=0,
+        contingency_pct=None,
+        actual=None,
+        previous=None,
+        history=(),
     )
 
 

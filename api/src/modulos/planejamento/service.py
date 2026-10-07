@@ -3709,6 +3709,31 @@ def freeze_curve(
     session.flush()
 
 
+def linear_curve_profile(
+    session: Session, *, project_id: int, reference_date: date
+) -> tuple[tuple[date, ...], tuple[Decimal, ...]] | None:
+    """O perfil linear da curva a partir das datas e dos pesos correntes dos pacotes de nível 3.
+
+    É a distribuição que o ``freeze_curve`` daria a uma revisão nova feita agora: os pacotes com
+    peso e as duas datas entram no calendário e no previsto linear de cada mês. Serve de perfil ao
+    congelamento da Curva S financeira de um projeto sem curva física congelada (ISSUE-042); sem
+    pacote com peso e as duas datas, não há perfil.
+    """
+    items = session.scalars(
+        select(EapItem).where(EapItem.project_id == project_id, EapItem.level == LEVEL_PACKAGE)
+    ).all()
+    packages = tuple(
+        calculations.CurvaFisicaPackage(weight=item.weight, start=item.start, finish=item.finish)
+        for item in items
+        if item.weight is not None and item.weight > calculations.ZERO
+    )
+    calendar = calculations.curva_fisica_months(packages, reference_date)
+    if not calendar.months:
+        return None
+    baseline = calculations.curva_fisica_baseline(packages, calendar.months, reference_date)
+    return calendar.months, baseline
+
+
 def curva_fisica_overview(
     session: Session, *, scope: Scope, reference_date: date
 ) -> CurvaFisicaOverview:
