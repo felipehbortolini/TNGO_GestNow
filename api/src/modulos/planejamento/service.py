@@ -20,13 +20,24 @@ reference date as arguments; nothing here reads the clock (D6). Writing goes
 through ``core.recording`` (trail, version and transaction together), and the
 registers of other modules (projects, companies, people, disciplines) are read
 through the facade of Configurações.
+
+The WBS (ISSUE-036): the tree of the project (area, subarea and package) and the
+read-only tree of the Portfólio (portfolio, project with its weight in the
+portfolio and the areas), the dictionary of the package and the indicator of the
+SMs still to incorporate. The real of each package comes from the current
+entries of its measuring criterion (D5b), the nodes add up the children by
+weight (the 100% rule) and the deviation uses the bands of the parameters in
+force. The weight of the project in the portfolio and the EAC item of the
+dictionary come from the Financeiro facade, imported locally (D9); the approved
+SMs come from the Governança facade. Nothing here reads the clock (D6).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import Integer, cast, func, select
@@ -34,13 +45,19 @@ from sqlalchemy.orm import Session, selectinload
 
 from src.core import audit, calendario, rbac, recording, versioning
 from src.core.audit import TrailLine
-from src.core.errors import InvalidDataError
+from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.import_values import normalize_text
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.planejamento import calculations, validation
 from src.modulos.planejamento.models import (
+    EapBreakdown,
+    EapItem,
+    EapItemStep,
+    EapMeasurement,
+    EapRevision,
+    EapRevisionItem,
     Lookahead,
     LookaheadConstraint,
     LookaheadWeek,
@@ -1356,3 +1373,1145 @@ def constraint_fields(constraint: ConstraintView) -> dict[str, Any]:
         "necessaria": constraint.due_date.isoformat(),
         "versao": str(constraint.version),
     }
+
+
+# ── EAP: árvore, dicionário e carteira (ISSUE-036) ───────────────────────
+
+
+EAP_GROUP = "eap"
+
+LEVEL_ROOT = 0
+
+
+LEVEL_AREA = 1
+
+
+LEVEL_SUB_AREA = 2
+
+
+LEVEL_PACKAGE = 3
+
+
+ROOT_CODE = "0"
+
+
+PORTFOLIO_LABEL = "Portfólio"
+
+
+PORTFOLIO_DESCRIPTION = "Portfólio de projetos"
+
+
+EAP_PROJECT_NOT_FOUND_MESSAGE = "O projeto da EAP não existe."
+
+
+PACKAGE_NOT_FOUND_MESSAGE = "Pacote da EAP não encontrado."
+
+
+ONLY_PACKAGES_MESSAGE = "Só os pacotes (nível 3) têm dicionário editável."
+
+
+EAP_PORTFOLIO_READ_ONLY_MESSAGE = (
+    "A EAP do Portfólio é somente leitura. Abra o projeto para editar o dicionário."
+)
+
+
+NO_SCOPE_IMPACT = "sem impacto"
+
+
+DEFAULT_DEVIATION_BANDS = (Decimal(2), Decimal(5))
+
+
+DEFAULT_MAX_PACKAGE_WEIGHT = Decimal(10)
+
+
+DEFAULT_MAX_ESTIMATED_WEIGHT = Decimal(5)
+
+
+@dataclass(frozen=True)
+class EapMeasurementView:
+    """A medição do pacote como o dicionário a mostra: quando, de quanto para quanto, quem e a nota."""
+
+    id: int
+    measured_on: date
+    from_pct: Decimal
+    to_pct: Decimal
+    author: str
+    note: str
+
+    @property
+    def is_reversal(self) -> bool:
+        """Whether the progress went back: the dictionary marks the measurement of the reversal."""
+        return self.to_pct < self.from_pct
+
+
+@dataclass(frozen=True)
+class EapNode:
+    """Um nó da árvore da EAP: a linha 0, a área, a subárea ou o pacote.
+
+    Os nós de nível 1 e 2 não têm peso próprio: o peso é a soma dos filhos (regra dos 100%),
+    calculada pelo servidor. Os campos descritivos do pacote (critério, modelo, etapas, unidade,
+    quantidade, estado, entregável, aceitação, empresa, responsável, item da EAC e medições) só
+    valem para o nível 3.
+    """
+
+    id: int | None
+    code: str
+    level: int
+    description: str
+    project_id: int | None
+    project_code: str
+    project_label: str
+    weight: Decimal
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    band: str | None
+    start: date | None
+    finish: date | None
+    packages: int
+    planning: int
+    overdue: bool
+    not_started: bool
+    weight_in_parent: Decimal | None = None
+    weight_in_project: Decimal | None = None
+    kind: str | None = None
+    criterion: str | None = None
+    model: str = ""
+    unit: str = ""
+    quantity: Decimal | None = None
+    executed: Decimal | None = None
+    state: str | None = None
+    estimated_pct: Decimal | None = None
+    deliverable: str = ""
+    acceptance: str = ""
+    company_id: int | None = None
+    company_name: str = ""
+    owner_id: int | None = None
+    owner_name: str = ""
+    eac_item_id: int | None = None
+    eac_code: str = ""
+    steps: tuple[calculations.EapStep, ...] = ()
+    measurements: tuple[EapMeasurementView, ...] = ()
+
+    @property
+    def is_work_package(self) -> bool:
+        """Pacote de trabalho: nível 3 fora do tipo Planejamento; é ele que mede avanço."""
+        return self.level == LEVEL_PACKAGE and self.kind != calculations.PLANNING_PACKAGE
+
+    @property
+    def is_planning_package(self) -> bool:
+        """Pacote de planejamento: peso reservado, sem medição até ser desdobrado."""
+        return self.level == LEVEL_PACKAGE and self.kind == calculations.PLANNING_PACKAGE
+
+
+@dataclass(frozen=True)
+class EapIndicators:
+    """Os indicadores da tela: o avanço, os pacotes, as áreas e as marcas de atenção."""
+
+    actual: Decimal
+    predicted: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    work_packages: int
+    planning_packages: int
+    planning_weight: Decimal | None
+    areas: int
+    subareas: int
+    overdue: int
+    not_started: int
+    late: int
+    projects: int
+
+
+@dataclass(frozen=True)
+class EapRevisionView:
+    """Uma revisão da EAP: a linha de base ou a que incorporou uma SM aprovada.
+
+    ``package_count`` sai dos pesos congelados da revisão (D5b) e ``change_code`` é o link da SM.
+    No Portfólio a linha traz o projeto e quantas revisões ele tem.
+    """
+
+    revision: int
+    revision_date: date
+    alteration: str
+    justification: str
+    approved_by: str
+    package_count: int
+    id: int | None = None
+    change_id: int | None = None
+    change_code: str = ""
+    project_id: int | None = None
+    project_label: str = ""
+    revision_count: int = 0
+
+
+@dataclass(frozen=True)
+class EapBreakdownView:
+    """Um desdobramento da revisão vigente: de qual pacote de planejamento para qual de trabalho."""
+
+    id: int
+    revision: int
+    applied_on: date
+    weight: Decimal
+    source_code: str
+    source_description: str
+    target_code: str
+    target_description: str
+    author: str
+    justification: str
+
+
+@dataclass(frozen=True)
+class EapPendingChange:
+    """Uma SM aprovada com impacto em escopo que nenhuma revisão da EAP incorporou ainda."""
+
+    id: int
+    code: str
+    title: str
+    project_id: int
+    project_label: str
+
+
+@dataclass(frozen=True)
+class EapOverview:
+    """A EAP do escopo: a árvore, os indicadores, as revisões e os desdobramentos da vigente."""
+
+    reference_date: date
+    is_portfolio: bool
+    can_edit: bool
+    scope_label: str
+    nodes: tuple[EapNode, ...]
+    indicators: EapIndicators
+    current_revision: EapRevisionView | None
+    revisions: tuple[EapRevisionView, ...]
+    breakdowns: tuple[EapBreakdownView, ...]
+    pending_changes: tuple[EapPendingChange, ...]
+
+    @property
+    def root(self) -> EapNode:
+        """A linha 0: o total do projeto ou do portfólio."""
+        return self.nodes[0]
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no EAP: only the line 0 in the tree."""
+        return len(self.nodes) <= 1
+
+
+@dataclass(frozen=True)
+class EapParameters:
+    """Os parâmetros do grupo ``eap`` vigentes: as faixas, os limites e os modelos de etapas."""
+
+    deviation_bands: tuple[Decimal, Decimal]
+    max_package_weight: Decimal
+    max_estimated_weight: Decimal
+    stage_models: tuple[Mapping[str, Any], ...]
+
+    def model_name(self, model: str | None) -> str:
+        """O nome do modelo de etapas pelo id gravado no pacote; vazio sem modelo."""
+        for candidate in self.stage_models:
+            if str(candidate.get("id", "")) == (model or ""):
+                return str(candidate.get("nome", ""))
+        return ""
+
+
+@dataclass(frozen=True)
+class _Lookups:
+    """Os nomes que os nós mencionam, lidos uma vez por requisição."""
+
+    companies: Mapping[int, str]
+    people: Mapping[int, str]
+    units: Mapping[int, str]
+    eac_codes: Mapping[int, str]
+
+    def company(self, company_id: int | None) -> str:
+        return self.companies.get(company_id, "") if company_id is not None else ""
+
+    def person(self, person_id: int | None) -> str:
+        return self.people.get(person_id, "") if person_id is not None else ""
+
+    def unit(self, unit_id: int | None) -> str:
+        return self.units.get(unit_id, "") if unit_id is not None else ""
+
+    def eac_code(self, item_id: int | None) -> str:
+        return self.eac_codes.get(item_id, "") if item_id is not None else ""
+
+
+@dataclass(frozen=True)
+class _Reading:
+    """O que toda leitura da EAP carrega: a sessão, os parâmetros vigentes, a data e os nomes."""
+
+    session: Session
+    parameters: EapParameters
+    reference_date: date
+    lookups: _Lookups
+
+
+@dataclass(frozen=True)
+class _TreeData:
+    """Os itens do projeto já indexados: filhos, totais, etapas e medições."""
+
+    by_parent: Mapping[int | None, tuple[EapItem, ...]]
+    totals: Mapping[int, calculations.EapTotals]
+    steps: Mapping[int, tuple[EapItemStep, ...]]
+    measurements: Mapping[int, tuple[EapMeasurementView, ...]]
+
+
+@dataclass(frozen=True)
+class _ProjectSnapshot:
+    """A EAP de um projeto lida uma vez: a árvore, os indicadores e as revisões."""
+
+    nodes: tuple[EapNode, ...]
+    indicators: EapIndicators
+    revisions: tuple[EapRevisionView, ...]
+
+    @property
+    def root(self) -> EapNode:
+        return self.nodes[0]
+
+    @property
+    def current_revision(self) -> EapRevisionView | None:
+        current: EapRevisionView | None = None
+        for view in self.revisions:
+            if current is None or view.revision > current.revision:
+                current = view
+        return current
+
+
+@dataclass(frozen=True)
+class _PortfolioEntry:
+    """Um projeto da carteira com EAP: a linha, o projeto, a EAP lida e o peso na carteira."""
+
+    number: int
+    project: configuracoes.ProjectSummary
+    snapshot: _ProjectSnapshot
+    weight: Decimal
+
+
+# ── Leitura da árvore ─────────────────────────────────────────────────────
+
+
+def eap_overview(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> EapOverview:
+    """A EAP do escopo: a árvore do projeto (editável) ou a do Portfólio (somente leitura).
+
+    The tree of the project carries the dictionary and the measurements of each package; the tree
+    of the Portfólio has one line per project with EAP, with its weight in the portfolio, and one
+    line per area, read-only, as the EAC does (D8). The real of each package comes from the
+    current entries of its criterion and the nodes add up the children by weight (D5b). The
+    reference date enters as an argument (D6).
+    """
+    rbac.require_module(user, MODULE)
+    projects = _scope_projects(scope, configuracoes.list_projects(session))
+    items_by_project = _items_by_project(session, [project.id for project in projects])
+    reading = _Reading(
+        session=session,
+        parameters=_parameters(session, reference_date=reference_date),
+        reference_date=reference_date,
+        lookups=_lookups(
+            session,
+            items=[item for group in items_by_project.values() for item in group],
+        ),
+    )
+    if scope.is_portfolio:
+        return _portfolio_overview(
+            reading, user=user, projects=projects, items_by_project=items_by_project
+        )
+    project = projects[0]
+    return _project_overview(
+        reading, user=user, project=project, items=items_by_project.get(project.id, ())
+    )
+
+
+def _project_overview(
+    reading: _Reading,
+    *,
+    user: User,
+    project: configuracoes.ProjectSummary,
+    items: Sequence[EapItem],
+) -> EapOverview:
+    snapshot = _project_snapshot(reading, project, items)
+    current = snapshot.current_revision
+    breakdowns = _breakdowns(
+        reading,
+        project_id=project.id,
+        revision=current.revision if current is not None else None,
+        items=items,
+    )
+    pending = _pending_changes(
+        reading.session,
+        user=user,
+        projects=(project,),
+        used_by_project={project.id: _used_changes(snapshot.revisions)},
+        reference_date=reading.reference_date,
+    )
+    return EapOverview(
+        reference_date=reading.reference_date,
+        is_portfolio=False,
+        can_edit=rbac.can(user, Permission.WRITE),
+        scope_label=_project_label(project),
+        nodes=snapshot.nodes,
+        indicators=snapshot.indicators,
+        current_revision=current,
+        revisions=snapshot.revisions,
+        breakdowns=breakdowns,
+        pending_changes=pending,
+    )
+
+
+def _portfolio_overview(
+    reading: _Reading,
+    *,
+    user: User,
+    projects: Sequence[configuracoes.ProjectSummary],
+    items_by_project: Mapping[int, tuple[EapItem, ...]],
+) -> EapOverview:
+    entries = _portfolio_entries(reading, projects, items_by_project)
+    nodes: list[EapNode] = [_portfolio_root(reading, entries)]
+    for entry in entries:
+        nodes.append(_portfolio_project_node(reading, entry))
+        nodes.extend(_portfolio_area_node(entry, area) for area in _area_nodes(entry.snapshot))
+    pending = _pending_changes(
+        reading.session,
+        user=user,
+        projects=[entry.project for entry in entries],
+        used_by_project={
+            entry.project.id: _used_changes(entry.snapshot.revisions) for entry in entries
+        },
+        reference_date=reading.reference_date,
+    )
+    return EapOverview(
+        reference_date=reading.reference_date,
+        is_portfolio=True,
+        can_edit=False,
+        scope_label=PORTFOLIO_LABEL,
+        nodes=tuple(nodes),
+        indicators=_portfolio_indicators(nodes[0], entries),
+        current_revision=None,
+        revisions=_portfolio_revisions(entries),
+        breakdowns=(),
+        pending_changes=pending,
+    )
+
+
+def _portfolio_entries(
+    reading: _Reading,
+    projects: Sequence[configuracoes.ProjectSummary],
+    items_by_project: Mapping[int, tuple[EapItem, ...]],
+) -> tuple[_PortfolioEntry, ...]:
+    """The projects with EAP, numbered in the order of the portfolio, with their weight in it."""
+    from src.modulos.financeiro import service as financeiro
+
+    weights = financeiro.portfolio_weights(reading.session, reference_date=reading.reference_date)
+    entries: list[_PortfolioEntry] = []
+    number = 0
+    for project in projects:
+        items = items_by_project.get(project.id, ())
+        if not items:
+            continue
+        number += 1
+        entries.append(
+            _PortfolioEntry(
+                number=number,
+                project=project,
+                snapshot=_project_snapshot(reading, project, items),
+                weight=weights[project.id].weight if project.id in weights else Decimal(0),
+            )
+        )
+    return tuple(entries)
+
+
+def _portfolio_root(reading: _Reading, entries: Sequence[_PortfolioEntry]) -> EapNode:
+    totals = calculations.eap_root_totals(
+        [replace(_totals_of(entry.snapshot.root), weight=entry.weight) for entry in entries]
+    )
+    deviation = calculations.eap_deviation_pp(totals.actual, totals.predicted)
+    return EapNode(
+        id=None,
+        code=ROOT_CODE,
+        level=LEVEL_ROOT,
+        description=PORTFOLIO_DESCRIPTION,
+        project_id=None,
+        project_code="",
+        project_label=PORTFOLIO_LABEL,
+        weight=totals.weight,
+        predicted=totals.predicted,
+        actual=totals.actual,
+        deviation_pp=deviation,
+        band=calculations.eap_deviation_band(deviation, reading.parameters.deviation_bands),
+        start=totals.start,
+        finish=totals.finish,
+        packages=totals.packages,
+        planning=totals.planning,
+        overdue=totals.overdue,
+        not_started=totals.not_started,
+    )
+
+
+def _portfolio_project_node(reading: _Reading, entry: _PortfolioEntry) -> EapNode:
+    root = entry.snapshot.root
+    return EapNode(
+        id=None,
+        code=str(entry.number),
+        level=LEVEL_AREA,
+        description=_project_label(entry.project),
+        project_id=entry.project.id,
+        project_code=entry.project.code,
+        project_label=_project_label(entry.project),
+        weight=entry.weight,
+        predicted=root.predicted,
+        actual=root.actual,
+        deviation_pp=root.deviation_pp,
+        band=root.band,
+        start=root.start,
+        finish=root.finish,
+        packages=root.packages,
+        planning=root.planning,
+        overdue=root.overdue,
+        not_started=root.not_started,
+        weight_in_parent=entry.weight,
+        owner_id=entry.project.manager_id,
+        owner_name=reading.lookups.person(entry.project.manager_id),
+    )
+
+
+def _portfolio_area_node(entry: _PortfolioEntry, area: EapNode) -> EapNode:
+    weight = (area.weight * entry.weight / calculations.PERCENT).quantize(
+        calculations.TWO_PLACES, rounding=ROUND_HALF_UP
+    )
+    return replace(
+        area,
+        code=f"{entry.number}.{area.code}",
+        level=LEVEL_SUB_AREA,
+        project_id=entry.project.id,
+        project_code=entry.project.code,
+        project_label=_project_label(entry.project),
+        weight=weight,
+        weight_in_parent=area.weight,
+        weight_in_project=area.weight,
+    )
+
+
+def _portfolio_indicators(root: EapNode, entries: Sequence[_PortfolioEntry]) -> EapIndicators:
+    return EapIndicators(
+        actual=root.actual,
+        predicted=root.predicted,
+        deviation_pp=root.deviation_pp,
+        spi=_spi(root.actual, root.predicted),
+        work_packages=sum(entry.snapshot.indicators.work_packages for entry in entries),
+        planning_packages=sum(entry.snapshot.indicators.planning_packages for entry in entries),
+        planning_weight=None,
+        areas=sum(entry.snapshot.indicators.areas for entry in entries),
+        subareas=sum(entry.snapshot.indicators.subareas for entry in entries),
+        overdue=sum(entry.snapshot.indicators.overdue for entry in entries),
+        not_started=sum(entry.snapshot.indicators.not_started for entry in entries),
+        late=sum(entry.snapshot.indicators.late for entry in entries),
+        projects=len(entries),
+    )
+
+
+def _portfolio_revisions(entries: Sequence[_PortfolioEntry]) -> tuple[EapRevisionView, ...]:
+    views: list[EapRevisionView] = []
+    for entry in entries:
+        current = entry.snapshot.current_revision
+        if current is None:
+            continue
+        views.append(
+            replace(
+                current,
+                project_id=entry.project.id,
+                project_label=_project_label(entry.project),
+                revision_count=len(entry.snapshot.revisions),
+            )
+        )
+    return tuple(views)
+
+
+def _project_snapshot(
+    reading: _Reading, project: configuracoes.ProjectSummary, items: Sequence[EapItem]
+) -> _ProjectSnapshot:
+    nodes = _tree(reading, project, items)
+    return _ProjectSnapshot(
+        nodes=nodes,
+        indicators=_indicators(nodes, projects=1),
+        revisions=_revisions(reading.session, project_id=project.id),
+    )
+
+
+def _tree(
+    reading: _Reading, project: configuracoes.ProjectSummary, items: Sequence[EapItem]
+) -> tuple[EapNode, ...]:
+    """The line 0 and every node of the project, depth first, in the order of the codes."""
+    data = _tree_data(reading, items)
+    roots = data.by_parent.get(None, ())
+    nodes: list[EapNode] = [
+        _root_node(
+            reading, project, calculations.eap_root_totals([data.totals[root.id] for root in roots])
+        )
+    ]
+
+    def append(item: EapItem, parent_weight: Decimal | None) -> None:
+        node = _node(reading, project=project, item=item, data=data, parent_weight=parent_weight)
+        nodes.append(node)
+        for child in data.by_parent.get(item.id, ()):
+            append(child, node.weight)
+
+    for root in roots:
+        append(root, None)
+    return tuple(nodes)
+
+
+def _tree_data(reading: _Reading, items: Sequence[EapItem]) -> _TreeData:
+    by_parent = _children_by_parent(items)
+    steps = _steps_by_item(reading.session, [item.id for item in items])
+    measurements = _measurements_by_item(
+        reading.session, [item.id for item in items], reading.lookups
+    )
+    totals = _totals_by_item(
+        items, by_parent=by_parent, steps=steps, reference_date=reading.reference_date
+    )
+    return _TreeData(by_parent=by_parent, totals=totals, steps=steps, measurements=measurements)
+
+
+def _root_node(
+    reading: _Reading, project: configuracoes.ProjectSummary, totals: calculations.EapTotals
+) -> EapNode:
+    deviation = calculations.eap_deviation_pp(totals.actual, totals.predicted)
+    return EapNode(
+        id=None,
+        code=ROOT_CODE,
+        level=LEVEL_ROOT,
+        description=project.name,
+        project_id=project.id,
+        project_code=project.code,
+        project_label=_project_label(project),
+        weight=totals.weight,
+        predicted=totals.predicted,
+        actual=totals.actual,
+        deviation_pp=deviation,
+        band=calculations.eap_deviation_band(deviation, reading.parameters.deviation_bands),
+        start=totals.start,
+        finish=totals.finish,
+        packages=totals.packages,
+        planning=totals.planning,
+        overdue=totals.overdue,
+        not_started=totals.not_started,
+    )
+
+
+def _node(
+    reading: _Reading,
+    *,
+    project: configuracoes.ProjectSummary,
+    item: EapItem,
+    data: _TreeData,
+    parent_weight: Decimal | None,
+) -> EapNode:
+    totals = data.totals[item.id]
+    deviation = calculations.eap_deviation_pp(totals.actual, totals.predicted)
+    return EapNode(
+        id=item.id,
+        code=item.code,
+        level=item.level,
+        description=item.description,
+        project_id=project.id,
+        project_code=project.code,
+        project_label=_project_label(project),
+        weight=totals.weight,
+        predicted=totals.predicted,
+        actual=totals.actual,
+        deviation_pp=deviation,
+        band=calculations.eap_deviation_band(deviation, reading.parameters.deviation_bands),
+        start=totals.start,
+        finish=totals.finish,
+        packages=totals.packages,
+        planning=totals.planning,
+        overdue=totals.overdue,
+        not_started=totals.not_started,
+        weight_in_parent=_share_of(totals.weight, parent_weight),
+        kind=item.kind,
+        criterion=item.criterion,
+        model=reading.parameters.model_name(item.model),
+        unit=reading.lookups.unit(item.unit_id),
+        quantity=item.quantity,
+        executed=item.executed,
+        state=item.state,
+        estimated_pct=item.estimated_pct,
+        deliverable=item.deliverable or "",
+        acceptance=item.acceptance or "",
+        company_id=item.company_id,
+        company_name=reading.lookups.company(item.company_id),
+        owner_id=item.owner_id,
+        owner_name=reading.lookups.person(item.owner_id),
+        eac_item_id=item.eac_item_id,
+        eac_code=reading.lookups.eac_code(item.eac_item_id),
+        steps=tuple(
+            calculations.EapStep(name=step.name, weight=step.weight, pct=step.pct)
+            for step in data.steps.get(item.id, ())
+        ),
+        measurements=data.measurements.get(item.id, ()),
+    )
+
+
+def _totals_by_item(
+    items: Sequence[EapItem],
+    *,
+    by_parent: Mapping[int | None, tuple[EapItem, ...]],
+    steps: Mapping[int, tuple[EapItemStep, ...]],
+    reference_date: date,
+) -> dict[int, calculations.EapTotals]:
+    """The totals of every item: the real of the criterion for a package, the children for the rest."""
+    totals: dict[int, calculations.EapTotals] = {}
+
+    def compute(item: EapItem) -> calculations.EapTotals:
+        if item.id in totals:
+            return totals[item.id]
+        if item.level == LEVEL_PACKAGE:
+            found = calculations.eap_package_totals(
+                _package(item, steps.get(item.id, ())), reference_date=reference_date
+            )
+        else:
+            found = calculations.eap_node_totals(
+                [compute(child) for child in by_parent.get(item.id, ())]
+            )
+        totals[item.id] = found
+        return found
+
+    for item in items:
+        compute(item)
+    return totals
+
+
+def _package(item: EapItem, steps: Sequence[EapItemStep]) -> calculations.EapPackage:
+    return calculations.EapPackage(
+        kind=item.kind or "",
+        weight=item.weight or Decimal(0),
+        predicted=item.predicted or Decimal(0),
+        start=item.start,
+        finish=item.finish,
+        criterion=item.criterion,
+        etapas=tuple(
+            calculations.EapStep(name=step.name, weight=step.weight, pct=step.pct) for step in steps
+        ),
+        quantity=item.quantity,
+        executed=item.executed,
+        state=item.state,
+        estimated_pct=item.estimated_pct,
+    )
+
+
+def _indicators(nodes: Sequence[EapNode], *, projects: int) -> EapIndicators:
+    root = nodes[0]
+    work = [node for node in nodes if node.is_work_package]
+    planning = [node for node in nodes if node.is_planning_package]
+    return EapIndicators(
+        actual=root.actual,
+        predicted=root.predicted,
+        deviation_pp=root.deviation_pp,
+        spi=_spi(root.actual, root.predicted),
+        work_packages=len(work),
+        planning_packages=len(planning),
+        planning_weight=_weight_of(planning),
+        areas=sum(1 for node in nodes if node.level == LEVEL_AREA),
+        subareas=sum(1 for node in nodes if node.level == LEVEL_SUB_AREA),
+        overdue=sum(1 for node in work if node.overdue),
+        not_started=sum(1 for node in work if node.not_started),
+        late=sum(1 for node in work if node.band == calculations.DANGER_BAND),
+        projects=projects,
+    )
+
+
+def _revisions(session: Session, *, project_id: int) -> tuple[EapRevisionView, ...]:
+    """The revisions of the project, oldest first, with the frozen package count and the SM link."""
+    from src.modulos.governanca import service as governanca
+
+    records = list(
+        session.scalars(
+            select(EapRevision)
+            .where(EapRevision.project_id == project_id)
+            .order_by(EapRevision.revision, EapRevision.id)
+        )
+    )
+    if not records:
+        return ()
+    counts = _revision_package_counts(session, [record.id for record in records])
+    codes = governanca.change_codes(
+        session,
+        change_ids=[record.change_id for record in records if record.change_id is not None],
+    )
+    names = configuracoes.person_names(session, {record.approved_by_id for record in records})
+    return tuple(
+        EapRevisionView(
+            id=record.id,
+            revision=record.revision,
+            revision_date=record.revision_date,
+            alteration=record.alteration,
+            justification=record.justification,
+            approved_by=names.get(record.approved_by_id, ""),
+            package_count=counts.get(record.id, 0),
+            change_id=record.change_id,
+            change_code=codes.get(record.change_id, "") if record.change_id is not None else "",
+        )
+        for record in records
+    )
+
+
+def _revision_package_counts(session: Session, revision_ids: Sequence[int]) -> dict[int, int]:
+    """How many packages each revision froze: the level-3 items of ``eap_revisao_item``."""
+    if not revision_ids:
+        return {}
+    statement = (
+        select(EapRevisionItem.revision_id, func.count())
+        .join(EapItem, EapItem.id == EapRevisionItem.item_id)
+        .where(EapRevisionItem.revision_id.in_(revision_ids), EapItem.level == LEVEL_PACKAGE)
+        .group_by(EapRevisionItem.revision_id)
+    )
+    counts: dict[int, int] = {}
+    for row in session.execute(statement):
+        counts[int(row[0])] = int(row[1])
+    return counts
+
+
+def _breakdowns(
+    reading: _Reading,
+    *,
+    project_id: int,
+    revision: int | None,
+    items: Sequence[EapItem],
+) -> tuple[EapBreakdownView, ...]:
+    """The breakdowns of the current revision: from which planning package to which work package."""
+    if revision is None:
+        return ()
+    records = list(
+        reading.session.scalars(
+            select(EapBreakdown)
+            .where(EapBreakdown.project_id == project_id, EapBreakdown.revision == revision)
+            .order_by(EapBreakdown.id)
+        )
+    )
+    if not records:
+        return ()
+    by_id = {item.id: item for item in items}
+    names = configuracoes.person_names(reading.session, {record.by_id for record in records})
+    views: list[EapBreakdownView] = []
+    for record in records:
+        source = by_id.get(record.source_item_id)
+        target = by_id.get(record.target_item_id)
+        views.append(
+            EapBreakdownView(
+                id=record.id,
+                revision=record.revision,
+                applied_on=record.applied_on,
+                weight=record.weight,
+                source_code=source.code if source is not None else "",
+                source_description=source.description if source is not None else "",
+                target_code=target.code if target is not None else "",
+                target_description=target.description if target is not None else "",
+                author=names.get(record.by_id, ""),
+                justification=record.justification,
+            )
+        )
+    return tuple(views)
+
+
+def _pending_changes(
+    session: Session,
+    *,
+    user: User,
+    projects: Sequence[configuracoes.ProjectSummary],
+    used_by_project: Mapping[int, frozenset[int]],
+    reference_date: date,
+) -> tuple[EapPendingChange, ...]:
+    """As SMs aprovadas com impacto em escopo que nenhuma revisão da EAP incorporou ainda.
+
+    The list comes from the Governança facade (the approved changes and their impact, through
+    ``find_change_sheet``); the incorporation itself is the revision flow of ISSUE-038, so this is
+    what the facades already give today. The scope-impact cut mirrors the prototype: an impact
+    whose scope text is empty or says "sem impacto" does not count.
+    """
+    from src.modulos.governanca import service as governanca
+
+    pending: list[EapPendingChange] = []
+    for project in projects:
+        used = used_by_project.get(project.id, frozenset())
+        for change in governanca.approved_changes(session, project_id=project.id):
+            if change.id in used:
+                continue
+            sheet = governanca.find_change_sheet(
+                session, user=user, code=change.code, reference_date=reference_date
+            )
+            if sheet is None or not _has_scope_impact(sheet.impact):
+                continue
+            pending.append(
+                EapPendingChange(
+                    id=change.id,
+                    code=change.code,
+                    title=change.title,
+                    project_id=project.id,
+                    project_label=sheet.project_label,
+                )
+            )
+    return tuple(pending)
+
+
+def _has_scope_impact(impact: Any) -> bool:
+    if impact is None:
+        return False
+    text = (impact.scope or "").strip()
+    return bool(text) and normalize_text(text) != NO_SCOPE_IMPACT
+
+
+def _parameters(session: Session, *, reference_date: date) -> EapParameters:
+    """The ``eap`` group in force on the date, with the initial values when there is no version."""
+    values = (
+        configuracoes.current_group(session, group=EAP_GROUP, reference_date=reference_date)
+        or configuracoes.INITIAL_PARAMETERS[EAP_GROUP]
+    )
+    return EapParameters(
+        deviation_bands=_deviation_bands(values),
+        max_package_weight=_decimal_value(
+            values.get("pesoMaximoPacotePct"), DEFAULT_MAX_PACKAGE_WEIGHT
+        ),
+        max_estimated_weight=_decimal_value(
+            values.get("estimadoMaximoPct"), DEFAULT_MAX_ESTIMATED_WEIGHT
+        ),
+        stage_models=_stage_models(values),
+    )
+
+
+def _deviation_bands(values: Mapping[str, Any]) -> tuple[Decimal, Decimal]:
+    raw = values.get("faixasDesvioPP")
+    if not isinstance(raw, Sequence) or isinstance(raw, str) or len(raw) != 2:
+        return DEFAULT_DEVIATION_BANDS
+    return (
+        _decimal_value(raw[0], DEFAULT_DEVIATION_BANDS[0]),
+        _decimal_value(raw[1], DEFAULT_DEVIATION_BANDS[1]),
+    )
+
+
+def _decimal_value(value: Any, default: Decimal) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError):
+        return default
+
+
+def _stage_models(values: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    raw = values.get("modelosEtapas")
+    if not isinstance(raw, Sequence) or isinstance(raw, str):
+        return ()
+    return tuple(item for item in raw if isinstance(item, Mapping))
+
+
+# ── Escrita do dicionário ─────────────────────────────────────────────────
+
+
+def update_dictionary(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: Mapping[str, str],
+) -> EapItem:
+    """Save the dictionary of a package: the descriptive fields, never the baseline.
+
+    The description, the deliverable, the acceptance, the company, the owner and the EAC item are
+    the dictionary (the prototype's ``eapEditarPacote``); the weight, the dates and the criterion
+    belong to the baseline and only change through a revision (ISSUE-038). Writing asks for Membro
+    and the Portfólio is refused: it is read-only (D8). A stale version is refused with 409.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    item = _editable_package(session, scope=scope, item_id=item_id)
+    data = validation.parse_dictionary_form(
+        form, _dictionary_choices(session, project_id=item.project_id)
+    )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=item,
+        changes={
+            "description": data.description,
+            "deliverable": data.deliverable,
+            "acceptance": data.acceptance,
+            "company_id": data.company_id,
+            "owner_id": data.owner_id,
+            "eac_item_id": _eac_item_id(session, project_id=item.project_id, code=data.eac_code),
+        },
+        version=form.get("versao"),
+    )
+    return item
+
+
+def _editable_package(session: Session, *, scope: Scope, item_id: int) -> EapItem:
+    if scope.is_portfolio:
+        raise AccessDeniedError(EAP_PORTFOLIO_READ_ONLY_MESSAGE)
+    item = session.get(EapItem, item_id)
+    if item is None:
+        raise InvalidDataError(PACKAGE_NOT_FOUND_MESSAGE)
+    if item.project_id != scope.project_id:
+        raise AccessDeniedError(OTHER_PROJECT_MESSAGE)
+    if item.level != LEVEL_PACKAGE:
+        raise InvalidDataError(ONLY_PACKAGES_MESSAGE)
+    return item
+
+
+def _dictionary_choices(session: Session, *, project_id: int) -> validation.DictionaryChoices:
+    from src.modulos.financeiro import service as financeiro
+
+    levels = financeiro.eac_item_levels(session, project_id=project_id)
+    return validation.DictionaryChoices(
+        company_ids=frozenset(item.id for item in configuracoes.list_company_options(session)),
+        person_ids=frozenset(item.id for item in configuracoes.list_person_options(session)),
+        eac_codes=frozenset(code for code, level in levels.items() if level >= LEVEL_PACKAGE),
+    )
+
+
+def _eac_item_id(session: Session, *, project_id: int, code: str | None) -> int | None:
+    if not code:
+        return None
+    from src.modulos.financeiro import service as financeiro
+
+    found = financeiro.eac_item_ids_by_code(session, project_id=project_id, codes=[code])
+    return found.get(code)
+
+
+# ── Apoio da árvore ───────────────────────────────────────────────────────
+
+
+def _scope_projects(
+    scope: Scope, projects: Sequence[configuracoes.ProjectSummary]
+) -> tuple[configuracoes.ProjectSummary, ...]:
+    if scope.is_portfolio:
+        return tuple(projects)
+    project = next((item for item in projects if item.id == scope.project_id), None)
+    if project is None:
+        raise InvalidDataError(EAP_PROJECT_NOT_FOUND_MESSAGE)
+    return (project,)
+
+
+def _items_by_project(
+    session: Session, project_ids: Sequence[int]
+) -> dict[int, tuple[EapItem, ...]]:
+    if not project_ids:
+        return {}
+    statement = select(EapItem).where(EapItem.project_id.in_(project_ids)).order_by(EapItem.id)
+    grouped: dict[int, list[EapItem]] = {}
+    for item in session.scalars(statement):
+        grouped.setdefault(item.project_id, []).append(item)
+    return {project_id: tuple(group) for project_id, group in grouped.items()}
+
+
+def _lookups(session: Session, items: Sequence[EapItem]) -> _Lookups:
+    from src.modulos.financeiro import service as financeiro
+
+    eac_ids = sorted({item.eac_item_id for item in items if item.eac_item_id is not None})
+    return _Lookups(
+        companies={item.id: item.name for item in configuracoes.list_company_options(session)},
+        people={item.id: item.name for item in configuracoes.list_person_options(session)},
+        units={item.id: item.code for item in configuracoes.list_measure_units(session)},
+        eac_codes=financeiro.eac_item_codes(session, eac_ids),
+    )
+
+
+def _children_by_parent(
+    items: Sequence[EapItem],
+) -> dict[int | None, tuple[EapItem, ...]]:
+    grouped: dict[int | None, list[EapItem]] = {}
+    for item in items:
+        grouped.setdefault(item.parent_id, []).append(item)
+    return {
+        parent_id: tuple(sorted(group, key=lambda item: _code_key(item.code)))
+        for parent_id, group in grouped.items()
+    }
+
+
+def _steps_by_item(session: Session, item_ids: Sequence[int]) -> dict[int, tuple[EapItemStep, ...]]:
+    if not item_ids:
+        return {}
+    statement = (
+        select(EapItemStep)
+        .where(EapItemStep.item_id.in_(item_ids))
+        .order_by(EapItemStep.item_id, EapItemStep.order, EapItemStep.id)
+    )
+    grouped: dict[int, list[EapItemStep]] = {}
+    for step in session.scalars(statement):
+        grouped.setdefault(step.item_id, []).append(step)
+    return {item_id: tuple(group) for item_id, group in grouped.items()}
+
+
+def _measurements_by_item(
+    session: Session, item_ids: Sequence[int], lookups: _Lookups
+) -> dict[int, tuple[EapMeasurementView, ...]]:
+    if not item_ids:
+        return {}
+    statement = (
+        select(EapMeasurement)
+        .where(EapMeasurement.item_id.in_(item_ids))
+        .order_by(EapMeasurement.item_id, EapMeasurement.measured_on, EapMeasurement.id)
+    )
+    grouped: dict[int, list[EapMeasurementView]] = {}
+    for record in session.scalars(statement):
+        grouped.setdefault(record.item_id, []).append(
+            EapMeasurementView(
+                id=record.id,
+                measured_on=record.measured_on,
+                from_pct=record.from_pct,
+                to_pct=record.to_pct,
+                author=lookups.person(record.author_id),
+                note=record.note or "",
+            )
+        )
+    return {item_id: tuple(group) for item_id, group in grouped.items()}
+
+
+def _area_nodes(snapshot: _ProjectSnapshot) -> tuple[EapNode, ...]:
+    return tuple(node for node in snapshot.nodes if node.level == LEVEL_AREA)
+
+
+def _used_changes(revisions: Sequence[EapRevisionView]) -> frozenset[int]:
+    return frozenset(view.change_id for view in revisions if view.change_id is not None)
+
+
+def _totals_of(node: EapNode) -> calculations.EapTotals:
+    return calculations.EapTotals(
+        weight=node.weight,
+        predicted=node.predicted,
+        actual=node.actual,
+        start=node.start,
+        finish=node.finish,
+        packages=node.packages,
+        planning=node.planning,
+        overdue=node.overdue,
+        not_started=node.not_started,
+    )
+
+
+def _share_of(value: Decimal, base: Decimal | None) -> Decimal | None:
+    """The share of the value in the base, in %, with one place; ``None`` without a base."""
+    if base is None or base == 0:
+        return None
+    return (value / base * calculations.PERCENT).quantize(
+        calculations.ONE_PLACE, rounding=ROUND_HALF_UP
+    )
+
+
+def _weight_of(nodes: Sequence[EapNode]) -> Decimal:
+    total = sum((node.weight for node in nodes), Decimal(0))
+    return total.quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def _spi(actual: Decimal, predicted: Decimal) -> Decimal | None:
+    if predicted == 0:
+        return None
+    return (actual / predicted).quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def _code_key(code: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in code.split(".") if part.isdigit())
+
+
+def _project_label(project: configuracoes.ProjectSummary) -> str:
+    return f"{project.code} · {project.name}"
