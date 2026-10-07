@@ -99,6 +99,32 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 * **Parâmetros**: o grupo `avaliacaoContratada` traz os critérios com peso, as classes com mínimo e descrição e a `notaExigePlano`; a versão vigente na data de referência rege a avaliação nova (os valores iniciais estão na seção Parâmetros).
 * **Carga e verificação**: a parte `financeiro-contratos-avaliacoes` (`seed.py::load_evaluations`, registrada pela carga da Governança) grava as avaliações dos mocks com os pesos e as notas congelados; `tests/financeiro/test_contrato_avaliacao_calculos.py`, `test_contrato_avaliacao_validacao.py`, `test_contrato_avaliacao_servico.py` e `test_contrato_avaliacao_rotas.py` afirmam as fronteiras da nota e da classe (84/85, 69/70, 49/50), os pesos congelados, a evidência, a ação, a lição e as rotas; `tests/plataforma/test_carga_demonstracao.py` afirma a carga.
 
+## O que a ISSUE-035 trouxe
+
+* **Tela Contratos** (`financeiro/contratos`): a visão consolidada da administração contratual do escopo, com os seis cartões de indicadores (Contratos, Exposição de claims, Notificados fora do prazo, Marcos atrasados, Extensão de prazo e Contratadas C ou D, cada um com a referência de gestão e a nota do protótipo), a barra de filtros (busca livre e seleção de contrato) e as cinco abas com contador — Contratos, Claims, Extensões de prazo, Marcos de pagamento e Avaliações. Os cartões falam do escopo inteiro; os filtros estreitam só as listas. A tela **não tem botões de inclusão**, como no protótipo: o contrato nasce na adjudicação de Suprimentos e os registros das abas nascem na ficha do contrato (ISSUE-032 a ISSUE-034). Botões **Excel** e **PDF** levam os filtros que a tela mostra.
+* **Rotas** (`routes.py`): `GET /api/financeiro/contratos/consolidado` (o fragmento inteiro no boot; com os dois alvos `contratos-kpis contratos-tabelas` que o formulário de filtros pede, devolve só as partes, para o campo de busca não perder o foco), `GET .../consolidado/excel` e `GET .../consolidado/imprimivel` (D12: o mesmo conteúdo, os mesmos filtros e a coluna Projeto no Portfólio; o arquivo é `contratos-<código do projeto|portfolio>.xlsx`).
+* **Filtros**: `busca` procura em número, contratada, objeto e modalidade dos contratos; código, contrato, descrição, causa, tipo e direção dos claims; código, contrato, evento, claim e marco das EOTs; número, contrato, descrição e critério dos marcos; e contrato, empresa, período e comentário das avaliações. `contrato` casa o número exato. As cinco listas filtram juntas; os KPIs nunca (`_contratos_filters_of`, `_filter_contratos`).
+* **Escopo e Portfólio**: a leitura é `service.contracts_overview` no escopo da requisição; no Portfólio toda aba abre com a coluna **Projeto** (`project_label`), também no Excel e no imprimível, e o formulário leva o `projeto` escondido para que os filtros e as exportações fiquem no escopo aberto.
+* **Integrações**: a visão lê contratos, aditivos, medições, marcos, claims, EOTs e avaliações gravados pela própria fatia do Financeiro (a ficha do contrato) e alimentados pela adjudicação de Suprimentos; a classe e a nota da última avaliação vêm da ISSUE-034. Os KPIs da carteira e do relatório consomem estes mesmos números.
+* **Fórmulas e nomes no código**: os dez indicadores da administração contratual.
+
+| Indicador | Fórmula de negócio | Nome no código |
+|---|---|---|
+| Exposição de claims por direção | Soma do pleiteado dos claims abertos de cada direção (contratada e contratante) | `calculations.exposure_by_direction`, `calculations.claim_exposure_cents` |
+| Taxa de reconhecimento | Reconhecido sobre o pleiteado dos claims da contratada encerrados (Acordado, Encerrado ou Rejeitado) | `calculations.recognition_rate` |
+| Tempo médio de resolução | Média, arredondada, dos dias da notificação ao encerramento dos claims com data de encerramento | `calculations.average_resolution_days` |
+| Notificações fora do prazo | Claims notificados depois do evento mais os dias do contrato | `calculations.late_notification_count`, `calculations.claim_notification_late` |
+| Extensão de prazo acumulada | Dias concedidos das EOTs sobre a duração original somada dos contratos, com uma casa | `calculations.extension_percent`, `calculations.contract_duration_days` |
+| Dias solicitados x concedidos | Soma dos dias solicitados e dos concedidos das EOTs do escopo | `calculations.extension_days` |
+| Marcos atrasados | Marcos pendentes (Previsto ou com Evidência enviada) com a data prevista anterior à data de referência | `calculations.late_milestone_count`, `calculations.milestone_is_late` |
+| Aprovado não faturado | Soma do valor dos marcos Aprovado | `calculations.approved_not_invoiced_cents` |
+| Pago x previsto | Valor dos marcos Pago sobre o previsto até a data de referência, com uma casa | `calculations.paid_forecast_percent` |
+| Desempenho das contratadas | Nota média das últimas avaliações; classe A a D pelo maior mínimo; tendência da série; contratos em C ou D no resumo | `calculations.average_evaluation_score`, `calculations.evaluation_class`, `calculations.evaluation_trend_points`, `calculations.CONTRACTOR_LOW_CLASSES` |
+
+* **Resumo e indicadores**: `calculations.contracts_summary` e `calculations.contract_indicators` consolidam os dez números a partir dos fatos do escopo (`service.contracts_overview`), com a data de referência injetada; a coluna Medido da aba Contratos usa `calculations.contract_measured_percent`.
+* **Carga e verificação**: as partes `financeiro-contratos`, `financeiro-contratos-fluxos` e `financeiro-contratos-avaliacoes` da carga de demonstração alimentam a visão; `tests/financeiro/test_contratos_indicadores_calculos.py`, `test_contratos_consolidado_servico.py` e `test_contratos_consolidado_rotas.py` afirmam as fórmulas, a leitura do escopo, os filtros, as permissões e os exports.
+* **Onde mexer**: os indicadores em `calculations.py`; a leitura do escopo em `service.py::contracts_overview`; as rotas, os filtros e o contexto em `routes.py`; o documento do Excel e do imprimível em `export.py::contratos_consolidado_document`; os fragmentos em `api/src/templates/financeiro/contratos_consolidado*.html` e `_contratos_kpis.html`/`_contratos_tabelas.html`; a tela em `app/_views/financeiro/contratos.html` e o trio em `app/paginas/financeiro/contratos.css` e `.js`. A tabela Onde mexer deste documento continua valendo.
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |

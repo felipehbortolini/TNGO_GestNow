@@ -1,16 +1,54 @@
-/* ============================================================
-   contratos.css — Estilo da tela Contratos (financeiro/contratos)
+.pagina--financeiro-contratos .toolbar {
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
 
-   Contratos, claims, extensões de prazo, marcos de pagamento e avaliações, de todos os contratos.
+.pagina--financeiro-contratos .toolbar .field:first-child {
+  flex: 1;
+  min-width: 240px;
+}
 
-   Escopo: tudo que morar aqui começa por .pagina--financeiro-contratos, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
+.pagina--financeiro-contratos .tabs {
+  flex-wrap: wrap;
+}
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-032 a ISSUE-035.
+.pagina--financeiro-contratos .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
 
-   Carrega pelo shell (app/index.html), nunca pela view. Ver
-   docs/CONTRATO-VISUAL.md.
-   ============================================================ */
+.pagina--financeiro-contratos .tab__count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px var(--space-sm);
+  border-radius: 9999px;
+  background: var(--neutro-100);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagina--financeiro-contratos .tab.is-active .tab__count {
+  background: var(--verde-soft-forte);
+  color: var(--verde-700);
+}
+
+.pagina--financeiro-contratos .kpi > div {
+  min-width: 0;
+}
+
+.pagina--financeiro-contratos .kpi__value {
+  white-space: nowrap;
+}
+
+.pagina--financeiro-contratos .tbl tbody tr.is-alert td {
+  background: var(--erro-50);
+}
+
+.pagina--financeiro-contratos .tbl tbody tr.is-alert td:first-child {
+  border-left: 3px solid var(--erro-500);
+}

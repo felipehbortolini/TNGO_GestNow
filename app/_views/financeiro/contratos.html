@@ -1,5 +1,8 @@
 <main id="app-shell" class="content pagina--financeiro-contratos"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{
+    estado: 'carregando',
+    carregar() { return this.$ajax('/api/financeiro/contratos/consolidado', { target: 'contratos-conteudo' }) }
+  }"
   x-init="TN.paginas['financeiro/contratos'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -7,9 +10,21 @@
         <h1 class="h-dash">Contratos</h1>
         <p class="page-head__sub">Contratos, claims, extensões de prazo, marcos de pagamento e avaliações, de todos os contratos.</p>
       </div>
+      <div class="page-head__actions" x-show="estado === 'conteudo'">
+        <button type="button" class="btn btn--ghost" data-tn-excel="/api/financeiro/contratos/consolidado/excel">
+          <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+          Excel
+        </button>
+        <button type="button" class="btn btn--ghost" data-tn-pdf="/api/financeiro/contratos/consolidado/imprimivel">
+          <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+          PDF
+        </button>
+      </div>
     </div>
 
-    <div class="card">
+    <div id="contratos-conteudo" x-show="estado === 'conteudo'"></div>
+
+    <div class="card" x-show="estado !== 'conteudo'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
