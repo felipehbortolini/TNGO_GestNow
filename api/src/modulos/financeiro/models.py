@@ -5,8 +5,9 @@ as in ``docs/MODELO-DE-DADOS.md``. This module owns the cost breakdown item, its
 the frozen baseline of each item, the reallocations applied to it (ISSUE-029, ISSUE-030), the
 projection history of the item and the costs imported from the ERP (ISSUE-031), the contract
 with its addenda and measurements (ISSUE-032), its payment milestones, claims and time
-extensions (ISSUE-033), and the contractor performance evaluation with its frozen criteria
-(ISSUE-034).
+extensions (ISSUE-033), the contractor performance evaluation with its frozen criteria
+(ISSUE-034), and the contingency and management reserves with their movement statement
+(ISSUE-041).
 """
 
 from __future__ import annotations
@@ -155,6 +156,44 @@ class ErpCost(Base):
     imported_at: Mapped[datetime] = mapped_column(
         "importado_em", DateTime(timezone=True), server_default=func.now()
     )
+
+
+class Reserve(Base):
+    """Reserva de contingência ou gerencial do projeto, uma por tipo, com a base de cálculo.
+
+    O saldo não é coluna (D5b): é a soma dos movimentos de ``reserva_movimento``. UK: projeto
+    + tipo. A reserva de contingência integra a linha de base de custo; a gerencial fica fora
+    dela e só o Comitê a libera (ISSUE-041).
+    """
+
+    __tablename__ = "reserva"
+    __table_args__ = (UniqueConstraint("projeto_id", "tipo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    calculation_basis: Mapped[str] = mapped_column("base_calculo", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ReserveMovement(Base):
+    """Movimento do extrato da reserva: constituição, consumo por SM aprovada ou liberação.
+
+    Fato imutável, sem ``versao`` (D5b). O valor é assinado: a constituição entra positiva e o
+    consumo e a liberação, negativos, de modo que o saldo é a soma dos movimentos. A SM de origem
+    é opcional no banco porque a constituição nasce sem mudança.
+    """
+
+    __tablename__ = "reserva_movimento"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    reserve_id: Mapped[int] = mapped_column("reserva_id", ForeignKey("reserva.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    registered_by_id: Mapped[int] = mapped_column("registrado_por_id", ForeignKey("pessoa.id"))
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    registered_on: Mapped[date] = mapped_column("data", Date)
+    value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
 
 
 class Contract(Base):

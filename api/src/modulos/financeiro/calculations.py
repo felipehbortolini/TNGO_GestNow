@@ -1360,3 +1360,134 @@ def contract_indicators(facts: ContractFacts, *, reference_date: date) -> Contra
         ),
         average_score=average_evaluation_score(facts.evaluations),
     )
+
+
+# ── Reservas (ISSUE-041) ─────────────────────────────────────────────────
+
+
+RESERVE_CONTINGENCY = "Contingência"
+RESERVE_MANAGEMENT = "Gerencial"
+RESERVE_TYPES = (RESERVE_CONTINGENCY, RESERVE_MANAGEMENT)
+
+MOVEMENT_CONSTITUTION = "Constituição"
+MOVEMENT_CONSUMPTION = "Consumo"
+MOVEMENT_RELEASE = "Liberação"
+RESERVE_MOVEMENT_TYPES = (MOVEMENT_CONSTITUTION, MOVEMENT_CONSUMPTION, MOVEMENT_RELEASE)
+
+
+@dataclass(frozen=True)
+class ReserveMovementLine:
+    """Um movimento do extrato da reserva: o tipo, o valor com sinal e a data do fato."""
+
+    kind: str
+    value_cents: int
+    on: date
+    change_id: int | None = None
+
+
+@dataclass(frozen=True)
+class ReserveComposition:
+    """A composição do orçamento: a linha de base de custo e o orçamento do projeto."""
+
+    cost_baseline_cents: int
+    project_budget_cents: int
+
+
+@dataclass(frozen=True)
+class ReserveBurnPoint:
+    """Um mês do gráfico do saldo da contingência: o esperado e o real (nulo após o corte)."""
+
+    month: date
+    expected_cents: int
+    actual_cents: int | None
+
+
+def reserve_balance(movements: Sequence[ReserveMovementLine]) -> int:
+    """Saldo da reserva: a soma dos movimentos; consumo e liberação entram negativos."""
+    return sum(movement.value_cents for movement in movements)
+
+
+def reserve_consumption_pct(consumed_cents: int, total_cents: int) -> Decimal | None:
+    """Consumo da reserva em percentual, com uma casa; nenhum sem reserva constituída."""
+    return _percent_of(consumed_cents, total_cents)
+
+
+def reserve_consumption_limit(
+    physical_actual: Decimal | int | float | None, tolerance_pp: Decimal | int | float
+) -> Decimal | None:
+    """Limite de consumo: o avanço físico real mais a tolerância, no teto de 100%, uma casa.
+
+    É o limite do protótipo: ``min(100, avanço real + tolerância)``; sem avanço real não há
+    limite.
+    """
+    if physical_actual is None:
+        return None
+    limit = _limit_of(physical_actual) + _limit_of(tolerance_pp)
+    return min(HUNDREDTHS, limit).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def reserve_after_analysis(balance_cents: int, in_analysis_cents: int) -> int:
+    """Saldo se aprovadas as SMs em análise: o saldo menos o valor pedido em análise."""
+    return balance_cents - in_analysis_cents
+
+
+def reserve_composition(
+    eac_current_cents: int, contingency_balance_cents: int, management_balance_cents: int
+) -> ReserveComposition:
+    """Composição do orçamento: a linha de base de custo e o orçamento do projeto.
+
+    A linha de base de custo é o orçado atual da EAC mais o saldo da contingência; a reserva
+    gerencial fica fora dela e entra só no orçamento do projeto.
+    """
+    cost_baseline_cents = eac_current_cents + contingency_balance_cents
+    return ReserveComposition(
+        cost_baseline_cents=cost_baseline_cents,
+        project_budget_cents=cost_baseline_cents + management_balance_cents,
+    )
+
+
+def reserve_burn(
+    months: Sequence[date],
+    baseline: Sequence[Decimal | int | float],
+    cut_index: int,
+    total_cents: int,
+    movements: Sequence[ReserveMovementLine],
+) -> tuple[ReserveBurnPoint, ...]:
+    """Saldo real x previsto da reserva, um ponto por mês.
+
+    O previsto é o total constituído menos a parte vencida pelo avanço planejado, em centavos e
+    meio centavo para cima: ``total x (1 - baseline / 100)``. O real é o total mais os consumos
+    e as liberações até o fim do mês e fica nulo depois do mês de corte (``cut_index``).
+    """
+    spent = [
+        movement
+        for movement in movements
+        if movement.kind in (MOVEMENT_CONSUMPTION, MOVEMENT_RELEASE)
+    ]
+    points: list[ReserveBurnPoint] = []
+    for index, month in enumerate(months):
+        share = baseline[index] if index < len(baseline) else 0
+        end = _month_end(month)
+        actual = None
+        if index <= cut_index:
+            actual = total_cents + sum(
+                movement.value_cents for movement in spent if movement.on <= end
+            )
+        points.append(
+            ReserveBurnPoint(
+                month=month,
+                expected_cents=_reserve_expected_cents(total_cents, share),
+                actual_cents=actual,
+            )
+        )
+    return tuple(points)
+
+
+def _reserve_expected_cents(total_cents: int, baseline_pct: Decimal | int | float) -> int:
+    remaining = (HUNDREDTHS - _limit_of(baseline_pct)) / HUNDREDTHS
+    return int((Decimal(total_cents) * remaining).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _month_end(month: date) -> date:
+    next_month = (month + timedelta(days=32)).replace(day=1)
+    return next_month - timedelta(days=1)

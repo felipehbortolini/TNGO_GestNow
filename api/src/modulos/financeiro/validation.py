@@ -1362,3 +1362,44 @@ def _note(form: Mapping[str, str | None], criterion: str) -> int | None:
     if note is None or not 1 <= note <= calculations.EVALUATION_MAX_NOTE:
         return None
     return note
+
+
+# ── Reservas (ISSUE-041) ─────────────────────────────────────────────────
+
+
+RESERVE_OVER_BALANCE = (
+    "Saldo da reserva insuficiente ({balance}) para o pedido de {request}. "
+    "Revise a análise para aditivo de orçamento."
+)
+RESERVE_RELEASE_OVER_BALANCE = (
+    "A reserva tem {free} livres para liberar (saldo menos o pedido em outras SMs abertas)."
+)
+RESERVE_MISSING = "O projeto não tem reservas constituídas."
+
+
+def reserve_consumption_error(consumed_or_request_cents: int, balance_cents: int) -> str | None:
+    """A recusa do consumo ou do pedido acima do saldo da reserva, ou ``None`` quando ele cabe."""
+    if consumed_or_request_cents <= balance_cents:
+        return None
+    return RESERVE_OVER_BALANCE.format(
+        request=format_brl(consumed_or_request_cents), balance=format_brl(balance_cents)
+    )
+
+
+def reserve_release_error(
+    value_cents: int, balance_cents: int, open_requests_cents: int
+) -> str | None:
+    """A recusa da liberação acima do saldo livre, ou ``None`` quando ela cabe.
+
+    O saldo livre é o saldo da reserva menos o pedido em outras SMs abertas (consumo e outras
+    liberações), como o protótipo confere na análise e na decisão.
+    """
+    free_cents = balance_cents - open_requests_cents
+    if value_cents <= free_cents:
+        return None
+    return RESERVE_RELEASE_OVER_BALANCE.format(free=format_brl(free_cents))
+
+
+def reserve_missing_error() -> str:
+    """A recusa do projeto sem reserva constituída, na mensagem do protótipo."""
+    return RESERVE_MISSING
