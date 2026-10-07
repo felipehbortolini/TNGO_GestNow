@@ -1,0 +1,94 @@
+{#
+  Campos do dicionário do pacote (ISSUE-036), como no protótipo: descrição, entregável,
+  critério de aceitação, empresa executante, responsável e o item da EAC. Peso, datas e
+  critério são da linha de base e não entram aqui: mudam só por nova revisão (ISSUE-038).
+  O 422 marca o campo e a mensagem fica sob ele (o erro não é só cor).
+
+  Espera: no, opcoes, valores, erros, mensagem, peso, inicio, termino, criterio e formulario.
+#}
+<section class="card eap-dicionario" aria-labelledby="eap-dicionario-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="eap-dicionario-titulo">Dicionário da EAP · {{ no.code }}</h2>
+      <span class="hint">{{ no.description }} · peso {{ peso }} · {{ inicio }} a {{ termino }} · {{ criterio or 'sem medição' }}</span>
+    </div>
+    <button type="button" class="iconbtn" aria-label="Fechar o formulário"
+      x-init="$el.innerHTML = window.icon('dismiss', 16)"
+      @click="document.getElementById('eap-formulario').replaceChildren()"></button>
+  </div>
+  <div class="card__body">
+    <p class="hint mb-16">Peso, datas e critério de medição fazem parte da linha de base: mudam só por nova revisão da EAP.</p>
+    {% if mensagem or erros %}
+    <div class="aviso aviso--erro mb-16" role="alert">
+      <strong>Não foi possível salvar o dicionário.</strong>
+      {% if mensagem %}<span>{{ mensagem }}</span>{% endif %}
+      {% for texto in erros.values() %}<span>{{ texto }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" action="/api/planejamento/eap/itens/{{ no.id }}/dicionario"
+      x-target="eap-formulario eap-conteudo" data-tn-loading="Salvando...">
+      <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+      <div class="fgrid">
+        <div class="field field--full">
+          <label for="eap-descricao">Descrição</label>
+          <input id="eap-descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}"
+            type="text" name="descricao" value="{{ valores.get('descricao') or '' }}" maxlength="120" required
+            {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="eap-descricao-erro"{% endif %} />
+          {% if erros.get('descricao') %}<span class="field__erro" id="eap-descricao-erro" role="alert">{{ erros['descricao'] }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="eap-entregavel">Entregável</label>
+          <textarea id="eap-entregavel" class="input{% if erros.get('entregavel') %} input--erro{% endif %}"
+            name="entregavel" rows="2" maxlength="300"
+            {% if erros.get('entregavel') %}aria-invalid="true" aria-describedby="eap-entregavel-erro"{% endif %}>{{ valores.get('entregavel') or '' }}</textarea>
+          {% if erros.get('entregavel') %}<span class="field__erro" id="eap-entregavel-erro" role="alert">{{ erros['entregavel'] }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="eap-aceitacao">Critério de aceitação</label>
+          <textarea id="eap-aceitacao" class="input{% if erros.get('aceitacao') %} input--erro{% endif %}"
+            name="aceitacao" rows="2" maxlength="300"
+            {% if erros.get('aceitacao') %}aria-invalid="true" aria-describedby="eap-aceitacao-erro"{% endif %}>{{ valores.get('aceitacao') or '' }}</textarea>
+          {% if erros.get('aceitacao') %}<span class="field__erro" id="eap-aceitacao-erro" role="alert">{{ erros['aceitacao'] }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="eap-empresa">Empresa executante</label>
+          <select id="eap-empresa" class="input{% if erros.get('empresa') %} input--erro{% endif %}" name="empresa"
+            {% if erros.get('empresa') %}aria-invalid="true" aria-describedby="eap-empresa-erro"{% endif %}>
+            <option value="">Sem empresa</option>
+            {% for valor, texto in opcoes.company_choices() %}
+            <option value="{{ valor }}"{% if (valores.get('empresa') or '') | string == valor | string %} selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('empresa') %}<span class="field__erro" id="eap-empresa-erro" role="alert">{{ erros['empresa'] }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="eap-responsavel">Responsável</label>
+          <select id="eap-responsavel" class="input{% if erros.get('responsavel') %} input--erro{% endif %}" name="responsavel" required
+            {% if erros.get('responsavel') %}aria-invalid="true" aria-describedby="eap-responsavel-erro"{% endif %}>
+            <option value="">Selecione</option>
+            {% for valor, texto in opcoes.person_choices() %}
+            <option value="{{ valor }}"{% if (valores.get('responsavel') or '') | string == valor | string %} selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('responsavel') %}<span class="field__erro" id="eap-responsavel-erro" role="alert">{{ erros['responsavel'] }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="eap-eac">Item da EAC (custo)</label>
+          <select id="eap-eac" class="input{% if erros.get('eac') %} input--erro{% endif %}" name="eac"
+            {% if erros.get('eac') %}aria-invalid="true" aria-describedby="eap-eac-erro"{% endif %}>
+            <option value="">Sem vínculo com a EAC</option>
+            {% for codigo in opcoes.eac_codes %}
+            <option value="{{ codigo }}"{% if (valores.get('eac') or '') == codigo %} selected{% endif %}>{{ codigo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.get('eac') %}<span class="field__erro" id="eap-eac-erro" role="alert">{{ erros['eac'] }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="document.getElementById('eap-formulario').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</section>

@@ -11,6 +11,12 @@ board the screen shows, so what the Excel and the printable version carry is the
 same as the screen: the indicators with their reference, the grid of six weeks
 and the restrictions. The data of the Gantt and of the Galeria (D11) is built
 here too: the server sends the facts, the library draws them.
+
+The WBS (ISSUE-036) hands the export the same document the screen shows: the
+indicators, the tree with the criterion and the deviation of each node, the
+revisions and the breakdowns of the revision in force. In the Portfólio the tree
+is the projects and their main packages, read-only, with ``Projeto`` in every
+table (D8).
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from src.core import calendario
@@ -33,14 +40,21 @@ from src.core.export_document import (
     Tone,
     ValueKind,
     describe_scope,
+    format_value,
     row,
 )
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.planejamento import calculations
 from src.modulos.planejamento.service import (
+    LEVEL_PACKAGE,
+    PORTFOLIO_LABEL,
     ActivityView,
     ConstraintView,
+    EapBreakdownView,
+    EapNode,
+    EapOverview,
+    EapRevisionView,
     LookaheadBoard,
     PeriodCoverage,
     ReportSummary,
@@ -482,3 +496,262 @@ def _card(item: ConstraintView) -> Mapping[str, Any]:
 
 def _date_text(value: date) -> str:
     return f"{value:%d/%m/%Y}"
+
+
+# ── EAP: a árvore, as revisões e os desdobramentos (ISSUE-036) ────────────
+
+EAP_TITLE = "EAP: estrutura analítica do projeto"
+EAP_PORTFOLIO_TITLE = "EAP da carteira: projetos e pacotes principais"
+EAP_TREE_TITLE = "Estrutura analítica do projeto"
+EAP_REVISIONS_TITLE = "Revisões da EAP"
+EAP_BREAKDOWNS_TITLE = "Desdobramentos da revisão vigente"
+EAP_ZERO_REFERENCE = "Esperado: 0"
+EAP_PORTFOLIO_PACKAGES_REFERENCE = "Pacotes dos projetos da carteira"
+EAP_NO_MEASUREMENT = "Sem medição"
+
+_BAND_TONES = {
+    calculations.SUCCESS_BAND: Tone.OK,
+    calculations.WARNING_BAND: Tone.WARN,
+    calculations.DANGER_BAND: Tone.ERROR,
+}
+
+
+def eap_document(visao: EapOverview, *, scope_label: str, generated_on: date) -> Document:
+    """A EAP como documento: os KPIs, a árvore, as revisões e os desdobramentos da vigente.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. No Portfólio a
+    árvore traz uma linha por projeto e as áreas dos projetos, somente leitura (D8), e a coluna
+    ``Projeto`` entra em cada tabela pelo mecanismo genérico (HU-016).
+    """
+    tables = [_eap_tree_table(visao), _eap_revisions_table(visao.revisions)]
+    if visao.breakdowns:
+        tables.append(_eap_breakdowns_table(visao.breakdowns))
+    return Document(
+        title=EAP_PORTFOLIO_TITLE if visao.is_portfolio else EAP_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_eap_context(visao),
+        kpis=eap_kpis(visao),
+        tables=tuple(tables),
+    )
+
+
+def eap_kpis(visao: EapOverview) -> tuple[Kpi, ...]:
+    """Os indicadores da EAP, os mesmos da faixa do topo da tela."""
+    indicadores = visao.indicators
+    current = visao.current_revision
+    baseline = (
+        f"Linha de base: {current.package_count}"
+        if current is not None
+        else EAP_PORTFOLIO_PACKAGES_REFERENCE
+    )
+    return (
+        Kpi(
+            "Avanço físico real",
+            indicadores.actual,
+            f"Previsto: {format_value(ValueKind.PERCENT, indicadores.predicted, 1)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_BAND_TONES.get(visao.root.band or ""),
+            status=(
+                f"Desvio {eap_deviation_text(indicadores.deviation_pp)} p.p. na data de referência"
+            ),
+        ),
+        Kpi(
+            "Pacotes de trabalho",
+            indicadores.work_packages,
+            baseline,
+            ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=_packages_status(visao),
+        ),
+        Kpi(
+            "Término vencido",
+            indicadores.overdue,
+            EAP_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if indicadores.overdue else Tone.OK,
+            status=f"{indicadores.late} com desvio abaixo da faixa de alerta",
+        ),
+        Kpi(
+            "SMs a incorporar",
+            len(visao.pending_changes),
+            EAP_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.WARN if visao.pending_changes else Tone.OK,
+            status=(
+                "Aprovadas com impacto em escopo, fora da EAP"
+                if visao.pending_changes
+                else "EAP em dia com as SMs"
+            ),
+        ),
+    )
+
+
+def eap_deviation_text(value: Decimal) -> str:
+    """O desvio em p.p. com sinal explícito no positivo, como a tela o escreve: ``+1,2``."""
+    text = format_value(ValueKind.DECIMAL, value, 1)
+    return f"+{text}" if value > 0 else text
+
+
+def _packages_status(visao: EapOverview) -> str:
+    indicadores = visao.indicators
+    text = f"{calculations.plural(indicadores.areas, 'área')} · "
+    text += calculations.plural(indicadores.subareas, "subárea")
+    if indicadores.planning_packages:
+        text += " · " + calculations.plural(
+            indicadores.planning_packages, "de planejamento", "de planejamento"
+        )
+        if indicadores.planning_weight is not None:
+            text += f" ({format_value(ValueKind.PERCENT, indicadores.planning_weight)})"
+    return text
+
+
+def _eap_context(visao: EapOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, visao.reference_date))]
+    current = visao.current_revision
+    if current is not None:
+        lines.append(
+            (
+                "Revisão vigente",
+                f"Rev {current.revision} de {format_value(ValueKind.DATE, current.revision_date)}",
+            )
+        )
+    return tuple(lines)
+
+
+def _eap_tree_table(visao: EapOverview) -> Table:
+    return Table(
+        title=EAP_TREE_TITLE,
+        columns=(
+            Column("Código", width=14),
+            Column("Descrição", width=48),
+            Column("Critério de medição", width=22),
+            Column("Peso", ValueKind.PERCENT),
+            Column("Previsto", ValueKind.PERCENT, digits=1),
+            Column("Real", ValueKind.PERCENT, digits=1),
+            Column("Desvio (p.p.)", ValueKind.DECIMAL, digits=1),
+            Column("Início LB", ValueKind.DATE),
+            Column("Término LB", ValueKind.DATE),
+            Column("Situação", width=16),
+            Column("Item da EAC", width=14),
+            Column("Empresa", width=24),
+            Column("Responsável", width=24),
+        ),
+        rows=tuple(_eap_tree_row(node) for node in visao.nodes),
+    )
+
+
+def _eap_tree_row(node: EapNode) -> Row:
+    return row(
+        node.code,
+        node.description,
+        eap_criterion_text(node),
+        node.weight,
+        node.predicted,
+        node.actual,
+        Cell(node.deviation_pp, _BAND_TONES.get(node.band or "")),
+        node.start,
+        node.finish,
+        Cell(eap_situation_text(node), eap_situation_tone(node)),
+        node.eac_code,
+        node.company_name,
+        node.owner_name,
+        project=node.project_label or PORTFOLIO_LABEL,
+    )
+
+
+def eap_criterion_text(node: EapNode) -> str:
+    """O critério de medição como o protótipo o escreve; vazio fora do pacote."""
+    if node.level != LEVEL_PACKAGE:
+        return ""
+    if node.is_planning_package:
+        return EAP_NO_MEASUREMENT
+    if node.criterion == calculations.CRITERION_UNITS:
+        return f"{node.criterion} ({node.unit})"
+    return node.criterion or ""
+
+
+def eap_situation_text(node: EapNode) -> str:
+    """A situação do pacote em palavras; fora do pacote a célula fica vazia."""
+    if node.is_planning_package:
+        return calculations.PLANNING_PACKAGE
+    if node.level != LEVEL_PACKAGE:
+        return ""
+    if node.overdue:
+        return "Vencido"
+    if node.not_started:
+        return "Não iniciado"
+    return "Em andamento"
+
+
+def eap_situation_tone(node: EapNode) -> Tone | None:
+    """A cor da situação: vencido em erro, não iniciado em alerta, planejamento em neutro."""
+    if node.is_planning_package:
+        return Tone.NEUTRAL
+    if node.level != LEVEL_PACKAGE:
+        return None
+    if node.overdue:
+        return Tone.ERROR
+    if node.not_started:
+        return Tone.WARN
+    return Tone.OK
+
+
+def _eap_revisions_table(revisions: Sequence[EapRevisionView]) -> Table:
+    return Table(
+        title=EAP_REVISIONS_TITLE,
+        columns=(
+            Column("Revisão", width=14),
+            Column("Data", ValueKind.DATE),
+            Column("Pacotes", ValueKind.INTEGER),
+            Column("Alteração", width=48),
+            Column("SM", width=20),
+            Column("Justificativa", width=60),
+            Column("Aprovado por", width=24),
+        ),
+        rows=tuple(
+            row(
+                f"Rev {revisao.revision}",
+                revisao.revision_date,
+                revisao.package_count,
+                revisao.alteration,
+                revisao.change_code,
+                revisao.justification,
+                revisao.approved_by,
+                project=revisao.project_label or PORTFOLIO_LABEL,
+            )
+            for revisao in revisions
+        ),
+    )
+
+
+def _eap_breakdowns_table(breakdowns: Sequence[EapBreakdownView]) -> Table:
+    return Table(
+        title=EAP_BREAKDOWNS_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Pacote de planejamento", width=44),
+            Column("Pacote de trabalho", width=44),
+            Column("Peso", ValueKind.PERCENT),
+            Column("Justificativa", width=60),
+            Column("Registrado por", width=24),
+        ),
+        rows=tuple(
+            row(
+                item.applied_on,
+                _code_label(item.source_code, item.source_description),
+                _code_label(item.target_code, item.target_description),
+                item.weight,
+                item.justification,
+                item.author,
+            )
+            for item in breakdowns
+        ),
+        per_project=False,
+    )
+
+
+def _code_label(code: str, description: str) -> str:
+    return f"{code} · {description}" if description else code

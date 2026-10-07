@@ -1,0 +1,58 @@
+{#
+  Revisões da EAP: a Rev 0 (linha de base) e as que consolidaram uma SM aprovada. No projeto a
+  vigente vem marcada e a tabela sai da mais nova para a mais antiga; no Portfólio entra uma
+  linha por projeto com a revisão vigente e quantas revisões ele tem.
+
+  Espera: visao.
+#}
+<section class="card mb-16" aria-labelledby="eap-revisoes-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="eap-revisoes-titulo">{{ 'Revisão vigente da EAP por projeto' if visao.is_portfolio else 'Revisões da EAP' }}</h2>
+      <span class="hint">Rev 0 é a linha de base aprovada; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo</span>
+    </div>
+  </div>
+  <div class="card__body">
+    {% if visao.revisions %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">{{ 'Revisão vigente da EAP por projeto' if visao.is_portfolio else 'Revisões da EAP' }}</caption>
+        <thead>
+          <tr>
+            {% if visao.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Revisão</th>
+            <th scope="col">Data</th>
+            <th scope="col" class="td-num">Pacotes</th>
+            {% if visao.is_portfolio %}<th scope="col" class="td-num">Revisões do projeto</th>{% endif %}
+            <th scope="col">Alteração</th>
+            <th scope="col">SM</th>
+            <th scope="col">Justificativa</th>
+            <th scope="col">Aprovado por</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for revisao in visao.revisions %}
+          <tr{% if revisao.id is not none and visao.current_revision is not none and revisao.revision == visao.current_revision.revision and not visao.is_portfolio %} class="eap-linha--atual"{% endif %}>
+            {% if visao.is_portfolio %}<td>{{ revisao.project_label }}</td>{% endif %}
+            <td>
+              <strong>Rev {{ revisao.revision }}</strong>
+              {% if revisao.revision == 0 %}<span class="pill pill--fix">Linha de base</span>{% endif %}
+              {% if not visao.is_portfolio and visao.current_revision is not none and revisao.revision == visao.current_revision.revision %}<span class="pill pill--ok">Vigente</span>{% endif %}
+            </td>
+            <td>{{ revisao.revision_date.strftime('%d/%m/%Y') }}</td>
+            <td class="td-num">{{ revisao.package_count }}</td>
+            {% if visao.is_portfolio %}<td class="td-num">{{ revisao.revision_count }}</td>{% endif %}
+            <td>{{ revisao.alteration }}</td>
+            <td>{% if revisao.change_code %}{{ revisao.change_code }}{% endif %}</td>
+            <td>{{ revisao.justification }}</td>
+            <td>{{ revisao.approved_by }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="body-txt">Nenhuma revisão registrada.</p>
+    {% endif %}
+  </div>
+</section>

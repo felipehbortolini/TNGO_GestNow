@@ -1492,6 +1492,7 @@ class EapNode:
     eac_code: str = ""
     steps: tuple[calculations.EapStep, ...] = ()
     measurements: tuple[EapMeasurementView, ...] = ()
+    version: int = 0
 
     @property
     def is_work_package(self) -> bool:
@@ -1613,6 +1614,23 @@ class EapParameters:
             if str(candidate.get("id", "")) == (model or ""):
                 return str(candidate.get("nome", ""))
         return ""
+
+
+@dataclass(frozen=True)
+class EapDictionaryOptions:
+    """O que o formulário do dicionário oferece: as empresas, as pessoas e os itens da EAC."""
+
+    companies: tuple[configuracoes.RegisterOption, ...]
+    people: tuple[configuracoes.RegisterOption, ...]
+    eac_codes: tuple[str, ...]
+
+    def company_choices(self) -> tuple[tuple[str, str], ...]:
+        """As empresas como pares ``(valor, texto)`` para um seletor."""
+        return tuple((str(item.id), item.name) for item in self.companies)
+
+    def person_choices(self) -> tuple[tuple[str, str], ...]:
+        """As pessoas como pares ``(valor, texto)`` para um seletor."""
+        return tuple((str(item.id), item.name) for item in self.people)
 
 
 @dataclass(frozen=True)
@@ -2051,6 +2069,7 @@ def _node(
             for step in data.steps.get(item.id, ())
         ),
         measurements=data.measurements.get(item.id, ()),
+        version=item.version,
     )
 
 
@@ -2376,6 +2395,52 @@ def _eac_item_id(session: Session, *, project_id: int, code: str | None) -> int 
 
     found = financeiro.eac_item_ids_by_code(session, project_id=project_id, codes=[code])
     return found.get(code)
+
+
+def dictionary_node(
+    session: Session, *, user: User, scope: Scope, item_id: int, reference_date: date
+) -> EapNode:
+    """O nó do pacote dentro do escopo, como a árvore o mostra; o Portfólio é recusado (D8).
+
+    It is what the form of the dictionary opens on: the read-only Portfólio has no package to
+    edit, an id that is not a package is refused and a project of the scope that does not exist
+    comes back as the message of the tree.
+    """
+    rbac.require_module(user, MODULE)
+    if scope.is_portfolio:
+        raise AccessDeniedError(EAP_PORTFOLIO_READ_ONLY_MESSAGE)
+    overview = eap_overview(session, user=user, scope=scope, reference_date=reference_date)
+    node = next((candidate for candidate in overview.nodes if candidate.id == item_id), None)
+    if node is None:
+        raise InvalidDataError(PACKAGE_NOT_FOUND_MESSAGE)
+    if node.level != LEVEL_PACKAGE:
+        raise InvalidDataError(ONLY_PACKAGES_MESSAGE)
+    return node
+
+
+def dictionary_options(session: Session, *, project_id: int) -> EapDictionaryOptions:
+    """As listas do formulário do dicionário: empresas, pessoas e os itens de custo da EAC."""
+    from src.modulos.financeiro import service as financeiro
+
+    levels = financeiro.eac_item_levels(session, project_id=project_id)
+    return EapDictionaryOptions(
+        companies=tuple(configuracoes.list_company_options(session)),
+        people=tuple(configuracoes.list_person_options(session)),
+        eac_codes=tuple(sorted(code for code, level in levels.items() if level >= LEVEL_PACKAGE)),
+    )
+
+
+def dictionary_fields(node: EapNode) -> dict[str, str]:
+    """Os valores do formulário do dicionário, com os mesmos nomes que o formulário envia."""
+    return {
+        "descricao": node.description,
+        "entregavel": node.deliverable,
+        "aceitacao": node.acceptance,
+        "empresa": "" if node.company_id is None else str(node.company_id),
+        "responsavel": "" if node.owner_id is None else str(node.owner_id),
+        "eac": node.eac_code,
+        "versao": str(node.version),
+    }
 
 
 # ── Apoio da árvore ───────────────────────────────────────────────────────

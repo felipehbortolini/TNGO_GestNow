@@ -1,0 +1,11 @@
+{% extends "base_fragment.html" %}
+{#
+  Conteúdo da tela EAP (ISSUE-036): os indicadores, a árvore, as revisões e os desdobramentos
+  da revisão vigente. A raiz leva o id que a tela pediu ({{ target_id }}); o miolo é o parcial
+  que a resposta do dicionário (eap_dicionario_salvo.html) também usa.
+
+  Espera: visao, kpis, linhas, situacao, pode_editar, alvo_conteudo e alvo_formulario.
+#}
+{% block fragment %}
+{% include "planejamento/_eap_conteudo.html" %}
+{% endblock %}

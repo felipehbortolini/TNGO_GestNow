@@ -1,0 +1,32 @@
+{#
+  Miolo do conteúdo da EAP: o marcador do resultado, a faixa de indicadores e os três painéis.
+  Sem <link>, <style> nem <script>. O marcador data-situacao diz à tela qual estado mostrar
+  (conteudo ou vazio-origem). No Portfólio a árvore é somente leitura e os desdobramentos não
+  entram: cada projeto tem a sua revisão vigente.
+
+  Espera: visao, kpis, linhas, situacao, pode_editar, alvo_conteudo e alvo_formulario.
+#}
+<span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if visao.is_portfolio else 'nao' }}"></span>
+
+<div class="kpis" role="group" aria-label="Indicadores da EAP">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.rotulo }}
+      <small class="hint">{{ kpi.referencia }}</small>
+      {% if kpi.situacao %}<small class="hint">{{ kpi.situacao }}</small>{% endif %}
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if visao.is_empty %}
+<p class="body-txt">Este projeto ainda não tem EAP cadastrada.</p>
+{% else %}
+{% include "planejamento/_eap_arvore.html" %}
+{% include "planejamento/_eap_revisoes.html" %}
+{% if not visao.is_portfolio %}
+{% include "planejamento/_eap_desdobramentos.html" %}
+{% endif %}
+{% endif %}

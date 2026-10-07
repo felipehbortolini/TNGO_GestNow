@@ -29,6 +29,15 @@ The routes read the request and draw the answer; every rule is in the facade. A 
 three blocks at once (form, filters and content), because Alpine AJAX empties a declared target
 that does not come back: the form is shown again with the messages on 422 and 409, and emptied
 on success.
+
+The EAP (ISSUE-036), prefix ``/api/planejamento/eap``:
+
+* ``GET  /``  the screen: indicators, tree, revisions and the breakdowns of the revision in
+  force, in the read-only Portfólio with the ``Projeto`` column;
+* ``GET  /itens/{item_id}/dicionario``  the dictionary form of the package;
+* ``POST /itens/{item_id}/dicionario``  saves it (Membro; 422 per field, 409 for a stale
+  version, 403 in the Portfólio) and answers the content and the form in one multi-target reply;
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content.
 """
 
 from __future__ import annotations
@@ -44,7 +53,7 @@ from sqlalchemy.orm import Session
 from src.core import calendario, rbac
 from src.core.errors import InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, format_value
+from src.core.export_document import Document, ValueKind, describe_scope, format_value
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
@@ -1114,4 +1123,295 @@ def _find_constraint(
         scope=context.scope,
         constraint_id=constraint_id,
         reference_date=calendario.today(),
+    )
+
+
+# ── EAP: árvore, dicionário e carteira (ISSUE-036) ───────────────────────
+
+EAP_BASE = "planejamento/eap"
+
+
+EAP_TEMPLATE = "planejamento/eap.html"
+
+
+EAP_DICTIONARY_FORM_TEMPLATE = "planejamento/eap_dicionario_form.html"
+
+
+EAP_DICTIONARY_SAVED_TEMPLATE = "planejamento/eap_dicionario_salvo.html"
+
+
+EAP_CONTENT_TARGET = "eap-conteudo"
+
+
+EAP_FORM_TARGET = "eap-formulario"
+
+
+EAP_ITEM_PARAMETER = "item_id"
+
+
+EAP_SAVED_MESSAGE = "Pacote {code} atualizado."
+
+
+EAP_KPI_ICONS = ("trendingUp", "listTree", "flag", "fileText")
+
+
+EAP_BAND_TONES = {"success": "ok", "warning": "warn", "danger": "erro", None: "neutral"}
+
+
+EAP_SITUATION_TONES = {"ok": "ok", "warn": "warn", "erro": "erro", "neutro": "neutral"}
+
+
+@dataclass(frozen=True)
+class EapKpiLine:
+    """Um indicador da faixa do topo, já escrito como a pessoa o lê."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    situacao: str
+    tom: str
+    icone: str
+
+
+@dataclass(frozen=True)
+class EapNodeLine:
+    """Uma linha da árvore: o nó e os textos de cada coluna, prontos para o fragmento."""
+
+    no: service.EapNode
+    peso: str
+    peso_no_pai: str
+    previsto: str
+    real: str
+    desvio: str
+    tom: str
+    criterio: str
+    inicio: str
+    termino: str
+    situacao: str
+    tom_situacao: str
+
+
+@bp.route(route=EAP_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def eap_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A EAP do escopo: indicadores, árvore, revisões e desdobramentos da revisão vigente."""
+    return AlpineAjaxResponse(
+        template_name=EAP_TEMPLATE,
+        context=_eap_content_context(_eap_overview(session, context)),
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def eap_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da EAP: indicadores, árvore, revisões e desdobramentos, no escopo do pedido."""
+    del req
+    return excel_response(_eap_document(session, context))
+
+
+@bp.route(route=f"{EAP_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def eap_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da EAP: o mesmo documento que o Excel carrega."""
+    return printable_response(_eap_document(session, context), req)
+
+
+@bp.route(route=f"{EAP_BASE}/itens/{{item_id}}/dicionario", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_dictionary_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do dicionário do pacote, com os valores vigentes e as listas do cadastro."""
+    node = _dictionary_node(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=EAP_DICTIONARY_FORM_TEMPLATE,
+        context=_dictionary_page(session, context, node),
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_BASE}/itens/{{item_id}}/dicionario", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_dictionary_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava o dicionário: 422 por campo e 409 de versão vencida voltam com o conteúdo junto."""
+    item_id = _route_id(req, EAP_ITEM_PARAMETER)
+    try:
+        item = service.update_dictionary(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=req.form,
+        )
+    except (InvalidDataError, VersionConflictError) as error:
+        return _dictionary_error(req, session, context, item_id, error)
+    data = _saved_dictionary_context(session, context)
+    return AlpineAjaxResponse(
+        template_name=EAP_DICTIONARY_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        toast=EAP_SAVED_MESSAGE.format(code=item.code),
+    )
+
+
+# ── Montagem das respostas da EAP ────────────────────────────────────────
+
+
+def _eap_overview(session: Session, context: RequestContext) -> service.EapOverview:
+    """A EAP do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.eap_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=calendario.today(),
+    )
+
+
+def _eap_document(session: Session, context: RequestContext) -> Document:
+    return export.eap_document(
+        _eap_overview(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _eap_content_context(visao: service.EapOverview) -> dict[str, Any]:
+    """O que os fragmentos da EAP imprimem: a visão, os indicadores e as linhas da árvore."""
+    return {
+        "visao": visao,
+        "kpis": _eap_kpi_lines(visao),
+        "linhas": _eap_node_lines(visao),
+        "situacao": "vazio-origem" if visao.is_empty else "conteudo",
+        "pode_editar": visao.can_edit,
+        "alvo_conteudo": EAP_CONTENT_TARGET,
+        "alvo_formulario": EAP_FORM_TARGET,
+    }
+
+
+def _eap_kpi_lines(visao: service.EapOverview) -> list[EapKpiLine]:
+    return [
+        EapKpiLine(
+            rotulo=kpi.label,
+            valor=format_value(kpi.kind, kpi.value, kpi.digits),
+            referencia=kpi.reference,
+            situacao=kpi.status,
+            tom=kpi.tone.value if kpi.tone else "neutro",
+            icone=icone,
+        )
+        for kpi, icone in zip(export.eap_kpis(visao), EAP_KPI_ICONS, strict=True)
+    ]
+
+
+def _eap_node_lines(visao: service.EapOverview) -> list[EapNodeLine]:
+    return [_eap_node_line(node) for node in visao.nodes]
+
+
+def _eap_node_line(node: service.EapNode) -> EapNodeLine:
+    situation_tone = export.eap_situation_tone(node)
+    return EapNodeLine(
+        no=node,
+        peso=format_value(ValueKind.PERCENT, node.weight),
+        peso_no_pai=(
+            ""
+            if node.weight_in_parent is None
+            else format_value(ValueKind.PERCENT, node.weight_in_parent, 1)
+        ),
+        previsto=format_value(ValueKind.PERCENT, node.predicted, 1),
+        real=("" if node.is_planning_package else format_value(ValueKind.PERCENT, node.actual, 1)),
+        desvio="" if node.is_planning_package else export.eap_deviation_text(node.deviation_pp),
+        tom=EAP_BAND_TONES.get(node.band, "neutral"),
+        criterio=export.eap_criterion_text(node),
+        inicio=format_value(ValueKind.DATE, node.start),
+        termino=format_value(ValueKind.DATE, node.finish),
+        situacao=export.eap_situation_text(node),
+        tom_situacao=(
+            "" if situation_tone is None else EAP_SITUATION_TONES.get(situation_tone.value, "")
+        ),
+    )
+
+
+def _dictionary_node(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> service.EapNode:
+    return service.dictionary_node(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=_route_id(req, EAP_ITEM_PARAMETER),
+        reference_date=calendario.today(),
+    )
+
+
+def _dictionary_page(
+    session: Session,
+    context: RequestContext,
+    node: service.EapNode,
+    *,
+    values: Mapping[str, str] | None = None,
+    errors: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """O que o formulário do dicionário precisa: o nó, os valores, as listas e as mensagens."""
+    options = service.dictionary_options(session, project_id=context.scope.require_project())
+    return {
+        "no": node,
+        "opcoes": options,
+        "valores": service.dictionary_fields(node) if values is None else values,
+        "erros": dict(errors or {}),
+        "mensagem": "",
+        "peso": format_value(ValueKind.PERCENT, node.weight),
+        "inicio": format_value(ValueKind.DATE, node.start),
+        "termino": format_value(ValueKind.DATE, node.finish),
+        "criterio": export.eap_criterion_text(node),
+        "formulario": True,
+        "alvo_conteudo": EAP_CONTENT_TARGET,
+        "alvo_formulario": EAP_FORM_TARGET,
+    }
+
+
+def _saved_dictionary_context(session: Session, context: RequestContext) -> dict[str, Any]:
+    """O conteúdo atualizado e o formulário fechado: a resposta multi-alvo da gravação."""
+    data = _eap_content_context(_eap_overview(session, context))
+    data["formulario"] = None
+    return data
+
+
+def _dictionary_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    item_id: int,
+    error: InvalidDataError | VersionConflictError,
+) -> func.HttpResponse:
+    """A gravação recusada: o conteúdo volta atualizado e o formulário, preenchido com o digitado."""
+    node = service.dictionary_node(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        reference_date=calendario.today(),
+    )
+    errors: Mapping[str, str] = (
+        error.detail
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
+        else {}
+    )
+    data = _eap_content_context(_eap_overview(session, context))
+    data.update(_dictionary_page(session, context, node, values=req.form, errors=errors))
+    data["mensagem"] = str(error)
+    return AlpineAjaxResponse(
+        template_name=EAP_DICTIONARY_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
     )

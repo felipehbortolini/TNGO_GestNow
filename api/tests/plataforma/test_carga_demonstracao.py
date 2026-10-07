@@ -21,8 +21,11 @@ from src.carga import (
 )
 from src.carga.plataforma import DATA_PATH
 from src.core import config
+from src.core.auth import _user_of
 from src.core.errors import InvalidDataError
 from src.core.models import AuditEntry, Client, SeedRun
+from src.core.scope import Scope
+from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import (
     Collaborator,
     CollaboratorScheduleRole,
@@ -48,6 +51,15 @@ from src.modulos.financeiro.models import (
     EacItem,
 )
 from src.modulos.governanca.models import ChangeRequest
+from src.modulos.planejamento import service as planejamento
+from src.modulos.planejamento.models import (
+    EapBreakdown,
+    EapItem,
+    EapItemStep,
+    EapMeasurement,
+    EapRevision,
+    EapRevisionItem,
+)
 from src.modulos.riscos.models import Risk
 
 # A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
@@ -63,6 +75,7 @@ PARTS = [
     "financeiro-contratos-avaliacoes",
     "hse",
     "planejamento",
+    "planejamento-eap",
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
@@ -267,6 +280,39 @@ def test_carga_grava_os_fluxos_do_contrato(db_session: Session) -> None:
     )
     assert extension.requested_on == date(2026, 4, 20)
     assert extension.decided_on == date(2026, 7, 10)
+
+
+def test_carga_grava_a_eap_do_mock(db_session: Session) -> None:
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, EapItem) == 110
+    assert _count(db_session, EapItemStep) == 154
+    assert _count(db_session, EapMeasurement) == 3
+    assert _count(db_session, EapRevision) == 5
+    assert _count(db_session, EapRevisionItem) == 144
+    assert _count(db_session, EapBreakdown) == 1
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    access = configuracoes.find_access_by_email(db_session, "leonardo.gomes@exemplo.com")
+    assert access is not None
+    visao = planejamento.eap_overview(
+        db_session,
+        user=_user_of(access),
+        scope=Scope(project_id=project.id, source="url"),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    assert (visao.indicators.work_packages, visao.indicators.planning_packages) == (37, 1)
+    assert visao.indicators.overdue == 2
+    assert visao.current_revision is not None
+    assert (visao.current_revision.revision, visao.current_revision.package_count) == (2, 38)
+    assert [(item.source_code, item.target_code) for item in visao.breakdowns] == [
+        ("5.2.1", "5.2.2")
+    ]
+    assert [node.code for node in visao.nodes if node.is_work_package and node.overdue] == [
+        "2.1.1",
+        "3.2.1",
+    ]
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
