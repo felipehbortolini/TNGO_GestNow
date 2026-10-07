@@ -1557,3 +1557,234 @@ def _actual_at(part: ReserveBurnSeries, month: date) -> int:
 def _month_end(month: date) -> date:
     next_month = (month + timedelta(days=32)).replace(day=1)
     return next_month - timedelta(days=1)
+
+
+# ── Curva S financeira e KPIs de custo (ISSUE-042) ───────────────────────
+
+
+@dataclass(frozen=True)
+class ErpCurvePoint:
+    """Um mês da curva do ERP: o comprometido e o realizado acumulados até ele.
+
+    Nulo depois do mês do corte: a curva mostra o comprometido e o realizado até o corte.
+    """
+
+    month: date
+    committed_cents: int | None
+    actual_cents: int | None
+
+
+def curva_financeira_erp(
+    facts: Sequence[ErpCostFact], months: Sequence[date], *, cutoff: date
+) -> tuple[ErpCurvePoint, ...]:
+    """O acumulado de comprometido e realizado de cada mês, dos fatos do ERP até o corte.
+
+    Cada fato é o movimento do mês, não o acumulado; o acumulado de um mês soma os fatos dos
+    meses até ele. O mês do corte entra e os meses seguintes ficam nulos, como a curva mostra.
+    """
+    cut_month = cutoff.replace(day=1)
+    points: list[ErpCurvePoint] = []
+    for month in months:
+        if month > cut_month:
+            points.append(ErpCurvePoint(month=month, committed_cents=None, actual_cents=None))
+            continue
+        until = [fact for fact in facts if fact.month <= month]
+        points.append(
+            ErpCurvePoint(
+                month=month,
+                committed_cents=sum(fact.committed_cents or 0 for fact in until),
+                actual_cents=sum(fact.actual_cents or 0 for fact in until),
+            )
+        )
+    return tuple(points)
+
+
+def curva_financeira_planejado(
+    profile: Sequence[Decimal | int | float], total_cents: int
+) -> tuple[int, ...]:
+    """O planejado acumulado de cada mês: o total da revisão distribuído pelo perfil do previsto.
+
+    O perfil é o previsto acumulado da Curva S física (percentuais de 0 a 100), a distribuição
+    temporal única do projeto; cada mês vale o total da revisão vezes o percentual, em centavos
+    inteiros com meio centavo para cima. O último mês fecha no total quando o perfil fecha em 100.
+    """
+    return tuple(_percent_cents(total_cents, _limit_of(share)) for share in profile)
+
+
+def curva_financeira_trend(
+    planned: Sequence[int],
+    actual: Sequence[int | None],
+    index: int,
+    *,
+    bac_cents: int,
+    ev_cents: int,
+) -> tuple[int | None, ...]:
+    """A tendência da Curva S financeira: parte do realizado do mês e chega à EAC por desempenho.
+
+    Sem mês válido, sem realizado no mês ou sem CPI não há tendência. A EAC é ``BAC ÷ CPI``
+    (``AC + (BAC - EV) ÷ CPI``) e o custo restante é distribuído pelo perfil do planejado entre o
+    mês consultado e o fim: os meses anteriores ficam nulos, o consultado vale o realizado e os
+    seguintes, o realizado mais a fração do restante que o planejado andou. É a função única do
+    servidor: o mês consultado é o do relatório, e nenhum dado posterior a ele entra na conta.
+    """
+    if index < 0 or index >= len(actual):
+        return (None,) * len(planned)
+    ac_cents = actual[index]
+    if ac_cents is None:
+        return (None,) * len(planned)
+    eac_cents = estimate_at_completion_by_cpi(bac_cents, ev_cents, ac_cents)
+    if eac_cents is None:
+        return (None,) * len(planned)
+    planned_at_index = planned[index] if index < len(planned) else 0
+    remaining = bac_cents - planned_at_index
+    trend: list[int | None] = []
+    for position, planned_cents in enumerate(planned):
+        if position < index:
+            trend.append(None)
+        elif position == index:
+            trend.append(ac_cents)
+        else:
+            share = _remaining_share(planned_cents - planned_at_index, remaining)
+            trend.append(_round_cents(Decimal(ac_cents) + share * (eac_cents - ac_cents)))
+    return tuple(trend)
+
+
+def cost_performance_index(ev_cents: int, ac_cents: int) -> Decimal | None:
+    """CPI: EV ÷ AC, com duas casas; sem AC o índice é indefinido (divisão por zero)."""
+    return _ratio(ev_cents, ac_cents)
+
+
+def cost_schedule_index(ev_cents: int, pv_cents: int) -> Decimal | None:
+    """SPI de custo: EV ÷ PV, com duas casas; sem PV o índice é indefinido."""
+    return _ratio(ev_cents, pv_cents)
+
+
+def cost_variance(ev_cents: int, ac_cents: int) -> int:
+    """CV: o valor agregado menos o custo real; negativo é sobrecusto."""
+    return ev_cents - ac_cents
+
+
+def schedule_variance(ev_cents: int, pv_cents: int) -> int:
+    """SV: o valor agregado menos o valor planejado; negativo é atraso de escopo."""
+    return ev_cents - pv_cents
+
+
+def estimate_at_completion_by_cpi(bac_cents: int, ev_cents: int, ac_cents: int) -> int | None:
+    """EAC pelo CPI: BAC ÷ CPI, isto é, AC + (BAC - EV) ÷ CPI, em centavos inteiros.
+
+    Sem CPI (AC ou EV zero) não há estimativa: é o desempenho de custo que projeta o restante.
+    O valor usa a razão exata, como o protótipo; a guarda é o CPI já arredondado, que também
+    vale zero quando o desempenho não move o índice.
+    """
+    cpi = cost_performance_index(ev_cents, ac_cents)
+    if not cpi:
+        return None
+    return _round_cents(Decimal(bac_cents) * ac_cents / ev_cents)
+
+
+def to_complete_performance_index(bac_cents: int, ev_cents: int, ac_cents: int) -> Decimal | None:
+    """TCPI: (BAC - EV) ÷ (BAC - AC), com duas casas; sem orçamento restante não há índice."""
+    return _ratio(bac_cents - ev_cents, bac_cents - ac_cents)
+
+
+def estimate_variance(bac_cents: int, projection_cents: int) -> int:
+    """VAC: o orçamento no término menos a projeção no término; negativo é projeção acima do BAC."""
+    return bac_cents - projection_cents
+
+
+def committed_percent(committed_cents: int, bac_cents: int) -> Decimal | None:
+    """% comprometido: o comprometido sobre o orçamento no término, com uma casa; sem BAC, nada."""
+    return _percent_of(committed_cents, bac_cents)
+
+
+@dataclass(frozen=True)
+class ValueAggregatedMonth:
+    """O valor agregado de um mês: EV, PV, AC e os índices da tabela período a período."""
+
+    month: date
+    ev_cents: int
+    pv_cents: int
+    ac_cents: int
+    cv_cents: int
+    sv_cents: int
+    cpi: Decimal | None
+    spi: Decimal | None
+
+
+def value_aggregated_month(
+    *,
+    month: date,
+    bac_cents: int,
+    physical_actual_pct: Decimal | None,
+    pv_cents: int,
+    ac_cents: int | None,
+) -> ValueAggregatedMonth | None:
+    """O valor agregado de um mês: EV do avanço físico real sobre o BAC, PV da linha de base.
+
+    O EV é o avanço físico real vezes o BAC e o PV é o planejado acumulado da linha de base de
+    custo; sem avanço real ou sem realizado no mês não há valor agregado.
+    """
+    if physical_actual_pct is None or ac_cents is None:
+        return None
+    ev_cents = _percent_cents(bac_cents, _limit_of(physical_actual_pct))
+    return ValueAggregatedMonth(
+        month=month,
+        ev_cents=ev_cents,
+        pv_cents=pv_cents,
+        ac_cents=ac_cents,
+        cv_cents=cost_variance(ev_cents, ac_cents),
+        sv_cents=schedule_variance(ev_cents, pv_cents),
+        cpi=cost_performance_index(ev_cents, ac_cents),
+        spi=cost_schedule_index(ev_cents, pv_cents),
+    )
+
+
+@dataclass(frozen=True)
+class CostIndicators:
+    """Os índices de desempenho de custo na data de corte."""
+
+    cpi: Decimal | None
+    spi: Decimal | None
+    cv_cents: int
+    sv_cents: int
+    eac_by_cpi_cents: int | None
+    tcpi: Decimal | None
+
+
+def cost_indicators(
+    *, bac_cents: int, ev_cents: int, pv_cents: int, ac_cents: int
+) -> CostIndicators:
+    """Os índices do valor agregado: CPI, SPI de custo, CV, SV, EAC pelo CPI e TCPI.
+
+    O CPI é EV ÷ AC e o SPI de custo, EV ÷ PV; sem denominador o índice fica nulo. A EAC pelo CPI
+    é BAC ÷ CPI e o TCPI, (BAC - EV) ÷ (BAC - AC); sem AC ou sem orçamento restante, nulos.
+    """
+    return CostIndicators(
+        cpi=cost_performance_index(ev_cents, ac_cents),
+        spi=cost_schedule_index(ev_cents, pv_cents),
+        cv_cents=cost_variance(ev_cents, ac_cents),
+        sv_cents=schedule_variance(ev_cents, pv_cents),
+        eac_by_cpi_cents=estimate_at_completion_by_cpi(bac_cents, ev_cents, ac_cents),
+        tcpi=to_complete_performance_index(bac_cents, ev_cents, ac_cents),
+    )
+
+
+def _remaining_share(planned_delta: int, remaining_cents: int) -> Decimal:
+    if remaining_cents <= 0:
+        return Decimal(1)
+    share = Decimal(planned_delta) / Decimal(remaining_cents)
+    return max(Decimal(0), min(Decimal(1), share))
+
+
+def _round_cents(value: Decimal) -> int:
+    return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _percent_cents(total_cents: int, pct: Decimal) -> int:
+    return _round_cents(Decimal(total_cents) * pct / HUNDREDTHS)
+
+
+def _ratio(part: int, total: int) -> Decimal | None:
+    if total == 0:
+        return None
+    return (Decimal(part) / Decimal(total)).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)

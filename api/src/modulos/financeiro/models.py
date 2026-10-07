@@ -6,8 +6,8 @@ the frozen baseline of each item, the reallocations applied to it (ISSUE-029, IS
 projection history of the item and the costs imported from the ERP (ISSUE-031), the contract
 with its addenda and measurements (ISSUE-032), its payment milestones, claims and time
 extensions (ISSUE-033), the contractor performance evaluation with its frozen criteria
-(ISSUE-034), and the contingency and management reserves with their movement statement
-(ISSUE-041).
+(ISSUE-034), the contingency and management reserves with their movement statement
+(ISSUE-041), and the frozen baseline of the financial S-curve per EAC revision (ISSUE-042).
 """
 
 from __future__ import annotations
@@ -194,6 +194,41 @@ class ReserveMovement(Base):
     registered_on: Mapped[date] = mapped_column("data", Date)
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
     justification: Mapped[str] = mapped_column("justificativa", Text)
+
+
+class CurvaFinanceiraRevision(Base):
+    """Frozen baseline of the financial S-curve, taken from an EAC revision (D5b).
+
+    Historical fact by definition; without ``versao``. UK: project + EAC revision.
+    """
+
+    __tablename__ = "curva_financeira_revisao"
+    __table_args__ = (UniqueConstraint("projeto_id", "eac_revisao_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    eac_revision_id: Mapped[int] = mapped_column("eac_revisao_id", ForeignKey("eac_revisao.id"))
+    generated_at: Mapped[datetime] = mapped_column(
+        "gerada_em", DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class CurvaFinanceiraMonth(Base):
+    """Planned value of the financial S-curve baseline in each month of the revision (D5b exception).
+
+    Committed, actual and trend of the curve are calculated from the facts; without ``versao``.
+    UK: revision + month.
+    """
+
+    __tablename__ = "curva_financeira_mes"
+    __table_args__ = (UniqueConstraint("revisao_id", "mes"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    revision_id: Mapped[int] = mapped_column(
+        "revisao_id", ForeignKey("curva_financeira_revisao.id")
+    )
+    month: Mapped[date] = mapped_column("mes", Date)
+    planned_cents: Mapped[int] = mapped_column("planejado_centavos", Centavos)
 
 
 class Contract(Base):
