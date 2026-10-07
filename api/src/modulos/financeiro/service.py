@@ -15,13 +15,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.core import audit, calendario, rbac, recording
+from src.core import attachment_origins, audit, calendario, rbac, recording
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry
 from src.core.money import format_brl
@@ -38,6 +38,9 @@ from src.modulos.financeiro.calculations import (
     WeightInput,
 )
 from src.modulos.financeiro.models import (
+    Contract,
+    ContractAddendum,
+    ContractMeasurement,
     EacItem,
     EacProjection,
     EacReallocation,
@@ -2087,3 +2090,455 @@ def _deviation_bands(session: Session, *, reference_date: date) -> tuple[Decimal
     if len(bands) != 3:
         return tuple(Decimal(str(band)) for band in calculations.DEFAULT_DEVIATION_BANDS)
     return bands
+
+
+# ── Ficha do contrato: medições e aditivos (ISSUE-032) ───────────────────
+
+
+CONTRACT_NOT_FOUND_MESSAGE = "Contrato não encontrado."
+CONTRACT_OTHER_PROJECT_MESSAGE = (
+    "O contrato pertence a outro projeto. Abra o projeto dele para operar."
+)
+MEASUREMENT_NOT_FOUND_MESSAGE = "Medição do contrato não encontrada."
+ADDENDUM_SM_MESSAGE = "A SM informada não é do projeto do contrato ou não está aprovada."
+ATTACHMENT_TABLE = "contrato"
+
+
+@dataclass(frozen=True)
+class MeasurementView:
+    """Uma medição da ficha: período, bruto, retenção, líquido e a situação do fluxo."""
+
+    id: int
+    number: str
+    period: date
+    gross_cents: int
+    retention_cents: int
+    net_cents: int
+    milestone_id: int | None
+    situation: str
+    return_reason: str
+
+
+@dataclass(frozen=True)
+class AddendumView:
+    """Um aditivo da ficha: data, valor, dias, motivo e as origens (SM e claim)."""
+
+    id: int
+    number: str
+    signed_on: date
+    value_cents: int
+    days: int
+    reason: str
+    change_id: int | None
+    change_code: str
+    claim_id: int | None
+
+
+@dataclass(frozen=True)
+class ContractView:
+    """A ficha do contrato: campos comuns, cascata, saldo e as listas de medições e aditivos."""
+
+    id: int
+    project_id: int
+    number: str
+    company: str
+    object: str
+    modality: str
+    eac_code: str
+    purchase_package_id: int | None
+    manager: str
+    fiscal: str
+    start: date
+    original_end: date
+    current_end: date
+    retention_pct: int
+    claim_notice_days: int
+    situation: str
+    original_value_cents: int
+    addenda_cents: int
+    current_value_cents: int
+    measured_cents: int
+    balance_to_invoice_cents: int
+    available_to_measure_cents: int
+    cascade: tuple[dict[str, object], ...]
+    measurements: tuple[MeasurementView, ...]
+    addenda: tuple[AddendumView, ...]
+
+
+def contract_detail(session: Session, *, user: User, contract_id: int) -> ContractView:
+    """A ficha do contrato: campos comuns, cascata, saldo a faturar e as listas.
+
+    O valor atual é o original mais os aditivos e o saldo a faturar é o valor atual menos o
+    medido aprovado, ambos calculados na leitura; o disponível a medir desconta ainda as
+    medições Em análise, como no protótipo. As listas vêm da mais recente para a mais antiga,
+    com a retenção do contrato em cada medição. Quem lê precisa alcançar o módulo.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.VIEW)
+    contract = _contract_or_refuse(session, contract_id)
+    addenda = _addendum_rows(session, contract_id=contract_id)
+    measurements = _measurement_rows(session, contract_id=contract_id)
+    addendum_lines = _addendum_lines(addenda)
+    measurement_lines = _measurement_lines(measurements)
+    current = calculations.contract_current_value_cents(
+        contract.original_value_cents, addendum_lines
+    )
+    measured = calculations.contract_measured_cents(measurement_lines)
+    balance = calculations.contract_balance_to_invoice_cents(current, measured)
+    people = configuracoes.person_names(session, [contract.manager_id, contract.fiscal_id])
+    companies = configuracoes.list_company_names(session)
+    codes = eac_item_codes(session, [contract.eac_item_id] if contract.eac_item_id else [])
+    change_codes = _change_codes(session, [row.change_id for row in addenda])
+    return ContractView(
+        id=contract.id,
+        project_id=contract.project_id,
+        number=contract.number,
+        company=companies.get(contract.company_id, ""),
+        object=contract.object,
+        modality=contract.modality,
+        eac_code=codes.get(contract.eac_item_id or 0, ""),
+        purchase_package_id=contract.purchase_package_id,
+        manager=people.get(contract.manager_id, ""),
+        fiscal=people.get(contract.fiscal_id, ""),
+        start=contract.start,
+        original_end=contract.original_end,
+        current_end=contract.current_end,
+        retention_pct=contract.retention_pct,
+        claim_notice_days=contract.claim_notice_days,
+        situation=contract.situation,
+        original_value_cents=contract.original_value_cents,
+        addenda_cents=sum(row.value_cents for row in addenda),
+        current_value_cents=current,
+        measured_cents=measured,
+        balance_to_invoice_cents=balance,
+        available_to_measure_cents=balance - _under_review_cents(measurements),
+        cascade=calculations.contract_cascade_steps(
+            original_cents=contract.original_value_cents,
+            addenda=addendum_lines,
+            measurements=measurement_lines,
+        ),
+        measurements=tuple(_measurement_view(contract, row) for row in measurements),
+        addenda=tuple(_addendum_view(row, change_codes=change_codes) for row in addenda),
+    )
+
+
+def create_measurement(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+) -> MeasurementView:
+    """Registra um boletim de medição Em análise, conferindo o saldo disponível do contrato.
+
+    O valor bruto não pode superar o valor atual menos o medido aprovado menos o que já está
+    Em análise; o número é o próximo da sequência do contrato (``BM-01``, ``BM-02``...) e a
+    retenção do contrato sai calculada na leitura. A operação é de quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    parsed = validation.parse_measurement_form(form)
+    validation.check_measurement_balance(
+        value_cents=parsed.value_cents,
+        available_cents=_available_to_measure_cents(session, contract=contract),
+    )
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractMeasurement(
+            contract_id=contract.id,
+            milestone_id=parsed.milestone_id,
+            number=_next_measurement_number(session, contract_id=contract.id),
+            period=parsed.period,
+            gross_cents=parsed.value_cents,
+            situation=calculations.SITUATION_UNDER_REVIEW,
+        ),
+    )
+    return _measurement_view(contract, record)
+
+
+def transition_measurement(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    measurement_id: int,
+    target: str,
+    form: Mapping[str, str | None] | None = None,
+) -> MeasurementView:
+    """Move a medição no fluxo e, na aprovação, alimenta o realizado do item da EAC.
+
+    A situação atual só admite a próxima do fluxo (Em análise → Aprovada ou Devolvida com
+    motivo; Aprovada → Faturada; Faturada → Paga), e a decisão é de quem gere o contrato. A
+    aprovação soma o bruto ao realizado do item da EAC do contrato, no mês do período, por um
+    fato de ``custo_erp`` (upsert por item e mês): sem fato no mês ele nasce com o bruto
+    aprovado; com fato, o bruto entra somado ao realizado. O próprio fluxo impede reprocessar
+    a mesma medição (a Aprovada não volta a Em análise), então o bruto entra uma vez; um mês
+    reimportado do ERP substitui o fato e a contribuição da medição se perde, como no mapa.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    measurement = session.get(ContractMeasurement, measurement_id)
+    if measurement is None:
+        raise InvalidDataError(MEASUREMENT_NOT_FOUND_MESSAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=measurement.contract_id)
+    validation.check_measurement_transition(measurement.situation, target)
+    fields = form or {}
+    changes: dict[str, Any] = {"situation": target}
+    if target == calculations.SITUATION_RETURNED:
+        changes["return_reason"] = validation.parse_return_form(fields)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=measurement,
+        changes=changes,
+        version=fields.get(validation.FIELD_VERSION),
+    )
+    if target == calculations.SITUATION_APPROVED:
+        _apply_measurement_to_eac(session, user=user, contract=contract, measurement=measurement)
+    return _measurement_view(contract, measurement)
+
+
+def create_addendum(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    contract_id: int,
+    form: Mapping[str, str | None],
+) -> AddendumView:
+    """Registra um aditivo aprovado e prorroga o término vigente do contrato.
+
+    O aditivo nasce aprovado ao ser registrado e valor negativo é supressão; o valor atual
+    fica calculado na leitura. O término vigente passa a ser o original mais os dias de todos
+    os aditivos e é gravado na mesma transação; a SM de origem, quando informada, precisa ser
+    aprovada e do projeto do contrato, conferida pela fachada da Governança. A operação é de
+    quem gere o contrato.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.MANAGE)
+    contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
+    parsed = validation.parse_addendum_form(form)
+    _check_addendum_change(session, contract=contract, change_id=parsed.change_id)
+    existing = _addendum_rows(session, contract_id=contract.id)
+    lines = (
+        *_addendum_lines(existing),
+        calculations.ContractAddendumLine(value_cents=parsed.value_cents, days=parsed.days),
+    )
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=ContractAddendum(
+            contract_id=contract.id,
+            change_id=parsed.change_id,
+            claim_id=parsed.claim_id,
+            number=_next_addendum_number(session, contract_id=contract.id),
+            signed_on=parsed.signed_on,
+            value_cents=parsed.value_cents,
+            days=parsed.days,
+            reason=parsed.reason,
+        ),
+    )
+    current_end = calculations.contract_current_end_date(contract.original_end, lines)
+    if current_end != contract.current_end:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=contract,
+            changes={"current_end": current_end},
+            version=contract.version,
+        )
+    change_codes = _change_codes(session, [parsed.change_id])
+    return _addendum_view(record, change_codes=change_codes)
+
+
+def _contract_or_refuse(session: Session, contract_id: int) -> Contract:
+    contract = session.get(Contract, contract_id)
+    if contract is None:
+        raise InvalidDataError(CONTRACT_NOT_FOUND_MESSAGE)
+    return contract
+
+
+def _contract_in_scope(session: Session, *, scope: Scope, contract_id: int) -> Contract:
+    project_id = scope.require_project()
+    contract = _contract_or_refuse(session, contract_id)
+    if contract.project_id != project_id:
+        raise AccessDeniedError(CONTRACT_OTHER_PROJECT_MESSAGE)
+    return contract
+
+
+def _measurement_rows(session: Session, *, contract_id: int) -> list[ContractMeasurement]:
+    statement = (
+        select(ContractMeasurement)
+        .where(ContractMeasurement.contract_id == contract_id)
+        .order_by(ContractMeasurement.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
+def _addendum_rows(session: Session, *, contract_id: int) -> list[ContractAddendum]:
+    statement = (
+        select(ContractAddendum)
+        .where(ContractAddendum.contract_id == contract_id)
+        .order_by(ContractAddendum.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
+def _measurement_lines(
+    rows: Sequence[ContractMeasurement],
+) -> tuple[calculations.ContractMeasurementLine, ...]:
+    return tuple(
+        calculations.ContractMeasurementLine(value_cents=row.gross_cents, situation=row.situation)
+        for row in rows
+    )
+
+
+def _addendum_lines(
+    rows: Sequence[ContractAddendum],
+) -> tuple[calculations.ContractAddendumLine, ...]:
+    return tuple(
+        calculations.ContractAddendumLine(value_cents=row.value_cents, days=row.days)
+        for row in rows
+    )
+
+
+def _measurement_view(contract: Contract, row: ContractMeasurement) -> MeasurementView:
+    retention = _retention_cents(row.gross_cents, contract.retention_pct)
+    return MeasurementView(
+        id=row.id,
+        number=row.number,
+        period=row.period,
+        gross_cents=row.gross_cents,
+        retention_cents=retention,
+        net_cents=row.gross_cents - retention,
+        milestone_id=row.milestone_id,
+        situation=row.situation,
+        return_reason=row.return_reason or "",
+    )
+
+
+def _addendum_view(row: ContractAddendum, *, change_codes: Mapping[int, str]) -> AddendumView:
+    return AddendumView(
+        id=row.id,
+        number=row.number,
+        signed_on=row.signed_on,
+        value_cents=row.value_cents,
+        days=row.days,
+        reason=row.reason,
+        change_id=row.change_id,
+        change_code=change_codes.get(row.change_id or 0, ""),
+        claim_id=row.claim_id,
+    )
+
+
+def _retention_cents(gross_cents: int, retention_pct: int) -> int:
+    """Retenção da medição: o bruto pela retenção do contrato, em centavos, meio centavo para cima."""
+    return int(
+        (Decimal(gross_cents * retention_pct) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    )
+
+
+def _under_review_cents(rows: Sequence[ContractMeasurement]) -> int:
+    return sum(
+        row.gross_cents for row in rows if row.situation == calculations.SITUATION_UNDER_REVIEW
+    )
+
+
+def _available_to_measure_cents(session: Session, *, contract: Contract) -> int:
+    measurements = _measurement_rows(session, contract_id=contract.id)
+    addenda = _addendum_lines(_addendum_rows(session, contract_id=contract.id))
+    current = calculations.contract_current_value_cents(contract.original_value_cents, addenda)
+    measured = calculations.contract_measured_cents(_measurement_lines(measurements))
+    balance = calculations.contract_balance_to_invoice_cents(current, measured)
+    return balance - _under_review_cents(measurements)
+
+
+def _next_measurement_number(session: Session, *, contract_id: int) -> str:
+    count = session.scalar(
+        select(func.count())
+        .select_from(ContractMeasurement)
+        .where(ContractMeasurement.contract_id == contract_id)
+    )
+    return f"BM-{(count or 0) + 1:02d}"
+
+
+def _next_addendum_number(session: Session, *, contract_id: int) -> str:
+    count = session.scalar(
+        select(func.count())
+        .select_from(ContractAddendum)
+        .where(ContractAddendum.contract_id == contract_id)
+    )
+    return f"AD-{(count or 0) + 1:02d}"
+
+
+def _apply_measurement_to_eac(
+    session: Session, *, user: User, contract: Contract, measurement: ContractMeasurement
+) -> None:
+    """Soma o bruto aprovado ao realizado do item da EAC do contrato, no mês do período."""
+    if contract.eac_item_id is None:
+        return
+    month = measurement.period.replace(day=1)
+    statement = select(ErpCost).where(
+        ErpCost.item_id == contract.eac_item_id, ErpCost.month == month
+    )
+    fact = session.scalars(statement).one_or_none()
+    if fact is None:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=ErpCost(
+                project_id=contract.project_id,
+                item_id=contract.eac_item_id,
+                imported_by_id=user.person_id,
+                month=month,
+                actual_cents=measurement.gross_cents,
+                imported_at=calendario.now(),
+            ),
+        )
+        return
+    before = audit.snapshot(fact)
+    fact.actual_cents = (fact.actual_cents or 0) + measurement.gross_cents
+    fact.imported_by_id = user.person_id
+    fact.imported_at = calendario.now()
+    session.flush()
+    audit.changed(session, user_id=user.id, entity=fact.__tablename__, record=fact, before=before)
+
+
+def _check_addendum_change(session: Session, *, contract: Contract, change_id: int | None) -> None:
+    """A SM do aditivo precisa existir, ser do projeto do contrato e estar aprovada."""
+    if change_id is None:
+        return
+    from src.modulos.governanca import service as governanca
+
+    source = governanca.change_eac_source(session, change_id=change_id)
+    if source is None or source.project_id != contract.project_id or not source.approved:
+        raise InvalidDataError({validation.FIELD_ADDENDUM_CHANGE: ADDENDUM_SM_MESSAGE})
+
+
+def _change_codes(session: Session, change_ids: Sequence[int | None]) -> dict[int, str]:
+    """O código de cada SM por id, lido da fachada da Governança (D9)."""
+    wanted = [change_id for change_id in change_ids if change_id is not None]
+    if not wanted:
+        return {}
+    from src.modulos.governanca import service as governanca
+
+    return governanca.change_codes(session, change_ids=wanted)
+
+
+def read_contract_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """Quem lê os anexos de um contrato: quem alcança o módulo (D5a)."""
+    rbac.require_module(user, MODULE)
+    contract = session.get(Contract, record_id)
+    if contract is None:
+        return None
+    return attachment_origins.OriginRecord(project_id=contract.project_id)
+
+
+attachment_origins.register(
+    attachment_origins.OriginType(table=ATTACHMENT_TABLE, module=MODULE, read=read_contract_origin)
+)
