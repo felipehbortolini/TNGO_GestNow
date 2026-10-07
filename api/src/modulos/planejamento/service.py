@@ -4223,6 +4223,7 @@ class PlanningKpisOverview:
     worst: PlanningKpiLine | None
     overdue_packages: int
     pending_changes: int
+    bands: tuple[Decimal, Decimal]
     spi_chart: Mapping[str, Any]
     comparison_chart: Mapping[str, Any]
 
@@ -4286,6 +4287,7 @@ def planning_kpis_overview(
         worst=worst,
         overdue_packages=eap.overdue,
         pending_changes=_pending_change_count(session, eap=eap, is_portfolio=scope.is_portfolio),
+        bands=eap.bands,
         spi_chart=_spi_chart(curve.series, spi),
         comparison_chart=_comparison_chart(rows, is_portfolio=scope.is_portfolio),
     )

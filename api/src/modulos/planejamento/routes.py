@@ -59,6 +59,13 @@ The physical S-curve (ISSUE-039), prefix ``/api/planejamento/curva-fisica``:
 * ``GET  /``  the screen: the indicators, the weekly curve (D11), the month-by-month table and,
   in the read-only Portfólio, the composition of the portfolio with the ``Projeto`` column;
 * ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the chart.
+
+The planning KPIs (ISSUE-040), prefix ``/api/planejamento/kpis``:
+
+* ``GET  /``  the screen: the indicators with their management reference, the SPI per month and
+  the forecast x actual charts (D11) and the advance per area — per project in the Portfólio,
+  with the ``Projeto`` column — with the weighted closing row;
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the charts.
 """
 
 from __future__ import annotations
@@ -76,7 +83,7 @@ from sqlalchemy.orm import Session
 from src.core import attachments, calendario, importing, rbac
 from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, describe_scope, format_value
+from src.core.export_document import Document, Kpi, ValueKind, describe_scope, format_value
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
@@ -2521,3 +2528,176 @@ def _curva_fisica_composition_lines(
             )
         )
     return lines
+
+
+# ── KPIs de planejamento (ISSUE-040) ─────────────────────────────────────
+
+KPIS_BASE = "planejamento/kpis"
+
+
+KPIS_TEMPLATE = "planejamento/kpis.html"
+
+
+KPIS_CONTENT_TARGET = "kpis-conteudo"
+
+
+KPI_ICONS = ("refresh", "chartLine", "warning", "flag", "clock", "file")
+
+
+@dataclass(frozen=True)
+class PlanningKpiCard:
+    """Um indicador da faixa do topo dos KPIs, já escrito como a pessoa o lê."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    situacao: str
+    tom: str
+    icone: str
+
+
+@dataclass(frozen=True)
+class PlanningRowLine:
+    """Uma linha da tabela de avanço: a área ou o projeto com os valores já escritos."""
+
+    rotulo: str
+    peso: str
+    previsto: str
+    real: str
+    desvio: str
+    tom_desvio: str
+    spi: str
+    tom_spi: str
+    contribuicao: str
+
+
+@dataclass(frozen=True)
+class PlanningFooterLine:
+    """O rodapé ponderado da tabela de avanço, fechando com a Curva S."""
+
+    rotulo: str
+    peso: str
+    previsto: str
+    real: str
+    desvio: str
+    tom_desvio: str
+
+
+@bp.route(route=KPIS_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def planning_kpis_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os KPIs do escopo: indicadores, gráficos e o avanço por área ou por projeto."""
+    return AlpineAjaxResponse(
+        template_name=KPIS_TEMPLATE,
+        context=_planning_kpis_context(_planning_kpis_overview(session, context)),
+        request=req,
+    )
+
+
+@bp.route(route=f"{KPIS_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def planning_kpis_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel dos KPIs: indicadores, SPI por mês e avanço, no escopo do pedido."""
+    del req
+    return excel_response(_planning_kpis_document(session, context))
+
+
+@bp.route(route=f"{KPIS_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def planning_kpis_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível dos KPIs: o mesmo documento que o Excel carrega, com os gráficos."""
+    return printable_response(_planning_kpis_document(session, context), req)
+
+
+def _planning_kpis_overview(
+    session: Session, context: RequestContext
+) -> service.PlanningKpisOverview:
+    """Os KPIs do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.planning_kpis_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _planning_kpis_document(session: Session, context: RequestContext) -> Document:
+    return export.planning_kpis_document(
+        _planning_kpis_overview(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _planning_kpis_context(visao: service.PlanningKpisOverview) -> dict[str, Any]:
+    """O que o fragmento dos KPIs imprime: a visão, os cartões, as linhas e o rodapé."""
+    return {
+        "visao": visao,
+        "kpis": _planning_kpi_lines(visao),
+        "linhas": _planning_row_lines(visao),
+        "rodape": _planning_footer_line(visao),
+        "situacao": "vazio-origem" if visao.is_empty else "conteudo",
+        "alvo_conteudo": KPIS_CONTENT_TARGET,
+    }
+
+
+def _planning_kpi_lines(visao: service.PlanningKpisOverview) -> list[PlanningKpiCard]:
+    return [
+        PlanningKpiCard(
+            rotulo=kpi.label,
+            valor=_planning_kpi_text(kpi),
+            referencia=kpi.reference,
+            situacao=kpi.status,
+            tom=kpi.tone.value if kpi.tone else "neutro",
+            icone=icone,
+        )
+        for kpi, icone in zip(export.planning_kpis(visao), KPI_ICONS, strict=True)
+    ]
+
+
+def _planning_kpi_text(kpi: Kpi) -> str:
+    """O valor do indicador como a tela o escreve: o desvio leva o sinal explícito no positivo."""
+    value = kpi.value
+    if isinstance(value, Decimal) and kpi.label.startswith(("Desvio", "Maior desvio")):
+        return export.signed_decimal_text(value, kpi.digits)
+    return format_value(kpi.kind, value, kpi.digits)
+
+
+def _planning_row_lines(visao: service.PlanningKpisOverview) -> list[PlanningRowLine]:
+    lines: list[PlanningRowLine] = []
+    for item in visao.rows:
+        desvio_tone = export.deviation_tone(item.deviation_pp)
+        lines.append(
+            PlanningRowLine(
+                rotulo=f"{item.code} · {item.name}" if visao.is_portfolio else item.name,
+                peso=format_value(ValueKind.PERCENT, item.weight, 1 if visao.is_portfolio else 0),
+                previsto=format_value(ValueKind.PERCENT, item.predicted, 1),
+                real=format_value(ValueKind.PERCENT, item.actual, 1),
+                desvio=export.signed_decimal_text(item.deviation_pp),
+                tom_desvio=desvio_tone.value if desvio_tone is not None else "neutro",
+                spi=format_value(ValueKind.DECIMAL, item.spi, 2),
+                tom_spi=export.spi_tone(item.spi).value,
+                contribuicao=format_value(ValueKind.DECIMAL, item.contribution_pp, 1),
+            )
+        )
+    return lines
+
+
+def _planning_footer_line(visao: service.PlanningKpisOverview) -> PlanningFooterLine:
+    weight = sum((item.weight for item in visao.rows), Decimal(0))
+    deviation_tone = export.deviation_tone(visao.indicators.deviation_pp)
+    return PlanningFooterLine(
+        rotulo=(
+            export.PLANNING_PORTFOLIO_WEIGHTED
+            if visao.is_portfolio
+            else export.PLANNING_PROJECT_WEIGHTED
+        ),
+        peso=format_value(ValueKind.PERCENT, weight, 0),
+        previsto=format_value(ValueKind.PERCENT, visao.indicators.predicted, 1),
+        real=format_value(ValueKind.PERCENT, visao.indicators.actual, 1),
+        desvio=export.signed_decimal_text(visao.indicators.deviation_pp),
+        tom_desvio=deviation_tone.value if deviation_tone is not None else "neutro",
+    )

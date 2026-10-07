@@ -23,6 +23,12 @@ The physical S-curve (ISSUE-039) hands the export the same document the screen
 shows: the indicators, the weekly chart (D11), the month-by-month table and, in
 the read-only Portfólio, the composition of the portfolio with the projects and
 their weights; the ``Projeto`` column comes from the generic mechanism (HU-016).
+
+The planning KPIs (ISSUE-040) hands the export the same document the screen
+shows: the indicators with their management reference, the SPI per month and the
+forecast x actual charts (D11) and the advance per area — per project in the
+Portfólio, with the ``Projeto`` column — carrying the numbers behind the charts
+as tables for the Excel.
 """
 
 from __future__ import annotations
@@ -67,6 +73,8 @@ from src.modulos.planejamento.service import (
     EapRevisionView,
     LookaheadBoard,
     PeriodCoverage,
+    PlanningKpiLine,
+    PlanningKpisOverview,
     ReportSummary,
     ReportView,
 )
@@ -992,4 +1000,212 @@ def _curve_composition_table(visao: CurvaFisicaOverview) -> Table:
             )
             for item in visao.composition
         ),
+    )
+
+
+# ── KPIs de planejamento (ISSUE-040) ──────────────────────────────────────
+
+PLANNING_KPIS_TITLE = "KPIs de prazo"
+PLANNING_SPI_TITLE = "SPI por mês"
+PLANNING_AREAS_TITLE = "Avanço por área"
+PLANNING_PORTFOLIO_AREAS_TITLE = "Avanço por projeto"
+PLANNING_PROJECT_WEIGHTED = "Projeto (ponderado)"
+PLANNING_PORTFOLIO_WEIGHTED = "Carteira (ponderado)"
+
+PLANNING_SPI_REFERENCE = "Meta: ≥ 1,00"
+PLANNING_DEVIATION_REFERENCE = "Meta: ≥ 0"
+PLANNING_ZERO_REFERENCE = "Esperado: 0"
+PLANNING_NO_WORST_STATUS = "Nenhuma área com previsto até o corte"
+
+_AREAS_WIDTH = 44
+
+
+def planning_comparison_title(visao: PlanningKpisOverview) -> str:
+    """``Previsto x real por projeto`` na carteira e ``por área`` no projeto."""
+    return "Previsto x real por projeto" if visao.is_portfolio else "Previsto x real por área"
+
+
+def planning_areas_title(visao: PlanningKpisOverview) -> str:
+    """``Avanço por projeto`` na carteira e ``Avanço por área`` no projeto."""
+    return PLANNING_PORTFOLIO_AREAS_TITLE if visao.is_portfolio else PLANNING_AREAS_TITLE
+
+
+def planning_kpis(visao: PlanningKpisOverview) -> tuple[Kpi, ...]:
+    """Os indicadores dos KPIs, os mesmos da faixa do topo da tela e da exportação."""
+    indicadores = visao.indicators
+    cut = curva_fisica_month_label(indicadores.cut_month)
+    return (
+        Kpi(
+            "SPI ponderado da carteira" if visao.is_portfolio else "SPI do projeto",
+            indicadores.spi,
+            PLANNING_SPI_REFERENCE,
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=spi_tone(indicadores.spi),
+            status=_spi_status(indicadores),
+        ),
+        Kpi(
+            "Previsto x real",
+            indicadores.actual,
+            f"Previsto: {format_value(ValueKind.PERCENT, indicadores.predicted, 1)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+            status=f"acumulado em {cut}" if cut else "",
+        ),
+        Kpi(
+            "Desvio acumulado",
+            indicadores.deviation_pp,
+            PLANNING_DEVIATION_REFERENCE,
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.ERROR if indicadores.deviation_pp < 0 else Tone.OK,
+            status="real menos previsto",
+        ),
+        _worst_kpi(visao),
+        Kpi(
+            "Pacotes com término vencido",
+            visao.overdue_packages,
+            PLANNING_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if visao.overdue_packages else Tone.OK,
+            status=(
+                "Término da linha de base já passou"
+                if visao.overdue_packages
+                else "Nenhum pacote vencido"
+            ),
+        ),
+        Kpi(
+            "SMs a incorporar",
+            visao.pending_changes,
+            PLANNING_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.WARN if visao.pending_changes else Tone.OK,
+            status=(
+                "Aprovadas com impacto em escopo, fora da EAP"
+                if visao.pending_changes
+                else "EAP em dia com as SMs"
+            ),
+        ),
+    )
+
+
+def _spi_status(indicadores: CurvaFisicaIndicators) -> str:
+    """``+0,03 vs. mês anterior``: o quanto o SPI andou desde o mês anterior."""
+    if indicadores.spi is None or indicadores.previous_spi is None:
+        return ""
+    return f"{signed_decimal_text(indicadores.spi - indicadores.previous_spi, 2)} vs. mês anterior"
+
+
+def _worst_kpi(visao: PlanningKpisOverview) -> Kpi:
+    """O maior desvio de área — ou de projeto na carteira — contra o limite da faixa."""
+    label = "Maior desvio por projeto" if visao.is_portfolio else "Maior desvio por área"
+    reference = f"Limite: ≥ -{format_value(ValueKind.DECIMAL, visao.bands[0], 0)}"
+    worst = visao.worst
+    if worst is None:
+        return Kpi(label, NO_VALUE, reference, tone=Tone.NEUTRAL, status=PLANNING_NO_WORST_STATUS)
+    name = worst.code if visao.is_portfolio else worst.name
+    return Kpi(
+        label,
+        worst.deviation_pp,
+        reference,
+        ValueKind.DECIMAL,
+        digits=1,
+        tone=Tone.WARN,
+        status=(
+            f"{name}: real {format_value(ValueKind.PERCENT, worst.actual, 0)} "
+            f"x previsto {format_value(ValueKind.PERCENT, worst.predicted, 0)}"
+        ),
+    )
+
+
+def planning_kpis_document(
+    visao: PlanningKpisOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """Os KPIs de prazo como documento: indicadores, gráficos e as duas tabelas."""
+    return Document(
+        title=PLANNING_KPIS_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_planning_context(visao),
+        kpis=planning_kpis(visao),
+        charts=(
+            Chart(PLANNING_SPI_TITLE, "linhas-multiplas", visao.spi_chart),
+            Chart(planning_comparison_title(visao), "comparativo-barras", visao.comparison_chart),
+        ),
+        tables=(_planning_spi_table(visao), _planning_areas_table(visao)),
+    )
+
+
+def _planning_context(visao: PlanningKpisOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, visao.reference_date))]
+    cut = curva_fisica_month_label(visao.indicators.cut_month)
+    if cut:
+        lines.append(("Corte", cut))
+    return tuple(lines)
+
+
+def _planning_spi_table(visao: PlanningKpisOverview) -> Table:
+    """O SPI mês a mês: os números por trás do gráfico, para o Excel."""
+    months = visao.curve.series.months[: len(visao.spi_series)]
+    return Table(
+        title=PLANNING_SPI_TITLE,
+        columns=(Column("Mês", width=16), Column("SPI", ValueKind.DECIMAL, digits=2)),
+        rows=tuple(
+            row(curva_fisica_month_label(month), Cell(spi, spi_tone(spi)))
+            for month, spi in zip(months, visao.spi_series, strict=True)
+        ),
+        per_project=False,
+    )
+
+
+def _planning_areas_table(visao: PlanningKpisOverview) -> Table:
+    is_portfolio = visao.is_portfolio
+    return Table(
+        title=planning_areas_title(visao),
+        columns=(
+            Column("Projeto" if is_portfolio else "Área", width=_AREAS_WIDTH),
+            Column(
+                "Peso na carteira" if is_portfolio else "Peso",
+                ValueKind.PERCENT,
+                digits=1 if is_portfolio else 0,
+            ),
+            Column("Previsto", ValueKind.PERCENT, digits=1),
+            Column("Real", ValueKind.PERCENT, digits=1),
+            Column("Desvio (p.p.)", ValueKind.DECIMAL, digits=1),
+            Column(
+                "SPI do projeto" if is_portfolio else "SPI da área", ValueKind.DECIMAL, digits=2
+            ),
+            Column("Contribuição (p.p.)", ValueKind.DECIMAL, digits=1),
+        ),
+        rows=tuple(_planning_area_row(item, is_portfolio=is_portfolio) for item in visao.rows),
+        totals=_planning_totals(visao),
+    )
+
+
+def _planning_area_row(item: PlanningKpiLine, *, is_portfolio: bool) -> Row:
+    return row(
+        f"{item.code} · {item.name}" if is_portfolio else item.name,
+        item.weight,
+        item.predicted,
+        item.actual,
+        Cell(item.deviation_pp, deviation_tone(item.deviation_pp)),
+        Cell(item.spi, spi_tone(item.spi)),
+        item.contribution_pp,
+    )
+
+
+def _planning_totals(visao: PlanningKpisOverview) -> tuple[Cell, ...]:
+    """O rodapé ponderado: peso somado, previsto, real e desvio que fecham com a Curva S."""
+    weight = sum((item.weight for item in visao.rows), Decimal(0))
+    indicadores = visao.indicators
+    return (
+        Cell(PLANNING_PORTFOLIO_WEIGHTED if visao.is_portfolio else PLANNING_PROJECT_WEIGHTED),
+        Cell(weight),
+        Cell(indicadores.predicted),
+        Cell(indicadores.actual),
+        Cell(indicadores.deviation_pp, deviation_tone(indicadores.deviation_pp)),
+        Cell(),
+        Cell(),
     )
