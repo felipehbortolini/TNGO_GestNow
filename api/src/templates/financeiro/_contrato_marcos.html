@@ -1,0 +1,121 @@
+{#
+  Marcos de pagamento da ficha do contrato (ISSUE-033): o número e a descrição com o critério de
+  aceite, o percentual, o valor e a retenção calculados, a data prevista com o atraso do marco
+  pendente, a conclusão e a situação, com o fluxo Previsto → Evidência enviada → Aprovado →
+  Faturado → Pago. A evidência enviada fica registrada na situação; a aprovação a exige. O pé da
+  tabela fecha a soma dos percentuais e o total dos valores, como o protótipo mostra.
+
+  Espera: ficha (ContractView), linhas (MarcoLineView), soma_pct, disponivel_pct, pode_gerir,
+  erro_marcos e os alvos.
+#}
+<section class="card" aria-labelledby="contrato-marcos-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contrato-marcos-titulo">Marcos de pagamento</h2>
+      <span class="hint">Soma dos marcos: {{ soma_pct }}% · marco só é aprovado com evidência anexada</span>
+    </div>
+    {% if pode_gerir %}
+    <div>
+      <a class="btn btn--primary" href="/api/financeiro/contrato/marcos/novo?numero={{ ficha.number }}"
+        x-target="{{ alvo_formulario }}">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Novo marco
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if erro_marcos %}
+    <div class="aviso aviso--erro" role="alert">
+      <strong>Não foi possível concluir.</strong>
+      <span>{{ erro_marcos }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Marcos de pagamento do contrato</caption>
+        <thead>
+          <tr>
+            <th scope="col">Marco</th>
+            <th scope="col" class="td-num">%</th>
+            <th scope="col" class="td-num">Valor</th>
+            <th scope="col" class="td-num">Retenção</th>
+            <th scope="col">Prevista</th>
+            <th scope="col">Conclusão</th>
+            <th scope="col">Situação</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas_marcos %}
+          <tr data-marco="{{ linha.marco.id }}">
+            <td>
+              <b class="fw-600">{{ linha.marco.number }} {{ linha.marco.description }}</b>
+              <br /><span class="hint">Aceite: {{ linha.marco.criteria }}</span>
+            </td>
+            <td class="td-num">{{ linha.marco.pct }}%</td>
+            <td class="td-num">{{ linha.marco.value_cents | brl }}</td>
+            <td class="td-num">{{ linha.marco.retention_cents | brl }}</td>
+            <td>
+              {{ linha.marco.expected_on.strftime('%d/%m/%Y') }}
+              {% if linha.atrasado %}
+              <br /><span class="pill pill--erro">
+                {% if linha.atraso_dias == 1 %}1 dia de atraso{% else %}{{ linha.atraso_dias }} dias de atraso{% endif %}
+              </span>
+              {% endif %}
+            </td>
+            <td>{{ linha.marco.completed_on.strftime('%d/%m/%Y') if linha.marco.completed_on else '' }}</td>
+            <td>
+              <span class="pill pill--{{ linha.situacao_tom }}">{{ linha.marco.situation }}</span>
+              {% if linha.marco.has_evidence %}<br /><span class="hint">Evidência anexada</span>{% endif %}
+            </td>
+            {% if pode_gerir %}
+            <td class="td-center">
+              <div class="contrato-acoes">
+              {% if linha.pode_enviar_evidencia %}
+              <a class="btn btn--sm btn--secondary"
+                href="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/evidencia?numero={{ ficha.number }}"
+                x-target="{{ alvo_formulario }}">Enviar evidência</a>
+              {% endif %}
+              {% if linha.pode_aprovar %}
+              <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/aprovar?numero={{ ficha.number }}"
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Aprovando o marco...">
+                <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Aprovar</button>
+              </form>
+              {% endif %}
+              {% if linha.pode_faturar %}
+              <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/faturar?numero={{ ficha.number }}"
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Faturando o marco...">
+                <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Faturar</button>
+              </form>
+              {% endif %}
+              {% if linha.pode_pagar %}
+              <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/pagar?numero={{ ficha.number }}"
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Registrando o pagamento...">
+                <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
+                <button type="submit" class="btn btn--sm btn--secondary">Registrar pagamento</button>
+              </form>
+              {% endif %}
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">Nenhum marco cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Total</th>
+            <td class="td-num fw-600">{{ soma_pct }}%</td>
+            <td class="td-num fw-600">{{ linhas_marcos | sum(attribute='marco.value_cents') | brl }}</td>
+            <td colspan="{{ 5 if pode_gerir else 4 }}"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</section>

@@ -11,6 +11,11 @@ Not loaded here, because the owners of the tables arrive later: the link to the 
 (``ata_id`` keeps the id the prototype gave the minutes, as the actions do), to the change
 request (``smRef``) and to the lesson (``licaoRef``), and the actions, which the Central
 de Ações seeds with origin ``Risco``.
+
+The ``financeiro-contratos-fluxos`` part (ISSUE-033) is registered here, after the risks: the
+claims of the prototype point at their risk by code (``riscoRef``) and the link only exists after
+this part. The loader lives in ``financeiro/seed.py``, the same arrangement as the
+``financeiro-contratos`` part that Governança registers.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.financeiro import seed as financeiro_seed
 from src.modulos.riscos import service
 from src.modulos.riscos.models import (
     Risk,
@@ -242,3 +248,4 @@ def _approvals_of(lookups: _Lookups, approval: Mapping[str, Any]) -> list[RiskPl
 
 
 register(PART_NAME, load)
+register(financeiro_seed.FLOWS_PART_NAME, financeiro_seed.load_contract_flows)

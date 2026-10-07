@@ -1,0 +1,78 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da extensão de prazo nova (ISSUE-033): o claim de origem opcional (só os de prazo),
+  o evento causador, os dias solicitados, o marco contratual afetado e o método da análise de
+  atraso. A gravação devolve os painéis atualizados; o 422 volta aqui, com o que a pessoa digitou
+  e a mensagem no campo.
+
+  Espera: ficha (ContractView), valores, erros, claims, metodos e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Nova extensão de prazo</h2>
+    <span class="hint">{{ ficha.number }} · a EOT nasce Solicitada</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" action="/api/financeiro/contrato/extensoes?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_extensoes }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando a extensão...">
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-eot-claim">Claim relacionado (opcional)</label>
+          <select id="contrato-eot-claim" name="claim" class="input">
+            <option value="">Nenhum</option>
+            {% for claim in claims %}
+            <option value="{{ claim.id }}"{% if valores.claim == claim.id | string %} selected{% endif %}>{{ claim.code }} · {{ claim.cause }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="contrato-eot-dias">Dias solicitados</label>
+          <input id="contrato-eot-dias" name="dias" type="number" min="1" step="1"
+            class="input{{ ' input--erro' if erros.dias else '' }}"
+            value="{{ valores.dias or '' }}" required
+            {% if erros.dias %}aria-invalid="true" aria-describedby="contrato-eot-dias-erro"{% endif %} />
+          {% if erros.dias %}<span class="field__erro" id="contrato-eot-dias-erro">{{ erros.dias }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="contrato-eot-evento">Evento causador</label>
+          <textarea id="contrato-eot-evento" name="evento" maxlength="300"
+            class="input{{ ' input--erro' if erros.evento else '' }}" required
+            {% if erros.evento %}aria-invalid="true" aria-describedby="contrato-eot-evento-erro"{% endif %}>{{ valores.evento or '' }}</textarea>
+          {% if erros.evento %}<span class="field__erro" id="contrato-eot-evento-erro">{{ erros.evento }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-eot-marco">Marco contratual afetado</label>
+          <input id="contrato-eot-marco" name="marco" maxlength="120"
+            class="input{{ ' input--erro' if erros.marco else '' }}"
+            value="{{ valores.marco or '' }}" required
+            {% if erros.marco %}aria-invalid="true" aria-describedby="contrato-eot-marco-erro"{% endif %} />
+          {% if erros.marco %}<span class="field__erro" id="contrato-eot-marco-erro">{{ erros.marco }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-eot-metodo">Método de análise de atraso</label>
+          <select id="contrato-eot-metodo" name="metodo"
+            class="input{{ ' input--erro' if erros.metodo else '' }}" required>
+            {% for metodo in metodos %}
+            <option value="{{ metodo }}"{% if valores.metodo == metodo %} selected{% endif %}>{{ metodo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.metodo %}<span class="field__erro" id="contrato-eot-metodo-erro">{{ erros.metodo }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Registrar extensão
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

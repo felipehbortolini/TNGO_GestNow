@@ -1,0 +1,117 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do claim novo (ISSUE-033): direção, tipo, causa, cláusula, descrição, datas do evento
+  e da notificação, valor e dias pleiteados, com o prazo contratual de notificação em destaque. O
+  tipo decide o que é obrigatório: Prazo pede dias, Custo pede valor e Prazo e custo pede os
+  dois. A gravação devolve os painéis atualizados; o 422 volta aqui, com o que a pessoa digitou e
+  a mensagem no campo.
+
+  Espera: ficha (ContractView), valores, erros, direcoes, tipos, causas e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Novo claim</h2>
+    <span class="hint">{{ ficha.number }} · prazo de notificação de {{ ficha.claim_notice_days }} dias após o evento</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" action="/api/financeiro/contrato/claims?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_claims }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando o claim...">
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-claim-direcao">Direção</label>
+          <select id="contrato-claim-direcao" name="direcao"
+            class="input{{ ' input--erro' if erros.direcao else '' }}" required>
+            {% for direcao in direcoes %}
+            <option value="{{ direcao }}"{% if valores.direcao == direcao %} selected{% endif %}>{{ direcao }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.direcao %}<span class="field__erro" id="contrato-claim-direcao-erro">{{ erros.direcao }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-claim-tipo">Tipo</label>
+          <select id="contrato-claim-tipo" name="tipo"
+            class="input{{ ' input--erro' if erros.tipo else '' }}" required>
+            {% for tipo in tipos %}
+            <option value="{{ tipo }}"{% if valores.tipo == tipo %} selected{% endif %}>{{ tipo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.tipo %}<span class="field__erro" id="contrato-claim-tipo-erro">{{ erros.tipo }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-claim-causa">Causa</label>
+          <select id="contrato-claim-causa" name="causa"
+            class="input{{ ' input--erro' if erros.causa else '' }}" required>
+            {% for causa in causas %}
+            <option value="{{ causa }}"{% if valores.causa == causa %} selected{% endif %}>{{ causa }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.causa %}<span class="field__erro" id="contrato-claim-causa-erro">{{ erros.causa }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-claim-clausula">Cláusula contratual</label>
+          <input id="contrato-claim-clausula" name="clausula" maxlength="20" placeholder="12.3"
+            class="input{{ ' input--erro' if erros.clausula else '' }}"
+            value="{{ valores.clausula or '' }}"
+            {% if erros.clausula %}aria-invalid="true" aria-describedby="contrato-claim-clausula-erro"{% endif %} />
+          {% if erros.clausula %}<span class="field__erro" id="contrato-claim-clausula-erro">{{ erros.clausula }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="contrato-claim-descricao">Descrição</label>
+          <textarea id="contrato-claim-descricao" name="descricao" maxlength="300"
+            class="input{{ ' input--erro' if erros.descricao else '' }}" required
+            {% if erros.descricao %}aria-invalid="true" aria-describedby="contrato-claim-descricao-erro"{% endif %}>{{ valores.descricao or '' }}</textarea>
+          {% if erros.descricao %}<span class="field__erro" id="contrato-claim-descricao-erro">{{ erros.descricao }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-claim-evento">Data do evento</label>
+          <input id="contrato-claim-evento" name="evento" type="date"
+            class="input{{ ' input--erro' if erros.evento else '' }}"
+            value="{{ valores.evento or '' }}" required
+            {% if erros.evento %}aria-invalid="true" aria-describedby="contrato-claim-evento-erro"{% endif %} />
+          {% if erros.evento %}<span class="field__erro" id="contrato-claim-evento-erro">{{ erros.evento }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-claim-notificacao">Data da notificação</label>
+          <input id="contrato-claim-notificacao" name="notificacao" type="date"
+            class="input{{ ' input--erro' if erros.notificacao else '' }}"
+            value="{{ valores.notificacao or '' }}" required
+            {% if erros.notificacao %}aria-invalid="true" aria-describedby="contrato-claim-notificacao-erro"{% endif %} />
+          {% if erros.notificacao %}<span class="field__erro" id="contrato-claim-notificacao-erro">{{ erros.notificacao }}</span>{% endif %}
+          <span class="hint">O prazo contratual de {{ ficha.claim_notice_days }} dias conta do evento; o último dia ainda está no prazo.</span>
+        </div>
+        <div class="field">
+          <label for="contrato-claim-valor">Valor pleiteado</label>
+          <input id="contrato-claim-valor" name="valor" inputmode="decimal"
+            class="input{{ ' input--erro' if erros.valor else '' }}"
+            value="{{ valores.valor or '' }}"
+            {% if erros.valor %}aria-invalid="true" aria-describedby="contrato-claim-valor-erro"{% endif %} />
+          {% if erros.valor %}<span class="field__erro" id="contrato-claim-valor-erro">{{ erros.valor }}</span>{% endif %}
+          <span class="hint">Obrigatório para Custo e Prazo e custo.</span>
+        </div>
+        <div class="field">
+          <label for="contrato-claim-dias">Dias pleiteados</label>
+          <input id="contrato-claim-dias" name="dias" type="number" min="0" step="1"
+            class="input{{ ' input--erro' if erros.dias else '' }}"
+            value="{{ valores.dias or '0' }}"
+            {% if erros.dias %}aria-invalid="true" aria-describedby="contrato-claim-dias-erro"{% endif %} />
+          {% if erros.dias %}<span class="field__erro" id="contrato-claim-dias-erro">{{ erros.dias }}</span>{% endif %}
+          <span class="hint">Obrigatório para Prazo e Prazo e custo.</span>
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Registrar claim
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

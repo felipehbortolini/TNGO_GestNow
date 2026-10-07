@@ -1,0 +1,69 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário de atualização e de decisão do claim (ISSUE-033): a nova situação entre as que o
+  fluxo admite (a decisão de mérito oferece só Acordado e Rejeitado), o parecer obrigatório e,
+  quando a situação é Acordado, o valor e os dias reconhecidos. O `acao` diz a rota que recebe a
+  gravação (atualizar ou decidir) e o 422 volta aqui, com o que a pessoa digitou.
+
+  Espera: ficha (ContractView), claim (ClaimView), valores, erros, acao, situacoes e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Atualizar claim {{ claim.code }}</h2>
+    <span class="hint">{{ claim.situation }} · pleiteado {{ claim.claimed_cents | brl }}{% if claim.claimed_days %} e {{ claim.claimed_days }} dia(s){% endif %}</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" action="{{ acao }}"
+      x-target="{{ alvo_formulario }} {{ alvo_claims }} {{ alvo_resumo }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Atualizando o claim..."
+      x-data="{ situacao: '{{ valores.situacao or (situacoes[0] if situacoes else '') }}' }">
+      <input type="hidden" name="versao" value="{{ valores.versao or claim.version }}" />
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-claim-situacao">Nova situação</label>
+          <select id="contrato-claim-situacao" name="situacao"
+            class="input{{ ' input--erro' if erros.situacao else '' }}" x-model="situacao" required>
+            {% for situacao in situacoes %}
+            <option value="{{ situacao }}">{{ situacao }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.situacao %}<span class="field__erro" id="contrato-claim-situacao-erro">{{ erros.situacao }}</span>{% endif %}
+          {% if not situacoes %}<span class="hint">O claim não admite novas situações neste estado.</span>{% endif %}
+        </div>
+        <div class="field" x-show="situacao === 'Acordado'">
+          <label for="contrato-claim-reconhecido">Valor reconhecido</label>
+          <input id="contrato-claim-reconhecido" name="reconhecido" inputmode="decimal"
+            class="input{{ ' input--erro' if erros.reconhecido else '' }}"
+            value="{{ valores.reconhecido or '' }}"
+            {% if erros.reconhecido %}aria-invalid="true" aria-describedby="contrato-claim-reconhecido-erro"{% endif %} />
+          {% if erros.reconhecido %}<span class="field__erro" id="contrato-claim-reconhecido-erro">{{ erros.reconhecido }}</span>{% endif %}
+        </div>
+        <div class="field" x-show="situacao === 'Acordado'">
+          <label for="contrato-claim-dias-reconhecidos">Dias reconhecidos</label>
+          <input id="contrato-claim-dias-reconhecidos" name="dias" type="number" min="0" step="1"
+            class="input" value="{{ valores.dias or '0' }}" />
+        </div>
+        <div class="field field--full">
+          <label for="contrato-claim-parecer">Parecer</label>
+          <textarea id="contrato-claim-parecer" name="parecer" maxlength="400"
+            class="input{{ ' input--erro' if erros.parecer else '' }}" required
+            {% if erros.parecer %}aria-invalid="true" aria-describedby="contrato-claim-parecer-erro"{% endif %}>{{ valores.parecer or '' }}</textarea>
+          {% if erros.parecer %}<span class="field__erro" id="contrato-claim-parecer-erro">{{ erros.parecer }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Salvar situação
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

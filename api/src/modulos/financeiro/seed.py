@@ -24,6 +24,14 @@ because the addendum points at the SM that originated it, and the changes only e
 measurements do **not** feed ``custo_erp``: in the mock the realized value of the item already
 comes from the ERP closing, and it is the approval through the screen that adds the gross value
 (``service.transition_measurement``).
+
+:func:`load_contract_flows` is the part of ISSUE-033: the payment milestones of ``marcosPagamento``,
+the claims of ``claims`` and the time extensions of ``extensoesPrazo``, with the dates shifted by
+the anchor. It also closes what the previous part left open: the measurements are linked to their
+milestone (``marcoId``), the addenda and the claims to their claim (``claimRef``), the claims to
+their change (``smRef``) and to their risk (``riscoRef``). It is registered by ``riscos/seed.py``
+because the claim points at the risk by code, and the risks only exist after the ``riscos`` part;
+the flow part is the last of the demonstration.
 """
 
 from __future__ import annotations
@@ -40,13 +48,17 @@ from sqlalchemy.orm import Session
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core import calendario, recording
+from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service
 from src.modulos.financeiro.calculations import CODE_SEPARATOR, LEAF_LEVEL, code_key
 from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
+    ContractClaim,
     ContractMeasurement,
+    ContractPaymentMilestone,
+    ContractTimeExtension,
     EacReallocation,
     EacRevision,
     EacRevisionItem,
@@ -56,6 +68,7 @@ from src.modulos.financeiro.models import (
 PART_NAME = "financeiro"
 ERP_PART_NAME = "financeiro-custos"
 CONTRACTS_PART_NAME = "financeiro-contratos"
+FLOWS_PART_NAME = "financeiro-contratos-fluxos"
 
 
 def load(session: Session, _reference_date: date) -> None:
@@ -476,3 +489,242 @@ def load_contracts(session: Session, reference_date: date) -> None:
 
 register(PART_NAME, load)
 register(ERP_PART_NAME, load_erp_costs)
+
+
+# ── Marcos, claims e EOT (ISSUE-033) ─────────────────────────────────────
+
+
+def load_contract_flows(session: Session, reference_date: date) -> None:
+    """Grava os marcos, claims e EOTs do protótipo e religa medições, aditivos e riscos.
+
+    A parte roda depois de ``financeiro-contratos`` (os contratos, aditivos e medições existem) e
+    depois de ``riscos`` (o ``riscoRef`` do claim aponta para o risco pelo código): a Governança
+    registra a parte anterior e os Riscos registram esta. As datas vêm deslocadas pela âncora; o
+    ``valorCentavos`` do marco é ignorado, porque o valor sai do percentual sobre o valor atual
+    (D5b). O ``terminoVigente`` do mock fica como está, como nos aditivos: a EOT concedida da
+    carga não recalcula a data. As medições de marco deixam de ficar nulas e recebem o vínculo.
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    lookup = _ContractLookup.build(session)
+    contracts = _contract_ids(session)
+    milestones = _load_milestones(
+        session, admin=admin, contracts=contracts, reference_date=reference_date
+    )
+    claims = _load_claims(
+        session,
+        admin=admin,
+        lookup=lookup,
+        contracts=contracts,
+        reference_date=reference_date,
+    )
+    _load_extensions(
+        session,
+        admin=admin,
+        contracts=contracts,
+        claims=claims,
+        reference_date=reference_date,
+    )
+    _link_measurements(session, contracts=contracts, milestones=milestones)
+    _link_addenda(session, contracts=contracts, claims=claims)
+
+
+def _contract_ids(session: Session) -> dict[int, int]:
+    """O id real de cada contrato do mock, pelo número que a carga anterior gravou."""
+    numbers = {source["id"]: source["numero"] for source in prototype_collection("contratos")}
+    real = {
+        number: contract_id
+        for contract_id, number in session.execute(select(Contract.id, Contract.number))
+    }
+    return {mock_id: real[number] for mock_id, number in numbers.items()}
+
+
+def _load_milestones(
+    session: Session,
+    *,
+    admin: configuracoes.CollaboratorAccess,
+    contracts: Mapping[int, int],
+    reference_date: date,
+) -> dict[int, int]:
+    """Grava os marcos de pagamento do mock, na ordem em que o protótipo os lista."""
+    created: dict[int, int] = {}
+    for source in prototype_collection("marcosPagamento"):
+        completed = source.get("conclusao")
+        record = recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractPaymentMilestone(
+                contract_id=contracts[source["contratoId"]],
+                attachment_id=None,
+                number=source["numero"],
+                description=source["descricao"],
+                acceptance_criteria=source["criterio"],
+                pct=int(source["pct"]),
+                expected_on=shift_date(date.fromisoformat(source["prevista"]), reference_date),
+                completed_on=(
+                    shift_date(date.fromisoformat(completed), reference_date) if completed else None
+                ),
+                situation=source["situacao"],
+            ),
+        )
+        created[source["id"]] = record.id
+    return created
+
+
+def _load_claims(
+    session: Session,
+    *,
+    admin: configuracoes.CollaboratorAccess,
+    lookup: _ContractLookup,
+    contracts: Mapping[int, int],
+    reference_date: date,
+) -> dict[str, int]:
+    """Grava os claims do mock, com a SM e o risco de origem quando o protótipo os aponta."""
+    risks = _risk_ids(
+        session,
+        reference_date=reference_date,
+        codes=[
+            source["riscoRef"]
+            for source in prototype_collection("claims")
+            if source.get("riscoRef")
+        ],
+    )
+    created: dict[str, int] = {}
+    for source in prototype_collection("claims"):
+        recognized = source.get("reconhecidoCentavos")
+        recognized_days = source.get("diasReconhecidos")
+        closed = source.get("encerramento")
+        record = recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractClaim(
+                contract_id=contracts[source["contratoId"]],
+                risk_id=risks.get(source.get("riscoRef") or ""),
+                change_id=lookup.changes.get(source.get("smRef") or ""),
+                code=source["codigo"],
+                direction=source["direcao"],
+                kind=source["tipo"],
+                cause=source["causa"],
+                description=source["descricao"],
+                clause=source.get("clausula"),
+                event_date=shift_date(date.fromisoformat(source["evento"]), reference_date),
+                notification_date=shift_date(
+                    date.fromisoformat(source["notificacao"]), reference_date
+                ),
+                claimed_cents=int(source["pleiteadoCentavos"]),
+                claimed_days=int(source.get("diasPleiteados") or 0),
+                recognized_cents=int(recognized) if recognized is not None else None,
+                recognized_days=int(recognized_days) if recognized_days is not None else None,
+                situation=source["situacao"],
+                closed_on=(
+                    shift_date(date.fromisoformat(closed), reference_date) if closed else None
+                ),
+            ),
+        )
+        created[source["codigo"]] = record.id
+    return created
+
+
+def _risk_ids(session: Session, *, reference_date: date, codes: Sequence[str]) -> dict[str, int]:
+    """O id de cada risco do mock pelo código, pela fachada da Riscos (D9)."""
+    from src.modulos.riscos import service as riscos
+
+    user = _admin_user(session)
+    if user is None:
+        return {}
+    found: dict[str, int] = {}
+    for code in codes:
+        risk = riscos.find_risk(session, user=user, code=code, reference_date=reference_date)
+        if risk is not None:
+            found[code] = risk.id
+    return found
+
+
+def _admin_user(session: Session) -> User | None:
+    """O Admin da demonstração como a fachada da Riscos o lê."""
+    access = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if access is None:
+        return None
+    return User(
+        id=access.id,
+        person_id=access.person_id,
+        name=access.name,
+        email=access.email,
+        general_profile=GeneralProfile(access.general_profile),
+        bond=Bond(access.bond),
+        company_id=access.company_id,
+    )
+
+
+def _load_extensions(
+    session: Session,
+    *,
+    admin: configuracoes.CollaboratorAccess,
+    contracts: Mapping[int, int],
+    claims: Mapping[str, int],
+    reference_date: date,
+) -> None:
+    """Grava as extensões de prazo do mock, ligadas ao claim de origem quando ele existe."""
+    for source in prototype_collection("extensoesPrazo"):
+        granted = source.get("diasConcedidos")
+        decided = source.get("decisao")
+        recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractTimeExtension(
+                contract_id=contracts[source["contratoId"]],
+                claim_id=claims.get(source.get("claimRef") or ""),
+                change_id=None,
+                code=source["codigo"],
+                event=source["evento"],
+                requested_days=int(source["diasSolicitados"]),
+                granted_days=int(granted) if granted is not None else None,
+                classification=source.get("classificacao"),
+                method=source["metodo"],
+                affected_milestone=source["marcoAfetado"],
+                requested_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+                decided_on=(
+                    shift_date(date.fromisoformat(decided), reference_date) if decided else None
+                ),
+                situation=source["situacao"],
+            ),
+        )
+
+
+def _link_measurements(
+    session: Session, *, contracts: Mapping[int, int], milestones: Mapping[int, int]
+) -> None:
+    """Religa a medição de marco ao marco gravado, revertendo o ``milestone_id`` nulo provisório."""
+    for source in prototype_collection("medicoes"):
+        mock_milestone = source.get("marcoId")
+        if mock_milestone is None:
+            continue
+        record = session.scalars(
+            select(ContractMeasurement).where(
+                ContractMeasurement.contract_id == contracts[source["contratoId"]],
+                ContractMeasurement.number == source["numero"],
+            )
+        ).one_or_none()
+        if record is not None:
+            record.milestone_id = milestones[mock_milestone]
+    session.flush()
+
+
+def _link_addenda(
+    session: Session, *, contracts: Mapping[int, int], claims: Mapping[str, int]
+) -> None:
+    """Religa o aditivo ao claim de origem, revertendo o ``claim_id`` nulo provisório."""
+    for source in prototype_collection("aditivos"):
+        claim_code = source.get("claimRef")
+        if not claim_code:
+            continue
+        record = session.scalars(
+            select(ContractAddendum).where(
+                ContractAddendum.contract_id == contracts[source["contratoId"]],
+                ContractAddendum.number == source["numero"],
+            )
+        ).one_or_none()
+        if record is not None:
+            record.claim_id = claims[claim_code]
+    session.flush()

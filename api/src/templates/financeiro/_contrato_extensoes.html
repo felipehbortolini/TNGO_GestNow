@@ -1,0 +1,89 @@
+{#
+  Extensões de prazo (EOT) da ficha do contrato (ISSUE-033): o código com o claim de origem, o
+  evento causador, os dias solicitados e concedidos, a classificação, o método da análise de
+  atraso com o marco contratual afetado e a situação do fluxo Solicitada → Em análise →
+  Concedida (integral ou parcialmente) ou Negada. A concedida prorroga o término vigente e cria a
+  SM da linha de base do cronograma, que aparece na coluna SM.
+
+  Espera: ficha (ContractView), linhas (EotLineView), pode_gerir, erro_extensoes e os alvos.
+#}
+<section class="card" aria-labelledby="contrato-extensoes-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contrato-extensoes-titulo">Extensões de prazo</h2>
+      <span class="hint">Concedida prorroga o término vigente e pede SM para a linha de base do cronograma</span>
+    </div>
+    {% if pode_gerir %}
+    <div>
+      <a class="btn btn--primary" href="/api/financeiro/contrato/extensoes/nova?numero={{ ficha.number }}"
+        x-target="{{ alvo_formulario }}">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Nova extensão de prazo
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if erro_extensoes %}
+    <div class="aviso aviso--erro" role="alert">
+      <strong>Não foi possível concluir.</strong>
+      <span>{{ erro_extensoes }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Extensões de prazo do contrato</caption>
+        <thead>
+          <tr>
+            <th scope="col">Código</th>
+            <th scope="col">Evento causador</th>
+            <th scope="col" class="td-num">Solicitados</th>
+            <th scope="col" class="td-num">Concedidos</th>
+            <th scope="col">Classificação</th>
+            <th scope="col">Análise de atraso</th>
+            <th scope="col">Situação</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas_extensoes %}
+          <tr data-eot="{{ linha.eot.id }}">
+            <td class="fw-600">
+              {{ linha.eot.code }}
+              {% if linha.eot.claim_code %}<br /><span class="hint">{{ linha.eot.claim_code }}</span>{% endif %}
+            </td>
+            <td>{{ linha.eot.event }}</td>
+            <td class="td-num">{{ linha.eot.requested_days }}</td>
+            <td class="td-num">{{ linha.eot.granted_days if linha.eot.granted_days is not none else '' }}</td>
+            <td>{{ linha.eot.classification }}</td>
+            <td>
+              {{ linha.eot.method }}
+              {% if linha.eot.affected_milestone %}<br /><span class="hint">{{ linha.eot.affected_milestone }}</span>{% endif %}
+            </td>
+            <td>
+              <span class="pill pill--{{ linha.situacao_tom }}">{{ linha.eot.situation }}</span>
+              {% if linha.eot.change_code %}
+              <br /><a href="/governanca/mudanca?codigo={{ linha.eot.change_code }}" data-tn-tela>{{ linha.eot.change_code }}</a>
+              {% endif %}
+            </td>
+            {% if pode_gerir %}
+            <td class="td-center">
+              <div class="contrato-acoes">
+              {% if linha.pode_decidir %}
+              <a class="btn btn--sm btn--secondary"
+                href="/api/financeiro/contrato/extensoes/{{ linha.eot.id }}/decidir?numero={{ ficha.number }}"
+                x-target="{{ alvo_formulario }}">Decidir</a>
+              {% endif %}
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">Nenhuma extensão de prazo registrada.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

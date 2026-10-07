@@ -1,0 +1,55 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da evidência do marco (ISSUE-033): a data de conclusão e o arquivo que comprova o
+  critério de aceite, com os limites do grupo Anexos vigentes. A gravação usa o mecanismo
+  genérico de anexos (D5a) e devolve os painéis atualizados; o 422 volta aqui, com a mensagem no
+  campo.
+
+  Espera: ficha (ContractView), marco (MilestoneView), valores, erros, campo_arquivo, limite_mb,
+  tipos, aceitos e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Enviar evidência do marco {{ marco.number }}</h2>
+    <span class="hint">{{ marco.description }} · critério: {{ marco.criteria }}</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data"
+      action="/api/financeiro/contrato/marcos/{{ marco.id }}/evidencia?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_marcos }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Enviando a evidência...">
+      <input type="hidden" name="versao" value="{{ marco.version }}" />
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-marco-conclusao">Data de conclusão</label>
+          <input id="contrato-marco-conclusao" name="conclusao" type="date"
+            class="input{{ ' input--erro' if erros.conclusao else '' }}"
+            value="{{ valores.conclusao or '' }}" required
+            {% if erros.conclusao %}aria-invalid="true" aria-describedby="contrato-marco-conclusao-erro"{% endif %} />
+          {% if erros.conclusao %}<span class="field__erro" id="contrato-marco-conclusao-erro">{{ erros.conclusao }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-marco-arquivo">Evidência</label>
+          <input id="contrato-marco-arquivo" name="{{ campo_arquivo }}" type="file" class="input{{ ' input--erro' if erros.arquivo else '' }}"
+            accept="{{ aceitos }}" required
+            {% if erros.arquivo %}aria-invalid="true" aria-describedby="contrato-marco-arquivo-erro"{% endif %} />
+          {% if erros.arquivo %}<span class="field__erro" id="contrato-marco-arquivo-erro">{{ erros.arquivo }}</span>{% endif %}
+          <span class="hint">Até {{ limite_mb }} MB · {{ tipos }}</span>
+        </div>
+      </div>
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Enviar evidência
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

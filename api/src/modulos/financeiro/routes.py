@@ -39,12 +39,25 @@ and ``/contrato/aditivos/novo`` are the forms; ``POST /contrato/medicoes`` and
 ``.../faturar``, ``.../pagar`` and ``.../devolver`` move the measurement through the flow; the
 saved answers bring the panels again (a multi-target response, with the form emptied).
 ``GET /contrato/excel`` and ``GET /contrato/imprimivel`` are the two exports of the ficha.
+
+The marcos, claims and EOT of ISSUE-033 hang from the same ficha: ``GET /contrato/marcos``,
+``/contrato/claims`` and ``/contrato/extensoes`` are the content of each tab;
+``GET /contrato/marcos/novo``, ``/contrato/marcos/{id}/evidencia``, ``/contrato/claims/novo``,
+``/contrato/claims/{id}/atualizar``, ``/contrato/claims/{id}/decidir``, ``/contrato/extensoes/nova``
+and ``/contrato/extensoes/{id}/decidir`` are the forms (the evidence one sends a file);
+``POST /contrato/marcos``, ``POST /contrato/marcos/{id}/evidencia``, ``POST /contrato/marcos/{id}/aprovar``,
+``.../faturar`` and ``.../pagar`` move the milestone, ``POST /contrato/claims``,
+``POST /contrato/claims/{id}/atualizar`` and ``.../decidir`` move the claim, and
+``POST /contrato/extensoes`` and ``POST /contrato/extensoes/{id}/decidir`` move the EOT. Each tab has
+its own Excel and imprimível (``.../excel`` and ``.../imprimivel``); the saved answers bring the
+panels again (a multi-target response, with the form emptied).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from urllib.parse import urlencode
 
@@ -160,6 +173,31 @@ CONTRACT_ADDENDUM_CREATE_ROUTE = CONTRACT_ADDENDA_ROUTE
 CONTRACT_EXCEL_ROUTE = f"{CONTRACT_CONTENT_BASE}/excel"
 CONTRACT_PRINTABLE_ROUTE = f"{CONTRACT_CONTENT_BASE}/imprimivel"
 
+CONTRACT_MILESTONES_ROUTE = f"{CONTRACT_CONTENT_BASE}/marcos"
+CONTRACT_MILESTONE_FORM_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/novo"
+CONTRACT_MILESTONE_CREATE_ROUTE = CONTRACT_MILESTONES_ROUTE
+CONTRACT_MILESTONE_EVIDENCE_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/{{marco_id}}/evidencia"
+CONTRACT_MILESTONE_APPROVE_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/{{marco_id}}/aprovar"
+CONTRACT_MILESTONE_INVOICE_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/{{marco_id}}/faturar"
+CONTRACT_MILESTONE_PAY_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/{{marco_id}}/pagar"
+CONTRACT_MILESTONES_EXCEL_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/excel"
+CONTRACT_MILESTONES_PRINTABLE_ROUTE = f"{CONTRACT_MILESTONES_ROUTE}/imprimivel"
+
+CONTRACT_CLAIMS_ROUTE = f"{CONTRACT_CONTENT_BASE}/claims"
+CONTRACT_CLAIM_FORM_ROUTE = f"{CONTRACT_CLAIMS_ROUTE}/novo"
+CONTRACT_CLAIM_CREATE_ROUTE = CONTRACT_CLAIMS_ROUTE
+CONTRACT_CLAIM_UPDATE_ROUTE = f"{CONTRACT_CLAIMS_ROUTE}/{{claim_id}}/atualizar"
+CONTRACT_CLAIM_DECIDE_ROUTE = f"{CONTRACT_CLAIMS_ROUTE}/{{claim_id}}/decidir"
+CONTRACT_CLAIMS_EXCEL_ROUTE = f"{CONTRACT_CLAIMS_ROUTE}/excel"
+CONTRACT_CLAIMS_PRINTABLE_ROUTE = f"{CONTRACT_CLAIMS_ROUTE}/imprimivel"
+
+CONTRACT_EXTENSIONS_ROUTE = f"{CONTRACT_CONTENT_BASE}/extensoes"
+CONTRACT_EXTENSION_FORM_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/nova"
+CONTRACT_EXTENSION_CREATE_ROUTE = CONTRACT_EXTENSIONS_ROUTE
+CONTRACT_EXTENSION_DECISION_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/{{extensao_id}}/decidir"
+CONTRACT_EXTENSIONS_EXCEL_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/excel"
+CONTRACT_EXTENSIONS_PRINTABLE_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/imprimivel"
+
 CONTRACT_RESUME_TEMPLATE = "financeiro/contrato_resumo.html"
 CONTRACT_MEASUREMENTS_TEMPLATE = "financeiro/contrato_medicoes.html"
 CONTRACT_ADDENDA_TEMPLATE = "financeiro/contrato_aditivos.html"
@@ -168,13 +206,30 @@ CONTRACT_MEASUREMENT_FORM_TEMPLATE = "financeiro/contrato_medicao_form.html"
 CONTRACT_MEASUREMENT_RETURN_TEMPLATE = "financeiro/contrato_medicao_devolucao.html"
 CONTRACT_ADDENDUM_FORM_TEMPLATE = "financeiro/contrato_aditivo_form.html"
 
+CONTRACT_MILESTONES_TEMPLATE = "financeiro/contrato_marcos.html"
+CONTRACT_CLAIMS_TEMPLATE = "financeiro/contrato_claims.html"
+CONTRACT_EXTENSIONS_TEMPLATE = "financeiro/contrato_extensoes.html"
+CONTRACT_FLOWS_SAVED_TEMPLATE = "financeiro/contrato_fluxos_salvo.html"
+CONTRACT_MILESTONE_FORM_TEMPLATE = "financeiro/contrato_marco_form.html"
+CONTRACT_MILESTONE_EVIDENCE_TEMPLATE = "financeiro/contrato_marco_evidencia.html"
+CONTRACT_CLAIM_FORM_TEMPLATE = "financeiro/contrato_claim_form.html"
+CONTRACT_CLAIM_UPDATE_TEMPLATE = "financeiro/contrato_claim_atualizacao.html"
+CONTRACT_EXTENSION_FORM_TEMPLATE = "financeiro/contrato_eot_form.html"
+CONTRACT_EXTENSION_DECISION_TEMPLATE = "financeiro/contrato_eot_decisao.html"
+
 CONTRACT_RESUME_TARGET = "contrato-resumo"
 CONTRACT_MEASUREMENTS_TARGET = "contrato-medicoes"
 CONTRACT_ADDENDA_TARGET = "contrato-aditivos"
+CONTRACT_MILESTONES_TARGET = "contrato-marcos"
+CONTRACT_CLAIMS_TARGET = "contrato-claims"
+CONTRACT_EXTENSIONS_TARGET = "contrato-extensoes"
 CONTRACT_FORM_TARGET = "contrato-formulario"
 
 CONTRACT_NUMBER_PARAMETER = "numero"
 CONTRACT_MEASUREMENT_PARAMETER = "medicao_id"
+CONTRACT_MILESTONE_PARAMETER = "marco_id"
+CONTRACT_CLAIM_PARAMETER = "claim_id"
+CONTRACT_EXTENSION_PARAMETER = "extensao_id"
 
 CONTRACT_MEASUREMENT_CREATED_MESSAGE = "Medição {number} registrada em análise."
 CONTRACT_MEASUREMENT_MOVED_MESSAGE = "Medição {number}: {situation}."
@@ -182,12 +237,48 @@ CONTRACT_MEASUREMENT_RETURNED_MESSAGE = "Medição {number} devolvida à contrat
 CONTRACT_ADDENDUM_CREATED_MESSAGE = "Aditivo {number} registrado."
 CONTRACT_ADDENDUM_EXTENDED_SUFFIX = " Término vigente prorrogado em {days} dias."
 
+CONTRACT_MILESTONE_CREATED_MESSAGE = "Marco {number} cadastrado."
+CONTRACT_MILESTONE_EVIDENCE_MESSAGE = "Evidência do marco {number} enviada para aprovação."
+CONTRACT_MILESTONE_MOVED_MESSAGE = "Marco {number}: {situation}."
+CONTRACT_CLAIM_CREATED_MESSAGE = "Claim {code} registrado."
+CONTRACT_CLAIM_MOVED_MESSAGE = "Claim {code}: {situation}."
+CONTRACT_CLAIM_AGREED_SUFFIX = " SM {code} aberta em Governança."
+CONTRACT_EXTENSION_CREATED_MESSAGE = "Extensão de prazo {code} registrada."
+CONTRACT_EXTENSION_MOVED_MESSAGE = "Extensão {code}: {situation}."
+CONTRACT_EXTENSION_EXTENDED_SUFFIX = " Término vigente prorrogado em {days} dias."
+
 _SITUATION_PILLS = {
     calculations.SITUATION_UNDER_REVIEW: "warn",
     calculations.SITUATION_APPROVED: "fix",
     calculations.SITUATION_INVOICED: "fix",
     calculations.SITUATION_PAID: "ok",
     calculations.SITUATION_RETURNED: "erro",
+}
+
+_MILESTONE_PILLS = {
+    calculations.MILESTONE_FORECAST: "neutral",
+    calculations.MILESTONE_EVIDENCE_SENT: "warn",
+    calculations.MILESTONE_APPROVED: "fix",
+    calculations.MILESTONE_INVOICED: "fix",
+    calculations.MILESTONE_PAID: "ok",
+}
+
+_CLAIM_PILLS = {
+    calculations.CLAIM_NOTIFIED: "warn",
+    calculations.CLAIM_UNDER_REVIEW: "warn",
+    calculations.CLAIM_IN_NEGOTIATION: "warn",
+    calculations.CLAIM_AGREED: "ok",
+    calculations.CLAIM_REJECTED: "erro",
+    calculations.CLAIM_IN_DISPUTE: "erro",
+    calculations.CLAIM_CLOSED: "neutral",
+}
+
+_EXTENSION_PILLS = {
+    calculations.EXTENSION_REQUESTED: "warn",
+    calculations.EXTENSION_UNDER_REVIEW: "warn",
+    calculations.EXTENSION_GRANTED: "ok",
+    calculations.EXTENSION_PARTIALLY_GRANTED: "ok",
+    calculations.EXTENSION_DENIED: "erro",
 }
 
 MIL_CENTS = 100_000
@@ -1954,3 +2045,1107 @@ def _posted_aditivo(form: Mapping[str, str | None]) -> dict[str, str | None]:
         validation.FIELD_ADDENDUM_REASON,
     )
     return {name: form.get(name) for name in names}
+
+
+# ── Marcos, claims e EOT da ficha (ISSUE-033) ────────────────────────────
+
+
+@dataclass(frozen=True)
+class MarcoLineView:
+    """Um marco como a tabela o imprime: o atraso, o tom da situação e as transições do fluxo."""
+
+    marco: service.MilestoneView
+    atrasado: bool
+    atraso_dias: int
+    situacao_tom: str
+    pode_enviar_evidencia: bool
+    pode_aprovar: bool
+    pode_faturar: bool
+    pode_pagar: bool
+
+
+@dataclass(frozen=True)
+class ClaimLineView:
+    """Um claim como a tabela o imprime: o tom da situação e as portas de atualização e decisão."""
+
+    claim: service.ClaimView
+    situacao_tom: str
+    pode_atualizar: bool
+    pode_decidir: bool
+
+
+@dataclass(frozen=True)
+class EotLineView:
+    """Uma EOT como a tabela a imprime: o tom da situação e a porta da decisão."""
+
+    eot: service.ExtensionView
+    situacao_tom: str
+    pode_decidir: bool
+
+
+@bp.route(route=CONTRACT_MILESTONES_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_marcos(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os marcos de pagamento da ficha, com o atraso, a evidência e a soma dos percentuais."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MILESTONES_TEMPLATE,
+        context=_contrato_marcos_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_CLAIMS_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_claims(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os claims da ficha, do mais recente para o mais antigo, com o alerta de notificação."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIMS_TEMPLATE,
+        context=_contrato_claims_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_EXTENSIONS_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_extensoes(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """As extensões de prazo da ficha, com a decisão e a SM da linha de base do cronograma."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EXTENSIONS_TEMPLATE,
+        context=_contrato_extensoes_context(view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_MILESTONES_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contrato_marcos_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba dos marcos de pagamento, com o atraso e a soma dos percentuais."""
+    return excel_response(_contrato_marcos_document_of(req, session, context))
+
+
+@bp.route(route=CONTRACT_MILESTONES_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_marcos_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba dos marcos: o mesmo documento do Excel."""
+    return printable_response(_contrato_marcos_document_of(req, session, context), req)
+
+
+@bp.route(route=CONTRACT_CLAIMS_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contrato_claims_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba dos claims, com o alerta de notificação fora do prazo."""
+    return excel_response(_contrato_claims_document_of(req, session, context))
+
+
+@bp.route(route=CONTRACT_CLAIMS_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_claims_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba dos claims: o mesmo documento do Excel."""
+    return printable_response(_contrato_claims_document_of(req, session, context), req)
+
+
+@bp.route(route=CONTRACT_EXTENSIONS_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contrato_extensoes_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba das extensões de prazo, com a decisão e a SM."""
+    return excel_response(_contrato_extensoes_document_of(req, session, context))
+
+
+@bp.route(route=CONTRACT_EXTENSIONS_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_extensoes_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba das extensões de prazo: o mesmo documento do Excel."""
+    return printable_response(_contrato_extensoes_document_of(req, session, context), req)
+
+
+@bp.route(route=CONTRACT_MILESTONE_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_marco_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do marco novo, com o percentual que ainda cabe nos 100% do contrato."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MILESTONE_FORM_TEMPLATE,
+        context=_contrato_marco_form_context(view, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_marco_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário do marco de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MILESTONE_FORM_TEMPLATE,
+        context=_contrato_marco_form_context(
+            view,
+            FormState(
+                values=_posted_marco(req.form),
+                problems=problems,
+                message="" if problems else str(error),
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_MILESTONE_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_marco_form_error)
+def contrato_marco_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cadastra o marco Previsto e devolve a ficha atualizada."""
+    view = _contract_of(req, session, context)
+    marco = service.create_milestone(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_marco(req.form),
+    )
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=CONTRACT_MILESTONE_CREATED_MESSAGE.format(number=marco.number),
+    )
+
+
+@bp.route(route=CONTRACT_MILESTONE_EVIDENCE_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_marco_evidencia_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da evidência do marco, com a data de conclusão e o arquivo."""
+    view = _contract_of(req, session, context)
+    marco = _marco_of(view, _marco_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MILESTONE_EVIDENCE_TEMPLATE,
+        context=_contrato_evidencia_context(session, view, marco, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_evidencia_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário da evidência de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+            marco = _marco_of(view, _marco_id_of(req))
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_MILESTONE_EVIDENCE_TEMPLATE,
+        context=_contrato_evidencia_context(
+            session,
+            view,
+            marco,
+            FormState(
+                values=_posted_evidencia(req.form),
+                problems=problems,
+                message="" if problems else str(error),
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_MILESTONE_EVIDENCE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_evidencia_error)
+def contrato_marco_evidencia(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Envia a evidência do marco: a data de conclusão e o anexo de verdade (D5a)."""
+    view = _contract_of(req, session, context)
+    marco = _marco_of(view, _marco_id_of(req))
+    sent = req.files.get(attachments.FILE_FIELD)
+    updated = service.send_milestone_evidence(
+        session,
+        user=context.user,
+        scope=context.scope,
+        milestone_id=marco.id,
+        form=_posted_evidencia(req.form),
+        reference_date=calendario.today(),
+        file_name=sent.filename if sent is not None else None,
+        content=sent.stream.read() if sent is not None else b"",
+    )
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=CONTRACT_MILESTONE_EVIDENCE_MESSAGE.format(number=updated.number),
+    )
+
+
+def _render_marcos_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """A ficha de volta, com a recusa no painel dos marcos, no 422 ou no 409."""
+    return _render_fluxos_error(req, error, area="marcos")
+
+
+@bp.route(route=CONTRACT_MILESTONE_APPROVE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_marcos_error)
+def contrato_marco_approve(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Aprova o marco: exige o anexo de evidência gravado (D5a)."""
+    view = _contract_of(req, session, context)
+    marco = _marco_of(view, _marco_id_of(req))
+    approved = service.approve_milestone(
+        session,
+        user=context.user,
+        scope=context.scope,
+        milestone_id=marco.id,
+        form=_posted_versao(req.form),
+    )
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=CONTRACT_MILESTONE_MOVED_MESSAGE.format(
+            number=approved.number, situation=approved.situation.lower()
+        ),
+    )
+
+
+@bp.route(route=CONTRACT_MILESTONE_INVOICE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_marcos_error)
+def contrato_marco_invoice(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o faturamento do marco aprovado."""
+    return _move_marco(req, session, context, target=calculations.MILESTONE_INVOICED)
+
+
+@bp.route(route=CONTRACT_MILESTONE_PAY_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_marcos_error)
+def contrato_marco_pay(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o pagamento do marco faturado."""
+    return _move_marco(req, session, context, target=calculations.MILESTONE_PAID)
+
+
+@bp.route(route=CONTRACT_CLAIM_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_claim_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do claim novo, com o prazo de notificação do contrato."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIM_FORM_TEMPLATE,
+        context=_contrato_claim_form_context(view, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_claim_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário do claim de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIM_FORM_TEMPLATE,
+        context=_contrato_claim_form_context(
+            view,
+            FormState(
+                values=_posted_claim(req.form),
+                problems=problems,
+                message="" if problems else str(error),
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_CLAIM_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_claim_form_error)
+def contrato_claim_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o claim Notificado, com o código sequencial do projeto."""
+    view = _contract_of(req, session, context)
+    claim = service.create_claim(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_claim(req.form),
+    )
+    return _fluxos_saved(
+        req, session, context, toast=CONTRACT_CLAIM_CREATED_MESSAGE.format(code=claim.code)
+    )
+
+
+@bp.route(route=CONTRACT_CLAIM_UPDATE_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_claim_update_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário de atualização do claim, com as próximas situações do fluxo."""
+    view = _contract_of(req, session, context)
+    claim = _claim_of(view, _claim_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIM_UPDATE_TEMPLATE,
+        context=_contrato_claim_update_context(
+            view,
+            claim,
+            FormState.empty(),
+            action=_claim_action(view, claim.id, CONTRACT_CLAIM_UPDATE_ROUTE),
+            situations=_claim_transitions(claim),
+        ),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_CLAIM_DECIDE_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_claim_decide_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da decisão de mérito do claim: Acordado ou Rejeitado."""
+    view = _contract_of(req, session, context)
+    claim = _claim_of(view, _claim_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIM_UPDATE_TEMPLATE,
+        context=_contrato_claim_update_context(
+            view,
+            claim,
+            FormState.empty(),
+            action=_claim_action(view, claim.id, CONTRACT_CLAIM_DECIDE_ROUTE),
+            situations=_claim_decisions(claim),
+        ),
+        request=req,
+    )
+
+
+def _render_claim_update_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário de atualização do claim de volta, com o que a pessoa digitou, no 422."""
+    return _render_claim_form_update(req, error, route=CONTRACT_CLAIM_UPDATE_ROUTE)
+
+
+def _render_claim_decide_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário da decisão do claim de volta, com o que a pessoa digitou, no 422."""
+    return _render_claim_form_update(req, error, route=CONTRACT_CLAIM_DECIDE_ROUTE)
+
+
+def _render_claim_form_update(
+    req: func.HttpRequest, error: DomainError, *, route: str
+) -> func.HttpResponse | None:
+    if not isinstance(error, InvalidDataError | VersionConflictError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+            claim = _claim_of(view, _claim_id_of(req))
+    except DomainError:
+        return None
+    problems = (
+        error.detail
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
+        else {}
+    )
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_CLAIM_UPDATE_TEMPLATE,
+        context=_contrato_claim_update_context(
+            view,
+            claim,
+            FormState(
+                values=_posted_claim_update(req.form),
+                problems=problems,
+                message=str(error) if isinstance(error, VersionConflictError) else "",
+            ),
+            action=_claim_action(view, claim.id, route),
+            situations=_claim_decisions(claim)
+            if route == CONTRACT_CLAIM_DECIDE_ROUTE
+            else _claim_transitions(claim),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_CLAIM_UPDATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_claim_update_error)
+def contrato_claim_update(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Atualiza o claim no fluxo, com o parecer e o reconhecido do acordo."""
+    view = _contract_of(req, session, context)
+    claim = _claim_of(view, _claim_id_of(req))
+    updated = service.update_claim(
+        session,
+        user=context.user,
+        scope=context.scope,
+        claim_id=claim.id,
+        form=_posted_claim_update(req.form),
+        reference_date=calendario.today(),
+    )
+    return _fluxos_saved(req, session, context, toast=_claim_moved_message(updated))
+
+
+@bp.route(route=CONTRACT_CLAIM_DECIDE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_claim_decide_error)
+def contrato_claim_decide(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A decisão de mérito do claim: Acordado (com a SM) ou Rejeitado."""
+    view = _contract_of(req, session, context)
+    claim = _claim_of(view, _claim_id_of(req))
+    decided = service.decide_claim(
+        session,
+        user=context.user,
+        scope=context.scope,
+        claim_id=claim.id,
+        form=_posted_claim_update(req.form),
+        reference_date=calendario.today(),
+    )
+    return _fluxos_saved(req, session, context, toast=_claim_moved_message(decided))
+
+
+@bp.route(route=CONTRACT_EXTENSION_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_extensao_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da extensão de prazo nova, com os claims de prazo do contrato."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EXTENSION_FORM_TEMPLATE,
+        context=_contrato_eot_form_context(view, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_eot_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse | None:
+    """O formulário da extensão de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EXTENSION_FORM_TEMPLATE,
+        context=_contrato_eot_form_context(
+            view,
+            FormState(
+                values=_posted_eot(req.form),
+                problems=problems,
+                message="" if problems else str(error),
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_EXTENSION_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_eot_form_error)
+def contrato_extensao_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra a EOT Solicitada, com o claim de origem opcional do contrato."""
+    view = _contract_of(req, session, context)
+    eot = service.create_extension(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_eot(req.form),
+        reference_date=calendario.today(),
+    )
+    return _fluxos_saved(
+        req, session, context, toast=CONTRACT_EXTENSION_CREATED_MESSAGE.format(code=eot.code)
+    )
+
+
+@bp.route(route=CONTRACT_EXTENSION_DECISION_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_extensao_decisao_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da decisão da EOT: Concedida (integral ou parcial) ou Negada."""
+    view = _contract_of(req, session, context)
+    eot = _extensao_of(view, _extensao_id_of(req))
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EXTENSION_DECISION_TEMPLATE,
+        context=_contrato_eot_decisao_context(view, eot, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_eot_decisao_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário da decisão da EOT de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError | VersionConflictError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+            eot = _extensao_of(view, _extensao_id_of(req))
+    except DomainError:
+        return None
+    problems = (
+        error.detail
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
+        else {}
+    )
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EXTENSION_DECISION_TEMPLATE,
+        context=_contrato_eot_decisao_context(
+            view,
+            eot,
+            FormState(
+                values=_posted_eot_decisao(req.form),
+                problems=problems,
+                message=str(error) if isinstance(error, VersionConflictError) else "",
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_EXTENSION_DECISION_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_eot_decisao_error)
+def contrato_extensao_decide(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Decide a EOT; a concessão prorroga o término vigente e cria a SM do cronograma."""
+    view = _contract_of(req, session, context)
+    eot = _extensao_of(view, _extensao_id_of(req))
+    decided = service.decide_extension(
+        session,
+        user=context.user,
+        scope=context.scope,
+        extension_id=eot.id,
+        form=_posted_eot_decisao(req.form),
+        reference_date=calendario.today(),
+    )
+    return _fluxos_saved(req, session, context, toast=_extension_moved_message(decided))
+
+
+def _move_marco(
+    req: func.HttpRequest, session: Session, context: RequestContext, *, target: str
+) -> func.HttpResponse:
+    view = _contract_of(req, session, context)
+    marco = _marco_of(view, _marco_id_of(req))
+    moved = service.transition_milestone(
+        session,
+        user=context.user,
+        scope=context.scope,
+        milestone_id=marco.id,
+        target=target,
+        form=_posted_versao(req.form),
+    )
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=CONTRACT_MILESTONE_MOVED_MESSAGE.format(
+            number=moved.number, situation=moved.situation.lower()
+        ),
+    )
+
+
+def _fluxos_saved(
+    req: func.HttpRequest, session: Session, context: RequestContext, *, toast: str
+) -> func.HttpResponse:
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_FLOWS_SAVED_TEMPLATE,
+        context=_contrato_fluxos_context(view, user=context.user),
+        request=req,
+        toast=toast,
+        toast_tipo="ok",
+    )
+
+
+def _render_fluxos_error(
+    req: func.HttpRequest, error: DomainError, *, area: str
+) -> func.HttpResponse | None:
+    """A ficha de volta, com a recusa no painel da área, no 422 ou no 409."""
+    if not isinstance(error, InvalidDataError | VersionConflictError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+    except DomainError:
+        return None
+    data = _contrato_fluxos_context(view, user=context.user)
+    data[f"erro_{area}"] = str(error)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_FLOWS_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=409 if isinstance(error, VersionConflictError) else 422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+def _contrato_fluxos_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    data = _contrato_context(view, user=user)
+    data |= _contrato_marcos_context(view, user=user)
+    data |= _contrato_claims_context(view, user=user)
+    data |= _contrato_extensoes_context(view, user=user)
+    return data
+
+
+def _fluxos_targets() -> dict[str, str]:
+    return {
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_resumo": CONTRACT_RESUME_TARGET,
+        "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,
+        "alvo_aditivos": CONTRACT_ADDENDA_TARGET,
+        "alvo_marcos": CONTRACT_MILESTONES_TARGET,
+        "alvo_claims": CONTRACT_CLAIMS_TARGET,
+        "alvo_extensoes": CONTRACT_EXTENSIONS_TARGET,
+    }
+
+
+def _contrato_marcos_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    pode_gerir = rbac.can(user, Permission.MANAGE)
+    reference_date = calendario.today()
+    return {
+        "ficha": view,
+        "pode_gerir": pode_gerir,
+        "linhas_marcos": [
+            _marco_line(row, reference_date=reference_date, pode_gerir=pode_gerir)
+            for row in view.milestones
+        ],
+        "soma_pct": view.milestone_pct_total,
+        "disponivel_pct": calculations.MILESTONE_PCT_TOTAL - view.milestone_pct_total,
+        "erro_marcos": "",
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_claims_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    pode_gerir = rbac.can(user, Permission.MANAGE)
+    return {
+        "ficha": view,
+        "pode_gerir": pode_gerir,
+        "linhas_claims": [_claim_line(row, pode_gerir=pode_gerir) for row in view.claims],
+        "erro_claims": "",
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_extensoes_context(view: service.ContractView, *, user: User) -> dict[str, object]:
+    pode_gerir = rbac.can(user, Permission.MANAGE)
+    return {
+        "ficha": view,
+        "pode_gerir": pode_gerir,
+        "linhas_extensoes": [_eot_line(row, pode_gerir=pode_gerir) for row in view.extensions],
+        "erro_extensoes": "",
+        **_fluxos_targets(),
+    }
+
+
+@dataclass(frozen=True)
+class FormState:
+    """O que os formulários dos fluxos devolvem: o que a pessoa digitou, os erros e a mensagem."""
+
+    values: Mapping[str, str | None]
+    problems: Mapping[str, str]
+    message: str = ""
+
+    @classmethod
+    def empty(cls) -> FormState:
+        """O formulário recém-aberto: sem valores digitados nem erros."""
+        return cls(values={}, problems={})
+
+
+def _contrato_marco_form_context(view: service.ContractView, state: FormState) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "disponivel_pct": calculations.MILESTONE_PCT_TOTAL - view.milestone_pct_total,
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_evidencia_context(
+    session: Session,
+    view: service.ContractView,
+    marco: service.MilestoneView,
+    state: FormState,
+) -> dict[str, object]:
+    limits = attachments.current_limits(session, reference_date=calendario.today())
+    return {
+        "ficha": view,
+        "marco": marco,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "campo_arquivo": attachments.FILE_FIELD,
+        "limite_mb": limits.max_megabytes_text,
+        "tipos": ", ".join(limits.types),
+        "aceitos": ",".join(f".{extension}" for extension in limits.extensions),
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_claim_form_context(view: service.ContractView, state: FormState) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "direcoes": validation.CLAIM_DIRECTIONS,
+        "tipos": validation.CLAIM_KINDS,
+        "causas": validation.CLAIM_CAUSES,
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_claim_update_context(
+    view: service.ContractView,
+    claim: service.ClaimView,
+    state: FormState,
+    *,
+    action: str,
+    situations: tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "claim": claim,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "acao": action,
+        "situacoes": situations,
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_eot_form_context(view: service.ContractView, state: FormState) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "claims": [row for row in view.claims if row.kind != validation.CLAIM_KIND_COST],
+        "metodos": validation.EXTENSION_METHODS,
+        **_fluxos_targets(),
+    }
+
+
+def _contrato_eot_decisao_context(
+    view: service.ContractView,
+    eot: service.ExtensionView,
+    state: FormState,
+) -> dict[str, object]:
+    return {
+        "ficha": view,
+        "eot": eot,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "decisoes": validation.EXTENSION_DECISIONS,
+        "classificacoes": validation.EXTENSION_CLASSIFICATIONS,
+        **_fluxos_targets(),
+    }
+
+
+def _marco_line(
+    marco: service.MilestoneView, *, reference_date: date, pode_gerir: bool
+) -> MarcoLineView:
+    late = calculations.milestone_is_late(marco.expected_on, marco.situation, reference_date)
+    return MarcoLineView(
+        marco=marco,
+        atrasado=late,
+        atraso_dias=calculations.milestone_late_days(marco.expected_on, reference_date)
+        if late
+        else 0,
+        situacao_tom=_MILESTONE_PILLS.get(marco.situation, "neutral"),
+        pode_enviar_evidencia=pode_gerir
+        and validation.milestone_transition_allowed(
+            marco.situation, calculations.MILESTONE_EVIDENCE_SENT
+        ),
+        pode_aprovar=pode_gerir
+        and validation.milestone_transition_allowed(
+            marco.situation, calculations.MILESTONE_APPROVED
+        ),
+        pode_faturar=pode_gerir
+        and validation.milestone_transition_allowed(
+            marco.situation, calculations.MILESTONE_INVOICED
+        ),
+        pode_pagar=pode_gerir
+        and validation.milestone_transition_allowed(marco.situation, calculations.MILESTONE_PAID),
+    )
+
+
+def _claim_line(claim: service.ClaimView, *, pode_gerir: bool) -> ClaimLineView:
+    targets = _claim_transitions(claim)
+    return ClaimLineView(
+        claim=claim,
+        situacao_tom=_CLAIM_PILLS.get(claim.situation, "neutral"),
+        pode_atualizar=pode_gerir
+        and any(target not in service.CLAIM_DECISIONS for target in targets),
+        pode_decidir=pode_gerir and any(target in service.CLAIM_DECISIONS for target in targets),
+    )
+
+
+def _eot_line(eot: service.ExtensionView, *, pode_gerir: bool) -> EotLineView:
+    return EotLineView(
+        eot=eot,
+        situacao_tom=_EXTENSION_PILLS.get(eot.situation, "neutral"),
+        pode_decidir=pode_gerir
+        and any(
+            validation.extension_transition_allowed(eot.situation, target)
+            for target in validation.EXTENSION_DECISIONS
+        ),
+    )
+
+
+def _claim_transitions(claim: service.ClaimView) -> tuple[str, ...]:
+    return validation.CLAIM_TRANSITIONS.get(claim.situation, ())
+
+
+def _claim_decisions(claim: service.ClaimView) -> tuple[str, ...]:
+    return tuple(
+        target for target in _claim_transitions(claim) if target in service.CLAIM_DECISIONS
+    )
+
+
+def _claim_action(view: service.ContractView, claim_id: int, route: str) -> str:
+    return f"/api/{route.format(claim_id=claim_id)}?numero={view.number}"
+
+
+def _claim_moved_message(claim: service.ClaimView) -> str:
+    message = CONTRACT_CLAIM_MOVED_MESSAGE.format(
+        code=claim.code, situation=claim.situation.lower()
+    )
+    if claim.change_code:
+        message += CONTRACT_CLAIM_AGREED_SUFFIX.format(code=claim.change_code)
+    return message
+
+
+def _extension_moved_message(eot: service.ExtensionView) -> str:
+    message = CONTRACT_EXTENSION_MOVED_MESSAGE.format(
+        code=eot.code, situation=eot.situation.lower()
+    )
+    if eot.granted_days:
+        message += CONTRACT_EXTENSION_EXTENDED_SUFFIX.format(days=eot.granted_days)
+    return message
+
+
+def _marco_of(view: service.ContractView, marco_id: int) -> service.MilestoneView:
+    marco = next((row for row in view.milestones if row.id == marco_id), None)
+    if marco is None:
+        raise InvalidDataError(service.MILESTONE_NOT_FOUND_MESSAGE)
+    return marco
+
+
+def _claim_of(view: service.ContractView, claim_id: int) -> service.ClaimView:
+    claim = next((row for row in view.claims if row.id == claim_id), None)
+    if claim is None:
+        raise InvalidDataError(service.CLAIM_NOT_FOUND_MESSAGE)
+    return claim
+
+
+def _extensao_of(view: service.ContractView, extensao_id: int) -> service.ExtensionView:
+    eot = next((row for row in view.extensions if row.id == extensao_id), None)
+    if eot is None:
+        raise InvalidDataError(service.EXTENSION_NOT_FOUND_MESSAGE)
+    return eot
+
+
+def _marco_id_of(req: func.HttpRequest) -> int:
+    raw = req.route_params.get(CONTRACT_MILESTONE_PARAMETER) or ""
+    if not raw.isdigit():
+        raise InvalidDataError(service.MILESTONE_NOT_FOUND_MESSAGE)
+    return int(raw)
+
+
+def _claim_id_of(req: func.HttpRequest) -> int:
+    raw = req.route_params.get(CONTRACT_CLAIM_PARAMETER) or ""
+    if not raw.isdigit():
+        raise InvalidDataError(service.CLAIM_NOT_FOUND_MESSAGE)
+    return int(raw)
+
+
+def _extensao_id_of(req: func.HttpRequest) -> int:
+    raw = req.route_params.get(CONTRACT_EXTENSION_PARAMETER) or ""
+    if not raw.isdigit():
+        raise InvalidDataError(service.EXTENSION_NOT_FOUND_MESSAGE)
+    return int(raw)
+
+
+def _posted_versao(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    return {validation.FIELD_VERSION: form.get(validation.FIELD_VERSION)}
+
+
+def _posted_marco(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_MILESTONE_DESCRIPTION,
+        validation.FIELD_MILESTONE_CRITERIA,
+        validation.FIELD_MILESTONE_PCT,
+        validation.FIELD_MILESTONE_EXPECTED,
+        validation.FIELD_VERSION,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _posted_evidencia(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (validation.FIELD_MILESTONE_COMPLETED, validation.FIELD_VERSION)
+    return {name: form.get(name) for name in names}
+
+
+def _posted_claim(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_CLAIM_DIRECTION,
+        validation.FIELD_CLAIM_KIND,
+        validation.FIELD_CLAIM_CAUSE,
+        validation.FIELD_CLAIM_CLAUSE,
+        validation.FIELD_CLAIM_DESCRIPTION,
+        validation.FIELD_CLAIM_EVENT,
+        validation.FIELD_CLAIM_NOTIFICATION,
+        validation.FIELD_CLAIM_VALUE,
+        validation.FIELD_CLAIM_DAYS,
+        validation.FIELD_VERSION,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _posted_claim_update(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_CLAIM_SITUATION,
+        validation.FIELD_CLAIM_RECOGNIZED,
+        validation.FIELD_CLAIM_DAYS,
+        validation.FIELD_CLAIM_STATEMENT,
+        validation.FIELD_VERSION,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _posted_eot(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_EXTENSION_CLAIM,
+        validation.FIELD_EXTENSION_EVENT,
+        validation.FIELD_EXTENSION_DAYS,
+        validation.FIELD_EXTENSION_MILESTONE,
+        validation.FIELD_EXTENSION_METHOD,
+        validation.FIELD_VERSION,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _posted_eot_decisao(form: Mapping[str, str | None]) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_EXTENSION_SITUATION,
+        validation.FIELD_EXTENSION_DAYS,
+        validation.FIELD_EXTENSION_CLASSIFICATION,
+        validation.FIELD_EXTENSION_STATEMENT,
+        validation.FIELD_VERSION,
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _contrato_marcos_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view = _contract_of(req, session, context)
+    return export.contrato_marcos_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _contrato_claims_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view = _contract_of(req, session, context)
+    return export.contrato_claims_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _contrato_extensoes_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view = _contract_of(req, session, context)
+    return export.contrato_extensoes_document(
+        view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )

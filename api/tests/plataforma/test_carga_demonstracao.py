@@ -39,10 +39,14 @@ from src.modulos.configuracoes.models import (
 from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
+    ContractClaim,
     ContractMeasurement,
+    ContractPaymentMilestone,
+    ContractTimeExtension,
     EacItem,
 )
 from src.modulos.governanca.models import ChangeRequest
+from src.modulos.riscos.models import Risk
 
 # A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
 PARTS = [
@@ -58,6 +62,7 @@ PARTS = [
     "planejamento",
     "programacao_semanal",
     "riscos",
+    "financeiro-contratos-fluxos",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -171,7 +176,10 @@ def test_carga_grava_os_contratos_do_mock(db_session: Session) -> None:
         select(ChangeRequest).where(ChangeRequest.id == addendum.change_id)
     ).one()
     assert change.code == "SM-TN-2026-0001"
-    assert addendum.claim_id is None
+    claim = db_session.scalars(
+        select(ContractClaim).where(ContractClaim.id == addendum.claim_id)
+    ).one()
+    assert claim.code == "CLM-TN-2026-0005"
 
     measurement = db_session.scalars(
         select(ContractMeasurement).where(
@@ -184,6 +192,41 @@ def test_carga_grava_os_contratos_do_mock(db_session: Session) -> None:
         34_500_000,
         "Paga",
     )
+    milestone = db_session.scalars(
+        select(ContractPaymentMilestone).where(
+            ContractPaymentMilestone.id == measurement.milestone_id
+        )
+    ).one()
+    assert (milestone.number, milestone.pct, milestone.situation) == ("M1", 10, "Pago")
+
+
+def test_carga_grava_os_fluxos_do_contrato(db_session: Session) -> None:
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, ContractPaymentMilestone) == 14
+    assert _count(db_session, ContractClaim) == 7
+    assert _count(db_session, ContractTimeExtension) == 4
+
+    claim = db_session.scalars(
+        select(ContractClaim).where(ContractClaim.code == "CLM-TN-2026-0004")
+    ).one()
+    risk = db_session.scalars(select(Risk).where(Risk.code == "RSK-TN-2026-0003")).one()
+    assert claim.risk_id == risk.id
+    assert claim.change_id is not None
+    assert claim.recognized_cents == 40_000_000
+    assert claim.recognized_days == 21
+    assert claim.closed_on == date(2026, 7, 10)
+
+    extension = db_session.scalars(
+        select(ContractTimeExtension).where(ContractTimeExtension.code == "EOT-TN-2026-0001")
+    ).one()
+    assert (extension.claim_id, extension.granted_days, extension.situation) == (
+        claim.id,
+        21,
+        "Concedida parcialmente",
+    )
+    assert extension.requested_on == date(2026, 4, 20)
+    assert extension.decided_on == date(2026, 7, 10)
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

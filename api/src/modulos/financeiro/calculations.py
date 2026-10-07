@@ -904,6 +904,8 @@ MILESTONE_APPROVED = "Aprovado"
 MILESTONE_INVOICED = "Faturado"
 MILESTONE_PAID = "Pago"
 
+MILESTONE_PENDING_SITUATIONS = (MILESTONE_FORECAST, MILESTONE_EVIDENCE_SENT)
+
 CLAIM_NOTIFIED = "Notificado"
 CLAIM_UNDER_REVIEW = "Em análise"
 CLAIM_IN_NEGOTIATION = "Em negociação"
@@ -945,6 +947,20 @@ def milestone_pct_total(pcts: Sequence[int]) -> int:
 def milestone_pct_complete(pcts: Sequence[int]) -> bool:
     """A soma dos percentuais fecha os 100% exigidos do contrato?"""
     return milestone_pct_total(pcts) == MILESTONE_PCT_TOTAL
+
+
+def milestone_is_late(expected_on: date, situation: str, reference_date: date) -> bool:
+    """Marco pendente com a data prevista vencida: o atraso que o protótipo alerta.
+
+    Só um marco Previsto ou com Evidência enviada atrasa; um marco já aprovado, faturado ou
+    pago ficou para trás da data prevista sem que o atraso importe.
+    """
+    return situation in MILESTONE_PENDING_SITUATIONS and expected_on < reference_date
+
+
+def milestone_late_days(expected_on: date, reference_date: date) -> int:
+    """Dias de atraso do marco: a data de referência menos a data prevista."""
+    return (reference_date - expected_on).days
 
 
 def claim_notification_deadline(event_date: date, notice_days: int) -> date:

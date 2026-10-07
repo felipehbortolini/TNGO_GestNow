@@ -29,22 +29,44 @@ from src.core.export_document import (
     row,
 )
 from src.modulos.financeiro.calculations import (
+    CLAIM_AGREED,
+    CLAIM_CLOSED,
+    CLAIM_IN_DISPUTE,
+    CLAIM_IN_NEGOTIATION,
+    CLAIM_NOTIFIED,
+    CLAIM_REJECTED,
+    CLAIM_UNDER_REVIEW,
+    EXTENSION_DENIED,
+    EXTENSION_GRANTED,
+    EXTENSION_PARTIALLY_GRANTED,
+    EXTENSION_REQUESTED,
+    EXTENSION_UNDER_REVIEW,
     LEAF_LEVEL,
+    MILESTONE_APPROVED,
+    MILESTONE_EVIDENCE_SENT,
+    MILESTONE_FORECAST,
+    MILESTONE_INVOICED,
+    MILESTONE_PAID,
     SITUATION_APPROVED,
     SITUATION_INVOICED,
     SITUATION_PAID,
     SITUATION_RETURNED,
     SITUATION_UNDER_REVIEW,
     TreeRow,
+    milestone_is_late,
+    milestone_late_days,
 )
 from src.modulos.financeiro.service import (
     PORTFOLIO_LABEL,
     AddendumView,
+    ClaimView,
     ContractView,
     EacView,
+    ExtensionView,
     MapaControleView,
     MapaRow,
     MeasurementView,
+    MilestoneView,
     ReallocationRow,
     RevisionRow,
 )
@@ -536,5 +558,221 @@ def _addendum_row(line: AddendumView) -> Row:
         line.value_cents,
         line.days,
         line.reason,
+        line.change_code,
+    )
+
+
+# ── Marcos, claims e EOT da ficha (ISSUE-033) ────────────────────────────
+
+
+CONTRACT_MILESTONES_TITLE = "Marcos de pagamento"
+CONTRACT_CLAIMS_TITLE = "Claims"
+CONTRACT_EXTENSIONS_TITLE = "Extensões de prazo"
+
+_MILESTONE_TONES = {
+    MILESTONE_FORECAST: Tone.NEUTRAL,
+    MILESTONE_EVIDENCE_SENT: Tone.WARN,
+    MILESTONE_APPROVED: Tone.INFO,
+    MILESTONE_INVOICED: Tone.INFO,
+    MILESTONE_PAID: Tone.OK,
+}
+_CLAIM_TONES = {
+    CLAIM_NOTIFIED: Tone.WARN,
+    CLAIM_UNDER_REVIEW: Tone.WARN,
+    CLAIM_IN_NEGOTIATION: Tone.WARN,
+    CLAIM_AGREED: Tone.OK,
+    CLAIM_REJECTED: Tone.ERROR,
+    CLAIM_IN_DISPUTE: Tone.ERROR,
+    CLAIM_CLOSED: Tone.NEUTRAL,
+}
+_EXTENSION_TONES = {
+    EXTENSION_REQUESTED: Tone.WARN,
+    EXTENSION_UNDER_REVIEW: Tone.WARN,
+    EXTENSION_GRANTED: Tone.OK,
+    EXTENSION_PARTIALLY_GRANTED: Tone.OK,
+    EXTENSION_DENIED: Tone.ERROR,
+}
+
+
+def contrato_marcos_document(
+    view: ContractView, *, scope_label: str, generated_on: date
+) -> Document:
+    """Os marcos de pagamento da ficha como documento, com o atraso e a soma dos percentuais.
+
+    ``generated_on`` é a data de referência do atraso, como o protótipo comparava a data
+    prevista com o dia corrente; o mesmo conteúdo da aba vai para o Excel e o imprimível.
+    """
+    return Document(
+        title=CONTRACT_TITLE.format(number=view.number),
+        scope_label=scope_label,
+        generated_on=generated_on,
+        context=_contract_context(view),
+        tables=(_milestones_table(view, reference_date=generated_on),),
+    )
+
+
+def contrato_claims_document(
+    view: ContractView, *, scope_label: str, generated_on: date
+) -> Document:
+    """Os claims da ficha como documento, com o alerta de notificação fora do prazo."""
+    return Document(
+        title=CONTRACT_TITLE.format(number=view.number),
+        scope_label=scope_label,
+        generated_on=generated_on,
+        context=_contract_context(view),
+        tables=(_claims_table(view),),
+    )
+
+
+def contrato_extensoes_document(
+    view: ContractView, *, scope_label: str, generated_on: date
+) -> Document:
+    """As extensões de prazo da ficha como documento, com a decisão e a SM da linha de base."""
+    return Document(
+        title=CONTRACT_TITLE.format(number=view.number),
+        scope_label=scope_label,
+        generated_on=generated_on,
+        context=_contract_context(view),
+        tables=(_extensions_table(view),),
+    )
+
+
+def _milestones_table(view: ContractView, *, reference_date: date) -> Table:
+    columns = (
+        Column("Nº", width=10),
+        Column("Marco", width=44),
+        Column("Critério de aceite", width=40),
+        Column("%", ValueKind.INTEGER),
+        Column("Valor", ValueKind.MONEY),
+        Column("Retenção", ValueKind.MONEY),
+        Column("Prevista", ValueKind.DATE),
+        Column("Atraso (dias)", ValueKind.INTEGER),
+        Column("Conclusão", ValueKind.DATE),
+        Column("Situação", width=16),
+        Column("Evidência", width=12),
+    )
+    totals: tuple[Cell, ...] = (
+        Cell(),
+        Cell("Total"),
+        Cell(),
+        Cell(view.milestone_pct_total),
+        Cell(sum(line.value_cents for line in view.milestones)),
+        Cell(),
+        Cell(),
+        Cell(),
+        Cell(),
+        Cell(),
+        Cell(),
+    )
+    return Table(
+        title=CONTRACT_MILESTONES_TITLE,
+        columns=columns,
+        rows=tuple(_milestone_row(line, reference_date=reference_date) for line in view.milestones),
+        totals=totals,
+    )
+
+
+def _milestone_row(line: MilestoneView, *, reference_date: date) -> Row:
+    late = milestone_is_late(line.expected_on, line.situation, reference_date)
+    return row(
+        line.number,
+        line.description,
+        line.criteria,
+        line.pct,
+        line.value_cents,
+        line.retention_cents,
+        line.expected_on,
+        milestone_late_days(line.expected_on, reference_date) if late else None,
+        line.completed_on,
+        Cell(line.situation, _MILESTONE_TONES.get(line.situation)),
+        "Anexada" if line.has_evidence else "",
+    )
+
+
+def _claims_table(view: ContractView) -> Table:
+    columns = (
+        Column("Código", width=20),
+        Column("Direção", width=16),
+        Column("Tipo", width=14),
+        Column("Causa", width=24),
+        Column("Descrição", width=48),
+        Column("Cláusula", width=10),
+        Column("Evento", ValueKind.DATE),
+        Column("Notificação", ValueKind.DATE),
+        Column("Dias após o evento", ValueKind.INTEGER),
+        Column("Fora do prazo", width=12),
+        Column("Pleiteado", ValueKind.MONEY),
+        Column("Dias pleiteados", ValueKind.INTEGER),
+        Column("Reconhecido", ValueKind.MONEY),
+        Column("Dias reconhecidos", ValueKind.INTEGER),
+        Column("Situação", width=16),
+        Column("SM", width=20),
+        Column("Encerrado em", ValueKind.DATE),
+    )
+    return Table(
+        title=CONTRACT_CLAIMS_TITLE,
+        columns=columns,
+        rows=tuple(_claim_row(line) for line in view.claims),
+    )
+
+
+def _claim_row(line: ClaimView) -> Row:
+    late_tone = Tone.ERROR if line.notification_late else Tone.OK
+    return row(
+        line.code,
+        line.direction,
+        line.kind,
+        line.cause,
+        line.description,
+        line.clause,
+        line.event_date,
+        line.notification_date,
+        line.notification_days,
+        Cell("Sim" if line.notification_late else "Não", late_tone),
+        line.claimed_cents,
+        line.claimed_days,
+        line.recognized_cents,
+        line.recognized_days,
+        Cell(line.situation, _CLAIM_TONES.get(line.situation)),
+        line.change_code,
+        line.closed_on,
+    )
+
+
+def _extensions_table(view: ContractView) -> Table:
+    columns = (
+        Column("Código", width=20),
+        Column("Claim", width=20),
+        Column("Evento causador", width=48),
+        Column("Solicitados", ValueKind.INTEGER),
+        Column("Concedidos", ValueKind.INTEGER),
+        Column("Classificação", width=26),
+        Column("Método", width=28),
+        Column("Marco afetado", width=32),
+        Column("Solicitada em", ValueKind.DATE),
+        Column("Decidida em", ValueKind.DATE),
+        Column("Situação", width=22),
+        Column("SM", width=20),
+    )
+    return Table(
+        title=CONTRACT_EXTENSIONS_TITLE,
+        columns=columns,
+        rows=tuple(_extension_row(line) for line in view.extensions),
+    )
+
+
+def _extension_row(line: ExtensionView) -> Row:
+    return row(
+        line.code,
+        line.claim_code,
+        line.event,
+        line.requested_days,
+        line.granted_days,
+        line.classification,
+        line.method,
+        line.affected_milestone,
+        line.requested_on,
+        line.decided_on,
+        Cell(line.situation, _EXTENSION_TONES.get(line.situation)),
         line.change_code,
     )
