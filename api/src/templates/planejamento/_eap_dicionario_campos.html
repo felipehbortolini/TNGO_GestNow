@@ -1,10 +1,12 @@
 {#
   Campos do dicionário do pacote (ISSUE-036), como no protótipo: descrição, entregável,
-  critério de aceitação, empresa executante, responsável e o item da EAC. Peso, datas e
-  critério são da linha de base e não entram aqui: mudam só por nova revisão (ISSUE-038).
-  O 422 marca o campo e a mensagem fica sob ele (o erro não é só cor).
+  critério de aceitação, empresa executante, responsável e o item da EAC, com o histórico de
+  medições do pacote. Peso, datas e critério são da linha de base e não entram aqui: mudam só
+  por nova revisão (ISSUE-038). O 422 marca o campo e a mensagem fica sob ele (o erro não é
+  só cor).
 
-  Espera: no, opcoes, valores, erros, mensagem, peso, inicio, termino, criterio e formulario.
+  Espera: no, opcoes, valores, erros, medicoes, mensagem, peso, inicio, termino, criterio e
+  formulario.
 #}
 <section class="card eap-dicionario" aria-labelledby="eap-dicionario-titulo">
   <div class="card__head">
@@ -90,5 +92,22 @@
         <button type="submit" class="btn btn--primary">Salvar</button>
       </div>
     </form>
+
+    <section class="eap-dicionario__medicoes mt-24" aria-labelledby="eap-medicoes-titulo">
+      <h3 class="h-card5" id="eap-medicoes-titulo">Medições</h3>
+      {% if medicoes %}
+      <ul class="lista-simples">
+        {% for medicao in medicoes %}
+        <li class="lista-simples__item eap-medicao{{ ' eap-medicao--estorno' if medicao.estorno else '' }}">
+          <span class="eap-medicao__valores"><strong>{{ medicao.quando }}</strong> · {{ medicao.de }} > {{ medicao.para }}</span>
+          <span class="eap-medicao__autor muted">{{ medicao.autor }}{% if medicao.nota %} · {{ medicao.nota }}{% endif %}</span>
+          {% if medicao.estorno %}<span class="pill pill--warn">Estorno</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="body-txt muted">Nenhuma medição registrada nesta sessão ou na carga inicial.</p>
+      {% endif %}
+    </section>
   </div>
 </section>

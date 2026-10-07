@@ -39,7 +39,15 @@
           {% set no = linha.no %}
           <tr class="eap-linha eap-linha--nivel-{{ no.level }}{{ ' eap-linha--raiz' if no.level == 0 }}" data-codigo="{{ no.code }}">
             {% if visao.is_portfolio %}<td>{{ no.project_label }}</td>{% endif %}
-            <td class="nowrap"><span class="num">{{ no.code }}</span></td>
+            <td class="eap-linha__codigo nowrap">
+              {% if linha.has_children %}
+              <button type="button" class="eap-linha__alternar" data-alternar="{{ no.code }}"
+                aria-expanded="true" aria-label="Recolher {{ no.code }}" title="Recolher {{ no.code }}">
+                <span x-init="$el.innerHTML = window.icon('chevronDown', 16)" aria-hidden="true"></span>
+              </button>
+              {% endif %}
+              <span class="num">{{ no.code }}</span>
+            </td>
             <td class="eap-linha__descricao">
               <span class="eap-linha__recuo" data-nivel="{{ no.level }}" aria-hidden="true"></span>
               {% if no.level < 3 %}<strong>{{ no.description }}</strong>{% else %}{{ no.description }}{% endif %}
@@ -50,7 +58,17 @@
             {% if visao.is_portfolio %}<td class="td-num">{{ linha.peso_no_pai }}</td>{% endif %}
             <td class="td-num">{{ linha.previsto }}</td>
             <td class="td-num">
-              {% if no.is_planning_package %}<span class="muted">sem medição</span>{% else %}{{ linha.real }}{% endif %}
+              {% if no.is_planning_package %}
+              <span class="muted">sem medição</span>
+              {% else %}
+              <span class="eap-barra">
+                <span class="eap-barra__trilho" role="progressbar" aria-valuenow="{{ linha.real_num }}"
+                  aria-valuemin="0" aria-valuemax="100" aria-label="Real de {{ no.code }}: {{ linha.real }}">
+                  <span class="eap-barra__valor" style="width: {{ linha.real_num }}%"></span>
+                </span>
+                <span class="num">{{ linha.real }}</span>
+              </span>
+              {% endif %}
             </td>
             <td class="td-num">{% if linha.desvio %}<span class="pill pill--{{ linha.tom }}">{{ linha.desvio }}</span>{% endif %}</td>
             <td>{{ linha.inicio }}</td>
@@ -64,7 +82,7 @@
               {% if no.level == 3 and no.id %}
               <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/dicionario" x-target="{{ alvo_formulario }}"
                 aria-label="Dicionário do pacote {{ no.code }}" title="Dicionário">
-                <span x-init="$el.innerHTML = window.icon('fileText', 16)" aria-hidden="true"></span>
+                <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
               </a>
               {% endif %}
             </td>

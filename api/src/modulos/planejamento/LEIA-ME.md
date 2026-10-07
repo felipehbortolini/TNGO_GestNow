@@ -37,6 +37,33 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 **Fluxo:** a restrição nasce aberta; a remoção registra a data (e, opcional, o comentário) e a libera; remover duas vezes é recusado. Toda gravação passa por `service.py` (transação, trilha e versão). **Carga:** `seed.py` grava a coleção `lookahead` do protótipo com as datas deslocadas. **Oráculo:** `api/tests/oraculo/test_oraculo_6wla.py`. **Testes:** `api/tests/planejamento/test_6wla_*.py`, com o apoio em `api/tests/apoio_6wla.py`.
 
+## EAP (ISSUE-036)
+
+**Tela** `eap` (trio `eap.html`, `eap.css`, `eap.js`): KPIs (avanço físico real com o desvio, pacotes de trabalho com a linha de base, término vencido e SMs a incorporar), árvore de áreas, subáreas e pacotes com recuo e recolhimento, revisões e desdobramentos da revisão vigente. O dicionário do pacote abre no alvo `eap-formulario` (pelo link do fragmento) com descrição, entregável, critério de aceitação, empresa executante, responsável, item da EAC e o histórico de medições; peso, datas e critério são da linha de base e não se editam aqui. No Portfólio a árvore é somente leitura, com a coluna Projeto, e os desdobramentos não entram — cada projeto tem a sua revisão vigente. Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`, com o escopo da tela).
+
+**Rotas** (prefixo `/api/planejamento/eap`, em `routes.py`): `GET` tela (KPIs, árvore, revisões e desdobramentos); `GET /itens/{item_id}/dicionario`; `POST /itens/{item_id}/dicionario` (Membro; 422 por campo e 409 de versão vencida devolvem o conteúdo atualizado e o formulário preenchido na resposta multi-alvo `eap-conteudo` + `eap-formulario`; 403 no Portfólio e abaixo de Membro); `GET /excel` e `GET /imprimivel`.
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Avanço do pacote | Pelo critério de medição: Etapas, Unidades, Marco 0/100, Marco 50/50 e Percentual estimado, entre 0 e 100 | `calculations.eap_package_progress` (`_steps_progress`, `_units_progress`, `_milestone_half_progress`) |
+| Regra dos 100% | O peso do nó é a soma dos filhos; áreas, subáreas e a linha 0 são somadas no servidor | `calculations.eap_node_totals`, `eap_root_totals` |
+| Média ponderada | O previsto e o real do nó ponderam os filhos pelo peso | `calculations.eap_weighted_progress` |
+| Desvio físico | Real menos previsto, em pontos percentuais | `calculations.eap_deviation_pp` |
+| Faixas do desvio | `success` até −2 p.p., `warning` até −5 p.p., `danger` daí para baixo (parâmetros `faixasDesvioPP`) | `calculations.eap_deviation_band` |
+| Pacote vencido | De trabalho, término anterior à referência e real abaixo de 100 | `calculations.eap_package_overdue` |
+| Pacote não iniciado | De trabalho, já deveria ter começado e real em zero | `calculations.eap_package_not_started` |
+| Situação do pacote | `Vencido`, `Não iniciado` ou `Em andamento`; o de planejamento é `Planejamento` e não mede | `export.eap_situation_text`, `export.eap_situation_tone` |
+| Árvore do escopo | Projeto (editável) ou carteira somente leitura, com a linha 0, as áreas e o peso na carteira | `service.eap_overview`, `_project_overview`, `_portfolio_overview` |
+| Dicionário | Descrição, entregável, aceitação, empresa, responsável e item da EAC; a linha de base não muda | `service.update_dictionary`, `service.dictionary_fields` |
+| Revisões e desdobramentos | Revisões com a contagem congelada de pacotes e os desdobramentos da vigente | `service._revisions`, `service._breakdowns` |
+| SMs a incorporar | Aprovadas com impacto em escopo que nenhuma revisão incorporou | `service._pending_changes` |
+
+**Fluxos.** Rev 0 é a linha de base; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo (ISSUE-038), e o desdobramento tira peso do pacote de planejamento sem mudar o total. O dicionário grava pela fachada (`service.update_dictionary`), com trilha e versão. **Carga:** a parte `planejamento-eap` de `seed.py` grava a árvore, as etapas, as medições, as revisões e o desdobramento 5.2.1 > 5.2.2 do mock, com as datas deslocadas. **Migração:** `m036_eap_arvore_e_dicionario`. **Testes:** `api/tests/planejamento/test_eap_calculos.py`, `test_eap_validacao.py`, `test_eap_servico.py` e `test_eap_rotas.py`.
+
+Fora desta fatia: o registro de medições e o estorno são da ISSUE-037 (a tela só lê o histórico) e as novas revisões e o desdobramento pela tela são da ISSUE-038. A tela não traz os filtros do protótipo (busca, nível, critério e situação) nem botões de inclusão.
+
 ## Trios das telas
 
 Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".

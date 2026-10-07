@@ -43,7 +43,7 @@ The EAP (ISSUE-036), prefix ``/api/planejamento/eap``:
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -1152,7 +1152,7 @@ EAP_ITEM_PARAMETER = "item_id"
 EAP_SAVED_MESSAGE = "Pacote {code} atualizado."
 
 
-EAP_KPI_ICONS = ("trendingUp", "listTree", "flag", "fileText")
+EAP_KPI_ICONS = ("chartLine", "layers", "warning", "file")
 
 
 EAP_BAND_TONES = {"success": "ok", "warning": "warn", "danger": "erro", None: "neutral"}
@@ -1189,6 +1189,20 @@ class EapNodeLine:
     termino: str
     situacao: str
     tom_situacao: str
+    has_children: bool = False
+    real_num: str = "0"
+
+
+@dataclass(frozen=True)
+class EapMeasurementLine:
+    """Uma medição do dicionário: quando, de quanto para quanto, quem e a nota."""
+
+    quando: str
+    de: str
+    para: str
+    autor: str
+    nota: str
+    estorno: bool
 
 
 @bp.route(route=EAP_BASE, methods=["GET"])
@@ -1312,10 +1326,18 @@ def _eap_kpi_lines(visao: service.EapOverview) -> list[EapKpiLine]:
 
 
 def _eap_node_lines(visao: service.EapOverview) -> list[EapNodeLine]:
-    return [_eap_node_line(node) for node in visao.nodes]
+    codes = [node.code for node in visao.nodes]
+    return [_eap_node_line(node, has_children=_has_children(node, codes)) for node in visao.nodes]
 
 
-def _eap_node_line(node: service.EapNode) -> EapNodeLine:
+def _has_children(node: service.EapNode, codes: Sequence[str]) -> bool:
+    """Se a linha abre: a raiz quando a árvore tem mais de uma, as demais pelo prefixo do código."""
+    if node.level == service.LEVEL_ROOT:
+        return len(codes) > 1
+    return any(code.startswith(f"{node.code}.") for code in codes)
+
+
+def _eap_node_line(node: service.EapNode, *, has_children: bool) -> EapNodeLine:
     situation_tone = export.eap_situation_tone(node)
     return EapNodeLine(
         no=node,
@@ -1336,6 +1358,8 @@ def _eap_node_line(node: service.EapNode) -> EapNodeLine:
         tom_situacao=(
             "" if situation_tone is None else EAP_SITUATION_TONES.get(situation_tone.value, "")
         ),
+        has_children=has_children,
+        real_num=str(node.actual),
     )
 
 
@@ -1366,6 +1390,7 @@ def _dictionary_page(
         "opcoes": options,
         "valores": service.dictionary_fields(node) if values is None else values,
         "erros": dict(errors or {}),
+        "medicoes": _measurement_lines(node),
         "mensagem": "",
         "peso": format_value(ValueKind.PERCENT, node.weight),
         "inicio": format_value(ValueKind.DATE, node.start),
@@ -1375,6 +1400,21 @@ def _dictionary_page(
         "alvo_conteudo": EAP_CONTENT_TARGET,
         "alvo_formulario": EAP_FORM_TARGET,
     }
+
+
+def _measurement_lines(node: service.EapNode) -> list[EapMeasurementLine]:
+    """As medições do pacote, da mais nova para a mais antiga, como o dicionário as lê."""
+    return [
+        EapMeasurementLine(
+            quando=format_value(ValueKind.DATE, medicao.measured_on),
+            de=format_value(ValueKind.PERCENT, medicao.from_pct, 1),
+            para=format_value(ValueKind.PERCENT, medicao.to_pct, 1),
+            autor=medicao.author,
+            nota=medicao.note,
+            estorno=medicao.is_reversal,
+        )
+        for medicao in reversed(node.measurements)
+    ]
 
 
 def _saved_dictionary_context(session: Session, context: RequestContext) -> dict[str, Any]:

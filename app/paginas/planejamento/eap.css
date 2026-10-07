@@ -1,16 +1,72 @@
 /* ============================================================
    eap.css — Estilo da tela EAP (planejamento/eap)
 
-   Árvore de áreas, subáreas e pacotes, com dicionário e avanço pelo critério de medição.
+   Árvore de áreas, subáreas e pacotes com recolhimento, barra do real,
+   faixas de desvio e o histórico de medições do dicionário.
 
    Escopo: tudo que morar aqui começa por .pagina--planejamento-eap, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-036 a ISSUE-038.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--planejamento-eap .eap-linha__codigo { white-space: nowrap; }
+
+.pagina--planejamento-eap .eap-linha__alternar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-right: var(--space-xs);
+  border: 0;
+  background: transparent;
+  color: var(--text-hint);
+  cursor: pointer;
+}
+
+.pagina--planejamento-eap .eap-linha__alternar[aria-expanded="false"] { transform: rotate(-90deg); }
+
+.pagina--planejamento-eap .eap-linha--raiz { background: var(--verde-50); }
+
+.pagina--planejamento-eap .eap-linha__recuo { display: inline-block; }
+.pagina--planejamento-eap .eap-linha__recuo[data-nivel="2"] { width: var(--space-lg); }
+.pagina--planejamento-eap .eap-linha__recuo[data-nivel="3"] { width: var(--space-xxl); }
+
+.pagina--planejamento-eap .eap-linha[hidden] { display: none; }
+
+.pagina--planejamento-eap .eap-barra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--planejamento-eap .eap-barra__trilho {
+  flex: none;
+  width: 72px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--neutro-100);
+}
+
+.pagina--planejamento-eap .eap-barra__valor {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-sm);
+  background: var(--verde-500);
+}
+
+.pagina--planejamento-eap .tbl tbody tr.eap-linha--atual td { background: var(--verde-50); }
+
+.pagina--planejamento-eap .eap-dicionario__medicoes .lista-simples { margin: 0; }
+
+.pagina--planejamento-eap .eap-medicao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.pagina--planejamento-eap .eap-medicao--estorno .eap-medicao__valores { color: var(--warn-700); }
