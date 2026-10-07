@@ -22,12 +22,19 @@ The revision of the EAP and the breakdown (ISSUE-038): the rescale of the
 weights to a target by the largest remainder (the others close at 100%) and the
 linear predicted of a package between the dates of its baseline. The reference
 date comes in as an argument (D6).
+
+The physical S-curve (ISSUE-039): the monthly calendar of the packages with
+weight, the baseline of each month by the linear predicted of the package, the
+real from the dated measurements and the trend that follows the baseline from
+the cut, plus the weighted curve of the portfolio. The reference date comes in
+as an argument (D6).
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from calendar import monthrange
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
@@ -833,3 +840,284 @@ def eap_linear_predicted(start: date | None, finish: date | None, reference_date
     elapsed = Decimal((reference_date - start).days)
     span = Decimal((finish - start).days)
     return (elapsed * PERCENT / span).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+@dataclass(frozen=True)
+class CurvaFisicaMeasurement:
+    """Uma medição datada do pacote: o dia e o percentual acumulado que ela atingiu."""
+
+    measured_on: date
+    to_pct: Decimal
+
+
+@dataclass(frozen=True)
+class CurvaFisicaPackage:
+    """O pacote como a Curva S física o lê: peso congelado, datas da LB e medições."""
+
+    weight: Decimal
+    start: date | None = None
+    finish: date | None = None
+    measurements: Sequence[CurvaFisicaMeasurement] = ()
+
+
+@dataclass(frozen=True)
+class CurvaFisicaCalendar:
+    """O calendário mensal da curva e o índice do mês de corte."""
+
+    months: tuple[date, ...]
+    cut_index: int
+
+
+@dataclass(frozen=True)
+class CurvaFisicaSeries:
+    """Uma curva: os meses, o corte e as séries baseline, real e tendência."""
+
+    months: tuple[date, ...]
+    cut_index: int
+    baseline: tuple[Decimal, ...]
+    real: tuple[Decimal | None, ...]
+    trend: tuple[Decimal | None, ...]
+
+
+def _round_one(value: Decimal) -> Decimal:
+    return value.quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def _month_first(day: date) -> date:
+    return day.replace(day=1)
+
+
+def _month_last(month: date) -> date:
+    return month.replace(day=monthrange(month.year, month.month)[1])
+
+
+def _next_month(month: date) -> date:
+    if month.month == MONTHS_IN_YEAR:
+        return date(month.year + 1, 1, 1)
+    return date(month.year, month.month + 1, 1)
+
+
+def _month_sequence(first: date, last: date) -> tuple[date, ...]:
+    months: list[date] = []
+    current = first
+    while current <= last:
+        months.append(current)
+        current = _next_month(current)
+    return tuple(months)
+
+
+def _cut_index(months: Sequence[date], reference_date: date) -> int:
+    reference_month = _month_first(reference_date)
+    realized = [index for index, month in enumerate(months) if month <= reference_month]
+    return realized[-1] if realized else -1
+
+
+def _as_of(month: date, reference_date: date) -> date:
+    if month == _month_first(reference_date):
+        return reference_date
+    return _month_last(month)
+
+
+def _measurement_at(package: CurvaFisicaPackage, as_of: date) -> Decimal:
+    measured = [
+        measurement for measurement in package.measurements if measurement.measured_on <= as_of
+    ]
+    if not measured:
+        return ZERO
+    return max(measured, key=lambda measurement: measurement.measured_on).to_pct
+
+
+def curva_fisica_months(
+    packages: Sequence[CurvaFisicaPackage], reference_date: date
+) -> CurvaFisicaCalendar:
+    """O calendário da curva e o índice do mês de corte.
+
+    Os meses vão do primeiro dia do mês do início mais antigo ao primeiro dia do mês do
+    término mais novo, entre os pacotes com peso > 0 e as duas datas. O corte é o mês da
+    referência; com a referência depois do término, é o último mês (todos já têm real);
+    antes do início, nenhum mês tem real e o corte é -1.
+    """
+    starts: list[date] = []
+    finishes: list[date] = []
+    for package in packages:
+        if package.weight <= ZERO or package.start is None or package.finish is None:
+            continue
+        starts.append(package.start)
+        finishes.append(package.finish)
+    if not starts:
+        return CurvaFisicaCalendar(months=(), cut_index=-1)
+    months = _month_sequence(_month_first(min(starts)), _month_first(max(finishes)))
+    return CurvaFisicaCalendar(months=months, cut_index=_cut_index(months, reference_date))
+
+
+def curva_fisica_baseline(
+    packages: Sequence[CurvaFisicaPackage], months: Sequence[date], reference_date: date
+) -> tuple[Decimal, ...]:
+    """O previsto acumulado de cada mês: a soma ponderada do previsto linear dos pacotes.
+
+    O mês da referência usa a própria referência; os demais, o último dia do mês. Pacote
+    sem peso não entra; cada valor sai com 1 casa.
+    """
+    baseline: list[Decimal] = []
+    for month in months:
+        as_of = _as_of(month, reference_date)
+        total = sum(
+            (
+                package.weight * eap_linear_predicted(package.start, package.finish, as_of)
+                for package in packages
+                if package.weight > ZERO
+            ),
+            ZERO,
+        )
+        baseline.append(_round_one(total / PERCENT))
+    return tuple(baseline)
+
+
+def curva_fisica_real(
+    packages: Sequence[CurvaFisicaPackage], months: Sequence[date], reference_date: date
+) -> tuple[Decimal | None, ...]:
+    """O real acumulado de cada mês: a soma ponderada da última medição até a data do mês.
+
+    O mês da referência usa a própria referência; os demais, o último dia do mês. O pacote
+    sem medição entra com zero e o mês depois do mês da referência sai vazio (``None``).
+    """
+    reference_month = _month_first(reference_date)
+    real: list[Decimal | None] = []
+    for month in months:
+        if month > reference_month:
+            real.append(None)
+            continue
+        as_of = _as_of(month, reference_date)
+        total = sum(
+            (
+                package.weight * _measurement_at(package, as_of)
+                for package in packages
+                if package.weight > ZERO
+            ),
+            ZERO,
+        )
+        real.append(_round_one(total / PERCENT))
+    return tuple(real)
+
+
+def curva_fisica_trend(
+    baseline: Sequence[Decimal], real: Sequence[Decimal | None], cut_index: int
+) -> tuple[Decimal | None, ...]:
+    """A tendência: arranca no real do corte e segue o ritmo da linha de base.
+
+    Vazio antes do corte; no corte, o real do corte; depois, o real do corte mais o avanço
+    da linha de base desde o corte, com teto de 100 e 1 casa. Sem corte ou sem real no
+    corte, não há tendência.
+    """
+    if cut_index < 0 or cut_index >= len(real):
+        return (None,) * len(baseline)
+    actual = real[cut_index]
+    if actual is None:
+        return (None,) * len(baseline)
+    trend: list[Decimal | None] = []
+    for index, planned in enumerate(baseline):
+        if index < cut_index:
+            trend.append(None)
+        elif index == cut_index:
+            trend.append(_round_one(actual))
+        else:
+            trend.append(min(PERCENT, _round_one(actual + planned - baseline[cut_index])))
+    return tuple(trend)
+
+
+def _portfolio_cut_index(series: Mapping[int, CurvaFisicaSeries], months: Sequence[date]) -> int:
+    cuts = [
+        item.months[item.cut_index]
+        for item in series.values()
+        if item.months and item.cut_index >= 0
+    ]
+    if not cuts:
+        return -1
+    past = [index for index, month in enumerate(months) if month <= max(cuts)]
+    return past[-1] if past else -1
+
+
+def _portfolio_average(
+    series: Mapping[int, CurvaFisicaSeries],
+    weights: Mapping[int, Decimal],
+    month: date,
+    value_of: Callable[[CurvaFisicaSeries, date], Decimal | None],
+    divisor: Decimal,
+) -> Decimal:
+    total = sum(
+        (
+            weights.get(project_id, ZERO) * (value_of(item, month) or ZERO)
+            for project_id, item in series.items()
+        ),
+        ZERO,
+    )
+    return _round_one(total / divisor)
+
+
+def _series_baseline(item: CurvaFisicaSeries, month: date) -> Decimal:
+    if not item.months or month < item.months[0]:
+        return ZERO
+    if month > item.months[-1]:
+        return PERCENT
+    return item.baseline[item.months.index(month)]
+
+
+def _series_real(item: CurvaFisicaSeries, month: date) -> Decimal:
+    measured = [
+        value
+        for day, value in zip(item.months, item.real, strict=True)
+        if day <= month and value is not None
+    ]
+    return measured[-1] if measured else ZERO
+
+
+def _series_trend(item: CurvaFisicaSeries, month: date) -> Decimal | None:
+    if not item.months or month < item.months[0]:
+        return ZERO
+    if month > item.months[-1]:
+        return PERCENT
+    index = item.months.index(month)
+    if item.trend[index] is not None:
+        return item.trend[index]
+    if item.cut_index >= 0 and month <= item.months[item.cut_index]:
+        return item.real[index]
+    return item.baseline[index]
+
+
+def curva_fisica_portfolio(
+    series: Mapping[int, CurvaFisicaSeries],
+    weights: Mapping[int, Decimal],
+    months: Sequence[date],
+) -> CurvaFisicaSeries:
+    """A curva da carteira: a média ponderada das curvas, no calendário da união dos meses.
+
+    Antes do primeiro mês do projeto ele vale zero; depois do último, 100 na linha de base e
+    o último real no real; dentro do calendário do projeto, o real de um mês posterior ao
+    corte dele repete o último real. O corte é o maior corte e o peso é renormalizado pelos
+    projetos presentes, com 1 casa.
+    """
+    divisor = sum((weights.get(project_id, ZERO) for project_id in series), ZERO) or Decimal(1)
+    cut_index = _portfolio_cut_index(series, months)
+    baseline = tuple(
+        _portfolio_average(series, weights, month, _series_baseline, divisor) for month in months
+    )
+    real: list[Decimal | None] = []
+    trend: list[Decimal | None] = []
+    for month in months:
+        after_cut = cut_index < 0 or month > months[cut_index]
+        real.append(
+            None if after_cut else _portfolio_average(series, weights, month, _series_real, divisor)
+        )
+        before_cut = cut_index < 0 or month < months[cut_index]
+        trend.append(
+            None
+            if before_cut
+            else _portfolio_average(series, weights, month, _series_trend, divisor)
+        )
+    return CurvaFisicaSeries(
+        months=tuple(months),
+        cut_index=cut_index,
+        baseline=baseline,
+        real=tuple(real),
+        trend=tuple(trend),
+    )

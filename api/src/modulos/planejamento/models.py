@@ -18,6 +18,10 @@ frozen weight of each package, the breakdown of a planning package and the dated
 measurements. The entries of the measuring criterion (``executado``, ``estado``,
 ``estimado_pct`` and the ``pct`` of each step) are the current state of the
 package; the real progress is calculated from them (D5b).
+
+The physical S-curve (ISSUE-039): the baseline generated from the EAP revision
+and frozen in its own revision (the D5b exception), with the percentage of each
+month. The real comes from the dated measurements and the trend is calculated.
 """
 
 from __future__ import annotations
@@ -280,3 +284,35 @@ class EapBreakdown(Base):
     applied_on: Mapped[date] = mapped_column("data", Date)
     weight: Mapped[Decimal] = mapped_column("peso", Percent)
     justification: Mapped[str] = mapped_column("justificativa", Text)
+
+
+class CurvaFisicaRevision(Base):
+    """Linha de base da Curva S física, gerada da revisão vigente da EAP e congelada nela (D5b).
+
+    Fato histórico por definição; sem ``versao``. UK: projeto + revisão da EAP.
+    """
+
+    __tablename__ = "curva_fisica_revisao"
+    __table_args__ = (UniqueConstraint("projeto_id", "eap_revisao_id"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    eap_revision_id: Mapped[int] = mapped_column("eap_revisao_id", ForeignKey("eap_revisao.id"))
+    generated_at: Mapped[datetime] = mapped_column(
+        "gerada_em", DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class CurvaFisicaMonth(Base):
+    """Percentual da linha de base da Curva S física em cada mês da revisão (exceção da D5b).
+
+    O real vem das medições da EAP e a tendência é calculada; sem ``versao``. UK: revisão + mês.
+    """
+
+    __tablename__ = "curva_fisica_mes"
+    __table_args__ = (UniqueConstraint("revisao_id", "mes"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    revision_id: Mapped[int] = mapped_column("revisao_id", ForeignKey("curva_fisica_revisao.id"))
+    month: Mapped[date] = mapped_column("mes", Date)
+    baseline_pct: Mapped[Decimal] = mapped_column("baseline_pct", Percent)
