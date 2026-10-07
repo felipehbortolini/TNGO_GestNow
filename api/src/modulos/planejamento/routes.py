@@ -1301,6 +1301,15 @@ EAP_PROGRESS_SAVED_TEMPLATE = "planejamento/eap_avanco_salvo.html"
 EAP_PROGRESS_IMPORT_FORM_TEMPLATE = "planejamento/eap_importacao_form.html"
 
 
+EAP_PROGRESS_IMPORT_CHECK_TEMPLATE = "planejamento/eap_importacao_conferencia.html"
+
+
+EAP_PROGRESS_IMPORT_RESULT_TEMPLATE = "planejamento/eap_importacao_resultado.html"
+
+
+EAP_PAGE_CLASS = "pagina--planejamento-eap"
+
+
 EAP_PROGRESS_IMPORT_BASE = f"{EAP_BASE}/importar"
 
 
@@ -1480,7 +1489,7 @@ def _error_status(error: InvalidDataError | AccessDeniedError | VersionConflictE
 def eap_progress_import_form(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
-    """O formulário da importação do avanço: a data da medição e a planilha."""
+    """O formulário da importação do avanço: a data da medição, a planilha e os dois alvos."""
     del session
     context.scope.require_project()
     importer = importers.progress_importer()
@@ -1495,8 +1504,10 @@ def eap_progress_import_form(
             "conferir_url": f"/api/{EAP_PROGRESS_IMPORT_BASE}/conferir",
             "data": calendario.today().isoformat(),
             "alvo_resultado": EAP_PROGRESS_IMPORT_TARGET,
+            "alvo_conteudo": EAP_CONTENT_TARGET,
         },
         request=req,
+        root_class=EAP_PAGE_CLASS,
     )
 
 
@@ -1505,7 +1516,11 @@ def eap_progress_import_form(
 def eap_progress_import_check(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
-    """Lê a planilha e responde o que cada linha vai gravar; nada é escrito."""
+    """Lê a planilha e responde o que cada linha vai gravar; nada é escrito.
+
+    A resposta é multi-alvo — a conferência e o conteúdo — porque o formulário do modal
+    declara os dois alvos no sucesso; o conteúdo volta como está, já que nada foi gravado.
+    """
     measurement_date = _import_measurement_date(req)
     preview = importing.check(
         session,
@@ -1513,9 +1528,11 @@ def eap_progress_import_check(
         upload=_upload_of(req),
         context=_import_context(context, measurement_date),
     )
+    data = _progress_import_check_context(preview)
+    data.update(_eap_content_context(_eap_overview(session, context)))
     return AlpineAjaxResponse(
-        template_name="comum/importacao_conferencia.html",
-        context=_progress_import_check_context(preview),
+        template_name=EAP_PROGRESS_IMPORT_CHECK_TEMPLATE,
+        context=data,
         request=req,
     )
 
@@ -1525,7 +1542,11 @@ def eap_progress_import_check(
 def eap_progress_import_confirm(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
-    """Checa a planilha de novo e grava o avanço das linhas sem erro, só na confirmação."""
+    """Checa a planilha de novo e grava o avanço das linhas sem erro, só na confirmação.
+
+    A resposta é multi-alvo — o resultado e o conteúdo —, para a árvore mostrar o real das
+    medições gravadas sem recarregar a tela.
+    """
     measurement_date = _import_measurement_date(req)
     importer = importers.progress_importer()
     result = importing.confirm(
@@ -1538,9 +1559,11 @@ def eap_progress_import_confirm(
             acknowledged=req.form.get(IMPORT_ACKNOWLEDGED_FIELD) == IMPORT_ACKNOWLEDGED_VALUE,
         ),
     )
+    data: dict[str, Any] = {"resultado": result, "importador": importer.title}
+    data.update(_eap_content_context(_eap_overview(session, context)))
     return AlpineAjaxResponse(
-        template_name="comum/importacao_resultado.html",
-        context={"resultado": result, "importador": importer.title},
+        template_name=EAP_PROGRESS_IMPORT_RESULT_TEMPLATE,
+        context=data,
         request=req,
         toast=_progress_import_notice(result),
         toast_tipo="aviso" if result.skipped else "ok",

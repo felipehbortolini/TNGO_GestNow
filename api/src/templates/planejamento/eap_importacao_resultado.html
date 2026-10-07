@@ -1,0 +1,17 @@
+{% extends "base_fragment.html" %}
+{#
+  O resultado da importação do avanço (ISSUE-037): o que entrou e o que ficou de fora, e a EAP
+  atualizada com as medições gravadas. A raiz do resultado leva o id que o Alpine pediu
+  ({{ target_id }}); a do conteúdo tem id fixo.
+
+  Espera: resultado (core.importing.ImportResult), importador, alvo_conteudo e o contexto do
+  conteúdo (visao, kpis, linhas, situacao, pode_editar e alvo_formulario).
+#}
+{% block root %}
+<div id="{{ target_id }}">
+{% include "comum/importacao_resultado.html" %}
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "planejamento/_eap_conteudo.html" %}
+</div>
+{% endblock %}

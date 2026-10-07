@@ -39,7 +39,7 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 ## EAP (ISSUE-036)
 
-**Tela** `eap` (trio `eap.html`, `eap.css`, `eap.js`): KPIs (avanço físico real com o desvio, pacotes de trabalho com a linha de base, término vencido e SMs a incorporar), árvore de áreas, subáreas e pacotes com recuo e recolhimento, revisões e desdobramentos da revisão vigente. O dicionário do pacote abre no alvo `eap-formulario` (pelo link do fragmento) com descrição, entregável, critério de aceitação, empresa executante, responsável, item da EAC e o histórico de medições; peso, datas e critério são da linha de base e não se editam aqui. No Portfólio a árvore é somente leitura, com a coluna Projeto, e os desdobramentos não entram — cada projeto tem a sua revisão vigente. Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`, com o escopo da tela).
+**Tela** `eap` (trio `eap.html`, `eap.css`, `eap.js`): KPIs (avanço físico real com o desvio, pacotes de trabalho com a linha de base, término vencido e SMs a incorporar), árvore de áreas, subáreas e pacotes com recuo e recolhimento, revisões e desdobramentos da revisão vigente. O dicionário e o registro do avanço do pacote abrem no alvo `eap-formulario` (pelos links do fragmento); o dicionário traz descrição, entregável, critério de aceitação, empresa executante, responsável, item da EAC e o histórico de medições; peso, datas e critério são da linha de base e não se editam aqui. No Portfólio a árvore é somente leitura, com a coluna Projeto, e os desdobramentos não entram — cada projeto tem a sua revisão vigente. Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`, com o escopo da tela).
 
 **Rotas** (prefixo `/api/planejamento/eap`, em `routes.py`): `GET` tela (KPIs, árvore, revisões e desdobramentos); `GET /itens/{item_id}/dicionario`; `POST /itens/{item_id}/dicionario` (Membro; 422 por campo e 409 de versão vencida devolvem o conteúdo atualizado e o formulário preenchido na resposta multi-alvo `eap-conteudo` + `eap-formulario`; 403 no Portfólio e abaixo de Membro); `GET /excel` e `GET /imprimivel`.
 
@@ -62,7 +62,26 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 **Fluxos.** Rev 0 é a linha de base; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo (ISSUE-038), e o desdobramento tira peso do pacote de planejamento sem mudar o total. O dicionário grava pela fachada (`service.update_dictionary`), com trilha e versão. **Carga:** a parte `planejamento-eap` de `seed.py` grava a árvore, as etapas, as medições, as revisões e o desdobramento 5.2.1 > 5.2.2 do mock, com as datas deslocadas. **Migração:** `m036_eap_arvore_e_dicionario`. **Testes:** `api/tests/planejamento/test_eap_calculos.py`, `test_eap_validacao.py`, `test_eap_servico.py` e `test_eap_rotas.py`.
 
-Fora desta fatia: o registro de medições e o estorno são da ISSUE-037 (a tela só lê o histórico) e as novas revisões e o desdobramento pela tela são da ISSUE-038. A tela não traz os filtros do protótipo (busca, nível, critério e situação) nem botões de inclusão.
+Fora desta fatia: as novas revisões e o desdobramento pela tela são da ISSUE-038; o registro de medições, o estorno e a importação do avanço são da ISSUE-037 (ver a seção seguinte). A tela não traz os filtros do protótipo (busca, nível, critério e situação) nem botões de inclusão.
+
+## Medição do avanço (ISSUE-037)
+
+**Tela** `eap` (mesmo trio): cada pacote de trabalho da árvore ganha a ação **Registrar avanço**, que abre o formulário no alvo `eap-formulario` com as entradas do critério (o % de cada etapa, a quantidade executada, a situação do marco ou o percentual estimado), a data da medição, a observação e a justificativa do estorno. O botão **Importar avanço** do cabeçalho só aparece no projeto editável (marcador `data-pode-editar`) e abre o formulário do importador `eap-avanco` no modal do Design System; a conferência e a confirmação atualizam a árvore no próprio pedido (resposta multi-alvo `eap-conteudo` + resultado). O histórico de medições continua no dicionário do pacote. No Portfólio não há ação de medição.
+
+**Rotas** (prefixo `/api/planejamento/eap`, em `routes.py`): `GET /itens/{item_id}/avanco` (formulário do critério); `POST /itens/{item_id}/avanco` (Membro; 422 por campo, 403 do estorno sem Gestor e 409 de versão vencida devolvem o conteúdo atualizado e o formulário preenchido na resposta multi-alvo `eap-conteudo` + `eap-formulario`); `GET /importar/formulario` (data da medição e planilha), `POST /importar/conferir` (mostra cada linha, não grava nada) e `POST /importar/confirmar` (grava só as linhas sem erro, datadas com a data do formulário, e responde o resultado com a EAP atualizada).
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Entradas do critério | O % de cada etapa, o executado acumulado, a situação do marco ou o % estimado; o real é sempre calculado, nunca digitado | `validation.parse_progress_form` |
+| Medição | Fato imutável com data, de/para, autor e observação; o real acumulado não regride | `service.register_progress`, `_record_measurement` |
+| Estorno | Medição abaixo do real corrente: exige papel Gestor (403) e justificativa de 10 a 300 caracteres (422); a justificativa viaja na observação | `validation._require_reversal_terms` |
+| Limite da linha de base | O executado não passa a quantidade da linha de base; exige SM e revisão | `validation._executed_error` |
+| Estimado restrito | Percentual estimado só vale para pacote de até o peso máximo do parâmetro do grupo `eap` (`estimadoMaximoPct`, inicial 5%) | `validation._estimated_input` |
+| Importação do avanço | Linha a linha: pacote inexistente, pacote de planejamento, marco fora dos degraus, executado acima da linha de base e regressão são recusados com o motivo; a linha sem mudança vira aviso | `importers.progress_importer`, `validation.parse_import_rows`, `service.import_progress` |
+
+**Fluxos.** Registrar avanço grava as entradas do critério no item e nas etapas (com trilha e versão) e cria a medição; o 422 marca o campo, o 403 do estorno e o 409 de versão vencida devolvem o formulário preenchido com o digitado no mesmo pedido. A importação usa o fluxo genérico (formulário → conferir → confirmar), recusa as linhas inválidas com o motivo e **nunca estorna**: estorno só pela tela, com justificativa. **Testes:** `api/tests/planejamento/test_eap_medicao_calculos.py`, `test_eap_medicao_validacao.py`, `test_eap_medicao_servico.py` e `test_eap_medicao_rotas.py`.
 
 ## Trios das telas
 

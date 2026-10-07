@@ -63,7 +63,7 @@ vem primeiro.
 | ISSUE-034 | Avaliação de desempenho da contratada | 4 | task | done | ready-for-agent | ISSUE-032, ISSUE-027 | [ISSUE-034](./034-avaliacao-de-desempenho-da-contratada.md) |
 | ISSUE-035 | Contratos: visão consolidada e indicadores da administração contratual | 4 | task | done | ready-for-agent | ISSUE-033, ISSUE-034 | [ISSUE-035](./035-contratos-consolidado-e-indicadores.md) |
 | ISSUE-036 | EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira | 4 | task | done | ready-for-agent | ISSUE-029 | [ISSUE-036](./036-eap-arvore-dicionario-e-carteira.md) |
-| ISSUE-037 | Medição dos pacotes pelo critério, estorno controlado e importação do avanço | 4 | task | proposed | ready-for-agent | ISSUE-036 | [ISSUE-037](./037-medicao-estorno-e-importacao-do-avanco.md) |
+| ISSUE-037 | Medição dos pacotes pelo critério, estorno controlado e importação do avanço | 4 | task | done | ready-for-agent | ISSUE-036 | [ISSUE-037](./037-medicao-estorno-e-importacao-do-avanco.md) |
 | ISSUE-038 | Revisões da EAP a partir de SM e desdobramento de pacotes de planejamento | 4 | task | proposed | ready-for-agent | ISSUE-037, ISSUE-025 | [ISSUE-038](./038-revisoes-da-eap-e-desdobramento.md) |
 | ISSUE-039 | Curva S física com linha de base congelada, real das medições e drill | 4 | task | proposed | ready-for-agent | ISSUE-038 | [ISSUE-039](./039-curva-s-fisica.md) |
 | ISSUE-040 | KPIs de planejamento por período e por área | 4 | task | proposed | ready-for-agent | ISSUE-039 | [ISSUE-040](./040-kpis-de-planejamento.md) |

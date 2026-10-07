@@ -80,10 +80,18 @@
             {% if pode_editar and not visao.is_portfolio %}
             <td class="nowrap">
               {% if no.level == 3 and no.id %}
-              <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/dicionario" x-target="{{ alvo_formulario }}"
-                aria-label="Dicionário do pacote {{ no.code }}" title="Dicionário">
-                <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
-              </a>
+              <span class="eap-linha__acoes">
+                {% if not no.is_planning_package %}
+                <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/avanco" x-target="{{ alvo_formulario }}"
+                  aria-label="Registrar avanço do pacote {{ no.code }}" title="Registrar avanço">
+                  <span x-init="$el.innerHTML = window.icon('chartLine', 16)" aria-hidden="true"></span>
+                </a>
+                {% endif %}
+                <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/dicionario" x-target="{{ alvo_formulario }}"
+                  aria-label="Dicionário do pacote {{ no.code }}" title="Dicionário">
+                  <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+                </a>
+              </span>
               {% endif %}
             </td>
             {% endif %}

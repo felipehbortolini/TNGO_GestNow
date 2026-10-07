@@ -8,6 +8,10 @@
         <p class="page-head__sub">Árvore de áreas, subáreas e pacotes, com dicionário e avanço pelo critério de medição.</p>
       </div>
       <div class="page-head__actions">
+        <button type="button" class="btn btn--secondary" data-eap-importar hidden>
+          <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+          Importar avanço
+        </button>
         <button type="button" class="btn btn--ghost" data-tn-excel="/api/planejamento/eap/excel">
           <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
           Excel

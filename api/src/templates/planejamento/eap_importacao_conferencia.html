@@ -1,0 +1,17 @@
+{% extends "base_fragment.html" %}
+{#
+  A conferência da importação do avanço (ISSUE-037): resposta multi-alvo, porque o formulário
+  do modal declara o resultado e o conteúdo. O resultado é o primeiro, então a raiz dele leva o
+  id que o Alpine pediu ({{ target_id }}); a raiz do conteúdo tem id fixo.
+
+  Espera: o contexto de comum/_importacao_conferencia.html e o do conteúdo (visao, kpis, linhas,
+  situacao, pode_editar, alvo_conteudo e alvo_formulario).
+#}
+{% block root %}
+<div id="{{ target_id }}">
+{% include "comum/_importacao_conferencia.html" %}
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "planejamento/_eap_conteudo.html" %}
+</div>
+{% endblock %}

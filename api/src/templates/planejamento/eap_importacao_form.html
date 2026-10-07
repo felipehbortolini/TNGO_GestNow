@@ -5,15 +5,16 @@
   a confirmação vão para as rotas do módulo, que gravam só na confirmação. A data viaja no
   formulário e é reenviada pela confirmação junto com o arquivo e a identidade da conferência.
 
-  Espera: titulo, campo_arquivo, limite_mb, limite_linhas, modelo_url, conferir_url, data e
-  alvo_resultado.
+  Espera: titulo, campo_arquivo, limite_mb, limite_linhas, modelo_url, conferir_url, data,
+  alvo_resultado e alvo_conteudo.
 #}
 {% block fragment %}
 <form method="post" enctype="multipart/form-data" action="{{ conferir_url }}"
-  x-target="{{ alvo_resultado }}" data-tn-loading="Processando a planilha...">
+  x-target="{{ alvo_resultado }} {{ alvo_conteudo }}" x-target.error="{{ alvo_resultado }}"
+  data-tn-loading="Processando a planilha...">
   <p class="hint">Avanço acumulado por pacote (% ou quantidade executada). Nada é gravado antes da sua confirmação.</p>
   <div class="fgrid">
-    <div class="field">
+    <div class="field eap-importacao__data">
       <label for="eap-importacao-data">Data da medição</label>
       <input id="eap-importacao-data" class="input" type="date" name="data" value="{{ data }}" required />
     </div>
