@@ -53,6 +53,7 @@ from src.modulos.financeiro.models import (
     EacItem,
 )
 from src.modulos.governanca.models import ChangeRequest
+from src.modulos.planejamento import calculations
 from src.modulos.planejamento import service as planejamento
 from src.modulos.planejamento.models import (
     EapBreakdown,
@@ -365,6 +366,66 @@ def test_oraculo_da_curva_s_fisica_com_a_data_deslocada(db_session: Session) -> 
     assert not carteira.is_empty, "a carteira tem a união das curvas"
     assert carteira.indicators.cut_month == date(2026, 9, 1), "o corte da carteira"
     assert len(carteira.composition) == 3, "os três projetos na composição"
+
+
+def test_oraculo_dos_kpis_de_planejamento_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-040: o SPI e o avanço por área do protótipo, com a data deslocada.
+
+    A mesma referência do oráculo da Curva S (a âncora mais cinco dias), que mantém o corte em
+    set/26. O previsto e o real do projeto 1 são os da curva (65,7% e 61,8%), o SPI é 0,94 e as
+    áreas da EAP batem com o mock de ``avancoAreas``; a soma ponderada fecha com a curva. A
+    carteira devolve uma linha por projeto, com o peso da ponderação.
+    """
+    reference_date = DEMO_ANCHOR + timedelta(days=5)
+    run_demonstration(db_session, reference_date=reference_date)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    visao = planejamento.planning_kpis_overview(
+        db_session,
+        scope=Scope(project_id=project.id, source="url"),
+        reference_date=reference_date,
+    )
+    mock = [source for source in prototype_collection("avancoAreas") if source["projetoId"] == 1]
+
+    assert not visao.is_empty, "há curva congelada no projeto 1"
+    assert visao.indicators.cut_month == date(2026, 9, 1), "o mês do corte"
+    assert visao.indicators.predicted == Decimal("65.7"), "o previsto da curva no corte"
+    assert visao.indicators.actual == Decimal("61.8"), "o real da curva no corte"
+    assert visao.indicators.spi == Decimal("0.94"), "o SPI de 0,94 do oráculo"
+
+    assert [row.name for row in visao.rows] == [source["area"] for source in mock], (
+        "as áreas de nível 1 da EAP são as do mock"
+    )
+    for row, source in zip(visao.rows, mock, strict=True):
+        assert (row.weight, row.predicted, row.actual) == (
+            Decimal(str(source["peso"])),
+            Decimal(str(source["previsto"])),
+            Decimal(str(source["real"])),
+        ), f"o avanço da área {row.name}: os números do protótipo"
+
+    previsto = calculations.eap_weighted_progress(
+        [calculations.EapWeightedValue(row.weight, row.predicted) for row in visao.rows]
+    )
+    real = calculations.eap_weighted_progress(
+        [calculations.EapWeightedValue(row.weight, row.actual) for row in visao.rows]
+    )
+    assert (previsto, real) == (visao.indicators.predicted, visao.indicators.actual), (
+        "a soma ponderada das áreas fecha com a Curva S"
+    )
+
+    carteira = planejamento.planning_kpis_overview(
+        db_session,
+        scope=Scope(project_id=None, source="padrao"),
+        reference_date=reference_date,
+    )
+    assert carteira.is_portfolio, "a carteira é o escopo padrão"
+    assert not carteira.is_empty, "a carteira tem a união das curvas"
+    assert [row.code for row in carteira.rows] == [
+        "TN-2026-014",
+        "TN-2026-021",
+        "TN-2026-027",
+    ], "uma linha por projeto com curva"
+    assert all(row.weight > 0 for row in carteira.rows), "cada projeto tem peso na carteira"
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

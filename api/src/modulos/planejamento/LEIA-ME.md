@@ -126,6 +126,29 @@ O registro de medições, o estorno e a importação do avanço entraram na ISSU
 
 **Onde mexer:** cálculos em `calculations.py` (`curva_fisica_*`); congelamento e leitura em `service.py` (`freeze_curve`, `curva_fisica_overview`); rotas em `routes.py` (bloco Curva S física); exportação em `export.py` (`curva_fisica_document` e `curva_fisica_kpis`); fragmento em `api/src/templates/planejamento/curva_fisica.html`; trio em `app/_views/planejamento/curva_s.html` e `app/paginas/planejamento/curva_s.css`/`js`; carga em `seed.load_curva`; migração `api/migrations/versions/m037_curva_s_fisica.py`; testes em `api/tests/planejamento/test_curva_fisica_*.py` e o oráculo na carga.
 
+## KPIs de planejamento (ISSUE-040)
+
+**Tela** `kpis` (trio `kpis.html`, `kpis.css`, `kpis.js`): a faixa de indicadores (SPI do projeto — ou ponderado da carteira — com a meta de 1,00 e o do mês anterior, previsto x real com o acumulado no corte, desvio acumulado em p.p., o maior desvio por área ou projeto contra o limite da faixa, pacotes com término vencido e SMs a incorporar), os gráficos SPI por mês (linhas múltiplas, com a meta 1,00) e previsto x real por área (comparativo de barras), e a tabela de avanço por área com peso, previsto, real, desvio, SPI e contribuição, fechando no rodapé ponderado que bate com a Curva S. No Portfólio as linhas, o desvio e o gráfico são os projetos, com o peso da carteira, e a tabela ganha a coluna Projeto. O fragmento `kpis.html` entra no alvo `kpis-conteudo`; a tela é só de leitura — o avanço por área vem da EAP (D6), sem botão de atualização — e o botão Análise do período chega na ISSUE-081. Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`), com os indicadores, os gráficos e a tabela.
+
+**Rotas** (prefixo `/api/planejamento/kpis`, em `routes.py`): `GET` (fragmento no alvo `kpis-conteudo`; projeto ou Portfólio no mesmo endereço); `GET /excel` e `GET /imprimivel` (o mesmo documento pelos mecanismos genéricos).
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| SPI físico | Real acumulado dividido pelo previsto acumulado no corte, com 2 casas; sem previsto (zero ou ausente) não há índice | `calculations.spi_index` |
+| SPI por mês | O índice de cada mês até o último com real; os meses seguintes não entram na série | `calculations.spi_series` |
+| Contribuição da área | Peso vezes real dividido por 100, em p.p., com 1 casa | `calculations.area_contribution` |
+| Avanço por área | As áreas de nível 1 da EAP, lidas como a árvore as lê: a média ponderada dos pacotes fecha com a Curva S (D6) | `service._area_kpi_rows`, `service._area_kpi_row` |
+| Avanço por projeto | Na carteira, os projetos da composição da Curva S, com o peso da carteira e o corte do próprio projeto | `service._portfolio_kpi_rows` |
+| Indicadores da EAP | Pacotes de trabalho com término vencido e SMs aprovadas com impacto em escopo ainda não incorporadas | `service._kpi_eap`, `service._pending_change_count` |
+| Maior desvio | A linha de maior atraso em p.p. entre as que têm previsto, com o limite vindo das faixas de desvio da EAP | `service._worst_row`, `calculations.eap_deviation_band` |
+| Visão do escopo | A curva da ISSUE-039, o SPI por mês, as linhas, o pior desvio e os dois gráficos | `service.planning_kpis_overview` |
+
+**Fluxos.** A leitura reaproveita a `curva_fisica_overview` — a revisão vigente no projeto, a média ponderada pelos pesos da carteira no Portfólio — e a árvore da EAP; nada nesta tela grava. O fragmento não desenha SVG nem traz `<script>`: entrega o `data-dados` dos dois gráficos no contrato da biblioteca do Design System (D11). **Oráculo:** `api/tests/plataforma/test_carga_demonstracao.py` afirma, com a mesma data deslocada da Curva S, o SPI de 0,94, o previsto de 65,7% e o real de 61,8% do projeto 1, as áreas da EAP contra o mock de `avancoAreas` (a soma ponderada fecha com a curva) e a carteira com uma linha por projeto e peso. **Testes:** `api/tests/planejamento/test_kpis_servico.py` e `test_kpis_rotas.py`.
+
+**Onde mexer:** cálculos em `calculations.py` (`spi_index`, `spi_series`, `area_contribution`); leitura em `service.py` (`planning_kpis_overview`, `_kpi_rows`, `_kpi_eap`, `_pending_change_count`, `_spi_chart`, `_comparison_chart`); rotas em `routes.py` (bloco KPIs de planejamento); exportação em `export.py` (`planning_kpis_document`, `planning_kpis`); fragmento em `api/src/templates/planejamento/kpis.html`; trio em `app/_views/planejamento/kpis.html` e `app/paginas/planejamento/kpis.css`/`js`; testes em `api/tests/planejamento/test_kpis_servico.py` e `test_kpis_rotas.py` e o oráculo na carga.
+
 ## Trios das telas
 
 Cada tela da lista de navegação (`api/src/core/navegacao.json`) tem um trio com o mesmo nome: a view, o estilo e o comportamento da página. O CSS é escopado pela classe raiz da view (`.pagina--<modulo>-<tela>`, com o `_` do identificador mantido), o JS registra `TN.paginas["<modulo>/<tela>"]` e o shell (`app/index.html`) vincula o CSS e o JS de todos. A verificação `trio-da-tela` confere o conjunto. Convenção completa em `docs/PADROES-DE-PAGINA.md`, seção "O trio da tela".
