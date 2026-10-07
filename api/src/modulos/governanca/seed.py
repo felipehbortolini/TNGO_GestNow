@@ -22,6 +22,11 @@ by its number, and the contracts only exist after that part.
 The ``financeiro-reservas`` part (ISSUE-041) writes the reserves of the prototype and the movement
 of each approved SM that consumes or releases a reserve. It is registered here, after
 ``governanca``, because the movements point at the changes and the decisions the Governança seeded.
+
+The ``financeiro-curva`` part (ISSUE-042) writes the frozen financial S-curve of the prototype and
+the monthly ERP closing that feeds it. It is registered here, right after ``governanca-eac``: the
+frozen curve points at the revision of the EAC that part writes, and the monthly closing replaces
+the single month ``financeiro-custos`` wrote.
 """
 
 from __future__ import annotations
@@ -358,6 +363,7 @@ def _next_revisions() -> dict[int, int]:
 register(PART_NAME, load)
 register(LESSONS_PART_NAME, load_lessons)
 register(EAC_PART_NAME, load_eac)
+register(financeiro_seed.FINANCIAL_CURVE_PART_NAME, financeiro_seed.load_financial_curve)
 register(financeiro_seed.RESERVES_PART_NAME, financeiro_seed.load_reserves)
 register(financeiro_seed.CONTRACTS_PART_NAME, financeiro_seed.load_contracts)
 register(financeiro_seed.EVALUATIONS_PART_NAME, financeiro_seed.load_evaluations)

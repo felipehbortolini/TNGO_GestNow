@@ -1,0 +1,90 @@
+{% extends "base_fragment.html" %}
+{#
+  Curva S financeira (ISSUE-042, HU-093): a faixa de indicadores do topo, o gráfico das quatro
+  séries (planejado, comprometido, realizado e tendência; na carteira, a soma em reais) e a
+  tabela período a período. A raiz leva o id que a tela pediu ({{ target_id }}); o marcador
+  data-situacao diz à tela qual estado mostrar (conteudo ou vazio-origem). Sem <link>, <style> nem
+  <script>: o gráfico nasce do elemento com data-grafico e data-dados.
+
+  O gráfico é o visual Curva S Linha (D11), em R$ mil; a tabela imprime os valores em reais
+  integrais e marca o mês do corte. A tela é só de leitura: a curva muda pelas revisões da EAC e
+  pelos fechamentos do ERP.
+
+  Espera: visao, carteira, situacao, kpis, grafico, linhas, subtitulo e alvo_conteudo.
+#}
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
+
+{% if visao.is_empty %}
+<p class="body-txt">{{ 'Nenhum projeto da carteira tem curva financeira cadastrada.' if carteira else 'Este projeto ainda não tem curva financeira cadastrada.' }}</p>
+{% else %}
+<div class="kpis" role="group" aria-label="Indicadores da Curva S financeira">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.rotulo }}
+      <small class="hint">{{ kpi.referencia }}</small>
+      {% if kpi.rodape %}<small class="hint">{{ kpi.rodape }}</small>{% endif %}
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card mb-16" aria-labelledby="curva-financeira-grafico-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="curva-financeira-grafico-titulo">Curva S financeira{{ ' da carteira' if carteira }}</h2>
+      <span class="hint">{{ subtitulo }} · valores em R$ mil</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="curva-s-linha" data-dados='{{ grafico | tojson }}'></div>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="curva-financeira-tabela-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="curva-financeira-tabela-titulo">Período a período</h2>
+      <span class="hint">Valores acumulados até cada mês, com o movimento do mês; o mês do corte está destacado</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-periodos>
+        <caption class="sr-only">Curva S financeira período a período</caption>
+        <thead>
+          <tr>
+            <th scope="col">Mês</th>
+            <th scope="col" class="td-num">Planejado no mês</th>
+            <th scope="col" class="td-num">Planejado acumulado</th>
+            <th scope="col" class="td-num">Comprometido acumulado</th>
+            <th scope="col" class="td-num">Realizado no mês</th>
+            <th scope="col" class="td-num">Realizado acumulado</th>
+            <th scope="col" class="td-num">Projeção acumulada</th>
+            <th scope="col" class="td-num">Realizado menos planejado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr{% if linha.corte %} class="fw-600" aria-current="true"{% endif %}>
+            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">corte</span>{% endif %}</td>
+            <td class="td-num">{{ linha.planejado_mes }}</td>
+            <td class="td-num">{{ linha.planejado }}</td>
+            <td class="td-num">{{ linha.comprometido }}</td>
+            <td class="td-num">{{ linha.realizado_mes }}</td>
+            <td class="td-num">{% if linha.realizado %}<b>{{ linha.realizado }}</b>{% endif %}</td>
+            <td class="td-num">{{ linha.projecao }}</td>
+            <td class="td-num">
+              {% if linha.desvio %}<span class="pill pill--{{ linha.tom }}">{{ linha.desvio }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

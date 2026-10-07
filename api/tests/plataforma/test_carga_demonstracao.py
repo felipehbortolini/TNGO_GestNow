@@ -78,6 +78,7 @@ PARTS = [
     "governanca",
     "governanca-licoes",
     "governanca-eac",
+    "financeiro-curva",
     "financeiro-reservas",
     "financeiro-contratos",
     "financeiro-contratos-avaliacoes",
@@ -502,6 +503,80 @@ def test_oraculo_das_reservas_com_a_data_deslocada(db_session: Session) -> None:
     assert carteira.contingency.balance_cents == 269_000_000, "160 + 72 + 37 mi da carteira"
     assert carteira.management is not None
     assert carteira.management.balance_cents == 141_000_000, "90 + 36 + 15 mi da carteira"
+    assert [row.project_code for row in carteira.projects] == [
+        "TN-2026-014",
+        "TN-2026-021",
+        "TN-2026-027",
+    ]
+
+
+def test_oraculo_da_curva_s_financeira_e_dos_kpis_de_custo(db_session: Session) -> None:
+    """O oráculo da ISSUE-042: a curva financeira e os KPIs de custo do protótipo no corte.
+
+    A mesma referência do oráculo da Curva S física (a âncora mais cinco dias), que mantém o corte
+    em set/26. O planejado de jan/26 é o do mock convertido (93.660.000 centavos); o realizado de
+    ago/26 é 2.280.000.000 e o do corte, 2.870.000.000; o comprometido fecha 4.113.000.000. O EV é
+    o avanço físico real (61,8%) sobre o BAC e o AC, o realizado do ERP: CPI 0,96, SPI de custo
+    0,94, CV de menos 113.720.000, a EAC pelo CPI de 4.644.012.945 e o TCPI de 1,07 (divergências
+    registradas em ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``, "pendente de aceite"). Na carteira, o PV,
+    o EV e o AC são a soma dos projetos.
+    """
+    reference_date = DEMO_ANCHOR + timedelta(days=5)
+    run_demonstration(db_session, reference_date=reference_date)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    curve = financeiro.financial_curve_overview(
+        db_session, scope=Scope(project_id=project.id, source="url"), reference_date=reference_date
+    )
+
+    assert curve.series.months[curve.series.cut_index] == date(2026, 9, 1), "o mês do corte"
+    assert curve.series.planned[0] == 93_660_000, "o planejado de 2026-01 do protótipo"
+    august = curve.series.months.index(date(2026, 8, 1))
+    assert curve.series.actual[august] == 2_280_000_000, "o realizado de 2026-08 do protótipo"
+    assert curve.series.actual[curve.series.cut_index] == 2_870_000_000, "o realizado do corte"
+    assert curve.series.committed[curve.series.cut_index] == 4_113_000_000, (
+        "o comprometido do corte"
+    )
+    assert curve.kpis is not None
+    assert curve.kpis.committed_pct == Decimal("92.2")
+    assert curve.kpis.trend_cents == 4_644_012_945, "a tendência chega à EAC pelo CPI"
+
+    kpis = financeiro.cost_kpis_overview(
+        db_session, scope=Scope(project_id=project.id, source="url"), reference_date=reference_date
+    )
+    assert kpis.indicators is not None
+    assert (kpis.indicators.cpi, kpis.indicators.spi) == (Decimal("0.96"), Decimal("0.94"))
+    assert kpis.indicators.cv_cents == -113_720_000
+    assert kpis.indicators.eac_by_cpi_cents == 4_644_012_945
+    assert kpis.indicators.tcpi == Decimal("1.07")
+    assert kpis.vac_cents == -65_500_000
+    assert (kpis.committed_cents, kpis.committed_pct) == (4_113_000_000, Decimal("92.2"))
+
+    views = [
+        financeiro.cost_kpis_overview(
+            db_session,
+            scope=Scope(project_id=item.id, source="url"),
+            reference_date=reference_date,
+        )
+        for item in db_session.scalars(select(Project).order_by(Project.code))
+    ]
+    totals = {"pv_cents": 0, "ev_cents": 0, "ac_cents": 0}
+    for view in views:
+        actual = view.actual
+        assert actual is not None, "os três projetos têm valor agregado no corte"
+        totals["pv_cents"] += actual.pv_cents
+        totals["ev_cents"] += actual.ev_cents
+        totals["ac_cents"] += actual.ac_cents
+
+    carteira = financeiro.cost_kpis_overview(
+        db_session, scope=Scope(project_id=None, source="padrao"), reference_date=reference_date
+    )
+    assert carteira.actual is not None
+    assert (carteira.actual.pv_cents, carteira.actual.ev_cents, carteira.actual.ac_cents) == (
+        totals["pv_cents"],
+        totals["ev_cents"],
+        totals["ac_cents"],
+    ), "a carteira soma o PV, o EV e o AC dos projetos"
     assert [row.project_code for row in carteira.projects] == [
         "TN-2026-014",
         "TN-2026-021",

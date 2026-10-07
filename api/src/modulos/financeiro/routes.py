@@ -73,6 +73,14 @@ composition of the budget, the statement of movements and, in the Portfólio, th
 project); ``GET .../contingencia/excel`` and ``GET .../contingencia/imprimivel`` are its two
 exports, with the same content — the numbers behind the chart travel in the burn table of the
 document, because the spreadsheet has no chart.
+
+The Curva S financeira and the KPIs de custo of ISSUE-042 live under ``/api/financeiro/curva-s``
+and ``/api/financeiro/kpis``: ``GET`` is the content of each screen for the scope of the request
+(the four indicators of the curve and its four series, the month-by-month table, and the six cost
+indicators with the CPI against the SPI and the value table — in the Portfólio, the sums and the
+performance per project); ``GET .../excel`` and ``GET .../imprimivel`` are the two exports of each
+screen, with the same content, the ``Projeto`` column coming from the generic mechanism in the
+Portfólio.
 """
 
 from __future__ import annotations
@@ -97,6 +105,7 @@ from src.core.errors import (
 from src.core.excel import XLSX_CONTENT_TYPE, build_workbook, excel_response
 from src.core.export_document import (
     Document,
+    Kpi,
     ValueKind,
     describe_scope,
     format_value,
@@ -4213,3 +4222,443 @@ def _contingencia_linha(
 
 def _money_or_dot(cents: int | None) -> str:
     return CONTINGENCY_NO_VALUE if cents is None else _money(cents)
+
+
+# ── Curva S financeira e KPIs de custo (ISSUE-042) ───────────────────────
+
+
+CURVA_FINANCEIRA_ROUTE = "financeiro/curva-s"
+CURVA_FINANCEIRA_EXCEL_ROUTE = f"{CURVA_FINANCEIRA_ROUTE}/excel"
+CURVA_FINANCEIRA_PRINTABLE_ROUTE = f"{CURVA_FINANCEIRA_ROUTE}/imprimivel"
+CUSTOS_KPIS_ROUTE = "financeiro/kpis"
+CUSTOS_KPIS_EXCEL_ROUTE = f"{CUSTOS_KPIS_ROUTE}/excel"
+CUSTOS_KPIS_PRINTABLE_ROUTE = f"{CUSTOS_KPIS_ROUTE}/imprimivel"
+
+CURVA_FINANCEIRA_TEMPLATE = "financeiro/curva_financeira.html"
+CUSTOS_KPIS_TEMPLATE = "financeiro/custos_kpis.html"
+
+CURVA_FINANCEIRA_TARGET = "curva-s-conteudo"
+CUSTOS_KPIS_TARGET = "kpis-conteudo"
+
+CURVA_FINANCEIRA_KPI_ICONS = ("chartLine", "money", "file", "pin")
+CUSTOS_KPI_ICONS = ("chartLine", "clock", "money", "pin", "shield", "file")
+
+CURVA_FINANCEIRA_PORTFOLIO_SUFFIX = (
+    " · carteira: soma dos valores em R$ dos projetos (sem ponderação)"
+)
+CUSTOS_KPIS_PROJECT_SUFFIX = " · EV = avanço físico real x orçamento (BAC)"
+CUSTOS_KPIS_PORTFOLIO_SUFFIX = (
+    " · carteira: soma do EV, PV e AC dos projetos (EV de cada projeto = avanço físico real x BAC)"
+)
+
+_PILL_POR_TOM = {"ok": "ok", "erro": "erro", "warn": "warn", "info": "fix", "neutro": "neutral"}
+
+
+def _pill_tom(tom: str) -> str:
+    """O nome da classe da pastilha para o tom do Design System (``fix`` e ``neutral`` diferem)."""
+    return _PILL_POR_TOM.get(tom, "neutral")
+
+
+@dataclass(frozen=True)
+class CurvaFinanceiraKpi:
+    """Um indicador da Curva S financeira, já escrito como a pessoa o lê."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    rodape: str
+    tom: str
+    icone: str
+
+
+@dataclass(frozen=True)
+class CurvaFinanceiraLinha:
+    """Uma linha da tabela período a período da Curva S financeira, com o corte marcado."""
+
+    mes: str
+    planejado_mes: str
+    planejado: str
+    comprometido: str
+    realizado_mes: str
+    realizado: str
+    projecao: str
+    desvio: str
+    tom: str
+    corte: bool
+
+
+@dataclass(frozen=True)
+class CustosKpi:
+    """Um indicador dos KPIs de custo, já escrito como a pessoa o lê."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    rodape: str
+    tom: str
+    icone: str
+
+
+@dataclass(frozen=True)
+class CustosValorLinha:
+    """Uma linha da tabela de valor agregado, com o corte marcado."""
+
+    mes: str
+    pv: str
+    ev: str
+    ac: str
+    cv: str
+    tom_cv: str
+    sv: str
+    tom_sv: str
+    cpi: str
+    tom_cpi: str
+    spi: str
+    tom_spi: str
+    eac: str
+    tcpi: str
+    corte: bool
+
+
+@dataclass(frozen=True)
+class CustosResumoLinha:
+    """Uma linha do resumo do valor agregado, com a leitura do protótipo."""
+
+    sigla: str
+    nome: str
+    valor: str
+    indice: str
+    tom: str
+    leitura: str
+
+
+@dataclass(frozen=True)
+class CustosProjetoLinha:
+    """Uma linha do desempenho de custo por projeto, na carteira."""
+
+    projeto_id: int
+    codigo: str
+    nome: str
+    bac: str
+    ev: str
+    ac: str
+    cpi: str
+    tom_cpi: str
+    spi: str
+    tom_spi: str
+    projecao: str
+    vac: str
+    tom_vac: str
+    contingencia: str
+
+
+@bp.route(route=CURVA_FINANCEIRA_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def curva_financeira_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A Curva S financeira do escopo: indicadores, gráfico e tabela período a período."""
+    return AlpineAjaxResponse(
+        template_name=CURVA_FINANCEIRA_TEMPLATE,
+        context=_curva_financeira_context(_curva_financeira_view(session, context)),
+        request=req,
+    )
+
+
+@bp.route(route=CURVA_FINANCEIRA_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def curva_financeira_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da Curva S financeira: os indicadores, o gráfico e a tabela, no escopo do pedido."""
+    del req
+    return excel_response(_curva_financeira_document_of(session, context))
+
+
+@bp.route(route=CURVA_FINANCEIRA_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def curva_financeira_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da Curva S financeira: o mesmo documento que o Excel carrega."""
+    return printable_response(_curva_financeira_document_of(session, context), req)
+
+
+@bp.route(route=CUSTOS_KPIS_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def custos_kpis_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os KPIs de custo do escopo: indicadores, gráfico de CPI e SPI e a tabela de valor agregado."""
+    return AlpineAjaxResponse(
+        template_name=CUSTOS_KPIS_TEMPLATE,
+        context=_custos_kpis_context(_custos_kpis_view(session, context)),
+        request=req,
+    )
+
+
+@bp.route(route=CUSTOS_KPIS_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def custos_kpis_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel dos KPIs de custo: os indicadores, o gráfico e as tabelas, no escopo do pedido."""
+    del req
+    return excel_response(_custos_kpis_document_of(session, context))
+
+
+@bp.route(route=CUSTOS_KPIS_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def custos_kpis_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível dos KPIs de custo: o mesmo documento que o Excel carrega."""
+    return printable_response(_custos_kpis_document_of(session, context), req)
+
+
+def _curva_financeira_view(
+    session: Session, context: RequestContext
+) -> service.FinancialCurveOverview:
+    """A Curva S financeira do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.financial_curve_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _curva_financeira_document_of(session: Session, context: RequestContext) -> Document:
+    return export.curva_financeira_document(
+        _curva_financeira_view(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _custos_kpis_view(session: Session, context: RequestContext) -> service.CostKpisOverview:
+    """Os KPIs de custo do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.cost_kpis_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _custos_kpis_document_of(session: Session, context: RequestContext) -> Document:
+    return export.custos_kpis_document(
+        _custos_kpis_view(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _curva_financeira_context(view: service.FinancialCurveOverview) -> dict[str, object]:
+    """O que o fragmento imprime: a visão, os indicadores, o gráfico e a tabela."""
+    return {
+        "visao": view,
+        "carteira": view.is_portfolio,
+        "situacao": "vazio-origem" if view.is_empty else "conteudo",
+        "kpis": _curva_financeira_kpis(view),
+        "grafico": export.curva_financeira_chart(view),
+        "linhas": _curva_financeira_linhas(view),
+        "subtitulo": _curva_financeira_subtitulo(view),
+        "alvo_conteudo": CURVA_FINANCEIRA_TARGET,
+    }
+
+
+def _custos_kpis_context(view: service.CostKpisOverview) -> dict[str, object]:
+    """O que o fragmento dos KPIs imprime: a visão, os cartões, o gráfico e as tabelas."""
+    return {
+        "visao": view,
+        "carteira": view.is_portfolio,
+        "situacao": "vazio-origem" if view.is_empty else "conteudo",
+        "kpis": _custos_kpis(view),
+        "grafico": export.custos_kpis_chart(view),
+        "grafico_valor": export.custos_valor_chart(view),
+        "linhas": _custos_valor_linhas(view),
+        "resumo": _custos_resumo_linhas(view),
+        "projetos": _custos_projeto_linhas(view),
+        "subtitulo": _custos_kpis_subtitulo(view),
+        "alvo_conteudo": CUSTOS_KPIS_TARGET,
+    }
+
+
+def _curva_financeira_kpis(
+    view: service.FinancialCurveOverview,
+) -> tuple[CurvaFinanceiraKpi, ...]:
+    """Os quatro indicadores do serviço como a faixa os imprime."""
+    kpis = export.curva_financeira_kpis(view)
+    if not kpis:
+        return ()
+    return tuple(
+        CurvaFinanceiraKpi(
+            rotulo=kpi.label,
+            valor=_kpi_value_text(kpi),
+            referencia=kpi.reference,
+            rodape=kpi.status,
+            tom=kpi.tone.value if kpi.tone is not None else "neutro",
+            icone=icone,
+        )
+        for kpi, icone in zip(kpis, CURVA_FINANCEIRA_KPI_ICONS, strict=True)
+    )
+
+
+def _custos_kpis(view: service.CostKpisOverview) -> tuple[CustosKpi, ...]:
+    """Os seis indicadores do serviço como a faixa os imprime."""
+    kpis = export.custos_kpis(view)
+    if not kpis:
+        return ()
+    return tuple(
+        CustosKpi(
+            rotulo=kpi.label,
+            valor=_kpi_value_text(kpi),
+            referencia=kpi.reference,
+            rodape=kpi.status,
+            tom=kpi.tone.value if kpi.tone is not None else "neutro",
+            icone=icone,
+        )
+        for kpi, icone in zip(kpis, CUSTOS_KPI_ICONS, strict=True)
+    )
+
+
+def _kpi_value_text(kpi: Kpi) -> str:
+    """O valor do indicador como a tela o escreve; sem valor, o ponto médio."""
+    return (
+        CONTINGENCY_NO_VALUE if kpi.value is None else format_value(kpi.kind, kpi.value, kpi.digits)
+    )
+
+
+def _curva_financeira_subtitulo(view: service.FinancialCurveOverview) -> str:
+    cut = _curva_financeira_cut_label(view)
+    text = f"Corte em {cut} · acumulado por mês" if cut else "Sem corte na referência"
+    if view.is_portfolio:
+        text += CURVA_FINANCEIRA_PORTFOLIO_SUFFIX
+    return text
+
+
+def _curva_financeira_cut_label(view: service.FinancialCurveOverview) -> str:
+    if view.series.cut_index < 0:
+        return ""
+    return export.curva_financeira_month_label(view.series.months[view.series.cut_index])
+
+
+def _curva_financeira_linhas(
+    view: service.FinancialCurveOverview,
+) -> tuple[CurvaFinanceiraLinha, ...]:
+    """A tabela período a período: acumulados e o movimento do mês, com o corte marcado."""
+    linhas: list[CurvaFinanceiraLinha] = []
+    for index, point in enumerate(view.points):
+        previous = view.points[index - 1] if index > 0 else None
+        planned_month = point.planned_cents - (previous.planned_cents if previous else 0)
+        actual_month = (
+            None
+            if point.actual_cents is None
+            else point.actual_cents
+            - (previous.actual_cents if previous and previous.actual_cents is not None else 0)
+        )
+        deviation = None if point.actual_cents is None else point.actual_cents - point.planned_cents
+        linhas.append(
+            CurvaFinanceiraLinha(
+                mes=export.curva_financeira_month_label(point.month),
+                planejado_mes=_money(planned_month),
+                planejado=_money(point.planned_cents),
+                comprometido=_money_or_dot(point.committed_cents),
+                realizado_mes=_money_or_dot(actual_month),
+                realizado=_money_or_dot(point.actual_cents),
+                projecao=_money_or_dot(point.trend_cents),
+                desvio="" if deviation is None else _signed_money(deviation),
+                tom=(
+                    "neutral"
+                    if deviation is None
+                    else "erro"
+                    if deviation > 0
+                    else "ok"
+                    if deviation < 0
+                    else "neutral"
+                ),
+                corte=point.is_cut,
+            )
+        )
+    return tuple(linhas)
+
+
+def _custos_kpis_subtitulo(view: service.CostKpisOverview) -> str:
+    cut = export.curva_financeira_month_label(view.cut_month)
+    text = f"Corte em {cut}" if cut else "Sem corte na referência"
+    text += CUSTOS_KPIS_PORTFOLIO_SUFFIX if view.is_portfolio else CUSTOS_KPIS_PROJECT_SUFFIX
+    return text
+
+
+def _custos_valor_linhas(view: service.CostKpisOverview) -> tuple[CustosValorLinha, ...]:
+    """A tabela de valor agregado: os valores de cada mês e os índices acumulados até ele."""
+    return tuple(
+        CustosValorLinha(
+            mes=export.curva_financeira_month_label(row.month),
+            pv=_money(row.pv_cents),
+            ev=_money(row.ev_cents),
+            ac=_money(row.ac_cents),
+            cv=_signed_money(row.cv_cents),
+            tom_cv="erro" if row.cv_cents < 0 else "ok",
+            sv=_signed_money(row.sv_cents),
+            tom_sv="erro" if row.sv_cents < 0 else "ok",
+            cpi=_decimal(row.cpi),
+            tom_cpi=_pill_tom(export.financial_index_tone(row.cpi).value),
+            spi=_decimal(row.spi),
+            tom_spi=_pill_tom(export.financial_index_tone(row.spi).value),
+            eac=_money_or_dot(row.eac_by_cpi_cents),
+            tcpi=_decimal(row.tcpi),
+            corte=row.month == view.cut_month,
+        )
+        for row in view.history
+    )
+
+
+def _custos_projeto_linhas(view: service.CostKpisOverview) -> tuple[CustosProjetoLinha, ...]:
+    """O desempenho de custo por projeto, no Portfólio."""
+    linhas: list[CustosProjetoLinha] = []
+    for item in view.projects:
+        codigo, _, nome = item.project_label.partition(" · ")
+        linhas.append(
+            CustosProjetoLinha(
+                projeto_id=item.project_id,
+                codigo=codigo,
+                nome=nome,
+                bac=_money(item.bac_cents),
+                ev=_money(item.ev_cents),
+                ac=_money(item.ac_cents),
+                cpi=_decimal(item.cpi),
+                tom_cpi=_pill_tom(export.financial_index_tone(item.cpi).value),
+                spi=_decimal(item.spi),
+                tom_spi=_pill_tom(export.financial_index_tone(item.spi).value),
+                projecao=_money_or_dot(item.projection_cents),
+                vac=(
+                    CONTINGENCY_NO_VALUE
+                    if item.vac_cents is None
+                    else _signed_money(item.vac_cents)
+                ),
+                tom_vac=(
+                    "neutral" if item.vac_cents is None else "erro" if item.vac_cents < 0 else "ok"
+                ),
+                contingencia=_percent_or_dot(item.contingency_pct),
+            )
+        )
+    return tuple(linhas)
+
+
+def _custos_resumo_linhas(view: service.CostKpisOverview) -> tuple[CustosResumoLinha, ...]:
+    """O resumo do valor agregado na data de corte, com a leitura do protótipo."""
+    linhas: list[CustosResumoLinha] = []
+    for item in export.custos_kpis_resumo(view):
+        value = _resumo_value_text(item)
+        index = item.kind is ValueKind.DECIMAL
+        linhas.append(
+            CustosResumoLinha(
+                sigla=item.sigla,
+                nome=item.nome,
+                valor="" if index else value,
+                indice=value if index else "",
+                tom="" if item.tone is None else _pill_tom(item.tone.value),
+                leitura=item.leitura,
+            )
+        )
+    return tuple(linhas)
+
+
+def _resumo_value_text(item: export.CustosResumoItem) -> str:
+    return CONTINGENCY_NO_VALUE if item.value is None else format_value(item.kind, item.value, 2)

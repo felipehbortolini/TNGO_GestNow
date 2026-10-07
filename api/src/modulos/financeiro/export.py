@@ -14,11 +14,15 @@ EOT, payment milestones and evaluations) of the scope, with the filters of the s
 Contingência of ISSUE-041 brings its own document: the four indicators, the chart of the real
 against the expected balance (and, for the spreadsheet, the same numbers in the burn table), the
 composition of the budget, the statement of movements and, in the Portfólio, the table per project.
+The Curva S financeira and the KPIs de custo of ISSUE-042 bring one document each: the indicators,
+the chart (the four series of the curve and the CPI against the SPI) and the tables, with the
+portfolio table of the cost performance of each project.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -72,11 +76,15 @@ from src.modulos.financeiro.service import (
     ContingencyProjectRow,
     ContractsOverview,
     ContractView,
+    CostKpiMonth,
+    CostKpiProjectRow,
+    CostKpisOverview,
     EacView,
     EvaluationCriterionSpec,
     EvaluationCriterionView,
     EvaluationView,
     ExtensionView,
+    FinancialCurveOverview,
     MapaControleView,
     MapaRow,
     MeasurementView,
@@ -1541,3 +1549,645 @@ def _contingency_mil(cents: int) -> float:
 
 def _month_label(month: date) -> str:
     return f"{MONTH_NAMES[month.month - 1]}/{month.year}"
+
+
+# ── Curva S financeira e KPIs de custo (ISSUE-042) ───────────────────────
+
+
+CURVA_FINANCEIRA_TITLE = "Curva S financeira"
+CURVA_FINANCEIRA_POINTS_TITLE = "Período a período"
+CURVA_FINANCEIRA_CHART_TITLE = "Curva S financeira"
+CUSTOS_KPIS_TITLE = "KPIs de custo"
+CUSTOS_KPIS_CHART_TITLE = "CPI e SPI por mês"
+CUSTOS_KPIS_VALUE_CHART_TITLE = "Valor agregado acumulado"
+CUSTOS_KPIS_SUMMARY_TITLE = "Valor agregado na data de corte"
+CUSTOS_KPIS_POINTS_TITLE = "Período a período"
+CUSTOS_KPIS_PROJECTS_TITLE = "Desempenho de custo por projeto"
+
+CUSTOS_KPIS_INDEX_REFERENCE = "Meta: ≥ 1,00"
+CUSTOS_KPIS_VARIATION_REFERENCE = "Meta: ≥ 0"
+
+FINANCIAL_NO_VALUE = "·"
+FINANCIAL_MIL_CENTS = 100_000
+FINANCIAL_MIL_ONE_PLACE = Decimal("0.1")
+
+
+@dataclass(frozen=True)
+class CustosResumoItem:
+    """Uma linha do resumo do valor agregado: a sigla, o nome, o valor, o tom e a leitura."""
+
+    sigla: str
+    nome: str
+    value: int | Decimal | None
+    kind: ValueKind
+    tone: Tone | None
+    leitura: str
+
+
+def curva_financeira_document(
+    view: FinancialCurveOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """A Curva S financeira como documento: os indicadores, o gráfico e a tabela período a período.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. A tabela vale para
+    o projeto e para o Portfólio: a série da carteira já é a soma em reais dos projetos.
+    """
+    return Document(
+        title=CURVA_FINANCEIRA_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        context=_curva_financeira_context(view),
+        kpis=curva_financeira_kpis(view),
+        charts=(
+            Chart(CURVA_FINANCEIRA_CHART_TITLE, "curva-s-linha", curva_financeira_chart(view)),
+        ),
+        tables=(_curva_financeira_points_table(view),),
+    )
+
+
+def curva_financeira_kpis(view: FinancialCurveOverview) -> tuple[Kpi, ...]:
+    """Os quatro indicadores da Curva S financeira, os mesmos da faixa do topo da tela."""
+    kpis = view.kpis
+    if kpis is None:
+        return ()
+    cut = _financial_cut_month(view)
+    return (
+        Kpi(
+            "Planejado acumulado",
+            kpis.planned_cents,
+            f"Orçado: {_financial_money(kpis.budget_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=(
+                f"linha de base de custo em {curva_financeira_month_label(cut)}" if cut else ""
+            ),
+        ),
+        Kpi(
+            "Realizado acumulado",
+            kpis.actual_cents,
+            f"Previsto: {_financial_money(kpis.planned_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=_financial_deviation_status(kpis.deviation_cents),
+        ),
+        Kpi(
+            "Comprometido acumulado",
+            kpis.committed_cents,
+            f"Orçado: {_financial_money(kpis.budget_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=(
+                f"{format_value(ValueKind.PERCENT, kpis.committed_pct, 1)} do orçamento"
+                if kpis.committed_pct is not None
+                else ""
+            ),
+        ),
+        Kpi(
+            "Projeção no término",
+            kpis.trend_cents,
+            f"Orçado: {_financial_money(kpis.budget_cents)}",
+            ValueKind.MONEY,
+            tone=(
+                Tone.NEUTRAL
+                if kpis.trend_cents is None
+                else Tone.ERROR
+                if kpis.trend_cents > kpis.budget_cents
+                else Tone.OK
+            ),
+            status=_financial_trend_status(kpis.trend_cents, kpis.budget_cents),
+        ),
+    )
+
+
+def _financial_trend_status(trend_cents: int | None, budget_cents: int) -> str:
+    if trend_cents is None:
+        return ""
+    above = trend_cents > budget_cents
+    return (
+        "projeção acima do orçado pelo desempenho (BAC ÷ CPI)"
+        if above
+        else "projeção dentro do orçado pelo desempenho (BAC ÷ CPI)"
+    )
+
+
+def _financial_deviation_status(deviation_cents: int | None) -> str:
+    if deviation_cents is None:
+        return ""
+    return f"{_financial_signed_money(deviation_cents)} em relação ao planejado"
+
+
+def curva_financeira_chart(view: FinancialCurveOverview) -> dict[str, object]:
+    """O ``data-dados`` da Curva S financeira (curva-s-linha), em R$ mil.
+
+    As quatro séries acumuladas: o planejado congelado, o comprometido e o realizado até o corte e a
+    tendência a partir dele. Um mês sem valor de uma série quebra a linha dela.
+    """
+    series = view.series
+    return {
+        "titulo": (
+            f"{CURVA_FINANCEIRA_CHART_TITLE} da carteira"
+            if view.is_portfolio
+            else CURVA_FINANCEIRA_CHART_TITLE
+        ),
+        "modo": "acumulado",
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "planejado", "rotulo": "Planejado", "papel": "linha-base"},
+            {"id": "comprometido", "rotulo": "Comprometido", "papel": "comprometido"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado"},
+            {"id": "tendencia", "rotulo": "Tendência", "papel": "tendencia"},
+        ],
+        "periodos": [
+            {
+                "ano": month.year,
+                "mes": month.month,
+                "valores": {
+                    "planejado": _financial_mil(series.planned[index]),
+                    "comprometido": _financial_mil_or_none(series.committed[index]),
+                    "realizado": _financial_mil_or_none(series.actual[index]),
+                    "tendencia": _financial_mil_or_none(series.trend[index]),
+                },
+            }
+            for index, month in enumerate(series.months)
+        ],
+    }
+
+
+def _curva_financeira_context(view: FinancialCurveOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, view.reference_date))]
+    cut = _financial_cut_month(view)
+    if cut is not None:
+        lines.append(("Corte", curva_financeira_month_label(cut)))
+    if view.revision is not None and view.revision_date is not None:
+        lines.append(
+            (
+                "Revisão da EAC",
+                f"Rev {view.revision} de {format_value(ValueKind.DATE, view.revision_date)}",
+            )
+        )
+    return tuple(lines)
+
+
+def _curva_financeira_points_table(view: FinancialCurveOverview) -> Table:
+    return Table(
+        title=CURVA_FINANCEIRA_POINTS_TITLE,
+        columns=(
+            Column("Mês", width=16),
+            Column("Planejado no mês", ValueKind.MONEY),
+            Column("Planejado acumulado", ValueKind.MONEY),
+            Column("Comprometido acumulado", ValueKind.MONEY),
+            Column("Realizado no mês", ValueKind.MONEY),
+            Column("Realizado acumulado", ValueKind.MONEY),
+            Column("Projeção acumulada", ValueKind.MONEY),
+            Column("Realizado menos planejado", ValueKind.MONEY),
+        ),
+        rows=tuple(_curva_financeira_point_row(view, index) for index in range(len(view.points))),
+        per_project=False,
+    )
+
+
+def _curva_financeira_point_row(view: FinancialCurveOverview, index: int) -> Row:
+    point = view.points[index]
+    previous = view.points[index - 1] if index > 0 else None
+    planned_month = point.planned_cents - (previous.planned_cents if previous else 0)
+    actual_month = (
+        None
+        if point.actual_cents is None
+        else point.actual_cents
+        - (previous.actual_cents if previous and previous.actual_cents is not None else 0)
+    )
+    deviation = None if point.actual_cents is None else point.actual_cents - point.planned_cents
+    label = curva_financeira_month_label(point.month) + (" · corte" if point.is_cut else "")
+    return row(
+        label,
+        planned_month,
+        point.planned_cents,
+        point.committed_cents,
+        actual_month,
+        point.actual_cents,
+        point.trend_cents,
+        Cell(deviation, None if deviation is None else _deviation_tone(deviation)),
+    )
+
+
+def custos_kpis_document(
+    view: CostKpisOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """Os KPIs de custo como documento: os indicadores, os dois gráficos e as três tabelas.
+
+    No Portfólio a tabela de desempenho por projeto entra antes do resumo do valor agregado, e a
+    coluna Projeto vem pelo mecanismo genérico (HU-016).
+    """
+    tables: list[Table] = []
+    if view.is_portfolio:
+        tables.append(_custos_kpis_projects_table(view))
+    tables.append(_custos_kpis_summary_table(view))
+    tables.append(_custos_kpis_value_table(view))
+    return Document(
+        title=CUSTOS_KPIS_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        context=_custos_kpis_context(view),
+        kpis=custos_kpis(view),
+        charts=(
+            Chart(CUSTOS_KPIS_CHART_TITLE, "linhas-multiplas", custos_kpis_chart(view)),
+            Chart(CUSTOS_KPIS_VALUE_CHART_TITLE, "linhas-multiplas", custos_valor_chart(view)),
+        ),
+        tables=tuple(tables),
+    )
+
+
+def custos_kpis(view: CostKpisOverview) -> tuple[Kpi, ...]:
+    """Os seis indicadores da tela, com a referência de gestão e a variação no rodapé."""
+    indicators = view.indicators
+    actual = view.actual
+    if indicators is None or actual is None:
+        return ()
+    previous = view.previous
+    return (
+        Kpi(
+            "CPI (desempenho de custo)",
+            indicators.cpi,
+            CUSTOS_KPIS_INDEX_REFERENCE,
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=financial_index_tone(indicators.cpi),
+            status=_financial_index_status(indicators.cpi, previous.cpi if previous else None),
+        ),
+        Kpi(
+            "SPI de custo (desempenho de prazo)",
+            indicators.spi,
+            CUSTOS_KPIS_INDEX_REFERENCE,
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=financial_index_tone(indicators.spi),
+            status=_financial_index_status(indicators.spi, previous.spi if previous else None),
+        ),
+        Kpi(
+            "CV (variação de custo)",
+            actual.cv_cents,
+            CUSTOS_KPIS_VARIATION_REFERENCE,
+            ValueKind.MONEY,
+            tone=Tone.ERROR if actual.cv_cents < 0 else Tone.OK,
+            status=(
+                f"EV menos AC · mês anterior {_financial_signed_money(previous.cv_cents)}"
+                if previous is not None
+                else "EV menos AC"
+            ),
+        ),
+        Kpi(
+            "VAC (variação no término)",
+            view.vac_cents,
+            CUSTOS_KPIS_VARIATION_REFERENCE,
+            ValueKind.MONEY,
+            tone=(
+                Tone.NEUTRAL
+                if view.vac_cents is None
+                else Tone.ERROR
+                if view.vac_cents < 0
+                else Tone.OK
+            ),
+            status="orçamento menos projeção no término",
+        ),
+        Kpi(
+            "Contingência consumida",
+            view.contingency_pct,
+            f"Constituída: {_financial_money(view.contingency_total_cents)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=(
+                Tone.WARN
+                if view.contingency_pct is not None and view.contingency_pct > Decimal("50")
+                else Tone.OK
+            ),
+            status=(
+                f"{_financial_money(view.contingency_consumed_cents)} de "
+                f"{_financial_money(view.contingency_total_cents)}"
+            ),
+        ),
+        Kpi(
+            "Comprometido",
+            view.committed_pct,
+            f"Orçado: {_financial_money(view.budget_cents)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+            status=(
+                f"{_financial_money(view.committed_cents)} do orçamento"
+                if view.committed_cents is not None
+                else ""
+            ),
+        ),
+    )
+
+
+def _financial_index_status(current: Decimal | None, previous: Decimal | None) -> str:
+    if current is None or previous is None:
+        return ""
+    delta = current - previous
+    if delta == 0:
+        return "estável vs. mês anterior"
+    sign = "+" if delta > 0 else "-"
+    return f"{sign}{format_value(ValueKind.DECIMAL, abs(delta), 2)} vs. mês anterior"
+
+
+def custos_kpis_chart(view: CostKpisOverview) -> dict[str, object]:
+    """O ``data-dados`` do CPI e do SPI mês a mês (linhas-multiplas), com a meta em 1,00.
+
+    Só os meses com valor agregado entram: depois do corte não há realizado e não há índice. O eixo
+    se ajusta ao dado (``base_zero`` falso), como a biblioteca recomenda para índices.
+    """
+    return {
+        "titulo": CUSTOS_KPIS_CHART_TITLE,
+        "base_zero": False,
+        "casas": 2,
+        "unidade": "",
+        "series": [
+            {"id": "cpi", "rotulo": "CPI", "papel": "realizado"},
+            {"id": "spi", "rotulo": "SPI", "papel": "previsto"},
+        ],
+        "referencias": [{"valor": 1, "rotulo": "Meta (1,00)", "papel": "linha-base"}],
+        "periodos": [
+            {
+                "ano": row.month.year,
+                "mes": row.month.month,
+                "valores": {
+                    "cpi": None if row.cpi is None else float(row.cpi),
+                    "spi": None if row.spi is None else float(row.spi),
+                },
+            }
+            for row in view.history
+        ],
+    }
+
+
+def _custos_kpis_context(view: CostKpisOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, view.reference_date))]
+    if view.cut_month is not None:
+        lines.append(("Corte", curva_financeira_month_label(view.cut_month)))
+    return tuple(lines)
+
+
+def custos_valor_chart(view: CostKpisOverview) -> dict[str, object]:
+    """O ``data-dados`` do valor agregado acumulado (linhas-multiplas), em R$ mil.
+
+    As três séries acumuladas de cada mês até o corte: o PV da linha de base, o EV do avanço físico
+    real e o AC do realizado do ERP.
+    """
+    return {
+        "titulo": CUSTOS_KPIS_VALUE_CHART_TITLE,
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "pv", "rotulo": "PV (planejado)", "papel": "linha-base"},
+            {"id": "ev", "rotulo": "EV (agregado)", "papel": "realizado"},
+            {"id": "ac", "rotulo": "AC (custo real)", "papel": "previsto"},
+        ],
+        "periodos": [
+            {
+                "ano": row.month.year,
+                "mes": row.month.month,
+                "valores": {
+                    "pv": _financial_mil(row.pv_cents),
+                    "ev": _financial_mil(row.ev_cents),
+                    "ac": _financial_mil(row.ac_cents),
+                },
+            }
+            for row in view.history
+        ],
+    }
+
+
+def custos_kpis_resumo(view: CostKpisOverview) -> tuple[CustosResumoItem, ...]:
+    """As dez linhas do resumo do valor agregado, com a leitura do protótipo."""
+    indicators = view.indicators
+    actual = view.actual
+    if indicators is None or actual is None:
+        return ()
+    return (
+        CustosResumoItem(
+            "BAC",
+            "Orçamento no término",
+            view.budget_cents,
+            ValueKind.MONEY,
+            None,
+            "Orçado atual da EAC",
+        ),
+        CustosResumoItem(
+            "PV",
+            "Valor planejado",
+            actual.pv_cents,
+            ValueKind.MONEY,
+            None,
+            "Avanço físico previsto x BAC",
+        ),
+        CustosResumoItem(
+            "EV",
+            "Valor agregado",
+            actual.ev_cents,
+            ValueKind.MONEY,
+            None,
+            "Avanço físico real x BAC",
+        ),
+        CustosResumoItem(
+            "AC", "Custo real", actual.ac_cents, ValueKind.MONEY, None, "Realizado acumulado"
+        ),
+        CustosResumoItem(
+            "CV",
+            "Variação de custo",
+            actual.cv_cents,
+            ValueKind.MONEY,
+            _financial_variance_tone(actual.cv_cents),
+            "Gastou mais do que agregou" if actual.cv_cents < 0 else "Agregou mais do que gastou",
+        ),
+        CustosResumoItem(
+            "SV",
+            "Variação de prazo",
+            actual.sv_cents,
+            ValueKind.MONEY,
+            _financial_variance_tone(actual.sv_cents),
+            "Agregou menos do que o planejado"
+            if actual.sv_cents < 0
+            else "Agregou mais do que o planejado",
+        ),
+        CustosResumoItem(
+            "EAC (CPI)",
+            "Estimativa no término pelo CPI",
+            indicators.eac_by_cpi_cents,
+            ValueKind.MONEY,
+            None,
+            "BAC ÷ CPI: se o desempenho de custo se mantiver",
+        ),
+        CustosResumoItem(
+            "Projeção",
+            "Projeção no término (bottom-up)",
+            view.projection_cents,
+            ValueKind.MONEY,
+            None,
+            "Soma das projeções dos responsáveis por item",
+        ),
+        CustosResumoItem(
+            "VAC",
+            "Variação no término",
+            view.vac_cents,
+            ValueKind.MONEY,
+            _financial_variance_tone(view.vac_cents),
+            "BAC menos projeção no término",
+        ),
+        CustosResumoItem(
+            "TCPI",
+            "Índice de desempenho a completar",
+            indicators.tcpi,
+            ValueKind.DECIMAL,
+            financial_index_tone(indicators.tcpi),
+            "Precisa render mais do que até agora para fechar no BAC"
+            if indicators.tcpi is not None and indicators.tcpi > 1
+            else "Fecha no BAC mantendo o ritmo",
+        ),
+    )
+
+
+def _custos_kpis_summary_table(view: CostKpisOverview) -> Table:
+    return Table(
+        title=CUSTOS_KPIS_SUMMARY_TITLE,
+        columns=(
+            Column("Indicador", width=16),
+            Column("Descrição", width=36),
+            Column("Valor", ValueKind.MONEY),
+            Column("Índice", ValueKind.DECIMAL, digits=2),
+            Column("Leitura", width=48),
+        ),
+        rows=tuple(_custos_kpis_summary_row(item) for item in custos_kpis_resumo(view)),
+        per_project=False,
+    )
+
+
+def _custos_kpis_summary_row(item: CustosResumoItem) -> Row:
+    money = Cell(item.value, item.tone) if item.kind is ValueKind.MONEY else Cell()
+    index = Cell(item.value, item.tone) if item.kind is ValueKind.DECIMAL else Cell()
+    return row(item.sigla, item.nome, money, index, item.leitura)
+
+
+def _custos_kpis_value_table(view: CostKpisOverview) -> Table:
+    return Table(
+        title=CUSTOS_KPIS_POINTS_TITLE,
+        columns=(
+            Column("Mês", width=16),
+            Column("PV", ValueKind.MONEY),
+            Column("EV", ValueKind.MONEY),
+            Column("AC", ValueKind.MONEY),
+            Column("CV", ValueKind.MONEY),
+            Column("SV", ValueKind.MONEY),
+            Column("CPI", ValueKind.DECIMAL, digits=2),
+            Column("SPI", ValueKind.DECIMAL, digits=2),
+            Column("EAC pelo CPI", ValueKind.MONEY),
+            Column("TCPI", ValueKind.DECIMAL, digits=2),
+        ),
+        rows=tuple(
+            _custos_kpis_value_row(row, cut=row.month == view.cut_month) for row in view.history
+        ),
+        per_project=False,
+    )
+
+
+def _custos_kpis_value_row(item: CostKpiMonth, *, cut: bool) -> Row:
+    label = curva_financeira_month_label(item.month) + (" · corte" if cut else "")
+    return row(
+        label,
+        item.pv_cents,
+        item.ev_cents,
+        item.ac_cents,
+        Cell(item.cv_cents, _financial_variance_tone(item.cv_cents)),
+        Cell(item.sv_cents, _financial_variance_tone(item.sv_cents)),
+        Cell(item.cpi, financial_index_tone(item.cpi)),
+        Cell(item.spi, financial_index_tone(item.spi)),
+        item.eac_by_cpi_cents,
+        item.tcpi,
+    )
+
+
+def _custos_kpis_projects_table(view: CostKpisOverview) -> Table:
+    return Table(
+        title=CUSTOS_KPIS_PROJECTS_TITLE,
+        columns=(
+            Column("BAC", ValueKind.MONEY),
+            Column("EV", ValueKind.MONEY),
+            Column("AC", ValueKind.MONEY),
+            Column("CPI", ValueKind.DECIMAL, digits=2),
+            Column("SPI", ValueKind.DECIMAL, digits=2),
+            Column("Projeção no término", ValueKind.MONEY),
+            Column("VAC", ValueKind.MONEY),
+            Column("Contingência consumida", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(_custos_kpis_project_row(item) for item in view.projects),
+    )
+
+
+def _custos_kpis_project_row(item: CostKpiProjectRow) -> Row:
+    return row(
+        item.bac_cents,
+        item.ev_cents,
+        item.ac_cents,
+        Cell(item.cpi, financial_index_tone(item.cpi)),
+        Cell(item.spi, financial_index_tone(item.spi)),
+        item.projection_cents,
+        Cell(item.vac_cents, _financial_variance_tone(item.vac_cents)),
+        item.contingency_pct,
+        project=item.project_label,
+    )
+
+
+def _financial_variance_tone(value: int | None) -> Tone | None:
+    """A cor de um desvio de custo: negativo em erro, zero ou positivo em ok; sem valor, sem cor."""
+    if value is None:
+        return None
+    return Tone.ERROR if value < 0 else Tone.OK
+
+
+def financial_index_tone(value: Decimal | None) -> Tone:
+    """A cor de um índice de custo: 1 ou mais em ok, de 0,95 a 0,99 em alerta, abaixo em erro."""
+    if value is None:
+        return Tone.NEUTRAL
+    if value >= 1:
+        return Tone.OK
+    return Tone.WARN if value >= Decimal("0.95") else Tone.ERROR
+
+
+def _financial_cut_month(view: FinancialCurveOverview) -> date | None:
+    if view.series.cut_index < 0:
+        return None
+    return view.series.months[view.series.cut_index]
+
+
+def _financial_money(cents: int | None) -> str:
+    return FINANCIAL_NO_VALUE if cents is None else format_value(ValueKind.MONEY, cents)
+
+
+def _financial_signed_money(cents: int) -> str:
+    if cents > 0:
+        return f"+{_financial_money(cents)}"
+    return _financial_money(cents)
+
+
+def _financial_mil(cents: int) -> float:
+    return float(
+        (Decimal(cents) / FINANCIAL_MIL_CENTS).quantize(
+            FINANCIAL_MIL_ONE_PLACE, rounding=ROUND_HALF_UP
+        )
+    )
+
+
+def _financial_mil_or_none(cents: int | None) -> float | None:
+    return None if cents is None else _financial_mil(cents)
+
+
+def curva_financeira_month_label(month: date | None) -> str:
+    """``set/26``: o mês da curva como o protótipo o escreve."""
+    if month is None:
+        return ""
+    return f"{MONTH_NAMES[month.month - 1]}/{month.year % 100:02d}"

@@ -46,6 +46,16 @@ facade of the module with the date of the decision. It is registered by ``govern
 after ``governanca`` — the movements point at the changes, and the changes only exist after that
 part. The SMs still open stay out of the statement: they appear as "Em análise", derived by the
 facade, and never as a movement.
+
+:func:`load_financial_curve` is the part of ISSUE-042: the frozen planned of ``curvaFinanceira``
+in the revision in force of the EAC, the only series the model stores (D5b), and the monthly
+closing of the ERP that feeds committed, actual and the projection. The mock planned is frozen as
+it is — the profile of the physical curve would give another number for projects 2 and 3 (Q31,
+see ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``); the monthly series comes from the prototype and
+replaces the single month the ``financeiro-custos`` part wrote, so the accumulated of each month
+is the one the prototype shows. It is registered by ``governanca/seed.py`` after ``governanca-eac``
+(the frozen curve points at the revision of the EAC) and after ``financeiro-custos`` (the closing
+it replaces).
 """
 
 from __future__ import annotations
@@ -56,7 +66,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
@@ -82,6 +92,8 @@ from src.modulos.financeiro.models import (
     ContractMeasurement,
     ContractPaymentMilestone,
     ContractTimeExtension,
+    CurvaFinanceiraMonth,
+    CurvaFinanceiraRevision,
     EacReallocation,
     EacRevision,
     EacRevisionItem,
@@ -96,6 +108,7 @@ CONTRACTS_PART_NAME = "financeiro-contratos"
 EVALUATIONS_PART_NAME = "financeiro-contratos-avaliacoes"
 FLOWS_PART_NAME = "financeiro-contratos-fluxos"
 RESERVES_PART_NAME = "financeiro-reservas"
+FINANCIAL_CURVE_PART_NAME = "financeiro-curva"
 
 
 def load(session: Session, _reference_date: date) -> None:
@@ -912,3 +925,204 @@ def _latest_by_change(session: Session, model: type[Any], ids: Sequence[int]) ->
         return {}
     statement = select(model).where(model.change_id.in_(ids)).order_by(model.id)
     return {row.change_id: row for row in session.scalars(statement)}
+
+
+# ── Curva S financeira (ISSUE-042) ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _FinancialCurveLoad:
+    """O que a parte da Curva S financeira carrega: o autor da carga e a data da execução."""
+
+    admin: configuracoes.CollaboratorAccess
+    reference_date: date
+
+
+@dataclass(frozen=True)
+class _ErpMonthSeries:
+    """A série mensal do fechamento de um projeto: os itens, os meses e os movimentos do mock."""
+
+    project_id: int
+    items: tuple[Mapping[str, Any], ...]
+    item_ids: tuple[int, ...]
+    months: tuple[date, ...]
+    committed: tuple[int, ...]
+    actual: tuple[int, ...]
+
+
+def load_financial_curve(session: Session, reference_date: date) -> None:
+    """Grava a Curva S financeira do protótipo: o planejado congelado e o fechamento mês a mês.
+
+    O planejado do mock (Q31) é congelado na revisão vigente da EAC, porque o número do protótipo
+    não é a distribuição pelo perfil da curva física nos projetos 2 e 3; o mecanismo do
+    ``freeze_financial_curve`` vale para as revisões novas em runtime. O comprometido e o realizado
+    saem dos fatos do ERP: cada item de custo recebe um fato por mês, proporcional à série do mock,
+    fechando o acumulado corrente no corte, e a projeção fica no mês do corte; os fatos de um mês só
+    da parte ``financeiro-custos`` são substituídos, porque a série mensal é a nova fonte. A parte
+    roda depois de ``governanca-eac`` (a curva congela a revisão da EAC) e de ``financeiro-custos``
+    (os fatos que ela substitui).
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    load = _FinancialCurveLoad(admin=admin, reference_date=reference_date)
+    project_ids = {project.code: project.id for project in configuracoes.list_projects(session)}
+    mock_codes = {project["id"]: project["codigo"] for project in prototype_collection("projetos")}
+    for source in prototype_collection("curvaFinanceira"):
+        project_id = project_ids[mock_codes[source["projetoId"]]]
+        _freeze_mock_financial_curve(session, load, project_id=project_id, source=source)
+        _load_erp_months(session, load, project_id=project_id, source=source)
+
+
+def _freeze_mock_financial_curve(
+    session: Session, load: _FinancialCurveLoad, *, project_id: int, source: Mapping[str, Any]
+) -> None:
+    """Congela o planejado do mock na revisão vigente da EAC, mês a mês, sem recálculo."""
+    revision_id = session.scalar(
+        select(EacRevision.id)
+        .where(EacRevision.project_id == project_id)
+        .order_by(EacRevision.revision.desc())
+        .limit(1)
+    )
+    if revision_id is None:
+        return
+    record = CurvaFinanceiraRevision(
+        project_id=project_id,
+        eac_revision_id=revision_id,
+        generated_at=calendario.now(),
+    )
+    session.add(record)
+    session.flush()
+    session.add_all(
+        CurvaFinanceiraMonth(revision_id=record.id, month=month, planned_cents=int(planned))
+        for month, planned in zip(
+            _financial_months(source["meses"], load.reference_date),
+            source["planejado"],
+            strict=True,
+        )
+    )
+    session.flush()
+
+
+def _load_erp_months(
+    session: Session, load: _FinancialCurveLoad, *, project_id: int, source: Mapping[str, Any]
+) -> None:
+    """Substitui o fechamento de um mês do projeto pela série mensal do mock, item a item."""
+    items = [
+        item
+        for item in prototype_collection("eac")
+        if item["projetoId"] == source["projetoId"] and item["nivel"] == LEAF_LEVEL
+    ]
+    found = service.eac_item_ids_by_code(
+        session, project_id=project_id, codes=[item["codigo"] for item in items]
+    )
+    loaded = [item for item in items if item["codigo"] in found]
+    if not loaded:
+        return
+    committed = _series_targets(source["comprometido"])
+    actual = _series_targets(source["realizado"])
+    if len(committed) != len(actual):
+        message = "A série do mock precisa de comprometido e realizado até o mesmo mês de corte."
+        raise LookupError(message)
+    session.execute(delete(ErpCost).where(ErpCost.project_id == project_id))
+    _write_erp_months(
+        session,
+        load,
+        series=_ErpMonthSeries(
+            project_id=project_id,
+            items=tuple(loaded),
+            item_ids=tuple(found[item["codigo"]] for item in loaded),
+            months=_financial_months(source["meses"], load.reference_date),
+            committed=committed,
+            actual=actual,
+        ),
+    )
+
+
+def _series_targets(series: Sequence[int | None]) -> tuple[int, ...]:
+    """O movimento de cada mês: o acumulado do mock menos o do mês anterior, até o corte."""
+    targets: list[int] = []
+    previous = 0
+    for value in series:
+        if value is None:
+            break
+        targets.append(int(value) - previous)
+        previous = int(value)
+    return tuple(targets)
+
+
+def _write_erp_months(
+    session: Session, load: _FinancialCurveLoad, *, series: _ErpMonthSeries
+) -> None:
+    """Grava um fato por item e mês, com a projeção do item no mês do corte."""
+    committed_shares = _monthly_shares(
+        series.committed, [int(item["comprometido"]) for item in series.items]
+    )
+    actual_shares = _monthly_shares(
+        series.actual, [int(item["realizado"]) for item in series.items]
+    )
+    projections = [int(item["projecao"]) for item in series.items]
+    imported_at = calendario.now()
+    cut = len(committed_shares) - 1
+    for index, month in enumerate(series.months[: len(committed_shares)]):
+        for position, item_id in enumerate(series.item_ids):
+            recording.create(
+                session,
+                user_id=load.admin.id,
+                record=ErpCost(
+                    project_id=series.project_id,
+                    item_id=item_id,
+                    imported_by_id=load.admin.person_id,
+                    month=month,
+                    committed_cents=committed_shares[index][position],
+                    actual_cents=actual_shares[index][position],
+                    projection_cents=projections[position] if index == cut else None,
+                    imported_at=imported_at,
+                ),
+            )
+
+
+def _monthly_shares(targets: Sequence[int], finals: Sequence[int]) -> tuple[tuple[int, ...], ...]:
+    """A parcela de cada item em cada mês: a última fecha o total do item, sem sobra nem falta."""
+    if not targets:
+        return ()
+    remaining = list(finals)
+    shares: list[tuple[int, ...]] = []
+    for target in targets[:-1]:
+        amount = _allocate(target, remaining)
+        shares.append(amount)
+        remaining = [value - part for value, part in zip(remaining, amount, strict=True)]
+    shares.append(tuple(remaining))
+    return tuple(shares)
+
+
+def _allocate(target: int, remaining: Sequence[int]) -> tuple[int, ...]:
+    """A divisão exata de um mês pelos itens: o maior resto distribui o que o piso deixa."""
+    total = sum(remaining)
+    if target <= 0 or total <= 0:
+        return (0,) * len(remaining)
+    shares = [min(value, (value * target) // total) for value in remaining]
+    leftover = target - sum(shares)
+    order = sorted(
+        range(len(remaining)),
+        key=lambda index: (
+            -((remaining[index] * target) % total),
+            -(remaining[index] - shares[index]),
+            index,
+        ),
+    )
+    for index in order:
+        if leftover <= 0:
+            break
+        if remaining[index] > shares[index]:
+            shares[index] += 1
+            leftover -= 1
+    return tuple(shares)
+
+
+def _financial_months(texts: Sequence[str], reference_date: date) -> tuple[date, ...]:
+    """Os meses do mock como o primeiro dia do mês deslocado, como o resto da carga."""
+    return tuple(
+        shift_date(date.fromisoformat(f"{text}-01"), reference_date).replace(day=1)
+        for text in texts
+    )
