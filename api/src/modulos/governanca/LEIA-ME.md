@@ -158,7 +158,7 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 
 **Integrações.** Central de Ações (criação das ações, contagem das abertas e numeração por origem), Atas (a ata do comitê, da Central), Lições (o rascunho do encerramento) e o link de origem `Mudança` registrado em `origin_links` (a ação de implementação abre a ficha da SM).
 
-**Migração e modelo.** `m025_decisao_da_mudanca.py` acrescenta `ata_id` (FK para `ata`) e `reapresentar_em` a `mudanca_decisao`, que o modelo aceito não previa; o `docs/MODELO-DE-DADOS.md` mudou na mesma entrega. As conferências de incorporação na EAC e na EAP ficam com as ISSUE-030 e ISSUE-038.
+**Migração e modelo.** `m025_decisao_da_mudanca.py` acrescenta `ata_id` (FK para `ata`) e `reapresentar_em` a `mudanca_decisao`, que o modelo aceito não previa; o `docs/MODELO-DE-DADOS.md` mudou na mesma entrega. A conferência de incorporação na EAC entrou na ISSUE-030; a da EAP, na ISSUE-038 (ver a última seção).
 
 **Testes.** `api/tests/governanca/test_decisao.py`: quórum e decisor, aprovação com ações e link de volta, atomicidade (falha no meio desfaz tudo), adiada e reapresentação, ratificação vencida, encerramento com ação aberta, confirmações do impacto e lição em Rascunho, além das rotas (403 para Membro e a ficha de volta para o Gestor).
 
@@ -199,4 +199,16 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 **Carga.** A parte `governanca-eac` do `seed.py` grava as transferências do protótipo em `mudanca_remanejamento` e chama `financeiro.seed.load_revisions`.
 
 **Migração.** `m030_eac_revisoes_e_remanejamento.py` cria as três tabelas da EAC, acrescenta `novo_item` à `mudanca_remanejamento` e fecha os vínculos da Governança com `eac_item` (as FKs de `mudanca_remanejamento` e de `mudanca_impacto_eac_item`), como o `docs/MODELO-DE-DADOS.md` registra.
+
+## O que a ISSUE-038 trouxe (ligações com a EAP)
+
+**Fonte.** `change_eap_source` é o que a revisão da EAP lê da SM (situação aprovada, impacto em escopo do último impacto e `eap_revisao_incorporada`); `eap_revision_sources` lista as SM aprovadas com impacto em escopo que nenhuma revisão incorporou, mais antigas antes — as opções do formulário da tela da EAP.
+
+**Incorporação.** `incorporate_eap_revision` grava em `eap_revisao_incorporada` a revisão que incorporou o impacto da SM; quem chama é `planejamento.create_revision`, na mesma transação da revisão.
+
+**Gate do encerramento.** O encerramento da SM com impacto em escopo não incorporado é recusado por `_pending_eap_revision` com `CLOSING_EAP_REVISION_PENDING`; o modal de encerramento lista a pendência da EAP (e a da EAC) na conferência das linhas de base e avisa que o sistema vai recusar.
+
+**Próximo passo e ficha.** `NextStepFacts.pending_eap_revision` faz o próximo passo virar "Incorporar a SM na EAP (nova revisão)"; a ficha mostra o alerta com o link para a tela (`eap_url`) e a linha "Nova revisão da EAP (02)" com "Rev N (escopo incorporado)", "pendente: gerar revisão", "após a aprovação" ou "sem impacto em escopo" — `ChangeSheet.scope_impact` decide entre os dois últimos.
+
+**Testes.** `api/tests/governanca/test_fachada_eap.py` (fonte, incorporação, ficha, próximo passo e encerramento) e, nesta etapa, o alerta, a linha com os quatro textos e o aviso do encerramento pelas rotas.
 

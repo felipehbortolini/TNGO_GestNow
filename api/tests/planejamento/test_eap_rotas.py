@@ -36,6 +36,7 @@ from tests.identidades import criar_colaborador, criar_empresa, criar_projeto
 D = Decimal
 BASE = "/api/planejamento/eap"
 EMAIL_MEMBRO = "membro-eap-rotas@example.invalid"
+EMAIL_GESTOR = "gestor-eap-rotas@example.invalid"
 EMAIL_VISUALIZADOR = "visualizador-eap-rotas@example.invalid"
 ALVO_CONTEUDO = "eap-conteudo"
 ALVO_FORMULARIO = "eap-formulario"
@@ -244,6 +245,29 @@ def test_o_fragmento_traz_kpis_arvore_revisoes_e_desdobramentos(
     assert "1.1.3 · Partida assistida" in texto
     assert "Não iniciado" in texto
     assert 'data-carteira="nao"' in texto
+
+
+def test_o_fragmento_declara_quem_pode_editar_e_gerir(cenario_eap_rotas: CenarioEapRotas) -> None:
+    criar_colaborador(cenario_eap_rotas.session, email=EMAIL_GESTOR, perfil="Gestor")
+    do_membro = routes.eap_content(
+        pedido(
+            BASE,
+            email=EMAIL_MEMBRO,
+            envio=Envio(params=cenario_eap_rotas.params, alvo=ALVO_CONTEUDO),
+        )
+    )
+    do_gestor = routes.eap_content(
+        pedido(
+            BASE,
+            email=EMAIL_GESTOR,
+            envio=Envio(params=cenario_eap_rotas.params, alvo=ALVO_CONTEUDO),
+        )
+    )
+
+    assert 'data-pode-editar="sim"' in _texto(do_membro)
+    assert 'data-pode-gerir="nao"' in _texto(do_membro)
+    assert 'data-pode-editar="sim"' in _texto(do_gestor)
+    assert 'data-pode-gerir="sim"' in _texto(do_gestor)
 
 
 @pytest.mark.usefixtures("cenario_eap_rotas")

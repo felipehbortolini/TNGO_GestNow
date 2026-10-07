@@ -3,7 +3,8 @@
 
    Árvore de áreas, subáreas e pacotes com recolhimento, barra do real,
    faixas de desvio, o histórico de medições do dicionário e os formulários
-   do avanço e da importação do avanço.
+   do avanço, da revisão, do pacote novo e das duas importações. As ações do
+   cabeçalho dependem de hidden, que o display do .btn sozinho sobreporia.
 
    Escopo: tudo que morar aqui começa por .pagina--planejamento-eap, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
@@ -13,6 +14,8 @@
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--planejamento-eap .page-head__actions .btn[hidden] { display: none; }
+
 .pagina--planejamento-eap .eap-linha__codigo { white-space: nowrap; }
 
 .pagina--planejamento-eap .eap-linha__alternar {

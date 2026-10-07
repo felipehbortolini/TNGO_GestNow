@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 
 from src.core.errors import InvalidDataError
 from src.modulos.configuracoes.models import Project
-from src.modulos.governanca import calculations, models, service
+from src.modulos.governanca import calculations, models, routes, service
 from src.modulos.governanca.models import ChangeImpact, ChangeRequest
 from tests.governanca import apoio
 from tests.governanca.apoio import HOJE
+from tests.identidades import requisicao
 
 ESCOPO = "Inclusão do pacote de tratamento"
 
@@ -197,3 +198,82 @@ def test_encerramento_recusa_sem_a_revisao_da_eap_e_passa_depois(sessao: Session
     assert resultado.code == mudanca.code
     assert mudanca.situation == models.SITUATION_CLOSED
     assert mudanca.eap_revision == 1
+
+
+# ── A ficha e o encerramento pela rota ────────────────────────────────────
+
+
+def _html_da_ficha(projeto: Project, codigo: str) -> str:
+    resposta = routes.change_sheet(
+        requisicao(
+            "/api/governanca/mudanca",
+            email=apoio.MEMBRO,
+            params={"codigo": codigo, "projeto": str(projeto.id)},
+        )
+    )
+    assert resposta.status_code == 200
+    return resposta.get_body().decode()
+
+
+def test_a_rota_da_ficha_mostra_o_alerta_e_a_linha_da_eap(sessao: Session) -> None:
+    projeto = apoio.projeto_com_orcamento(sessao)
+    apoio.colaborador(sessao, apoio.MEMBRO)
+    mudanca = _sm(sessao, projeto, "SM-TN-2026-0001", models.SITUATION_IMPLEMENTING)
+
+    texto = _html_da_ficha(projeto, mudanca.code)
+
+    assert "Impacto em escopo ainda não incorporado à EAP." in texto
+    assert f"/planejamento/eap?projeto={projeto.id}" in texto
+    assert "Nova revisão da EAP (02)" in texto
+    assert "pendente:" in texto
+    assert "gerar revisão" in texto
+
+    service.incorporate_eap_revision(sessao, user=_gestor(sessao), change_id=mudanca.id, revision=1)
+
+    incorporada = _html_da_ficha(projeto, mudanca.code)
+
+    assert "Rev 1 (escopo incorporado)" in incorporada
+    assert "Impacto em escopo ainda não incorporado à EAP" not in incorporada
+    assert "pendente:" not in incorporada
+
+
+def test_a_linha_da_eap_sem_impacto_de_escopo(sessao: Session) -> None:
+    projeto = apoio.projeto_com_orcamento(sessao)
+    apoio.colaborador(sessao, apoio.MEMBRO)
+    mudanca = _sm(sessao, projeto, "SM-TN-2026-0002", escopo="Sem impacto")
+
+    texto = _html_da_ficha(projeto, mudanca.code)
+
+    assert "Nova revisão da EAP (02)" in texto
+    assert "sem impacto em escopo" in texto
+    assert "pendente:" not in texto
+
+
+def test_a_linha_da_eap_antes_da_aprovacao(sessao: Session) -> None:
+    projeto = apoio.projeto_com_orcamento(sessao)
+    apoio.colaborador(sessao, apoio.MEMBRO)
+    mudanca = _sm(sessao, projeto, "SM-TN-2026-0003", models.SITUATION_REGISTERED)
+
+    texto = _html_da_ficha(projeto, mudanca.code)
+
+    assert "Nova revisão da EAP (02)" in texto
+    assert "após a aprovação" in texto
+
+
+def test_a_rota_do_encerramento_avisa_a_exigencia_da_eap(sessao: Session) -> None:
+    projeto = apoio.projeto_com_orcamento(sessao)
+    apoio.colaborador(sessao, apoio.MEMBRO)
+    mudanca = _sm(sessao, projeto, "SM-TN-2026-0004", models.SITUATION_IMPLEMENTING)
+
+    resposta = routes.closing_form_view(
+        requisicao(
+            "/api/governanca/mudanca/encerrar",
+            email=apoio.MEMBRO,
+            params={"codigo": mudanca.code, "projeto": str(projeto.id)},
+        )
+    )
+    texto = resposta.get_body().decode()
+
+    assert resposta.status_code == 200
+    assert "Impacto em escopo ainda não incorporado à EAP" in texto
+    assert "Há pendências que impedem o encerramento" in texto

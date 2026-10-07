@@ -2161,6 +2161,7 @@ def _eap_content_context(visao: service.EapOverview) -> dict[str, Any]:
         "linhas": _eap_node_lines(visao),
         "situacao": "vazio-origem" if visao.is_empty else "conteudo",
         "pode_editar": visao.can_edit,
+        "pode_gerir": visao.can_manage,
         "alvo_conteudo": EAP_CONTENT_TARGET,
         "alvo_formulario": EAP_FORM_TARGET,
     }

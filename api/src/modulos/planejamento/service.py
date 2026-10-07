@@ -1585,6 +1585,7 @@ class EapOverview:
     reference_date: date
     is_portfolio: bool
     can_edit: bool
+    can_manage: bool
     scope_label: str
     nodes: tuple[EapNode, ...]
     indicators: EapIndicators
@@ -1773,6 +1774,7 @@ def _project_overview(
         reference_date=reading.reference_date,
         is_portfolio=False,
         can_edit=rbac.can(user, Permission.WRITE),
+        can_manage=rbac.can(user, Permission.MANAGE),
         scope_label=_project_label(project),
         nodes=snapshot.nodes,
         indicators=snapshot.indicators,
@@ -1808,6 +1810,7 @@ def _portfolio_overview(
         reference_date=reading.reference_date,
         is_portfolio=True,
         can_edit=False,
+        can_manage=False,
         scope_label=PORTFOLIO_LABEL,
         nodes=tuple(nodes),
         indicators=_portfolio_indicators(nodes[0], entries),

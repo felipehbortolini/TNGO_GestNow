@@ -16,7 +16,7 @@
     </div>
     <button type="button" class="iconbtn" aria-label="Fechar o formulário"
       x-init="$el.innerHTML = window.icon('dismiss', 16)"
-      @click="document.getElementById('eap-formulario').replaceChildren()"></button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"></button>
   </div>
   <div class="card__body">
     {% if mensagem or erros %}
@@ -204,7 +204,7 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="document.getElementById('eap-formulario').replaceChildren()">Cancelar</button>
+          @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
         <button type="submit" class="btn btn--primary">Salvar</button>
       </div>
     </form>

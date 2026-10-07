@@ -548,6 +548,7 @@ def test_arvore_do_projeto_soma_os_filhos_e_fecha_em_100(cenario_eap: CenarioEap
     assert not visao.is_portfolio
     assert not visao.is_empty
     assert visao.can_edit
+    assert not visao.can_manage
     assert visao.scope_label == "TN-EAP-001 · Fábrica de teste"
     assert [node.code for node in visao.nodes] == [
         "0",
@@ -580,6 +581,22 @@ def test_arvore_do_projeto_soma_os_filhos_e_fecha_em_100(cenario_eap: CenarioEap
     assert _no(visao, "1.1").weight_in_parent == D("50.0")
     assert _no(visao, "1.1.1").weight_in_parent == D("66.7")
     assert _no(visao, "1").weight_in_parent is None
+
+
+def test_o_gestor_pode_gerir_a_revisao_e_o_desdobramento(cenario_eap: CenarioEap) -> None:
+    gestor = criar_colaborador(
+        cenario_eap.session, email="gabriel.gestor@example.invalid", perfil="Gestor"
+    )
+
+    visao = service.eap_overview(
+        cenario_eap.session,
+        user=_usuario(gestor, GeneralProfile.MANAGER),
+        scope=cenario_eap.escopo,
+        reference_date=HOJE,
+    )
+
+    assert visao.can_edit
+    assert visao.can_manage
 
 
 def test_o_real_de_cada_pacote_sai_das_entradas_do_criterio(cenario_eap: CenarioEap) -> None:
@@ -700,6 +717,7 @@ def test_o_portfolio_e_somente_leitura_e_pondera_pelo_peso_na_carteira(
 
     assert visao.is_portfolio
     assert not visao.can_edit
+    assert not visao.can_manage
     assert visao.scope_label == "Portfólio"
     assert visao.current_revision is None
     assert visao.breakdowns == ()

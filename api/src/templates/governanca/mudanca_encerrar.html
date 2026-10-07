@@ -29,6 +29,12 @@
       <span class="pill {{ 'pill--erro' if formulario.open_actions else 'pill--ok' }}">{{ formulario.open_actions }}</span>
       <span class="body-txt">{{ 'ação de implementação em aberto na Central' if formulario.open_actions == 1 else 'ações de implementação em aberto na Central' if formulario.open_actions else 'Nenhuma ação de implementação em aberto' }}</span>
     </li>
+    {% if formulario.sheet.pending_eac_revision %}
+    <li class="lista-simples__item"><span class="pill pill--erro">EAC</span><span class="body-txt">Custo aprovado ainda não incorporado à EAC (03 Gestão Financeira &gt; EAC)</span></li>
+    {% endif %}
+    {% if formulario.sheet.pending_eap_revision %}
+    <li class="lista-simples__item"><span class="pill pill--erro">EAP</span><span class="body-txt">Impacto em escopo ainda não incorporado à EAP (02 Planejamento &gt; EAP)</span></li>
+    {% endif %}
     {% if formulario.schedule_required %}
     <li class="lista-simples__item"><span class="pill pill--warn">Prazo</span><span class="body-txt">Linha de base do cronograma e Curva S física atualizadas (02)</span></li>
     {% endif %}
@@ -39,6 +45,11 @@
     <li class="lista-simples__item"><span class="pill pill--warn">Riscos</span><span class="body-txt">Riscos afetados revisados no registro (05)</span></li>
     {% endif %}
   </ul>
+  {% if formulario.sheet.pending_eac_revision or formulario.sheet.pending_eap_revision %}
+  <div class="aviso aviso--warn mb-16" role="status">
+    <span>Há pendências que impedem o encerramento; o sistema vai recusar enquanto existirem.</span>
+  </div>
+  {% endif %}
 
   <div class="fgrid">
     {% if formulario.schedule_required %}

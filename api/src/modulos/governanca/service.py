@@ -216,6 +216,11 @@ class ChangeSheet:
         """Whether the change counts as approved."""
         return calculations.is_approved(self.change.situation)
 
+    @property
+    def scope_impact(self) -> bool:
+        """Whether the last impact says there is a scope impact (the rule of the EAP revision)."""
+        return self.impact is not None and calculations.has_scope_impact(self.impact.scope)
+
 
 @dataclass(frozen=True)
 class CreatedChange:

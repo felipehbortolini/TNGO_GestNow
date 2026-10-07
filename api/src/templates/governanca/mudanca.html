@@ -8,8 +8,9 @@
   fragmento genérico da plataforma. As ações vinculadas, o risco de origem e os itens da EAC aparecem
   quando os módulos donos forem ligados (D9): este fragmento não os inventa.
 
-  Espera: ficha (ChangeSheet), etapas, excel_url, pdf_url, cancelar_url, eac_url, anexos_url,
-  iniciar_analise_url, analise_url, tipo_emergencial e os apresentadores (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
+  Espera: ficha (ChangeSheet), etapas, excel_url, pdf_url, cancelar_url, eac_url, eap_url,
+  anexos_url, iniciar_analise_url, analise_url, tipo_emergencial e os apresentadores
+  (pill_situacao, pill_prioridade, texto_custo, texto_prazo).
 #}
 {% macro linha(rotulo, valor) %}
 <div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
@@ -45,6 +46,12 @@
 <div class="aviso aviso--warn mb-16" role="status">
   <strong>Custo aprovado ainda não incorporado à EAC.</strong>
   <span>Gere a nova revisão do orçamento em <a href="{{ eac_url }}" data-tn-tela>03 Gestão Financeira &gt; EAC</a>.</span>
+</div>
+{% endif %}
+{% if ficha.pending_eap_revision %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Impacto em escopo ainda não incorporado à EAP.</strong>
+  <span>Gere a nova revisão em <a href="{{ eap_url }}" data-tn-tela>02 Planejamento &gt; EAP</a>.</span>
 </div>
 {% endif %}
 {% if m.situation == 'Cancelada' %}
@@ -283,7 +290,12 @@
         {% elif ficha.is_approved %}{% set texto_eac = 'pendente' %}
         {% else %}{% set texto_eac = 'após a aprovação' %}{% endif %}
         {{ linha('Nova revisão da EAC (03)', texto_eac) }}
-        {{ linha('Nova revisão da EAP (02)', ('Rev ' ~ m.eap_revision ~ ' (escopo incorporado)') if m.eap_revision is not none else 'sem revisão incorporada') }}
+        <div class="det__row"><span class="det__label">Nova revisão da EAP (02)</span><span class="det__valor">
+          {% if m.eap_revision is not none %}Rev {{ m.eap_revision }} (escopo incorporado)
+          {% elif ficha.pending_eap_revision %}pendente: <a href="{{ eap_url }}" data-tn-tela>gerar revisão</a>
+          {% elif ficha.scope_impact %}após a aprovação
+          {% else %}sem impacto em escopo{% endif %}
+        </span></div>
         {% if m.situation == 'Encerrada' %}
         {{ linha('Encerramento', m.closing_date.strftime(data) ~ (' por ' ~ ficha.closed_by_name if ficha.closed_by_name else '') ~ ('. ' ~ m.closing_note if m.closing_note else '')) }}
         {{ linha('Linhas de base conferidas', ([('EAC Rev ' ~ m.eac_revision) if m.eac_revision is not none else '', ('EAP Rev ' ~ m.eap_revision) if m.eap_revision is not none else '', 'cronograma e Curva S' if m.closed_schedule else '', 'aditivo contratual' if m.closed_contract else '', 'riscos revisados' if m.closed_risks else ''] | select | join(', ')) or 'sem linha de base afetada') }}

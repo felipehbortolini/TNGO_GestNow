@@ -62,7 +62,7 @@ Grade das seis semanas seguintes à semana corrente, com atividades, restriçõe
 
 **Fluxos.** Rev 0 é a linha de base; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo (ISSUE-038), e o desdobramento tira peso do pacote de planejamento sem mudar o total. O dicionário grava pela fachada (`service.update_dictionary`), com trilha e versão. **Carga:** a parte `planejamento-eap` de `seed.py` grava a árvore, as etapas, as medições, as revisões e o desdobramento 5.2.1 > 5.2.2 do mock, com as datas deslocadas. **Migração:** `m036_eap_arvore_e_dicionario`. **Testes:** `api/tests/planejamento/test_eap_calculos.py`, `test_eap_validacao.py`, `test_eap_servico.py` e `test_eap_rotas.py`.
 
-Fora desta fatia: as novas revisões e o desdobramento pela tela são da ISSUE-038; o registro de medições, o estorno e a importação do avanço são da ISSUE-037 (ver a seção seguinte). A tela não traz os filtros do protótipo (busca, nível, critério e situação) nem botões de inclusão.
+O registro de medições, o estorno e a importação do avanço entraram na ISSUE-037 e as novas revisões, o desdobramento e a importação de pacotes, na ISSUE-038 (ver as seções seguintes). A tela não traz os filtros do protótipo (busca, nível, critério e situação).
 
 ## Medição do avanço (ISSUE-037)
 
@@ -82,6 +82,26 @@ Fora desta fatia: as novas revisões e o desdobramento pela tela são da ISSUE-0
 | Importação do avanço | Linha a linha: pacote inexistente, pacote de planejamento, marco fora dos degraus, executado acima da linha de base e regressão são recusados com o motivo; a linha sem mudança vira aviso | `importers.progress_importer`, `validation.parse_import_rows`, `service.import_progress` |
 
 **Fluxos.** Registrar avanço grava as entradas do critério no item e nas etapas (com trilha e versão) e cria a medição; o 422 marca o campo, o 403 do estorno e o 409 de versão vencida devolvem o formulário preenchido com o digitado no mesmo pedido. A importação usa o fluxo genérico (formulário → conferir → confirmar), recusa as linhas inválidas com o motivo e **nunca estorna**: estorno só pela tela, com justificativa. **Testes:** `api/tests/planejamento/test_eap_medicao_calculos.py`, `test_eap_medicao_validacao.py`, `test_eap_medicao_servico.py` e `test_eap_medicao_rotas.py`.
+
+## Revisões e desdobramento (ISSUE-038)
+
+**Tela** `eap` (mesmo trio): o cabeçalho ganha **Novo pacote** (só no projeto editável, marcador `data-pode-editar`), **Nova revisão** e **Importar pacotes** (só para quem gere, marcador `data-pode-gerir`), todos no modal do Design System e escondidos no vazio de origem. O formulário do pacote novo escolhe a origem do peso — desdobramento de um pacote de planejamento (o total não muda) ou inclusão por nova revisão a partir de SM aprovada com impacto em escopo —; o da revisão ajusta peso, quantidade (só no critério Unidades) e término de um pacote existente. Os dois reescalam os demais pesos pelo maior resto e voltam com o 422 por campo, o 403 sem papel Gestor e o 409 de versão no próprio formulário; a árvore, as revisões e os desdobramentos vêm no `eap-conteudo` da resposta. A importação de pacotes segue o fluxo formulário → conferir → confirmar (importador `eap-pacotes`), cria a revisão vinculada à SM só na confirmação e responde o resultado com a EAP atualizada.
+
+**Rotas** (prefixo `/api/planejamento/eap`, em `routes.py`): `GET /pacotes/novo` (`?recurso=desdobramento|revisao`) e `POST /pacotes` (desdobramento: Membro; revisão: Gestor; resposta multi-alvo `eap-formulario` + `eap-conteudo`); `GET /revisoes/nova` e `POST /revisoes` (Gestor; reescala os pesos e marca a SM na Governança); `GET /pacotes/importar/formulario`, `POST /pacotes/importar/conferir` (prévia linha a linha, nada gravado) e `POST /pacotes/importar/confirmar` (cria a revisão da SM com os pacotes das linhas sem erro).
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Maior resto | Os pesos livres são reescalados para fechar 100%: cada um fica com o piso da proporção e a sobra de um centésimo vai aos maiores restos (empate na ordem de entrada); sem peso na entrada, todas as chaves saem zeradas | `calculations.eap_rescale_weights` |
+| Previsto do pacote novo | Distribuição linear da linha de base: 0 até o início, 100 a partir do término e, no meio, os dias corridos sobre o prazo, com 1 casa | `calculations.eap_linear_predicted` |
+| Peso máximo do pacote | O do parâmetro do grupo `eap` (`pesoMaximoPacotePct`, inicial 10%); a soma dos pesos fixados (ajustes + pacotes novos) não pode passar de 100% | `validation.revision_fixed_weight_error`, `validation.hundred_rule_error` |
+| Revisão | Ajusta os pacotes afetados, inclui os novos, congela o peso de todos os pacotes de nível 3 e marca a SM na Governança, tudo na mesma transação; exige SM aprovada com impacto em escopo ainda não incorporada | `service.create_revision`, `_revision_source`, `_apply_adjustments`, `_rescale_free_weights`, `_freeze_revision` |
+| Desdobramento | Tira o peso da origem para o pacote novo, mantém o previsto e, com peso zero, encerra o pacote de planejamento (peso 0; sai da árvore, mas continua legível nos desdobramentos) | `service.breakdown_package`, `service._is_closed_package` |
+| Importação de pacotes | Linha a linha valida código, subárea, existência, critério, modelo, unidade, quantidade, peso, datas e item da EAC; a confirmação cria a revisão com as linhas sem erro e devolve as demais com o motivo | `importers.packages_importer`, `importers.revision_packages` |
+| SMs a incorporar | Aprovadas com impacto em escopo que nenhuma revisão incorporou (KPI da tela) | `service._pending_changes`, `governanca.eap_revision_sources` |
+
+**Fluxos.** A revisão só existe a partir de SM aprovada com impacto em escopo; `governanca.incorporate_eap_revision` grava `eap_revisao_incorporada` na SM e o indicador "SMs a incorporar" cai. O desdobramento não cria revisão (pede Membro, como o dicionário) e o código da planilha é preservado na importação. O encerramento da SM exige a incorporação (Governança). **Testes:** `api/tests/planejamento/test_eap_revisao_calculos.py`, `test_eap_revisao_validacao.py`, `test_eap_revisao_servico.py` e `test_eap_revisao_rotas.py`.
 
 ## Trios das telas
 

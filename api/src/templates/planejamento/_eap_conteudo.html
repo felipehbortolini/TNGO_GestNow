@@ -5,11 +5,12 @@
   Portfólio a árvore é somente leitura e os desdobramentos não entram: cada projeto tem a sua
   revisão vigente.
 
-  Espera: visao, kpis, linhas, situacao, pode_editar, alvo_conteudo e alvo_formulario.
+  Espera: visao, kpis, linhas, situacao, pode_editar, pode_gerir, alvo_conteudo e alvo_formulario.
 #}
 <span hidden data-situacao="{{ situacao }}"
   data-carteira="{{ 'sim' if visao.is_portfolio else 'nao' }}"
-  data-pode-editar="{{ 'sim' if pode_editar else 'nao' }}"></span>
+  data-pode-editar="{{ 'sim' if pode_editar else 'nao' }}"
+  data-pode-gerir="{{ 'sim' if pode_gerir else 'nao' }}"></span>
 
 <div class="kpis" role="group" aria-label="Indicadores da EAP">
   {% for kpi in kpis %}

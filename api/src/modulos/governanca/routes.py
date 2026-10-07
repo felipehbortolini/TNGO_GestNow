@@ -435,6 +435,7 @@ def _sheet_context(
         "reapresentar_url": f"/api/{REOPEN_ROUTE}?{query}",
         "encerrar_url": f"/api/{CLOSING_ROUTE}?{query}",
         "eac_url": f"/financeiro/eac?projeto={sheet.change.project_id}",
+        "eap_url": f"/planejamento/eap?projeto={sheet.change.project_id}",
         "anexos_url": f"/api/anexos?origem={service.ORIGIN_TABLE}&registro={sheet.change.id}",
         "tipo_emergencial": models.PRIORITY_EMERGENCY,
         **_presenters(),
