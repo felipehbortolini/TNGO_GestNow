@@ -15,7 +15,9 @@ applied reallocations. It runs after ``governanca`` because the transfers point 
 The ``financeiro-contratos`` part (ISSUE-032) writes the contracts of the prototype with their
 addenda and measurements. It is registered here, after ``governanca``, for the same reason: the
 addendum points at the SM that originated it by its code, and the changes only exist after the
-``governanca`` part. The loader lives in ``financeiro/seed.py``.
+``governanca`` part. The loader lives in ``financeiro/seed.py``. The
+``financeiro-contratos-avaliacoes`` part (ISSUE-034) follows it: the evaluations link the contract
+by its number, and the contracts only exist after that part.
 """
 
 from __future__ import annotations
@@ -353,3 +355,4 @@ register(PART_NAME, load)
 register(LESSONS_PART_NAME, load_lessons)
 register(EAC_PART_NAME, load_eac)
 register(financeiro_seed.CONTRACTS_PART_NAME, financeiro_seed.load_contracts)
+register(financeiro_seed.EVALUATIONS_PART_NAME, financeiro_seed.load_evaluations)

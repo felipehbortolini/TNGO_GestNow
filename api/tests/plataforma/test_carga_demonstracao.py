@@ -40,6 +40,8 @@ from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
     ContractClaim,
+    ContractEvaluation,
+    ContractEvaluationCriterion,
     ContractMeasurement,
     ContractPaymentMilestone,
     ContractTimeExtension,
@@ -58,6 +60,7 @@ PARTS = [
     "governanca-licoes",
     "governanca-eac",
     "financeiro-contratos",
+    "financeiro-contratos-avaliacoes",
     "hse",
     "planejamento",
     "programacao_semanal",
@@ -198,6 +201,43 @@ def test_carga_grava_os_contratos_do_mock(db_session: Session) -> None:
         )
     ).one()
     assert (milestone.number, milestone.pct, milestone.situation) == ("M1", 10, "Pago")
+
+
+def test_carga_grava_as_avaliacoes_do_mock(db_session: Session) -> None:
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, ContractEvaluation) == 10
+    assert _count(db_session, ContractEvaluationCriterion) == 60
+
+    contract = db_session.scalars(select(Contract).where(Contract.number == "CT-2026-014")).one()
+    evaluation = db_session.scalars(
+        select(ContractEvaluation).where(
+            ContractEvaluation.contract_id == contract.id,
+            ContractEvaluation.period == date(2026, 7, 1),
+        )
+    ).one()
+    assert evaluation.kind == "Mensal"
+    assert evaluation.comment == "Mobilização dentro do plano."
+    evaluator = db_session.scalars(select(Person).where(Person.id == evaluation.evaluator_id)).one()
+    assert evaluator.email == "rafael.costa@exemplo.com"
+    version = db_session.scalars(
+        select(ParameterVersion).where(ParameterVersion.id == evaluation.parameter_version_id)
+    ).one()
+    assert (version.group, version.version) == ("avaliacaoContratada", 1)
+
+    criteria = db_session.scalars(
+        select(ContractEvaluationCriterion)
+        .where(ContractEvaluationCriterion.evaluation_id == evaluation.id)
+        .order_by(ContractEvaluationCriterion.id)
+    ).all()
+    assert [(row.criterion, row.weight, row.note) for row in criteria] == [
+        ("hse", 25, 4),
+        ("qualidade", 20, 4),
+        ("prazo", 20, 3),
+        ("gestao", 15, 3),
+        ("recursos", 10, 4),
+        ("documentacao", 10, 3),
+    ]
 
 
 def test_carga_grava_os_fluxos_do_contrato(db_session: Session) -> None:

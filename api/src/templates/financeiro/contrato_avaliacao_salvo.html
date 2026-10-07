@@ -1,0 +1,15 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta da avaliação nova (ISSUE-034): raízes irmãs com id fixo — a exceção da resposta
+  multi-alvo —, porque a tela declara a aba e o formulário. O formulário volta vazio (fechado) e a
+  aba volta atualizada, com a nova avaliação na tabela e na série do gráfico.
+
+  Espera: ficha, linhas_avaliacoes, criterios, grafico, pode_gerir, erro_avaliacoes e os alvos
+  (alvo_avaliacoes, alvo_formulario).
+#}
+{% block root %}
+<div id="{{ alvo_avaliacoes }}">
+{% include "financeiro/_contrato_avaliacoes.html" %}
+</div>
+<div id="{{ alvo_formulario }}"></div>
+{% endblock %}

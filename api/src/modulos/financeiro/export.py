@@ -6,7 +6,9 @@ leave, the root line (code 0) with the total, and, in the Portfólio, the weight
 The revisions and the reallocations of ISSUE-030 come in the same document, as the screen shows
 them: the frozen baseline of each revision with its variation, and the applied and pending
 transfers with the free balance of the origin. The contract of ISSUE-032 brings its own document:
-the KPIs of the ficha, the cascade of the value and the tables of measurements and addenda.
+the KPIs of the ficha, the cascade of the value and the tables of measurements and addenda. The
+contractor evaluation of ISSUE-034 brings the period, the type, the evaluator, each criterion with
+the note and the weight frozen in the evaluation, the score and the class.
 """
 
 from __future__ import annotations
@@ -62,6 +64,9 @@ from src.modulos.financeiro.service import (
     ClaimView,
     ContractView,
     EacView,
+    EvaluationCriterionSpec,
+    EvaluationCriterionView,
+    EvaluationView,
     ExtensionView,
     MapaControleView,
     MapaRow,
@@ -776,3 +781,65 @@ def _extension_row(line: ExtensionView) -> Row:
         Cell(line.situation, _EXTENSION_TONES.get(line.situation)),
         line.change_code,
     )
+
+
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+CONTRACT_EVALUATIONS_TITLE = "Avaliações"
+
+_EVALUATION_CLASS_TONES = {"A": Tone.OK, "B": Tone.INFO, "C": Tone.WARN, "D": Tone.ERROR}
+
+
+def contrato_avaliacoes_document(
+    view: ContractView,
+    *,
+    criteria: Sequence[EvaluationCriterionSpec],
+    scope_label: str,
+    generated_on: date,
+) -> Document:
+    """As avaliações da ficha como documento: período, tipo, avaliador, critérios, nota e classe.
+
+    Cada critério entra em uma coluna com o seu nome e a célula leva a nota e o peso congelados na
+    avaliação (D5b), então mudar os parâmetros depois não muda a leitura. O mesmo conteúdo da aba
+    vai para o Excel e o imprimível.
+    """
+    return Document(
+        title=CONTRACT_TITLE.format(number=view.number),
+        scope_label=scope_label,
+        generated_on=generated_on,
+        context=_contract_context(view),
+        tables=(_evaluations_table(view, criteria=criteria),),
+    )
+
+
+def _evaluations_table(view: ContractView, *, criteria: Sequence[EvaluationCriterionSpec]) -> Table:
+    columns = (
+        Column("Período", ValueKind.DATE),
+        Column("Tipo", width=10),
+        Column("Avaliador", width=24),
+        *(Column(criterion.name, width=14) for criterion in criteria),
+        Column("Nota", ValueKind.INTEGER),
+        Column("Classe", width=10),
+    )
+    return Table(
+        title=CONTRACT_EVALUATIONS_TITLE,
+        columns=columns,
+        rows=tuple(_evaluation_row(line, criteria=criteria) for line in view.evaluations),
+    )
+
+
+def _evaluation_row(line: EvaluationView, *, criteria: Sequence[EvaluationCriterionSpec]) -> Row:
+    congeladas = {item.criterion: item for item in line.criteria}
+    return row(
+        line.period,
+        line.kind,
+        line.evaluator,
+        *(_criterion_note(congeladas.get(criterion.id)) for criterion in criteria),
+        line.score,
+        Cell(line.score_class, _EVALUATION_CLASS_TONES.get(line.score_class)),
+    )
+
+
+def _criterion_note(criterion: EvaluationCriterionView | None) -> str:
+    return "·" if criterion is None else f"{criterion.note} · {criterion.weight}%"

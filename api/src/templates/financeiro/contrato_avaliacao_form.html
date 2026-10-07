@@ -1,0 +1,95 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da avaliação nova (ISSUE-034): o período, o tipo (Mensal ou Final), a nota de 1 a 5
+  de cada critério vigente com o peso que será gravado na avaliação, o comentário e o arquivo de
+  evidência, obrigatório quando alguma nota for 1 ou 2. A gravação devolve a aba atualizada e o
+  formulário fechado; o 422 volta aqui, com o que a pessoa digitou e a mensagem no campo.
+
+  Espera: ficha (ContractView), valores, erros, mensagem, criterios, tipos, campo_arquivo,
+  campo_evidencia, limite_mb, tipos_arquivo, aceitos e os alvos.
+#}
+{% block fragment %}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
+  <div class="card__head">
+    <h2 class="h-card4" id="{{ target_id }}-titulo">Nova avaliação</h2>
+    <span class="hint">{{ ficha.number }} · {{ ficha.company }} · os pesos ficam gravados na avaliação</span>
+  </div>
+  <div class="card__body">
+    {% if mensagem %}
+    <div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data"
+      action="/api/financeiro/contrato/avaliacoes?numero={{ ficha.number }}"
+      x-target="{{ alvo_formulario }} {{ alvo_avaliacoes }}"
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando a avaliação...">
+      <div class="fgrid">
+        <div class="field">
+          <label for="contrato-avaliacao-periodo">Período</label>
+          <input id="contrato-avaliacao-periodo" name="periodo" type="month"
+            class="input{{ ' input--erro' if erros.periodo else '' }}"
+            value="{{ valores.periodo or '' }}" required
+            {% if erros.periodo %}aria-invalid="true" aria-describedby="contrato-avaliacao-periodo-erro"{% endif %} />
+          {% if erros.periodo %}<span class="field__erro" id="contrato-avaliacao-periodo-erro">{{ erros.periodo }}</span>{% endif %}
+        </div>
+        <div class="field">
+          <label for="contrato-avaliacao-tipo">Tipo</label>
+          <select id="contrato-avaliacao-tipo" name="tipo"
+            class="input{{ ' input--erro' if erros.tipo else '' }}" required
+            {% if erros.tipo %}aria-invalid="true" aria-describedby="contrato-avaliacao-tipo-erro"{% endif %}>
+            {% for tipo in tipos %}
+            <option value="{{ tipo }}"{{ ' selected' if valores.tipo == tipo else '' }}>{{ tipo }}</option>
+            {% endfor %}
+          </select>
+          {% if erros.tipo %}<span class="field__erro" id="contrato-avaliacao-tipo-erro">{{ erros.tipo }}</span>{% endif %}
+        </div>
+      </div>
+
+      <fieldset class="mt-16">
+        <legend class="h-card5">Critérios (nota de 1 a 5)</legend>
+        <div class="fgrid mt-16">
+          {% for criterio in criterios %}
+          <div class="field">
+            <label for="contrato-avaliacao-{{ criterio.id }}">{{ criterio.name }}
+              <span class="hint">peso {{ criterio.weight }}%</span></label>
+            <input id="contrato-avaliacao-{{ criterio.id }}" name="{{ criterio.id }}" type="number"
+              min="1" max="5" step="1"
+              class="input{{ ' input--erro' if erros.get(criterio.id) else '' }}"
+              value="{{ valores.get(criterio.id) or '' }}" required
+              {% if erros.get(criterio.id) %}aria-invalid="true" aria-describedby="contrato-avaliacao-{{ criterio.id }}-erro"{% endif %} />
+            {% if erros.get(criterio.id) %}<span class="field__erro" id="contrato-avaliacao-{{ criterio.id }}-erro">{{ erros.get(criterio.id) }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <div class="fgrid mt-16">
+        <div class="field field--full">
+          <label for="contrato-avaliacao-comentario">Comentário</label>
+          <textarea id="contrato-avaliacao-comentario" name="comentario" rows="2" maxlength="400"
+            class="input{{ ' input--erro' if erros.comentario else '' }}"
+            {% if erros.comentario %}aria-invalid="true" aria-describedby="contrato-avaliacao-comentario-erro"{% endif %}>{{ valores.comentario or '' }}</textarea>
+          {% if erros.comentario %}<span class="field__erro" id="contrato-avaliacao-comentario-erro">{{ erros.comentario }}</span>{% endif %}
+        </div>
+        <div class="field field--full">
+          <label for="contrato-avaliacao-arquivo">Evidência (obrigatória quando a nota for 1 ou 2)</label>
+          <input id="contrato-avaliacao-arquivo" name="{{ campo_arquivo }}" type="file"
+            class="input{{ ' input--erro' if erros.get(campo_evidencia) else '' }}"
+            accept="{{ aceitos }}"
+            {% if erros.get(campo_evidencia) %}aria-invalid="true" aria-describedby="contrato-avaliacao-arquivo-erro"{% endif %} />
+          {% if erros.get(campo_evidencia) %}<span class="field__erro" id="contrato-avaliacao-arquivo-erro">{{ erros.get(campo_evidencia) }}</span>{% endif %}
+          <span class="hint">Até {{ limite_mb }} MB · {{ tipos_arquivo }}</span>
+        </div>
+      </div>
+
+      <div class="acoes-rodape mt-24">
+        <button type="button" class="btn btn--secondary"
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Registrar avaliação
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

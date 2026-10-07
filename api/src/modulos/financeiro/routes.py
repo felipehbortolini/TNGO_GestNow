@@ -51,6 +51,13 @@ and ``/contrato/extensoes/{id}/decidir`` are the forms (the evidence one sends a
 ``POST /contrato/extensoes`` and ``POST /contrato/extensoes/{id}/decidir`` move the EOT. Each tab has
 its own Excel and imprimível (``.../excel`` and ``.../imprimivel``); the saved answers bring the
 panels again (a multi-target response, with the form emptied).
+
+The Avaliação de desempenho of ISSUE-034 hangs from the same ficha: ``GET /contrato/avaliacoes`` is
+the content of the tab (the table and the Gráfico de Áreas de Avaliação), ``GET
+/contrato/avaliacoes/nova`` is the form (the notes of the criteria in force, with their weights),
+``POST /contrato/avaliacoes`` creates the evaluation (multipart, with the evidence when a note 1 or
+2 demands it) and ``GET /contrato/avaliacoes/excel`` and ``.../imprimivel`` are its two exports.
+The saved answer brings the tab again (a multi-target response, with the form emptied).
 """
 
 from __future__ import annotations
@@ -59,6 +66,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from urllib.parse import urlencode
 
 import azure.functions as func
@@ -198,6 +206,12 @@ CONTRACT_EXTENSION_DECISION_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/{{extensao_id}
 CONTRACT_EXTENSIONS_EXCEL_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/excel"
 CONTRACT_EXTENSIONS_PRINTABLE_ROUTE = f"{CONTRACT_EXTENSIONS_ROUTE}/imprimivel"
 
+CONTRACT_EVALUATIONS_ROUTE = f"{CONTRACT_CONTENT_BASE}/avaliacoes"
+CONTRACT_EVALUATION_FORM_ROUTE = f"{CONTRACT_EVALUATIONS_ROUTE}/nova"
+CONTRACT_EVALUATION_CREATE_ROUTE = CONTRACT_EVALUATIONS_ROUTE
+CONTRACT_EVALUATIONS_EXCEL_ROUTE = f"{CONTRACT_EVALUATIONS_ROUTE}/excel"
+CONTRACT_EVALUATIONS_PRINTABLE_ROUTE = f"{CONTRACT_EVALUATIONS_ROUTE}/imprimivel"
+
 CONTRACT_RESUME_TEMPLATE = "financeiro/contrato_resumo.html"
 CONTRACT_MEASUREMENTS_TEMPLATE = "financeiro/contrato_medicoes.html"
 CONTRACT_ADDENDA_TEMPLATE = "financeiro/contrato_aditivos.html"
@@ -216,6 +230,9 @@ CONTRACT_CLAIM_FORM_TEMPLATE = "financeiro/contrato_claim_form.html"
 CONTRACT_CLAIM_UPDATE_TEMPLATE = "financeiro/contrato_claim_atualizacao.html"
 CONTRACT_EXTENSION_FORM_TEMPLATE = "financeiro/contrato_eot_form.html"
 CONTRACT_EXTENSION_DECISION_TEMPLATE = "financeiro/contrato_eot_decisao.html"
+CONTRACT_EVALUATIONS_TEMPLATE = "financeiro/contrato_avaliacoes.html"
+CONTRACT_EVALUATION_FORM_TEMPLATE = "financeiro/contrato_avaliacao_form.html"
+CONTRACT_EVALUATION_SAVED_TEMPLATE = "financeiro/contrato_avaliacao_salvo.html"
 
 CONTRACT_RESUME_TARGET = "contrato-resumo"
 CONTRACT_MEASUREMENTS_TARGET = "contrato-medicoes"
@@ -223,6 +240,7 @@ CONTRACT_ADDENDA_TARGET = "contrato-aditivos"
 CONTRACT_MILESTONES_TARGET = "contrato-marcos"
 CONTRACT_CLAIMS_TARGET = "contrato-claims"
 CONTRACT_EXTENSIONS_TARGET = "contrato-extensoes"
+CONTRACT_EVALUATIONS_TARGET = "contrato-avaliacoes"
 CONTRACT_FORM_TARGET = "contrato-formulario"
 
 CONTRACT_NUMBER_PARAMETER = "numero"
@@ -246,6 +264,10 @@ CONTRACT_CLAIM_AGREED_SUFFIX = " SM {code} aberta em Governança."
 CONTRACT_EXTENSION_CREATED_MESSAGE = "Extensão de prazo {code} registrada."
 CONTRACT_EXTENSION_MOVED_MESSAGE = "Extensão {code}: {situation}."
 CONTRACT_EXTENSION_EXTENDED_SUFFIX = " Término vigente prorrogado em {days} dias."
+CONTRACT_EVALUATION_CREATED_MESSAGE = "Avaliação {kind} de {period} registrada."
+CONTRACT_EVALUATION_PLAN_SUFFIX = " Plano de melhoria aberto na Central."
+CONTRACT_EVALUATION_LESSON_SUFFIX = " Lição de fornecedor criada em rascunho."
+CONTRACT_EVALUATIONS_CHART_TITLE = "Desempenho da contratada"
 
 _SITUATION_PILLS = {
     calculations.SITUATION_UNDER_REVIEW: "warn",
@@ -280,6 +302,9 @@ _EXTENSION_PILLS = {
     calculations.EXTENSION_PARTIALLY_GRANTED: "ok",
     calculations.EXTENSION_DENIED: "erro",
 }
+
+_EVALUATION_CLASS_PILLS = {"A": "ok", "B": "fix", "C": "warn", "D": "erro"}
+_EVALUATION_CLASS_PAPEIS = {"A": "ok", "B": "marca", "C": "alerta", "D": "erro"}
 
 MIL_CENTS = 100_000
 MIL_ONE_PLACE = Decimal("0.1")
@@ -3146,6 +3171,278 @@ def _contrato_extensoes_document_of(
     view = _contract_of(req, session, context)
     return export.contrato_extensoes_document(
         view,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+@dataclass(frozen=True)
+class AvaliacaoLineView:
+    """Uma avaliação como a tabela a imprime: o período, as notas por critério e o tom da classe."""
+
+    avaliacao: service.EvaluationView
+    periodo: str
+    notas: tuple[service.EvaluationCriterionView | None, ...]
+    classe_tom: str
+
+
+@bp.route(route=CONTRACT_EVALUATIONS_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_avaliacoes(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """As avaliações de desempenho da ficha, com a série do Gráfico de Áreas de Avaliação."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EVALUATIONS_TEMPLATE,
+        context=_contrato_avaliacoes_context(session, view, user=context.user),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRACT_EVALUATIONS_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contrato_avaliacoes_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba das avaliações, com as notas por critério, a nota e a classe."""
+    return excel_response(_contrato_avaliacoes_document_of(req, session, context))
+
+
+@bp.route(route=CONTRACT_EVALUATIONS_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contrato_avaliacoes_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba das avaliações: o mesmo documento do Excel."""
+    return printable_response(_contrato_avaliacoes_document_of(req, session, context), req)
+
+
+@bp.route(route=CONTRACT_EVALUATION_FORM_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def contrato_avaliacao_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da avaliação nova, com os critérios vigentes e os seus pesos."""
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EVALUATION_FORM_TEMPLATE,
+        context=_contrato_avaliacao_form_context(session, view, FormState.empty()),
+        request=req,
+    )
+
+
+def _render_avaliacao_form_error(
+    req: func.HttpRequest, error: DomainError
+) -> func.HttpResponse | None:
+    """O formulário da avaliação de volta, com o que a pessoa digitou, no 422."""
+    if not isinstance(error, InvalidDataError):
+        return None
+    try:
+        with database.unidade_de_trabalho() as session:
+            context = authorize(session, req, WRITE_ACCESS)
+            view = _contract_of(req, session, context)
+            criterios = _criterios_da_avaliacao(session)
+    except DomainError:
+        return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EVALUATION_FORM_TEMPLATE,
+        context=_contrato_avaliacao_form_context(
+            session,
+            view,
+            FormState(
+                values=_posted_avaliacao(req.form, criterios=criterios),
+                problems=problems,
+                message="" if problems else str(error),
+            ),
+        ),
+        request=req,
+        target_id=CONTRACT_FORM_TARGET,
+        status_code=422,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=CONTRACT_EVALUATION_CREATE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_render_avaliacao_form_error)
+def contrato_avaliacao_create(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra a avaliação com os pesos congelados; a nota baixa exige a evidência."""
+    view = _contract_of(req, session, context)
+    criterios = _criterios_da_avaliacao(session)
+    sent = req.files.get(attachments.FILE_FIELD)
+    avaliacao = service.create_evaluation(
+        session,
+        user=context.user,
+        scope=context.scope,
+        contract_id=view.id,
+        form=_posted_avaliacao(req.form, criterios=criterios),
+        reference_date=calendario.today(),
+        file_name=sent.filename if sent is not None else None,
+        content=sent.stream.read() if sent is not None else b"",
+    )
+    return _avaliacao_saved(req, session, context, toast=_avaliacao_created_message(avaliacao))
+
+
+def _avaliacao_saved(
+    req: func.HttpRequest, session: Session, context: RequestContext, *, toast: str
+) -> func.HttpResponse:
+    view = _contract_of(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=CONTRACT_EVALUATION_SAVED_TEMPLATE,
+        context=_contrato_avaliacoes_context(session, view, user=context.user),
+        request=req,
+        toast=toast,
+        toast_tipo="ok",
+    )
+
+
+def _avaliacao_created_message(avaliacao: service.EvaluationView) -> str:
+    message = CONTRACT_EVALUATION_CREATED_MESSAGE.format(
+        kind=avaliacao.kind.lower(), period=avaliacao.period.strftime("%m/%Y")
+    )
+    if avaliacao.requires_plan:
+        message += CONTRACT_EVALUATION_PLAN_SUFFIX
+    if avaliacao.kind == calculations.EVALUATION_KIND_FINAL:
+        message += CONTRACT_EVALUATION_LESSON_SUFFIX
+    return message
+
+
+def _contrato_avaliacoes_context(
+    session: Session, view: service.ContractView, *, user: User
+) -> dict[str, object]:
+    criterios = _criterios_da_avaliacao(session)
+    return {
+        "ficha": view,
+        "pode_gerir": rbac.can(user, Permission.MANAGE),
+        "criterios": criterios,
+        "linhas_avaliacoes": [
+            _avaliacao_line(avaliacao, criterios=criterios) for avaliacao in view.evaluations
+        ],
+        "grafico": _avaliacao_grafico(_classes_da_avaliacao(session), view.evaluation_trend),
+        "erro_avaliacoes": "",
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_avaliacoes": CONTRACT_EVALUATIONS_TARGET,
+    }
+
+
+def _contrato_avaliacao_form_context(
+    session: Session, view: service.ContractView, state: FormState
+) -> dict[str, object]:
+    limits = attachments.current_limits(session, reference_date=calendario.today())
+    return {
+        "ficha": view,
+        "valores": state.values,
+        "erros": state.problems,
+        "mensagem": state.message,
+        "criterios": _criterios_da_avaliacao(session),
+        "tipos": calculations.EVALUATION_KINDS,
+        "campo_arquivo": attachments.FILE_FIELD,
+        "campo_evidencia": service.EVALUATION_EVIDENCE_FIELD,
+        "limite_mb": limits.max_megabytes_text,
+        "tipos_arquivo": ", ".join(limits.types),
+        "aceitos": ",".join(f".{extension}" for extension in limits.extensions),
+        "alvo_formulario": CONTRACT_FORM_TARGET,
+        "alvo_avaliacoes": CONTRACT_EVALUATIONS_TARGET,
+    }
+
+
+def _avaliacao_parametros(session: Session) -> dict[str, Any]:
+    """O grupo vigente da avaliação, com o valor inicial do que faltar, como o serviço o lê."""
+    values = configuracoes.current_group(
+        session, group=service.EVALUATION_GROUP, reference_date=calendario.today()
+    )
+    initial = configuracoes.INITIAL_PARAMETERS[service.EVALUATION_GROUP]
+    return {**initial, **values}
+
+
+def _criterios_da_avaliacao(session: Session) -> tuple[service.EvaluationCriterionSpec, ...]:
+    """Os critérios vigentes da avaliação, para o formulário e os rótulos das tabelas."""
+    return tuple(
+        service.EvaluationCriterionSpec(
+            id=str(item["id"]),
+            name=str(item.get("nome") or item["id"]),
+            weight=int(item["peso"]),
+        )
+        for item in _avaliacao_parametros(session)["criterios"]
+    )
+
+
+def _classes_da_avaliacao(session: Session) -> tuple[calculations.EvaluationClass, ...]:
+    """As classes vigentes da avaliação: as faixas do gráfico e as notas mínimas."""
+    return tuple(
+        calculations.EvaluationClass(
+            name=str(item["classe"]),
+            minimum=int(item["minimo"]),
+            description=str(item.get("descricao", "")),
+        )
+        for item in _avaliacao_parametros(session)["classes"]
+    )
+
+
+def _avaliacao_grafico(
+    classes: tuple[calculations.EvaluationClass, ...],
+    trend: tuple[dict[str, int], ...],
+) -> dict[str, object]:
+    """O contrato de dados do Gráfico de Áreas de Avaliação: as classes e a série de notas."""
+    zonas = sorted(classes, key=lambda classe: classe.minimum)
+    data: dict[str, object] = {
+        "titulo": CONTRACT_EVALUATIONS_CHART_TITLE,
+        "unidade": "%",
+        "casas": 0,
+        "zonas": [
+            {
+                "de": classe.minimum,
+                "rotulo": f"Classe {classe.name}",
+                "papel": _EVALUATION_CLASS_PAPEIS.get(classe.name.upper(), "neutro"),
+            }
+            for classe in zonas
+        ],
+        "pontos": list(trend),
+        "rotulos": {"vazio": "Nenhuma avaliação registrada."},
+    }
+    if zonas:
+        data["meta"] = zonas[-1].minimum
+    return data
+
+
+def _avaliacao_line(
+    avaliacao: service.EvaluationView, *, criterios: tuple[service.EvaluationCriterionSpec, ...]
+) -> AvaliacaoLineView:
+    congeladas = {item.criterion: item for item in avaliacao.criteria}
+    return AvaliacaoLineView(
+        avaliacao=avaliacao,
+        periodo=avaliacao.period.strftime("%m/%Y"),
+        notas=tuple(congeladas.get(criterio.id) for criterio in criterios),
+        classe_tom=_EVALUATION_CLASS_PILLS.get(avaliacao.score_class, "neutral"),
+    )
+
+
+def _posted_avaliacao(
+    form: Mapping[str, str | None], *, criterios: tuple[service.EvaluationCriterionSpec, ...]
+) -> dict[str, str | None]:
+    names = (
+        validation.FIELD_EVALUATION_PERIOD,
+        validation.FIELD_EVALUATION_KIND,
+        validation.FIELD_EVALUATION_COMMENT,
+        *(criterio.id for criterio in criterios),
+    )
+    return {name: form.get(name) for name in names}
+
+
+def _contrato_avaliacoes_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view = _contract_of(req, session, context)
+    return export.contrato_avaliacoes_document(
+        view,
+        criteria=_criterios_da_avaliacao(session),
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
     )

@@ -32,6 +32,12 @@ milestone (``marcoId``), the addenda and the claims to their claim (``claimRef``
 their change (``smRef``) and to their risk (``riscoRef``). It is registered by ``riscos/seed.py``
 because the claim points at the risk by code, and the risks only exist after the ``riscos`` part;
 the flow part is the last of the demonstration.
+
+:func:`load_evaluations` is the part of ISSUE-034: the contractor performance evaluations of
+``avaliacoes`` with the weight and the note of each criterion frozen in the record, and the
+parameter version in force on the run's reference date. It is registered by ``governanca/seed.py``
+right after ``financeiro-contratos`` — the contract of each evaluation is linked by its number, and
+the contracts only exist after that part.
 """
 
 from __future__ import annotations
@@ -56,6 +62,8 @@ from src.modulos.financeiro.models import (
     Contract,
     ContractAddendum,
     ContractClaim,
+    ContractEvaluation,
+    ContractEvaluationCriterion,
     ContractMeasurement,
     ContractPaymentMilestone,
     ContractTimeExtension,
@@ -68,6 +76,7 @@ from src.modulos.financeiro.models import (
 PART_NAME = "financeiro"
 ERP_PART_NAME = "financeiro-custos"
 CONTRACTS_PART_NAME = "financeiro-contratos"
+EVALUATIONS_PART_NAME = "financeiro-contratos-avaliacoes"
 FLOWS_PART_NAME = "financeiro-contratos-fluxos"
 
 
@@ -728,3 +737,55 @@ def _link_addenda(
         if record is not None:
             record.claim_id = claims[claim_code]
     session.flush()
+
+
+# ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────
+
+
+def load_evaluations(session: Session, reference_date: date) -> None:
+    """Grava as avaliações do protótipo, com o peso e a nota congelados em cada critério.
+
+    Cada avaliação de ``avaliacoes`` liga o contrato pelo número (a parte ``financeiro-contratos``
+    roda antes) e o avaliador pelo id do mock; o período mensal vem deslocado pela âncora. Os
+    critérios entram em ``contrato_avaliacao_criterio`` com o peso e a nota do mock, e
+    ``parametro_versao_id`` aponta a versão vigente do grupo ``avaliacaoContratada`` na data de
+    referência (a plataforma semeia a versão 1 antes; sem ela, nada é gravado). A evidência, a
+    ação e a lição da avaliação final não entram aqui: a carga preserva o histórico do mock, como
+    nas demais partes.
+    """
+    admin = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if admin is None:
+        return
+    version = configuracoes.current_version(
+        session, group=service.EVALUATION_GROUP, reference_date=reference_date
+    )
+    if version is None:
+        return
+    lookup = _ContractLookup.build(session)
+    contracts = _contract_ids(session)
+    for source in prototype_collection("avaliacoes"):
+        period = shift_date(date.fromisoformat(f"{source['periodo']}-01"), reference_date).replace(
+            day=1
+        )
+        record = recording.create(
+            session,
+            user_id=admin.id,
+            record=ContractEvaluation(
+                contract_id=contracts[source["contratoId"]],
+                evaluator_id=lookup.people[source["avaliadorId"]],
+                parameter_version_id=version.id,
+                period=period,
+                kind=source["tipo"],
+                comment=source.get("comentario") or None,
+            ),
+        )
+        session.add_all(
+            ContractEvaluationCriterion(
+                evaluation_id=record.id,
+                criterion=criterion,
+                weight=int(weight),
+                note=int(source["notas"][criterion]),
+            )
+            for criterion, weight in source["pesos"].items()
+        )
+        session.flush()
