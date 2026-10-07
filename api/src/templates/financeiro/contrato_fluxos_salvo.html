@@ -4,12 +4,17 @@
   exceção da resposta multi-alvo —, porque a tela declara mais de um alvo (os painéis e o
   formulário). O formulário volta vazio (fechado) e os painéis voltam atualizados: o Resumo (o
   término vigente muda com a EOT concedida) e as tabelas de Marcos, Claims e Extensões de prazo.
+  A faixa de identificação volta em toda resposta, porque ela também mostra o término vigente
+  e é um alvo de sincronização (`x-sync`) da tela.
 
   Espera: ficha, linhas de cada aba, cascata, pode_gerir, erro_marcos, erro_claims,
   erro_extensoes e os alvos (alvo_resumo, alvo_marcos, alvo_claims, alvo_extensoes,
   alvo_formulario).
 #}
 {% block root %}
+<div id="contrato-faixa" x-sync>
+{% include "financeiro/_contrato_faixa.html" %}
+</div>
 <div id="{{ alvo_resumo }}">
 {% include "financeiro/_contrato_resumo.html" %}
 </div>

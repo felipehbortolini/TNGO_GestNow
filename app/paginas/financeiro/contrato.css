@@ -35,3 +35,23 @@
 .pagina--financeiro-contrato .contrato-acoes form {
   margin: 0;
 }
+
+.pagina--financeiro-contrato .tabs {
+  flex-wrap: wrap;
+}
+
+.pagina--financeiro-contrato .contrato-aba__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.pagina--financeiro-contrato .tbl tbody tr.contrato-linha-alerta td {
+  background: var(--erro-50);
+}
+
+.pagina--financeiro-contrato .tbl tbody tr.contrato-linha-alerta td:first-child {
+  border-left: 3px solid var(--erro-500);
+}

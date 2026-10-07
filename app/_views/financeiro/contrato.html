@@ -10,7 +10,7 @@
     <div class="page-head">
       <div>
         <h1 class="h-dash">Contrato</h1>
-        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições e aditivos; marcos, claims, extensões de prazo e avaliação nas próximas fatias.</p>
+        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims e extensões de prazo.</p>
       </div>
       <div class="page-head__actions" x-show="estado === 'conteudo'">
         <button type="button" class="btn btn--ghost" :data-tn-excel="'/api/financeiro/contrato/excel' + consulta()">
@@ -39,6 +39,15 @@
         <button type="button" class="tab" role="tab" id="aba-aditivos" aria-controls="painel-aditivos"
           :class="{ 'is-active': aba === 'aditivos' }" :aria-selected="aba === 'aditivos'"
           @click="aba = 'aditivos'">Aditivos</button>
+        <button type="button" class="tab" role="tab" id="aba-marcos" aria-controls="painel-marcos"
+          :class="{ 'is-active': aba === 'marcos' }" :aria-selected="aba === 'marcos'"
+          @click="aba = 'marcos'">Marcos de pagamento</button>
+        <button type="button" class="tab" role="tab" id="aba-claims" aria-controls="painel-claims"
+          :class="{ 'is-active': aba === 'claims' }" :aria-selected="aba === 'claims'"
+          @click="aba = 'claims'">Claims</button>
+        <button type="button" class="tab" role="tab" id="aba-extensoes" aria-controls="painel-extensoes"
+          :class="{ 'is-active': aba === 'extensoes' }" :aria-selected="aba === 'extensoes'"
+          @click="aba = 'extensoes'">Extensões de prazo</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="painel-resumo" aria-labelledby="aba-resumo" x-show="aba === 'resumo'">
@@ -69,6 +78,69 @@
           <div class="card">
             <div class="card__body">
               <div class="spinner" role="status" aria-label="Carregando os aditivos do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-marcos" aria-labelledby="aba-marcos" x-show="aba === 'marcos'">
+        <div class="contrato-aba__acoes">
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-excel="'/api/financeiro/contrato/marcos/excel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+            Excel
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-pdf="'/api/financeiro/contrato/marcos/imprimivel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+            PDF
+          </button>
+        </div>
+        <div id="contrato-marcos"
+          x-init="$ajax('/api/financeiro/contrato/marcos' + consulta(), { target: 'contrato-marcos' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando os marcos de pagamento do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-claims" aria-labelledby="aba-claims" x-show="aba === 'claims'">
+        <div class="contrato-aba__acoes">
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-excel="'/api/financeiro/contrato/claims/excel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+            Excel
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-pdf="'/api/financeiro/contrato/claims/imprimivel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+            PDF
+          </button>
+        </div>
+        <div id="contrato-claims"
+          x-init="$ajax('/api/financeiro/contrato/claims' + consulta(), { target: 'contrato-claims' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando os claims do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-extensoes" aria-labelledby="aba-extensoes" x-show="aba === 'extensoes'">
+        <div class="contrato-aba__acoes">
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-excel="'/api/financeiro/contrato/extensoes/excel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+            Excel
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-pdf="'/api/financeiro/contrato/extensoes/imprimivel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+            PDF
+          </button>
+        </div>
+        <div id="contrato-extensoes"
+          x-init="$ajax('/api/financeiro/contrato/extensoes' + consulta(), { target: 'contrato-extensoes' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando as extensões de prazo do contrato"></div>
             </div>
           </div>
         </div>

@@ -1,6 +1,10 @@
 {% extends "base_fragment.html" %}
+{#
+  A faixa também é alvo de sincronização (`x-sync`) da tela; o atributo viaja na raiz para
+  sobreviver à troca do elemento e continuar valendo nas respostas seguintes.
+#}
 {% block root %}
-<div id="contrato-faixa">
+<div id="contrato-faixa" x-sync>
 {% include "financeiro/_contrato_faixa.html" %}
 </div>
 <div id="{{ target_id }}">

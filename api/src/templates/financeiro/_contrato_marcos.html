@@ -49,7 +49,7 @@
         </thead>
         <tbody>
           {% for linha in linhas_marcos %}
-          <tr data-marco="{{ linha.marco.id }}">
+          <tr data-marco="{{ linha.marco.id }}"{% if linha.atrasado %} class="contrato-linha-alerta"{% endif %}>
             <td>
               <b class="fw-600">{{ linha.marco.number }} {{ linha.marco.description }}</b>
               <br /><span class="hint">Aceite: {{ linha.marco.criteria }}</span>

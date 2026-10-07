@@ -3,12 +3,17 @@
   Resposta das operações da ficha do contrato (nova medição, transições e novo aditivo): raízes
   irmãs com id fixo — a exceção da resposta multi-alvo —, porque a tela declara mais de um alvo
   (os painéis e o formulário). O formulário volta vazio (fechado) e os painéis voltam
-  atualizados: a cascata e o saldo do Resumo, a tabela de Medições e a de Aditivos.
+  atualizados: a cascata e o saldo do Resumo, a tabela de Medições e a de Aditivos. A faixa de
+  identificação volta porque o aditivo muda o término vigente e ela é um alvo de sincronização
+  (`x-sync`) da tela.
 
   Espera: ficha, linhas, cascata, pode_gerir, erro e os alvos (alvo_resumo, alvo_medicoes,
   alvo_aditivos, alvo_formulario).
 #}
 {% block root %}
+<div id="contrato-faixa" x-sync>
+{% include "financeiro/_contrato_faixa.html" %}
+</div>
 <div id="{{ alvo_resumo }}">
 {% include "financeiro/_contrato_resumo.html" %}
 </div>

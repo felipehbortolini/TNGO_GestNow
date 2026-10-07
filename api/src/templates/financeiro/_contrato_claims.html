@@ -48,7 +48,7 @@
         </thead>
         <tbody>
           {% for linha in linhas_claims %}
-          <tr data-claim="{{ linha.claim.id }}">
+          <tr data-claim="{{ linha.claim.id }}"{% if linha.claim.notification_late %} class="contrato-linha-alerta"{% endif %}>
             <td class="fw-600">{{ linha.claim.code }}</td>
             <td>
               <b>{{ linha.claim.direction }}</b>

@@ -1,7 +1,14 @@
 (function () {
   "use strict";
 
-  const ALVOS_DE_CONTEUDO = ["contrato-resumo", "contrato-medicoes", "contrato-aditivos"];
+  const ALVOS_DE_CONTEUDO = [
+    "contrato-resumo",
+    "contrato-medicoes",
+    "contrato-aditivos",
+    "contrato-marcos",
+    "contrato-claims",
+    "contrato-extensoes"
+  ];
   const ALVO_FORMULARIO = "contrato-formulario";
 
   function dadosDaTela(raiz) {
