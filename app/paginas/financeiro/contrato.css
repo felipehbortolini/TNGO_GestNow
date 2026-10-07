@@ -55,3 +55,16 @@
 .pagina--financeiro-contrato .tbl tbody tr.contrato-linha-alerta td:first-child {
   border-left: 3px solid var(--erro-500);
 }
+
+.pagina--financeiro-contrato .contrato-avaliacoes__grafico {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--financeiro-contrato .contrato-avaliacao__nota-baixa {
+  color: var(--erro-700);
+  font-weight: 600;
+}
+
+.pagina--financeiro-contrato .contrato-avaliacao__aviso {
+  margin-top: var(--space-md);
+}

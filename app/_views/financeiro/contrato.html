@@ -10,7 +10,7 @@
     <div class="page-head">
       <div>
         <h1 class="h-dash">Contrato</h1>
-        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims e extensões de prazo.</p>
+        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims, extensões de prazo e avaliação de desempenho.</p>
       </div>
       <div class="page-head__actions" x-show="estado === 'conteudo'">
         <button type="button" class="btn btn--ghost" :data-tn-excel="'/api/financeiro/contrato/excel' + consulta()">
@@ -48,6 +48,9 @@
         <button type="button" class="tab" role="tab" id="aba-extensoes" aria-controls="painel-extensoes"
           :class="{ 'is-active': aba === 'extensoes' }" :aria-selected="aba === 'extensoes'"
           @click="aba = 'extensoes'">Extensões de prazo</button>
+        <button type="button" class="tab" role="tab" id="aba-avaliacoes" aria-controls="painel-avaliacoes"
+          :class="{ 'is-active': aba === 'avaliacoes' }" :aria-selected="aba === 'avaliacoes'"
+          @click="aba = 'avaliacoes'">Avaliação de desempenho</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="painel-resumo" aria-labelledby="aba-resumo" x-show="aba === 'resumo'">
@@ -141,6 +144,27 @@
           <div class="card">
             <div class="card__body">
               <div class="spinner" role="status" aria-label="Carregando as extensões de prazo do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-avaliacoes" aria-labelledby="aba-avaliacoes" x-show="aba === 'avaliacoes'">
+        <div class="contrato-aba__acoes">
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-excel="'/api/financeiro/contrato/avaliacoes/excel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+            Excel
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" :data-tn-pdf="'/api/financeiro/contrato/avaliacoes/imprimivel' + consulta()">
+            <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+            PDF
+          </button>
+        </div>
+        <div id="contrato-avaliacoes"
+          x-init="$ajax('/api/financeiro/contrato/avaliacoes' + consulta(), { target: 'contrato-avaliacoes' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando as avaliações de desempenho do contrato"></div>
             </div>
           </div>
         </div>

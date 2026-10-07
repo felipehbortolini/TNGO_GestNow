@@ -60,7 +60,7 @@ vem primeiro.
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | 4 | task | done | ready-for-agent | ISSUE-030 | [ISSUE-031](./031-mapa-de-controle-projecao-e-erp.md) |
 | ISSUE-032 | Ficha do contrato: cascata de valor, medições e aditivos | 4 | task | done | ready-for-agent | ISSUE-031 | [ISSUE-032](./032-ficha-do-contrato-medicoes-e-aditivos.md) |
 | ISSUE-033 | Contrato: marcos de pagamento, claims e extensões de prazo | 4 | task | done | ready-for-agent | ISSUE-032, ISSUE-023 | [ISSUE-033](./033-marcos-de-pagamento-claims-e-eot.md) |
-| ISSUE-034 | Avaliação de desempenho da contratada | 4 | task | proposed | ready-for-agent | ISSUE-032, ISSUE-027 | [ISSUE-034](./034-avaliacao-de-desempenho-da-contratada.md) |
+| ISSUE-034 | Avaliação de desempenho da contratada | 4 | task | done | ready-for-agent | ISSUE-032, ISSUE-027 | [ISSUE-034](./034-avaliacao-de-desempenho-da-contratada.md) |
 | ISSUE-035 | Contratos: visão consolidada e indicadores da administração contratual | 4 | task | proposed | ready-for-agent | ISSUE-033, ISSUE-034 | [ISSUE-035](./035-contratos-consolidado-e-indicadores.md) |
 | ISSUE-036 | EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira | 4 | task | proposed | ready-for-agent | ISSUE-029 | [ISSUE-036](./036-eap-arvore-dicionario-e-carteira.md) |
 | ISSUE-037 | Medição dos pacotes pelo critério, estorno controlado e importação do avanço | 4 | task | proposed | ready-for-agent | ISSUE-036 | [ISSUE-037](./037-medicao-estorno-e-importacao-do-avanco.md) |

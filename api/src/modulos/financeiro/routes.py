@@ -3186,6 +3186,7 @@ class AvaliacaoLineView:
     avaliacao: service.EvaluationView
     periodo: str
     notas: tuple[service.EvaluationCriterionView | None, ...]
+    notas_baixas: tuple[bool, ...]
     classe_tom: str
 
 
@@ -3318,15 +3319,18 @@ def _contrato_avaliacoes_context(
     session: Session, view: service.ContractView, *, user: User
 ) -> dict[str, object]:
     criterios = _criterios_da_avaliacao(session)
+    limite_plano = int(_avaliacao_parametros(session)["notaExigePlano"])
     return {
         "ficha": view,
         "pode_gerir": rbac.can(user, Permission.MANAGE),
         "criterios": criterios,
         "linhas_avaliacoes": [
-            _avaliacao_line(avaliacao, criterios=criterios) for avaliacao in view.evaluations
+            _avaliacao_line(avaliacao, criterios=criterios, limite_plano=limite_plano)
+            for avaliacao in view.evaluations
         ],
         "grafico": _avaliacao_grafico(_classes_da_avaliacao(session), view.evaluation_trend),
         "erro_avaliacoes": "",
+        "limite_plano": limite_plano,
         "alvo_formulario": CONTRACT_FORM_TARGET,
         "alvo_avaliacoes": CONTRACT_EVALUATIONS_TARGET,
     }
@@ -3348,6 +3352,7 @@ def _contrato_avaliacao_form_context(
         "limite_mb": limits.max_megabytes_text,
         "tipos_arquivo": ", ".join(limits.types),
         "aceitos": ",".join(f".{extension}" for extension in limits.extensions),
+        "limite_plano": int(_avaliacao_parametros(session)["notaExigePlano"]),
         "alvo_formulario": CONTRACT_FORM_TARGET,
         "alvo_avaliacoes": CONTRACT_EVALUATIONS_TARGET,
     }
@@ -3413,13 +3418,18 @@ def _avaliacao_grafico(
 
 
 def _avaliacao_line(
-    avaliacao: service.EvaluationView, *, criterios: tuple[service.EvaluationCriterionSpec, ...]
+    avaliacao: service.EvaluationView,
+    *,
+    criterios: tuple[service.EvaluationCriterionSpec, ...],
+    limite_plano: int,
 ) -> AvaliacaoLineView:
     congeladas = {item.criterion: item for item in avaliacao.criteria}
+    notas = tuple(congeladas.get(criterio.id) for criterio in criterios)
     return AvaliacaoLineView(
         avaliacao=avaliacao,
         periodo=avaliacao.period.strftime("%m/%Y"),
-        notas=tuple(congeladas.get(criterio.id) for criterio in criterios),
+        notas=notas,
+        notas_baixas=tuple(nota is not None and nota.note <= limite_plano for nota in notas),
         classe_tom=_EVALUATION_CLASS_PILLS.get(avaliacao.score_class, "neutral"),
     )
 

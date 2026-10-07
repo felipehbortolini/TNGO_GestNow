@@ -6,7 +6,7 @@
   formulário fechado; o 422 volta aqui, com o que a pessoa digitou e a mensagem no campo.
 
   Espera: ficha (ContractView), valores, erros, mensagem, criterios, tipos, campo_arquivo,
-  campo_evidencia, limite_mb, tipos_arquivo, aceitos e os alvos.
+  campo_evidencia, limite_mb, tipos_arquivo, aceitos, limite_plano e os alvos.
 #}
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
@@ -20,6 +20,7 @@
     {% endif %}
     <form method="post" enctype="multipart/form-data"
       action="/api/financeiro/contrato/avaliacoes?numero={{ ficha.number }}"
+      data-avaliacao data-limite-plano="{{ limite_plano }}"
       x-target="{{ alvo_formulario }} {{ alvo_avaliacoes }}"
       x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando a avaliação...">
       <div class="fgrid">
@@ -52,7 +53,7 @@
             <label for="contrato-avaliacao-{{ criterio.id }}">{{ criterio.name }}
               <span class="hint">peso {{ criterio.weight }}%</span></label>
             <input id="contrato-avaliacao-{{ criterio.id }}" name="{{ criterio.id }}" type="number"
-              min="1" max="5" step="1"
+              min="1" max="5" step="1" data-nota
               class="input{{ ' input--erro' if erros.get(criterio.id) else '' }}"
               value="{{ valores.get(criterio.id) or '' }}" required
               {% if erros.get(criterio.id) %}aria-invalid="true" aria-describedby="contrato-avaliacao-{{ criterio.id }}-erro"{% endif %} />
@@ -61,6 +62,11 @@
           {% endfor %}
         </div>
       </fieldset>
+
+      <div class="aviso aviso--erro contrato-avaliacao__aviso" data-aviso-plano role="status" hidden>
+        <strong>Nota {{ limite_plano }} ou menor exige plano de melhoria.</strong>
+        <span>O anexo de evidência passa a ser obrigatório e a ação é aberta na Central com origem Contrato.</span>
+      </div>
 
       <div class="fgrid mt-16">
         <div class="field field--full">
@@ -71,7 +77,7 @@
           {% if erros.comentario %}<span class="field__erro" id="contrato-avaliacao-comentario-erro">{{ erros.comentario }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="contrato-avaliacao-arquivo">Evidência (obrigatória quando a nota for 1 ou 2)</label>
+          <label for="contrato-avaliacao-arquivo">Evidência (obrigatória quando a nota for {{ limite_plano }} ou menor)</label>
           <input id="contrato-avaliacao-arquivo" name="{{ campo_arquivo }}" type="file"
             class="input{{ ' input--erro' if erros.get(campo_evidencia) else '' }}"
             accept="{{ aceitos }}"
