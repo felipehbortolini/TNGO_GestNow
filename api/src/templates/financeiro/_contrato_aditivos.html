@@ -45,7 +45,7 @@
             <td>{{ aditivo.reason }}</td>
             <td>
               {% if aditivo.change_code %}
-              <a href="/governanca/mudanca?codigo={{ aditivo.change_code }}">{{ aditivo.change_code }}</a>
+              <a href="/governanca/mudanca?codigo={{ aditivo.change_code }}" data-tn-tela>{{ aditivo.change_code }}</a>
               {% else %}
               <span class="muted">sem SM</span>
               {% endif %}

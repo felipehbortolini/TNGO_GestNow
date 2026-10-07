@@ -1,25 +1,91 @@
 <main id="app-shell" class="content pagina--financeiro-contrato"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{
+    estado: 'carregando',
+    aba: 'resumo',
+    numero: new URLSearchParams(window.location.search).get('numero') || '',
+    consulta() { return this.numero ? '?numero=' + encodeURIComponent(this.numero) : ''; }
+  }"
   x-init="TN.paginas['financeiro/contrato'].iniciar($el)">
   <div class="page">
     <div class="page-head">
       <div>
         <h1 class="h-dash">Contrato</h1>
-        <p class="page-head__sub">Ficha do contrato: valores, medições, aditivos, marcos, claims, extensões de prazo e avaliação.</p>
+        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições e aditivos; marcos, claims, extensões de prazo e avaliação nas próximas fatias.</p>
+      </div>
+      <div class="page-head__actions" x-show="estado === 'conteudo'">
+        <button type="button" class="btn btn--ghost" :data-tn-excel="'/api/financeiro/contrato/excel' + consulta()">
+          <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+          Excel
+        </button>
+        <button type="button" class="btn btn--ghost" :data-tn-pdf="'/api/financeiro/contrato/imprimivel' + consulta()">
+          <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+          PDF
+        </button>
       </div>
     </div>
 
-    <div class="card">
+    <div id="contrato-formulario"></div>
+
+    <div x-show="estado === 'conteudo'">
+      <div id="contrato-faixa" x-sync></div>
+
+      <div class="tabs mt-16" role="tablist" aria-label="Seções do contrato">
+        <button type="button" class="tab" role="tab" id="aba-resumo" aria-controls="painel-resumo"
+          :class="{ 'is-active': aba === 'resumo' }" :aria-selected="aba === 'resumo'"
+          @click="aba = 'resumo'">Resumo</button>
+        <button type="button" class="tab" role="tab" id="aba-medicoes" aria-controls="painel-medicoes"
+          :class="{ 'is-active': aba === 'medicoes' }" :aria-selected="aba === 'medicoes'"
+          @click="aba = 'medicoes'">Medições</button>
+        <button type="button" class="tab" role="tab" id="aba-aditivos" aria-controls="painel-aditivos"
+          :class="{ 'is-active': aba === 'aditivos' }" :aria-selected="aba === 'aditivos'"
+          @click="aba = 'aditivos'">Aditivos</button>
+      </div>
+
+      <section class="mt-16" role="tabpanel" id="painel-resumo" aria-labelledby="aba-resumo" x-show="aba === 'resumo'">
+        <div id="contrato-resumo"
+          x-init="$ajax('/api/financeiro/contrato/resumo' + consulta(), { target: 'contrato-resumo', sync: true })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando o resumo do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-medicoes" aria-labelledby="aba-medicoes" x-show="aba === 'medicoes'">
+        <div id="contrato-medicoes"
+          x-init="$ajax('/api/financeiro/contrato/medicoes' + consulta(), { target: 'contrato-medicoes' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando as medições do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="painel-aditivos" aria-labelledby="aba-aditivos" x-show="aba === 'aditivos'">
+        <div id="contrato-aditivos"
+          x-init="$ajax('/api/financeiro/contrato/aditivos' + consulta(), { target: 'contrato-aditivos' })">
+          <div class="card">
+            <div class="card__body">
+              <div class="spinner" role="status" aria-label="Carregando os aditivos do contrato"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="card" x-show="estado !== 'conteudo'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p>Carregando o contrato...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhum contrato aberto</h2>
-          <p>Abra um contrato pela lista de Contratos para ver a ficha aqui.</p>
+          <h2 class="h-card4">Contrato não encontrado</h2>
+          <p>Confira o número na lista de Contratos para abrir a ficha.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">

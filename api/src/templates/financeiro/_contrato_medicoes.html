@@ -60,6 +60,7 @@
             </td>
             {% if pode_gerir %}
             <td class="td-center">
+              <div class="contrato-acoes">
               {% if linha.pode_aprovar %}
               <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/aprovar?numero={{ ficha.number }}"
                 x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Aprovando a medição...">
@@ -86,6 +87,7 @@
                 href="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/devolucao?numero={{ ficha.number }}"
                 x-target="{{ alvo_formulario }}">Devolver</a>
               {% endif %}
+              </div>
             </td>
             {% endif %}
           </tr>

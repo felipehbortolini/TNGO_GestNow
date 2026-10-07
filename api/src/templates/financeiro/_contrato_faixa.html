@@ -1,0 +1,17 @@
+<section class="card contrato-faixa" aria-label="Identificação do contrato">
+  <div class="card__body contrato-faixa__corpo">
+    <div>
+      <p class="contrato-faixa__codigo">{{ ficha.number }} · {{ ficha.company }}</p>
+      <p class="contrato-faixa__meta">
+        <span>{{ ficha.object }}</span>
+        <span>{{ ficha.modality }}</span>
+        <span>{{ ficha.start.strftime('%d/%m/%Y') }} a {{ ficha.current_end.strftime('%d/%m/%Y') }}</span>
+        <span>Gestor {{ ficha.manager }}</span>
+        <span>Fiscal {{ ficha.fiscal }}</span>
+      </p>
+    </div>
+    <div class="contrato-faixa__selos">
+      <span class="pill pill--neutral">{{ ficha.situation }}</span>
+    </div>
+  </div>
+</section>

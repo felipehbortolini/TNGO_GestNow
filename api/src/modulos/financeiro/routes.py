@@ -1800,6 +1800,7 @@ def _contrato_resumo_context(view: service.ContractView, *, user: User) -> dict[
         "ficha": view,
         "pode_gerir": rbac.can(user, Permission.MANAGE),
         "cascata": _cascata_data(view),
+        "anexos_url": f"/api/anexos?origem={service.ATTACHMENT_TABLE}&registro={view.id}",
         "alvo_formulario": CONTRACT_FORM_TARGET,
         "alvo_resumo": CONTRACT_RESUME_TARGET,
         "alvo_medicoes": CONTRACT_MEASUREMENTS_TARGET,

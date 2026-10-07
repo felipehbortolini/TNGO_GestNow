@@ -1,7 +1,7 @@
 ---
 id: ISSUE-032
 title: "Ficha do contrato: cascata de valor, medições e aditivos"
-status: proposed
+status: done
 type: task
 parent: docs/SPEC-MIGRACAO-GESTNOW.md
 entrega: 4
@@ -52,15 +52,15 @@ aceitam anexos.
 
 ## Critérios de aceite
 
-- [ ] Cascata, valor atual e saldo a faturar batem com as fórmulas (teste).
-- [ ] A medição só anda nas transições permitidas, e a devolução exige motivo.
-- [ ] A medição aprovada aparece no realizado do item da EAC.
-- [ ] O aditivo aprovado muda o valor atual e o término vigente.
-- [ ] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
-- [ ] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
-- [ ] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
-- [ ] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
-- [ ] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
+- [x] Cascata, valor atual e saldo a faturar batem com as fórmulas (teste).
+- [x] A medição só anda nas transições permitidas, e a devolução exige motivo.
+- [x] A medição aprovada aparece no realizado do item da EAC.
+- [x] O aditivo aprovado muda o valor atual e o término vigente.
+- [x] A migração do Alembic desta fatia cria as tabelas como estão em `docs/MODELO-DE-DADOS.md` (se algo precisou mudar, o diagrama muda na mesma entrega) e sobe num banco vazio.
+- [x] A parte desta fatia na carga de demonstração entra a partir dos mocks do protótipo convertidos, com as datas deslocadas para hoje e só no modo demonstração.
+- [x] Toda tabela e todo painel novo desta fatia tem Excel e PDF pelos mecanismos genéricos da plataforma, com o mesmo conteúdo que o protótipo (ou o app) exportava.
+- [x] O `LEIA-ME.md` do módulo passa a descrever o que esta fatia trouxe: telas, rotas, fórmulas (nome no código e definição de negócio), fluxos, integrações e onde mexer.
+- [x] A porta de qualidade (`npm run verificar`) passa sem nenhuma regra desligada.
 
 ## Verificação
 
@@ -74,3 +74,10 @@ Nenhuma.
 
 Fonte: `contrato.html`, `GI.api.financeiro.contrato` e `salvarAditivo`,
 `mock-financeiro`; README, "Administração contratual".
+
+## Registro de execução
+
+- Data: 2026-10-06.
+- Feito: os cálculos puros (valor atual, medido aprovado, saldo a faturar, disponível a medir, retenção, término vigente e os degraus da cascata), a validação do fluxo da medição e dos formulários, o serviço (`service.contract_detail`, `create_measurement`, `transition_measurement` com o efeito na EAC e `create_addendum` com a prorrogação), as rotas da ficha (Resumo, Medições e Aditivos por `?numero=`, formulários, criação, transições, Excel e imprimível), a migração `m032`, a carga de demonstração `financeiro-contratos`, os fragmentos, a tela completa (view, estilo e comportamento do trio `financeiro/contrato`, com a faixa de identificação, as três abas e a cascata no visual `cascata-contrato`) e o `LEIA-ME.md` do módulo.
+- Decisão de execução: a faixa de identificação fica fora das abas e chega junto do Resumo numa resposta multi-alvo (a exceção documentada), atualizada por `x-sync`; as três abas carregam por AJAX no mesmo `x-init`, e as operações devolvem os painéis atualizados na resposta multi-alvo com o formulário vazio.
+- Porta de qualidade (`npm run verificar`) e a suíte completa de pytest (1.969 testes) passaram em 06/10/2026.

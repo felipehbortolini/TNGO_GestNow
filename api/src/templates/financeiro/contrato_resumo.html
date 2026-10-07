@@ -1,8 +1,9 @@
 {% extends "base_fragment.html" %}
-{#
-  Fragmento do Resumo da ficha do contrato (ISSUE-032). A raiz leva o id que a tela pediu
-  ({{ target_id }}); o miolo é o parcial, que a resposta das operações também usa.
-#}
-{% block fragment %}
+{% block root %}
+<div id="contrato-faixa">
+{% include "financeiro/_contrato_faixa.html" %}
+</div>
+<div id="{{ target_id }}">
 {% include "financeiro/_contrato_resumo.html" %}
+</div>
 {% endblock %}

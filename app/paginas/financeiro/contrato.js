@@ -1,25 +1,59 @@
-/* ============================================================
-   contrato.js — Comportamento da tela Contrato (financeiro/contrato)
-
-   Ficha do contrato: valores, medições, aditivos, marcos, claims, extensões de prazo e avaliação.
-
-   Registra um único objeto em TN.paginas["financeiro/contrato"]. A view o aciona por
-   x-init com iniciar(raiz), e raiz é o <main> da tela. O estado da tela
-   (carregando, vazio-origem, vazio-filtro, erro ou sem-permissao) mora no
-   x-data da view, que já abre no vazio de origem.
-
-   Sem comportamento próprio ainda: iniciar() só confirma o vazio de origem,
-   que vale até a carga dos dados chegar com as ISSUE-032 a ISSUE-034.
-
-   Carrega pelo shell (app/index.html), nunca pela view. Ver
-   docs/CONTRATO-VISUAL.md.
-   ============================================================ */
 (function () {
   "use strict";
 
+  const ALVOS_DE_CONTEUDO = ["contrato-resumo", "contrato-medicoes", "contrato-aditivos"];
+  const ALVO_FORMULARIO = "contrato-formulario";
+
+  function dadosDaTela(raiz) {
+    return window.Alpine.$data(raiz);
+  }
+
+  function definirEstado(raiz, estado) {
+    dadosDaTela(raiz).estado = estado;
+  }
+
+  function concluirCarga(raiz, evento) {
+    if (dadosDaTela(raiz).estado !== "carregando") return;
+    const alvo = evento.target;
+    if (alvo instanceof Element && ALVOS_DE_CONTEUDO.indexOf(alvo.id) >= 0) {
+      definirEstado(raiz, "conteudo");
+    }
+  }
+
+  function falharCarga(raiz, evento) {
+    if (dadosDaTela(raiz).estado !== "carregando") return;
+    const status = evento.detail && evento.detail.status;
+    if (status === 403) definirEstado(raiz, "sem-permissao");
+    else if (status === 422) definirEstado(raiz, "vazio-origem");
+    else definirEstado(raiz, "erro");
+  }
+
+  function focarFormulario(evento) {
+    const alvo = evento.target;
+    if (!(alvo instanceof Element)) return;
+    if ((alvo.getAttribute("x-target") || "").indexOf(ALVO_FORMULARIO) < 0) return;
+    window.setTimeout(function () {
+      const formulario = document.getElementById(ALVO_FORMULARIO);
+      if (!formulario) return;
+      const campo = formulario.querySelector("input, select, textarea");
+      if (!campo) return;
+      campo.focus();
+      formulario.scrollIntoView({ block: "nearest" });
+    }, 0);
+  }
+
   window.TN.paginas["financeiro/contrato"] = {
     iniciar: function (raiz) {
-      window.Alpine.$data(raiz).estado = "vazio-origem";
+      definirEstado(raiz, "carregando");
+
+      raiz.addEventListener("ajax:success", function (evento) {
+        concluirCarga(raiz, evento);
+        focarFormulario(evento);
+      });
+
+      raiz.addEventListener("ajax:error", function (evento) {
+        falharCarga(raiz, evento);
+      });
     }
   };
 })();

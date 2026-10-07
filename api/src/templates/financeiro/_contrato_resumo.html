@@ -73,3 +73,12 @@
     </div>
   </div>
 </section>
+
+<section class="card mt-16">
+  <div class="card__body">
+    <div id="contrato-anexos" data-url="{{ anexos_url }}" x-data
+      x-init="$ajax($el.dataset.url, { target: 'contrato-anexos' })">
+      <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+    </div>
+  </div>
+</section>

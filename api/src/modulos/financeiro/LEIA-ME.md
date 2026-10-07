@@ -39,7 +39,8 @@ Prefixo: `/api/financeiro/`.
 | `kpis` e `curva-s` | Consultar indicadores, valor agregado e série financeira | ISSUE-042 |
 | `contingencia` | Consultar reservas e seus movimentos | ISSUE-041 |
 | `desembolso` | Consultar e exportar previsão de caixa | ISSUE-043 |
-| `contratos` e `contratos/{codigo}` | Lista, ficha e eventos do contrato | ISSUE-032 a ISSUE-035 |
+| `contrato` | Ficha do contrato pelo número: resumo, medições, aditivos e exports | ISSUE-032 a ISSUE-034 |
+| `contratos` | Lista consolidada e indicadores da administração contratual | ISSUE-035 |
 
 Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
 
@@ -69,6 +70,15 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 * **Rotas** (`routes.py`): `GET /api/financeiro/mapa-de-controle` (conteúdo do escopo), `GET .../mapa-de-controle/excel` e `GET .../mapa-de-controle/imprimivel` (os dois exports, em reais integrais e com a coluna Projeto na carteira), `GET .../mapa-de-controle/projecao/{item_id}/formulario` e `POST .../mapa-de-controle/projecao/{item_id}`, `GET /api/financeiro/custos/importar/formulario`, `POST .../custos/importar/conferir` e `POST .../custos/importar/confirmar`.
 * **Carga e oráculo**: a parte `financeiro-custos` (`seed.py::load_erp_costs`) grava o fechamento do ERP do protótipo no mês da data de referência; `tests/financeiro/test_eac_mapa_oraculo.py` afirma a projeção no término do projeto 1 em R$ 45,26 mi e a soma da carteira.
 
+## O que a ISSUE-032 trouxe
+
+* **Tela Ficha do contrato** (`financeiro/contrato`): tela de detalhe aberta pelo número (`?numero=CT-...`), com a faixa de identificação (Nº, contratada, objeto, modalidade, situação e período vigente) e as abas **Resumo**, **Medições** e **Aditivos**, cada uma carregada por AJAX. A faixa fica fora das abas e chega junto do Resumo numa resposta multi-alvo, atualizada por `x-sync`. O Resumo traz os quatro KPIs (valor atual, medido aprovado, saldo a faturar e término vigente), a **cascata de valor** no visual `cascata-contrato` (`data-grafico`/`data-dados`, D11) e os dados do contrato; Medições traz o boletim (Nº, período, bruto, retenção, líquido, situação e motivo da devolução) com as ações do fluxo; Aditivos traz número, data, valor, dias, motivo e a SM de origem. Botões **Excel** e **PDF** pelos mecanismos genéricos (D12), com o mesmo conteúdo (KPIs, cascata e tabelas).
+* **Fluxo da medição**: Em análise → Aprovada → Faturada → Paga, ou Devolvida com motivo obrigatório. As transições são formulários de um botão com a versão do registro (409 em edição simultânea); a devolução abre o formulário no alvo `contrato-formulario`; a aprovação alimenta o realizado do item da EAC do contrato, no mês do período, por um fato de `custo_erp` (upsert por item e mês); a operação é de quem gere o contrato. O disponível a medir desconta as medições Em análise.
+* **Aditivo**: nasce aprovado ao ser registrado, valor negativo é supressão, os dias prorrogam o término vigente na mesma transação e a SM de origem, quando informada, precisa ser aprovada e do projeto do contrato (fachada da Governança).
+* **Rotas** (`routes.py`): `GET /api/financeiro/contrato/resumo`, `/contrato/medicoes` e `/contrato/aditivos` (conteúdo das abas pelo `?numero=`); `GET /contrato/medicoes/nova`, `GET /contrato/medicoes/{id}/devolucao` e `GET /contrato/aditivos/novo` (formulários); `POST /contrato/medicoes` e `POST /contrato/aditivos` (criação); `POST /contrato/medicoes/{id}/aprovar`, `.../faturar`, `.../pagar` e `.../devolver` (transições); `GET /contrato/excel` e `GET /contrato/imprimivel` (exports). As operações devolvem os painéis atualizados numa resposta multi-alvo, com o formulário vazio; o 422 volta no formulário (medição e aditivo) ou no painel das medições (transição), e o 409 no mesmo lugar.
+* **Anexos**: o contrato é um tipo de origem (`contrato`) para o mecanismo genérico de anexos (D5a), com o painel embutido no Resumo (`/api/anexos?origem=contrato&registro=...`); quem lê é quem alcança o módulo.
+* **Carga e verificação**: a parte `financeiro-contratos` (`seed.py::load_contracts`, registrada pela carga da Governança) grava os contratos, aditivos e medições dos mocks; `tests/financeiro/test_contrato_calculos.py`, `test_contrato_validacao.py`, `test_contrato_servico.py` e `test_contrato_rotas.py` afirmam a cascata, o fluxo, o efeito na EAC e o aditivo; `tests/plataforma/test_carga_demonstracao.py` afirma a carga (9 contratos, 3 aditivos e 33 medições).
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |
@@ -96,16 +106,23 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 | Comprometido e realizado do mapa | Soma dos fatos do ERP do item até a data de corte (o mês do corte entra) | `calculations.erp_totals_until` |
 | Saldo a pagar | Projeção no término menos realizado, distribuído pelos períodos futuros conforme o perfil previsto | `calculations.remaining_cash_flow` |
 | Tendência financeira do relatório | `AC + (BAC - EV) / CPI` no corte do relatório, distribuída pelo perfil planejado e sem dados posteriores ao corte | `calculations.financial_eac_trend` |
+| Valor atual do contrato | Valor original mais os aditivos aprovados | `calculations.contract_current_value_cents` |
+| Medido aprovado do contrato | Soma do bruto das medições Aprovada, Faturada e Paga | `calculations.contract_measured_cents` |
+| Saldo a faturar do contrato | Valor atual menos o medido aprovado | `calculations.contract_balance_to_invoice_cents` |
+| Disponível a medir do contrato | Saldo a faturar menos as medições Em análise | `service.contract_detail` (campo `available_to_measure_cents`) |
+| Retenção da medição | Bruto pela retenção contratual, meio centavo para cima | `service._retention_cents` |
+| Término vigente do contrato | Término original mais os dias dos aditivos | `calculations.contract_current_end_date` |
+| Degraus da cascata do contrato | Valor original (total), aditivos (variação), valor atual (total), medido (redução) e saldo a faturar (total) no contrato do visual | `calculations.contract_cascade_steps` |
 
 `EAC` neste produto significa sempre Estrutura Analítica de Custos. O indicador *Estimate at Completion* é chamado **Projeção no término**. A tendência estatística por CPI do relatório é distinta da projeção bottom-up da equipe.
 
 ## Fluxos
 
-Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. A importação de itens por planilha passa pela conferência e gera uma revisão vinculada à SM aprovada. A projeção no término entra como fato datado com justificativa e a importação dos custos do ERP grava um fato por item e mês só na confirmação, substituindo o mês reimportado. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
+Revisões da EAC, itens novos financiados e remanejamentos passam por SM aprovada; a aprovação aplica a mudança. A importação de itens por planilha passa pela conferência e gera uma revisão vinculada à SM aprovada. A projeção no término entra como fato datado com justificativa e a importação dos custos do ERP grava um fato por item e mês só na confirmação, substituindo o mês reimportado. Medições contratuais avançam Em análise → Aprovada → Faturada → Paga ou Devolvida com motivo; a aprovação soma o bruto ao realizado do item da EAC, no mês do período, e o aditivo nasce aprovado e prorroga o término vigente pelos dias informados. Claims e EOT seguem os ciclos documentados no inventário do protótipo. Consumo ou liberação de reservas exige SM aprovada.
 
 ## Integrações
 
-Suprimentos compromete custo quando emite pedido/contrato. Governança fornece SMs aprovadas e a alçada/comitê para remanejamentos e reservas. Contratos alimentam comprometido/realizado e desembolso. O ERP entrega, por planilha, o fechamento do mês com comprometido, realizado e projeção; esses fatos são a base da Curva S financeira e do valor agregado (ISSUE-042), e a contingência compara o saldo com o desvio projetado (ISSUE-041). Riscos fornece VME para cobertura; Financeiro entrega KPIs à carteira e ao relatório. A comunicação entre módulos passa pelas fachadas donas.
+Suprimentos compromete custo quando emite pedido/contrato. Governança fornece SMs aprovadas e a alçada/comitê para remanejamentos, reservas e para a SM de origem do aditivo. Contratos alimentam o realizado do item da EAC (a medição aprovada vira fato de `custo_erp` no mês do período), o comprometido e o desembolso. O ERP entrega, por planilha, o fechamento do mês com comprometido, realizado e projeção; esses fatos são a base da Curva S financeira e do valor agregado (ISSUE-042), e a contingência compara o saldo com o desvio projetado (ISSUE-041). Riscos fornece VME para cobertura; Financeiro entrega KPIs à carteira e ao relatório. A comunicação entre módulos passa pelas fachadas donas.
 
 ## Parâmetros
 
@@ -126,6 +143,7 @@ Incluem faixas do mapa de calor (1%, 5%, 10% inicialmente), tolerância de consu
 | Fragmentos | `api/src/templates/financeiro/` |
 | Tela, estilo e comportamento | `app/_views/financeiro/` e `app/paginas/financeiro/` |
 | Visual Tabela Heatmap | `app/ds/graficos/tabela-heatmap.js`; contrato em `docs/styleguide-graficos.html` |
+| Visual Cascata do contrato | `app/ds/graficos/cascata-contrato.js`; contrato em `docs/styleguide-graficos.html` |
 | Testes | `api/tests/financeiro/` |
 
 Todos os arquivos Python são stubs intencionais na ISSUE-002. As issues de Financeiro completam este documento e acrescentam testes de fronteira para cada cálculo.
