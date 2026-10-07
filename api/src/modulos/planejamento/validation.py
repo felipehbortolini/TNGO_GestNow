@@ -11,6 +11,11 @@ here, on the server: the screen only helps. Every function reads the raw text
 of the form and returns typed data, or raises ``InvalidDataError`` with one
 message per field (the form comes back filled, with the message under the
 field).
+
+The dictionary of the WBS package and the weight rules (ISSUE-036): the
+descriptive fields of the package (description, deliverable, acceptance,
+company, owner and the EAC item) and the rules that keep the weights within the
+parameters (100% of the project and the maximum per package).
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
 from src.core.errors import InvalidDataError
 
@@ -461,3 +467,161 @@ def parse_removal(raw: Mapping[str, str]) -> RemovalData:
     if errors:
         raise InvalidDataError(errors)
     return RemovalData(removal_date=removal_date, comment=comment or None)
+
+
+PACKAGE_DESCRIPTION_MIN = 3
+
+
+PACKAGE_DESCRIPTION_MAX = 120
+
+
+PACKAGE_TEXT_MAX = 300
+
+
+PACKAGE_DESCRIPTION_MESSAGE = "Descreva o pacote (mínimo de 3 caracteres)."
+
+
+PACKAGE_WEIGHT_ZERO_MESSAGE = "Informe um peso maior que zero."
+
+
+PACKAGE_WEIGHT_MAX_MESSAGE = (
+    "O peso passa o máximo de {maximum}% por pacote: decomponha em pacotes menores."
+)
+
+
+WEIGHTS_TOTAL_MESSAGE = "Os pesos dos pacotes devem somar 100% (atual: {total}%)."
+
+
+HUNDRED = Decimal(100)
+
+
+TWO_PLACES = Decimal("0.01")
+
+
+@dataclass(frozen=True)
+class DictionaryChoices:
+    """O que o cadastro oferece ao dicionário: as empresas, as pessoas e os itens da EAC."""
+
+    company_ids: frozenset[int]
+    person_ids: frozenset[int]
+    eac_codes: frozenset[str]
+
+
+@dataclass(frozen=True)
+class PackageDictionary:
+    """O dicionário do pacote, pronto para a fachada."""
+
+    description: str
+    deliverable: str
+    acceptance: str
+    company_id: int | None
+    owner_id: int
+    eac_code: str | None
+
+
+def _package_description(raw: Mapping[str, str], errors: dict[str, str]) -> str:
+    value = _text(raw, "descricao")
+    if len(value) < PACKAGE_DESCRIPTION_MIN:
+        errors["descricao"] = PACKAGE_DESCRIPTION_MESSAGE
+    elif len(value) > PACKAGE_DESCRIPTION_MAX:
+        errors["descricao"] = TOO_LONG_MESSAGE.format(
+            label="A descrição", limit=PACKAGE_DESCRIPTION_MAX
+        )
+    return value
+
+
+def _optional_text(
+    raw: Mapping[str, str], field: str, *, label: str, limit: int, errors: dict[str, str]
+) -> str:
+    value = _text(raw, field)
+    if len(value) > limit:
+        errors[field] = TOO_LONG_MESSAGE.format(label=label.capitalize(), limit=limit)
+    return value
+
+
+def _optional_choice_id(
+    raw: Mapping[str, str],
+    field: str,
+    *,
+    label: str,
+    allowed: frozenset[int],
+    errors: dict[str, str],
+) -> int | None:
+    text = _text(raw, field)
+    if not text:
+        return None
+    found = parse_id(text)
+    if found is None or found not in allowed:
+        errors[field] = UNKNOWN_CHOICE_MESSAGE.format(label=label)
+        return None
+    return found
+
+
+def _optional_choice_text(
+    raw: Mapping[str, str],
+    field: str,
+    *,
+    label: str,
+    allowed: frozenset[str],
+    errors: dict[str, str],
+) -> str | None:
+    value = _text(raw, field)
+    if not value:
+        return None
+    if value not in allowed:
+        errors[field] = UNKNOWN_CHOICE_MESSAGE.format(label=label)
+        return None
+    return value
+
+
+def parse_dictionary_form(raw: Mapping[str, str], choices: DictionaryChoices) -> PackageDictionary:
+    """O dicionário do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    errors: dict[str, str] = {}
+    description = _package_description(raw, errors)
+    deliverable = _optional_text(
+        raw, "entregavel", label="o entregável", limit=PACKAGE_TEXT_MAX, errors=errors
+    )
+    acceptance = _optional_text(
+        raw, "aceitacao", label="o critério de aceitação", limit=PACKAGE_TEXT_MAX, errors=errors
+    )
+    company_id = _optional_choice_id(
+        raw, "empresa", label="a empresa", allowed=choices.company_ids, errors=errors
+    )
+    owner_id = _choice_id(
+        raw, "responsavel", label="o responsável", allowed=choices.person_ids, errors=errors
+    )
+    eac_code = _optional_choice_text(
+        raw, "eac", label="o item da EAC", allowed=choices.eac_codes, errors=errors
+    )
+    if errors:
+        raise InvalidDataError(errors)
+    return PackageDictionary(
+        description=description,
+        deliverable=deliverable,
+        acceptance=acceptance,
+        company_id=company_id,
+        owner_id=owner_id,
+        eac_code=eac_code,
+    )
+
+
+def weights_total(weights: Sequence[Decimal]) -> Decimal:
+    """A soma dos pesos dos pacotes, em % com 2 casas."""
+    return sum(weights, Decimal(0)).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def hundred_rule_error(weights: Sequence[Decimal]) -> str | None:
+    """A regra dos 100%: os pesos dos pacotes de um projeto fecham em exatamente 100."""
+    total = weights_total(weights)
+    if total != HUNDRED:
+        return WEIGHTS_TOTAL_MESSAGE.format(total=total)
+    return None
+
+
+def package_weight_error(weight: Decimal, *, maximum: Decimal) -> str | None:
+    """O peso de um pacote: maior que zero e até o máximo do parâmetro."""
+    if weight <= 0:
+        return PACKAGE_WEIGHT_ZERO_MESSAGE
+    if weight > maximum:
+        return PACKAGE_WEIGHT_MAX_MESSAGE.format(maximum=maximum)
+    return None

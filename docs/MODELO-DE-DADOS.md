@@ -840,6 +840,9 @@ erDiagram
         text criterio
         text modelo
         numeric quantidade
+        numeric executado
+        text estado
+        numeric estimado_pct
         numeric peso
         numeric previsto
         date inicio
@@ -854,6 +857,7 @@ erDiagram
         integer ordem
         text nome
         numeric peso
+        numeric pct
     }
     eap_medicao {
         bigint id PK
@@ -1979,8 +1983,8 @@ fachada, não por coluna.
 
 | Tabela | O que guarda | Dono |
 |---|---|---|
-| `eap_item` | EAP em três níveis (`pai_id` + `nivel`): área, subárea e pacote (Trabalho ou Planejamento), com código, descrição, critério de medição, modelo de etapas, unidade, quantidade, peso, previsto da LB, datas, empresa, responsável, item da EAC, entregável e critério de aceitação. Avanço, previsto por área e desvio **não são colunas**: o real sai da última `eap_medicao` pelo critério. UK: projeto + código. | planejamento |
-| `eap_item_etapa` | Etapas do pacote no critério Etapas (ordem, nome e peso), instanciadas do modelo de etapas dos parâmetros. O % concluído de cada etapa é calculado da medição. Sem `versao`: protegida pela versão do item. | planejamento |
+| `eap_item` | EAP em três níveis (`pai_id` + `nivel`): área, subárea e pacote (Trabalho ou Planejamento), com código, descrição, critério de medição, modelo de etapas, unidade, quantidade, peso, previsto da LB, datas, empresa, responsável, item da EAC, entregável e critério de aceitação. As entradas do critério (`executado`, `estado` e `estimado_pct`) são o **estado corrente** do pacote; avanço, previsto por área e desvio **não são colunas**: o real é calculado dessas entradas pelo critério (D5b). UK: projeto + código. | planejamento |
+| `eap_item_etapa` | Etapas do pacote no critério Etapas (ordem, nome, peso e o `pct` concluído corrente), instanciadas do modelo de etapas dos parâmetros. Sem `versao`: protegida pela versão do item. | planejamento |
 | `eap_medicao` | Medição datada do pacote (data, de, para, autor e observação). Fato imutável, sem `versao`. | planejamento |
 | `eap_revisao` | Revisão da EAP (Rev 0 = linha de base) com data, alteração, justificativa, SM de origem e aprovador. A contagem de pacotes é calculada. UK: projeto + revisão. | planejamento |
 | `eap_revisao_item` | **Exceção da D5b**: peso congelado de cada pacote na revisão, para a revisão não mudar quando os pesos atuais mudarem. UK: revisão + item. Sem `versao`. | planejamento |
@@ -2220,7 +2224,7 @@ protótipo, carregados na ordem em que o protótipo os carrega (ver
 | `jornadasCampo` | Jornada por frente e dia, com `manha` e `tarde`. | `jornada_campo`; CP, utilização e HH são calculadas. |
 | `amostragens` | Rodadas com `motivosParado` e `motivosTransito`. | `amostragem` + `amostragem_motivo`; percentuais e Pareto são calculados. |
 | `paralisacoes` | Paralisações de efetivo e de máquina/equipamento. | `paralisacao`; Hhora e Mhora são calculados. |
-| `eap` | Árvore com critério, `etapas`, `executado`, `estado`, `estimadoPct`, `peso`, `previsto` e `medicoes`. | `eap_item` + `eap_item_etapa` + `eap_medicao`; avanço, desvio, previsto por área e séries são calculados. |
+| `eap` | Árvore com critério, `etapas`, `executado`, `estado`, `estimadoPct`, `peso`, `previsto` e `medicoes`. | `eap_item` + `eap_item_etapa` (as entradas correntes do critério, D5b) + `eap_medicao`; avanço, desvio, previsto por área e séries são calculados. |
 | `eapRevisoes` | Revisões com `pacotes`, `alteracao` e justificativa. | `eap_revisao` + `eap_revisao_item` (pesos congelados, exceção da D5b); a contagem de pacotes é calculada. |
 | `eapDesdobramentos` | Desdobramento de pacote de planejamento. | `eap_desdobramento`. |
 | `relatos` | Relato com `atividadesPeriodo`, `atividadesProximo` e `pontos`. | `relato` + `relato_atividade` (`grupo`) + `relato_ponto`. |

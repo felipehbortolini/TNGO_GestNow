@@ -8,6 +8,11 @@ listed in ``LEIA-ME.md``.
 
 The 6WLA rules (ISSUE-045) live here, one function per business rule. None of
 them reads the clock: the reference date comes in as an argument (D6).
+
+The WBS rules (ISSUE-036): the real of a package comes from the entries of its
+measuring criterion, the nodes of the tree add up the children by weight (the
+100% rule) and the deviation uses the bands of the parameters. The reference
+date also comes in as an argument (D6).
 """
 
 from __future__ import annotations
@@ -388,3 +393,273 @@ def activity_span(planned: Sequence[bool], window_start: date) -> tuple[date, da
     start = calendario.add_days(window_start, DAYS_IN_WEEK * indexes[0])
     last_monday = calendario.add_days(window_start, DAYS_IN_WEEK * indexes[-1])
     return start, calendario.add_days(last_monday, SCHEDULED_DAYS_IN_WEEK - 1)
+
+
+WORK_PACKAGE = "Trabalho"
+
+
+PLANNING_PACKAGE = "Planejamento"
+
+
+CRITERION_STEPS = "Etapas"
+
+
+CRITERION_UNITS = "Unidades"
+
+
+CRITERION_MILESTONE_0_100 = "Marco 0/100"
+
+
+CRITERION_MILESTONE_50_50 = "Marco 50/50"
+
+
+CRITERION_ESTIMATED = "Percentual estimado"
+
+
+EAP_CRITERIA = (
+    CRITERION_STEPS,
+    CRITERION_UNITS,
+    CRITERION_MILESTONE_0_100,
+    CRITERION_MILESTONE_50_50,
+    CRITERION_ESTIMATED,
+)
+
+
+MILESTONE_NOT_STARTED = "Não iniciado"
+
+
+MILESTONE_STARTED = "Iniciado"
+
+
+MILESTONE_DONE = "Concluído"
+
+
+SUCCESS_BAND = "success"
+
+
+WARNING_BAND = "warning"
+
+
+DANGER_BAND = "danger"
+
+
+ZERO = Decimal(0)
+
+
+HALF = Decimal(50)
+
+
+ONE_PLACE = Decimal("0.1")
+
+
+@dataclass(frozen=True)
+class EapStep:
+    """Uma etapa do critério Etapas: o nome, o peso no pacote e o % concluído corrente."""
+
+    name: str
+    weight: Decimal
+    pct: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class EapWeightedValue:
+    """Um valor da média ponderada: o peso e o percentual que ele pondera."""
+
+    weight: Decimal
+    value: Decimal
+
+
+@dataclass(frozen=True)
+class EapPackage:
+    """O pacote de nível 3 como o cálculo do nó precisa dele.
+
+    ``kind`` diz se é pacote de trabalho ou de planejamento; as entradas do critério são o
+    estado corrente de onde o real é calculado.
+    """
+
+    kind: str
+    weight: Decimal
+    predicted: Decimal
+    start: date | None
+    finish: date | None
+    criterion: str | None = None
+    etapas: Sequence[EapStep] = ()
+    quantity: Decimal | None = None
+    executed: Decimal | None = None
+    state: str | None = None
+    estimated_pct: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class EapTotals:
+    """Os totais de um nó da árvore: um pacote, uma área, uma subárea ou a linha 0."""
+
+    weight: Decimal
+    predicted: Decimal
+    actual: Decimal
+    start: date | None
+    finish: date | None
+    packages: int = 0
+    planning: int = 0
+    overdue: bool = False
+    not_started: bool = False
+
+
+def eap_package_progress(
+    criterion: str | None,
+    *,
+    etapas: Sequence[EapStep] = (),
+    quantity: Decimal | None = None,
+    executed: Decimal | None = None,
+    state: str | None = None,
+    estimated_pct: Decimal | None = None,
+) -> Decimal:
+    """O real do pacote pelo critério de medição, entre 0 e 100 e com 2 casas.
+
+    O pacote de planejamento, sem critério, não mede avanço: fica em zero.
+    """
+    if criterion == CRITERION_STEPS:
+        value = _steps_progress(etapas)
+    elif criterion == CRITERION_UNITS:
+        value = _units_progress(quantity, executed)
+    elif criterion == CRITERION_MILESTONE_0_100:
+        value = PERCENT if state == MILESTONE_DONE else ZERO
+    elif criterion == CRITERION_MILESTONE_50_50:
+        value = _milestone_half_progress(state)
+    elif criterion == CRITERION_ESTIMATED:
+        value = estimated_pct if estimated_pct is not None else ZERO
+    else:
+        value = ZERO
+    return _clamp_progress(value)
+
+
+def _steps_progress(etapas: Sequence[EapStep]) -> Decimal:
+    weighted = sum(((step.weight or ZERO) * (step.pct or ZERO) for step in etapas), ZERO)
+    return weighted / PERCENT
+
+
+def _units_progress(quantity: Decimal | None, executed: Decimal | None) -> Decimal:
+    if quantity is None or quantity <= ZERO:
+        return ZERO
+    done = executed if executed is not None else ZERO
+    return min(PERCENT, done * PERCENT / quantity)
+
+
+def _milestone_half_progress(state: str | None) -> Decimal:
+    if state == MILESTONE_DONE:
+        return PERCENT
+    if state == MILESTONE_STARTED:
+        return HALF
+    return ZERO
+
+
+def _clamp_progress(value: Decimal) -> Decimal:
+    clamped = min(PERCENT, max(ZERO, value))
+    return clamped.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def eap_weighted_progress(values: Sequence[EapWeightedValue]) -> Decimal:
+    """A média ponderada dos valores pelo peso, com 2 casas; sem peso, zero."""
+    total_weight = sum((item.weight for item in values), ZERO)
+    if total_weight == ZERO:
+        return ZERO
+    weighted = sum((item.weight * item.value for item in values), ZERO)
+    return (weighted / total_weight).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def eap_deviation_pp(actual: Decimal, predicted: Decimal) -> Decimal:
+    """O desvio físico em pontos percentuais: real menos previsto, com 1 casa."""
+    return (actual - predicted).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def eap_deviation_band(deviation: Decimal | None, bands: Sequence[Decimal]) -> str | None:
+    """A faixa do desvio: ``success`` até -faixa[0], ``warning`` até -faixa[1], senão ``danger``."""
+    if deviation is None:
+        return None
+    if deviation >= -bands[0]:
+        return SUCCESS_BAND
+    if deviation >= -bands[1]:
+        return WARNING_BAND
+    return DANGER_BAND
+
+
+def eap_package_overdue(
+    kind: str, finish: date | None, actual: Decimal, reference_date: date
+) -> bool:
+    """Pacote vencido: de trabalho, com término anterior à referência e real abaixo de 100."""
+    if kind == PLANNING_PACKAGE or finish is None:
+        return False
+    return finish < reference_date and actual < PERCENT
+
+
+def eap_package_not_started(
+    kind: str, start: date | None, actual: Decimal, reference_date: date
+) -> bool:
+    """Pacote não iniciado: de trabalho, já deveria ter começado e o real está em zero."""
+    if kind == PLANNING_PACKAGE or start is None:
+        return False
+    return start <= reference_date and actual == ZERO
+
+
+def eap_package_totals(package: EapPackage, *, reference_date: date) -> EapTotals:
+    """O nó do pacote: real do critério, contagem e as marcas de vencido e não iniciado.
+
+    O pacote de planejamento não mede avanço, mesmo que traga um critério gravado.
+    """
+    work = package.kind != PLANNING_PACKAGE
+    actual = (
+        eap_package_progress(
+            package.criterion,
+            etapas=package.etapas,
+            quantity=package.quantity,
+            executed=package.executed,
+            state=package.state,
+            estimated_pct=package.estimated_pct,
+        )
+        if work
+        else ZERO
+    )
+    return EapTotals(
+        weight=package.weight,
+        predicted=package.predicted,
+        actual=actual,
+        start=package.start,
+        finish=package.finish,
+        packages=1 if work else 0,
+        planning=0 if work else 1,
+        overdue=eap_package_overdue(package.kind, package.finish, actual, reference_date),
+        not_started=eap_package_not_started(package.kind, package.start, actual, reference_date),
+    )
+
+
+def eap_node_totals(children: Sequence[EapTotals]) -> EapTotals:
+    """Os totais de um nó a partir dos filhos: peso somado, previsto e real ponderados, extremos."""
+    if not children:
+        return EapTotals(weight=ZERO, predicted=ZERO, actual=ZERO, start=None, finish=None)
+    weight = sum((child.weight for child in children), ZERO).quantize(
+        TWO_PLACES, rounding=ROUND_HALF_UP
+    )
+    predicted = eap_weighted_progress(
+        [EapWeightedValue(child.weight, child.predicted) for child in children]
+    )
+    actual = eap_weighted_progress(
+        [EapWeightedValue(child.weight, child.actual) for child in children]
+    )
+    starts = [child.start for child in children if child.start is not None]
+    finishes = [child.finish for child in children if child.finish is not None]
+    return EapTotals(
+        weight=weight,
+        predicted=predicted,
+        actual=actual,
+        start=min(starts) if starts else None,
+        finish=max(finishes) if finishes else None,
+        packages=sum(child.packages for child in children),
+        planning=sum(child.planning for child in children),
+        overdue=any(child.overdue for child in children),
+        not_started=any(child.not_started for child in children),
+    )
+
+
+def eap_root_totals(children: Sequence[EapTotals]) -> EapTotals:
+    """A linha 0 da árvore: o total do projeto (ou do portfólio) a partir dos nós de nível 1."""
+    return eap_node_totals(children)

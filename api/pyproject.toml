@@ -156,6 +156,13 @@ max-complexity = 10
 # um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/financeiro/service.py" = ["PLR0913"]
 
+# `eap_package_progress` tem 6 parâmetros, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY (etapas, quantity, executed, state, estimated_pct), as entradas do critério de
+# medição da EAP (ISSUE-036) que a fachada lê do banco. A regra existe para argumento
+# posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de opções,
+# a mesma coisa com mais indireção.
+"src/modulos/planejamento/calculations.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 
