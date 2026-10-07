@@ -376,6 +376,7 @@ def test_encerramento_cria_a_licao_em_rascunho(sessao: Session) -> None:
     )
     mudanca = sessao.get(models.ChangeRequest, mudanca.id)
     assert mudanca is not None
+    service.incorporate_eap_revision(sessao, user=gestor, change_id=mudanca.id, revision=1)
 
     resultado = service.close_change(
         sessao,

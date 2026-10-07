@@ -38,7 +38,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.orm import Session, selectinload
@@ -66,6 +66,9 @@ from src.modulos.planejamento.models import (
     ReportPoint,
 )
 from src.modulos.planejamento.validation import MONTHLY, WEEKLY, PointInput
+
+if TYPE_CHECKING:
+    from src.modulos.governanca.service import ChangeEapSource
 
 MODULE = "planejamento"
 
@@ -1415,9 +1418,6 @@ EAP_PORTFOLIO_READ_ONLY_MESSAGE = (
 )
 
 
-NO_SCOPE_IMPACT = "sem impacto"
-
-
 DEFAULT_DEVIATION_BANDS = (Decimal(2), Decimal(5))
 
 
@@ -1548,7 +1548,11 @@ class EapRevisionView:
 
 @dataclass(frozen=True)
 class EapBreakdownView:
-    """Um desdobramento da revisão vigente: de qual pacote de planejamento para qual de trabalho."""
+    """Um desdobramento da revisão vigente: de qual pacote de planejamento para qual de trabalho.
+
+    ``source_closed`` diz que a origem ficou encerrada: peso zerado pelo desdobramento (ou origem
+    ausente), ela sai da árvore mas o desdobramento continua legível.
+    """
 
     id: int
     revision: int
@@ -1560,6 +1564,7 @@ class EapBreakdownView:
     target_description: str
     author: str
     justification: str
+    source_closed: bool = False
 
 
 @dataclass(frozen=True)
@@ -1981,15 +1986,21 @@ def _tree(
 
 
 def _tree_data(reading: _Reading, items: Sequence[EapItem]) -> _TreeData:
-    by_parent = _children_by_parent(items)
-    steps = _steps_by_item(reading.session, [item.id for item in items])
+    live = [item for item in items if not _is_closed_package(item)]
+    by_parent = _children_by_parent(live)
+    steps = _steps_by_item(reading.session, [item.id for item in live])
     measurements = _measurements_by_item(
-        reading.session, [item.id for item in items], reading.lookups
+        reading.session, [item.id for item in live], reading.lookups
     )
     totals = _totals_by_item(
-        items, by_parent=by_parent, steps=steps, reference_date=reading.reference_date
+        live, by_parent=by_parent, steps=steps, reference_date=reading.reference_date
     )
     return _TreeData(by_parent=by_parent, totals=totals, steps=steps, measurements=measurements)
+
+
+def _is_closed_package(item: EapItem) -> bool:
+    """O pacote encerrado pelo desdobramento: nível 3 com peso zerado, fora da árvore."""
+    return item.level == LEVEL_PACKAGE and (item.weight or Decimal(0)) <= 0
 
 
 def _root_node(
@@ -2229,6 +2240,7 @@ def _breakdowns(
                 target_description=target.description if target is not None else "",
                 author=names.get(record.by_id, ""),
                 justification=record.justification,
+                source_closed=source is None or _is_closed_package(source),
             )
         )
     return tuple(views)
@@ -2275,10 +2287,9 @@ def _pending_changes(
 
 
 def _has_scope_impact(impact: Any) -> bool:
-    if impact is None:
-        return False
-    text = (impact.scope or "").strip()
-    return bool(text) and normalize_text(text) != NO_SCOPE_IMPACT
+    from src.modulos.governanca import calculations as governanca_calculations
+
+    return governanca_calculations.has_scope_impact(impact.scope if impact is not None else "")
 
 
 def _parameters(session: Session, *, reference_date: date) -> EapParameters:
@@ -2756,6 +2767,524 @@ def _unit_code(session: Session, unit_id: int | None) -> str:
         (unit.code for unit in configuracoes.list_measure_units(session) if unit.id == unit_id),
         "",
     )
+
+
+# ── Revisões da EAP e desdobramento (ISSUE-038) ───────────────────────────
+
+
+REVISION_MANAGER_MESSAGE = "Nova revisão da EAP exige papel Gestor."
+
+
+REVISION_EMPTY_MESSAGE = "A revisão precisa alterar ao menos um pacote."
+
+
+@dataclass(frozen=True)
+class RevisionRequest:
+    """O que a tela da EAP pede na revisão: a SM, a justificativa, os ajustes e os pacotes novos."""
+
+    change_code: str
+    justification: str
+    adjustments: tuple[validation.RevisionAdjustment, ...] = ()
+    new_packages: tuple[validation.NewPackageData, ...] = ()
+
+
+@dataclass(frozen=True)
+class RevisionResult:
+    """O que a revisão fez: a revisão gravada, a SM e os códigos incluídos e ajustados."""
+
+    revision: int
+    revision_date: date
+    change_code: str
+    new_codes: tuple[str, ...]
+    adjusted_codes: tuple[str, ...]
+    alteration: str
+
+
+def create_revision(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    request: RevisionRequest,
+    reference_date: date,
+) -> RevisionResult:
+    """Cria a revisão da EAP a partir da SM aprovada com impacto em escopo (papel Gestor).
+
+    A SM vem da Governança já aprovada, com impacto em escopo e ainda não incorporada; a revisão
+    ajusta peso, quantidade e término dos pacotes afetados, inclui os pacotes novos e reescala os
+    pesos livres para a soma fechar 100 exatos, congelando o peso de todos os pacotes de nível 3.
+    A revisão e a marca da SM na Governança entram na mesma transação.
+    """
+    rbac.require_module(user, MODULE)
+    if not rbac.can(user, Permission.MANAGE):
+        raise AccessDeniedError(REVISION_MANAGER_MESSAGE)
+    if scope.is_portfolio:
+        raise AccessDeniedError(EAP_PORTFOLIO_READ_ONLY_MESSAGE)
+    project_id = scope.require_project()
+    if not request.adjustments and not request.new_packages:
+        raise InvalidDataError(REVISION_EMPTY_MESSAGE)
+    source = _revision_source(session, change_code=request.change_code, project_id=project_id)
+    justification = request.justification.strip()
+    if len(justification) < validation.JUSTIFICATION_MIN_CHARACTERS:
+        raise InvalidDataError(
+            {validation.FIELD_JUSTIFICATION: validation.REVISION_JUSTIFICATION_MESSAGE}
+        )
+    parameters = _parameters(session, reference_date=reference_date)
+    items = tuple(_items_by_project(session, [project_id]).get(project_id, ()))
+    packages = {item.code: item for item in items if item.level == LEVEL_PACKAGE}
+    fixed = _adjustment_weights(
+        packages=packages, adjustments=request.adjustments, parameters=parameters
+    )
+    _require_new_packages(request.new_packages, items=items, parameters=parameters)
+    fixed_total = sum(fixed.values(), Decimal(0)) + sum(
+        (data.weight for data in request.new_packages), Decimal(0)
+    )
+    problem = validation.revision_fixed_weight_error(fixed_total)
+    if problem:
+        raise InvalidDataError({validation.FIELD_WEIGHT: problem})
+    _apply_adjustments(session, user=user, packages=packages, adjustments=request.adjustments)
+    created = _create_revision_packages(
+        session,
+        user=user,
+        project_id=project_id,
+        items=items,
+        known=tuple(packages.values()),
+        new_packages=request.new_packages,
+        reference_date=reference_date,
+    )
+    fixed.update({item.code: item.weight or Decimal(0) for item in created})
+    _rescale_free_weights(session, user=user, packages=packages, fixed=fixed)
+    frozen = _packages_by_code(session, project_id)
+    total_problem = validation.hundred_rule_error(
+        [item.weight or Decimal(0) for item in frozen.values()]
+    )
+    if total_problem:
+        raise InvalidDataError({validation.FIELD_WEIGHT: total_problem})
+    adjusted_codes = tuple(adjustment.code for adjustment in request.adjustments)
+    new_codes = tuple(item.code for item in created)
+    alteration = _alteration(new_codes, adjusted_codes)
+    revision = _next_revision(session, project_id=project_id)
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=EapRevision(
+            project_id=project_id,
+            change_id=source.change_id,
+            approved_by_id=user.person_id,
+            revision=revision,
+            revision_date=reference_date,
+            alteration=alteration,
+            justification=justification,
+        ),
+    )
+    _freeze_revision(session, revision_id=record.id, packages=tuple(frozen.values()))
+    from src.modulos.governanca import service as governanca
+
+    governanca.incorporate_eap_revision(
+        session, user=user, change_id=source.change_id, revision=revision
+    )
+    return RevisionResult(
+        revision=revision,
+        revision_date=reference_date,
+        change_code=source.code,
+        new_codes=new_codes,
+        adjusted_codes=adjusted_codes,
+        alteration=alteration,
+    )
+
+
+@dataclass(frozen=True)
+class BreakdownRequest:
+    """O desdobramento pedido pela tela: o pacote novo (recurso desdobramento) já validado."""
+
+    package: validation.NewPackageData
+
+
+@dataclass(frozen=True)
+class BreakdownResult:
+    """O que o desdobramento fez: o pacote criado, a origem e se ela ficou encerrada."""
+
+    code: str
+    source_code: str
+    source_closed: bool
+
+
+def breakdown_package(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    request: BreakdownRequest,
+    reference_date: date,
+) -> BreakdownResult:
+    """Desdobra um pacote de planejamento em um de trabalho, sem mudar o total do projeto.
+
+    O peso sai da origem para o pacote novo, o previsto é o da origem e, com peso zero, a origem
+    fica encerrada: sai da árvore, mas o desdobramento continua legível. Não cria revisão; a
+    escrita pede Membro, como o dicionário (o protótipo não pede papel Gestor).
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    if scope.is_portfolio:
+        raise AccessDeniedError(EAP_PORTFOLIO_READ_ONLY_MESSAGE)
+    project_id = scope.require_project()
+    data = request.package
+    if data.resource != validation.BREAKDOWN:
+        raise InvalidDataError({validation.FIELD_RESOURCE: validation.RESOURCE_MESSAGE})
+    items = tuple(_items_by_project(session, [project_id]).get(project_id, ()))
+    packages = {item.code: item for item in items if item.level == LEVEL_PACKAGE}
+    origin = packages.get(data.source_code or "")
+    if origin is None or origin.kind != calculations.PLANNING_PACKAGE:
+        raise InvalidDataError({validation.FIELD_ORIGIN: validation.ORIGIN_MESSAGE})
+    if data.weight > (origin.weight or Decimal(0)):
+        raise InvalidDataError(
+            {
+                validation.FIELD_WEIGHT: validation.BREAKDOWN_WEIGHT_MESSAGE.format(
+                    code=origin.code, weight=_plain_weight(origin.weight)
+                )
+            }
+        )
+    parent = next((item for item in items if item.code == data.parent_code), None)
+    if parent is None or parent.level != LEVEL_SUB_AREA:
+        raise InvalidDataError({validation.FIELD_PARENT: validation.PARENT_MESSAGE})
+    code = _next_package_code(tuple(packages.values()), parent)
+    created = _create_eap_package(
+        session,
+        user=user,
+        project_id=project_id,
+        data=data,
+        code=code,
+        parent=parent,
+        kind=calculations.WORK_PACKAGE,
+        predicted=origin.predicted or Decimal(0),
+    )
+    remaining = (origin.weight or Decimal(0)) - data.weight
+    recording.update(
+        session,
+        user_id=user.id,
+        record=origin,
+        changes={"weight": remaining},
+        version=origin.version,
+    )
+    revision = _current_revision(session, project_id=project_id)
+    recording.create(
+        session,
+        user_id=user.id,
+        record=EapBreakdown(
+            project_id=project_id,
+            source_item_id=origin.id,
+            target_item_id=created.id,
+            by_id=user.person_id,
+            revision=revision,
+            applied_on=reference_date,
+            weight=data.weight,
+            justification=data.justification.strip(),
+        ),
+    )
+    return BreakdownResult(code=code, source_code=origin.code, source_closed=remaining <= 0)
+
+
+def _revision_source(session: Session, *, change_code: str, project_id: int) -> ChangeEapSource:
+    """A SM aprovada com impacto em escopo pendente do projeto, ou a recusa do protótipo."""
+    from src.modulos.governanca import service as governanca
+
+    wanted = (change_code or "").strip()
+    ids = governanca.change_ids_by_code(session, codes=[wanted])
+    source = governanca.change_eap_source(session, change_id=ids[wanted]) if wanted in ids else None
+    if (
+        source is None
+        or source.project_id != project_id
+        or not source.approved
+        or not source.scope_impact
+        or source.incorporated_revision is not None
+    ):
+        raise InvalidDataError(validation.CHANGE_MESSAGE)
+    return source
+
+
+def _adjustment_weights(
+    *,
+    packages: Mapping[str, EapItem],
+    adjustments: Sequence[validation.RevisionAdjustment],
+    parameters: EapParameters,
+) -> dict[str, Decimal]:
+    """O peso fixo de cada ajuste, depois de conferir o pacote e os limites do parâmetro."""
+    fixed: dict[str, Decimal] = {}
+    for adjustment in adjustments:
+        if adjustment.code not in packages:
+            raise InvalidDataError(
+                validation.REVISION_PACKAGE_NOT_FOUND_MESSAGE.format(code=adjustment.code)
+            )
+        _require_revision_weight(adjustment.weight, parameters=parameters)
+        fixed[adjustment.code] = adjustment.weight
+    return fixed
+
+
+def _require_new_packages(
+    new_packages: Sequence[validation.NewPackageData],
+    *,
+    items: Sequence[EapItem],
+    parameters: EapParameters,
+) -> None:
+    """Confere cada pacote novo antes de qualquer escrita: recurso, subárea e peso."""
+    subareas = {item.code for item in items if item.level == LEVEL_SUB_AREA}
+    for data in new_packages:
+        if data.resource != validation.REVISION:
+            raise InvalidDataError({validation.FIELD_RESOURCE: validation.RESOURCE_MESSAGE})
+        if data.parent_code not in subareas:
+            raise InvalidDataError({validation.FIELD_PARENT: validation.PARENT_MESSAGE})
+        _require_revision_weight(data.weight, parameters=parameters)
+
+
+def _require_revision_weight(weight: Decimal, *, parameters: EapParameters) -> None:
+    """O peso de um pacote da revisão: maior que zero e até o máximo do parâmetro."""
+    if weight <= 0:
+        raise InvalidDataError({validation.FIELD_WEIGHT: validation.PACKAGE_WEIGHT_ZERO_MESSAGE})
+    if weight > parameters.max_package_weight:
+        raise InvalidDataError(
+            {
+                validation.FIELD_WEIGHT: validation.REVISION_WEIGHT_MAX_MESSAGE.format(
+                    maximum=parameters.max_package_weight
+                )
+            }
+        )
+
+
+def _apply_adjustments(
+    session: Session,
+    *,
+    user: User,
+    packages: Mapping[str, EapItem],
+    adjustments: Sequence[validation.RevisionAdjustment],
+) -> None:
+    """Ajusta o peso, a quantidade (em Unidades) e o término dos pacotes afetados."""
+    for adjustment in adjustments:
+        package = packages[adjustment.code]
+        changes: dict[str, Any] = {"weight": adjustment.weight}
+        if adjustment.quantity is not None and package.criterion == calculations.CRITERION_UNITS:
+            changes["quantity"] = adjustment.quantity
+        if adjustment.finish is not None:
+            changes["finish"] = adjustment.finish
+        recording.update(
+            session,
+            user_id=user.id,
+            record=package,
+            changes=changes,
+            version=package.version,
+        )
+
+
+def _create_revision_packages(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    items: Sequence[EapItem],
+    known: Sequence[EapItem],
+    new_packages: Sequence[validation.NewPackageData],
+    reference_date: date,
+) -> tuple[EapItem, ...]:
+    """Cria os pacotes novos da revisão, cada um com o código seguinte da sua subárea."""
+    subareas = {item.code: item for item in items if item.level == LEVEL_SUB_AREA}
+    live = list(known)
+    created: list[EapItem] = []
+    for data in new_packages:
+        parent = subareas.get(data.parent_code)
+        if parent is None:
+            raise InvalidDataError({validation.FIELD_PARENT: validation.PARENT_MESSAGE})
+        code = _next_package_code(live, parent)
+        item = _create_eap_package(
+            session,
+            user=user,
+            project_id=project_id,
+            data=data,
+            code=code,
+            parent=parent,
+            kind=data.kind,
+            predicted=calculations.eap_linear_predicted(data.start, data.finish, reference_date),
+        )
+        live.append(item)
+        created.append(item)
+    return tuple(created)
+
+
+def _create_eap_package(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    data: validation.NewPackageData,
+    code: str,
+    parent: EapItem,
+    kind: str,
+    predicted: Decimal,
+) -> EapItem:
+    """O pacote novo da EAP, com as entradas iniciais do critério e as etapas do modelo a zero."""
+    item = recording.create(
+        session,
+        user_id=user.id,
+        record=EapItem(
+            project_id=project_id,
+            parent_id=parent.id,
+            eac_item_id=_eac_item_id(session, project_id=project_id, code=data.eac_code),
+            unit_id=_unit_id(session, data.unit),
+            company_id=data.company_id,
+            owner_id=data.owner_id,
+            code=code,
+            description=data.description,
+            level=LEVEL_PACKAGE,
+            kind=kind,
+            criterion=data.criterion,
+            model=data.model,
+            quantity=data.quantity,
+            executed=_initial_executed(data.criterion),
+            state=_initial_state(data.criterion),
+            estimated_pct=_initial_estimated(data.criterion),
+            weight=data.weight,
+            predicted=predicted,
+            start=data.start,
+            finish=data.finish,
+            deliverable=data.deliverable,
+            acceptance=data.acceptance,
+        ),
+    )
+    for order, step in enumerate(data.steps, start=1):
+        recording.create(
+            session,
+            user_id=user.id,
+            record=EapItemStep(
+                item_id=item.id,
+                order=order,
+                name=step.name,
+                weight=step.weight,
+                pct=Decimal(0),
+            ),
+        )
+    return item
+
+
+def _initial_executed(criterion: str | None) -> Decimal | None:
+    return Decimal(0) if criterion == calculations.CRITERION_UNITS else None
+
+
+def _initial_state(criterion: str | None) -> str | None:
+    if criterion in (
+        calculations.CRITERION_MILESTONE_0_100,
+        calculations.CRITERION_MILESTONE_50_50,
+    ):
+        return calculations.MILESTONE_NOT_STARTED
+    return None
+
+
+def _initial_estimated(criterion: str | None) -> Decimal | None:
+    return Decimal(0) if criterion == calculations.CRITERION_ESTIMATED else None
+
+
+def _unit_id(session: Session, code: str) -> int | None:
+    """O id da unidade de medida pelo código; recusa a unidade que não existe no cadastro."""
+    if not code:
+        return None
+    found = next(
+        (unit.id for unit in configuracoes.list_measure_units(session) if unit.code == code), None
+    )
+    if found is None:
+        raise InvalidDataError({validation.FIELD_UNIT: validation.UNIT_MESSAGE})
+    return found
+
+
+def _next_package_code(known: Sequence[EapItem], parent: EapItem) -> str:
+    """O código seguinte da subárea, considerando os filhos que já existem (inclusive encerrados)."""
+    highest = 0
+    for item in known:
+        if item.parent_id != parent.id:
+            continue
+        suffix = item.code.rsplit(".", 1)[-1]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return f"{parent.code}.{highest + 1}"
+
+
+def _rescale_free_weights(
+    session: Session,
+    *,
+    user: User,
+    packages: Mapping[str, EapItem],
+    fixed: Mapping[str, Decimal],
+) -> None:
+    """Reescala os pacotes livres para a sobra, fechando os 100% com os pesos fixos."""
+    free = [item for item in packages.values() if _is_free_package(item, fixed)]
+    target = calculations.PERCENT - sum(fixed.values(), Decimal(0))
+    weights = calculations.eap_rescale_weights(
+        [(item.code, item.weight or Decimal(0)) for item in free], target
+    )
+    for item in free:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=item,
+            changes={"weight": weights[item.code]},
+            version=item.version,
+        )
+
+
+def _is_free_package(item: EapItem, fixed: Mapping[str, Decimal]) -> bool:
+    return item.code not in fixed and (item.weight or Decimal(0)) > 0
+
+
+def _packages_by_code(session: Session, project_id: int) -> dict[str, EapItem]:
+    """Os pacotes de nível 3 do projeto pelo código, na ordem de cadastro."""
+    statement = (
+        select(EapItem)
+        .where(EapItem.project_id == project_id, EapItem.level == LEVEL_PACKAGE)
+        .order_by(EapItem.id)
+    )
+    return {item.code: item for item in session.scalars(statement)}
+
+
+def _next_revision(session: Session, *, project_id: int) -> int:
+    """O número da revisão a gravar: 0 quando o projeto ainda não tem nenhuma."""
+    latest = session.scalar(
+        select(func.max(EapRevision.revision)).where(EapRevision.project_id == project_id)
+    )
+    return 0 if latest is None else latest + 1
+
+
+def _current_revision(session: Session, *, project_id: int) -> int:
+    """A revisão vigente do projeto: a maior gravada, ou 0 quando não há nenhuma."""
+    latest = session.scalar(
+        select(func.max(EapRevision.revision)).where(EapRevision.project_id == project_id)
+    )
+    return latest or 0
+
+
+def _freeze_revision(session: Session, *, revision_id: int, packages: Sequence[EapItem]) -> None:
+    """Congela o peso de cada pacote de nível 3 na revisão (fato histórico da D5b)."""
+    session.add_all(
+        EapRevisionItem(revision_id=revision_id, item_id=item.id, weight=item.weight or Decimal(0))
+        for item in packages
+    )
+    session.flush()
+
+
+def _alteration(new_codes: Sequence[str], adjusted_codes: Sequence[str]) -> str:
+    """A alteração da revisão no formato do protótipo: o que entrou, o que mudou e o reescalado."""
+    parts: list[str] = []
+    if new_codes:
+        parts.append(_listed("Pacote", "Pacotes", new_codes, "incluído", "incluídos"))
+    if adjusted_codes:
+        parts.append(_listed("Pacote", "Pacotes", adjusted_codes, "ajustado", "ajustados"))
+    parts.append("demais pesos reescalados")
+    return "; ".join(parts)
+
+
+def _listed(singular: str, plural: str, codes: Sequence[str], one: str, many: str) -> str:
+    return f"{singular if len(codes) == 1 else plural} {', '.join(codes)} {one if len(codes) == 1 else many}"
+
+
+def _plain_weight(value: Decimal | None) -> str:
+    """O peso sem zeros à direita: ``3.00`` vira ``3`` e ``2.50`` vira ``2.5``."""
+    text = format(value or Decimal(0), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 # ── Apoio da árvore ───────────────────────────────────────────────────────

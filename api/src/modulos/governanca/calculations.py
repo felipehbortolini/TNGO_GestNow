@@ -611,6 +611,11 @@ def has_impact(text: str | None) -> bool:
     return _plain(text or "") not in ("", NO_IMPACT_TEXT)
 
 
+def has_scope_impact(scope: str) -> bool:
+    """Whether the scope dimension says there is a scope impact (the rule of ``has_impact``)."""
+    return has_impact(scope)
+
+
 def person_for_role(
     role: str, fallback_id: int | None, roles: Mapping[int, str | None]
 ) -> int | None:

@@ -741,7 +741,7 @@ def _eap_breakdowns_table(breakdowns: Sequence[EapBreakdownView]) -> Table:
         rows=tuple(
             row(
                 item.applied_on,
-                _code_label(item.source_code, item.source_description),
+                _breakdown_source_label(item),
                 _code_label(item.target_code, item.target_description),
                 item.weight,
                 item.justification,
@@ -751,6 +751,12 @@ def _eap_breakdowns_table(breakdowns: Sequence[EapBreakdownView]) -> Table:
         ),
         per_project=False,
     )
+
+
+def _breakdown_source_label(item: EapBreakdownView) -> str:
+    """O pacote de planejamento de origem; encerrado pelo desdobramento, a célula o diz."""
+    label = _code_label(item.source_code, item.source_description)
+    return f"{label} (encerrado)" if item.source_closed else label
 
 
 def _code_label(code: str, description: str) -> str:

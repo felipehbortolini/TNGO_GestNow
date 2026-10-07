@@ -657,6 +657,9 @@ def test_encerramento_recusado_ate_incorporar_a_revisao(orcamento: EacScenario) 
         reference_date=HOJE,
     )
     change = orcamento.session.get(ChangeRequest, change.id)
+    governanca.incorporate_eap_revision(
+        orcamento.session, user=_gestor(orcamento), change_id=change.id, revision=0
+    )
 
     resultado = governanca.close_change(
         orcamento.session,

@@ -196,6 +196,7 @@ class ChangeSheet:
     can_cancel: bool
     possible_duplicate_code: str | None
     pending_eac_revision: bool
+    pending_eap_revision: bool
     transfers: tuple[TransferLine, ...] = ()
     eac_item_codes: tuple[str, ...] = ()
     analysis_action: str | None = None
@@ -351,6 +352,7 @@ def find_change_sheet(
         can_cancel=_may_cancel(user, change),
         possible_duplicate_code=_possible_duplicate(session, change),
         pending_eac_revision=_pending_eac_revision(loaded),
+        pending_eap_revision=_pending_eap_revision(loaded),
         transfers=tuple(transfers),
         eac_item_codes=_impact_item_codes(session, loaded.impact),
         analysis_action=_analysis_action(user, change),
@@ -1191,6 +1193,8 @@ def close_change(
         raise InvalidDataError(problems)
     if _pending_eac_revision(loaded):
         raise InvalidDataError(validation.CLOSING_EAC_REVISION_PENDING)
+    if _pending_eap_revision(loaded):
+        raise InvalidDataError(validation.CLOSING_EAP_REVISION_PENDING)
     lesson_id = None
     lesson_code = None
     if data.lesson is not None:
@@ -1674,6 +1678,87 @@ def change_ids_by_code(session: Session, *, codes: Sequence[str]) -> dict[str, i
     return {row.code: row.id for row in session.execute(statement)}
 
 
+# ── The links with the EAP (ISSUE-038) ───────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ChangeEapSource:
+    """O que a revisão da EAP lê da SM que a origina: a situação, o escopo e a incorporação."""
+
+    change_id: int
+    project_id: int
+    code: str
+    approved: bool
+    scope_impact: bool
+    incorporated_revision: int | None
+
+
+def change_eap_source(session: Session, *, change_id: int) -> ChangeEapSource | None:
+    """A SM como a revisão da EAP a lê: aprovada, impacto em escopo, incorporação e projeto."""
+    change = session.get(ChangeRequest, change_id)
+    if change is None:
+        return None
+    impact = _latest(session, ChangeImpact, [change.id]).get(change.id)
+    scope = impact.scope if impact else ""
+    return ChangeEapSource(
+        change_id=change.id,
+        project_id=change.project_id,
+        code=change.code,
+        approved=calculations.is_approved(change.situation),
+        scope_impact=calculations.has_scope_impact(scope),
+        incorporated_revision=change.eap_revision,
+    )
+
+
+def eap_revision_sources(session: Session, *, project_id: int) -> tuple[ChangeEapSource, ...]:
+    """As SM aprovadas com impacto em escopo que nenhuma revisão da EAP incorporou, mais antigas antes.
+
+    É o que a tela da EAP lista quando pergunta qual SM origina a próxima revisão; uma SM cujo
+    último impacto não tem escopo fica de fora, porque a revisão mesma a recusaria.
+    """
+    changes = session.scalars(
+        select(ChangeRequest)
+        .where(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.eap_revision.is_(None),
+            ChangeRequest.situation.in_(models.APPROVED_SITUATIONS),
+        )
+        .order_by(ChangeRequest.id)
+    ).all()
+    if not changes:
+        return ()
+    impacts = _latest(session, ChangeImpact, [change.id for change in changes])
+    return tuple(
+        ChangeEapSource(
+            change_id=change.id,
+            project_id=change.project_id,
+            code=change.code,
+            approved=True,
+            scope_impact=True,
+            incorporated_revision=None,
+        )
+        for change in changes
+        for impact in [impacts.get(change.id)]
+        if impact is not None and calculations.has_scope_impact(impact.scope)
+    )
+
+
+def incorporate_eap_revision(
+    session: Session, *, user: User, change_id: int, revision: int
+) -> None:
+    """Grava em ``eap_revisao_incorporada`` a revisão da EAP que incorporou o impacto da SM."""
+    change = session.get(ChangeRequest, change_id)
+    if change is None:
+        raise InvalidDataError(NOT_FOUND_MESSAGE)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=change,
+        changes={"eap_revision": revision},
+        version=change.version,
+    )
+
+
 # ── The demonstration load (ISSUE-023, D6) ───────────────────────────────
 
 
@@ -1993,6 +2078,7 @@ def _row(
                 authority=change.authority,
                 analysis_deadline=figures.analysis_deadline,
                 pending_eac_revision=_pending_eac_revision(item),
+                pending_eap_revision=_pending_eap_revision(item),
             )
         ),
         closing_date=change.closing_date,
@@ -2013,6 +2099,16 @@ def _pending_eac_revision(item: _Loaded) -> bool:
         calculations.is_approved(item.change.situation)
         and bool(cost)
         and (item.change.eac_revision is None)
+    )
+
+
+def _pending_eap_revision(item: _Loaded) -> bool:
+    """The approved scope impact is not in a revision of the EAP yet (made in Planejamento)."""
+    scope = item.impact.scope if item.impact else ""
+    return (
+        calculations.is_approved(item.change.situation)
+        and calculations.has_scope_impact(scope)
+        and (item.change.eap_revision is None)
     )
 
 

@@ -544,6 +544,10 @@ CLOSING_EAC_REVISION_PENDING = (
     "O custo aprovado desta SM ainda não foi incorporado a uma revisão da EAC: "
     "registre a revisão em Financeiro antes de encerrar."
 )
+CLOSING_EAP_REVISION_PENDING = (
+    "O impacto em escopo ainda não foi incorporado à EAP. "
+    "Gere a nova revisão em 02 Planejamento > EAP."
+)
 REOPEN_NOT_POSTPONED = "Só uma solicitação Adiada volta à pauta."
 
 
