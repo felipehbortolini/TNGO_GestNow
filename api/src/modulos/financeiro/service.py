@@ -21,11 +21,20 @@ from typing import TYPE_CHECKING, Any, Protocol
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.core import attachment_origins, attachments, audit, calendario, rbac, recording
+from src.core import (
+    attachment_origins,
+    attachments,
+    audit,
+    calendario,
+    notification,
+    rbac,
+    recording,
+)
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.file_storage import FileStorage
 from src.core.models import AuditEntry
 from src.core.money import format_brl
+from src.core.notification import NotificationChannel, NotificationRequest
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
@@ -5476,10 +5485,35 @@ def _portfolio_financial_curve(
         return _empty_financial_curve(
             reference_date=reference_date, is_portfolio=True, scope_label=PORTFOLIO_LABEL
         )
+    series = _summed_financial_series(curves, reference_date=reference_date)
+    return FinancialCurveOverview(
+        reference_date=reference_date,
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        project_id=None,
+        revision=None,
+        revision_date=None,
+        series=series,
+        points=_financial_points(series),
+        kpis=_financial_kpis(
+            series, budget_cents=sum(curve.budget_cents for curve in curves.values())
+        ),
+    )
+
+
+def _summed_financial_series(
+    curves: Mapping[int, _FrozenFinancialCurve], *, reference_date: date
+) -> FinancialCurveSeries:
+    """A curva da carteira: os meses na união dos projetos e a soma das quatro linhas.
+
+    O comprometido e o realizado somam os projetos até o mês de corte mais novo; a tendência
+    soma dali em diante. Um projeto sem o mês de outro não quebra a soma: antes do início vale
+    zero e depois do seu fim vale o último acumulado, como a linha reta da carteira.
+    """
     months = tuple(sorted({month for curve in curves.values() for month in curve.series.months}))
     cut_index = _cut_index(months, reference_date)
     cut_month = months[cut_index] if cut_index >= 0 else None
-    series = FinancialCurveSeries(
+    return FinancialCurveSeries(
         months=months,
         cut_index=cut_index,
         planned=tuple(
@@ -5515,19 +5549,6 @@ def _portfolio_financial_curve(
                 for curve in curves.values()
             )
             for month in months
-        ),
-    )
-    return FinancialCurveOverview(
-        reference_date=reference_date,
-        is_portfolio=True,
-        scope_label=PORTFOLIO_LABEL,
-        project_id=None,
-        revision=None,
-        revision_date=None,
-        series=series,
-        points=_financial_points(series),
-        kpis=_financial_kpis(
-            series, budget_cents=sum(curve.budget_cents for curve in curves.values())
         ),
     )
 
@@ -6154,6 +6175,530 @@ def _empty_cost_kpis(
         previous=None,
         history=(),
     )
+
+
+# ── Cronograma de desembolso (ISSUE-043) ─────────────────────────────────
+
+TREASURY_EMAIL = "tesouraria@exemplo.com"
+TREASURY_SUBJECT = "Cronograma de desembolso de {month} em diante"
+TREASURY_BODY = (
+    "Cronograma de desembolso atualizado com o fechamento de {cut}. Saldo a desembolsar: {balance}."
+)
+NO_DISBURSEMENT_MESSAGE = "O projeto não tem cronograma de desembolso para enviar."
+MONTH_NAMES = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+
+
+@dataclass(frozen=True)
+class DisbursementItem:
+    """Uma linha da tabela item x mês: o saldo a pagar e a distribuição pelos meses futuros."""
+
+    code: str
+    description: str
+    level: int
+    project_id: int
+    project_label: str
+    balance_cents: int
+    amounts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class DisbursementKpis:
+    """Os KPIs do topo do cronograma, como o protótipo os mostra."""
+
+    actual_until_cut_cents: int
+    planned_until_cut_cents: int
+    balance_cents: int
+    planned_balance_cents: int
+    next_three_cents: int
+    planned_next_three_cents: int
+    cut_actual_cents: int | None
+    cut_planned_cents: int | None
+    projection_cents: int
+    actual_pct: Decimal | None
+    peak_month: date | None
+
+
+@dataclass(frozen=True)
+class DisbursementOverview:
+    """O cronograma de desembolso do escopo: o histograma, a tabela item x mês e os KPIs."""
+
+    reference_date: date
+    is_portfolio: bool
+    scope_label: str
+    project_id: int | None
+    cut_index: int
+    months: tuple[date, ...]
+    histogram: tuple[calculations.DisbursementMonth, ...]
+    items: tuple[DisbursementItem, ...]
+    totals: tuple[int, ...]
+    balance_cents: int
+    projection_cents: int
+    actual_until_cut_cents: int
+    kpis: DisbursementKpis | None
+
+    @property
+    def cut_month(self) -> date | None:
+        """O mês do corte, ou ``None`` quando a data de referência antecede a curva."""
+        return self.months[self.cut_index] if 0 <= self.cut_index < len(self.months) else None
+
+    @property
+    def future_months(self) -> tuple[date, ...]:
+        """Os meses depois do corte: as colunas da tabela item x mês."""
+        return self.months[self.cut_index + 1 :]
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no financial curve: the empty state of origin."""
+        return not self.months
+
+
+@dataclass(frozen=True)
+class _ProjectAmounts:
+    """O que a distribuição lê de um projeto: o saldo a pagar por item e a projeção no término."""
+
+    balances_by_item: Mapping[int, int]
+    projection_cents: int
+
+
+@dataclass(frozen=True)
+class _ProjectDisbursement:
+    """Um projeto pronto para o cronograma: a curva, os itens, os saldos e os marcos."""
+
+    project: configuracoes.ProjectSummary
+    curve: _FrozenFinancialCurve
+    items: tuple[ItemLine, ...]
+    amounts: _ProjectAmounts
+    milestones: Mapping[int, tuple[calculations.PaymentMilestone, ...]]
+
+
+def disbursement_overview(
+    session: Session, *, scope: Scope, reference_date: date
+) -> DisbursementOverview:
+    """O cronograma de desembolso do escopo: o saldo a pagar distribuído pelos meses (HU-091).
+
+    No projeto, cada item da EAC tem o saldo a pagar (a projeção no término menos o realizado do
+    ERP) distribuído pelos marcos futuros dos contratos do item e, no que sobrar, pelo perfil da
+    projeção; a soma dos meses futuros de cada item é o seu saldo. O histograma mensal mostra o
+    previsto da linha de base, o realizado dos fatos do ERP até o corte e o projetado distribuído.
+    Na carteira os meses são a união dos meses dos projetos e os valores somam por mês, com uma
+    linha por projeto e os seus pacotes. Sem curva financeira congelada, a visão sai vazia.
+    """
+    projects = configuracoes.list_projects(session)
+    if scope.is_portfolio:
+        return _portfolio_disbursement(session, projects=projects, reference_date=reference_date)
+    project = _project_of(projects, scope)
+    return _project_disbursement(session, project=project, reference_date=reference_date)
+
+
+def _project_disbursement(
+    session: Session, *, project: configuracoes.ProjectSummary, reference_date: date
+) -> DisbursementOverview:
+    parts = _project_parts(session, projects=(project,), reference_date=reference_date)
+    if not parts:
+        return _empty_disbursement(
+            reference_date=reference_date, is_portfolio=False, scope_label=_label(project)
+        )
+    part = parts[0]
+    label = _label(project)
+    future = part.curve.series.months[part.curve.series.cut_index + 1 :]
+    amounts = _distribute_items(
+        part.items,
+        balances=part.amounts.balances_by_item,
+        months=future,
+        profile=_disbursement_profile(part.curve),
+        milestones=part.milestones,
+    )
+    totals = _level_one_totals(part.items, amounts)
+    balance = _level_one_sum(part.items, part.amounts.balances_by_item)
+    actual_until_cut = _actual_until_cut(part.curve.series)
+    histogram = calculations.disbursement_histogram(
+        part.curve.series.months,
+        planned_cumulative=part.curve.series.planned,
+        actual_cumulative=part.curve.series.actual,
+    )
+    return DisbursementOverview(
+        reference_date=reference_date,
+        is_portfolio=False,
+        scope_label=label,
+        project_id=project.id,
+        cut_index=part.curve.series.cut_index,
+        months=part.curve.series.months,
+        histogram=histogram,
+        items=_item_rows(
+            part.items,
+            balances=part.amounts.balances_by_item,
+            amounts=amounts,
+            project=project,
+            label=label,
+        ),
+        totals=totals,
+        balance_cents=balance,
+        projection_cents=part.amounts.projection_cents,
+        actual_until_cut_cents=actual_until_cut,
+        kpis=_disbursement_kpis(
+            histogram=histogram,
+            cut_index=part.curve.series.cut_index,
+            future=future,
+            totals=totals,
+            balance_cents=balance,
+            projection_cents=part.amounts.projection_cents,
+            actual_until_cut_cents=actual_until_cut,
+        ),
+    )
+
+
+def _portfolio_disbursement(
+    session: Session,
+    *,
+    projects: Sequence[configuracoes.ProjectSummary],
+    reference_date: date,
+) -> DisbursementOverview:
+    parts = _project_parts(session, projects=projects, reference_date=reference_date)
+    if not parts:
+        return _empty_disbursement(
+            reference_date=reference_date, is_portfolio=True, scope_label=PORTFOLIO_LABEL
+        )
+    series = _summed_financial_series(
+        {part.project.id: part.curve for part in parts}, reference_date=reference_date
+    )
+    future = series.months[series.cut_index + 1 :]
+    rows: list[DisbursementItem] = []
+    totals = [0] * len(future)
+    balance = 0
+    projection = 0
+    for number, part in enumerate(parts, start=1):
+        label = _label(part.project)
+        amounts = _distribute_items(
+            part.items,
+            balances=part.amounts.balances_by_item,
+            months=future,
+            profile=_disbursement_profile(part.curve),
+            milestones=part.milestones,
+        )
+        level_one = [item for item in part.items if item.level == 1]
+        part_totals = tuple(
+            sum(amounts[item.id][index] for item in level_one) for index in range(len(future))
+        )
+        part_balance = _level_one_sum(part.items, part.amounts.balances_by_item)
+        rows.append(
+            DisbursementItem(
+                code=str(number),
+                description=label,
+                level=1,
+                project_id=part.project.id,
+                project_label=label,
+                balance_cents=part_balance,
+                amounts=part_totals,
+            )
+        )
+        for item in sorted(level_one, key=lambda item: calculations.code_key(item.code)):
+            rows.append(
+                DisbursementItem(
+                    code=f"{number}.{item.code}",
+                    description=item.description,
+                    level=2,
+                    project_id=part.project.id,
+                    project_label=label,
+                    balance_cents=part.amounts.balances_by_item.get(item.id, 0),
+                    amounts=amounts[item.id],
+                )
+            )
+        totals = [total + value for total, value in zip(totals, part_totals, strict=True)]
+        balance += part_balance
+        projection += part.amounts.projection_cents
+    actual_until_cut = _actual_until_cut(series)
+    histogram = calculations.disbursement_histogram(
+        series.months,
+        planned_cumulative=series.planned,
+        actual_cumulative=series.actual,
+    )
+    return DisbursementOverview(
+        reference_date=reference_date,
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        project_id=None,
+        cut_index=series.cut_index,
+        months=series.months,
+        histogram=histogram,
+        items=tuple(rows),
+        totals=tuple(totals),
+        balance_cents=balance,
+        projection_cents=projection,
+        actual_until_cut_cents=actual_until_cut,
+        kpis=_disbursement_kpis(
+            histogram=histogram,
+            cut_index=series.cut_index,
+            future=future,
+            totals=totals,
+            balance_cents=balance,
+            projection_cents=projection,
+            actual_until_cut_cents=actual_until_cut,
+        ),
+    )
+
+
+def _project_parts(
+    session: Session, *, projects: Sequence[configuracoes.ProjectSummary], reference_date: date
+) -> tuple[_ProjectDisbursement, ...]:
+    """Os projetos com curva congelada e itens, prontos para o cronograma; sem curva, fora."""
+    curves = _frozen_financial_curves(
+        session,
+        _current_financial_records(session, [project.id for project in projects]),
+        reference_date=reference_date,
+    )
+    lines = _lines_by_project(session, [project.id for project in projects])
+    parts: list[_ProjectDisbursement] = []
+    for project in projects:
+        curve = curves.get(project.id)
+        items = tuple(lines.get(project.id, ()))
+        if curve is None or not curve.series.months or not items:
+            continue
+        parts.append(
+            _ProjectDisbursement(
+                project=project,
+                curve=curve,
+                items=items,
+                amounts=_project_amounts(
+                    session, project_id=project.id, items=items, reference_date=reference_date
+                ),
+                milestones=_milestones_by_item(
+                    session,
+                    project_id=project.id,
+                    item_ids=[item.id for item in items],
+                    reference_date=reference_date,
+                ),
+            )
+        )
+    return tuple(parts)
+
+
+def _project_amounts(
+    session: Session, *, project_id: int, items: Sequence[ItemLine], reference_date: date
+) -> _ProjectAmounts:
+    """O saldo a pagar de cada item: a projeção no término menos o realizado, nunca negativo.
+
+    A projeção de um item é a vigente do fato mais recente, com os pacotes somando os filhos; o
+    realizado soma os fatos do ERP até a data de corte e sobe pelos pacotes, como no mapa de
+    controle.
+    """
+    item_ids = [item.id for item in items]
+    projected = calculations.projected_total_cents(
+        items,
+        current_bases=_current_bases(session, project_id=project_id, items=items),
+        facts=_projection_facts(session, item_ids=item_ids),
+    )
+    erp = _erp_totals(session, item_ids=item_ids, cutoff=reference_date)
+    actual = _leveled_totals(
+        items, {item_id: totals.actual_cents for item_id, totals in erp.items()}
+    )
+    return _ProjectAmounts(
+        balances_by_item={
+            item.id: max(0, projected.by_item.get(item.id, 0) - actual.get(item.id, 0))
+            for item in items
+        },
+        projection_cents=projected.total_cents,
+    )
+
+
+def _milestones_by_item(
+    session: Session, *, project_id: int, item_ids: Sequence[int], reference_date: date
+) -> dict[int, tuple[calculations.PaymentMilestone, ...]]:
+    """Os marcos futuros dos contratos de cada item da EAC, com o valor do percentual.
+
+    Marco elegível é o de data depois da data de referência e valor positivo; o passado e o sem
+    valor não entram, e o que sobrar do saldo segue o perfil. Contrato sem item da EAC não
+    alimenta o cronograma.
+    """
+    wanted = set(item_ids)
+    grouped: dict[int, list[calculations.PaymentMilestone]] = {}
+    for contract in _project_contracts(session, project_id=project_id):
+        if contract.eac_item_id is None or contract.eac_item_id not in wanted:
+            continue
+        addenda = _addendum_lines(_addendum_rows(session, contract_id=contract.id))
+        current = calculations.contract_current_value_cents(contract.original_value_cents, addenda)
+        for row in _milestone_rows(session, contract_id=contract.id):
+            if row.expected_on <= reference_date:
+                continue
+            value = calculations.milestone_value_cents(current, row.pct)
+            if value > 0:
+                grouped.setdefault(contract.eac_item_id, []).append(
+                    calculations.PaymentMilestone(
+                        month=row.expected_on.replace(day=1), value_cents=value
+                    )
+                )
+    return {item_id: tuple(rows) for item_id, rows in grouped.items()}
+
+
+def _disbursement_profile(curve: _FrozenFinancialCurve) -> Mapping[date, int]:
+    """O perfil mensal da projeção, que recebe o que sobra do saldo depois dos marcos.
+
+    O protótipo distribui o saldo pelo perfil da projeção no término; no servidor o perfil é a
+    variação mensal da tendência da curva financeira (a projeção distribuída nos meses), com a
+    variação do planejado como reserva. Sem os dois, o saldo fecha no último mês.
+    """
+    trend = calculations.monthly_amounts(curve.series.trend)
+    profile = {month: max(0, trend[index] or 0) for index, month in enumerate(curve.series.months)}
+    if any(profile.values()):
+        return profile
+    planned = calculations.monthly_amounts(curve.series.planned)
+    return {month: max(0, planned[index] or 0) for index, month in enumerate(curve.series.months)}
+
+
+def _distribute_items(
+    items: Sequence[ItemLine],
+    *,
+    balances: Mapping[int, int],
+    months: Sequence[date],
+    profile: Mapping[date, int],
+    milestones: Mapping[int, tuple[calculations.PaymentMilestone, ...]],
+) -> dict[int, tuple[int, ...]]:
+    weights = tuple(profile.get(month, 0) for month in months)
+    return {
+        item.id: calculations.distribute_balance(
+            balances.get(item.id, 0), months, weights, milestones.get(item.id, ())
+        )
+        for item in items
+    }
+
+
+def _item_rows(
+    items: Sequence[ItemLine],
+    *,
+    balances: Mapping[int, int],
+    amounts: Mapping[int, tuple[int, ...]],
+    project: configuracoes.ProjectSummary,
+    label: str,
+) -> tuple[DisbursementItem, ...]:
+    return tuple(
+        DisbursementItem(
+            code=item.code,
+            description=item.description,
+            level=item.level,
+            project_id=project.id,
+            project_label=label,
+            balance_cents=balances.get(item.id, 0),
+            amounts=amounts.get(item.id, ()),
+        )
+        for item in sorted(items, key=lambda item: calculations.code_key(item.code))
+    )
+
+
+def _level_one_totals(
+    items: Sequence[ItemLine], amounts: Mapping[int, tuple[int, ...]]
+) -> tuple[int, ...]:
+    if not amounts:
+        return ()
+    length = len(next(iter(amounts.values())))
+    return tuple(
+        sum(amounts.get(item.id, (0,) * length)[index] for item in items if item.level == 1)
+        for index in range(length)
+    )
+
+
+def _level_one_sum(items: Sequence[ItemLine], balances: Mapping[int, int]) -> int:
+    return sum(balances.get(item.id, 0) for item in items if item.level == 1)
+
+
+def _actual_until_cut(series: FinancialCurveSeries) -> int:
+    if series.cut_index < 0:
+        return 0
+    return series.actual[series.cut_index] or 0
+
+
+def _disbursement_kpis(
+    *,
+    histogram: Sequence[calculations.DisbursementMonth],
+    cut_index: int,
+    future: Sequence[date],
+    totals: Sequence[int],
+    balance_cents: int,
+    projection_cents: int,
+    actual_until_cut_cents: int,
+) -> DisbursementKpis | None:
+    """Os KPIs do topo: o realizado no corte, o saldo, os três meses seguintes e o pico."""
+    if not histogram:
+        return None
+    cut_row = histogram[cut_index] if 0 <= cut_index < len(histogram) else None
+    future_rows = histogram[cut_index + 1 :]
+    until_cut = histogram[: cut_index + 1] if cut_index >= 0 else []
+    peak_index = max(range(len(totals)), key=lambda index: totals[index]) if totals else None
+    return DisbursementKpis(
+        actual_until_cut_cents=actual_until_cut_cents,
+        planned_until_cut_cents=sum(row.planned_cents or 0 for row in until_cut),
+        balance_cents=balance_cents,
+        planned_balance_cents=sum(row.planned_cents or 0 for row in future_rows),
+        next_three_cents=sum(totals[:3]),
+        planned_next_three_cents=sum(row.planned_cents or 0 for row in future_rows[:3]),
+        cut_actual_cents=cut_row.actual_cents if cut_row is not None else None,
+        cut_planned_cents=cut_row.planned_cents if cut_row is not None else None,
+        projection_cents=projection_cents,
+        actual_pct=calculations.share_percent(actual_until_cut_cents, projection_cents),
+        peak_month=future[peak_index] if peak_index is not None else None,
+    )
+
+
+def _empty_disbursement(
+    *, reference_date: date, is_portfolio: bool, scope_label: str
+) -> DisbursementOverview:
+    return DisbursementOverview(
+        reference_date=reference_date,
+        is_portfolio=is_portfolio,
+        scope_label=scope_label,
+        project_id=None,
+        cut_index=-1,
+        months=(),
+        histogram=(),
+        items=(),
+        totals=(),
+        balance_cents=0,
+        projection_cents=0,
+        actual_until_cut_cents=0,
+        kpis=None,
+    )
+
+
+def send_to_treasury(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    reference_date: date,
+    channel: NotificationChannel | None = None,
+) -> notification.NotificationOutcome:
+    """Envia o cronograma de desembolso à tesouraria pela porta de notificação (HU-091).
+
+    O destinatário é o da tesouraria, o assunto diz de que mês em diante o cronograma vai e o
+    corpo repete a mensagem do protótipo, com o mês do fechamento e o saldo a desembolsar. Só o
+    perfil com escrita envia, e o envio pertence a um projeto: no Portfólio a visão consolidada
+    não é registro de um projeto. O registro e a linha da trilha entram na transação do
+    chamador; desligado, tudo fica como ``simulado``.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    project_id = scope.require_project()
+    overview = disbursement_overview(session, scope=scope, reference_date=reference_date)
+    if overview.is_empty or overview.cut_month is None or not overview.future_months:
+        raise InvalidDataError(NO_DISBURSEMENT_MESSAGE)
+    return notification.send(
+        session,
+        user_id=user.id,
+        request=NotificationRequest(
+            kind=notification.TREASURY,
+            project_id=project_id,
+            recipients=[TREASURY_EMAIL],
+            subject=TREASURY_SUBJECT.format(month=_short_month(overview.future_months[0])),
+            body=TREASURY_BODY.format(
+                cut=_short_month(overview.cut_month),
+                balance=format_brl(overview.balance_cents),
+            ),
+        ),
+        channel=channel,
+    )
+
+
+def _short_month(month: date) -> str:
+    """O mês no formato curto do protótipo: ``set/26``."""
+    return f"{MONTH_NAMES[month.month - 1]}/{month.year % 100:02d}"
 
 
 attachment_origins.register(

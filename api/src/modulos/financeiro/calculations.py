@@ -1788,3 +1788,135 @@ def _ratio(part: int, total: int) -> Decimal | None:
     if total == 0:
         return None
     return (Decimal(part) / Decimal(total)).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+# ── Cronograma de desembolso (ISSUE-043) ─────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PaymentMilestone:
+    """Um marco de pagamento elegível para o cronograma: o mês futuro e o valor em centavos."""
+
+    month: date
+    value_cents: int
+
+
+@dataclass(frozen=True)
+class DisbursementMonth:
+    """Um mês do histograma do desembolso: o previsto e o realizado do mês."""
+
+    month: date
+    planned_cents: int | None
+    actual_cents: int | None
+
+
+def monthly_amounts(cumulative: Sequence[int | None]) -> tuple[int | None, ...]:
+    """A variação mensal de uma série acumulada: o valor do mês menos o do mês anterior.
+
+    O primeiro mês vale o próprio acumulado e o valor fica nulo onde o acumulado é nulo ou
+    sucede um nulo — é como o protótipo desenha o histograma a partir das curvas.
+    """
+    amounts: list[int | None] = []
+    for index, value in enumerate(cumulative):
+        previous = cumulative[index - 1] if index > 0 else 0
+        amounts.append(None if value is None or previous is None else value - previous)
+    return tuple(amounts)
+
+
+def disbursement_histogram(
+    months: Sequence[date],
+    *,
+    planned_cumulative: Sequence[int],
+    actual_cumulative: Sequence[int | None],
+) -> tuple[DisbursementMonth, ...]:
+    """O histograma mensal do desembolso: o previsto x realizado, mês a mês.
+
+    O previsto é a variação da linha de base financeira e o realizado, a variação do acumulado
+    dos fatos do ERP; depois do corte o realizado fica nulo, como a curva o entrega.
+    """
+    planned = monthly_amounts(planned_cumulative)
+    actual = monthly_amounts(actual_cumulative)
+    return tuple(
+        DisbursementMonth(month=month, planned_cents=planned[index], actual_cents=actual[index])
+        for index, month in enumerate(months)
+    )
+
+
+def distribute_balance(
+    balance_cents: int,
+    months: Sequence[date],
+    profile: Sequence[int],
+    milestones: Sequence[PaymentMilestone] = (),
+) -> tuple[int, ...]:
+    """Distribui o saldo a pagar de um item pelos meses futuros do cronograma.
+
+    Os marcos elegíveis — um mês futuro do cronograma, cada um com o seu valor — entram cheios;
+    quando a soma deles passa do saldo, o saldo é rateado entre os meses dos marcos na proporção
+    dos valores. O que sobrar segue o perfil da projeção, centavo a centavo pelo maior resto;
+    sem perfil algum, o protótipo fecha o saldo no último mês. A soma devolvida é o saldo, e sem
+    mês futuro ou sem saldo não há o que distribuir. Marco fora dos meses ou sem valor não entra.
+    """
+    if balance_cents <= 0 or not months:
+        return (0,) * len(months)
+    milestone_totals = _milestone_totals(months, milestones)
+    milestone_sum = sum(milestone_totals.values())
+    if milestone_sum > balance_cents:
+        milestone_amounts = _largest_remainder_amounts(
+            balance_cents, tuple(milestone_totals.values())
+        )
+        remaining = 0
+    else:
+        milestone_amounts = list(milestone_totals.values())
+        remaining = balance_cents - milestone_sum
+    profile_amounts = _profile_amounts(remaining, months, profile)
+    return tuple(
+        milestone + share
+        for milestone, share in zip(milestone_amounts, profile_amounts, strict=True)
+    )
+
+
+def share_percent(part_cents: int, total_cents: int) -> Decimal | None:
+    """A parte sobre o total, com uma casa; sem total, indefinido."""
+    return _percent_of(part_cents, total_cents)
+
+
+def _milestone_totals(
+    months: Sequence[date], milestones: Sequence[PaymentMilestone]
+) -> dict[date, int]:
+    totals = dict.fromkeys(months, 0)
+    for milestone in milestones:
+        if milestone.month in totals and milestone.value_cents > 0:
+            totals[milestone.month] += milestone.value_cents
+    return totals
+
+
+def _profile_amounts(
+    remaining_cents: int, months: Sequence[date], profile: Sequence[int]
+) -> list[int]:
+    weights = [
+        max(0, profile[index]) if index < len(profile) else 0 for index in range(len(months))
+    ]
+    if remaining_cents <= 0:
+        return [0] * len(months)
+    if sum(weights) == 0:
+        amounts = [0] * len(months)
+        amounts[-1] = remaining_cents
+        return amounts
+    return _largest_remainder_amounts(remaining_cents, weights)
+
+
+def _largest_remainder_amounts(total_cents: int, weights: Sequence[int]) -> list[int]:
+    """Rateia o total pelos pesos com centavos inteiros: piso e o resto no maior resto."""
+    positive = [max(0, weight) for weight in weights]
+    weight_sum = sum(positive)
+    if total_cents <= 0 or weight_sum == 0:
+        return [0] * len(positive)
+    floors = [total_cents * weight // weight_sum for weight in positive]
+    missing = total_cents - sum(floors)
+    by_remainder = sorted(
+        range(len(positive)),
+        key=lambda index: (-(total_cents * positive[index] % weight_sum), index),
+    )
+    for index in by_remainder[:missing]:
+        floors[index] += 1
+    return floors
