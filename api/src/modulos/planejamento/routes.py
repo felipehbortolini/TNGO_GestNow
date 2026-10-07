@@ -53,6 +53,12 @@ The EAP (ISSUE-036), prefix ``/api/planejamento/eap``:
   ``eap-pacotes`` importer), whose confirmation creates the revision bound to the change
   request: the generic confirmation refuses, the module is the writer (like the EAC import);
 * ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content.
+
+The physical S-curve (ISSUE-039), prefix ``/api/planejamento/curva-fisica``:
+
+* ``GET  /``  the screen: the indicators, the weekly curve (D11), the month-by-month table and,
+  in the read-only Portfólio, the composition of the portfolio with the ``Projeto`` column;
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the chart.
 """
 
 from __future__ import annotations
@@ -2311,3 +2317,207 @@ def _dictionary_error(
         toast=str(error),
         toast_tipo="erro",
     )
+
+
+# ── Curva S física (ISSUE-039) ────────────────────────────────────────────
+
+CURVA_FISICA_BASE = "planejamento/curva-fisica"
+
+
+CURVA_FISICA_TEMPLATE = "planejamento/curva_fisica.html"
+
+
+CURVA_FISICA_CONTENT_TARGET = "curva-fisica-conteudo"
+
+
+CURVA_FISICA_KPI_ICONS = ("chartLine", "checkCircle", "warning", "refresh", "calendar")
+
+
+CURVA_FISICA_KPIS_SCREEN = "/planejamento/kpis"
+
+
+@dataclass(frozen=True)
+class CurvaFisicaKpiLine:
+    """Um indicador da faixa do topo, já escrito como a pessoa o lê; o SPI leva o link da tela."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    situacao: str
+    tom: str
+    icone: str
+    href: str = ""
+
+
+@dataclass(frozen=True)
+class CurvaFisicaPointLine:
+    """Uma linha da tabela período a período, com o mês do corte marcado."""
+
+    mes: str
+    previsto_mes: str
+    previsto: str
+    real_mes: str
+    real: str
+    tendencia: str
+    desvio: str
+    tom: str
+    corte: bool
+
+
+@dataclass(frozen=True)
+class CurvaFisicaCompositionLine:
+    """Uma linha da composição da carteira: peso, avanço e contribuição para o desvio."""
+
+    projeto: str
+    peso: str
+    previsto: str
+    real: str
+    desvio: str
+    tom_desvio: str
+    spi: str
+    tom_spi: str
+    contribuicao: str
+    tom_contribuicao: str
+    termino: str
+
+
+@bp.route(route=CURVA_FISICA_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def curva_fisica_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A Curva S física do escopo: indicadores, gráfico, tabela período a período e carteira."""
+    return AlpineAjaxResponse(
+        template_name=CURVA_FISICA_TEMPLATE,
+        context=_curva_fisica_context(_curva_fisica_overview(session, context)),
+        request=req,
+    )
+
+
+@bp.route(route=f"{CURVA_FISICA_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def curva_fisica_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da Curva S física: indicadores, tabela e composição, no escopo do pedido."""
+    del req
+    return excel_response(_curva_fisica_document(session, context))
+
+
+@bp.route(route=f"{CURVA_FISICA_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def curva_fisica_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da Curva S física: o mesmo documento que o Excel carrega."""
+    return printable_response(_curva_fisica_document(session, context), req)
+
+
+def _curva_fisica_overview(
+    session: Session, context: RequestContext
+) -> service.CurvaFisicaOverview:
+    """A Curva S física do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.curva_fisica_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _curva_fisica_document(session: Session, context: RequestContext) -> Document:
+    return export.curva_fisica_document(
+        _curva_fisica_overview(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _curva_fisica_context(visao: service.CurvaFisicaOverview) -> dict[str, Any]:
+    """O que o fragmento da Curva S imprime: a visão, as linhas, o gráfico e o subtítulo."""
+    return {
+        "visao": visao,
+        "kpis": _curva_fisica_kpi_lines(visao),
+        "linhas": _curva_fisica_point_lines(visao),
+        "carteira": _curva_fisica_composition_lines(visao),
+        "grafico": visao.chart,
+        "situacao": "vazio-origem" if visao.is_empty else "conteudo",
+        "subtitulo": _curva_fisica_subtitle(visao),
+        "alvo_conteudo": CURVA_FISICA_CONTENT_TARGET,
+    }
+
+
+def _curva_fisica_subtitle(visao: service.CurvaFisicaOverview) -> str:
+    cut = export.curva_fisica_month_label(visao.indicators.cut_month)
+    text = f"Corte em {cut} · % acumulado por mês" if cut else "Sem corte na referência"
+    if visao.is_portfolio:
+        text += " · média ponderada pelos pesos dos projetos na carteira"
+    return text
+
+
+def _curva_fisica_kpi_lines(visao: service.CurvaFisicaOverview) -> list[CurvaFisicaKpiLine]:
+    href = (
+        f"{CURVA_FISICA_KPIS_SCREEN}?projeto={visao.project_id}"
+        if visao.project_id is not None
+        else f"{CURVA_FISICA_KPIS_SCREEN}?projeto=portfolio"
+    )
+    return [
+        CurvaFisicaKpiLine(
+            rotulo=kpi.label,
+            valor=(
+                export.signed_decimal_text(kpi.value)
+                if kpi.label == "Desvio" and isinstance(kpi.value, Decimal)
+                else format_value(kpi.kind, kpi.value, kpi.digits)
+            ),
+            referencia=kpi.reference,
+            situacao=kpi.status,
+            tom=kpi.tone.value if kpi.tone else "neutro",
+            icone=icone,
+            href=href if kpi.label == "SPI" else "",
+        )
+        for kpi, icone in zip(export.curva_fisica_kpis(visao), CURVA_FISICA_KPI_ICONS, strict=True)
+    ]
+
+
+def _curva_fisica_point_lines(visao: service.CurvaFisicaOverview) -> list[CurvaFisicaPointLine]:
+    lines: list[CurvaFisicaPointLine] = []
+    for point in visao.points:
+        tone = export.deviation_tone(point.deviation_pp)
+        lines.append(
+            CurvaFisicaPointLine(
+                mes=export.curva_fisica_month_label(point.month),
+                previsto_mes=format_value(ValueKind.DECIMAL, point.month_predicted, 1),
+                previsto=format_value(ValueKind.PERCENT, point.predicted, 1),
+                real_mes=format_value(ValueKind.DECIMAL, point.month_actual, 1),
+                real=format_value(ValueKind.PERCENT, point.actual, 1),
+                tendencia=format_value(ValueKind.PERCENT, point.trend, 1),
+                desvio=export.signed_decimal_text(point.deviation_pp),
+                tom=tone.value if tone is not None else "neutro",
+                corte=point.is_cut,
+            )
+        )
+    return lines
+
+
+def _curva_fisica_composition_lines(
+    visao: service.CurvaFisicaOverview,
+) -> list[CurvaFisicaCompositionLine]:
+    lines: list[CurvaFisicaCompositionLine] = []
+    for item in visao.composition:
+        deviation_tone = export.deviation_tone(item.deviation_pp)
+        contribution_tone = export.deviation_tone(item.contribution_pp)
+        lines.append(
+            CurvaFisicaCompositionLine(
+                projeto=item.project_label,
+                peso=format_value(ValueKind.PERCENT, item.weight),
+                previsto=format_value(ValueKind.PERCENT, item.predicted, 1),
+                real=format_value(ValueKind.PERCENT, item.actual, 1),
+                desvio=export.signed_decimal_text(item.deviation_pp),
+                tom_desvio=deviation_tone.value if deviation_tone is not None else "neutro",
+                spi=format_value(ValueKind.DECIMAL, item.spi, 2),
+                tom_spi=export.spi_tone(item.spi).value,
+                contribuicao=export.signed_decimal_text(item.contribution_pp, 2),
+                tom_contribuicao=(
+                    contribution_tone.value if contribution_tone is not None else "neutro"
+                ),
+                termino=export.curva_fisica_finish_text(item),
+            )
+        )
+    return lines

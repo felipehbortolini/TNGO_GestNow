@@ -17,6 +17,12 @@ indicators, the tree with the criterion and the deviation of each node, the
 revisions and the breakdowns of the revision in force. In the Portfólio the tree
 is the projects and their main packages, read-only, with ``Projeto`` in every
 table (D8).
+
+
+The physical S-curve (ISSUE-039) hands the export the same document the screen
+shows: the indicators, the weekly chart (D11), the month-by-month table and, in
+the read-only Portfólio, the composition of the portfolio with the projects and
+their weights; the ``Projeto`` column comes from the generic mechanism (HU-016).
 """
 
 from __future__ import annotations
@@ -51,6 +57,10 @@ from src.modulos.planejamento.service import (
     PORTFOLIO_LABEL,
     ActivityView,
     ConstraintView,
+    CurvaFisicaComposition,
+    CurvaFisicaIndicators,
+    CurvaFisicaOverview,
+    CurvaFisicaPoint,
     EapBreakdownView,
     EapNode,
     EapOverview,
@@ -591,7 +601,14 @@ def eap_kpis(visao: EapOverview) -> tuple[Kpi, ...]:
 
 def eap_deviation_text(value: Decimal) -> str:
     """O desvio em p.p. com sinal explícito no positivo, como a tela o escreve: ``+1,2``."""
-    text = format_value(ValueKind.DECIMAL, value, 1)
+    return signed_decimal_text(value, 1)
+
+
+def signed_decimal_text(value: Decimal | None, digits: int = 1) -> str:
+    """Um valor com sinal explícito no positivo, como a tela o escreve: ``+6,03``."""
+    if value is None:
+        return ""
+    text = format_value(ValueKind.DECIMAL, value, digits)
     return f"+{text}" if value > 0 else text
 
 
@@ -761,3 +778,218 @@ def _breakdown_source_label(item: EapBreakdownView) -> str:
 
 def _code_label(code: str, description: str) -> str:
     return f"{code} · {description}" if description else code
+
+
+# ── Curva S física (ISSUE-039) ────────────────────────────────────────────
+
+CURVA_FISICA_TITLE = "Curva S física"
+CURVA_FISICA_PORTFOLIO_TITLE = "Curva S física da carteira"
+CURVA_FISICA_POINTS_TITLE = "Curva S período a período"
+CURVA_FISICA_COMPOSITION_TITLE = "Composição da carteira"
+CURVA_FISICA_CHART_TITLE = "Curva S"
+
+MONTH_NAMES = (
+    "jan",
+    "fev",
+    "mar",
+    "abr",
+    "mai",
+    "jun",
+    "jul",
+    "ago",
+    "set",
+    "out",
+    "nov",
+    "dez",
+)
+
+
+def curva_fisica_month_label(month: date | None) -> str:
+    """``set/26``: o mês da curva como o protótipo o escreve."""
+    if month is None:
+        return ""
+    return f"{MONTH_NAMES[month.month - 1]}/{month.year % 100:02d}"
+
+
+def curva_fisica_finish_text(item: CurvaFisicaComposition) -> str:
+    """``set/26 · LB fev/27``: o término pela tendência com a linha de base ao lado."""
+    trend = curva_fisica_month_label(item.trend_finish)
+    baseline = curva_fisica_month_label(item.baseline_finish)
+    if not trend:
+        return f"LB {baseline}" if baseline else NO_VALUE
+    return f"{trend} · LB {baseline}" if baseline else trend
+
+
+def deviation_tone(value: Decimal | None) -> Tone | None:
+    """A cor de um desvio em p.p.: negativo em erro, zero ou positivo em ok."""
+    if value is None:
+        return None
+    return Tone.ERROR if value < 0 else Tone.OK
+
+
+def spi_tone(value: Decimal | None) -> Tone:
+    """A cor do SPI: 1 ou mais em ok, de 0,95 a 0,99 em alerta, abaixo em erro."""
+    if value is None:
+        return Tone.NEUTRAL
+    if value >= 1:
+        return Tone.OK
+    return Tone.WARN if value >= Decimal("0.95") else Tone.ERROR
+
+
+def curva_fisica_kpis(visao: CurvaFisicaOverview) -> tuple[Kpi, ...]:
+    """Os indicadores da Curva S física, os mesmos da faixa do topo da tela."""
+    indicadores = visao.indicators
+    cut = curva_fisica_month_label(indicadores.cut_month)
+    baseline_finish = curva_fisica_month_label(indicadores.baseline_finish) or NO_VALUE
+    late = (
+        indicadores.trend_finish is not None
+        and indicadores.baseline_finish is not None
+        and indicadores.trend_finish > indicadores.baseline_finish
+    )
+    return (
+        Kpi(
+            "Previsto acumulado",
+            indicadores.predicted,
+            f"Linha de base: 100% em {baseline_finish}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+            status=f"linha de base em {cut}" if cut else "",
+        ),
+        Kpi(
+            "Real acumulado",
+            indicadores.actual,
+            f"Previsto: {format_value(ValueKind.PERCENT, indicadores.predicted, 1)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+            status=_real_status(indicadores),
+        ),
+        Kpi(
+            "Desvio",
+            indicadores.deviation_pp,
+            "Meta: ≥ 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.ERROR if indicadores.deviation_pp < 0 else Tone.OK,
+            status="real menos previsto",
+        ),
+        Kpi(
+            "SPI",
+            indicadores.spi,
+            "Meta: ≥ 1,00",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=spi_tone(indicadores.spi),
+            status=(
+                f"mês anterior {format_value(ValueKind.DECIMAL, indicadores.previous_spi, 2)}"
+                if indicadores.previous_spi is not None
+                else ""
+            ),
+        ),
+        Kpi(
+            "Término pela tendência",
+            indicadores.trend_finish,
+            f"Linha de base: {baseline_finish}",
+            ValueKind.DATE,
+            tone=Tone.ERROR if late else Tone.OK,
+        ),
+    )
+
+
+def _real_status(indicadores: CurvaFisicaIndicators) -> str:
+    """``+1,2 p.p. no mês``: o quanto o real andou desde o mês anterior."""
+    if indicadores.previous_actual is None:
+        return ""
+    return f"{eap_deviation_text(indicadores.actual - indicadores.previous_actual)} p.p. no mês"
+
+
+def curva_fisica_document(
+    visao: CurvaFisicaOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """A Curva S física como documento: os indicadores, o gráfico, a tabela e a carteira."""
+    tables: list[Table] = [_curve_points_table(visao)]
+    if visao.is_portfolio:
+        tables.append(_curve_composition_table(visao))
+    return Document(
+        title=CURVA_FISICA_PORTFOLIO_TITLE if visao.is_portfolio else CURVA_FISICA_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_curve_context(visao),
+        kpis=curva_fisica_kpis(visao),
+        charts=(Chart(CURVA_FISICA_CHART_TITLE, "curva-s-linha", visao.chart),),
+        tables=tuple(tables),
+    )
+
+
+def _curve_context(visao: CurvaFisicaOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, visao.reference_date))]
+    cut = curva_fisica_month_label(visao.indicators.cut_month)
+    if cut:
+        lines.append(("Corte", cut))
+    if visao.revision is not None and visao.revision_date is not None:
+        lines.append(
+            (
+                "Revisão da EAP",
+                f"Rev {visao.revision} de {format_value(ValueKind.DATE, visao.revision_date)}",
+            )
+        )
+    return tuple(lines)
+
+
+def _curve_points_table(visao: CurvaFisicaOverview) -> Table:
+    return Table(
+        title=CURVA_FISICA_POINTS_TITLE,
+        columns=(
+            Column("Mês", width=16),
+            Column("Previsto no mês (p.p.)", ValueKind.DECIMAL, digits=1),
+            Column("Previsto acumulado", ValueKind.PERCENT, digits=1),
+            Column("Real no mês (p.p.)", ValueKind.DECIMAL, digits=1),
+            Column("Real acumulado", ValueKind.PERCENT, digits=1),
+            Column("Tendência", ValueKind.PERCENT, digits=1),
+            Column("Desvio (p.p.)", ValueKind.DECIMAL, digits=1),
+        ),
+        rows=tuple(_curve_point_row(point) for point in visao.points),
+        per_project=False,
+    )
+
+
+def _curve_point_row(point: CurvaFisicaPoint) -> Row:
+    return row(
+        f"{curva_fisica_month_label(point.month)}{' · corte' if point.is_cut else ''}",
+        point.month_predicted,
+        point.predicted,
+        point.month_actual,
+        point.actual,
+        point.trend,
+        Cell(point.deviation_pp, deviation_tone(point.deviation_pp)),
+    )
+
+
+def _curve_composition_table(visao: CurvaFisicaOverview) -> Table:
+    return Table(
+        title=CURVA_FISICA_COMPOSITION_TITLE,
+        columns=(
+            Column("Peso na carteira", ValueKind.PERCENT),
+            Column("Previsto acumulado", ValueKind.PERCENT, digits=1),
+            Column("Real acumulado", ValueKind.PERCENT, digits=1),
+            Column("Desvio (p.p.)", ValueKind.DECIMAL, digits=1),
+            Column("SPI", ValueKind.DECIMAL, digits=2),
+            Column("Contribuição para o desvio (p.p.)", ValueKind.DECIMAL, digits=2),
+            Column("Término pela tendência", width=20),
+        ),
+        rows=tuple(
+            row(
+                item.weight,
+                item.predicted,
+                item.actual,
+                Cell(item.deviation_pp, deviation_tone(item.deviation_pp)),
+                Cell(item.spi, spi_tone(item.spi)),
+                Cell(item.contribution_pp, deviation_tone(item.contribution_pp)),
+                curva_fisica_finish_text(item),
+                project=item.project_label,
+            )
+            for item in visao.composition
+        ),
+    )

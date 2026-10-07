@@ -30,13 +30,21 @@ weight (the 100% rule) and the deviation uses the bands of the parameters in
 force. The weight of the project in the portfolio and the EAC item of the
 dictionary come from the Financeiro facade, imported locally (D9); the approved
 SMs come from the Governança facade. Nothing here reads the clock (D6).
+
+The physical S-curve (ISSUE-039): the frozen baseline of each EAP revision, the
+real from the dated measurements of the packages (D6) and the trend by the rule
+of the prototype. ``freeze_curve`` runs inside ``create_revision``; the read
+side lives in ``curva_fisica_overview``, which also serves the weekly payload of
+the DS curve. In the Portfólio the curve is the weighted average of the projects
+by the weights of the portfolio (D8), in the calendar of the union of months.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from calendar import monthrange
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +60,8 @@ from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.planejamento import calculations, validation
 from src.modulos.planejamento.models import (
+    CurvaFisicaMonth,
+    CurvaFisicaRevision,
     EapBreakdown,
     EapItem,
     EapItemStep,
@@ -2881,6 +2891,9 @@ def create_revision(
         ),
     )
     _freeze_revision(session, revision_id=record.id, packages=tuple(frozen.values()))
+    freeze_curve(
+        session, project_id=project_id, revision_id=record.id, reference_date=reference_date
+    )
     from src.modulos.governanca import service as governanca
 
     governanca.incorporate_eap_revision(
@@ -3570,3 +3583,606 @@ def _code_key(code: str) -> tuple[int, ...]:
 
 def _project_label(project: configuracoes.ProjectSummary) -> str:
     return f"{project.code} · {project.name}"
+
+
+# ── Curva S física (ISSUE-039) ────────────────────────────────────────────
+
+CURVA_FISICA_PROJECT_NOT_FOUND_MESSAGE = "O projeto da Curva S não existe."
+
+
+@dataclass(frozen=True)
+class CurvaFisicaIndicators:
+    """Os indicadores da Curva S na data de referência, com o mês anterior ao lado."""
+
+    cut_month: date | None
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    previous_predicted: Decimal | None
+    previous_actual: Decimal | None
+    previous_spi: Decimal | None
+    trend_finish: date | None
+    baseline_finish: date | None
+
+
+@dataclass(frozen=True)
+class CurvaFisicaPoint:
+    """Um mês da tabela período a período: o acumulado, o incremento do mês e o desvio."""
+
+    month: date
+    month_predicted: Decimal
+    predicted: Decimal
+    month_actual: Decimal | None
+    actual: Decimal | None
+    trend: Decimal | None
+    deviation_pp: Decimal | None
+    is_cut: bool
+
+
+@dataclass(frozen=True)
+class CurvaFisicaComposition:
+    """A linha de um projeto na composição da carteira, no corte da própria curva."""
+
+    project_id: int
+    project_label: str
+    weight: Decimal
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    contribution_pp: Decimal
+    trend_finish: date | None
+    baseline_finish: date | None
+
+
+@dataclass(frozen=True)
+class CurvaFisicaOverview:
+    """A Curva S física do escopo: as séries, os indicadores, a tabela e o gráfico (D11)."""
+
+    reference_date: date
+    is_portfolio: bool
+    scope_label: str
+    project_id: int | None
+    revision: int | None
+    revision_date: date | None
+    series: calculations.CurvaFisicaSeries
+    indicators: CurvaFisicaIndicators
+    points: tuple[CurvaFisicaPoint, ...]
+    composition: tuple[CurvaFisicaComposition, ...]
+    chart: Mapping[str, Any]
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether there is no frozen curve in the scope: the screen shows the empty state."""
+        return not self.series.months
+
+
+@dataclass(frozen=True)
+class _CurveRecord:
+    """A curva congelada de uma revisão como o banco a guarda: o calendário e a baseline."""
+
+    eap_revision_id: int
+    revision: int
+    revision_date: date
+    months: tuple[date, ...]
+    baseline: tuple[Decimal, ...]
+
+
+@dataclass(frozen=True)
+class _FrozenCurve:
+    """A curva de um projeto pronta: a revisão, os pacotes congelados e as três séries."""
+
+    project_id: int
+    revision: int
+    revision_date: date
+    packages: tuple[calculations.CurvaFisicaPackage, ...]
+    series: calculations.CurvaFisicaSeries
+
+
+def freeze_curve(
+    session: Session, *, project_id: int, revision_id: int, reference_date: date
+) -> None:
+    """Congela a linha de base da Curva S física na revisão da EAP (D5b, HU-025).
+
+    Os pacotes de nível 3 saem dos pesos congelados da revisão (``eap_revisao_item``) com as
+    datas do item; o calendário e o previsto de cada mês vêm dos cálculos da curva. A revisão
+    da curva e os seus meses entram na transação do chamador — é o gancho do ``create_revision``.
+    """
+    packages = _frozen_packages(session, (revision_id,)).get(revision_id, ())
+    calendar = calculations.curva_fisica_months(packages, reference_date)
+    baseline = calculations.curva_fisica_baseline(packages, calendar.months, reference_date)
+    record = CurvaFisicaRevision(
+        project_id=project_id,
+        eap_revision_id=revision_id,
+        generated_at=calendario.now(),
+    )
+    session.add(record)
+    session.flush()
+    session.add_all(
+        CurvaFisicaMonth(revision_id=record.id, month=month, baseline_pct=pct)
+        for month, pct in zip(calendar.months, baseline, strict=True)
+    )
+    session.flush()
+
+
+def curva_fisica_overview(
+    session: Session, *, scope: Scope, reference_date: date
+) -> CurvaFisicaOverview:
+    """A Curva S física do escopo: baseline congelada, real das medições e tendência (D5b, D6).
+
+    No projeto vale a curva da revisão vigente da EAP; sem revisão ou sem congelamento a visão
+    sai vazia. No Portfólio a curva é a média ponderada das curvas dos projetos pelos pesos da
+    carteira, no calendário da união dos meses (D8), e cada projeto entra na composição com o
+    seu próprio corte. O gráfico sai em semanas ISO, no contrato da biblioteca do DS (D11).
+    """
+    projects = _curve_scope_projects(scope, configuracoes.list_projects(session))
+    records = _current_curve_records(session, [project.id for project in projects])
+    if scope.is_portfolio:
+        return _portfolio_curve_overview(
+            session, projects=projects, records=records, reference_date=reference_date
+        )
+    project = projects[0]
+    record = records.get(project.id)
+    if record is None:
+        return _empty_curve_overview(
+            reference_date=reference_date, is_portfolio=False, scope_label=_project_label(project)
+        )
+    curve = _frozen_curves(session, {project.id: record}, reference_date)[project.id]
+    return CurvaFisicaOverview(
+        reference_date=reference_date,
+        is_portfolio=False,
+        scope_label=_project_label(project),
+        project_id=project.id,
+        revision=curve.revision,
+        revision_date=curve.revision_date,
+        series=curve.series,
+        indicators=_curve_indicators(curve.series),
+        points=_curve_points(curve.series),
+        composition=(),
+        chart=_curve_chart(
+            curve.series,
+            is_portfolio=False,
+            reference_date=reference_date,
+            real_on=lambda day: _packages_real_on(curve.packages, day),
+        ),
+    )
+
+
+def _portfolio_curve_overview(
+    session: Session,
+    *,
+    projects: Sequence[configuracoes.ProjectSummary],
+    records: Mapping[int, _CurveRecord],
+    reference_date: date,
+) -> CurvaFisicaOverview:
+    """A Curva S física da carteira, ponderada pelos pesos dos projetos (D8)."""
+    from src.modulos.financeiro import service as financeiro
+
+    curves = {
+        project_id: curve
+        for project_id, curve in _frozen_curves(session, records, reference_date).items()
+        if curve.series.months
+    }
+    if not curves:
+        return _empty_curve_overview(
+            reference_date=reference_date, is_portfolio=True, scope_label=PORTFOLIO_LABEL
+        )
+    labels = {project.id: _project_label(project) for project in projects}
+    weights = financeiro.portfolio_weights(session, reference_date=reference_date)
+    weight_of = {
+        project_id: weights[project_id].weight if project_id in weights else calculations.ZERO
+        for project_id in curves
+    }
+    months = _month_range(
+        min(curve.series.months[0] for curve in curves.values()),
+        max(curve.series.months[-1] for curve in curves.values()),
+    )
+    series = calculations.curva_fisica_portfolio(
+        {project_id: curve.series for project_id, curve in curves.items()}, weight_of, months
+    )
+    divisor = sum(weight_of.values(), calculations.ZERO) or Decimal(1)
+    frozen = tuple(curves.values())
+    return CurvaFisicaOverview(
+        reference_date=reference_date,
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        project_id=None,
+        revision=None,
+        revision_date=None,
+        series=series,
+        indicators=_curve_indicators(series),
+        points=_curve_points(series),
+        composition=tuple(
+            _curve_composition(labels[project_id], curves[project_id], weight_of[project_id])
+            for project_id in curves
+        ),
+        chart=_curve_chart(
+            series,
+            is_portfolio=True,
+            reference_date=reference_date,
+            real_on=lambda day: _portfolio_real_on(frozen, weight_of, divisor, day),
+        ),
+    )
+
+
+def _curve_composition(label: str, curve: _FrozenCurve, weight: Decimal) -> CurvaFisicaComposition:
+    indicators = _curve_indicators(curve.series)
+    return CurvaFisicaComposition(
+        project_id=curve.project_id,
+        project_label=label,
+        weight=weight,
+        predicted=indicators.predicted,
+        actual=indicators.actual,
+        deviation_pp=indicators.deviation_pp,
+        spi=indicators.spi,
+        contribution_pp=_round_two(weight * indicators.deviation_pp / calculations.PERCENT),
+        trend_finish=indicators.trend_finish,
+        baseline_finish=indicators.baseline_finish,
+    )
+
+
+def _curve_scope_projects(
+    scope: Scope, projects: Sequence[configuracoes.ProjectSummary]
+) -> tuple[configuracoes.ProjectSummary, ...]:
+    if scope.is_portfolio:
+        return tuple(projects)
+    project = next((item for item in projects if item.id == scope.project_id), None)
+    if project is None:
+        raise InvalidDataError(CURVA_FISICA_PROJECT_NOT_FOUND_MESSAGE)
+    return (project,)
+
+
+def _empty_curve_overview(
+    *, reference_date: date, is_portfolio: bool, scope_label: str
+) -> CurvaFisicaOverview:
+    empty = calculations.CurvaFisicaSeries(months=(), cut_index=-1, baseline=(), real=(), trend=())
+    return CurvaFisicaOverview(
+        reference_date=reference_date,
+        is_portfolio=is_portfolio,
+        scope_label=scope_label,
+        project_id=None,
+        revision=None,
+        revision_date=None,
+        series=empty,
+        indicators=_curve_indicators(empty),
+        points=(),
+        composition=(),
+        chart=_curve_chart(empty, is_portfolio=is_portfolio, reference_date=reference_date),
+    )
+
+
+def _current_curve_records(session: Session, project_ids: Sequence[int]) -> dict[int, _CurveRecord]:
+    """A curva congelada vigente de cada projeto: a da maior revisão da EAP."""
+    if not project_ids:
+        return {}
+    curves = session.scalars(
+        select(CurvaFisicaRevision).where(CurvaFisicaRevision.project_id.in_(project_ids))
+    ).all()
+    if not curves:
+        return {}
+    revisions = {
+        revision.id: revision
+        for revision in session.scalars(
+            select(EapRevision).where(
+                EapRevision.id.in_({curve.eap_revision_id for curve in curves})
+            )
+        )
+    }
+    latest: dict[int, CurvaFisicaRevision] = {}
+    for curve in curves:
+        revision = revisions.get(curve.eap_revision_id)
+        if revision is None:
+            continue
+        current = latest.get(curve.project_id)
+        if current is None or revision.revision > revisions[current.eap_revision_id].revision:
+            latest[curve.project_id] = curve
+    months: dict[int, list[CurvaFisicaMonth]] = {}
+    for row in session.scalars(
+        select(CurvaFisicaMonth)
+        .where(CurvaFisicaMonth.revision_id.in_({curve.id for curve in latest.values()}))
+        .order_by(CurvaFisicaMonth.revision_id, CurvaFisicaMonth.month)
+    ):
+        months.setdefault(row.revision_id, []).append(row)
+    records: dict[int, _CurveRecord] = {}
+    for project_id, curve in latest.items():
+        revision = revisions[curve.eap_revision_id]
+        rows = months.get(curve.id, [])
+        records[project_id] = _CurveRecord(
+            eap_revision_id=curve.eap_revision_id,
+            revision=revision.revision,
+            revision_date=revision.revision_date,
+            months=tuple(row.month for row in rows),
+            baseline=tuple(row.baseline_pct for row in rows),
+        )
+    return records
+
+
+def _frozen_packages(
+    session: Session, revision_ids: Sequence[int]
+) -> dict[int, tuple[calculations.CurvaFisicaPackage, ...]]:
+    """Os pacotes congelados de cada revisão da EAP, cada um com as medições datadas do item."""
+    if not revision_ids:
+        return {}
+    frozen = session.scalars(
+        select(EapRevisionItem)
+        .where(EapRevisionItem.revision_id.in_(revision_ids))
+        .order_by(EapRevisionItem.revision_id, EapRevisionItem.item_id)
+    ).all()
+    item_ids = sorted({row.item_id for row in frozen})
+    if not item_ids:
+        return {}
+    items = {
+        item.id: item for item in session.scalars(select(EapItem).where(EapItem.id.in_(item_ids)))
+    }
+    measurements: dict[int, list[calculations.CurvaFisicaMeasurement]] = {}
+    for record in session.scalars(
+        select(EapMeasurement)
+        .where(EapMeasurement.item_id.in_(item_ids))
+        .order_by(EapMeasurement.item_id, EapMeasurement.measured_on, EapMeasurement.id)
+    ):
+        measurements.setdefault(record.item_id, []).append(
+            calculations.CurvaFisicaMeasurement(
+                measured_on=record.measured_on, to_pct=record.to_pct
+            )
+        )
+    grouped: dict[int, list[calculations.CurvaFisicaPackage]] = {}
+    for row in frozen:
+        item = items.get(row.item_id)
+        if item is None:
+            continue
+        grouped.setdefault(row.revision_id, []).append(
+            calculations.CurvaFisicaPackage(
+                weight=row.weight,
+                start=item.start,
+                finish=item.finish,
+                measurements=tuple(measurements.get(row.item_id, ())),
+            )
+        )
+    return {revision_id: tuple(group) for revision_id, group in grouped.items()}
+
+
+def _frozen_curves(
+    session: Session, records: Mapping[int, _CurveRecord], reference_date: date
+) -> dict[int, _FrozenCurve]:
+    packages = _frozen_packages(
+        session, tuple(record.eap_revision_id for record in records.values())
+    )
+    curves: dict[int, _FrozenCurve] = {}
+    for project_id, record in records.items():
+        frozen = packages.get(record.eap_revision_id, ())
+        real = calculations.curva_fisica_real(frozen, record.months, reference_date)
+        cut = _last_real_index(real)
+        curves[project_id] = _FrozenCurve(
+            project_id=project_id,
+            revision=record.revision,
+            revision_date=record.revision_date,
+            packages=frozen,
+            series=calculations.CurvaFisicaSeries(
+                months=record.months,
+                cut_index=cut,
+                baseline=record.baseline,
+                real=real,
+                trend=calculations.curva_fisica_trend(record.baseline, real, cut),
+            ),
+        )
+    return curves
+
+
+def _curve_indicators(series: calculations.CurvaFisicaSeries) -> CurvaFisicaIndicators:
+    cut = series.cut_index
+    if cut < 0:
+        return CurvaFisicaIndicators(
+            cut_month=None,
+            predicted=calculations.ZERO,
+            actual=calculations.ZERO,
+            deviation_pp=calculations.ZERO,
+            spi=None,
+            previous_predicted=None,
+            previous_actual=None,
+            previous_spi=None,
+            trend_finish=None,
+            baseline_finish=None,
+        )
+    predicted = series.baseline[cut]
+    actual = series.real[cut] or calculations.ZERO
+    previous_predicted = series.baseline[cut - 1] if cut > 0 else None
+    previous_actual = series.real[cut - 1] if cut > 0 else None
+    return CurvaFisicaIndicators(
+        cut_month=series.months[cut],
+        predicted=predicted,
+        actual=actual,
+        deviation_pp=_round_one(actual - predicted),
+        spi=_spi(actual, predicted),
+        previous_predicted=previous_predicted,
+        previous_actual=previous_actual,
+        previous_spi=(
+            None
+            if previous_predicted is None
+            else _spi(previous_actual or calculations.ZERO, previous_predicted)
+        ),
+        trend_finish=_first_month(series.months, series.trend),
+        baseline_finish=_first_month(series.months, series.baseline),
+    )
+
+
+def _first_month(months: Sequence[date], values: Sequence[Decimal | None]) -> date | None:
+    """O primeiro mês em que a série chega a 100%; sem chegar, não há término."""
+    return next(
+        (
+            month
+            for month, value in zip(months, values, strict=True)
+            if value is not None and value >= calculations.PERCENT
+        ),
+        None,
+    )
+
+
+def _curve_points(series: calculations.CurvaFisicaSeries) -> tuple[CurvaFisicaPoint, ...]:
+    points: list[CurvaFisicaPoint] = []
+    for index, month in enumerate(series.months):
+        predicted = series.baseline[index]
+        actual = series.real[index]
+        previous_predicted = series.baseline[index - 1] if index > 0 else calculations.ZERO
+        previous_actual = series.real[index - 1] if index > 0 else None
+        points.append(
+            CurvaFisicaPoint(
+                month=month,
+                month_predicted=_round_one(predicted - previous_predicted),
+                predicted=predicted,
+                month_actual=(
+                    None
+                    if actual is None
+                    else _round_one(actual - (previous_actual or calculations.ZERO))
+                ),
+                actual=actual,
+                trend=series.trend[index],
+                deviation_pp=None if actual is None else _round_one(actual - predicted),
+                is_cut=index == series.cut_index,
+            )
+        )
+    return tuple(points)
+
+
+def _month_range(first: date, last: date) -> tuple[date, ...]:
+    months: list[date] = []
+    current = first
+    while current <= last:
+        months.append(current)
+        current = (
+            date(current.year + 1, 1, 1)
+            if current.month == calculations.MONTHS_IN_YEAR
+            else date(current.year, current.month + 1, 1)
+        )
+    return tuple(months)
+
+
+def _month_last(month: date) -> date:
+    return month.replace(day=monthrange(month.year, month.month)[1])
+
+
+def _month_weeks(months: Sequence[date]) -> tuple[date, ...]:
+    """As segundas-feiras das semanas ISO que cobrem os meses da curva."""
+    current = months[0] - timedelta(days=months[0].weekday())
+    last = _month_last(months[-1])
+    weeks: list[date] = []
+    while current <= last:
+        weeks.append(current)
+        current += timedelta(days=7)
+    return tuple(weeks)
+
+
+def _last_real_index(values: Sequence[Decimal | None]) -> int:
+    """O índice da última semana ou mês com real; -1 quando nenhum tem."""
+    for index in range(len(values) - 1, -1, -1):
+        if values[index] is not None:
+            return index
+    return -1
+
+
+def _interpolated(months: Sequence[date], values: Sequence[Decimal], day: date) -> Decimal:
+    """O acumulado de um dia: interpolação linear dentro do mês, com 1 casa.
+
+    O mês congelado vale no fim do mês civil; antes do primeiro mês a curva vale zero e depois
+    do último fica no último valor. É a regra do relatório para a semana no meio do mês.
+    """
+    if day < months[0]:
+        return calculations.ZERO
+    if day > _month_last(months[-1]):
+        return values[-1]
+    for index, month in enumerate(months):
+        last = _month_last(month)
+        if day > last:
+            continue
+        previous = values[index - 1] if index > 0 else calculations.ZERO
+        elapsed = Decimal((day - month).days)
+        span = Decimal((last - month).days)
+        value = previous + (values[index] - previous) * elapsed / span
+        return value.quantize(calculations.ONE_PLACE, rounding=ROUND_HALF_UP)
+    return values[-1]
+
+
+def _packages_real_on(packages: Sequence[calculations.CurvaFisicaPackage], day: date) -> Decimal:
+    """O real acumulado dos pacotes numa data: a soma ponderada da última medição até ela."""
+    value = calculations.curva_fisica_real(packages, (day.replace(day=1),), day)[0]
+    return value if value is not None else calculations.ZERO
+
+
+def _portfolio_real_on(
+    curves: Sequence[_FrozenCurve],
+    weights: Mapping[int, Decimal],
+    divisor: Decimal,
+    day: date,
+) -> Decimal:
+    """O real da carteira numa data: a média ponderada dos reais dos projetos com curva."""
+    total = sum(
+        (
+            weights.get(curve.project_id, calculations.ZERO)
+            * _packages_real_on(curve.packages, day)
+            for curve in curves
+        ),
+        calculations.ZERO,
+    )
+    return _round_one(total / divisor)
+
+
+def _curve_chart(
+    series: calculations.CurvaFisicaSeries,
+    *,
+    is_portfolio: bool,
+    reference_date: date,
+    real_on: Callable[[date], Decimal] | None = None,
+) -> dict[str, Any]:
+    """O ``data-dados`` da Curva S Linha (D11): semanas ISO, acumulado e sem real depois do corte.
+
+    O baseline e a tendência saem da interpolação linear dentro do mês congelado; o real é a
+    última medição até o fim da semana, limitado à referência; as semanas depois da referência
+    ficam sem real. A tendência arranca no real da semana do corte, como no mês.
+    """
+    weeks = _month_weeks(series.months) if series.months else ()
+    baseline: list[Decimal] = []
+    realized: list[Decimal | None] = []
+    for week in weeks:
+        end = week + timedelta(days=6)
+        baseline.append(_interpolated(series.months, series.baseline, end))
+        as_of = min(end, reference_date)
+        realized.append(None if week > reference_date or real_on is None else real_on(as_of))
+    trend = calculations.curva_fisica_trend(baseline, realized, _last_real_index(realized))
+    periods: list[dict[str, Any]] = []
+    for index, week in enumerate(weeks):
+        year, number, _ = week.isocalendar()
+        actual = realized[index]
+        tendency = trend[index]
+        periods.append(
+            {
+                "ano": year,
+                "mes": (week + timedelta(days=3)).month,
+                "semana": number,
+                "valores": {
+                    "linha_base": float(baseline[index]),
+                    "realizado": None if actual is None else float(actual),
+                    "tendencia": None if tendency is None else float(tendency),
+                },
+            }
+        )
+    return {
+        "titulo": "Curva S física da carteira" if is_portfolio else "Curva S física",
+        "modo": "acumulado",
+        "formato": "pct",
+        "casas": 1,
+        "casas_dica": 1,
+        "series": [
+            {"id": "linha_base", "rotulo": "Linha de Base", "papel": "linha-base"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado"},
+            {"id": "tendencia", "rotulo": "Tendência", "papel": "tendencia"},
+        ],
+        "periodos": periods,
+    }
+
+
+def _round_one(value: Decimal) -> Decimal:
+    return value.quantize(calculations.ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def _round_two(value: Decimal) -> Decimal:
+    return value.quantize(calculations.TWO_PLACES, rounding=ROUND_HALF_UP)
