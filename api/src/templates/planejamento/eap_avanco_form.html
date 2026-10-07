@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do avanço do pacote da EAP (ISSUE-037). A raiz leva o id do alvo que a tela pediu
+  ({{ target_id }}: ``eap-formulario``); o miolo é o parcial que a resposta da gravação
+  (eap_avanco_salvo.html) também usa.
+
+  Espera: no, valores, erros, mensagem, hoje, estados, criterio, peso, previsto, real,
+  formulario, alvo_conteudo e alvo_formulario.
+#}
+{% block fragment %}
+{% include "planejamento/_eap_avanco_campos.html" %}
+{% endblock %}

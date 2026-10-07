@@ -37,6 +37,13 @@ The EAP (ISSUE-036), prefix ``/api/planejamento/eap``:
 * ``GET  /itens/{item_id}/dicionario``  the dictionary form of the package;
 * ``POST /itens/{item_id}/dicionario``  saves it (Membro; 422 per field, 409 for a stale
   version, 403 in the Portfólio) and answers the content and the form in one multi-target reply;
+* ``GET  /itens/{item_id}/avanco``  the progress form of the package, with the entries of its
+  criterion (ISSUE-037);
+* ``POST /itens/{item_id}/avanco``  registers the progress (Membro; 422 per field, 403 for a
+  reversal without Gestor, 409 for a stale version) answering the content and the form;
+* ``GET  /importar/formulario``, ``POST /importar/conferir`` and ``POST /importar/confirmar``
+  the spreadsheet import of the progress (the ``eap-avanco`` importer): the check reads and
+  shows each line, the confirmation writes the lines without error, dated with the form date;
 * ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content.
 """
 
@@ -45,24 +52,29 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
-from src.core.errors import InvalidDataError, VersionConflictError
+from src.core import attachments, calendario, importing, rbac
+from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import Document, ValueKind, describe_scope, format_value
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
 from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.core.spreadsheet_reader import MAX_DATA_ROWS, MAX_FILE_BYTES, MEGABYTE
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.planejamento import calculations, export, service, validation
+from src.modulos.planejamento import calculations, export, importers, service, validation
 from src.modulos.planejamento.validation import PointInput
 
 bp = func.Blueprint()
+
+importers.register_importers()
 
 
 ROUTE = "planejamento/relatos"
@@ -1268,13 +1280,333 @@ def eap_dictionary_save(
         )
     except (InvalidDataError, VersionConflictError) as error:
         return _dictionary_error(req, session, context, item_id, error)
-    data = _saved_dictionary_context(session, context)
+    data = _saved_content_context(session, context)
     return AlpineAjaxResponse(
         template_name=EAP_DICTIONARY_SAVED_TEMPLATE,
         context=data,
         request=req,
         toast=EAP_SAVED_MESSAGE.format(code=item.code),
     )
+
+
+# ── Avanço do pacote (ISSUE-037) ─────────────────────────────────────────
+
+
+EAP_PROGRESS_FORM_TEMPLATE = "planejamento/eap_avanco_form.html"
+
+
+EAP_PROGRESS_SAVED_TEMPLATE = "planejamento/eap_avanco_salvo.html"
+
+
+EAP_PROGRESS_IMPORT_FORM_TEMPLATE = "planejamento/eap_importacao_form.html"
+
+
+EAP_PROGRESS_IMPORT_BASE = f"{EAP_BASE}/importar"
+
+
+EAP_PROGRESS_IMPORT_TARGET = "eap-importacao-resultado"
+
+
+EAP_PROGRESS_MESSAGE = "Avanço de {code} registrado: {from_pct} para {to_pct}."
+
+
+IMPORT_CHECKED_FIELD = "conferido"
+
+
+IMPORT_ACKNOWLEDGED_FIELD = "ciente"
+
+
+IMPORT_ACKNOWLEDGED_VALUE = "sim"
+
+
+_IMPORT_NUMERIC_KINDS = frozenset(
+    {ValueKind.INTEGER, ValueKind.DECIMAL, ValueKind.PERCENT, ValueKind.MONEY}
+)
+
+
+@bp.route(route=f"{EAP_BASE}/itens/{{item_id}}/avanco", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_progress_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do avanço do pacote, com as entradas do seu critério e a data de hoje."""
+    node = _progress_node(session, context, _route_id(req, EAP_ITEM_PARAMETER))
+    return AlpineAjaxResponse(
+        template_name=EAP_PROGRESS_FORM_TEMPLATE,
+        context=_progress_page(node),
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_BASE}/itens/{{item_id}}/avanco", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_progress_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra o avanço: 422 por campo, 403 do estorno e 409 de versão vencida voltam com o form."""
+    item_id = _route_id(req, EAP_ITEM_PARAMETER)
+    try:
+        registered = service.register_progress(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=req.form,
+            reference_date=calendario.today(),
+        )
+    except (InvalidDataError, AccessDeniedError, VersionConflictError) as error:
+        return _progress_error(req, session, context, item_id, error)
+    return AlpineAjaxResponse(
+        template_name=EAP_PROGRESS_SAVED_TEMPLATE,
+        context=_saved_content_context(session, context),
+        request=req,
+        toast=EAP_PROGRESS_MESSAGE.format(
+            code=registered.code,
+            from_pct=format_value(ValueKind.PERCENT, registered.from_pct, 1),
+            to_pct=format_value(ValueKind.PERCENT, registered.to_pct, 1),
+        ),
+    )
+
+
+def _progress_node(session: Session, context: RequestContext, item_id: int) -> service.EapNode:
+    """O pacote de trabalho do escopo que pode receber medição; o de planejamento é recusado."""
+    node = service.dictionary_node(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        reference_date=calendario.today(),
+    )
+    if node.is_planning_package:
+        raise InvalidDataError(service.PLANNING_PACKAGE_PROGRESS_MESSAGE)
+    return node
+
+
+def _progress_page(
+    node: service.EapNode,
+    *,
+    values: Mapping[str, str] | None = None,
+    errors: Mapping[str, str] | None = None,
+    message: str = "",
+) -> dict[str, Any]:
+    """O que o formulário do avanço precisa: o nó, os valores, as entradas e as mensagens."""
+    return {
+        "no": node,
+        "valores": _progress_fields(node) if values is None else values,
+        "erros": dict(errors or {}),
+        "mensagem": message,
+        "hoje": calendario.today().isoformat(),
+        "estados": _milestone_states(node.criterion),
+        "criterio": export.eap_criterion_text(node),
+        "peso": format_value(ValueKind.PERCENT, node.weight),
+        "previsto": format_value(ValueKind.PERCENT, node.predicted, 1),
+        "real": format_value(ValueKind.PERCENT, node.actual, 1),
+        "formulario": True,
+        "alvo_conteudo": EAP_CONTENT_TARGET,
+        "alvo_formulario": EAP_FORM_TARGET,
+    }
+
+
+def _progress_fields(node: service.EapNode) -> dict[str, str]:
+    """Os valores iniciais do formulário do avanço: a data de hoje e as entradas correntes."""
+    values = {
+        "data": calendario.today().isoformat(),
+        "versao": str(node.version),
+        "obs": "",
+        "justificativa": "",
+        "executado": _plain_decimal(node.executed),
+        "estado": node.state or "",
+        "estimadoPct": _plain_decimal(node.estimated_pct),
+    }
+    for index, step in enumerate(node.steps):
+        values[f"etapa{index}"] = _plain_decimal(step.pct)
+    return values
+
+
+def _milestone_states(criterion: str | None) -> tuple[str, ...]:
+    """As situações que o marco aceita; as demais entradas do form não usam a lista."""
+    if criterion == calculations.CRITERION_MILESTONE_0_100:
+        return calculations.MILESTONE_0_100_STATES
+    if criterion == calculations.CRITERION_MILESTONE_50_50:
+        return calculations.MILESTONE_50_50_STATES
+    return ()
+
+
+def _plain_decimal(value: Decimal | None) -> str:
+    """O número sem zeros à direita: ``90.0000`` vira ``90`` e ``0`` continua ``0``."""
+    if value is None:
+        return ""
+    text = format(value, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def _progress_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    item_id: int,
+    error: InvalidDataError | AccessDeniedError | VersionConflictError,
+) -> func.HttpResponse:
+    """A gravação recusada: o conteúdo atualizado e o formulário preenchido com o digitado."""
+    node = _progress_node(session, context, item_id)
+    errors: Mapping[str, str] = (
+        error.detail
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
+        else {}
+    )
+    data = _eap_content_context(_eap_overview(session, context))
+    data.update(_progress_page(node, values=req.form, errors=errors, message=str(error)))
+    return AlpineAjaxResponse(
+        template_name=EAP_PROGRESS_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=_error_status(error),
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+def _error_status(error: InvalidDataError | AccessDeniedError | VersionConflictError) -> int:
+    if isinstance(error, AccessDeniedError):
+        return 403
+    return 409 if isinstance(error, VersionConflictError) else 422
+
+
+# ── Importação do avanço (ISSUE-037) ─────────────────────────────────────
+
+
+@bp.route(route=f"{EAP_PROGRESS_IMPORT_BASE}/formulario", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_progress_import_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da importação do avanço: a data da medição e a planilha."""
+    del session
+    context.scope.require_project()
+    importer = importers.progress_importer()
+    return AlpineAjaxResponse(
+        template_name=EAP_PROGRESS_IMPORT_FORM_TEMPLATE,
+        context={
+            "titulo": importer.title,
+            "campo_arquivo": attachments.FILE_FIELD,
+            "limite_mb": MAX_FILE_BYTES // MEGABYTE,
+            "limite_linhas": format_value(ValueKind.INTEGER, MAX_DATA_ROWS),
+            "modelo_url": f"/api/importacao/{importer.key}/modelo",
+            "conferir_url": f"/api/{EAP_PROGRESS_IMPORT_BASE}/conferir",
+            "data": calendario.today().isoformat(),
+            "alvo_resultado": EAP_PROGRESS_IMPORT_TARGET,
+        },
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_PROGRESS_IMPORT_BASE}/conferir", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_progress_import_check(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Lê a planilha e responde o que cada linha vai gravar; nada é escrito."""
+    measurement_date = _import_measurement_date(req)
+    preview = importing.check(
+        session,
+        importer=importers.progress_importer(),
+        upload=_upload_of(req),
+        context=_import_context(context, measurement_date),
+    )
+    return AlpineAjaxResponse(
+        template_name="comum/importacao_conferencia.html",
+        context=_progress_import_check_context(preview),
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_PROGRESS_IMPORT_BASE}/confirmar", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_progress_import_confirm(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Checa a planilha de novo e grava o avanço das linhas sem erro, só na confirmação."""
+    measurement_date = _import_measurement_date(req)
+    importer = importers.progress_importer()
+    result = importing.confirm(
+        session,
+        importer=importer,
+        upload=_upload_of(req),
+        context=_import_context(context, measurement_date),
+        confirmation=importing.Confirmation(
+            checked_digest=(req.form.get(IMPORT_CHECKED_FIELD) or "").strip() or None,
+            acknowledged=req.form.get(IMPORT_ACKNOWLEDGED_FIELD) == IMPORT_ACKNOWLEDGED_VALUE,
+        ),
+    )
+    return AlpineAjaxResponse(
+        template_name="comum/importacao_resultado.html",
+        context={"resultado": result, "importador": importer.title},
+        request=req,
+        toast=_progress_import_notice(result),
+        toast_tipo="aviso" if result.skipped else "ok",
+    )
+
+
+def _import_measurement_date(req: func.HttpRequest) -> date:
+    """A data da medição do formulário; uma data futura é recusada antes de ler a planilha."""
+    text = (req.form.get(validation.FIELD_MEASURED_ON) or "").strip()
+    try:
+        found = date.fromisoformat(text)
+    except ValueError as error:
+        raise InvalidDataError(
+            {validation.FIELD_MEASURED_ON: validation.MEASUREMENT_DATE_REQUIRED_MESSAGE}
+        ) from error
+    if found > calendario.today():
+        raise InvalidDataError(
+            {validation.FIELD_MEASURED_ON: validation.MEASUREMENT_DATE_FUTURE_MESSAGE}
+        )
+    return found
+
+
+def _import_context(context: RequestContext, measurement_date: date) -> importing.ImportContext:
+    """Quem importa, em que escopo e na data da medição: as regras do importador recebem essa data."""
+    return importing.ImportContext(
+        user=context.user, scope=context.scope, reference_date=measurement_date
+    )
+
+
+def _upload_of(req: func.HttpRequest) -> importing.Upload:
+    """O arquivo do formulário; no máximo um byte acima do limite é lido, como no mecanismo genérico."""
+    sent = req.files.get(attachments.FILE_FIELD)
+    if sent is None:
+        return importing.Upload(name=None, content=b"")
+    return importing.Upload(name=sent.filename, content=sent.stream.read(MAX_FILE_BYTES + 1))
+
+
+def _progress_import_check_context(preview: importing.ImportPreview) -> dict[str, Any]:
+    """O que o fragmento da conferência imprime: a prévia, as colunas e onde confirmar."""
+    return {
+        "arquivo": preview.file_name,
+        "preview": preview,
+        "colunas": [
+            {"cabecalho": column.header, "numerica": column.kind in _IMPORT_NUMERIC_KINDS}
+            for column in preview.columns
+        ],
+        "lidas": len(preview.rows),
+        "vao_gravar": len(preview.writable_rows),
+        "com_aviso": len(preview.warning_rows),
+        "com_erro": len(preview.error_rows),
+        "campo_conferido": IMPORT_CHECKED_FIELD,
+        "campo_ciente": IMPORT_ACKNOWLEDGED_FIELD,
+        "valor_ciente": IMPORT_ACKNOWLEDGED_VALUE,
+        "confirmar_url": f"/api/{EAP_PROGRESS_IMPORT_BASE}/confirmar",
+    }
+
+
+def _progress_import_notice(result: importing.ImportResult) -> str:
+    """O aviso da confirmação: quantas linhas entraram e quantas ficaram de fora."""
+    written = len(result.written)
+    imported = "1 linha importada" if written == 1 else f"{written} linhas importadas"
+    if not result.skipped:
+        return f"{imported}."
+    skipped = len(result.skipped)
+    left_out = "1 com erro não entrou" if skipped == 1 else f"{skipped} com erro não entraram"
+    return f"{imported}; {left_out}."
 
 
 # ── Montagem das respostas da EAP ────────────────────────────────────────
@@ -1417,7 +1749,7 @@ def _measurement_lines(node: service.EapNode) -> list[EapMeasurementLine]:
     ]
 
 
-def _saved_dictionary_context(session: Session, context: RequestContext) -> dict[str, Any]:
+def _saved_content_context(session: Session, context: RequestContext) -> dict[str, Any]:
     """O conteúdo atualizado e o formulário fechado: a resposta multi-alvo da gravação."""
     data = _eap_content_context(_eap_overview(session, context))
     data["formulario"] = None

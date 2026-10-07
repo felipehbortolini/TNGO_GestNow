@@ -2533,6 +2533,19 @@ def register_progress(
     )
 
 
+def progress_import_packages(
+    session: Session, *, project_id: int
+) -> dict[str, validation.ProgressPackage]:
+    """Os pacotes de nível 3 do projeto como a importação do avanço os lê, sem gravar nada.
+
+    É o que o importador de planilha usa para conferir cada linha: o real corrente do critério,
+    a unidade e as etapas correntes, na transação da requisição.
+    """
+    return _progress_packages(
+        session, tuple(_progress_items(session, project_id=project_id).values())
+    )
+
+
 def import_progress(
     session: Session,
     *,

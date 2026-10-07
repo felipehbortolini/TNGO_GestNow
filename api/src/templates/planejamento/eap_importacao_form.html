@@ -1,0 +1,39 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da importação do avanço (ISSUE-037): a data da medição e a planilha do importador
+  ``eap-avanco``, pelo mecanismo genérico. A tela abre este fragmento no modal; a conferência e
+  a confirmação vão para as rotas do módulo, que gravam só na confirmação. A data viaja no
+  formulário e é reenviada pela confirmação junto com o arquivo e a identidade da conferência.
+
+  Espera: titulo, campo_arquivo, limite_mb, limite_linhas, modelo_url, conferir_url, data e
+  alvo_resultado.
+#}
+{% block fragment %}
+<form method="post" enctype="multipart/form-data" action="{{ conferir_url }}"
+  x-target="{{ alvo_resultado }}" data-tn-loading="Processando a planilha...">
+  <p class="hint">Avanço acumulado por pacote (% ou quantidade executada). Nada é gravado antes da sua confirmação.</p>
+  <div class="fgrid">
+    <div class="field">
+      <label for="eap-importacao-data">Data da medição</label>
+      <input id="eap-importacao-data" class="input" type="date" name="data" value="{{ data }}" required />
+    </div>
+  </div>
+  <div class="upload">
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
+      <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+      Baixar o modelo (.xlsx)
+    </button>
+    <div class="field upload__campo">
+      <label for="eap-importacao-arquivo">Planilha preenchida</label>
+      <input id="eap-importacao-arquivo" class="input upload__arquivo" type="file"
+        name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="eap-importacao-dica" />
+      <span class="hint" id="eap-importacao-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
+    </div>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Conferir a planilha
+    </button>
+  </div>
+  <div id="{{ alvo_resultado }}" aria-live="polite"></div>
+</form>
+{% endblock %}

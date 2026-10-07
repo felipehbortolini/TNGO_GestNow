@@ -1,0 +1,22 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta da gravação do avanço (ISSUE-037): raízes irmãs com id fixo — a exceção da resposta
+  multi-alvo —, porque a tela declara o formulário e o conteúdo no mesmo pedido. Sem
+  ``formulario``, o formulário volta vazio (fechou); com ele (422 por campo, 403 do estorno e
+  409 de versão vencida), volta preenchido com o que a pessoa digitou. O conteúdo volta
+  atualizado, porque o avanço muda o real da árvore e os indicadores.
+
+  Espera: visao, kpis, linhas, situacao, pode_editar, formulario (verdadeiro no erro), no,
+  valores, erros, mensagem, hoje, estados, criterio, peso, previsto, real, alvo_conteudo e
+  alvo_formulario.
+#}
+{% block root %}
+<div id="{{ alvo_conteudo }}">
+{% include "planejamento/_eap_conteudo.html" %}
+</div>
+<div id="{{ alvo_formulario }}">
+{% if formulario %}
+{% include "planejamento/_eap_avanco_campos.html" %}
+{% endif %}
+</div>
+{% endblock %}
