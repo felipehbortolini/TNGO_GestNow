@@ -7,7 +7,7 @@ with the messages next to the fields.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -788,10 +788,507 @@ def _date(text: str) -> date | None:
         return None
 
 
-def _reason_problem(reason: str, ask: str) -> str:
+def _reason_problem(reason: str, ask: str, maximum: int = CONTRACT_REASON_MAX) -> str:
     """Filled reason within the limit, as the prototype's ``motivo`` fields ask."""
     if not reason:
         return ask
-    if len(reason) > CONTRACT_REASON_MAX:
-        return f"Use até {CONTRACT_REASON_MAX} caracteres."
+    if len(reason) > maximum:
+        return f"Use até {maximum} caracteres."
+    return ""
+
+
+# ── Marcos, claims e EOT (ISSUE-033) ─────────────────────────────────────
+
+
+MILESTONE_CRITERIA_MIN = 3
+MILESTONE_CRITERIA_MAX = 160
+CLAIM_CLAUSE_MAX = 20
+CLAIM_DESCRIPTION_MAX = 300
+STATEMENT_MAX = 400
+EXTENSION_EVENT_MAX = 300
+EXTENSION_MILESTONE_MAX = 120
+
+CLAIM_DIRECTION_CONTRACTOR = "Da contratada"
+CLAIM_DIRECTION_CLIENT = "Do contratante"
+CLAIM_DIRECTIONS = (CLAIM_DIRECTION_CONTRACTOR, CLAIM_DIRECTION_CLIENT)
+
+CLAIM_KIND_TIME = "Prazo"
+CLAIM_KIND_COST = "Custo"
+CLAIM_KIND_BOTH = "Prazo e custo"
+CLAIM_KINDS = (CLAIM_KIND_TIME, CLAIM_KIND_COST, CLAIM_KIND_BOTH)
+
+CLAIM_CAUSES = (
+    "Liberação de área",
+    "Mudança de escopo",
+    "Informação de projeto tardia",
+    "Interferência",
+    "Suspensão",
+    "Condição climática",
+    "Força maior",
+    "Outros",
+)
+
+EXTENSION_METHODS = (
+    "Análise de impacto no tempo",
+    "Análise por janelas",
+    "Planejado x executado",
+)
+
+EXTENSION_CLASSIFICATIONS = (
+    "Justificável e compensável",
+    "Justificável não compensável",
+    "Não justificável",
+)
+
+EXTENSION_DECISIONS = (
+    calculations.EXTENSION_GRANTED,
+    calculations.EXTENSION_PARTIALLY_GRANTED,
+    calculations.EXTENSION_DENIED,
+)
+
+MILESTONE_TRANSITIONS: Mapping[str, tuple[str, ...]] = {
+    calculations.MILESTONE_FORECAST: (calculations.MILESTONE_EVIDENCE_SENT,),
+    calculations.MILESTONE_EVIDENCE_SENT: (calculations.MILESTONE_APPROVED,),
+    calculations.MILESTONE_APPROVED: (calculations.MILESTONE_INVOICED,),
+    calculations.MILESTONE_INVOICED: (calculations.MILESTONE_PAID,),
+}
+
+CLAIM_TRANSITIONS: Mapping[str, tuple[str, ...]] = {
+    calculations.CLAIM_NOTIFIED: (calculations.CLAIM_UNDER_REVIEW,),
+    calculations.CLAIM_UNDER_REVIEW: (
+        calculations.CLAIM_IN_NEGOTIATION,
+        calculations.CLAIM_REJECTED,
+    ),
+    calculations.CLAIM_IN_NEGOTIATION: (
+        calculations.CLAIM_AGREED,
+        calculations.CLAIM_REJECTED,
+        calculations.CLAIM_IN_DISPUTE,
+    ),
+    calculations.CLAIM_AGREED: (calculations.CLAIM_CLOSED,),
+    calculations.CLAIM_REJECTED: (calculations.CLAIM_IN_DISPUTE, calculations.CLAIM_CLOSED),
+    calculations.CLAIM_IN_DISPUTE: (calculations.CLAIM_AGREED, calculations.CLAIM_CLOSED),
+}
+
+EXTENSION_TRANSITIONS: Mapping[str, tuple[str, ...]] = {
+    calculations.EXTENSION_REQUESTED: (
+        calculations.EXTENSION_UNDER_REVIEW,
+        calculations.EXTENSION_GRANTED,
+        calculations.EXTENSION_PARTIALLY_GRANTED,
+        calculations.EXTENSION_DENIED,
+    ),
+    calculations.EXTENSION_UNDER_REVIEW: (
+        calculations.EXTENSION_GRANTED,
+        calculations.EXTENSION_PARTIALLY_GRANTED,
+        calculations.EXTENSION_DENIED,
+    ),
+}
+
+FIELD_MILESTONE_DESCRIPTION = "descricao"
+FIELD_MILESTONE_CRITERIA = "criterio"
+FIELD_MILESTONE_PCT = "pct"
+FIELD_MILESTONE_EXPECTED = "prevista"
+FIELD_MILESTONE_COMPLETED = "conclusao"
+FIELD_MILESTONE_EVIDENCE = "evidencias"
+FIELD_MILESTONE_SITUATION = "situacao"
+FIELD_CLAIM_DIRECTION = "direcao"
+FIELD_CLAIM_KIND = "tipo"
+FIELD_CLAIM_CAUSE = "causa"
+FIELD_CLAIM_CLAUSE = "clausula"
+FIELD_CLAIM_DESCRIPTION = "descricao"
+FIELD_CLAIM_EVENT = "evento"
+FIELD_CLAIM_NOTIFICATION = "notificacao"
+FIELD_CLAIM_VALUE = "valor"
+FIELD_CLAIM_DAYS = "dias"
+FIELD_CLAIM_SITUATION = "situacao"
+FIELD_CLAIM_RECOGNIZED = "reconhecido"
+FIELD_CLAIM_STATEMENT = "parecer"
+FIELD_EXTENSION_CLAIM = "claim"
+FIELD_EXTENSION_EVENT = "evento"
+FIELD_EXTENSION_DAYS = "dias"
+FIELD_EXTENSION_MILESTONE = "marco"
+FIELD_EXTENSION_METHOD = "metodo"
+FIELD_EXTENSION_SITUATION = "situacao"
+FIELD_EXTENSION_CLASSIFICATION = "classificacao"
+FIELD_EXTENSION_STATEMENT = "parecer"
+
+MILESTONE_DESCRIPTION_ASK = "Informe a descrição"
+MILESTONE_CRITERIA_ASK = "Informe o critério de aceite"
+MILESTONE_PCT_REQUIRED = "Informe o percentual do marco, maior que zero."
+MILESTONE_PCT_ABOVE_100 = "O percentual do marco vai até 100%."
+MILESTONE_PCT_INTEGER = "Informe o percentual em número inteiro."
+MILESTONE_PCT_OVER_TOTAL = "A soma dos marcos passaria de 100% (restam {remaining}%)."
+MILESTONE_PCT_NOT_TOTAL = "A soma dos marcos precisa ser 100% (soma atual: {total}%)."
+MILESTONE_EXPECTED_REQUIRED = "Informe a data prevista."
+MILESTONE_COMPLETED_REQUIRED = "Informe a data de conclusão."
+MILESTONE_EVIDENCE_REQUIRED = "A aprovação do marco exige anexo de evidência."
+MILESTONE_TRANSITION_REFUSED = "O marco {current} não pode ir para {target}."
+CLAIM_DIRECTION_REQUIRED = "Escolha a direção do claim."
+CLAIM_KIND_REQUIRED = "Escolha o tipo: Prazo, Custo ou Prazo e custo."
+CLAIM_CAUSE_REQUIRED = "Escolha a causa do claim."
+CLAIM_CLAUSE_MAX_MESSAGE = f"A cláusula aceita até {CLAIM_CLAUSE_MAX} caracteres."
+CLAIM_DESCRIPTION_ASK = "Informe a descrição do claim"
+CLAIM_EVENT_REQUIRED = "Informe a data do evento."
+CLAIM_NOTIFICATION_REQUIRED = "Informe a data da notificação."
+CLAIM_NOTIFICATION_BEFORE_EVENT = "A notificação não pode ser anterior ao evento."
+CLAIM_VALUE_REQUIRED = "Informe o valor pleiteado."
+CLAIM_DAYS_REQUIRED = "Informe os dias pleiteados."
+CLAIM_SITUATION_REQUIRED = "Escolha a nova situação do claim."
+CLAIM_RECOGNIZED_REQUIRED = "Informe o valor reconhecido."
+CLAIM_RECOGNIZED_OVER_CLAIMED = "O reconhecido não pode superar o pleiteado."
+CLAIM_STATEMENT_ASK = "Informe o parecer."
+CLAIM_TRANSITION_REFUSED = "O claim {current} não pode ir para {target}."
+EXTENSION_EVENT_ASK = "Informe o evento causador"
+EXTENSION_DAYS_REQUIRED = "Informe os dias solicitados."
+EXTENSION_MILESTONE_ASK = "Informe o marco contratual afetado"
+EXTENSION_METHOD_REQUIRED = "Escolha o método de análise de atraso."
+EXTENSION_DECISION_REQUIRED = "Escolha a decisão: Concedida, Concedida parcialmente ou Negada."
+EXTENSION_GRANTED_REQUIRED = "Informe os dias concedidos."
+EXTENSION_GRANTED_FULL = (
+    "Concedida integralmente: {requested} dias. Use Concedida parcialmente para menos dias."
+)
+EXTENSION_GRANTED_PARTIAL = "Parcial precisa ser menor que o solicitado."
+EXTENSION_CLASSIFICATION_REQUIRED = "Escolha a classificação."
+EXTENSION_STATEMENT_ASK = "Informe o parecer da análise de atraso."
+EXTENSION_TRANSITION_REFUSED = "A extensão de prazo {current} não pode ir para {target}."
+
+
+@dataclass(frozen=True)
+class MilestoneForm:
+    """O marco novo pedido pela tela: descrição, critério, percentual e data prevista."""
+
+    description: str
+    criteria: str
+    pct: int
+    expected_on: date
+
+
+@dataclass(frozen=True)
+class ClaimForm:
+    """O claim novo pedido pela tela: direção, tipo, causa, datas e valores pleiteados."""
+
+    direction: str
+    kind: str
+    cause: str
+    clause: str
+    description: str
+    event_date: date
+    notification_date: date
+    claimed_cents: int
+    claimed_days: int
+
+
+@dataclass(frozen=True)
+class ClaimUpdateForm:
+    """A atualização do claim: a nova situação, o parecer e o reconhecido quando acordado."""
+
+    target: str
+    recognized_cents: int | None
+    recognized_days: int | None
+    statement: str
+
+
+@dataclass(frozen=True)
+class ExtensionForm:
+    """A EOT nova pedida pela tela: claim de origem opcional, evento, dias, marco e método."""
+
+    claim_id: int | None
+    event: str
+    requested_days: int
+    affected_milestone: str
+    method: str
+
+
+@dataclass(frozen=True)
+class ExtensionDecisionForm:
+    """A decisão da EOT: concedida (integral ou parcial) ou negada, com parecer e classificação."""
+
+    target: str
+    granted_days: int
+    classification: str
+    statement: str
+
+
+def milestone_transition_allowed(current: str, target: str) -> bool:
+    """A situação atual do marco admite a próxima, pelo fluxo do protótipo."""
+    return target in MILESTONE_TRANSITIONS.get(current, ())
+
+
+def check_milestone_transition(current: str, target: str) -> None:
+    """Transição fora do fluxo do marco é recusada com a mensagem no campo da situação."""
+    if not milestone_transition_allowed(current, target):
+        raise InvalidDataError(
+            {
+                FIELD_MILESTONE_SITUATION: MILESTONE_TRANSITION_REFUSED.format(
+                    current=current, target=target
+                )
+            }
+        )
+
+
+def check_milestone_evidence(*, has_evidence: bool) -> None:
+    """O marco só é aprovado com um anexo de evidência gravado (D5a)."""
+    if not has_evidence:
+        raise InvalidDataError({FIELD_MILESTONE_EVIDENCE: MILESTONE_EVIDENCE_REQUIRED})
+
+
+def check_milestone_pct(*, used_pct: int, new_pct: int) -> None:
+    """O marco novo não pode passar a soma dos 100%; a mensagem diz quanto resta."""
+    if used_pct + new_pct > calculations.MILESTONE_PCT_TOTAL:
+        remaining = calculations.MILESTONE_PCT_TOTAL - used_pct
+        raise InvalidDataError(
+            {FIELD_MILESTONE_PCT: MILESTONE_PCT_OVER_TOTAL.format(remaining=remaining)}
+        )
+
+
+def check_milestone_pct_total(pcts: Sequence[int]) -> None:
+    """A soma dos percentuais dos marcos do contrato precisa fechar 100%."""
+    if not calculations.milestone_pct_complete(pcts):
+        total = calculations.milestone_pct_total(pcts)
+        raise InvalidDataError({FIELD_MILESTONE_PCT: MILESTONE_PCT_NOT_TOTAL.format(total=total)})
+
+
+def parse_milestone_form(form: Mapping[str, str | None]) -> MilestoneForm:
+    """O marco novo: descrição, critério, percentual inteiro e data prevista obrigatórios."""
+    description = _text(form, FIELD_MILESTONE_DESCRIPTION)
+    criteria = _text(form, FIELD_MILESTONE_CRITERIA)
+    pct = parse_quantity(_text(form, FIELD_MILESTONE_PCT))
+    expected_on = _date(_text(form, FIELD_MILESTONE_EXPECTED))
+    _refuse(
+        {
+            FIELD_MILESTONE_DESCRIPTION: _length_error(
+                description, DESCRIPTION_MIN, DESCRIPTION_MAX, MILESTONE_DESCRIPTION_ASK
+            ),
+            FIELD_MILESTONE_CRITERIA: _length_error(
+                criteria, MILESTONE_CRITERIA_MIN, MILESTONE_CRITERIA_MAX, MILESTONE_CRITERIA_ASK
+            ),
+            FIELD_MILESTONE_PCT: _milestone_pct_problem(pct),
+            FIELD_MILESTONE_EXPECTED: "" if expected_on else MILESTONE_EXPECTED_REQUIRED,
+        }
+    )
+    return MilestoneForm(
+        description=description,
+        criteria=criteria,
+        pct=int(pct or 0),
+        expected_on=expected_on or date.min,
+    )
+
+
+def parse_milestone_evidence_form(form: Mapping[str, str | None]) -> date:
+    """O envio de evidência do marco: a data de conclusão é obrigatória; o anexo é à parte."""
+    completed_on = _date(_text(form, FIELD_MILESTONE_COMPLETED))
+    _refuse({FIELD_MILESTONE_COMPLETED: "" if completed_on else MILESTONE_COMPLETED_REQUIRED})
+    return completed_on or date.min
+
+
+def parse_claim_form(form: Mapping[str, str | None]) -> ClaimForm:
+    """O claim novo: direção, tipo, causa, datas e o valor/dias que o tipo pede."""
+    direction = _text(form, FIELD_CLAIM_DIRECTION)
+    kind = _text(form, FIELD_CLAIM_KIND)
+    cause = _text(form, FIELD_CLAIM_CAUSE)
+    clause = _text(form, FIELD_CLAIM_CLAUSE)
+    description = _text(form, FIELD_CLAIM_DESCRIPTION)
+    event_date = _date(_text(form, FIELD_CLAIM_EVENT))
+    notification_date = _date(_text(form, FIELD_CLAIM_NOTIFICATION))
+    claimed = parse_money(_text(form, FIELD_CLAIM_VALUE))
+    days = _digit(_text(form, FIELD_CLAIM_DAYS))
+    _refuse(
+        {
+            FIELD_CLAIM_DIRECTION: ""
+            if direction in CLAIM_DIRECTIONS
+            else CLAIM_DIRECTION_REQUIRED,
+            FIELD_CLAIM_KIND: "" if kind in CLAIM_KINDS else CLAIM_KIND_REQUIRED,
+            FIELD_CLAIM_CAUSE: "" if cause in CLAIM_CAUSES else CLAIM_CAUSE_REQUIRED,
+            FIELD_CLAIM_CLAUSE: "" if len(clause) <= CLAIM_CLAUSE_MAX else CLAIM_CLAUSE_MAX_MESSAGE,
+            FIELD_CLAIM_DESCRIPTION: _length_error(
+                description, DESCRIPTION_MIN, CLAIM_DESCRIPTION_MAX, CLAIM_DESCRIPTION_ASK
+            ),
+            FIELD_CLAIM_EVENT: "" if event_date else CLAIM_EVENT_REQUIRED,
+            FIELD_CLAIM_NOTIFICATION: _notification_problem(event_date, notification_date),
+            FIELD_CLAIM_VALUE: (
+                "" if kind == CLAIM_KIND_TIME or (claimed and claimed > 0) else CLAIM_VALUE_REQUIRED
+            ),
+            FIELD_CLAIM_DAYS: (
+                "" if kind == CLAIM_KIND_COST or (days and days > 0) else CLAIM_DAYS_REQUIRED
+            ),
+        }
+    )
+    return ClaimForm(
+        direction=direction,
+        kind=kind,
+        cause=cause,
+        clause=clause,
+        description=description,
+        event_date=event_date or date.min,
+        notification_date=notification_date or date.min,
+        claimed_cents=claimed or 0,
+        claimed_days=days or 0,
+    )
+
+
+def claim_transition_allowed(current: str, target: str) -> bool:
+    """A situação atual do claim admite a próxima, pelo fluxo do protótipo."""
+    return target in CLAIM_TRANSITIONS.get(current, ())
+
+
+def check_claim_transition(current: str, target: str) -> None:
+    """Transição fora do fluxo do claim é recusada com a mensagem no campo da situação."""
+    if not claim_transition_allowed(current, target):
+        raise InvalidDataError(
+            {FIELD_CLAIM_SITUATION: CLAIM_TRANSITION_REFUSED.format(current=current, target=target)}
+        )
+
+
+def parse_claim_update_form(
+    form: Mapping[str, str | None], *, claimed_cents: int | None = None
+) -> ClaimUpdateForm:
+    """A atualização do claim: situação, parecer obrigatório e o reconhecido quando acordado."""
+    target = _text(form, FIELD_CLAIM_SITUATION)
+    statement = _text(form, FIELD_CLAIM_STATEMENT)
+    recognized = parse_money(_text(form, FIELD_CLAIM_RECOGNIZED))
+    days = _digit(_text(form, FIELD_CLAIM_DAYS))
+    agreed = target == calculations.CLAIM_AGREED
+    problems = {
+        FIELD_CLAIM_SITUATION: _claim_target_problem(target),
+        FIELD_CLAIM_STATEMENT: _reason_problem(
+            statement, CLAIM_STATEMENT_ASK, maximum=STATEMENT_MAX
+        ),
+    }
+    if agreed:
+        problems[FIELD_CLAIM_RECOGNIZED] = _recognized_problem(recognized, claimed_cents)
+    _refuse(problems)
+    return ClaimUpdateForm(
+        target=target,
+        recognized_cents=recognized if agreed else None,
+        recognized_days=(days or 0) if agreed else None,
+        statement=statement,
+    )
+
+
+def extension_transition_allowed(current: str, target: str) -> bool:
+    """A situação atual da EOT admite a próxima, pelo fluxo do protótipo."""
+    return target in EXTENSION_TRANSITIONS.get(current, ())
+
+
+def check_extension_transition(current: str, target: str) -> None:
+    """Transição fora do fluxo da EOT é recusada com a mensagem no campo da situação."""
+    if not extension_transition_allowed(current, target):
+        raise InvalidDataError(
+            {
+                FIELD_EXTENSION_SITUATION: EXTENSION_TRANSITION_REFUSED.format(
+                    current=current, target=target
+                )
+            }
+        )
+
+
+def parse_extension_form(form: Mapping[str, str | None]) -> ExtensionForm:
+    """A EOT nova: evento, dias solicitados, marco afetado e método; o claim é opcional."""
+    claim_id = _digit(_text(form, FIELD_EXTENSION_CLAIM))
+    event = _text(form, FIELD_EXTENSION_EVENT)
+    days = _digit(_text(form, FIELD_EXTENSION_DAYS))
+    milestone = _text(form, FIELD_EXTENSION_MILESTONE)
+    method = _text(form, FIELD_EXTENSION_METHOD)
+    _refuse(
+        {
+            FIELD_EXTENSION_EVENT: _length_error(
+                event, DESCRIPTION_MIN, EXTENSION_EVENT_MAX, EXTENSION_EVENT_ASK
+            ),
+            FIELD_EXTENSION_DAYS: "" if days and days > 0 else EXTENSION_DAYS_REQUIRED,
+            FIELD_EXTENSION_MILESTONE: _length_error(
+                milestone, DESCRIPTION_MIN, EXTENSION_MILESTONE_MAX, EXTENSION_MILESTONE_ASK
+            ),
+            FIELD_EXTENSION_METHOD: ""
+            if method in EXTENSION_METHODS
+            else EXTENSION_METHOD_REQUIRED,
+        }
+    )
+    return ExtensionForm(
+        claim_id=claim_id,
+        event=event,
+        requested_days=days or 0,
+        affected_milestone=milestone,
+        method=method,
+    )
+
+
+def parse_extension_decision_form(
+    form: Mapping[str, str | None], *, requested_days: int
+) -> ExtensionDecisionForm:
+    """A decisão da EOT: integral, parcial ou negada, com parecer e classificação."""
+    target = _text(form, FIELD_EXTENSION_SITUATION)
+    granted = _digit(_text(form, FIELD_EXTENSION_DAYS))
+    classification = _text(form, FIELD_EXTENSION_CLASSIFICATION)
+    statement = _text(form, FIELD_EXTENSION_STATEMENT)
+    decided = target in (
+        calculations.EXTENSION_GRANTED,
+        calculations.EXTENSION_PARTIALLY_GRANTED,
+    )
+    problems = {
+        FIELD_EXTENSION_SITUATION: ""
+        if target in EXTENSION_DECISIONS
+        else EXTENSION_DECISION_REQUIRED,
+        FIELD_EXTENSION_STATEMENT: _reason_problem(
+            statement, EXTENSION_STATEMENT_ASK, maximum=STATEMENT_MAX
+        ),
+    }
+    if decided:
+        problems[FIELD_EXTENSION_DAYS] = _granted_problem(target, granted, requested_days)
+        problems[FIELD_EXTENSION_CLASSIFICATION] = (
+            "" if classification in EXTENSION_CLASSIFICATIONS else EXTENSION_CLASSIFICATION_REQUIRED
+        )
+    _refuse(problems)
+    return ExtensionDecisionForm(
+        target=target,
+        granted_days=granted if decided and granted is not None else 0,
+        classification=classification if decided else "",
+        statement=statement,
+    )
+
+
+def _milestone_pct_problem(pct: Decimal | None) -> str:
+    if pct is None or pct <= 0:
+        return MILESTONE_PCT_REQUIRED
+    if pct > calculations.MILESTONE_PCT_TOTAL:
+        return MILESTONE_PCT_ABOVE_100
+    if pct != pct.to_integral_value():
+        return MILESTONE_PCT_INTEGER
+    return ""
+
+
+def _notification_problem(event_date: date | None, notification_date: date | None) -> str:
+    if notification_date is None:
+        return CLAIM_NOTIFICATION_REQUIRED
+    if event_date is not None and notification_date < event_date:
+        return CLAIM_NOTIFICATION_BEFORE_EVENT
+    return ""
+
+
+def _claim_target_problem(target: str) -> str:
+    situations = (
+        calculations.CLAIM_NOTIFIED,
+        calculations.CLAIM_UNDER_REVIEW,
+        calculations.CLAIM_IN_NEGOTIATION,
+        calculations.CLAIM_AGREED,
+        calculations.CLAIM_REJECTED,
+        calculations.CLAIM_IN_DISPUTE,
+        calculations.CLAIM_CLOSED,
+    )
+    return "" if target in situations else CLAIM_SITUATION_REQUIRED
+
+
+def _recognized_problem(recognized: int | None, claimed_cents: int | None) -> str:
+    if recognized is None or recognized < 0:
+        return CLAIM_RECOGNIZED_REQUIRED
+    if claimed_cents is not None and recognized > claimed_cents:
+        return CLAIM_RECOGNIZED_OVER_CLAIMED
+    return ""
+
+
+def _granted_problem(target: str, granted: int | None, requested_days: int) -> str:
+    if granted is None or granted < 1:
+        return EXTENSION_GRANTED_REQUIRED
+    if target == calculations.EXTENSION_GRANTED and granted != requested_days:
+        return EXTENSION_GRANTED_FULL.format(requested=requested_days)
+    if target == calculations.EXTENSION_PARTIALLY_GRANTED and granted >= requested_days:
+        return EXTENSION_GRANTED_PARTIAL
     return ""

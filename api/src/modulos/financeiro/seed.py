@@ -398,7 +398,9 @@ def load_contracts(session: Session, reference_date: date) -> None:
     O contrato nasce da adjudicação no 04 (ISSUE-060); na demonstração ele vem do mock, com o
     item da EAC ligado pelo código (``eacCodigo``) e o ``pacoteCompra`` nulo — a ``pacote_compra``
     só nasce na ISSUE-058/060. O aditivo liga à SM pelo código (``smRef``) e o ``claimRef`` fica
-    sem vínculo até a ISSUE-033 criar ``contrato_claim``. O ``terminoVigente`` do mock é gravado
+    sem vínculo até a ISSUE-033 criar ``contrato_claim``; o marco da medição fica nulo até a
+    parte da carga da ISSUE-033 gravar ``contrato_marco_pagamento``, porque a chave estrangeira
+    que a m033 acrescenta exige o marco existente. O ``terminoVigente`` do mock é gravado
     como está: os aditivos da carga não recalculam o término. As medições entram com a situação
     do protótipo e não alimentam ``custo_erp``: no mock o realizado do item já vem do fechamento
     do ERP, e é a aprovação pela tela que soma o bruto ao realizado (``service``).
@@ -462,7 +464,7 @@ def load_contracts(session: Session, reference_date: date) -> None:
             user_id=admin.id,
             record=ContractMeasurement(
                 contract_id=contracts[source["contratoId"]],
-                milestone_id=source.get("marcoId"),
+                milestone_id=None,
                 number=source["numero"],
                 period=period.replace(day=1),
                 gross_cents=int(source["brutoCentavos"]),

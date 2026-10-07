@@ -23,6 +23,7 @@ from src.modulos.financeiro import calculations, service, validation
 from src.modulos.financeiro.models import (
     Contract,
     ContractMeasurement,
+    ContractPaymentMilestone,
     ErpCost,
 )
 from src.modulos.governanca.models import ChangeRequest
@@ -285,12 +286,25 @@ def test_fluxo_da_medicao_aprova_fatura_paga_e_alimenta_o_item_da_eac(
     cenario: EacScenario,
 ) -> None:
     contract = _criar_contrato(cenario)
-    medicao = _criar_medicao(cenario, contract, period="2026-09", value="1.000,00", marco="7")
+    milestone = ContractPaymentMilestone(
+        contract_id=contract.id,
+        number="M1",
+        description="Marco de teste",
+        acceptance_criteria="Aceite do marco de teste",
+        pct=10,
+        expected_on=CONTRACT_END,
+        situation=calculations.MILESTONE_FORECAST,
+    )
+    cenario.session.add(milestone)
+    cenario.session.flush()
+    medicao = _criar_medicao(
+        cenario, contract, period="2026-09", value="1.000,00", marco=str(milestone.id)
+    )
 
     assert (medicao.number, medicao.situation, medicao.milestone_id) == (
         "BM-01",
         calculations.SITUATION_UNDER_REVIEW,
-        7,
+        milestone.id,
     )
     assert (medicao.gross_cents, medicao.retention_cents, medicao.net_cents) == (
         100_000,

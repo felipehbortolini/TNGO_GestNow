@@ -666,6 +666,7 @@ erDiagram
     mudanca |o--o{ contrato_claim : "encaminha"
     contrato ||--o{ contrato_extensao_prazo : "prorroga"
     contrato_claim |o--o{ contrato_extensao_prazo : "fundamenta"
+    mudanca |o--o{ contrato_extensao_prazo : "gera"
     contrato ||--o{ contrato_avaliacao : "avalia"
     pessoa ||--o{ contrato_avaliacao : "avaliador"
     parametro_versao ||--o{ contrato_avaliacao : "pesos usados"
@@ -751,6 +752,7 @@ erDiagram
         bigint id PK
         bigint contrato_id FK
         bigint claim_id FK
+        bigint mudanca_id FK
         text codigo UK
         text evento
         integer dias_solicitados
@@ -1969,7 +1971,7 @@ fachada, não por coluna.
 | `contrato_medicao` | Boletim de medição: número, período (primeiro dia do mês), valor bruto, marco vinculado, situação do fluxo e motivo da devolução. Retenção e líquido são calculados pela retenção do contrato. | financeiro |
 | `contrato_marco_pagamento` | Marco de pagamento: número, descrição, critério de aceite, percentual, datas e situação; a evidência obrigatória é um `anexo`. O valor em centavos não é coluna: é o percentual sobre o valor vigente do contrato. | financeiro |
 | `contrato_claim` | Pleito (da contratada ou do contratante): causa, cláusula, datas do evento e da notificação, valores e dias pleiteados/reconhecidos, situação, risco e SM vinculados. Exposição e taxa de reconhecimento são calculadas. | financeiro |
-| `contrato_extensao_prazo` | Extensão de prazo (EOT): claim de origem, evento, dias solicitados e concedidos, classificação, método de análise, marco afetado e decisão. | financeiro |
+| `contrato_extensao_prazo` | Extensão de prazo (EOT): claim de origem, a SM criada na concessão, evento, dias solicitados e concedidos, classificação, método de análise, marco afetado e decisão. | financeiro |
 | `contrato_avaliacao` | Avaliação de desempenho (mensal ou final), com avaliador e a versão de parâmetros usada. A nota ponderada e a classe são calculadas. | financeiro |
 | `contrato_avaliacao_criterio` | Peso e nota de cada critério **gravados na avaliação**. **Exceção da D5b** (fato histórico): a avaliação não muda quando os pesos mudam. UK: avaliação + critério. Sem `versao`. | financeiro |
 

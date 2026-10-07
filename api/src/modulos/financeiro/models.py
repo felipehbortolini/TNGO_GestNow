@@ -3,8 +3,9 @@
 Class and attribute names are English (D1); tables and columns are Portuguese snake_case,
 as in ``docs/MODELO-DE-DADOS.md``. This module owns the cost breakdown item, its revisions with
 the frozen baseline of each item, the reallocations applied to it (ISSUE-029, ISSUE-030), the
-projection history of the item and the costs imported from the ERP (ISSUE-031), and the contract
-with its addenda and measurements (ISSUE-032).
+projection history of the item and the costs imported from the ERP (ISSUE-031), the contract
+with its addenda and measurements (ISSUE-032), and its payment milestones, claims and time
+extensions (ISSUE-033).
 """
 
 from __future__ import annotations
@@ -189,8 +190,7 @@ class ContractAddendum(Base):
     """Aditivo do contrato: valor e/ou dias, com motivo, SM e claim de origem.
 
     Fato imutável (D5b): sem ``versao``. O aditivo é aprovado ao ser registrado: soma ao valor
-    atual e, quando tem dias, prorroga o término vigente. ``claim_id`` entra sem chave estrangeira
-    até a ISSUE-033 criar ``contrato_claim``.
+    atual e, quando tem dias, prorroga o término vigente.
     """
 
     __tablename__ = "contrato_aditivo"
@@ -198,7 +198,7 @@ class ContractAddendum(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
     change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
-    claim_id: Mapped[int | None] = mapped_column("claim_id", BigInteger)
+    claim_id: Mapped[int | None] = mapped_column("claim_id", ForeignKey("contrato_claim.id"))
     number: Mapped[str] = mapped_column("numero", Text)
     signed_on: Mapped[date] = mapped_column("data", Date)
     value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
@@ -209,18 +209,101 @@ class ContractAddendum(Base):
 class ContractMeasurement(Base):
     """Boletim de medição do contrato: período, valor bruto e a situação do fluxo.
 
-    ``marco_id`` entra sem chave estrangeira até a ISSUE-033 criar
-    ``contrato_marco_pagamento``. Retenção e líquido são calculados pela retenção do contrato.
+    Retenção e líquido são calculados pela retenção do contrato; o marco vinculado é opcional.
     """
 
     __tablename__ = "contrato_medicao"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
-    milestone_id: Mapped[int | None] = mapped_column("marco_id", BigInteger)
+    milestone_id: Mapped[int | None] = mapped_column(
+        "marco_id", ForeignKey("contrato_marco_pagamento.id")
+    )
     number: Mapped[str] = mapped_column("numero", Text)
     period: Mapped[date] = mapped_column("periodo", Date)
     gross_cents: Mapped[int] = mapped_column("bruto_centavos", Centavos)
     situation: Mapped[str] = mapped_column("situacao", Text)
     return_reason: Mapped[str | None] = mapped_column("motivo_devolucao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractPaymentMilestone(Base):
+    """Marco de pagamento: percentual do valor vigente, critério de aceite e evidência da aprovação.
+
+    O valor e a retenção não são coluna: saem do percentual sobre o valor atual do contrato (D5b).
+    A aprovação exige um ``anexo`` de evidência, guardado em ``anexo_id``.
+    """
+
+    __tablename__ = "contrato_marco_pagamento"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    attachment_id: Mapped[int | None] = mapped_column("anexo_id", ForeignKey("anexo.id"))
+    number: Mapped[str] = mapped_column("numero", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    acceptance_criteria: Mapped[str] = mapped_column("criterio", Text)
+    pct: Mapped[int] = mapped_column("pct", Integer)
+    expected_on: Mapped[date] = mapped_column("data_prevista", Date)
+    completed_on: Mapped[date | None] = mapped_column("data_conclusao", Date)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractClaim(Base):
+    """Pleito do contrato: direção, tipo, causa, datas, valores e dias pleiteados/reconhecidos.
+
+    Exposição e taxa de reconhecimento são calculadas; o alerta de notificação fora do prazo
+    compara a data da notificação com o prazo do contrato. O risco e a SM de origem entram por
+    chave estrangeira opcional.
+    """
+
+    __tablename__ = "contrato_claim"
+    __table_args__ = (UniqueConstraint("codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    risk_id: Mapped[int | None] = mapped_column("risco_id", ForeignKey("risco.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    direction: Mapped[str] = mapped_column("direcao", Text)
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    cause: Mapped[str] = mapped_column("causa", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    clause: Mapped[str | None] = mapped_column("clausula", Text)
+    event_date: Mapped[date] = mapped_column("data_evento", Date)
+    notification_date: Mapped[date] = mapped_column("data_notificacao", Date)
+    claimed_cents: Mapped[int] = mapped_column("pleiteado_centavos", Centavos)
+    claimed_days: Mapped[int] = mapped_column("dias_pleiteados", Integer)
+    recognized_cents: Mapped[int | None] = mapped_column("reconhecido_centavos", Centavos)
+    recognized_days: Mapped[int | None] = mapped_column("dias_reconhecidos", Integer)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    closed_on: Mapped[date | None] = mapped_column("data_encerramento", Date)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class ContractTimeExtension(Base):
+    """Extensão de prazo (EOT): claim de origem, evento, dias, classificação e decisão.
+
+    A concessão prorroga o término vigente do contrato e cria a SM do cronograma na mesma
+    transação; o vínculo com a SM fica em ``mudanca_id``. Dias, classificação e decisão são
+    nulos enquanto a EOT está pendente.
+    """
+
+    __tablename__ = "contrato_extensao_prazo"
+    __table_args__ = (UniqueConstraint("codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    contract_id: Mapped[int] = mapped_column("contrato_id", ForeignKey("contrato.id"))
+    claim_id: Mapped[int | None] = mapped_column("claim_id", ForeignKey("contrato_claim.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    event: Mapped[str] = mapped_column("evento", Text)
+    requested_days: Mapped[int] = mapped_column("dias_solicitados", Integer)
+    granted_days: Mapped[int | None] = mapped_column("dias_concedidos", Integer)
+    classification: Mapped[str | None] = mapped_column("classificacao", Text)
+    method: Mapped[str] = mapped_column("metodo", Text)
+    affected_milestone: Mapped[str] = mapped_column("marco_afetado", Text)
+    requested_on: Mapped[date] = mapped_column("data_solicitacao", Date)
+    decided_on: Mapped[date | None] = mapped_column("data_decisao", Date)
+    situation: Mapped[str] = mapped_column("situacao", Text)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)

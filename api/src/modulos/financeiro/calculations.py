@@ -891,3 +891,75 @@ def contract_cascade_steps(
             "valor": contract_balance_to_invoice_cents(current_cents, measured_cents),
         },
     )
+
+
+# ── Marcos, claims e EOT (ISSUE-033) ─────────────────────────────────────
+
+
+MILESTONE_PCT_TOTAL = 100
+
+MILESTONE_FORECAST = "Previsto"
+MILESTONE_EVIDENCE_SENT = "Evidência enviada"
+MILESTONE_APPROVED = "Aprovado"
+MILESTONE_INVOICED = "Faturado"
+MILESTONE_PAID = "Pago"
+
+CLAIM_NOTIFIED = "Notificado"
+CLAIM_UNDER_REVIEW = "Em análise"
+CLAIM_IN_NEGOTIATION = "Em negociação"
+CLAIM_AGREED = "Acordado"
+CLAIM_REJECTED = "Rejeitado"
+CLAIM_IN_DISPUTE = "Em disputa"
+CLAIM_CLOSED = "Encerrado"
+
+EXTENSION_REQUESTED = "Solicitada"
+EXTENSION_UNDER_REVIEW = "Em análise"
+EXTENSION_GRANTED = "Concedida"
+EXTENSION_PARTIALLY_GRANTED = "Concedida parcialmente"
+EXTENSION_DENIED = "Negada"
+
+
+def milestone_value_cents(current_value_cents: int, pct: int) -> int:
+    """Valor do marco: o percentual sobre o valor atual do contrato, meio centavo para cima."""
+    return int(
+        (Decimal(current_value_cents * pct) / HUNDREDTHS).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    )
+
+
+def milestone_retention_cents(value_cents: int, retention_pct: int) -> int:
+    """Retenção do marco: o valor do marco pela retenção do contrato, meio centavo para cima."""
+    return int(
+        (Decimal(value_cents * retention_pct) / HUNDREDTHS).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    )
+
+
+def milestone_pct_total(pcts: Sequence[int]) -> int:
+    """Soma dos percentuais dos marcos de um contrato, para a conferência dos 100%."""
+    return sum(pcts)
+
+
+def milestone_pct_complete(pcts: Sequence[int]) -> bool:
+    """A soma dos percentuais fecha os 100% exigidos do contrato?"""
+    return milestone_pct_total(pcts) == MILESTONE_PCT_TOTAL
+
+
+def claim_notification_deadline(event_date: date, notice_days: int) -> date:
+    """Último dia do prazo de notificação: a data do evento mais os dias do contrato.
+
+    Notificar no próprio último dia está dentro do prazo; o atraso começa no dia seguinte.
+    """
+    return event_date + timedelta(days=notice_days)
+
+
+def claim_notification_late(notification_date: date, deadline: date) -> bool:
+    """A notificação passou do prazo contratual? O último dia ainda não é atraso."""
+    return notification_date > deadline
+
+
+def extension_new_end_date(current_end: date, granted_days: int) -> date:
+    """Término vigente prorrogado pela EOT: a data vigente mais os dias concedidos."""
+    return current_end + timedelta(days=granted_days)
