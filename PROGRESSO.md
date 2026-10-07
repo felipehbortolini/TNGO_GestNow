@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 44 de 93 -->
+<!-- Progresso da migração: 45 de 93 -->
 
 # Progresso da migração
 
-**44 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 07/10/2026 17:07 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**45 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 07/10/2026 18:10 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 44 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 044, 045, 051, 064, 072 |
-| na fila | 49 | 040, 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 45 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 044, 045, 051, 064, 072 |
+| na fila | 48 | 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -52,6 +52,7 @@
 | ISSUE-037 | Medição dos pacotes pelo critério, estorno controlado e importação do avanço | `0c63926` |
 | ISSUE-038 | Revisões da EAP a partir de SM e desdobramento de pacotes de planejamento | `79c5c65` |
 | ISSUE-039 | Curva S física com linha de base congelada, real das medições e drill | `e242c2f` |
+| ISSUE-040 | KPIs de planejamento por período e por área | `9e08142` |
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
@@ -62,7 +63,6 @@
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-040 | KPIs de planejamento por período e por área | na fila | ISSUE-039 |
 | ISSUE-041 | Contingência e reserva gerencial | na fila | ISSUE-039, ISSUE-031, ISSUE-025 |
 | ISSUE-042 | Curva S financeira e KPIs de custo | na fila | ISSUE-041 |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | na fila | ISSUE-031, ISSUE-033 |
