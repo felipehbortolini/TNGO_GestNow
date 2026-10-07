@@ -8,7 +8,9 @@ them: the frozen baseline of each revision with its variation, and the applied a
 transfers with the free balance of the origin. The contract of ISSUE-032 brings its own document:
 the KPIs of the ficha, the cascade of the value and the tables of measurements and addenda. The
 contractor evaluation of ISSUE-034 brings the period, the type, the evaluator, each criterion with
-the note and the weight frozen in the evaluation, the score and the class.
+the note and the weight frozen in the evaluation, the score and the class. The consolidated vision
+of ISSUE-035 brings the KPIs of contract administration and the five tables (contracts, claims,
+EOT, payment milestones and evaluations) of the scope, with the filters of the screen.
 """
 
 from __future__ import annotations
@@ -62,6 +64,7 @@ from src.modulos.financeiro.service import (
     PORTFOLIO_LABEL,
     AddendumView,
     ClaimView,
+    ContractsOverview,
     ContractView,
     EacView,
     EvaluationCriterionSpec,
@@ -843,3 +846,337 @@ def _evaluation_row(line: EvaluationView, *, criteria: Sequence[EvaluationCriter
 
 def _criterion_note(criterion: EvaluationCriterionView | None) -> str:
     return "·" if criterion is None else f"{criterion.note} · {criterion.weight}%"
+
+
+# ── Visão consolidada da administração contratual (ISSUE-035) ────────────
+
+
+CONTRACTS_TITLE = "Contratos: administração contratual"
+CONTRACTS_TABLE_TITLE = "Contratos"
+CONTRACTS_SCOPE_REFERENCE = "Contratos do escopo"
+CONTRACTS_ZERO_REFERENCE = "Esperado: 0"
+CONTRACTS_EXPOSURE_REFERENCE = "Esperado: R$ 0,00"
+CONTRACTS_LIMIT_REFERENCE = "Limite: ≤ 10%"
+CONTRACTS_EXTENSION_LIMIT = 10
+
+
+def contratos_consolidado_document(
+    view: ContractsOverview,
+    *,
+    scope_label: str,
+    generated_on: date,
+    filtered: ContractsOverview | None = None,
+    filter_label: str = "",
+) -> Document:
+    """A visão consolidada como documento: os KPIs do escopo e as cinco tabelas (HU-098).
+
+    Os KPIs e os indicadores saem do escopo inteiro, como a tela os mostra; as tabelas saem de
+    ``filtered``, a cópia com os filtros aplicados (sem ela, do próprio escopo). No Portfólio a
+    coluna Projeto entra pelo mecanismo genérico (HU-016) e o nome do arquivo é montado pela rota.
+    """
+    tables_view = view if filtered is None else filtered
+    context = (("Filtro", filter_label),) if filter_label else ()
+    return Document(
+        title=CONTRACTS_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        context=context,
+        kpis=_contratos_kpis(view),
+        tables=(
+            _consolidated_contracts_table(tables_view),
+            _consolidated_claims_table(tables_view),
+            _consolidated_extensions_table(tables_view),
+            _consolidated_milestones_table(tables_view),
+            _consolidated_evaluations_table(tables_view),
+        ),
+    )
+
+
+def _contratos_kpis(view: ContractsOverview) -> tuple[Kpi, ...]:
+    summary = view.summary
+    indicators = view.indicators
+    total_cents = sum(item.current_value_cents for item in view.contracts)
+    paid_forecast = indicators.paid_forecast_percent
+    average_score = indicators.average_score
+    return (
+        Kpi(
+            "Contratos",
+            summary.contracts,
+            CONTRACTS_SCOPE_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=f"{format_value(ValueKind.MONEY, total_cents)} em valor atual",
+        ),
+        Kpi(
+            "Exposição de claims",
+            indicators.contractor_exposure_cents,
+            CONTRACTS_EXPOSURE_REFERENCE,
+            ValueKind.MONEY,
+            tone=Tone.WARN if indicators.contractor_exposure_cents else Tone.OK,
+            status=_open_claims_text(summary.open_claims),
+        ),
+        Kpi(
+            "Notificados fora do prazo",
+            summary.late_notifications,
+            CONTRACTS_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.late_notifications else Tone.OK,
+            status="risco de preclusão do pleito",
+        ),
+        Kpi(
+            "Marcos atrasados",
+            summary.late_milestones,
+            CONTRACTS_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.late_milestones else Tone.OK,
+            status=(
+                ""
+                if paid_forecast is None
+                else (
+                    "pago "
+                    f"{format_value(ValueKind.PERCENT, paid_forecast, digits=1)}"
+                    " do previsto até hoje"
+                )
+            ),
+        ),
+        Kpi(
+            "Extensão de prazo",
+            indicators.extension_percent,
+            CONTRACTS_LIMIT_REFERENCE,
+            ValueKind.PERCENT,
+            digits=1,
+            tone=(
+                Tone.WARN
+                if indicators.extension_percent is not None
+                and indicators.extension_percent > CONTRACTS_EXTENSION_LIMIT
+                else Tone.INFO
+            ),
+            status=(
+                f"{indicators.granted_days} de {indicators.requested_days} "
+                "dias solicitados concedidos"
+            ),
+        ),
+        Kpi(
+            "Contratadas C ou D",
+            summary.contractors_c_or_d,
+            CONTRACTS_ZERO_REFERENCE,
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.contractors_c_or_d else Tone.OK,
+            status=(
+                ""
+                if average_score is None
+                else f"nota média {format_value(ValueKind.DECIMAL, average_score, digits=1)}"
+            ),
+        ),
+    )
+
+
+def _open_claims_text(count: int) -> str:
+    if count == 1:
+        return "1 claim aberto"
+    return f"{count} claims abertos"
+
+
+def _evaluation_text(evaluation: EvaluationView | None) -> str:
+    if evaluation is None or not evaluation.score_class:
+        return ""
+    if evaluation.score is None:
+        return evaluation.score_class
+    return f"{evaluation.score_class} ({evaluation.score})"
+
+
+def _period_label(period: date) -> str:
+    return period.strftime("%m/%Y")
+
+
+def _consolidated_contracts_table(view: ContractsOverview) -> Table:
+    return Table(
+        title=CONTRACTS_TABLE_TITLE,
+        columns=(
+            Column("Nº", width=16),
+            Column("Contratada", width=32),
+            Column("Objeto", width=40),
+            Column("Modalidade", width=18),
+            Column("Valor atual", ValueKind.MONEY),
+            Column("Medido", ValueKind.PERCENT, digits=1),
+            Column("Saldo a faturar", ValueKind.MONEY),
+            Column("Término vigente", ValueKind.DATE),
+            Column("Dias aditados", ValueKind.INTEGER),
+            Column("Claims abertos", ValueKind.INTEGER),
+            Column("Última avaliação", width=16),
+        ),
+        rows=tuple(
+            row(
+                item.number,
+                item.company,
+                item.object,
+                item.modality,
+                item.current_value_cents,
+                item.measured_pct,
+                item.balance_to_invoice_cents,
+                item.current_end,
+                item.days_added,
+                item.open_claims,
+                Cell(
+                    _evaluation_text(item.last_evaluation),
+                    _EVALUATION_CLASS_TONES.get(
+                        item.last_evaluation.score_class if item.last_evaluation else ""
+                    ),
+                ),
+                project=item.project_label,
+            )
+            for item in view.contracts
+        ),
+    )
+
+
+def _consolidated_claims_table(view: ContractsOverview) -> Table:
+    return Table(
+        title=CONTRACT_CLAIMS_TITLE,
+        columns=(
+            Column("Código", width=20),
+            Column("Contrato", width=16),
+            Column("Direção", width=16),
+            Column("Tipo", width=14),
+            Column("Causa", width=24),
+            Column("Descrição", width=48),
+            Column("Evento", ValueKind.DATE),
+            Column("Notificação", ValueKind.DATE),
+            Column("Dias após o evento", ValueKind.INTEGER),
+            Column("Fora do prazo", width=12),
+            Column("Pleiteado", ValueKind.MONEY),
+            Column("Dias pleiteados", ValueKind.INTEGER),
+            Column("Reconhecido", ValueKind.MONEY),
+            Column("Dias reconhecidos", ValueKind.INTEGER),
+            Column("Situação", width=18),
+        ),
+        rows=tuple(
+            row(
+                item.code,
+                item.contract_number,
+                item.direction,
+                item.kind,
+                item.cause,
+                item.description,
+                item.event_date,
+                item.notification_date,
+                item.notification_days,
+                Cell(
+                    "Sim" if item.notification_late else "Não",
+                    Tone.ERROR if item.notification_late else Tone.OK,
+                ),
+                item.claimed_cents,
+                item.claimed_days,
+                item.recognized_cents,
+                item.recognized_days,
+                Cell(item.situation, _CLAIM_TONES.get(item.situation)),
+                project=item.project_label,
+            )
+            for item in view.claims
+        ),
+    )
+
+
+def _consolidated_extensions_table(view: ContractsOverview) -> Table:
+    return Table(
+        title=CONTRACT_EXTENSIONS_TITLE,
+        columns=(
+            Column("Código", width=20),
+            Column("Contrato", width=16),
+            Column("Claim", width=20),
+            Column("Evento causador", width=48),
+            Column("Solicitados", ValueKind.INTEGER),
+            Column("Concedidos", ValueKind.INTEGER),
+            Column("Classificação", width=26),
+            Column("Método", width=28),
+            Column("Marco afetado", width=32),
+            Column("Solicitada em", ValueKind.DATE),
+            Column("Decidida em", ValueKind.DATE),
+            Column("Situação", width=22),
+        ),
+        rows=tuple(
+            row(
+                item.code,
+                item.contract_number,
+                item.claim_code,
+                item.event,
+                item.requested_days,
+                item.granted_days,
+                item.classification,
+                item.method,
+                item.affected_milestone,
+                item.requested_on,
+                item.decided_on,
+                Cell(item.situation, _EXTENSION_TONES.get(item.situation)),
+                project=item.project_label,
+            )
+            for item in view.extensions
+        ),
+    )
+
+
+def _consolidated_milestones_table(view: ContractsOverview) -> Table:
+    return Table(
+        title=CONTRACT_MILESTONES_TITLE,
+        columns=(
+            Column("Contrato", width=16),
+            Column("Nº", width=10),
+            Column("Marco", width=44),
+            Column("Critério de aceite", width=40),
+            Column("%", ValueKind.INTEGER),
+            Column("Valor", ValueKind.MONEY),
+            Column("Prevista", ValueKind.DATE),
+            Column("Atraso (dias)", ValueKind.INTEGER),
+            Column("Conclusão", ValueKind.DATE),
+            Column("Situação", width=18),
+        ),
+        rows=tuple(
+            row(
+                item.contract_number,
+                item.number,
+                item.description,
+                item.criteria,
+                item.pct,
+                item.value_cents,
+                item.expected_on,
+                Cell(item.late_days, Tone.ERROR) if item.is_late else None,
+                item.completed_on,
+                Cell(item.situation, _MILESTONE_TONES.get(item.situation)),
+                project=item.project_label,
+            )
+            for item in view.milestones
+        ),
+    )
+
+
+def _consolidated_evaluations_table(view: ContractsOverview) -> Table:
+    return Table(
+        title=CONTRACT_EVALUATIONS_TITLE,
+        columns=(
+            Column("Contrato", width=16),
+            Column("Contratada", width=32),
+            Column("Período", width=12),
+            Column("Tipo", width=10),
+            Column("Avaliador", width=24),
+            Column("Nota", ValueKind.INTEGER),
+            Column("Classe", width=10),
+            Column("Plano de melhoria", width=16),
+            Column("Comentário", width=48),
+        ),
+        rows=tuple(
+            row(
+                item.contract_number,
+                item.company,
+                _period_label(item.view.period),
+                item.view.kind,
+                item.view.evaluator,
+                item.view.score,
+                Cell(item.view.score_class, _EVALUATION_CLASS_TONES.get(item.view.score_class)),
+                "Exigido" if item.view.requires_plan else "",
+                item.view.comment,
+                project=item.project_label,
+            )
+            for item in view.evaluations
+        ),
+    )

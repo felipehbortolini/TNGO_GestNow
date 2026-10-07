@@ -1,0 +1,23 @@
+{#
+  Os seis KPIs da administração contratual (ISSUE-035): Contratos, Exposição de claims, Notificados
+  fora do prazo, Marcos atrasados, Extensão de prazo e Contratadas C ou D. Os números vêm contados
+  do servidor, do escopo inteiro — os filtros estreitam as abas, nunca estes cartões, como no
+  protótipo. Cada cartão traz a referência de gestão e a nota; o estado nunca é só a cor.
+
+  Espera: cartoes, vazio.
+#}
+{% if not vazio %}
+<div class="kpis" style="--kpis-colunas: 6" role="group" aria-label="Indicadores da administração contratual">
+  {% for cartao in cartoes %}
+  <div class="kpi kpi--{{ cartao.tone }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>
+    <div>
+      <div class="kpi__label">{{ cartao.label }}</div>
+      {% if cartao.reference %}<div class="hint">{{ cartao.reference }}</div>{% endif %}
+      {% if cartao.footer %}<div class="hint">{{ cartao.footer }}</div>{% endif %}
+    </div>
+    <span class="kpi__value">{{ cartao.value }}{% if cartao.unit %} <small>{{ cartao.unit }}</small>{% endif %}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

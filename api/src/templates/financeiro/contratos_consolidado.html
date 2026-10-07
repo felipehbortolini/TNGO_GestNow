@@ -1,0 +1,40 @@
+{% extends "base_fragment.html" %}
+{#
+  Visão consolidada da administração contratual (ISSUE-035): os seis KPIs, os filtros (busca e
+  contrato) e as cinco abas de todos os contratos do escopo, com os registros nascendo na ficha do
+  contrato — nenhuma aba tem botão de inclusão, como no protótipo.
+
+  A tela pede este fragmento inteiro uma vez. O formulário de filtros pede só os blocos
+  contratos-kpis e contratos-tabelas (contratos_consolidado_partes.html): como o formulário fica
+  fora dos dois, o campo de busca não perde o foco a cada tecla. A troca de aba é estado local do
+  Alpine, dentro de _contratos_tabelas.html.
+
+  Espera: cartoes, contratos, claims, extensoes, marcos, avaliacoes, sub_contratos, sub_claims,
+  sub_extensoes, sub_marcos, sub_avaliacoes, filtros, contrato_opcoes, projeto, carteira, vazio,
+  alvo_conteudo, alvo_kpis e alvo_tabelas.
+#}
+{% block fragment %}
+<span hidden data-contratos="{{ 'carteira' if carteira else 'projeto' }}"></span>
+<div id="{{ alvo_kpis }}">{% include "financeiro/_contratos_kpis.html" %}</div>
+
+<form class="toolbar" method="get" action="/api/financeiro/contratos/consolidado"
+  x-target="{{ alvo_kpis }} {{ alvo_tabelas }}" @change="$el.requestSubmit()">
+  <input type="hidden" name="projeto" value="{{ projeto }}" />
+  <div class="field">
+    <label class="sr-only" for="contratos-busca">Buscar</label>
+    <input class="input" type="search" id="contratos-busca" name="busca" value="{{ filtros.search }}"
+      placeholder="Buscar número, contratada ou descrição" />
+  </div>
+  <div class="field">
+    <label class="sr-only" for="contratos-filtro">Contrato</label>
+    <select class="input" id="contratos-filtro" name="contrato">
+      <option value="">Todos os contratos</option>
+      {% for numero, rotulo in contrato_opcoes %}
+      <option value="{{ numero }}"{% if filtros.contract == numero %} selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div id="{{ alvo_tabelas }}">{% include "financeiro/_contratos_tabelas.html" %}</div>
+{% endblock %}

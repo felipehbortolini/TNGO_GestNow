@@ -58,12 +58,19 @@ the content of the tab (the table and the Gráfico de Áreas de Avaliação), ``
 ``POST /contrato/avaliacoes`` creates the evaluation (multipart, with the evidence when a note 1 or
 2 demands it) and ``GET /contrato/avaliacoes/excel`` and ``.../imprimivel`` are its two exports.
 The saved answer brings the tab again (a multi-target response, with the form emptied).
+
+The consolidated vision of ISSUE-035 lives under ``/api/financeiro/contratos/consolidado``:
+``GET`` is the content of the screen (the six KPIs and the five tabs of the scope, with the filters
+``busca`` and ``contrato``), ``GET .../excel`` downloads the document with the KPIs and the five
+tables (``contratos-<código do projeto|portfolio>``) and ``GET .../imprimivel`` renders the same
+document for the PDF button. New records are born in the ficha of the contract, so no tab of this
+screen carries an inclusion button.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -79,7 +86,7 @@ from src.core.errors import (
     InvalidDataError,
     VersionConflictError,
 )
-from src.core.excel import excel_response
+from src.core.excel import XLSX_CONTENT_TYPE, build_workbook, excel_response
 from src.core.export_document import (
     Document,
     ValueKind,
@@ -89,7 +96,7 @@ from src.core.export_document import (
 from src.core.import_values import normalize_text
 from src.core.printable import printable_response
 from src.core.rbac import Permission, User
-from src.core.responses import AlpineAjaxResponse
+from src.core.responses import AlpineAjaxResponse, file_response
 from src.core.routing import (
     Access,
     RequestContext,
@@ -212,6 +219,10 @@ CONTRACT_EVALUATION_CREATE_ROUTE = CONTRACT_EVALUATIONS_ROUTE
 CONTRACT_EVALUATIONS_EXCEL_ROUTE = f"{CONTRACT_EVALUATIONS_ROUTE}/excel"
 CONTRACT_EVALUATIONS_PRINTABLE_ROUTE = f"{CONTRACT_EVALUATIONS_ROUTE}/imprimivel"
 
+CONTRATOS_CONSOLIDADO_ROUTE = "financeiro/contratos/consolidado"
+CONTRATOS_CONSOLIDADO_EXCEL_ROUTE = f"{CONTRATOS_CONSOLIDADO_ROUTE}/excel"
+CONTRATOS_CONSOLIDADO_PRINTABLE_ROUTE = f"{CONTRATOS_CONSOLIDADO_ROUTE}/imprimivel"
+
 CONTRACT_RESUME_TEMPLATE = "financeiro/contrato_resumo.html"
 CONTRACT_MEASUREMENTS_TEMPLATE = "financeiro/contrato_medicoes.html"
 CONTRACT_ADDENDA_TEMPLATE = "financeiro/contrato_aditivos.html"
@@ -234,6 +245,9 @@ CONTRACT_EVALUATIONS_TEMPLATE = "financeiro/contrato_avaliacoes.html"
 CONTRACT_EVALUATION_FORM_TEMPLATE = "financeiro/contrato_avaliacao_form.html"
 CONTRACT_EVALUATION_SAVED_TEMPLATE = "financeiro/contrato_avaliacao_salvo.html"
 
+CONTRATOS_CONSOLIDADO_TEMPLATE = "financeiro/contratos_consolidado.html"
+CONTRATOS_CONSOLIDADO_PARTS_TEMPLATE = "financeiro/contratos_consolidado_partes.html"
+
 CONTRACT_RESUME_TARGET = "contrato-resumo"
 CONTRACT_MEASUREMENTS_TARGET = "contrato-medicoes"
 CONTRACT_ADDENDA_TARGET = "contrato-aditivos"
@@ -242,6 +256,12 @@ CONTRACT_CLAIMS_TARGET = "contrato-claims"
 CONTRACT_EXTENSIONS_TARGET = "contrato-extensoes"
 CONTRACT_EVALUATIONS_TARGET = "contrato-avaliacoes"
 CONTRACT_FORM_TARGET = "contrato-formulario"
+
+CONTRATOS_CONSOLIDADO_TARGET = "contratos-conteudo"
+CONTRATOS_KPIS_TARGET = "contratos-kpis"
+CONTRATOS_TABELAS_TARGET = "contratos-tabelas"
+CONTRATOS_FILTERED_BLOCKS = (CONTRATOS_KPIS_TARGET, CONTRATOS_TABELAS_TARGET)
+CONTRATOS_FILTER_PARAMETER = "contrato"
 
 CONTRACT_NUMBER_PARAMETER = "numero"
 CONTRACT_MEASUREMENT_PARAMETER = "medicao_id"
@@ -3456,3 +3476,471 @@ def _contrato_avaliacoes_document_of(
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
     )
+
+
+# ── Visão consolidada da administração contratual (ISSUE-035) ────────────
+
+
+@dataclass(frozen=True)
+class ContratosFilters:
+    """O que a pessoa digitou nos filtros da visão consolidada: a busca e o contrato escolhido."""
+
+    search: str = ""
+    contract: str = ""
+
+    @property
+    def is_active(self) -> bool:
+        """Se algum filtro estreita as listas (os KPIs seguem do escopo inteiro)."""
+        return bool(self.search.strip() or self.contract.strip())
+
+
+@dataclass(frozen=True)
+class ContratoKpiCard:
+    """Um KPI da administração contratual como o cartão da tela o imprime."""
+
+    label: str
+    value: str
+    icon: str
+    tone: str
+    reference: str
+    footer: str = ""
+    unit: str = ""
+
+
+@dataclass(frozen=True)
+class ContratoLinha:
+    """Uma linha da aba Contratos: a linha do serviço e os textos que a tabela imprime."""
+
+    contrato: service.ContractOverviewRow
+    medido: str
+    dias_aditados: str
+    classe: str
+    classe_tom: str
+
+
+@dataclass(frozen=True)
+class ClaimLinha:
+    """Uma linha da aba Claims: o claim e o tom da situação."""
+
+    claim: service.ClaimOverviewRow
+    situacao_tom: str
+
+
+@dataclass(frozen=True)
+class ExtensaoLinha:
+    """Uma linha da aba Extensões de prazo: a EOT e o tom da situação."""
+
+    eot: service.ExtensionOverviewRow
+    situacao_tom: str
+
+
+@dataclass(frozen=True)
+class MarcoLinha:
+    """Uma linha da aba Marcos de pagamento: o marco e o tom da situação."""
+
+    marco: service.MilestoneOverviewRow
+    situacao_tom: str
+
+
+@dataclass(frozen=True)
+class AvaliacaoLinha:
+    """Uma linha da aba Avaliações: a avaliação, o período como a tabela o imprime e a classe."""
+
+    avaliacao: service.EvaluationOverviewRow
+    periodo: str
+    classe_tom: str
+
+
+CONTRATOS_SUB_CONTRATOS = (
+    "Valor atual = original + aditivos; saldo = valor atual menos medido aprovado"
+)
+CONTRATOS_SUB_AVALIACOES = (
+    "Nota ponderada de 0 a 100 com os pesos gravados em cada avaliação · "
+    "nota 1 ou 2 em algum critério exige plano de melhoria"
+)
+CONTRATOS_LIMIT_PERCENT = Decimal(10)
+
+
+@bp.route(route=CONTRATOS_CONSOLIDADO_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contratos_consolidado(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A visão consolidada da administração contratual: os KPIs e as cinco abas do escopo."""
+    view, filtered, filters = _contratos_consolidado_view(req, session, context)
+    return AlpineAjaxResponse(
+        template_name=(
+            CONTRATOS_CONSOLIDADO_PARTS_TEMPLATE
+            if _asks_for_contratos_parts(req)
+            else CONTRATOS_CONSOLIDADO_TEMPLATE
+        ),
+        context=_contratos_consolidado_context(view, filtered, filters=filters, context=context),
+        request=req,
+    )
+
+
+@bp.route(route=CONTRATOS_CONSOLIDADO_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def contratos_consolidado_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da visão consolidada: os KPIs do escopo e as cinco tabelas, com os filtros."""
+    return file_response(
+        build_workbook(_contratos_consolidado_document_of(req, session, context)),
+        filename=_contratos_file_name(session, context),
+        content_type=XLSX_CONTENT_TYPE,
+    )
+
+
+@bp.route(route=CONTRATOS_CONSOLIDADO_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def contratos_consolidado_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da visão consolidada: o mesmo documento do Excel."""
+    return printable_response(_contratos_consolidado_document_of(req, session, context), req)
+
+
+def _contratos_consolidado_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> tuple[service.ContractsOverview, service.ContractsOverview, ContratosFilters]:
+    """A leitura do escopo e a cópia com os filtros: os KPIs são da visão inteira."""
+    view = service.contracts_overview(
+        session, user=context.user, scope=context.scope, reference_date=calendario.today()
+    )
+    filters = _contratos_filters_of(req)
+    return view, _filter_contratos(view, filters), filters
+
+
+def _contratos_consolidado_document_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    view, filtered, filters = _contratos_consolidado_view(req, session, context)
+    return export.contratos_consolidado_document(
+        view,
+        filtered=filtered,
+        filter_label=_contratos_filter_label(filters),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+def _contratos_file_name(session: Session, context: RequestContext) -> str:
+    """``contratos-<código do projeto|portfolio>.xlsx``: o nome que o protótipo dava ao arquivo."""
+    if context.scope.is_portfolio:
+        return "contratos-portfolio.xlsx"
+    project = next(
+        (
+            item
+            for item in configuracoes.list_projects(session)
+            if item.id == context.scope.project_id
+        ),
+        None,
+    )
+    return f"contratos-{project.code if project is not None else context.scope.parameter}.xlsx"
+
+
+def _contratos_filters_of(req: func.HttpRequest) -> ContratosFilters:
+    return ContratosFilters(
+        search=(req.params.get("busca") or "").strip(),
+        contract=(req.params.get(CONTRATOS_FILTER_PARAMETER) or "").strip(),
+    )
+
+
+def _contratos_filter_label(filters: ContratosFilters) -> str:
+    parts: list[str] = []
+    if filters.search:
+        parts.append(f"busca: {filters.search}")
+    if filters.contract:
+        parts.append(f"contrato: {filters.contract}")
+    return " · ".join(parts)
+
+
+def _asks_for_contratos_parts(req: func.HttpRequest) -> bool:
+    targets = (req.headers.get("X-Alpine-Target") or "").split()
+    return all(block in targets for block in CONTRATOS_FILTERED_BLOCKS)
+
+
+def _filter_contratos(
+    view: service.ContractsOverview, filters: ContratosFilters
+) -> service.ContractsOverview:
+    """As cinco listas filtradas; o resumo e os indicadores seguem do escopo inteiro."""
+    if not filters.is_active:
+        return view
+    needle = normalize_text(filters.search)
+    number = filters.contract
+    return replace(
+        view,
+        contracts=tuple(item for item in view.contracts if _contrato_matches(item, needle, number)),
+        claims=tuple(item for item in view.claims if _claim_matches(item, needle, number)),
+        extensions=tuple(
+            item for item in view.extensions if _extensao_matches(item, needle, number)
+        ),
+        milestones=tuple(item for item in view.milestones if _marco_matches(item, needle, number)),
+        evaluations=tuple(
+            item for item in view.evaluations if _avaliacao_matches(item, needle, number)
+        ),
+    )
+
+
+def _matches(needle: str, *fields: str) -> bool:
+    return not needle or needle in normalize_text(" ".join(fields))
+
+
+def _by_contract(number: str, contract_number: str) -> bool:
+    return not number or number == contract_number
+
+
+def _contrato_matches(item: service.ContractOverviewRow, needle: str, number: str) -> bool:
+    if not _by_contract(number, item.number):
+        return False
+    return _matches(needle, item.number, item.company, item.object, item.modality)
+
+
+def _claim_matches(item: service.ClaimOverviewRow, needle: str, number: str) -> bool:
+    if not _by_contract(number, item.contract_number):
+        return False
+    return _matches(
+        needle,
+        item.code,
+        item.contract_number,
+        item.description,
+        item.cause,
+        item.kind,
+        item.direction,
+    )
+
+
+def _extensao_matches(item: service.ExtensionOverviewRow, needle: str, number: str) -> bool:
+    if not _by_contract(number, item.contract_number):
+        return False
+    return _matches(
+        needle,
+        item.code,
+        item.contract_number,
+        item.event,
+        item.claim_code,
+        item.affected_milestone,
+    )
+
+
+def _marco_matches(item: service.MilestoneOverviewRow, needle: str, number: str) -> bool:
+    if not _by_contract(number, item.contract_number):
+        return False
+    return _matches(needle, item.number, item.contract_number, item.description, item.criteria)
+
+
+def _avaliacao_matches(item: service.EvaluationOverviewRow, needle: str, number: str) -> bool:
+    if not _by_contract(number, item.contract_number):
+        return False
+    return _matches(
+        needle,
+        item.contract_number,
+        item.company,
+        _period_text(item.view.period),
+        item.view.comment,
+    )
+
+
+def _contratos_consolidado_context(
+    view: service.ContractsOverview,
+    filtered: service.ContractsOverview,
+    *,
+    filters: ContratosFilters,
+    context: RequestContext,
+) -> dict[str, object]:
+    return {
+        "visao": view,
+        "carteira": view.is_portfolio,
+        "vazio": view.is_empty,
+        "cartoes": _contratos_cards(view),
+        "sub_contratos": CONTRATOS_SUB_CONTRATOS,
+        "sub_claims": _claims_subtitle(view),
+        "sub_extensoes": _extensions_subtitle(view),
+        "sub_marcos": _milestones_subtitle(view),
+        "sub_avaliacoes": CONTRATOS_SUB_AVALIACOES,
+        "contratos": [_contrato_line(item) for item in filtered.contracts],
+        "claims": [
+            ClaimLinha(claim=item, situacao_tom=_CLAIM_PILLS.get(item.situation, "neutral"))
+            for item in filtered.claims
+        ],
+        "extensoes": [
+            ExtensaoLinha(eot=item, situacao_tom=_EXTENSION_PILLS.get(item.situation, "neutral"))
+            for item in filtered.extensions
+        ],
+        "marcos": [
+            MarcoLinha(marco=item, situacao_tom=_MILESTONE_PILLS.get(item.situation, "neutral"))
+            for item in filtered.milestones
+        ],
+        "avaliacoes": [
+            AvaliacaoLinha(
+                avaliacao=item,
+                periodo=_period_text(item.view.period),
+                classe_tom=_EVALUATION_CLASS_PILLS.get(item.view.score_class, "neutral"),
+            )
+            for item in filtered.evaluations
+        ],
+        "filtros": filters,
+        "contrato_opcoes": [
+            (item.number, f"{item.number} {item.company}") for item in view.contracts
+        ],
+        "projeto": context.scope.parameter,
+        "alvo_conteudo": CONTRATOS_CONSOLIDADO_TARGET,
+        "alvo_kpis": CONTRATOS_KPIS_TARGET,
+        "alvo_tabelas": CONTRATOS_TABELAS_TARGET,
+    }
+
+
+def _contratos_cards(view: service.ContractsOverview) -> tuple[ContratoKpiCard, ...]:
+    """Os seis cartões da tela, cada um com a referência de gestão e a nota do protótipo."""
+    summary = view.summary
+    indicators = view.indicators
+    total_cents = sum(item.current_value_cents for item in view.contracts)
+    paid_forecast = indicators.paid_forecast_percent
+    average_score = indicators.average_score
+    extension = indicators.extension_percent
+    return (
+        ContratoKpiCard(
+            label="Contratos",
+            value=_integer(summary.contracts),
+            icon="file",
+            tone="info",
+            reference="Contratos do escopo",
+            footer=f"{_money(total_cents)} em valor atual",
+        ),
+        ContratoKpiCard(
+            label="Exposição de claims",
+            value=_money(summary.exposure_cents),
+            icon="money",
+            tone="warn" if summary.exposure_cents else "ok",
+            reference="Esperado: R$ 0,00",
+            footer=_open_claims_text(summary.open_claims),
+        ),
+        ContratoKpiCard(
+            label="Notificados fora do prazo",
+            value=_integer(summary.late_notifications),
+            icon="clock",
+            tone="erro" if summary.late_notifications else "ok",
+            reference="Esperado: 0",
+            footer="risco de preclusão do pleito",
+        ),
+        ContratoKpiCard(
+            label="Marcos atrasados",
+            value=_integer(summary.late_milestones),
+            icon="pin",
+            tone="warn" if summary.late_milestones else "ok",
+            reference="Esperado: 0",
+            footer=(
+                ""
+                if paid_forecast is None
+                else f"pago {_percent1(paid_forecast)} do previsto até hoje"
+            ),
+        ),
+        ContratoKpiCard(
+            label="Extensão de prazo",
+            value="·" if extension is None else format_value(ValueKind.DECIMAL, extension, 1),
+            icon="calendar",
+            tone="warn"
+            if extension is not None and extension > CONTRATOS_LIMIT_PERCENT
+            else "info",
+            reference="Limite: ≤ 10%",
+            footer=(
+                f"{indicators.granted_days} de {indicators.requested_days} "
+                "dias solicitados concedidos"
+            ),
+            unit="%",
+        ),
+        ContratoKpiCard(
+            label="Contratadas C ou D",
+            value=_integer(summary.contractors_c_or_d),
+            icon="person",
+            tone="warn" if summary.contractors_c_or_d else "ok",
+            reference="Esperado: 0",
+            footer="" if average_score is None else f"nota média {_decimal1(average_score)}",
+        ),
+    )
+
+
+def _contrato_line(item: service.ContractOverviewRow) -> ContratoLinha:
+    evaluation = item.last_evaluation
+    return ContratoLinha(
+        contrato=item,
+        medido=_percent_or_dot(item.measured_pct),
+        dias_aditados=_days_added_text(item.days_added),
+        classe=_evaluation_text(evaluation),
+        classe_tom=(
+            _EVALUATION_CLASS_PILLS.get(evaluation.score_class, "neutral")
+            if evaluation is not None
+            else "neutral"
+        ),
+    )
+
+
+def _evaluation_text(evaluation: service.EvaluationView | None) -> str:
+    if evaluation is None or not evaluation.score_class:
+        return ""
+    if evaluation.score is None:
+        return evaluation.score_class
+    return f"{evaluation.score_class} ({evaluation.score})"
+
+
+def _days_added_text(days: int) -> str:
+    if days <= 0:
+        return ""
+    return f"+{days} dia" if days == 1 else f"+{days} dias"
+
+
+def _claims_subtitle(view: service.ContractsOverview) -> str:
+    indicators = view.indicators
+    return (
+        f"Taxa de reconhecimento {_percent_or_dot(indicators.recognition_rate)}"
+        f" · tempo médio de resolução {_days_or_dot(indicators.average_resolution_days)}"
+        f" · back-charges em aberto {_money(indicators.client_exposure_cents)}"
+    )
+
+
+def _extensions_subtitle(view: service.ContractsOverview) -> str:
+    indicators = view.indicators
+    return (
+        f"{indicators.requested_days} dias solicitados x {indicators.granted_days} concedidos"
+        f" · {_percent_or_dot(indicators.extension_percent)} da duração original dos contratos"
+    )
+
+
+def _milestones_subtitle(view: service.ContractsOverview) -> str:
+    indicators = view.indicators
+    return (
+        f"Aprovado não faturado {_money(indicators.approved_not_invoiced_cents)}"
+        f" · pago x previsto até hoje {_percent_or_dot(indicators.paid_forecast_percent)}"
+        " · marco só é aprovado com evidência"
+    )
+
+
+def _open_claims_text(count: int) -> str:
+    return "1 claim aberto" if count == 1 else f"{count} claims abertos"
+
+
+def _integer(value: int) -> str:
+    return format_value(ValueKind.INTEGER, value)
+
+
+def _percent1(value: Decimal) -> str:
+    return format_value(ValueKind.PERCENT, value, digits=1)
+
+
+def _decimal1(value: Decimal) -> str:
+    return format_value(ValueKind.DECIMAL, value, digits=1)
+
+
+def _percent_or_dot(value: Decimal | None) -> str:
+    return "·" if value is None else _percent1(value)
+
+
+def _days_or_dot(value: int | None) -> str:
+    if value is None:
+        return "·"
+    return "1 dia" if value == 1 else f"{value} dias"
+
+
+def _period_text(period: date) -> str:
+    return period.strftime("%m/%Y")
