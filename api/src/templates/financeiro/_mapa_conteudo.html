@@ -53,6 +53,19 @@
   </div>
 </div>
 
+{% if mapa.reserves %}
+<div class="aviso aviso--{{ 'info' if mapa.reserves.covers_deviation else 'warn' }}" data-reservas>
+  <strong>Reservas</strong>
+  <span>
+    Contingência com saldo de {{ mapa.reserves.contingency_balance_cents | brl }}
+    ({% if mapa.reserves.contingency_consumption_pct is not none %}{{ mapa.reserves.contingency_consumption_pct }}% consumida; {% endif %}{{ mapa.reserves.in_analysis_cents | brl }} pedidos em SMs em análise) e reserva gerencial de {{ mapa.reserves.management_balance_cents | brl }}.
+    {% if total.row.deviation_cents > 0 %}
+      {% if mapa.reserves.covers_deviation %}O saldo da contingência cobre o desvio projetado no término ({{ total.row.deviation_cents | brl }}), só por SM aprovada.{% else %}O desvio projetado no término ({{ total.row.deviation_cents | brl }}) supera o saldo da contingência.{% endif %}
+    {% else %}Sem desvio projetado a cobrir.{% endif %}
+  </span>
+</div>
+{% endif %}
+
 <div class="mapa-acoes">
   <p class="hint">Valores em R$ mil · desvio = projeção no término menos orçado atual (positivo = sobrecusto).</p>
   {% if pode_gravar or carteira %}

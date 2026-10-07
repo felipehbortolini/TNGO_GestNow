@@ -99,7 +99,7 @@
   </section>
 
   <section class="mt-16" role="tabpanel" id="painel-painel" aria-labelledby="aba-painel" x-show="aba === 'painel'">
-    <div class="kpis" style="--kpis-colunas: 2" role="group" aria-label="Indicadores do painel">
+    <div class="kpis" style="--kpis-colunas: {{ 3 if painel.contingency else 2 }}" role="group" aria-label="Indicadores do painel">
       <div class="kpi kpi--estatico kpi--{{ 'ok' if painel.approval_rate is not none else 'neutro' }}">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
         <span class="mudancas-painel__kpi-texto">
@@ -116,6 +116,16 @@
         </span>
         <span class="kpi__value">{{ (painel.mean_decision_days ~ ' dias') if painel.mean_decision_days is not none else '·' }}</span>
       </div>
+      {% if painel.contingency %}
+      <div class="kpi kpi--estatico kpi--{{ 'erro' if painel.contingency.balance_cents < 0 else 'info' }}">
+        <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
+        <span class="mudancas-painel__kpi-texto">
+          <span class="kpi__label">Reserva de contingência consumida</span>
+          <span class="hint">Orçado {{ painel.contingency.total_cents | brl }} · saldo {{ painel.contingency.balance_cents | brl }}</span>
+        </span>
+        <span class="kpi__value">{{ painel.contingency.consumed_cents | brl }}</span>
+      </div>
+      {% endif %}
     </div>
 
     <div class="mudancas-painel__graficos">

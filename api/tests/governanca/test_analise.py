@@ -334,6 +334,7 @@ def test_liberacao_de_reserva_tem_custo_zero_a_reserva_o_valor_e_vai_ao_comite(
     sessao: Session,
 ) -> None:
     projeto, _, usuario = _cenario(sessao)
+    apoio.constituir_reservas(sessao, projeto, contingencia_cents=30_000_00)
     mudanca = _registrar(sessao, usuario, projeto, tipo=models.TYPE_RESERVE_RELEASE)
     _iniciar(sessao, usuario, mudanca)
     base = {"custo": "0", "fonte_recurso": "", "itens_eac": ""}

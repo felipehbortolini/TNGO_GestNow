@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from src.core.rbac import Bond, GeneralProfile, User
 from src.core.scope import Scope
 from src.modulos.configuracoes.models import Collaborator, Project
+from src.modulos.financeiro import calculations as financeiro_calculations
+from src.modulos.financeiro.models import Reserve, ReserveMovement
 from src.modulos.governanca import models, service
 from tests.identidades import criar_colaborador, criar_projeto
 
@@ -53,6 +55,45 @@ def colaborador(session: Session, email: str, perfil: str = "Membro") -> Collabo
 def escopo_do_projeto(projeto: Project) -> Scope:
     """O escopo de um projeto."""
     return Scope(project_id=projeto.id, source="url")
+
+
+def constituir_reservas(
+    session: Session,
+    projeto: Project,
+    *,
+    contingencia_cents: int = 0,
+    gerencial_cents: int = 0,
+    dia: date = HOJE,
+) -> dict[str, Reserve]:
+    """Semeia as reservas constituídas do projeto, como a linha de base de custo as traz (ISSUE-041)."""
+    created: dict[str, Reserve] = {}
+    for kind, value_cents in (
+        (financeiro_calculations.RESERVE_CONTINGENCY, contingencia_cents),
+        (financeiro_calculations.RESERVE_MANAGEMENT, gerencial_cents),
+    ):
+        if value_cents <= 0:
+            continue
+        reserve = Reserve(
+            project_id=projeto.id,
+            kind=kind,
+            calculation_basis="Constituída na linha de base do projeto.",
+        )
+        session.add(reserve)
+        session.flush()
+        session.add(
+            ReserveMovement(
+                reserve_id=reserve.id,
+                change_id=None,
+                registered_by_id=projeto.manager_id,
+                kind=financeiro_calculations.MOVEMENT_CONSTITUTION,
+                registered_on=dia,
+                value_cents=value_cents,
+                justification="Constituída na linha de base do projeto.",
+            )
+        )
+        created[kind] = reserve
+    session.flush()
+    return created
 
 
 PORTFOLIO = Scope(project_id=None, source="padrao")

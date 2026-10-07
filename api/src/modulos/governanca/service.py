@@ -289,6 +289,7 @@ class ChangePanel:
     months: tuple[calculations.ApprovedMonth, ...]
     approval_rate: Decimal | None
     mean_decision_days: int | None
+    contingency: financeiro.ContingencyConsumption | None
 
 
 def change_panel(
@@ -314,6 +315,7 @@ def change_panel(
         months=calculations.approved_monthly(figures, reference_date),
         approval_rate=calculations.approval_rate(figures),
         mean_decision_days=calculations.mean_decision_days(figures),
+        contingency=financeiro.contingency_consumption(session, scope=scope),
     )
 
 
@@ -572,7 +574,8 @@ def conclude_analysis(
     the analyst may raise it, never lower it. A change in analysis goes to Aguardando comitê; one
     already waiting or postponed has its analysis revised and keeps its situation. The EAC items are
     linked through Financeiro; checking that they are cost items (level 3) is ISSUE-030, and the
-    balance of the reserves that warns about a cost above it is ISSUE-041.
+    balance of the reserve of the source (or of the release) is checked here (ISSUE-041): a cost or
+    a release above it is refused, and a project without the reserve constituted is refused too.
     """
     change = _analysable_change(session, user=user, code=code, allowed=ANALYSIS_IMPACT_SITUATIONS)
     current = _latest(session, ChangeImpact, [change.id]).get(change.id)
@@ -588,6 +591,16 @@ def conclude_analysis(
         manager_limit_percent=Decimal(str(parameters["alcadaGerentePctOrcamento"])),
     )
     new = validation.validate_impact(form, rules=rules)
+    _check_reserve(
+        session,
+        change=change,
+        request=_ReserveRequest(
+            cost_cents=new.cost_cents,
+            resource_source=new.resource_source,
+            release_kind=new.release_reserve,
+            release_cents=new.release_cents,
+        ),
+    )
     item_ids = _resolve_items(session, change, new)
     impact = _write_impact(
         session,
@@ -1055,8 +1068,10 @@ def decide_change(
 ) -> DecisionResult:
     """Registra a decisão (HU-127): quórum e decisor conferidos, e a aprovação gera as ações.
 
-    A decisão, os participantes, as ações de implementação na Central (origem ``Mudança``) e a
-    mudança de situação entram na mesma transação: uma falha no meio desfaz tudo.
+    A decisão, os participantes, as ações de implementação na Central (origem ``Mudança``), o
+    movimento da reserva da SM aprovada (consumo ou liberação, ISSUE-041) e a mudança de situação
+    entram na mesma transação: uma falha no meio desfaz tudo. O saldo da reserva é conferido de
+    novo antes de gravar; a SM sem reserva envolvida não muda nada.
     """
     if not rbac.can(user, Permission.MANAGE):
         raise AccessDeniedError(DECISION_DENIED_MESSAGE)
@@ -1083,6 +1098,14 @@ def decide_change(
     if problems:
         raise InvalidDataError(problems)
     approved = data.result in models.APPROVED_SITUATIONS
+    reserve_request = _ReserveRequest(
+        cost_cents=loaded.impact.cost_cents,
+        resource_source=change.resource_source,
+        release_kind=loaded.impact.release_reserve,
+        release_cents=loaded.impact.release_value_cents,
+    )
+    if approved:
+        _check_reserve(session, change=change, request=reserve_request)
     chosen = (
         tuple(
             action
@@ -1109,6 +1132,14 @@ def decide_change(
             reappear_on=data.reappear_on,
         ),
     )
+    if approved:
+        _record_reserve(
+            session,
+            user=user,
+            change=change,
+            request=reserve_request,
+            on=cast("date", data.decision_date),
+        )
     for person_id in data.participants:
         recording.create(
             session,
@@ -1762,6 +1793,141 @@ def incorporate_eap_revision(
         changes={"eap_revision": revision},
         version=change.version,
     )
+
+
+# ── The links with the reserves (ISSUE-041) ──────────────────────────────
+
+
+@dataclass(frozen=True)
+class OpenReserveRequest:
+    """Um pedido de reserva de uma SM aberta: o consumo pela fonte ou a liberação da reserva."""
+
+    change_id: int
+    code: str
+    title: str
+    request_date: date
+    situation: str
+    value_cents: int
+    source: str | None = None
+    release_kind: str | None = None
+
+
+@dataclass(frozen=True)
+class _ReserveRequest:
+    """O pedido de reserva da SM que está sendo analisada ou decidida."""
+
+    cost_cents: int
+    resource_source: str | None
+    release_kind: str | None
+    release_cents: int | None
+
+
+def open_reserve_requests(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> tuple[OpenReserveRequest, ...]:
+    """As SMs abertas do projeto que pedem reserva: o consumo pela fonte e a liberação.
+
+    A SM terminal (rejeitada, encerrada ou cancelada) e a aprovada não pedem mais nada — o
+    consumo aprovado já é movimento. A SM informada em ``exclude_change_id`` fica de fora quando
+    o próprio pedido está sendo conferido.
+    """
+    changes = session.scalars(
+        select(ChangeRequest)
+        .where(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.situation.not_in(models.TERMINAL_SITUATIONS),
+            ChangeRequest.situation.not_in(models.APPROVED_SITUATIONS),
+        )
+        .order_by(ChangeRequest.id)
+    ).all()
+    wanted = [change for change in changes if change.id != exclude_change_id]
+    if not wanted:
+        return ()
+    impacts = _latest(session, ChangeImpact, [change.id for change in wanted])
+    requests: list[OpenReserveRequest] = []
+    for change in wanted:
+        impact = impacts.get(change.id)
+        if impact is None:
+            continue
+        if (
+            change.kind == models.TYPE_RESERVE_RELEASE
+            and impact.release_reserve
+            and impact.release_value_cents
+        ):
+            requests.append(
+                OpenReserveRequest(
+                    change_id=change.id,
+                    code=change.code,
+                    title=change.title,
+                    request_date=change.request_date,
+                    situation=change.situation,
+                    value_cents=impact.release_value_cents,
+                    release_kind=impact.release_reserve,
+                )
+            )
+            continue
+        if impact.cost_cents > 0 and change.resource_source:
+            requests.append(
+                OpenReserveRequest(
+                    change_id=change.id,
+                    code=change.code,
+                    title=change.title,
+                    request_date=change.request_date,
+                    situation=change.situation,
+                    value_cents=impact.cost_cents,
+                    source=change.resource_source,
+                )
+            )
+    return tuple(requests)
+
+
+def _check_reserve(session: Session, *, change: ChangeRequest, request: _ReserveRequest) -> None:
+    """Confere o saldo da reserva do consumo ou da liberação da SM (ISSUE-041)."""
+    if request.cost_cents > 0 and request.resource_source:
+        financeiro.check_reserve_consumption(
+            session,
+            project_id=change.project_id,
+            source=request.resource_source,
+            value_cents=request.cost_cents,
+            exclude_change_id=change.id,
+        )
+    elif request.release_kind and request.release_cents:
+        financeiro.check_reserve_release(
+            session,
+            project_id=change.project_id,
+            reserve_kind=request.release_kind,
+            value_cents=request.release_cents,
+            exclude_change_id=change.id,
+        )
+
+
+def _record_reserve(
+    session: Session,
+    *,
+    user: User,
+    change: ChangeRequest,
+    request: _ReserveRequest,
+    on: date,
+) -> None:
+    """Grava o movimento da reserva na aprovação da SM, na mesma transação da decisão."""
+    if request.cost_cents > 0 and request.resource_source:
+        financeiro.record_reserve_consumption(
+            session,
+            user=user,
+            change=change,
+            source=request.resource_source,
+            value_cents=request.cost_cents,
+            on=on,
+        )
+    elif request.release_kind and request.release_cents:
+        financeiro.record_reserve_release(
+            session,
+            user=user,
+            change=change,
+            reserve_kind=request.release_kind,
+            value_cents=request.release_cents,
+            on=on,
+        )
 
 
 # ── The demonstration load (ISSUE-023, D6) ───────────────────────────────

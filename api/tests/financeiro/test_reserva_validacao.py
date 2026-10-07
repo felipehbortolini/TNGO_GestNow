@@ -15,14 +15,15 @@ from src.modulos.financeiro.validation import (
 )
 
 BALANCE = 200_000_00
+SOURCE = "Reserva de contingência"
 
 
 def test_consumo_igual_ao_saldo_passa() -> None:
-    assert reserve_consumption_error(BALANCE, BALANCE) is None
+    assert reserve_consumption_error(BALANCE, BALANCE, reserve_source=SOURCE) is None
 
 
 def test_consumo_um_centavo_acima_do_saldo_recusa() -> None:
-    message = reserve_consumption_error(BALANCE + 1, BALANCE)
+    message = reserve_consumption_error(BALANCE + 1, BALANCE, reserve_source=SOURCE)
 
     assert message is not None
     assert "R$ 200.000,01" in message
@@ -30,8 +31,15 @@ def test_consumo_um_centavo_acima_do_saldo_recusa() -> None:
     assert "aditivo de orçamento" in message
 
 
+def test_consumo_nomeia_a_reserva_da_fonte() -> None:
+    message = reserve_consumption_error(1, 0, reserve_source=SOURCE)
+
+    assert message is not None
+    assert "Saldo da reserva de contingência insuficiente" in message
+
+
 def test_consumo_de_zero_recusa_com_saldo_negativo() -> None:
-    assert reserve_consumption_error(0, -1) is not None
+    assert reserve_consumption_error(0, -1, reserve_source=SOURCE) is not None
 
 
 def test_liberacao_igual_ao_saldo_livre_passa() -> None:

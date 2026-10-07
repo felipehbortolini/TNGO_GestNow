@@ -1369,9 +1369,18 @@ RESERVE_CONTINGENCY = "Contingência"
 RESERVE_MANAGEMENT = "Gerencial"
 RESERVE_TYPES = (RESERVE_CONTINGENCY, RESERVE_MANAGEMENT)
 
+RESERVE_SOURCE_CONTINGENCY = "Reserva de contingência"
+RESERVE_SOURCE_MANAGEMENT = "Reserva gerencial"
+RESERVE_SOURCE_BY_KIND = {
+    RESERVE_CONTINGENCY: RESERVE_SOURCE_CONTINGENCY,
+    RESERVE_MANAGEMENT: RESERVE_SOURCE_MANAGEMENT,
+}
+RESERVE_KIND_BY_SOURCE = {source: kind for kind, source in RESERVE_SOURCE_BY_KIND.items()}
+
 MOVEMENT_CONSTITUTION = "Constituição"
 MOVEMENT_CONSUMPTION = "Consumo"
 MOVEMENT_RELEASE = "Liberação"
+MOVEMENT_IN_ANALYSIS = "Em análise"
 RESERVE_MOVEMENT_TYPES = (MOVEMENT_CONSTITUTION, MOVEMENT_CONSUMPTION, MOVEMENT_RELEASE)
 
 
@@ -1400,6 +1409,14 @@ class ReserveBurnPoint:
     month: date
     expected_cents: int
     actual_cents: int | None
+
+
+@dataclass(frozen=True)
+class ReserveBurnSeries:
+    """A série de burn de uma reserva: o total constituído e os pontos mês a mês."""
+
+    total_cents: int
+    points: Sequence[ReserveBurnPoint]
 
 
 def reserve_balance(movements: Sequence[ReserveMovementLine]) -> int:
@@ -1486,6 +1503,55 @@ def reserve_burn(
 def _reserve_expected_cents(total_cents: int, baseline_pct: Decimal | int | float) -> int:
     remaining = (HUNDREDTHS - _limit_of(baseline_pct)) / HUNDREDTHS
     return int((Decimal(total_cents) * remaining).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def reserve_burn_union(series: Sequence[ReserveBurnSeries]) -> tuple[ReserveBurnPoint, ...]:
+    """Saldo real x previsto da carteira: a soma dos projetos por mês, até o corte mais novo.
+
+    Um projeto sem o mês soma o total constituído antes do seu primeiro mês e o último real
+    conhecido depois do seu corte; o real da união fica nulo depois do mês de corte mais novo.
+    Projeto sem curva não entra.
+    """
+    parts = [part for part in series if part.points]
+    if not parts:
+        return ()
+    months = sorted({point.month for part in parts for point in part.points})
+    cut = max(
+        (point.month for part in parts for point in part.points if point.actual_cents is not None),
+        default=None,
+    )
+    points: list[ReserveBurnPoint] = []
+    for month in months:
+        expected = sum(_expected_at(part, month) for part in parts)
+        actual = sum(_actual_at(part, month) for part in parts)
+        points.append(
+            ReserveBurnPoint(
+                month=month,
+                expected_cents=expected,
+                actual_cents=actual if cut is not None and month <= cut else None,
+            )
+        )
+    return tuple(points)
+
+
+def _expected_at(part: ReserveBurnSeries, month: date) -> int:
+    if month < part.points[0].month:
+        return part.total_cents
+    for point in part.points:
+        if point.month == month:
+            return point.expected_cents
+    return 0
+
+
+def _actual_at(part: ReserveBurnSeries, month: date) -> int:
+    if month < part.points[0].month:
+        return part.total_cents
+    known = [
+        point.actual_cents
+        for point in part.points
+        if point.month <= month and point.actual_cents is not None
+    ]
+    return known[-1] if known else part.total_cents
 
 
 def _month_end(month: date) -> date:

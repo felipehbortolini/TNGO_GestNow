@@ -53,10 +53,13 @@ from src.modulos.financeiro.models import (
     EacRevision,
     EacRevisionItem,
     ErpCost,
+    Reserve,
+    ReserveMovement,
 )
 
 if TYPE_CHECKING:
-    from src.modulos.governanca.service import ProposedTransfer
+    from src.modulos.governanca.service import OpenReserveRequest, ProposedTransfer
+    from src.modulos.planejamento.calculations import CurvaFisicaSeries
 
 MODULE = "financeiro"
 REGISTRY_ENTITY = "eac_item.cadastro"
@@ -1623,6 +1626,17 @@ class MapaRow:
 
 
 @dataclass(frozen=True)
+class MapaReserveSummary:
+    """A faixa Reservas do mapa: o saldo das reservas e a cobertura do desvio projetado."""
+
+    contingency_balance_cents: int
+    contingency_consumption_pct: Decimal | None
+    in_analysis_cents: int
+    management_balance_cents: int
+    covers_deviation: bool
+
+
+@dataclass(frozen=True)
 class MapaControleView:
     """O mapa de controle do escopo: as linhas, a linha do projeto (ou do portfólio) e as faixas."""
 
@@ -1631,6 +1645,7 @@ class MapaControleView:
     rows: tuple[MapaRow, ...]
     total: MapaRow
     bands: tuple[Decimal, ...]
+    reserves: MapaReserveSummary | None
 
 
 @dataclass(frozen=True)
@@ -1856,6 +1871,9 @@ def mapa_controle(session: Session, *, scope: Scope, reference_date: date) -> Ma
         rows=columns.rows,
         total=total,
         bands=bands,
+        reserves=_map_reserves(
+            session, project_ids=[project.id], deviation_cents=total.deviation_cents
+        ),
     )
 
 
@@ -1895,6 +1913,11 @@ def _portfolio_map(
         rows=tuple(rows),
         total=total,
         bands=bands,
+        reserves=_map_reserves(
+            session,
+            project_ids=[project.id for project in projects],
+            deviation_cents=total.deviation_cents,
+        ),
     )
 
 
@@ -4350,6 +4373,845 @@ def _register_lesson_origin() -> None:
     from src.modulos.governanca import lessons_service
 
     lessons_service.register_origin(lessons.ORIGIN_CONTRACT, _contract_exists)
+
+
+# ── Reservas (ISSUE-041) ─────────────────────────────────────────────────
+
+
+DEFAULT_CONSUMPTION_TOLERANCE_PP = Decimal(10)
+SITUATION_EFFECTIVE = "Efetivado"
+RESERVE_ALERT_CONSUMPTION = "consumo"
+RESERVE_ALERT_ANALYSIS = "analise"
+
+
+@dataclass(frozen=True)
+class ReserveStateEntry:
+    """O estado de uma reserva: o constituído, o consumo, a liberação, o saldo e o pedido em aberto."""
+
+    kind: str
+    total_cents: int
+    consumed_cents: int
+    released_cents: int
+    balance_cents: int
+    open_request_cents: int = 0
+
+
+@dataclass(frozen=True)
+class ReserveState:
+    """O estado das reservas de um projeto, por tipo: o saldo e o pedido em SMs abertas."""
+
+    entries: Mapping[str, ReserveStateEntry]
+
+    def entry(self, kind: str) -> ReserveStateEntry | None:
+        """O estado da reserva do tipo, ou ``None`` quando o projeto não a constituiu."""
+        return self.entries.get(kind)
+
+
+class ReserveChange(Protocol):
+    """A SM que movimenta a reserva, como a fachada do Financeiro a lê (dona: Governança)."""
+
+    id: int
+    project_id: int
+    title: str
+
+
+@dataclass(frozen=True)
+class ContingencyConsumption:
+    """O consumo da reserva de contingência, como o painel de mudanças o mostra."""
+
+    total_cents: int
+    consumed_cents: int
+    balance_cents: int
+
+
+@dataclass(frozen=True)
+class ReserveLine:
+    """Uma reserva na tela: o constituído, o consumo, a liberação, o saldo e o pedido em análise."""
+
+    kind: str
+    total_cents: int
+    consumed_cents: int
+    released_cents: int
+    balance_cents: int
+    in_analysis_cents: int
+    balance_after_analysis_cents: int
+    consumption_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class ReserveAlert:
+    """Um alerta da tela de Contingência: o consumo acima do limite ou o pedido acima do saldo."""
+
+    kind: str
+    text: str
+
+
+@dataclass(frozen=True)
+class ReserveMovementView:
+    """Uma linha do extrato da reserva: o fato, a situação e o saldo depois do efetivado."""
+
+    on: date
+    kind: str
+    reserve_kind: str
+    value_cents: int
+    situation: str
+    change_code: str | None
+    description: str
+    balance_cents: int | None
+    project_label: str | None = None
+
+
+@dataclass(frozen=True)
+class ContingencyProjectRow:
+    """A linha de um projeto na tabela da carteira."""
+
+    project_id: int
+    project_code: str
+    project_label: str
+    contingency: ReserveLine | None
+    management: ReserveLine | None
+    consumption_limit_pct: Decimal | None
+    alerts: tuple[ReserveAlert, ...]
+
+    @property
+    def alert_count(self) -> int:
+        """Quantos alertas o projeto tem."""
+        return len(self.alerts)
+
+
+@dataclass(frozen=True)
+class ContingencyOverview:
+    """A tela de Contingência do escopo: as reservas, o extrato, o burn, a composição e os alertas."""
+
+    is_portfolio: bool
+    scope_label: str
+    contingency: ReserveLine | None
+    management: ReserveLine | None
+    physical_actual: Decimal | None
+    physical_predicted: Decimal | None
+    consumption_limit_pct: Decimal | None
+    tolerance_pp: Decimal
+    eac_current_cents: int
+    cost_baseline_cents: int
+    project_budget_cents: int
+    movements: tuple[ReserveMovementView, ...]
+    burn: tuple[calculations.ReserveBurnPoint, ...]
+    expected_balance_cents: int | None
+    analysis_count: int
+    alerts: tuple[ReserveAlert, ...]
+    projects: tuple[ContingencyProjectRow, ...] = ()
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the scope has no reserve at all: the empty state of the screen."""
+        return self.contingency is None and self.management is None
+
+
+@dataclass(frozen=True)
+class _ProjectReserves:
+    """O que a leitura de um projeto devolve: as reservas, o extrato, o burn e os alertas."""
+
+    project: configuracoes.ProjectSummary
+    contingency: ReserveLine | None
+    management: ReserveLine | None
+    movements: tuple[ReserveMovementView, ...]
+    burn: tuple[calculations.ReserveBurnPoint, ...]
+    physical_actual: Decimal | None
+    physical_predicted: Decimal | None
+    consumption_limit_pct: Decimal | None
+    expected_balance_cents: int | None
+    analysis_count: int
+    alerts: tuple[ReserveAlert, ...]
+    eac_current_cents: int
+
+
+def reserve_kind_for_source(source: str | None) -> str | None:
+    """O tipo de reserva da fonte do recurso da SM, ou ``None`` quando a fonte é outra."""
+    return calculations.RESERVE_KIND_BY_SOURCE.get(source or "")
+
+
+def reserve_state(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> ReserveState:
+    """O estado das reservas do projeto: saldo por tipo e pedido em SMs abertas por tipo.
+
+    O saldo é a soma dos movimentos (constituição positiva, consumo e liberação negativos) e o
+    pedido soma as SMs abertas com a fonte da reserva e as de liberação daquela reserva. A SM
+    informada em ``exclude_change_id`` fica de fora quando o próprio pedido está sendo conferido.
+    """
+    entries = _reserve_entries(session, project_id=project_id)
+    if not entries:
+        return ReserveState(entries={})
+    totals = _open_reserve_request_totals(
+        session, project_id=project_id, exclude_change_id=exclude_change_id
+    )
+    for kind, value in totals.items():
+        if kind in entries:
+            entries[kind] = replace(entries[kind], open_request_cents=value)
+    return ReserveState(entries=entries)
+
+
+def check_reserve_consumption(
+    session: Session,
+    *,
+    project_id: int,
+    source: str,
+    value_cents: int,
+    exclude_change_id: int | None = None,
+) -> None:
+    """Recusa (422) o consumo acima do saldo da reserva da fonte, nomeando a reserva.
+
+    O projeto sem a reserva constituída é recusado com a mensagem própria; uma fonte que não é de
+    reserva não passa por aqui.
+    """
+    kind = reserve_kind_for_source(source)
+    if kind is None or value_cents <= 0:
+        return
+    entry = reserve_state(
+        session, project_id=project_id, exclude_change_id=exclude_change_id
+    ).entry(kind)
+    if entry is None:
+        raise InvalidDataError(validation.reserve_missing_error())
+    message = validation.reserve_consumption_error(
+        value_cents, entry.balance_cents, reserve_source=source
+    )
+    if message:
+        raise InvalidDataError(message)
+
+
+def check_reserve_release(
+    session: Session,
+    *,
+    project_id: int,
+    reserve_kind: str,
+    value_cents: int,
+    exclude_change_id: int | None = None,
+) -> None:
+    """Recusa (422) a liberação acima do saldo menos o pedido em outras SMs abertas da reserva."""
+    if value_cents <= 0:
+        return
+    entry = reserve_state(
+        session, project_id=project_id, exclude_change_id=exclude_change_id
+    ).entry(reserve_kind)
+    if entry is None:
+        raise InvalidDataError(validation.reserve_missing_error())
+    message = validation.reserve_release_error(
+        value_cents, entry.balance_cents, entry.open_request_cents
+    )
+    if message:
+        raise InvalidDataError(message)
+
+
+def record_reserve_consumption(
+    session: Session,
+    *,
+    user: User,
+    change: ReserveChange,
+    source: str,
+    value_cents: int,
+    on: date,
+) -> None:
+    """Grava o consumo da reserva na aprovação da SM: movimento negativo com a data da decisão."""
+    kind = reserve_kind_for_source(source)
+    if kind is None:
+        return
+    _record_reserve_movement(
+        session,
+        user=user,
+        change=change,
+        movement_kind=calculations.MOVEMENT_CONSUMPTION,
+        reserve_kind=kind,
+        value_cents=value_cents,
+        on=on,
+    )
+
+
+def record_reserve_release(
+    session: Session,
+    *,
+    user: User,
+    change: ReserveChange,
+    reserve_kind: str,
+    value_cents: int,
+    on: date,
+) -> None:
+    """Grava a liberação da reserva na aprovação da SM: movimento negativo com a data da decisão."""
+    _record_reserve_movement(
+        session,
+        user=user,
+        change=change,
+        movement_kind=calculations.MOVEMENT_RELEASE,
+        reserve_kind=reserve_kind,
+        value_cents=value_cents,
+        on=on,
+    )
+
+
+def contingency_consumption(session: Session, *, scope: Scope) -> ContingencyConsumption | None:
+    """O consumo da reserva de contingência do escopo, ou ``None`` sem reserva constituída."""
+    projects = [
+        project
+        for project in configuracoes.list_projects(session)
+        if scope.is_portfolio or project.id == scope.project_id
+    ]
+    total = consumed = balance = 0
+    found = False
+    for project in projects:
+        entry = _reserve_entries(session, project_id=project.id).get(
+            calculations.RESERVE_CONTINGENCY
+        )
+        if entry is None:
+            continue
+        found = True
+        total += entry.total_cents
+        consumed += entry.consumed_cents
+        balance += entry.balance_cents
+    if not found:
+        return None
+    return ContingencyConsumption(total_cents=total, consumed_cents=consumed, balance_cents=balance)
+
+
+def contingency_overview(
+    session: Session, *, scope: Scope, reference_date: date
+) -> ContingencyOverview:
+    """A tela de Contingência do escopo: as reservas, o extrato, o burn e a composição (HU-094).
+
+    No projeto, as reservas de contingência e gerencial com o saldo, o consumo, a liberação, o
+    pedido em SMs abertas e o limite de consumo (avanço físico real mais a tolerância); o burn usa
+    os meses da Curva S física congelada. No Portfólio, a soma dos projetos com a tabela por
+    projeto e o burn da união. A cobertura sobre a exposição a riscos fica para a ISSUE-067.
+    """
+    projects = configuracoes.list_projects(session)
+    tolerance = _consumption_tolerance(session, reference_date=reference_date)
+    if scope.is_portfolio:
+        return _portfolio_contingency(
+            session, projects=projects, reference_date=reference_date, tolerance_pp=tolerance
+        )
+    project = _project_of(projects, scope)
+    part = _project_reserves(
+        session, project=project, reference_date=reference_date, tolerance_pp=tolerance
+    )
+    if part is None:
+        return _empty_contingency(
+            is_portfolio=False, scope_label=_label(project), tolerance_pp=tolerance
+        )
+    composition = calculations.reserve_composition(
+        part.eac_current_cents,
+        part.contingency.balance_cents if part.contingency else 0,
+        part.management.balance_cents if part.management else 0,
+    )
+    return ContingencyOverview(
+        is_portfolio=False,
+        scope_label=_label(project),
+        contingency=part.contingency,
+        management=part.management,
+        physical_actual=part.physical_actual,
+        physical_predicted=part.physical_predicted,
+        consumption_limit_pct=part.consumption_limit_pct,
+        tolerance_pp=tolerance,
+        eac_current_cents=part.eac_current_cents,
+        cost_baseline_cents=composition.cost_baseline_cents,
+        project_budget_cents=composition.project_budget_cents,
+        movements=part.movements,
+        burn=part.burn,
+        expected_balance_cents=part.expected_balance_cents,
+        analysis_count=part.analysis_count,
+        alerts=part.alerts,
+    )
+
+
+def _reserve_entries(session: Session, *, project_id: int) -> dict[str, ReserveStateEntry]:
+    reserves = session.scalars(
+        select(Reserve).where(Reserve.project_id == project_id).order_by(Reserve.id)
+    ).all()
+    if not reserves:
+        return {}
+    by_id = {reserve.id: reserve.kind for reserve in reserves}
+    entries = {
+        reserve.kind: ReserveStateEntry(
+            kind=reserve.kind,
+            total_cents=0,
+            consumed_cents=0,
+            released_cents=0,
+            balance_cents=0,
+        )
+        for reserve in reserves
+    }
+    statement = select(ReserveMovement).where(ReserveMovement.reserve_id.in_(list(by_id)))
+    for movement in session.scalars(statement):
+        kind = by_id[movement.reserve_id]
+        entry = entries[kind]
+        if movement.kind == calculations.MOVEMENT_CONSTITUTION:
+            entry = replace(entry, total_cents=entry.total_cents + movement.value_cents)
+        elif movement.kind == calculations.MOVEMENT_CONSUMPTION:
+            entry = replace(entry, consumed_cents=entry.consumed_cents - movement.value_cents)
+        elif movement.kind == calculations.MOVEMENT_RELEASE:
+            entry = replace(entry, released_cents=entry.released_cents - movement.value_cents)
+        entries[kind] = replace(entry, balance_cents=entry.balance_cents + movement.value_cents)
+    return entries
+
+
+def _open_reserve_request_totals(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    for request in _open_requests(
+        session, project_id=project_id, exclude_change_id=exclude_change_id
+    ):
+        kind = _request_kind(request)
+        if kind is None:
+            continue
+        totals[kind] = totals.get(kind, 0) + request.value_cents
+    return totals
+
+
+def _open_requests(
+    session: Session, *, project_id: int, exclude_change_id: int | None = None
+) -> tuple[OpenReserveRequest, ...]:
+    from src.modulos.governanca import service as governanca
+
+    return governanca.open_reserve_requests(
+        session, project_id=project_id, exclude_change_id=exclude_change_id
+    )
+
+
+def _request_kind(request: OpenReserveRequest) -> str | None:
+    return request.release_kind or calculations.RESERVE_KIND_BY_SOURCE.get(request.source or "")
+
+
+def _record_reserve_movement(
+    session: Session,
+    *,
+    user: User,
+    change: ReserveChange,
+    movement_kind: str,
+    reserve_kind: str,
+    value_cents: int,
+    on: date,
+) -> None:
+    reserve = session.scalars(
+        select(Reserve).where(Reserve.project_id == change.project_id, Reserve.kind == reserve_kind)
+    ).one_or_none()
+    if reserve is None:
+        raise InvalidDataError(validation.reserve_missing_error())
+    recording.create(
+        session,
+        user_id=user.id,
+        record=ReserveMovement(
+            reserve_id=reserve.id,
+            change_id=change.id,
+            registered_by_id=user.person_id,
+            kind=movement_kind,
+            registered_on=on,
+            value_cents=-abs(value_cents),
+            justification=change.title,
+        ),
+    )
+
+
+def _consumption_tolerance(session: Session, *, reference_date: date) -> Decimal:
+    group = configuracoes.current_group(session, group=MODULE, reference_date=reference_date)
+    contingency = group.get("contingencia")
+    raw = contingency.get("toleranciaConsumoPP") if isinstance(contingency, Mapping) else None
+    return Decimal(str(raw)) if raw is not None else DEFAULT_CONSUMPTION_TOLERANCE_PP
+
+
+def _project_reserves(
+    session: Session,
+    *,
+    project: configuracoes.ProjectSummary,
+    reference_date: date,
+    tolerance_pp: Decimal,
+) -> _ProjectReserves | None:
+    reserves = session.scalars(
+        select(Reserve).where(Reserve.project_id == project.id).order_by(Reserve.id)
+    ).all()
+    if not reserves:
+        return None
+    by_id = {reserve.id: reserve for reserve in reserves}
+    statement = (
+        select(ReserveMovement)
+        .where(ReserveMovement.reserve_id.in_(list(by_id)))
+        .order_by(ReserveMovement.registered_on, ReserveMovement.id)
+    )
+    movements = list(session.scalars(statement))
+    requests = _open_requests(session, project_id=project.id)
+    lines = {
+        reserve.kind: _reserve_line(
+            kind=reserve.kind,
+            movements=[row for row in movements if row.reserve_id == reserve.id],
+            requests=requests,
+        )
+        for reserve in reserves
+    }
+    contingency = lines.get(calculations.RESERVE_CONTINGENCY)
+    management = lines.get(calculations.RESERVE_MANAGEMENT)
+    series = _curve_series(session, project_id=project.id, reference_date=reference_date)
+    physical_actual, physical_predicted = _physical_indicators(series)
+    limit = calculations.reserve_consumption_limit(physical_actual, tolerance_pp)
+    contingency_movements = [
+        row for row in movements if by_id[row.reserve_id].kind == calculations.RESERVE_CONTINGENCY
+    ]
+    burn, expected = _project_burn(
+        series=series, contingency=contingency, movements=contingency_movements
+    )
+    return _ProjectReserves(
+        project=project,
+        contingency=contingency,
+        management=management,
+        movements=_movement_views(
+            session, reserves_by_id=by_id, movements=movements, requests=requests
+        ),
+        burn=burn,
+        physical_actual=physical_actual,
+        physical_predicted=physical_predicted,
+        consumption_limit_pct=limit,
+        expected_balance_cents=expected,
+        analysis_count=sum(
+            1 for request in requests if _request_kind(request) == calculations.RESERVE_CONTINGENCY
+        ),
+        alerts=_reserve_alerts(contingency=contingency, limit=limit),
+        eac_current_cents=_eac_current_cents(session, project_id=project.id),
+    )
+
+
+def _reserve_line(
+    *,
+    kind: str,
+    movements: Sequence[ReserveMovement],
+    requests: Sequence[OpenReserveRequest],
+) -> ReserveLine:
+    total = sum(
+        row.value_cents for row in movements if row.kind == calculations.MOVEMENT_CONSTITUTION
+    )
+    consumed = -sum(
+        row.value_cents for row in movements if row.kind == calculations.MOVEMENT_CONSUMPTION
+    )
+    released = -sum(
+        row.value_cents for row in movements if row.kind == calculations.MOVEMENT_RELEASE
+    )
+    balance = sum(row.value_cents for row in movements)
+    in_analysis = sum(request.value_cents for request in requests if _request_kind(request) == kind)
+    return ReserveLine(
+        kind=kind,
+        total_cents=total,
+        consumed_cents=consumed,
+        released_cents=released,
+        balance_cents=balance,
+        in_analysis_cents=in_analysis,
+        balance_after_analysis_cents=calculations.reserve_after_analysis(balance, in_analysis),
+        consumption_pct=calculations.reserve_consumption_pct(consumed, total),
+    )
+
+
+def _movement_views(
+    session: Session,
+    *,
+    reserves_by_id: Mapping[int, Reserve],
+    movements: Sequence[ReserveMovement],
+    requests: Sequence[OpenReserveRequest],
+) -> tuple[ReserveMovementView, ...]:
+    from src.modulos.governanca import service as governanca
+
+    codes = governanca.change_codes(
+        session, change_ids=[row.change_id for row in movements if row.change_id is not None]
+    )
+    lines = [
+        ReserveMovementView(
+            on=row.registered_on,
+            kind=row.kind,
+            reserve_kind=reserves_by_id[row.reserve_id].kind,
+            value_cents=row.value_cents,
+            situation=SITUATION_EFFECTIVE,
+            change_code=codes.get(row.change_id) if row.change_id else None,
+            description=row.justification,
+            balance_cents=None,
+        )
+        for row in movements
+    ]
+    for request in requests:
+        kind = _request_kind(request)
+        if kind is None:
+            continue
+        lines.append(
+            ReserveMovementView(
+                on=request.request_date,
+                kind=calculations.MOVEMENT_IN_ANALYSIS,
+                reserve_kind=kind,
+                value_cents=-request.value_cents,
+                situation=request.situation,
+                change_code=request.code,
+                description=request.title,
+                balance_cents=None,
+            )
+        )
+    lines.sort(key=lambda line: line.on)
+    balance = 0
+    result: list[ReserveMovementView] = []
+    for line in lines:
+        if line.kind == calculations.MOVEMENT_IN_ANALYSIS:
+            result.append(line)
+            continue
+        balance += line.value_cents
+        result.append(replace(line, balance_cents=balance))
+    return tuple(result)
+
+
+def _curve_series(session: Session, *, project_id: int, reference_date: date) -> CurvaFisicaSeries:
+    from src.modulos.planejamento import service as planejamento
+
+    overview = planejamento.curva_fisica_overview(
+        session,
+        scope=Scope(project_id=project_id, source="url"),
+        reference_date=reference_date,
+    )
+    return overview.series
+
+
+def _physical_indicators(
+    series: CurvaFisicaSeries,
+) -> tuple[Decimal | None, Decimal | None]:
+    if not series.months or series.cut_index < 0:
+        return None, None
+    index = series.cut_index
+    actual = series.real[index] if index < len(series.real) else None
+    predicted = series.baseline[index] if index < len(series.baseline) else None
+    return actual, predicted
+
+
+def _project_burn(
+    *,
+    series: CurvaFisicaSeries,
+    contingency: ReserveLine | None,
+    movements: Sequence[ReserveMovement],
+) -> tuple[tuple[calculations.ReserveBurnPoint, ...], int | None]:
+    if contingency is None or not series.months:
+        return (), None
+    lines = [
+        calculations.ReserveMovementLine(
+            kind=row.kind,
+            value_cents=row.value_cents,
+            on=row.registered_on,
+            change_id=row.change_id,
+        )
+        for row in movements
+    ]
+    burn = calculations.reserve_burn(
+        series.months, series.baseline, series.cut_index, contingency.total_cents, lines
+    )
+    return burn, _expected_of(burn)
+
+
+def _expected_of(burn: Sequence[calculations.ReserveBurnPoint]) -> int | None:
+    known = [point for point in burn if point.actual_cents is not None]
+    return known[-1].expected_cents if known else None
+
+
+def _reserve_alerts(
+    *, contingency: ReserveLine | None, limit: Decimal | None
+) -> tuple[ReserveAlert, ...]:
+    if contingency is None:
+        return ()
+    alerts: list[ReserveAlert] = []
+    pct = contingency.consumption_pct
+    if pct is not None and limit is not None and pct > limit:
+        alerts.append(
+            ReserveAlert(
+                kind=RESERVE_ALERT_CONSUMPTION,
+                text=(
+                    f"Consumo da contingência ({_decimal_text(pct)}%) acima do avanço físico real "
+                    f"mais a tolerância ({_decimal_text(limit)}%)."
+                ),
+            )
+        )
+    if contingency.in_analysis_cents > contingency.balance_cents:
+        alerts.append(
+            ReserveAlert(
+                kind=RESERVE_ALERT_ANALYSIS,
+                text=(
+                    f"SMs em análise pedem {format_brl(contingency.in_analysis_cents)} da "
+                    f"contingência, acima do saldo ({format_brl(contingency.balance_cents)})."
+                ),
+            )
+        )
+    return tuple(alerts)
+
+
+def _decimal_text(value: Decimal) -> str:
+    return str(value).replace(".", ",")
+
+
+def _portfolio_contingency(
+    session: Session,
+    *,
+    projects: Sequence[configuracoes.ProjectSummary],
+    reference_date: date,
+    tolerance_pp: Decimal,
+) -> ContingencyOverview:
+    parts = [
+        part
+        for project in projects
+        if (
+            part := _project_reserves(
+                session, project=project, reference_date=reference_date, tolerance_pp=tolerance_pp
+            )
+        )
+        is not None
+    ]
+    contingency = _sum_lines([part.contingency for part in parts])
+    management = _sum_lines([part.management for part in parts])
+    if contingency is None and management is None:
+        return _empty_contingency(
+            is_portfolio=True, scope_label=PORTFOLIO_LABEL, tolerance_pp=tolerance_pp
+        )
+    burn = calculations.reserve_burn_union(
+        [
+            calculations.ReserveBurnSeries(
+                total_cents=part.contingency.total_cents, points=part.burn
+            )
+            for part in parts
+            if part.contingency is not None
+        ]
+    )
+    physical_actual = _weighted_physical(parts)
+    eac_current = sum(part.eac_current_cents for part in parts)
+    composition = calculations.reserve_composition(
+        eac_current,
+        contingency.balance_cents if contingency else 0,
+        management.balance_cents if management else 0,
+    )
+    return ContingencyOverview(
+        is_portfolio=True,
+        scope_label=PORTFOLIO_LABEL,
+        contingency=contingency,
+        management=management,
+        physical_actual=physical_actual,
+        physical_predicted=None,
+        consumption_limit_pct=calculations.reserve_consumption_limit(physical_actual, tolerance_pp),
+        tolerance_pp=tolerance_pp,
+        eac_current_cents=eac_current,
+        cost_baseline_cents=composition.cost_baseline_cents,
+        project_budget_cents=composition.project_budget_cents,
+        movements=tuple(
+            replace(line, project_label=part.project.code)
+            for part in parts
+            for line in part.movements
+        ),
+        burn=burn,
+        expected_balance_cents=_expected_of(burn),
+        analysis_count=sum(part.analysis_count for part in parts),
+        alerts=tuple(
+            ReserveAlert(kind=alert.kind, text=f"{part.project.code}: {alert.text}")
+            for part in parts
+            for alert in part.alerts
+        ),
+        projects=tuple(_project_row(part) for part in parts),
+    )
+
+
+def _sum_lines(lines: Sequence[ReserveLine | None]) -> ReserveLine | None:
+    present = [line for line in lines if line is not None]
+    if not present:
+        return None
+    total = sum(line.total_cents for line in present)
+    consumed = sum(line.consumed_cents for line in present)
+    released = sum(line.released_cents for line in present)
+    balance = sum(line.balance_cents for line in present)
+    in_analysis = sum(line.in_analysis_cents for line in present)
+    return ReserveLine(
+        kind=present[0].kind,
+        total_cents=total,
+        consumed_cents=consumed,
+        released_cents=released,
+        balance_cents=balance,
+        in_analysis_cents=in_analysis,
+        balance_after_analysis_cents=calculations.reserve_after_analysis(balance, in_analysis),
+        consumption_pct=calculations.reserve_consumption_pct(consumed, total),
+    )
+
+
+def _project_row(part: _ProjectReserves) -> ContingencyProjectRow:
+    return ContingencyProjectRow(
+        project_id=part.project.id,
+        project_code=part.project.code,
+        project_label=_label(part.project),
+        contingency=part.contingency,
+        management=part.management,
+        consumption_limit_pct=part.consumption_limit_pct,
+        alerts=part.alerts,
+    )
+
+
+def _weighted_physical(parts: Sequence[_ProjectReserves]) -> Decimal | None:
+    weighted: list[tuple[Decimal, int]] = []
+    for part in parts:
+        if (
+            part.physical_actual is not None
+            and part.contingency is not None
+            and part.contingency.total_cents > 0
+        ):
+            weighted.append((part.physical_actual, part.contingency.total_cents))
+    total = sum(weight for _, weight in weighted)
+    if not total:
+        return None
+    value = sum((actual * weight for actual, weight in weighted), Decimal(0)) / total
+    return value.quantize(calculations.ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+def _eac_current_cents(session: Session, *, project_id: int) -> int:
+    items = _lines_by_project(session, [project_id]).get(project_id, [])
+    return calculations.project_total_cents(items) if items else 0
+
+
+def _map_reserves(
+    session: Session, *, project_ids: Sequence[int], deviation_cents: int
+) -> MapaReserveSummary | None:
+    states = [reserve_state(session, project_id=project_id) for project_id in project_ids]
+    contingency = [
+        entry
+        for state in states
+        if (entry := state.entry(calculations.RESERVE_CONTINGENCY)) is not None
+    ]
+    management = [
+        entry
+        for state in states
+        if (entry := state.entry(calculations.RESERVE_MANAGEMENT)) is not None
+    ]
+    if not contingency and not management:
+        return None
+    total = sum(entry.total_cents for entry in contingency)
+    consumed = sum(entry.consumed_cents for entry in contingency)
+    balance = sum(entry.balance_cents for entry in contingency)
+    return MapaReserveSummary(
+        contingency_balance_cents=balance,
+        contingency_consumption_pct=calculations.reserve_consumption_pct(consumed, total),
+        in_analysis_cents=sum(entry.open_request_cents for entry in contingency),
+        management_balance_cents=sum(entry.balance_cents for entry in management),
+        covers_deviation=deviation_cents <= 0 or balance >= deviation_cents,
+    )
+
+
+def _empty_contingency(
+    *, is_portfolio: bool, scope_label: str, tolerance_pp: Decimal
+) -> ContingencyOverview:
+    return ContingencyOverview(
+        is_portfolio=is_portfolio,
+        scope_label=scope_label,
+        contingency=None,
+        management=None,
+        physical_actual=None,
+        physical_predicted=None,
+        consumption_limit_pct=None,
+        tolerance_pp=tolerance_pp,
+        eac_current_cents=0,
+        cost_baseline_cents=0,
+        project_budget_cents=0,
+        movements=(),
+        burn=(),
+        expected_balance_cents=None,
+        analysis_count=0,
+        alerts=(),
+    )
 
 
 attachment_origins.register(

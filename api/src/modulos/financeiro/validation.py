@@ -1368,7 +1368,7 @@ def _note(form: Mapping[str, str | None], criterion: str) -> int | None:
 
 
 RESERVE_OVER_BALANCE = (
-    "Saldo da reserva insuficiente ({balance}) para o pedido de {request}. "
+    "Saldo da {reserve} insuficiente ({balance}) para o pedido de {request}. "
     "Revise a análise para aditivo de orçamento."
 )
 RESERVE_RELEASE_OVER_BALANCE = (
@@ -1377,12 +1377,20 @@ RESERVE_RELEASE_OVER_BALANCE = (
 RESERVE_MISSING = "O projeto não tem reservas constituídas."
 
 
-def reserve_consumption_error(consumed_or_request_cents: int, balance_cents: int) -> str | None:
-    """A recusa do consumo ou do pedido acima do saldo da reserva, ou ``None`` quando ele cabe."""
+def reserve_consumption_error(
+    consumed_or_request_cents: int, balance_cents: int, *, reserve_source: str
+) -> str | None:
+    """A recusa do consumo ou do pedido acima do saldo da reserva, ou ``None`` quando ele cabe.
+
+    A mensagem nomeia a reserva da fonte do recurso, como o protótipo escreve
+    ("Saldo da reserva de contingência insuficiente...").
+    """
     if consumed_or_request_cents <= balance_cents:
         return None
     return RESERVE_OVER_BALANCE.format(
-        request=format_brl(consumed_or_request_cents), balance=format_brl(balance_cents)
+        reserve=reserve_source.lower(),
+        request=format_brl(consumed_or_request_cents),
+        balance=format_brl(balance_cents),
     )
 
 
