@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 37 de 93 -->
+<!-- Progresso da migração: 38 de 93 -->
 
 # Progresso da migração
 
-**37 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 07/10/2026 02:09 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**38 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 07/10/2026 03:59 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 37 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 044, 045, 051, 064, 072 |
-| na fila | 56 | 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 38 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 044, 045, 051, 064, 072 |
+| na fila | 55 | 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 047, 048, 049, 050, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -45,6 +45,7 @@
 | ISSUE-030 | Revisões da EAC, item novo e remanejamento como SM, aplicados só na aprovação, e importação de itens | `e9b403b` |
 | ISSUE-031 | Mapa de controle com projeção, mapa de calor e custos do ERP | `67694d8` |
 | ISSUE-032 | Ficha do contrato: cascata de valor, medições e aditivos | `ff4b373` |
+| ISSUE-033 | Contrato: marcos de pagamento, claims e extensões de prazo | `b397107` |
 | ISSUE-044 | Relato do período | `881a524` |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | `8acbf03` |
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
@@ -55,7 +56,6 @@
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-033 | Contrato: marcos de pagamento, claims e extensões de prazo | na fila | ISSUE-032, ISSUE-023 |
 | ISSUE-034 | Avaliação de desempenho da contratada | na fila | ISSUE-032, ISSUE-027 |
 | ISSUE-035 | Contratos: visão consolidada e indicadores da administração contratual | na fila | ISSUE-033, ISSUE-034 |
 | ISSUE-036 | EAP em árvore com dicionário, avanço calculado pelo critério e visão carteira | na fila | ISSUE-029 |
