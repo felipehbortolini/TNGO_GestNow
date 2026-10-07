@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import func, select
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from src.carga import (
     DEMO_ANCHOR,
     ProductionStartError,
+    prototype_collection,
     run_demonstration,
     run_for_mode,
 )
@@ -76,6 +78,7 @@ PARTS = [
     "hse",
     "planejamento",
     "planejamento-eap",
+    "planejamento-curva",
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
@@ -287,7 +290,7 @@ def test_carga_grava_a_eap_do_mock(db_session: Session) -> None:
 
     assert _count(db_session, EapItem) == 110
     assert _count(db_session, EapItemStep) == 154
-    assert _count(db_session, EapMeasurement) == 3
+    assert _count(db_session, EapMeasurement) == 388
     assert _count(db_session, EapRevision) == 5
     assert _count(db_session, EapRevisionItem) == 144
     assert _count(db_session, EapBreakdown) == 1
@@ -313,6 +316,55 @@ def test_carga_grava_a_eap_do_mock(db_session: Session) -> None:
         "2.1.1",
         "3.2.1",
     ]
+
+
+def test_oraculo_da_curva_s_fisica_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-039: o previsto e o real do protótipo no corte, com a data deslocada.
+
+    A referência fica dentro do mês do corte (a âncora mais cinco dias); um deslocamento que
+    atravesse o mês move o corte junto, como manda a data viva (D6). A série inteira é comparada
+    mês a mês com o mock, com a tolerância de um décimo que o arredondamento das medições
+    proporcionais pode gastar.
+    """
+    reference_date = DEMO_ANCHOR + timedelta(days=5)
+    run_demonstration(db_session, reference_date=reference_date)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    visao = planejamento.curva_fisica_overview(
+        db_session,
+        scope=Scope(project_id=project.id, source="url"),
+        reference_date=reference_date,
+    )
+    mock = next(
+        source for source in prototype_collection("curvaFisica") if source["projetoId"] == 1
+    )
+
+    assert visao.indicators.cut_month == date(2026, 9, 1), "o mês do corte"
+    assert visao.indicators.predicted == Decimal("65.7"), "o previsto do protótipo no corte"
+    assert visao.indicators.actual == Decimal("61.8"), "o real do protótipo no corte"
+    assert list(visao.series.baseline) == [Decimal(str(value)) for value in mock["baseline"]], (
+        "a linha de base congelada é a do mock convertido"
+    )
+
+    tolerance = Decimal("0.1")
+    for month, expected, found in zip(
+        visao.series.months, mock["real"], visao.series.real, strict=True
+    ):
+        if expected is None:
+            continue
+        assert found is not None
+        assert abs(found - Decimal(str(expected))) <= tolerance, (
+            f"o real de {month}: {found} contra {expected} do protótipo"
+        )
+
+    carteira = planejamento.curva_fisica_overview(
+        db_session,
+        scope=Scope(project_id=None, source="padrao"),
+        reference_date=reference_date,
+    )
+    assert not carteira.is_empty, "a carteira tem a união das curvas"
+    assert carteira.indicators.cut_month == date(2026, 9, 1), "o corte da carteira"
+    assert len(carteira.composition) == 3, "os três projetos na composição"
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

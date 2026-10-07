@@ -8,29 +8,41 @@ As datas das restrições andam com ``shift_date``; o início do horizonte não 
 sai do calendário (``calculations.lookahead_window_start``).
 
 A EAP (ISSUE-036) é a parte ``planejamento-eap``: a árvore de níveis 1 a 3 do mock (pai pelo
-código), as etapas dos pacotes de Etapas, as medições, as revisões e o desdobramento. Ela roda
+código), as etapas dos pacotes de Etapas, as revisões e o desdobramento. Ela roda
 depois de Financeiro e Governança, porque o item aponta o item da EAC pelo ``eacCodigo`` e a
 revisão aponta a SM pelo ``smRef``, e as duas fachadas são lidas, nunca as tabelas alheias (D9).
 As revisões congelam os pesos correntes de todos os pacotes do projeto; o mock conta 35 na Rev 0
 e 37 na Rev 2 do projeto 1 enquanto a EAP corrente tem 38 pacotes, porque o mock não guarda o
 histórico de pesos — o vigente vem do próprio item e o número de pacotes da revisão sai dos
 pesos congelados (D5b). As datas andam com ``shift_date``, como nas demais partes.
+
+A Curva S física (ISSUE-039) é a parte ``planejamento-curva``: a linha de base do mock é
+congelada em cada revisão da EAP semeada e cada pacote com real corrente recebe uma medição por
+mês, proporcional à série do protótipo e fechando o real no corte. O mock fecha 65,7% no corte
+do projeto 1, mas a distribuição linear das datas da EAP daria 69,2%: a carga congela o número
+do protótipo (Q31) e o mecanismo de geração vale para as revisões novas em runtime; a diferença
+está registrada em ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``. A parte roda depois da EAP e substitui
+as medições que a carga antiga tinha deixado, para a série fechar.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
-from src.core import recording
+from src.core import calendario, recording
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.planejamento import seed_relato, service
+from src.modulos.planejamento import calculations, seed_relato, service
 from src.modulos.planejamento.models import (
+    CurvaFisicaMonth,
+    CurvaFisicaRevision,
     EapBreakdown,
     EapItem,
     EapItemStep,
@@ -41,7 +53,9 @@ from src.modulos.planejamento.models import (
 
 PART_NAME = "planejamento"
 EAP_PART_NAME = "planejamento-eap"
+CURVA_PART_NAME = "planejamento-curva"
 ADMIN_PROFILE = "Admin"
+TWO_PLACES = Decimal("0.01")
 
 
 def load(session: Session, reference_date: date) -> None:
@@ -211,7 +225,6 @@ def _load_eap_items(session: Session, load: _EapLoad) -> dict[tuple[int, str], E
         )
         created[(project_id, source["codigo"])] = item
         _load_eap_steps(session, item=item, source=source)
-        _load_eap_measurements(session, load, item=item, source=source)
     session.flush()
     return created
 
@@ -227,27 +240,6 @@ def _load_eap_steps(session: Session, *, item: EapItem, source: dict[str, Any]) 
                 weight=Decimal(str(step["peso"])),
                 pct=Decimal(str(step["pct"])),
             )
-        )
-
-
-def _load_eap_measurements(
-    session: Session, load: _EapLoad, *, item: EapItem, source: dict[str, Any]
-) -> None:
-    """As medições do pacote, com a data deslocada, como fatos imutáveis."""
-    for measurement in source.get("medicoes") or []:
-        recording.create(
-            session,
-            user_id=load.author_id,
-            record=EapMeasurement(
-                item_id=item.id,
-                author_id=load.ids.person(measurement["porId"]) or load.author_id,
-                measured_on=shift_date(
-                    date.fromisoformat(measurement["data"]), load.reference_date
-                ),
-                from_pct=Decimal(str(measurement["de"])),
-                to_pct=Decimal(str(measurement["para"])),
-                note=measurement.get("obs"),
-            ),
         )
 
 
@@ -344,6 +336,228 @@ def _eac_ids(session: Session, *, ids: _RegisterIds) -> dict[tuple[int, str], in
     return eac
 
 
+# ── Curva S física: linha de base congelada e medições (ISSUE-039) ───────
+
+
+@dataclass(frozen=True)
+class _CurvaLoad:
+    """O que a parte da Curva S carrega: os ids resolvidos, os autores e a data da carga."""
+
+    ids: _RegisterIds
+    admin_id: int
+    author_id: int
+    reference_date: date
+
+
+def load_curva(session: Session, reference_date: date) -> None:
+    """Grava a Curva S física do protótipo, dentro da transação de quem chama.
+
+    A linha de base do mock (Q31) é congelada em cada revisão da EAP semeada do projeto, porque
+    o número do protótipo não é a distribuição linear das datas da EAP (69,2% contra 65,7% no
+    corte do projeto 1); o mecanismo de geração do ``freeze_curve`` vale para as revisões novas
+    em runtime. O real sai das medições: cada pacote com real corrente > 0 recebe uma medição
+    por mês, proporcional à série do mock e fechando o real corrente no corte, para a soma
+    ponderada reproduzir a série do protótipo.
+    """
+    author = _author(session)
+    load = _CurvaLoad(
+        ids=_RegisterIds.read(session),
+        admin_id=author.id,
+        author_id=author.person_id,
+        reference_date=reference_date,
+    )
+    _discard_previous_measurements(session, load)
+    managers = _managers_by_project(load.ids)
+    for source in prototype_collection("curvaFisica"):
+        _load_project_curve(
+            session,
+            load,
+            project_id=load.ids.project(source["projetoId"]),
+            source=source,
+            author_id=managers.get(source["projetoId"]) or load.author_id,
+        )
+    session.flush()
+
+
+def _load_project_curve(
+    session: Session,
+    load: _CurvaLoad,
+    *,
+    project_id: int,
+    source: dict[str, Any],
+    author_id: int,
+) -> None:
+    """A curva de um projeto: a base do mock em cada revisão e as medições da série real."""
+    months = _curve_months(source["meses"], load.reference_date)
+    baseline = tuple(Decimal(str(value)) for value in source["baseline"])
+    for revision_id in _eap_revision_ids(session, project_id=project_id):
+        _freeze_mock_curve(
+            session,
+            project_id=project_id,
+            revision_id=revision_id,
+            months=months,
+            baseline=baseline,
+        )
+    _seed_curve_measurements(
+        session, load, project_id=project_id, source=source, author_id=author_id
+    )
+
+
+def _freeze_mock_curve(
+    session: Session,
+    *,
+    project_id: int,
+    revision_id: int,
+    months: tuple[date, ...],
+    baseline: tuple[Decimal, ...],
+) -> None:
+    """Congela a linha de base do mock numa revisão da EAP, mês a mês, sem recálculo."""
+    record = CurvaFisicaRevision(
+        project_id=project_id,
+        eap_revision_id=revision_id,
+        generated_at=calendario.now(),
+    )
+    session.add(record)
+    session.flush()
+    session.add_all(
+        CurvaFisicaMonth(revision_id=record.id, month=month, baseline_pct=pct)
+        for month, pct in zip(months, baseline, strict=True)
+    )
+    session.flush()
+
+
+def _seed_curve_measurements(
+    session: Session,
+    load: _CurvaLoad,
+    *,
+    project_id: int,
+    source: dict[str, Any],
+    author_id: int,
+) -> None:
+    """As medições datadas do projeto, proporcionais à série real do mock até o corte."""
+    reals = tuple(Decimal(str(value)) for value in source["real"] if value is not None)
+    if not reals:
+        return
+    months = _curve_months(source["meses"], load.reference_date)[: len(reals)]
+    cut = reals[-1]
+    for item, current in _package_progress(session, project_id=project_id):
+        if current <= 0:
+            continue
+        previous = Decimal(0)
+        for index, month in enumerate(months):
+            target = (
+                current if index == len(months) - 1 else _proportional(current, reals[index], cut)
+            )
+            recording.create(
+                session,
+                user_id=load.admin_id,
+                record=EapMeasurement(
+                    item_id=item.id,
+                    author_id=author_id,
+                    measured_on=month,
+                    from_pct=previous,
+                    to_pct=target,
+                ),
+            )
+            previous = target
+
+
+def _discard_previous_measurements(session: Session, load: _CurvaLoad) -> None:
+    """Apaga as medições que a carga antiga semeava do mock, agora substituídas pela série.
+
+    A 036/037 gravava o punhado de ``medicoes`` de cada pacote; a série proporcional é a nova
+    fonte do real da curva. A remoção casa item, data e percentuais, para não tocar em medição
+    que a pessoa tenha registrado depois.
+    """
+    for source in prototype_collection("eap"):
+        measurements = source.get("medicoes") or ()
+        if not measurements:
+            continue
+        item_id = session.scalar(
+            select(EapItem.id).where(
+                EapItem.project_id == load.ids.project(source["projetoId"]),
+                EapItem.code == source["codigo"],
+            )
+        )
+        if item_id is None:
+            continue
+        for measurement in measurements:
+            session.execute(
+                delete(EapMeasurement).where(
+                    EapMeasurement.item_id == item_id,
+                    EapMeasurement.measured_on
+                    == shift_date(date.fromisoformat(measurement["data"]), load.reference_date),
+                    EapMeasurement.from_pct == Decimal(str(measurement["de"])),
+                    EapMeasurement.to_pct == Decimal(str(measurement["para"])),
+                )
+            )
+
+
+def _package_progress(session: Session, *, project_id: int) -> tuple[tuple[EapItem, Decimal], ...]:
+    """O real corrente de cada pacote (nível 3) do projeto, na ordem da árvore (D5b)."""
+    items = tuple(
+        session.scalars(
+            select(EapItem)
+            .where(EapItem.project_id == project_id, EapItem.level == service.LEVEL_PACKAGE)
+            .order_by(EapItem.id)
+        )
+    )
+    if not items:
+        return ()
+    steps: dict[int, list[EapItemStep]] = {}
+    for step in session.scalars(
+        select(EapItemStep)
+        .where(EapItemStep.item_id.in_([item.id for item in items]))
+        .order_by(EapItemStep.item_id, EapItemStep.order)
+    ):
+        steps.setdefault(step.item_id, []).append(step)
+    return tuple((item, _item_progress(item, steps.get(item.id, ()))) for item in items)
+
+
+def _item_progress(item: EapItem, steps: Sequence[EapItemStep]) -> Decimal:
+    """O real corrente do pacote, calculado das entradas do critério, como a fachada lê."""
+    return calculations.eap_package_progress(
+        item.criterion,
+        etapas=tuple(
+            calculations.EapStep(name=step.name, weight=step.weight, pct=step.pct) for step in steps
+        ),
+        quantity=item.quantity,
+        executed=item.executed,
+        state=item.state,
+        estimated_pct=item.estimated_pct,
+    )
+
+
+def _proportional(current: Decimal, real: Decimal, cut: Decimal) -> Decimal:
+    """A parcela do real corrente num mês: o real do mês sobre o do corte, com 2 casas."""
+    return (current * real / cut).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def _curve_months(texts: Sequence[str], reference_date: date) -> tuple[date, ...]:
+    """Os meses do mock como o primeiro dia do mês deslocado, como o resto da carga."""
+    return tuple(
+        shift_date(date.fromisoformat(f"{text}-01"), reference_date).replace(day=1)
+        for text in texts
+    )
+
+
+def _eap_revision_ids(session: Session, *, project_id: int) -> tuple[int, ...]:
+    """Os ids das revisões da EAP do projeto, da linha de base à vigente."""
+    statement = (
+        select(EapRevision.id)
+        .where(EapRevision.project_id == project_id)
+        .order_by(EapRevision.revision)
+    )
+    return tuple(session.scalars(statement))
+
+
+def _managers_by_project(ids: _RegisterIds) -> dict[int, int | None]:
+    """A pessoa gerente de cada projeto do mock, autora das medições da curva."""
+    return {
+        source["id"]: ids.person(source["gerenteId"]) for source in prototype_collection("projetos")
+    }
+
+
 def _parent_code(code: str) -> str:
     return code.rsplit(".", maxsplit=1)[0]
 
@@ -362,3 +576,4 @@ def _shifted_date(value: str | None, reference_date: date) -> date | None:
 
 register(PART_NAME, load)
 register(EAP_PART_NAME, load_eap)
+register(CURVA_PART_NAME, load_curva)

@@ -8,8 +8,9 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-039.
+   Sem estilo próprio: a tela usa os padrões do Design System para os KPIs,
+   os cartões, a tabela e o gráfico. O estilo próprio entra aqui quando a tela
+   precisar de algo que o fragmento não resolve.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
