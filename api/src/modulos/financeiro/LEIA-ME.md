@@ -148,6 +148,38 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 | Pedido em SMs abertas | Soma das SMs abertas de consumo pela fonte e de liberação pela reserva, por tipo | `service.reserve_state`, `service._open_reserve_request_totals` |
 | Visão do escopo | As reservas, o extrato, o burn da Curva S e a composição; no Portfólio a soma com a tabela por projeto | `service.contingency_overview`, `service._portfolio_contingency` |
 
+## O que a ISSUE-042 trouxe
+
+* **Tela Curva S financeira** (`financeiro/curva_s`): os quatro indicadores do corte (planejado acumulado com o orçado de referência, realizado acumulado com o desvio em relação ao planejado, comprometido acumulado com o percentual do orçamento e a projeção no término pela tendência), o gráfico **Curva S Linha** (D11) com as quatro séries acumuladas — planejado, comprometido, realizado e tendência, em R$ mil — e a tabela período a período (planejado no mês e acumulado, comprometido acumulado, realizado no mês e acumulado, projeção acumulada e realizado menos planejado), com o mês do corte destacado. No Portfólio, os valores somam os projetos em reais, no calendário da união dos meses. A tela é só de leitura: a curva muda pelas revisões da EAC e pelos fechamentos do ERP. O fragmento `curva_financeira.html` entra no alvo `curva-s-conteudo`; Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`).
+* **Tela KPIs de custo** (`financeiro/kpis`): os seis cartões do corte (CPI, SPI de custo, CV, VAC, contingência consumida e comprometido, com a variação em relação ao mês anterior e a referência de gestão), o gráfico **Linhas Múltiplas** (D11) de CPI e SPI com a meta em 1,00 e o gráfico do valor agregado acumulado (PV, EV e AC, em R$ mil), a tabela-resumo "Valor agregado na data de corte" (BAC, PV, EV, AC, CV, SV, EAC pelo CPI, projeção no término bottom-up, VAC e TCPI, com a leitura de cada um) e a tabela período a período com os índices acumulados até cada mês (CV, SV, CPI, SPI, EAC pelo CPI e TCPI). No Portfólio, PV, EV e AC somam os projetos — o CPI e o SPI saem da soma — e a tabela **Desempenho de custo por projeto** traz a coluna Projeto. O fragmento `custos_kpis.html` entra no alvo `kpis-conteudo`; Excel e PDF pelos mecanismos genéricos.
+* **Planejado congelado por revisão**: `service.freeze_financial_curve` é o gancho do `create_revision` da EAC (ISSUE-030) — a revisão nova recongela e a anterior fica. O planejado de cada mês é o total da revisão distribuído por `calculations.curva_financeira_planejado` pelo perfil do previsto da Curva S física vigente (`planejamento.curva_fisica_overview`); sem curva física congelada, o perfil é a distribuição linear das datas dos pacotes de nível 3 da EAP (`planejamento.linear_curve_profile`); sem pacote com peso e datas, não há o que congelar.
+* **Comprometido e realizado do ERP**: `calculations.curva_financeira_erp` acumula os fatos de `erp_custo` (o movimento de cada mês, importado na ISSUE-031 e alimentado pelas medições aprovadas na ISSUE-032) até o mês do corte; depois do corte as séries ficam nulas.
+* **Tendência única**: `calculations.curva_financeira_trend` parte do realizado do mês consultado e chega à EAC por desempenho — `AC + (BAC - EV) ÷ CPI` —, distribuindo o custo restante pelo perfil do planejado e sem usar dado posterior ao mês consultado. É a mesma função que o relatório gerencial (ISSUE-084) reutiliza.
+* **Rotas** (`routes.py`): `GET /api/financeiro/curva-s` e `GET /api/financeiro/kpis` (o conteúdo no projeto ou no Portfólio no mesmo endereço), `GET .../curva-s/excel` e `.../curva-s/imprimivel`, `GET .../kpis/excel` e `.../kpis/imprimivel` (D12, com o mesmo conteúdo e a coluna Projeto no Portfólio).
+* **Integrações**: o EV do valor agregado e dos KPIs vem do avanço físico real da Curva S física (ISSUE-039, EAP como fonte única); o PV, do planejado congelado na revisão da EAC; o AC e o comprometido, dos fatos do ERP e das medições; a projeção no término e o VAC, do mapa de controle (ISSUE-031); o consumo da contingência, da reserva da ISSUE-041; a tendência é consumida pelo relatório gerencial (ISSUE-084).
+* **Carga e verificação**: a parte `financeiro-curva` (`seed.py::load_financial_curve`) congela o planejado do mock `curvaFinanceira` na revisão vigente da EAC e grava o fechamento item a item, substituindo o fechamento da parte `financeiro-custos`; o planejado do mock não é a distribuição pelo perfil da curva física nos projetos 2 e 3 e a divergência está registrada em `docs/DIVERGENCIAS-DO-PROTOTIPO.md` (Q31). `tests/financeiro/test_curva_financeira_calculos.py`, `test_curva_financeira_servico.py` e `test_curva_financeira_rotas.py`, `test_custos_kpis_calculos.py`, `test_custos_kpis_servico.py` e `test_custos_kpis_rotas.py` afirmam as fórmulas (fronteiras: AC zero, BAC igual ao AC, EV zero), a tendência sem dado posterior ao corte, o oráculo do CPI de 0,96 no corte de 25/09/2026 do projeto 1, a soma do PV, EV e AC na carteira e as telas com os exports.
+* **Onde mexer**: as fórmulas em `calculations.py`; o congelamento e as leituras do escopo em `service.py` (`freeze_financial_curve`, `financial_curve_overview`, `cost_kpis_overview`); as rotas e o contexto em `routes.py`; o documento do Excel e do imprimível em `export.py`; os fragmentos em `api/src/templates/financeiro/curva_financeira.html` e `custos_kpis.html`; as telas em `app/_views/financeiro/curva_s.html` e `kpis.html` e os trios em `app/paginas/financeiro/curva_s.*` e `kpis.*`. A tabela Onde mexer deste documento continua valendo.
+
+* **Fórmulas e nomes no código**: os indicadores das duas telas.
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Planejado congelado da curva | Total da revisão da EAC distribuído pelo perfil do previsto da curva física; exceção da D5b | `calculations.curva_financeira_planejado`, `service.freeze_financial_curve` |
+| Perfil linear da EAP | Distribuição linear das datas dos pacotes de nível 3, quando não há curva física congelada | `planejamento.linear_curve_profile` |
+| Comprometido e realizado acumulados | Soma dos fatos do ERP até o mês; nulo depois do corte | `calculations.curva_financeira_erp` |
+| Tendência da curva | `AC + (BAC - EV) ÷ CPI` no mês consultado, distribuída pelo perfil do planejado e sem dado posterior ao corte; função única reutilizada pelo relatório | `calculations.curva_financeira_trend` |
+| Valor agregado do mês | EV = avanço físico real × BAC; PV = planejado acumulado da linha de base; AC = realizado do ERP | `calculations.value_aggregated_month` |
+| CPI | EV ÷ AC, duas casas; sem AC, indefinido | `calculations.cost_performance_index` |
+| SPI de custo | EV ÷ PV, duas casas; sem PV, indefinido | `calculations.cost_schedule_index` |
+| CV e SV | EV − AC e EV − PV; negativo é sobrecusto ou atraso de escopo | `calculations.cost_variance`, `calculations.schedule_variance` |
+| EAC pelo CPI | BAC ÷ CPI, isto é, `AC + (BAC - EV) ÷ CPI`, em centavos; sem CPI, indefinida | `calculations.estimate_at_completion_by_cpi` |
+| TCPI | (BAC − EV) ÷ (BAC − AC), duas casas; sem orçamento restante, indefinido | `calculations.to_complete_performance_index` |
+| VAC | BAC menos projeção no término (bottom-up) | `calculations.estimate_variance` |
+| % comprometido | Comprometido sobre o BAC, uma casa; sem BAC, nada | `calculations.committed_percent` |
+| Consumo da contingência | Consumido sobre o constituído, uma casa | `calculations.reserve_consumption_pct`, `service.contingency_consumption` |
+| Índices do corte | CPI, SPI de custo, CV, SV, EAC pelo CPI e TCPI de uma vez | `calculations.cost_indicators` |
+| Visão do escopo | A revisão vigente, as séries, a tabela e os KPIs; no Portfólio PV, EV e AC somam os projetos | `service.financial_curve_overview`, `service.cost_kpis_overview` |
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome previsto |
@@ -174,7 +206,7 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 | Projeção no término do item e do projeto | Fato mais recente do histórico do item (manual ou do fechamento do ERP) e a soma dos filhos nos pacotes e subpacotes; sem fato, o orçado atual | `calculations.latest_projections`, `calculations.projected_total_cents` |
 | Comprometido e realizado do mapa | Soma dos fatos do ERP do item até a data de corte (o mês do corte entra) | `calculations.erp_totals_until` |
 | Saldo a pagar | Projeção no término menos realizado, distribuído pelos períodos futuros conforme o perfil previsto | `calculations.remaining_cash_flow` |
-| Tendência financeira do relatório | `AC + (BAC - EV) / CPI` no corte do relatório, distribuída pelo perfil planejado e sem dados posteriores ao corte | `calculations.financial_eac_trend` |
+| Tendência financeira do relatório | `AC + (BAC - EV) / CPI` no corte do relatório, distribuída pelo perfil planejado e sem dados posteriores ao corte | `calculations.curva_financeira_trend` |
 | Valor atual do contrato | Valor original mais os aditivos aprovados | `calculations.contract_current_value_cents` |
 | Medido aprovado do contrato | Soma do bruto das medições Aprovada, Faturada e Paga | `calculations.contract_measured_cents` |
 | Saldo a faturar do contrato | Valor atual menos o medido aprovado | `calculations.contract_balance_to_invoice_cents` |

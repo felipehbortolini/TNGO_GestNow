@@ -68,7 +68,7 @@ vem primeiro.
 | ISSUE-039 | Curva S física com linha de base congelada, real das medições e drill | 4 | task | done | ready-for-agent | ISSUE-038 | [ISSUE-039](./039-curva-s-fisica.md) |
 | ISSUE-040 | KPIs de planejamento por período e por área | 4 | task | done | ready-for-agent | ISSUE-039 | [ISSUE-040](./040-kpis-de-planejamento.md) |
 | ISSUE-041 | Contingência e reserva gerencial | 4 | task | done | ready-for-agent | ISSUE-039, ISSUE-031, ISSUE-025 | [ISSUE-041](./041-contingencia-e-reserva-gerencial.md) |
-| ISSUE-042 | Curva S financeira e KPIs de custo | 4 | task | proposed | ready-for-agent | ISSUE-041 | [ISSUE-042](./042-curva-s-financeira-e-kpis-de-custo.md) |
+| ISSUE-042 | Curva S financeira e KPIs de custo | 4 | task | done | ready-for-agent | ISSUE-041 | [ISSUE-042](./042-curva-s-financeira-e-kpis-de-custo.md) |
 | ISSUE-043 | Cronograma de desembolso e envio à tesouraria | 4 | task | proposed | ready-for-agent | ISSUE-031, ISSUE-033 | [ISSUE-043](./043-cronograma-de-desembolso.md) |
 | ISSUE-044 | Relato do período | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-044](./044-relato-do-periodo.md) |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-045](./045-6wla.md) |
