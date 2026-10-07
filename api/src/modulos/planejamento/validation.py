@@ -1088,6 +1088,9 @@ FIELD_ACCEPTANCE = "aceitacao"
 FIELD_PACKAGE = "pacote"
 
 
+FIELD_CODE = "codigo"
+
+
 RESOURCE_MESSAGE = "Escolha a origem do peso."
 
 
@@ -1134,6 +1137,15 @@ REVISION_QUANTITY_MESSAGE = "A nova quantidade não pode ser menor que o executa
 
 
 REVISION_WEIGHT_MAX_MESSAGE = "O peso passa o máximo de {maximum}% por pacote."
+
+
+REVISION_CODE_LEVELS_MESSAGE = "O código do pacote precisa de três níveis (ex.: 2.1.3)."
+
+
+REVISION_CODE_PARENT_MESSAGE = "A subárea {code} informada no código do pacote não existe."
+
+
+REVISION_CODE_DUPLICATE_MESSAGE = "O código {code} já existe na EAP do projeto."
 
 
 REVISION_FINISH_MESSAGE = "O término não pode ser anterior ao início ({start})."
@@ -1191,7 +1203,11 @@ class RevisionData:
 
 @dataclass(frozen=True)
 class NewPackageData:
-    """O pacote novo validado: a origem do peso, o dicionário, as datas e as etapas do modelo."""
+    """O pacote novo validado: a origem do peso, o dicionário, as datas e as etapas do modelo.
+
+    ``code`` é o código informado pela planilha da importação; ``None`` quando o formulário não
+    o traz e o serviço gera o seguinte da subárea.
+    """
 
     resource: str
     parent_code: str
@@ -1213,6 +1229,7 @@ class NewPackageData:
     source_code: str | None
     change_code: str | None
     steps: tuple[EapStep, ...] = ()
+    code: str | None = None
 
 
 def parse_package_form(
@@ -1347,6 +1364,19 @@ def revision_fixed_weight_error(total: Decimal) -> str | None:
     """A soma dos pesos alterados: 100 ou mais deixa os demais pacotes sem peso."""
     if total >= HUNDRED:
         return REVISION_FIXED_WEIGHT_MESSAGE
+    return None
+
+
+def package_code_error(code: str, *, levels: Mapping[str, int]) -> str | None:
+    """O código informado de um pacote novo: três níveis, na subárea existente e livre."""
+    parts = code.split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return REVISION_CODE_LEVELS_MESSAGE
+    parent = code.rsplit(".", 1)[0]
+    if levels.get(parent) != PARENT_LEVEL:
+        return REVISION_CODE_PARENT_MESSAGE.format(code=parent)
+    if code in levels:
+        return REVISION_CODE_DUPLICATE_MESSAGE.format(code=code)
     return None
 
 

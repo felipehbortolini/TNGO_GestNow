@@ -1,0 +1,45 @@
+{% extends "base_fragment.html" %}
+{#
+  O resultado da importação de pacotes da EAP (ISSUE-038): a revisão criada vinculada à SM e as
+  linhas com erro que ficaram de fora, com a EAP atualizada. A raiz do resultado leva o id que o
+  Alpine pediu ({{ target_id }}); a do conteúdo tem id fixo.
+
+  Espera: resultado (EapPackageImportResult), importador, alvo_conteudo e o contexto do conteúdo
+  (visao, kpis, linhas, situacao, pode_editar e alvo_formulario).
+#}
+{% block root %}
+<div id="{{ target_id }}">
+  <div class="mt-24" x-init="$el.closest('form').reset()">
+    <div class="aviso aviso--ok" role="status">
+      <strong>Rev {{ resultado.revision }} criada com {{ resultado.codes | length }} pacote(s) novo(s)</strong>
+      <span>{{ resultado.file_name }}: os pacotes entraram vinculados à SM {{ resultado.change_code }} ({{ resultado.codes | join(', ') }}).</span>
+    </div>
+
+    {% if resultado.skipped %}
+    <section class="card mt-16" aria-labelledby="{{ target_id }}-fora">
+      <div class="card__head">
+        <h3 class="h-card5" id="{{ target_id }}-fora">Linhas que ficaram de fora</h3>
+        <span class="hint">{{ resultado.skipped | length }} com erro, não gravadas: corrija na planilha e envie só elas</span>
+      </div>
+      <div class="card__body">
+        <ul class="lista-simples">
+          {% for item in resultado.skipped %}
+          <li class="lista-simples__item">
+            <span class="pill pill--erro">Linha {{ item.number }} · erro</span>
+            <span class="linha__main">
+              {% for motivo in item.errors %}
+              <span class="linha__titulo">{{ motivo }}</span>
+              {% endfor %}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+<div id="{{ alvo_conteudo }}">
+{% include "planejamento/_eap_conteudo.html" %}
+</div>
+{% endblock %}

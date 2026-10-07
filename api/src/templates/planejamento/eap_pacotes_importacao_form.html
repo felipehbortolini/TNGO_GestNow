@@ -1,0 +1,56 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da importação de pacotes da EAP (ISSUE-038): a SM aprovada que financia o
+  acréscimo, a justificativa da revisão e a planilha do importador ``eap-pacotes``, pelo
+  mecanismo genérico. A tela abre este fragmento no modal; a conferência e a confirmação vão
+  para as rotas do módulo, que criam a revisão só na confirmação.
+
+  Espera: titulo, fontes, campo_arquivo, limite_mb, limite_linhas, modelo_url, conferir_url,
+  alvo_resultado, alvo_conteudo e proxima_revisao.
+#}
+{% block fragment %}
+<form method="post" enctype="multipart/form-data" action="{{ conferir_url }}"
+  x-target="{{ alvo_resultado }} {{ alvo_conteudo }}" x-target.error="{{ alvo_resultado }}"
+  data-tn-loading="Processando a planilha...">
+  <p class="hint">Pacotes novos mudam os pesos da EAP: a importação gera a Rev {{ proxima_revisao }} vinculada à SM aprovada. Nada é gravado antes da sua confirmação.</p>
+  {% if not fontes %}
+  <div class="aviso aviso--info" role="note">
+    <strong>Não há SM aprovada com impacto em escopo pendente de incorporação.</strong>
+    <span>Aprove uma SM com impacto em escopo em Governança para importar pacotes.</span>
+  </div>
+  {% endif %}
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="eap-pacotes-sm">SM aprovada</label>
+      <select id="eap-pacotes-sm" name="sm" class="input" required>
+        <option value="">Escolha a SM que aprovou o acréscimo</option>
+        {% for fonte in fontes %}
+        <option value="{{ fonte.value }}">{{ fonte.text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Só as SM aprovadas com impacto em escopo que nenhuma revisão incorporou ainda.</span>
+    </div>
+    <div class="field field--full">
+      <label for="eap-pacotes-justificativa">Justificativa da revisão</label>
+      <textarea id="eap-pacotes-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
+    </div>
+  </div>
+  <div class="upload">
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
+      <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+      Baixar o modelo (.xlsx)
+    </button>
+    <div class="field upload__campo">
+      <label for="eap-pacotes-arquivo">Planilha preenchida</label>
+      <input id="eap-pacotes-arquivo" class="input upload__arquivo" type="file"
+        name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="eap-pacotes-dica" />
+      <span class="hint" id="eap-pacotes-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
+    </div>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Conferir a planilha
+    </button>
+  </div>
+  <div id="{{ alvo_resultado }}" aria-live="polite"></div>
+</form>
+{% endblock %}

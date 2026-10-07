@@ -44,6 +44,14 @@ The EAP (ISSUE-036), prefix ``/api/planejamento/eap``:
 * ``GET  /importar/formulario``, ``POST /importar/conferir`` and ``POST /importar/confirmar``
   the spreadsheet import of the progress (the ``eap-avanco`` importer): the check reads and
   shows each line, the confirmation writes the lines without error, dated with the form date;
+* ``GET  /pacotes/novo``, ``POST /pacotes``  the new package: the breakdown of a planning
+  package or the inclusion by a new revision (ISSUE-038);
+* ``GET  /revisoes/nova``, ``POST /revisoes``  the revision that adjusts one package from an
+  approved change request with scope impact (Gestor);
+* ``GET  /pacotes/importar/formulario``, ``POST /pacotes/importar/conferir`` and
+  ``POST /pacotes/importar/confirmar``  the spreadsheet import of the packages (the
+  ``eap-pacotes`` importer), whose confirmation creates the revision bound to the change
+  request: the generic confirmation refuses, the module is the writer (like the EAC import);
 * ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content.
 """
 
@@ -1630,6 +1638,498 @@ def _progress_import_notice(result: importing.ImportResult) -> str:
     skipped = len(result.skipped)
     left_out = "1 com erro não entrou" if skipped == 1 else f"{skipped} com erro não entraram"
     return f"{imported}; {left_out}."
+
+
+# ── Revisões da EAP e desdobramento (ISSUE-038) ──────────────────────────
+
+
+EAP_PACKAGE_FORM_TEMPLATE = "planejamento/eap_pacote_form.html"
+
+
+EAP_PACKAGE_SAVED_TEMPLATE = "planejamento/eap_pacote_salvo.html"
+
+
+EAP_REVISION_FORM_TEMPLATE = "planejamento/eap_revisao_form.html"
+
+
+EAP_REVISION_SAVED_TEMPLATE = "planejamento/eap_revisao_salva.html"
+
+
+EAP_PACKAGE_IMPORT_FORM_TEMPLATE = "planejamento/eap_pacotes_importacao_form.html"
+
+
+EAP_PACKAGE_IMPORT_CHECK_TEMPLATE = "planejamento/eap_pacotes_importacao_conferencia.html"
+
+
+EAP_PACKAGE_IMPORT_RESULT_TEMPLATE = "planejamento/eap_pacotes_importacao_resultado.html"
+
+
+EAP_PACKAGE_ROUTE = f"{EAP_BASE}/pacotes"
+
+
+EAP_PACKAGE_NEW_ROUTE = f"{EAP_PACKAGE_ROUTE}/novo"
+
+
+EAP_REVISION_ROUTE = f"{EAP_BASE}/revisoes"
+
+
+EAP_REVISION_NEW_ROUTE = f"{EAP_REVISION_ROUTE}/nova"
+
+
+EAP_PACKAGE_IMPORT_BASE = f"{EAP_PACKAGE_ROUTE}/importar"
+
+
+EAP_PACKAGE_IMPORT_TARGET = "eap-pacotes-importacao-resultado"
+
+
+EAP_PACKAGE_RESOURCES = validation.PACKAGE_RESOURCES
+
+
+EAP_KINDS = (calculations.WORK_PACKAGE, calculations.PLANNING_PACKAGE)
+
+
+EAP_BREAKDOWN_MESSAGE = "Pacote {code} criado com peso desdobrado de {source}{closed}."
+
+
+EAP_BREAKDOWN_CLOSED = " (pacote de planejamento encerrado)"
+
+
+EAP_REVISION_PACKAGE_MESSAGE = "Pacote {code} incluído na Rev {revision}; demais pesos reescalados."
+
+
+EAP_REVISION_MESSAGE = "Rev {revision} da EAP criada."
+
+
+EAP_PACKAGE_IMPORT_MESSAGE = "Rev {revision} criada: {items}."
+
+
+EAP_PACKAGE_IMPORT_ONE = "1 pacote novo"
+
+
+EAP_PACKAGE_IMPORT_MANY = "{count} pacotes novos"
+
+
+@bp.route(route=EAP_PACKAGE_NEW_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_package_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do pacote novo: o desdobramento ou a revisão, conforme ``recurso``."""
+    resource = _package_resource(req.params.get(validation.FIELD_RESOURCE))
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_FORM_TEMPLATE,
+        context=_package_page(session, context, resource),
+        request=req,
+    )
+
+
+@bp.route(route=EAP_PACKAGE_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_package_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cria o pacote: desdobra o de planejamento ou abre a revisão (Gestor), em resposta multi-alvo."""
+    resource = _package_resource(req.form.get(validation.FIELD_RESOURCE))
+    options = _form_options(session, context)
+    try:
+        data = validation.parse_package_form(
+            req.form,
+            packages=options.states,
+            limits=options.limits,
+            stage_models=options.stage_models,
+        )
+        if data.resource == validation.BREAKDOWN:
+            created = service.breakdown_package(
+                session,
+                user=context.user,
+                scope=context.scope,
+                request=service.BreakdownRequest(package=data),
+                reference_date=calendario.today(),
+            )
+            toast = EAP_BREAKDOWN_MESSAGE.format(
+                code=created.code,
+                source=created.source_code,
+                closed=EAP_BREAKDOWN_CLOSED if created.source_closed else "",
+            )
+        else:
+            revision = service.create_revision(
+                session,
+                user=context.user,
+                scope=context.scope,
+                request=service.RevisionRequest(
+                    change_code=data.change_code or "",
+                    justification=data.justification,
+                    new_packages=(data,),
+                ),
+                reference_date=calendario.today(),
+            )
+            toast = EAP_REVISION_PACKAGE_MESSAGE.format(
+                code=revision.new_codes[0], revision=revision.revision
+            )
+    except (InvalidDataError, AccessDeniedError, VersionConflictError) as error:
+        return _package_error(req, session, context, resource, error)
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_SAVED_TEMPLATE,
+        context=_saved_content_context(session, context),
+        request=req,
+        toast=toast,
+    )
+
+
+@bp.route(route=EAP_REVISION_NEW_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_revision_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da revisão: a SM aprovada pendente e os pacotes de nível 3 do projeto."""
+    return AlpineAjaxResponse(
+        template_name=EAP_REVISION_FORM_TEMPLATE,
+        context=_revision_page(session, context),
+        request=req,
+    )
+
+
+@bp.route(route=EAP_REVISION_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_revision_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Ajusta um pacote pela SM aprovada (Gestor) e reescala os pesos, em resposta multi-alvo."""
+    try:
+        options = _form_options(session, context)
+        data = validation.parse_revision_form(
+            req.form, packages=options.states, limits=options.limits
+        )
+        revision = service.create_revision(
+            session,
+            user=context.user,
+            scope=context.scope,
+            request=service.RevisionRequest(
+                change_code=data.change_code,
+                justification=data.justification,
+                adjustments=(data.adjustment,),
+            ),
+            reference_date=calendario.today(),
+        )
+    except (InvalidDataError, AccessDeniedError, VersionConflictError) as error:
+        return _revision_error(req, session, context, error)
+    return AlpineAjaxResponse(
+        template_name=EAP_REVISION_SAVED_TEMPLATE,
+        context=_saved_content_context(session, context),
+        request=req,
+        toast=EAP_REVISION_MESSAGE.format(revision=revision.revision),
+    )
+
+
+def _package_resource(value: str | None) -> str:
+    """O recurso do formulário: desdobramento ou revisão; qualquer outro vale o desdobramento."""
+    chosen = (value or "").strip()
+    return chosen if chosen in EAP_PACKAGE_RESOURCES else validation.BREAKDOWN
+
+
+@dataclass(frozen=True)
+class EapFormState:
+    """O que um formulário da revisão já traz: os valores digitados e as mensagens."""
+
+    values: Mapping[str, Any] = field(default_factory=dict)
+    errors: Mapping[str, str] = field(default_factory=dict)
+    message: str = ""
+
+
+def _form_options(session: Session, context: RequestContext) -> service.EapFormOptions:
+    return service.revision_form_options(
+        session, user=context.user, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _package_page(
+    session: Session,
+    context: RequestContext,
+    resource: str,
+    state: EapFormState | None = None,
+) -> dict[str, Any]:
+    """O que o formulário do pacote novo precisa: as listas, os valores digitados e as mensagens."""
+    state = state or EapFormState()
+    return {
+        "opcoes": _form_options(session, context),
+        "valores": dict(state.values),
+        "erros": dict(state.errors),
+        "mensagem": state.message,
+        "recurso": resource,
+        "tipos": EAP_KINDS,
+        "criterios": calculations.EAP_CRITERIA,
+        "formulario": True,
+        "alvo_conteudo": EAP_CONTENT_TARGET,
+        "alvo_formulario": EAP_FORM_TARGET,
+    }
+
+
+def _revision_page(
+    session: Session,
+    context: RequestContext,
+    state: EapFormState | None = None,
+) -> dict[str, Any]:
+    """O que o formulário da revisão precisa: as listas, os valores digitados e as mensagens."""
+    state = state or EapFormState()
+    return {
+        "opcoes": _form_options(session, context),
+        "valores": dict(state.values),
+        "erros": dict(state.errors),
+        "mensagem": state.message,
+        "formulario": True,
+        "alvo_conteudo": EAP_CONTENT_TARGET,
+        "alvo_formulario": EAP_FORM_TARGET,
+    }
+
+
+def _package_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    resource: str,
+    error: InvalidDataError | AccessDeniedError | VersionConflictError,
+) -> func.HttpResponse:
+    """A criação recusada: o conteúdo atualizado e o formulário preenchido com o digitado."""
+    errors = _field_errors(error)
+    data = _eap_content_context(_eap_overview(session, context))
+    state = EapFormState(values=req.form, errors=errors, message=str(error))
+    data.update(_package_page(session, context, resource, state))
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=_error_status(error),
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+def _revision_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    error: InvalidDataError | AccessDeniedError | VersionConflictError,
+) -> func.HttpResponse:
+    """A revisão recusada: o conteúdo atualizado e o formulário preenchido com o digitado."""
+    errors = _field_errors(error)
+    data = _eap_content_context(_eap_overview(session, context))
+    state = EapFormState(values=req.form, errors=errors, message=str(error))
+    data.update(_revision_page(session, context, state))
+    return AlpineAjaxResponse(
+        template_name=EAP_REVISION_SAVED_TEMPLATE,
+        context=data,
+        request=req,
+        status_code=_error_status(error),
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+def _field_errors(
+    error: InvalidDataError | AccessDeniedError | VersionConflictError,
+) -> Mapping[str, str]:
+    if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
+        return error.detail
+    return {}
+
+
+# ── Importação dos pacotes (ISSUE-038) ───────────────────────────────────
+
+
+@dataclass(frozen=True)
+class EapPackageImportResult:
+    """O que a importação de pacotes criou: a revisão, a SM, os códigos novos e as linhas de fora."""
+
+    revision: int
+    change_code: str
+    codes: tuple[str, ...]
+    skipped: tuple[importing.CheckedRow, ...]
+    file_name: str
+
+
+@bp.route(route=f"{EAP_PACKAGE_IMPORT_BASE}/formulario", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_package_import_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da importação de pacotes: a SM, a justificativa da revisão e a planilha."""
+    context.scope.require_project()
+    importer = importers.packages_importer()
+    options = _form_options(session, context)
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_IMPORT_FORM_TEMPLATE,
+        context={
+            "titulo": importer.title,
+            "fontes": options.changes,
+            "campo_arquivo": attachments.FILE_FIELD,
+            "limite_mb": MAX_FILE_BYTES // MEGABYTE,
+            "limite_linhas": format_value(ValueKind.INTEGER, MAX_DATA_ROWS),
+            "modelo_url": f"/api/importacao/{importer.key}/modelo",
+            "conferir_url": f"/api/{EAP_PACKAGE_IMPORT_BASE}/conferir",
+            "alvo_resultado": EAP_PACKAGE_IMPORT_TARGET,
+            "alvo_conteudo": EAP_CONTENT_TARGET,
+            "proxima_revisao": options.next_revision,
+        },
+        request=req,
+        root_class=EAP_PAGE_CLASS,
+    )
+
+
+@bp.route(route=f"{EAP_PACKAGE_IMPORT_BASE}/conferir", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_package_import_check(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Lê a planilha de pacotes e responde o que cada linha vai criar; nada é escrito.
+
+    A resposta é multi-alvo — a conferência e o conteúdo —, como no avanço: o formulário do
+    modal declara os dois e o conteúdo volta como está, já que nada foi gravado.
+    """
+    context.scope.require_project()
+    preview = importing.check(
+        session,
+        importer=importers.packages_importer(),
+        upload=_upload_of(req),
+        context=_import_context(context, calendario.today()),
+    )
+    data = _package_import_check_context(preview)
+    data.update(_eap_content_context(_eap_overview(session, context)))
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_IMPORT_CHECK_TEMPLATE,
+        context=data,
+        request=req,
+    )
+
+
+@bp.route(route=f"{EAP_PACKAGE_IMPORT_BASE}/confirmar", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def eap_package_import_confirm(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Checa a planilha de novo e cria a revisão com os pacotes das linhas sem erro.
+
+    O importador ``eap-pacotes`` recusa a gravação genérica: quem grava é esta rota, pela
+    revisão vinculada à SM (``create_revision``), tudo ou nada. As linhas com erro não entram e
+    voltam no resultado, como na importação de itens da EAC.
+    """
+    context.scope.require_project()
+    importer = importers.packages_importer()
+    upload = _upload_of(req)
+    preview = importing.check(
+        session,
+        importer=importer,
+        upload=upload,
+        context=_import_context(context, calendario.today()),
+    )
+    _require_package_importable(upload, preview, req.form)
+    options = _form_options(session, context)
+    change_code, justification = _package_import_terms(req.form)
+    revision = service.create_revision(
+        session,
+        user=context.user,
+        scope=context.scope,
+        request=service.RevisionRequest(
+            change_code=change_code,
+            justification=justification,
+            new_packages=importers.revision_packages(
+                options=options,
+                rows=preview.writable_rows,
+                change_code=change_code,
+                justification=justification,
+            ),
+        ),
+        reference_date=calendario.today(),
+    )
+    data = _package_import_result_context(preview, revision)
+    data.update(_eap_content_context(_eap_overview(session, context)))
+    return AlpineAjaxResponse(
+        template_name=EAP_PACKAGE_IMPORT_RESULT_TEMPLATE,
+        context=data,
+        request=req,
+        toast=_package_import_notice(preview, revision),
+        toast_tipo="aviso" if preview.error_rows else "ok",
+    )
+
+
+def _require_package_importable(
+    upload: importing.Upload, preview: importing.ImportPreview, form: Mapping[str, str]
+) -> None:
+    """As guardas da confirmação genérica, antes de a revisão ser escrita."""
+    digest = (form.get(IMPORT_CHECKED_FIELD) or "").strip()
+    if not digest:
+        raise InvalidDataError(importing.NOT_CHECKED_MESSAGE)
+    if digest != importing.digest_of(upload):
+        raise InvalidDataError(importing.CHANGED_MESSAGE)
+    if preview.missing:
+        raise InvalidDataError(importing.MISSING_MESSAGE.format(columns=", ".join(preview.missing)))
+    if not preview.writable_rows:
+        raise InvalidDataError(importing.NOTHING_MESSAGE)
+    if preview.error_rows and form.get(IMPORT_ACKNOWLEDGED_FIELD) != IMPORT_ACKNOWLEDGED_VALUE:
+        raise InvalidDataError(importing.NOT_ACKNOWLEDGED_MESSAGE)
+
+
+def _package_import_terms(form: Mapping[str, str]) -> tuple[str, str]:
+    """A SM e a justificativa do formulário, como a revisão as pede."""
+    change_code = (form.get(validation.FIELD_CHANGE) or "").strip()
+    if not change_code:
+        raise InvalidDataError({validation.FIELD_CHANGE: validation.CHANGE_MESSAGE})
+    justification = (form.get(validation.FIELD_JUSTIFICATION) or "").strip()
+    if len(justification) < validation.JUSTIFICATION_MIN_CHARACTERS:
+        raise InvalidDataError(
+            {validation.FIELD_JUSTIFICATION: validation.REVISION_JUSTIFICATION_MESSAGE}
+        )
+    return change_code, justification
+
+
+def _package_import_check_context(preview: importing.ImportPreview) -> dict[str, Any]:
+    """O que o fragmento da conferência imprime: a prévia, as colunas e onde confirmar."""
+    return {
+        "arquivo": preview.file_name,
+        "preview": preview,
+        "colunas": [
+            {"cabecalho": column.header, "numerica": column.kind in _IMPORT_NUMERIC_KINDS}
+            for column in preview.columns
+        ],
+        "lidas": len(preview.rows),
+        "vao_gravar": len(preview.writable_rows),
+        "com_aviso": len(preview.warning_rows),
+        "com_erro": len(preview.error_rows),
+        "campo_conferido": IMPORT_CHECKED_FIELD,
+        "campo_ciente": IMPORT_ACKNOWLEDGED_FIELD,
+        "valor_ciente": IMPORT_ACKNOWLEDGED_VALUE,
+        "confirmar_url": f"/api/{EAP_PACKAGE_IMPORT_BASE}/confirmar",
+    }
+
+
+def _package_import_result_context(
+    preview: importing.ImportPreview, revision: service.RevisionResult
+) -> dict[str, Any]:
+    return {
+        "resultado": EapPackageImportResult(
+            revision=revision.revision,
+            change_code=revision.change_code,
+            codes=revision.new_codes,
+            skipped=preview.error_rows,
+            file_name=preview.file_name,
+        ),
+        "importador": importers.packages_importer().title,
+    }
+
+
+def _package_import_notice(
+    preview: importing.ImportPreview, revision: service.RevisionResult
+) -> str:
+    """O aviso da confirmação: a revisão criada e as linhas com erro que ficaram de fora."""
+    count = len(revision.new_codes)
+    items = EAP_PACKAGE_IMPORT_ONE if count == 1 else EAP_PACKAGE_IMPORT_MANY.format(count=count)
+    notice = EAP_PACKAGE_IMPORT_MESSAGE.format(revision=revision.revision, items=items)
+    skipped = len(preview.error_rows)
+    if not skipped:
+        return notice
+    left_out = (
+        "1 linha com erro não entrou" if skipped == 1 else f"{skipped} linhas com erro não entraram"
+    )
+    return f"{notice} {left_out}."
 
 
 # ── Montagem das respostas da EAP ────────────────────────────────────────

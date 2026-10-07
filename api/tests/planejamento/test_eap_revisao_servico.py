@@ -480,6 +480,62 @@ def test_revisao_inclui_pacote_novo_com_codigo_da_subarea_e_previsto_linear(
     assert sum(pesos) + novo.weight == D("100.00")
 
 
+def test_revisao_cria_o_pacote_novo_com_o_codigo_informado(
+    cenario_revisao: CenarioRevisao,
+) -> None:
+    dado = replace(_novo(cenario_revisao), code="2.1.9")
+
+    resultado = _revisar(cenario_revisao, novos=(dado,))
+
+    assert resultado.new_codes == ("2.1.9",)
+    novo = cenario_revisao.session.scalars(
+        select(EapItem).where(
+            EapItem.project_id == cenario_revisao.projeto.id, EapItem.code == "2.1.9"
+        )
+    ).one()
+    assert (novo.kind, novo.criterion, novo.weight, novo.parent_id) == (
+        "Trabalho",
+        "Unidades",
+        D("3.00"),
+        cenario_revisao.itens["2.1"].id,
+    )
+    assert (
+        cenario_revisao.session.scalars(
+            select(EapItem).where(
+                EapItem.project_id == cenario_revisao.projeto.id, EapItem.code == "2.1.3"
+            )
+        ).one_or_none()
+        is None
+    )
+
+
+def test_revisao_recusa_o_codigo_informado_repetido_ou_fora_da_subarea(
+    cenario_revisao: CenarioRevisao,
+) -> None:
+    dado = _novo(cenario_revisao)
+    with pytest.raises(InvalidDataError) as repetido:
+        _revisar(cenario_revisao, novos=(replace(dado, code="2.1.1"),))
+    assert validation.REVISION_CODE_DUPLICATE_MESSAGE.format(code="2.1.1") in str(repetido.value)
+
+    with pytest.raises(InvalidDataError) as malformado:
+        _revisar(cenario_revisao, novos=(replace(dado, code="2.1"),))
+    assert validation.REVISION_CODE_LEVELS_MESSAGE in str(malformado.value)
+
+    with pytest.raises(InvalidDataError) as sem_subarea:
+        _revisar(cenario_revisao, novos=(replace(dado, code="9.9.9"),))
+    assert validation.REVISION_CODE_PARENT_MESSAGE.format(code="9.9") in str(sem_subarea.value)
+
+    assert (
+        cenario_revisao.session.scalars(
+            select(EapItem).where(
+                EapItem.project_id == cenario_revisao.projeto.id,
+                EapItem.code.in_(("2.1.9", "9.9.9")),
+            )
+        ).all()
+        == []
+    )
+
+
 def test_revisao_congela_o_peso_de_todos_os_pacotes_de_nivel_tres(
     cenario_revisao: CenarioRevisao,
 ) -> None:

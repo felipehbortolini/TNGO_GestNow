@@ -2984,6 +2984,143 @@ def breakdown_package(
     return BreakdownResult(code=code, source_code=origin.code, source_closed=remaining <= 0)
 
 
+@dataclass(frozen=True)
+class EapChoice:
+    """Uma opção dos formulários da EAP: o valor que o formulário envia e o texto que a pessoa lê."""
+
+    value: str
+    text: str
+
+
+@dataclass(frozen=True)
+class EapFormOptions:
+    """O que os formulários da revisão, do pacote novo e da importação oferecem e conferem.
+
+    As listas saem do projeto do escopo e dos cadastros; ``states`` e ``limits`` são o que as
+    regras da validação leem, na mesma forma em que a fachada da revisão as lê.
+    """
+
+    subareas: tuple[EapChoice, ...]
+    planning_packages: tuple[EapChoice, ...]
+    work_packages: tuple[EapChoice, ...]
+    changes: tuple[EapChoice, ...]
+    stage_models: tuple[Mapping[str, Any], ...]
+    units: tuple[configuracoes.MeasureUnitSummary, ...]
+    companies: tuple[configuracoes.RegisterOption, ...]
+    people: tuple[configuracoes.RegisterOption, ...]
+    eac_codes: tuple[str, ...]
+    states: Mapping[str, validation.PackageState]
+    limits: validation.RevisionLimits
+    next_revision: int
+
+    def unit_choices(self) -> tuple[tuple[str, str], ...]:
+        """As unidades como pares ``(valor, texto)`` para um seletor."""
+        return tuple((unit.code, unit.code) for unit in self.units)
+
+    def company_choices(self) -> tuple[tuple[str, str], ...]:
+        """As empresas como pares ``(valor, texto)`` para um seletor."""
+        return tuple((str(item.id), item.name) for item in self.companies)
+
+    def person_choices(self) -> tuple[tuple[str, str], ...]:
+        """As pessoas como pares ``(valor, texto)`` para um seletor."""
+        return tuple((str(item.id), item.name) for item in self.people)
+
+
+def revision_form_options(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> EapFormOptions:
+    """As listas e os limites dos formulários da revisão, do pacote novo e da importação.
+
+    Lê o projeto do escopo numa passada: as subáreas, os pacotes de planejamento com peso a
+    desdobrar, as SMs aprovadas com impacto em escopo pendentes de incorporação, os modelos de
+    etapas e os tetos de peso dos parâmetros vigentes, mais os cadastros (unidades, empresas,
+    pessoas e itens da EAC) que os formulários mostram e a importação confere. O Portfólio é
+    recusado, como nas demais escritas da EAP.
+    """
+    rbac.require_module(user, MODULE)
+    if scope.is_portfolio:
+        raise AccessDeniedError(EAP_PORTFOLIO_READ_ONLY_MESSAGE)
+    from src.modulos.financeiro import service as financeiro
+    from src.modulos.governanca import service as governanca
+
+    project_id = scope.require_project()
+    items = tuple(_items_by_project(session, [project_id]).get(project_id, ()))
+    parameters = _parameters(session, reference_date=reference_date)
+    levels = financeiro.eac_item_levels(session, project_id=project_id)
+    titles = {
+        change.code: change.title
+        for change in governanca.approved_changes(session, project_id=project_id)
+    }
+    return EapFormOptions(
+        subareas=tuple(
+            EapChoice(value=item.code, text=f"{item.code} · {item.description}")
+            for item in items
+            if item.level == LEVEL_SUB_AREA
+        ),
+        planning_packages=tuple(
+            EapChoice(
+                value=item.code,
+                text=(
+                    f"{item.code} · {item.description} · {_plain_weight(item.weight)}% a desdobrar"
+                ),
+            )
+            for item in items
+            if item.level == LEVEL_PACKAGE
+            and item.kind == calculations.PLANNING_PACKAGE
+            and (item.weight or Decimal(0)) > 0
+        ),
+        work_packages=tuple(
+            EapChoice(
+                value=item.code,
+                text=f"{item.code} · {item.description} · {_plain_weight(item.weight)}%",
+            )
+            for item in items
+            if item.level == LEVEL_PACKAGE
+        ),
+        changes=tuple(
+            EapChoice(
+                value=source.code,
+                text=_change_label(source.code, titles.get(source.code, "")),
+            )
+            for source in governanca.eap_revision_sources(session, project_id=project_id)
+        ),
+        stage_models=parameters.stage_models,
+        units=tuple(configuracoes.list_measure_units(session)),
+        companies=tuple(configuracoes.list_company_options(session)),
+        people=tuple(configuracoes.list_person_options(session)),
+        eac_codes=tuple(sorted(code for code, level in levels.items() if level >= LEVEL_PACKAGE)),
+        states=_package_states(items),
+        limits=validation.RevisionLimits(
+            max_package_weight=parameters.max_package_weight,
+            max_estimated_weight=parameters.max_estimated_weight,
+        ),
+        next_revision=_next_revision(session, project_id=project_id),
+    )
+
+
+def _package_states(items: Sequence[EapItem]) -> dict[str, validation.PackageState]:
+    """O estado de cada item do projeto como as regras da revisão e da importação o leem."""
+    return {
+        item.code: validation.PackageState(
+            code=item.code,
+            level=item.level,
+            kind=item.kind or "",
+            criterion=item.criterion,
+            weight=item.weight or Decimal(0),
+            quantity=item.quantity,
+            executed=item.executed,
+            start=item.start,
+            finish=item.finish,
+        )
+        for item in items
+    }
+
+
+def _change_label(code: str, title: str) -> str:
+    """A SM como um select a mostra: ``SM-... · Título``."""
+    return f"{code} · {title}" if title else code
+
+
 def _revision_source(session: Session, *, change_code: str, project_id: int) -> ChangeEapSource:
     """A SM aprovada com impacto em escopo pendente do projeto, ou a recusa do protótipo."""
     from src.modulos.governanca import service as governanca
@@ -3026,14 +3163,20 @@ def _require_new_packages(
     items: Sequence[EapItem],
     parameters: EapParameters,
 ) -> None:
-    """Confere cada pacote novo antes de qualquer escrita: recurso, subárea e peso."""
+    """Confere cada pacote novo antes de qualquer escrita: recurso, subárea, peso e código."""
     subareas = {item.code for item in items if item.level == LEVEL_SUB_AREA}
+    levels = {item.code: item.level for item in items}
     for data in new_packages:
         if data.resource != validation.REVISION:
             raise InvalidDataError({validation.FIELD_RESOURCE: validation.RESOURCE_MESSAGE})
         if data.parent_code not in subareas:
             raise InvalidDataError({validation.FIELD_PARENT: validation.PARENT_MESSAGE})
         _require_revision_weight(data.weight, parameters=parameters)
+        if data.code is not None:
+            problem = validation.package_code_error(data.code, levels=levels)
+            if problem:
+                raise InvalidDataError({validation.FIELD_CODE: problem})
+            levels[data.code] = LEVEL_PACKAGE
 
 
 def _require_revision_weight(weight: Decimal, *, parameters: EapParameters) -> None:
@@ -3084,7 +3227,7 @@ def _create_revision_packages(
     new_packages: Sequence[validation.NewPackageData],
     reference_date: date,
 ) -> tuple[EapItem, ...]:
-    """Cria os pacotes novos da revisão, cada um com o código seguinte da sua subárea."""
+    """Cria os pacotes novos da revisão, com o código informado ou o seguinte da sua subárea."""
     subareas = {item.code: item for item in items if item.level == LEVEL_SUB_AREA}
     live = list(known)
     created: list[EapItem] = []
@@ -3092,7 +3235,7 @@ def _create_revision_packages(
         parent = subareas.get(data.parent_code)
         if parent is None:
             raise InvalidDataError({validation.FIELD_PARENT: validation.PARENT_MESSAGE})
-        code = _next_package_code(live, parent)
+        code = data.code if data.code is not None else _next_package_code(live, parent)
         item = _create_eap_package(
             session,
             user=user,

@@ -1,0 +1,11 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da revisão da EAP (ISSUE-038). A raiz leva o id do alvo que a tela pediu
+  ({{ target_id }}: ``eap-formulario``); o miolo é o parcial que a resposta da gravação
+  (eap_revisao_salva.html) também usa.
+
+  Espera: opcoes, valores, erros, mensagem, formulario, alvo_conteudo e alvo_formulario.
+#}
+{% block fragment %}
+{% include "planejamento/_eap_revisao_campos.html" %}
+{% endblock %}

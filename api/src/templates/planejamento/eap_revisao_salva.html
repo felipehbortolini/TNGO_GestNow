@@ -1,0 +1,21 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta da revisão da EAP (ISSUE-038): raízes irmãs com id fixo — a exceção da resposta
+  multi-alvo —, porque a tela declara o formulário e o conteúdo no mesmo pedido. Sem
+  ``formulario``, o formulário volta vazio (fechou); com ele (422 por campo, 403 sem papel
+  Gestor), volta preenchido com o que a pessoa digitou. O conteúdo volta atualizado, porque a
+  revisão muda os pesos, a árvore e a tabela de revisões.
+
+  Espera: visao, kpis, linhas, situacao, pode_editar, formulario (verdadeiro no erro), opcoes,
+  valores, erros, mensagem, alvo_conteudo e alvo_formulario.
+#}
+{% block root %}
+<div id="{{ alvo_conteudo }}">
+{% include "planejamento/_eap_conteudo.html" %}
+</div>
+<div id="{{ alvo_formulario }}">
+{% if formulario %}
+{% include "planejamento/_eap_revisao_campos.html" %}
+{% endif %}
+</div>
+{% endblock %}
