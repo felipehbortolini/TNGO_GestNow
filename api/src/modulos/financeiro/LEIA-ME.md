@@ -10,7 +10,7 @@ Módulo `financeiro`. Mantém a Estrutura Analítica de Custos, o desempenho de 
 | Mapa de controle | Orçado, comprometido, realizado, saldo, projeção no término e desvio, com mapa de calor | ISSUE-031 |
 | Cronograma de desembolso | Saldo futuro por item/mês, previsto e realizado | ISSUE-043 |
 | KPIs de custo e Curva S financeira | Índices de custo, valor agregado e séries | ISSUE-042 |
-| Contingência | Reservas, consumo, liberações, exposição e cobertura | ISSUE-041 |
+| Contingência | Reservas, consumo, liberações e composição | ISSUE-041 |
 | Contratos e ficha do contrato | Medições, aditivos, marcos, claims, EOT e avaliações | ISSUE-032 a ISSUE-035 |
 
 ## Trios das telas
@@ -124,6 +124,29 @@ Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme
 * **Resumo e indicadores**: `calculations.contracts_summary` e `calculations.contract_indicators` consolidam os dez números a partir dos fatos do escopo (`service.contracts_overview`), com a data de referência injetada; a coluna Medido da aba Contratos usa `calculations.contract_measured_percent`.
 * **Carga e verificação**: as partes `financeiro-contratos`, `financeiro-contratos-fluxos` e `financeiro-contratos-avaliacoes` da carga de demonstração alimentam a visão; `tests/financeiro/test_contratos_indicadores_calculos.py`, `test_contratos_consolidado_servico.py` e `test_contratos_consolidado_rotas.py` afirmam as fórmulas, a leitura do escopo, os filtros, as permissões e os exports.
 * **Onde mexer**: os indicadores em `calculations.py`; a leitura do escopo em `service.py::contracts_overview`; as rotas, os filtros e o contexto em `routes.py`; o documento do Excel e do imprimível em `export.py::contratos_consolidado_document`; os fragmentos em `api/src/templates/financeiro/contratos_consolidado*.html` e `_contratos_kpis.html`/`_contratos_tabelas.html`; a tela em `app/_views/financeiro/contratos.html` e o trio em `app/paginas/financeiro/contratos.css` e `.js`. A tabela Onde mexer deste documento continua valendo.
+
+## O que a ISSUE-041 trouxe
+
+* **Tela Contingência** (`financeiro/contingencia`): os quatro indicadores da fatia — saldo da contingência (com o saldo previsto pelo avanço físico planejado e o rodapé com o constituído, o consumido e o liberado), consumo da contingência (o consumido sobre o constituído, contra o limite de avanço físico real mais a tolerância do parâmetro), pedido em SMs em análise (com o saldo se aprovadas e o link para o painel de mudanças) e reserva gerencial (fora da linha de base, liberada só pelo Comitê) —, os alertas de consumo acima do limite e de pedido acima do saldo, o gráfico **Linhas Múltiplas** (D11) do saldo real x previsto pelo avanço planejado, a composição (orçado atual da EAC mais o saldo da contingência = linha de base de custo; mais o saldo da reserva gerencial = orçamento do projeto) e o extrato de movimentos (constituição, consumo e liberação das SMs aprovadas e os pedidos em análise, com a SM linkada e a situação). No Portfólio, a tabela Reservas por projeto (constituída, consumida, saldo, consumo x limite, em análise e reserva gerencial, com a linha de total) e o extrato com a coluna Projeto. A tela é só de leitura — o consumo e a liberação se pedem pela SM, na Governança — e o fragmento `contingencia.html` entra no alvo `contingencia-conteudo`; Excel e PDF saem pelos mecanismos genéricos (`data-tn-excel` e `data-tn-pdf`).
+* **Extrato com saldo por reserva**: cada linha efetivada carrega o saldo corrente da própria reserva (contingência e gerencial independentes), como o protótipo o calculava antes de juntar os extratos; a linha "Em análise" mostra o pedido da SM aberta com a situação, sem alterar saldo algum (`service._movement_views`).
+* **Regra da Governança**: o consumo só por SM aprovada com a fonte da reserva (a fonte Reserva gerencial exige o Comitê, pela alçada) e a liberação só por SM do tipo Liberação de reserva; a análise e a decisão conferem o saldo e recusam (422) acima dele — a liberação é limitada ao saldo menos o pedido em outras SMs abertas. A aprovação grava o movimento (negativo) na mesma transação da decisão (`governanca.service._check_reserve`, `_record_reserve` → `financeiro.check_reserve_consumption`, `check_reserve_release`, `record_reserve_consumption`, `record_reserve_release`).
+* **Rotas** (`routes.py`): `GET /api/financeiro/contingencia` (fragmento no alvo `contingencia-conteudo`; projeto ou Portfólio no mesmo endereço), `GET .../contingencia/excel` e `GET .../contingencia/imprimivel` (D12, com a coluna Projeto no Portfólio).
+* **Integrações**: o painel de mudanças mostra o consumo da reserva de contingência (`governanca.service` lê `financeiro.contingency_consumption`); o Mapa de controle ganhou a faixa **Reservas** — o saldo cobre o desvio projetado? — em `financeiro.service._map_reserves`; o saldo previsto e o burn saem da Curva S física congelada (ISSUE-039).
+* **Carga e verificação**: a parte `financeiro-reservas` (`seed.py::load_reserves`, registrada pela carga da Governança) grava as reservas do mock e o movimento de cada SM aprovada que consome ou libera; `api/tests/financeiro/test_reserva_calculos.py`, `test_reserva_validacao.py`, `test_reserva_servico.py` e `test_contingencia_rotas.py` afirmam as fronteiras (consumo acima do saldo, liberação acima do saldo menos o pedido, limite de consumo) e a tela com os exports.
+* **Ficou para a ISSUE-067**: a cobertura sobre a exposição a riscos (VME das ameaças ativas), o KPI de cobertura e a lista de ameaças ativas com as SMs vinculadas — o número depende do módulo de Riscos.
+
+* **Fórmulas e nomes no código**: os indicadores da reserva.
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Saldo da reserva | Soma dos movimentos: constituição positiva; consumo e liberação negativos | `calculations.reserve_balance`, `service._reserve_entries` |
+| Consumo da reserva | Consumido sobre o constituído, com uma casa; sem reserva constituída não há percentual | `calculations.reserve_consumption_pct` |
+| Limite de consumo | `min(100, avanço físico real + tolerância)`, com uma casa; sem avanço real não há limite | `calculations.reserve_consumption_limit`, `service._consumption_tolerance` |
+| Saldo se aprovadas | Saldo menos o valor pedido em SMs em análise | `calculations.reserve_after_analysis` |
+| Composição do orçamento | Linha de base de custo = orçado atual da EAC + saldo da contingência; orçamento do projeto = linha de base + saldo da reserva gerencial | `calculations.reserve_composition` |
+| Saldo real x previsto | Previsto = constituído × (1 − avanço planejado), meio centavo para cima; real = constituído mais consumos e liberações até o fim do mês, nulo depois do corte; na carteira, a soma dos projetos por mês até o corte mais novo | `calculations.reserve_burn`, `calculations.reserve_burn_union` |
+| Pedido em SMs abertas | Soma das SMs abertas de consumo pela fonte e de liberação pela reserva, por tipo | `service.reserve_state`, `service._open_reserve_request_totals` |
+| Visão do escopo | As reservas, o extrato, o burn da Curva S e a composição; no Portfólio a soma com a tabela por projeto | `service.contingency_overview`, `service._portfolio_contingency` |
 
 ## Fórmulas e nomes no código
 
