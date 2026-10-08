@@ -23,6 +23,10 @@ and after (D5b).
   the done work are distinct states, as in the app.
 * **A change request is for the closed item**: publicada or approved, exactly where
   the app offers the button; the planner decides and applying reopens the activity.
+* **The configuration is per project** (ISSUE-054): the parameters and the windows of
+  each company are edited by the Planner of the project or the Admin, effective at once
+  and with the before and after in the single trail; a project without a row reads the
+  app's defaults, and ``ensure_settings`` writes the row with them (ISSUE-078 calls it).
 
 Nothing here reads the clock: the caller passes the instant in the ``Caller``
 (``core.calendario.now``). Every write goes through ``core.recording`` with the
@@ -84,7 +88,7 @@ from src.modulos.programacao_semanal.views import (
 )
 
 NOT_FOUND_MESSAGE = "Atividade não encontrada."
-INVALID_WEEK_MESSAGE = "Informe uma semana válida, no formato S.30/2026."
+INVALID_WEEK_MESSAGE = validation.INVALID_WEEK_MESSAGE
 HAS_REQUESTS_MESSAGE = "A atividade tem pedidos de alteração e não pode ser excluída."
 PORTFOLIO_READ_ONLY = "No Portfólio a programação é só de leitura: escolha um projeto para gravar."
 TIMENOW_SUPPORT = "Equipe Timenow — programação liberada como apoio."
@@ -164,10 +168,15 @@ _TRAIL_APPROVAL_LABELS = {
 }
 
 # The defaults of the app for a project that has no configuration row yet (D10); the
-# configuration screen (ISSUE-054) writes the row.
-DEFAULT_ADHERENCE_TARGET = 60.0
-DEFAULT_PPC_TARGET = 75.0
-DEFAULT_DEVIATION_LIMIT = 15.0
+# configuration screen (ISSUE-054) writes the row, and ``ensure_settings`` creates it.
+DEFAULT_ADHERENCE_TARGET = validation.DEFAULT_ADHERENCE_TARGET
+DEFAULT_PPC_TARGET = validation.DEFAULT_PPC_TARGET
+DEFAULT_DEVIATION_LIMIT = validation.DEFAULT_DEVIATION_LIMIT
+
+# The configuration of the schedule (ISSUE-054), as the app words it.
+SETTINGS_SAVED = "Parâmetros da programação salvos."
+WINDOW_SAVED = "Janela de {company} atualizada."
+CONFIGURATION_COMPANY_MISSING = "A empresa escolhida não está cadastrada."
 
 SORTABLE = (
     "item",
@@ -799,19 +808,240 @@ def store_window(
     """Write the window of a company in a project: its weekdays, released weeks and extras."""
     row = ScheduleWindow(project_id=project_id, company_id=rules.company_id)
     recording.create(session, user_id=author_id, record=row)
-    for day in rules.days:
-        session.add(
-            WindowWeekday(window_id=row.id, weekday=day.weekday, opens=day.opens, closes=day.closes)
-        )
-    for week in sorted(rules.weeks, key=weeks.sort_key):
-        session.add(WindowWeek(window_id=row.id, week=week))
-    for extra in rules.extras:
-        session.add(
-            WindowExtraRelease(
-                window_id=row.id, week=extra.week, opens=extra.opens, closes=extra.closes
-            )
-        )
+    _write_window_rules(session, row, rules)
     session.flush()
+    return row
+
+
+# ── The configuration of the project (ISSUE-054) ─────────────────────────
+
+
+@dataclass(frozen=True)
+class SettingsWindow:
+    """One company's window as the configuration screen reads it."""
+
+    company_id: int
+    company: str
+    version: int | None
+    days: tuple[window_rules.WindowDay, ...]
+    weeks: tuple[str, ...]
+    extras: tuple[window_rules.ExtraRelease, ...]
+    is_open: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class ScheduleConfiguration:
+    """The configuration of the scope: the parameters and the windows of the project."""
+
+    project_id: int | None
+    project_label: str
+    is_portfolio: bool
+    can_edit: bool
+    has_row: bool
+    settings_version: int | None
+    parameters: ScheduleParameters
+    windows: list[SettingsWindow]
+
+
+def configuration_of(session: Session, *, caller: Caller) -> ScheduleConfiguration:
+    """The parameters and the windows of the project; in the Portfólio only the notice (D8).
+
+    The parameters come from the row when the project has one and from the app's defaults
+    when it does not; the windows are one per company of the register, with the state of
+    the reference week. Nothing here writes: the screen of the Portfólio is read-only.
+    """
+    project_id = caller.scope.project_id
+    parameters = parameters_of(session, project_id)
+    if project_id is None:
+        return ScheduleConfiguration(
+            project_id=None,
+            project_label="",
+            is_portfolio=True,
+            can_edit=False,
+            has_row=False,
+            settings_version=None,
+            parameters=parameters,
+            windows=[],
+        )
+    row = repository.settings_of(session, project_id)
+    week = default_week(session, caller=caller)
+    now_local = calendario.in_product_timezone(caller.now)
+    return ScheduleConfiguration(
+        project_id=project_id,
+        project_label=registers.project_labels(session, {project_id}).get(project_id, ""),
+        is_portfolio=False,
+        can_edit=permissions.can_manage_settings(caller.user, project_id),
+        has_row=row is not None,
+        settings_version=row.version if row is not None else None,
+        parameters=parameters,
+        windows=[
+            _settings_window(
+                session,
+                option,
+                project_id=project_id,
+                week=week,
+                now=now_local,
+            )
+            for option in _configuration_companies(session, caller.user)
+        ],
+    )
+
+
+def _configuration_companies(session: Session, user: User) -> list[Option]:
+    """The companies the configuration lists: every one, or only the supplier's own (D7)."""
+    return registers.list_companies(session, only=rbac.company_scope(user))
+
+
+def _settings_window(
+    session: Session, option: Option, *, project_id: int, week: str, now: datetime
+) -> SettingsWindow:
+    """One company's window with its rules and the open-or-closed state of the week."""
+    row = repository.window_row_of(session, project_id=project_id, company_id=option.id)
+    window = repository.window_of_row(session, row) if row is not None else None
+    decision = window_rules.decide(week, window, now)
+    return SettingsWindow(
+        company_id=option.id,
+        company=option.label,
+        version=row.version if row is not None else None,
+        days=window.days if window is not None else (),
+        weeks=tuple(sorted(window.weeks, key=weeks.sort_key)) if window is not None else (),
+        extras=window.extras if window is not None else (),
+        is_open=decision.is_open,
+        reason=decision.reason,
+    )
+
+
+def ensure_settings(session: Session, *, author_id: int, project_id: int) -> ScheduleSettings:
+    """The configuration row of a project, created with the app's defaults (D10, ISSUE-078).
+
+    A project is born with the values the app gave a new environment (60/75/15, the
+    deviation rule on); the creation of a project calls this, and a project that still
+    lived on the defaults gets its row on the first save of the configuration screen.
+    """
+    row = repository.settings_of(session, project_id)
+    if row is not None:
+        return row
+    row = ScheduleSettings(
+        project_id=project_id,
+        adherence_target=DEFAULT_ADHERENCE_TARGET,
+        ppc_target=DEFAULT_PPC_TARGET,
+        reference_week=None,
+        requires_deviation_note=True,
+        deviation_limit=DEFAULT_DEVIATION_LIMIT,
+    )
+    recording.create(session, user_id=author_id, record=row)
+    return row
+
+
+def save_parameters(
+    session: Session,
+    *,
+    caller: Caller,
+    form: validation.ScheduleSettingsForm,
+    version: str | None,
+) -> ScheduleSettings:
+    """Write the parameters of the project, effective at once, with before and after (D10).
+
+    Only the Planner of the project or the Admin; unlike the general parameters of the
+    platform there is no versioning with justification — the single trail keeps the before
+    and the after, and the next request already reads the new value.
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_manage_settings(user, project_id):
+        raise AccessDeniedError(permissions.SETTINGS_DENIED)
+    errors = validation.settings_errors(form)
+    if errors:
+        raise InvalidDataError(errors)
+
+    row = repository.settings_of(session, project_id)
+    if row is None:
+        row = ScheduleSettings(
+            project_id=project_id,
+            adherence_target=form.adherence_target,
+            ppc_target=form.ppc_target,
+            reference_week=form.reference_week or None,
+            requires_deviation_note=form.requires_deviation_note,
+            deviation_limit=form.deviation_limit,
+        )
+        recording.create(session, user_id=user.id, record=row)
+        return row
+    recording.update(
+        session,
+        user_id=user.id,
+        record=row,
+        changes={
+            "adherence_target": form.adherence_target,
+            "ppc_target": form.ppc_target,
+            "reference_week": form.reference_week or None,
+            "requires_deviation_note": form.requires_deviation_note,
+            "deviation_limit": form.deviation_limit,
+        },
+        version=version,
+    )
+    return row
+
+
+def save_window(
+    session: Session,
+    *,
+    caller: Caller,
+    form: validation.WindowForm,
+    version: str | None,
+) -> ScheduleWindow:
+    """Write the window of a company: its days, released weeks and extraordinary releases.
+
+    The rules replace the previous set, as the app saves them; the trail keeps the before
+    and the after with the rules, not just the row. Creating a window has no version to
+    compare; editing one demands the version the screen opened (409).
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_manage_settings(user, project_id):
+        raise AccessDeniedError(permissions.SETTINGS_DENIED)
+    errors = validation.window_errors(form)
+    company_id = form.company_id
+    if company_id is None:
+        raise InvalidDataError(errors or {"empresa": validation.WINDOW_COMPANY_REQUIRED})
+    if not _offers(registers.list_companies(session), company_id):
+        raise InvalidDataError({**errors, "empresa": CONFIGURATION_COMPANY_MISSING})
+    if errors:
+        raise InvalidDataError(errors)
+
+    row = repository.window_row_of(session, project_id=project_id, company_id=company_id)
+    before = _window_snapshot(session, row)
+    current = repository.window_of_row(session, row) if row is not None else None
+    if row is None:
+        row = ScheduleWindow(project_id=project_id, company_id=company_id)
+        session.add(row)
+        session.flush()
+        action = audit.CREATED
+    else:
+        versioning.require(session, row, version)
+        _clear_window_rules(session, row)
+        versioning.advance(row)
+        session.flush()
+        action = audit.UPDATED
+
+    catalog = validation.merge_extras(current.extras if current is not None else (), form)
+    _write_window_rules(
+        session, row, validation.window_of(form, company_id=company_id, extras=catalog)
+    )
+    session.flush()
+    audit.append(
+        session,
+        audit.TrailLine(
+            user_id=user.id,
+            entity=ScheduleWindow.__tablename__,
+            record_id=row.id,
+            action=action,
+            before=before,
+            after=_window_snapshot(session, row),
+            project_id=project_id,
+            occurred_at=caller.now,
+        ),
+    )
     return row
 
 
@@ -1813,6 +2043,58 @@ def _day_line(
         after=None if action == audit.DELETED else audit.snapshot(day),
         project_id=project_id,
     )
+
+
+def _write_window_rules(session: Session, row: ScheduleWindow, rules: window_rules.Window) -> None:
+    """Write the children of a window row: its weekdays, released weeks and extras."""
+    for day in rules.days:
+        session.add(
+            WindowWeekday(window_id=row.id, weekday=day.weekday, opens=day.opens, closes=day.closes)
+        )
+    for week in sorted(rules.weeks, key=weeks.sort_key):
+        session.add(WindowWeek(window_id=row.id, week=week))
+    for extra in rules.extras:
+        session.add(
+            WindowExtraRelease(
+                window_id=row.id, week=extra.week, opens=extra.opens, closes=extra.closes
+            )
+        )
+
+
+def _clear_window_rules(session: Session, row: ScheduleWindow) -> None:
+    """Drop the children of a window row: saving the window replaces the whole rule set."""
+    for model in (WindowWeekday, WindowWeek, WindowExtraRelease):
+        session.execute(delete(model).where(model.window_id == row.id))
+
+
+def _window_snapshot(session: Session, row: ScheduleWindow | None) -> dict[str, Any] | None:
+    """A window row with its rules, keyed by column name: what the trail shows as before/after."""
+    if row is None:
+        return None
+    window = repository.window_of_row(session, row)
+    return {
+        "id": row.id,
+        "projeto_id": row.project_id,
+        "empresa_id": row.company_id,
+        "versao": row.version,
+        "dias": [
+            {
+                "dia_semana": day.weekday,
+                "abre": window_rules.hours_text(day.opens),
+                "fecha": window_rules.hours_text(day.closes),
+            }
+            for day in window.days
+        ],
+        "semanas": sorted(window.weeks, key=weeks.sort_key),
+        "extras": [
+            {
+                "semana": extra.week,
+                "abre": extra.opens.isoformat(),
+                "fecha": extra.closes.isoformat(),
+            }
+            for extra in window.extras
+        ],
+    }
 
 
 @dataclass(frozen=True)

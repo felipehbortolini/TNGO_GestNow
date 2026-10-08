@@ -203,14 +203,22 @@ def windows(
     return list(session.scalars(statement))
 
 
-def window_of(session: Session, *, project_id: int, company_id: int) -> window_rules.Window | None:
-    """The window of the company in the project, or ``None`` when it has none."""
+def window_row_of(session: Session, *, project_id: int, company_id: int) -> ScheduleWindow | None:
+    """The window row of the company in the project, or ``None`` when it has none."""
     statement = select(ScheduleWindow).where(
         ScheduleWindow.project_id == project_id, ScheduleWindow.company_id == company_id
     )
-    row = session.scalars(statement).one_or_none()
-    if row is None:
-        return None
+    return session.scalars(statement).one_or_none()
+
+
+def window_of(session: Session, *, project_id: int, company_id: int) -> window_rules.Window | None:
+    """The window of the company in the project, or ``None`` when it has none."""
+    row = window_row_of(session, project_id=project_id, company_id=company_id)
+    return window_of_row(session, row) if row is not None else None
+
+
+def window_of_row(session: Session, row: ScheduleWindow) -> window_rules.Window:
+    """The rules of one window row: its weekdays, released weeks and extraordinary releases."""
     weekdays = session.scalars(
         select(WindowWeekday)
         .where(WindowWeekday.window_id == row.id)

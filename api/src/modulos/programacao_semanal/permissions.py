@@ -16,6 +16,7 @@ roles. A Visualizador may well be Planejador: the axes are independent.
 | Publicar (e editar o publicado) | Planejador ou Admin |
 | Excluir atividade | Admin |
 | Decidir pedido de alteração | Planejador ou Admin |
+| Editar a configuração (parâmetros e janelas) | Planejador no projeto ou Admin |
 | Ver a trilha de auditoria | Planejador no projeto, Admin fora dele |
 
 ``next_action`` is the queue of the five steps in the order of the process
@@ -35,6 +36,7 @@ from src.modulos.programacao_semanal import calculations
 
 CREATE_DENIED = "Seu perfil não cria programação."
 EDIT_DENIED = "Seu perfil não edita programação."
+SETTINGS_DENIED = "Só o Planejador deste projeto ou o Admin alteram a configuração da programação."
 VALIDATE_DENIED = "Seu perfil não valida programação."
 REPORT_DENIED = "Seu perfil não registra o realizado."
 APPROVE_DENIED = "Seu perfil não aprova o realizado."
@@ -109,6 +111,11 @@ def can_delete(user: User) -> bool:
 
 def can_decide_requests(user: User, project_id: int) -> bool:
     """Whether the user applies or refuses change requests: the Planner or the Admin."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_manage_settings(user: User, project_id: int) -> bool:
+    """Whether the user edits the project's configuration: the Planner or the Admin (D10)."""
     return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
 
 
