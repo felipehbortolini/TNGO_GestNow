@@ -12,7 +12,7 @@ Nothing here reads the clock: the routes pass the reference date.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -3462,6 +3462,38 @@ class EvaluationView:
     version: int = 1
 
 
+# ── Ligação com o cadastro de fornecedores (D9, ISSUE-057) ───────────────
+
+
+@dataclass(frozen=True)
+class FinalEvaluation:
+    """A avaliação final de um contrato, como o módulo que a escuta a recebe (D9, ISSUE-057)."""
+
+    company_id: int
+    contract_number: str
+    period: date
+    score: int
+    score_class: str
+
+
+FinalEvaluationListener = Callable[[Session, User, "FinalEvaluation", date], None]
+_final_evaluation_listeners: list[FinalEvaluationListener] = []
+
+
+def register_final_evaluation_listener(listener: FinalEvaluationListener) -> None:
+    """Diz quem atualiza a qualificação do fornecedor quando a avaliação é final (D9, ISSUE-057)."""
+    if listener not in _final_evaluation_listeners:
+        _final_evaluation_listeners.append(listener)
+
+
+def _notify_final_evaluation(
+    session: Session, user: User, evaluation: FinalEvaluation, reference_date: date
+) -> None:
+    """Avisa cada ouvinte registrado, dentro da transação da avaliação (D9)."""
+    for listener in _final_evaluation_listeners:
+        listener(session, user, evaluation, reference_date)
+
+
 def create_evaluation(
     session: Session,
     *,
@@ -3563,9 +3595,23 @@ def create_evaluation(
             requires_plan=requires_plan,
             reference_date=reference_date,
         )
-    return _evaluation_view(
+    view = _evaluation_view(
         session, record, criteria=criteria, settings=settings, evaluator=user.name
     )
+    if parsed.kind == calculations.EVALUATION_KIND_FINAL and view.score is not None:
+        _notify_final_evaluation(
+            session,
+            user,
+            FinalEvaluation(
+                company_id=contract.company_id,
+                contract_number=contract.number,
+                period=parsed.period,
+                score=view.score,
+                score_class=view.score_class,
+            ),
+            reference_date,
+        )
+    return view
 
 
 def _evaluation_rows(session: Session, *, contract_id: int) -> list[ContractEvaluation]:
@@ -4061,6 +4107,98 @@ def _overview_projects(
     if scope.is_portfolio:
         return tuple(projects)
     return (_project_of(projects, scope),)
+
+
+# ── Desempenho por empresa, para o cadastro de fornecedores (D9, ISSUE-057) ──
+
+
+@dataclass(frozen=True)
+class CompanyContractRecord:
+    """Um contrato do escopo com a empresa: número, objeto e valor original em centavos."""
+
+    company_id: int
+    number: str
+    object: str
+    original_value_cents: int
+
+
+@dataclass(frozen=True)
+class CompanyEvaluationRecord:
+    """Uma avaliação da empresa, já calculada: período, tipo, contrato, nota e classe."""
+
+    company_id: int
+    contract_number: str
+    period: date
+    kind: str
+    score: int | None
+    score_class: str
+    class_description: str
+
+
+@dataclass(frozen=True)
+class CompanyPerformance:
+    """O desempenho de uma empresa no escopo: os contratos e as avaliações deles."""
+
+    contracts: tuple[CompanyContractRecord, ...]
+    evaluations: tuple[CompanyEvaluationRecord, ...]
+
+
+def company_performance(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> dict[int, CompanyPerformance]:
+    """Os contratos do escopo e as avaliações de cada empresa (o 04 lê o desempenho aqui).
+
+    O cadastro de fornecedores é global, mas o desempenho é do escopo: no Portfólio entram os
+    contratos dos três projetos e, no projeto aberto, só os dele. A nota e a classe de cada
+    avaliação saem dos pesos congelados (D5b); a avaliação com período depois da data de
+    referência de quem lê não conta.
+    """
+    rbac.require_module(user, MODULE)
+    chosen = _overview_projects(configuracoes.list_projects(session), scope)
+    project_ids = [project.id for project in chosen]
+    if not project_ids:
+        return {}
+    contracts = list(
+        session.scalars(
+            select(Contract)
+            .where(Contract.project_id.in_(project_ids))
+            .order_by(Contract.number, Contract.id)
+        )
+    )
+    records: dict[int, list[CompanyContractRecord]] = {}
+    evaluations: dict[int, list[CompanyEvaluationRecord]] = {}
+    for contract in contracts:
+        records.setdefault(contract.company_id, []).append(
+            CompanyContractRecord(
+                company_id=contract.company_id,
+                number=contract.number,
+                object=contract.object,
+                original_value_cents=contract.original_value_cents,
+            )
+        )
+        for view in _evaluation_views(session, _evaluation_rows(session, contract_id=contract.id)):
+            if view.period > reference_date:
+                continue
+            evaluations.setdefault(contract.company_id, []).append(
+                CompanyEvaluationRecord(
+                    company_id=contract.company_id,
+                    contract_number=contract.number,
+                    period=view.period,
+                    kind=view.kind,
+                    score=view.score,
+                    score_class=view.score_class,
+                    class_description=view.class_description,
+                )
+            )
+    return {
+        company_id: CompanyPerformance(
+            contracts=tuple(records.get(company_id, ())),
+            evaluations=tuple(
+                sorted(evaluations.get(company_id, ()), key=lambda item: (item.period, item.kind))
+            ),
+        )
+        for company_id in {*records, *evaluations}
+    }
 
 
 def _project_contracts(session: Session, *, project_id: int) -> list[Contract]:

@@ -853,6 +853,41 @@ def discipline_names_by_id(session: Session) -> dict[int, str]:
 # ``ensure_*`` finds the row and creates it (with the trail) only when it is missing.
 
 
+@dataclass(frozen=True)
+class CompanySummary:
+    """Uma empresa do cadastro com o tipo: o que o seletor de fornecedores lê (ISSUE-057)."""
+
+    id: int
+    name: str
+    kind: str | None
+
+
+def list_company_summaries(session: Session) -> list[CompanySummary]:
+    """Todas as empresas do cadastro, por nome: o universo da tela de fornecedores."""
+    statement = select(Company.id, Company.name, Company.kind).order_by(Company.name, Company.id)
+    return [
+        CompanySummary(id=row.id, name=row.name, kind=row.kind)
+        for row in session.execute(statement)
+    ]
+
+
+def find_company_id_by_name(session: Session, name: str) -> int | None:
+    """O id da empresa com este nome, sem diferença de maiúsculas, ou ``None`` (nome livre)."""
+    wanted = name.strip().casefold()
+    statement = select(Company.id, Company.name)
+    for row in session.execute(statement):
+        if row.name.strip().casefold() == wanted:
+            return row.id
+    return None
+
+
+def create_company(session: Session, *, author_id: int, name: str, kind: str) -> Company:
+    """Grava a empresa do cadastro, com a trilha e o controle de versão (dono: este módulo)."""
+    return recording.create(
+        session, user_id=author_id, record=Company(name=name.strip(), kind=kind)
+    )
+
+
 def find_project_id(session: Session, code: str) -> int | None:
     """The id of the project with the code, or ``None``."""
     return session.scalar(select(Project.id).where(Project.code == code))

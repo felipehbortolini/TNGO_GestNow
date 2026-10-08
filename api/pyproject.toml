@@ -235,6 +235,23 @@ max-complexity = 10
 "tests/programacao_semanal/test_programacao_dashboard.py" = ["PLR0913"]
 "tests/programacao_semanal/test_programacao_dashboard_rotas.py" = ["PLR0913"]
 
+# `_line_of`, `save_qualification` e `_record_history`, do cadastro de fornecedores (ISSUE-057),
+# têm 10, 6 e 6 parâmetros, e é assim de propósito: depois do `*` são todos KEYWORD-ONLY (a
+# empresa, a qualificação, os documentos, o histórico, a performance e a data de referência). A
+# regra existe para argumento posicional, onde a ordem se erra na chamada; reduzir significaria
+# criar um objeto de opções, a mesma coisa com mais indireção. O mesmo vale para `_form`, nas
+# rotas: depois do `*` são os valores, os erros, os documentos e a empresa, tudo KEYWORD-ONLY.
+"src/modulos/suprimentos/service.py" = ["PLR0913"]
+"src/modulos/suprimentos/routes.py" = ["PLR0913"]
+
+# `_avaliacao_final`, em tests/suprimentos/test_fornecedores_fachada.py, monta a avaliação final
+# do contrato (as notas, o período, o contrato e o armazenamento opcionais) para exercitar a
+# ligação com a qualificação do fornecedor (ISSUE-057), e é assim de propósito: depois do `*` são
+# todos KEYWORD-ONLY, e cada teste informa só o que importa para o caso. A regra existe para
+# argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de
+# opções, a mesma coisa com mais indireção.
+"tests/suprimentos/test_fornecedores_fachada.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 
