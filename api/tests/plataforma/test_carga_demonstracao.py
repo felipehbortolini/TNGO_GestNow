@@ -10,6 +10,7 @@ import json
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select
@@ -86,6 +87,8 @@ from src.modulos.riscos.models import Risk
 from src.modulos.suprimentos import service as suprimentos
 from src.modulos.suprimentos import validation as suprimentos_validation
 from src.modulos.suprimentos.models import (
+    PackageMilestone,
+    PurchasePackage,
     Supplier,
     SupplierCategory,
     SupplierDocument,
@@ -116,6 +119,7 @@ PARTS = [
     "riscos",
     "financeiro-contratos-fluxos",
     "suprimentos-fornecedores",
+    "suprimentos-pacotes",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -1468,6 +1472,102 @@ def test_oraculo_do_cadastro_de_fornecedores_com_a_carga(db_session: Session) ->
     )
     assert tau_no_projeto is not None
     assert tau_no_projeto.contracted_cents == 0, "o desempenho segue o projeto aberto"
+
+
+def test_oraculo_do_plano_de_compras_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-058: os 28 pacotes do mock com as três camadas dos sete marcos.
+
+    Na âncora, os 28 pacotes do protótipo entram assim: 14 do projeto 1, 8 do projeto 2 e 6 do
+    projeto 3; 196 marcos (28 vezes 7), todos com a linha de base, 17 com previsão e 172 com
+    data real; 7 pacotes LLI (4 deles com o gate aprovado) e nenhum emergencial. A etapa sai
+    das datas reais dos marcos: 23 pacotes chegaram a Pedido/contrato emitido, 2 a Propostas
+    recebidas, 1 a Equalização técnica, 1 a Requisição e 1 ainda está Planejado (TR-PC-06, o
+    único com a LB editável). O vínculo à EAC reproduz o mock: 20 pacotes em itens de nível 3 e
+    8 nos itens de nível 2 que o protótipo já usava — só um pacote novo exige o nível 3. A
+    adjudicação atrasada são 4 e o ``plano.entrega`` do mock não vira marco (o modelo o ignora).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, PurchasePackage) == 28, "os pacotes do mock"
+    assert _count(db_session, PackageMilestone) == 196, "28 pacotes vezes 7 marcos"
+    projetos = {project.code: project.id for project in db_session.scalars(select(Project))}
+    assert _pacotes_no(db_session, projetos["TN-2026-014"]) == 14
+    assert _pacotes_no(db_session, projetos["TN-2026-021"]) == 8
+    assert _pacotes_no(db_session, projetos["TN-2026-027"]) == 6
+
+    marcos = db_session.scalars(select(PackageMilestone)).all()
+    assert sum(1 for row in marcos if row.plan_date is not None) == 196
+    assert sum(1 for row in marcos if row.forecast_date is not None) == 17
+    assert sum(1 for row in marcos if row.real_date is not None) == 172
+
+    assert _count_where(db_session, PurchasePackage.lli.is_(True)) == 7
+    assert _count_where(db_session, PurchasePackage.emergency.is_(True)) == 0
+    assert _count_where(db_session, PurchasePackage.gate_lli_date.is_not(None)) == 4
+    com_gate = db_session.scalars(
+        select(PurchasePackage).where(PurchasePackage.gate_lli_reference.is_not(None))
+    ).all()
+    assert all(row.gate_lli_reference and "LLI" in row.gate_lli_reference for row in com_gate)
+
+    nivel3 = db_session.scalar(
+        select(func.count())
+        .select_from(PurchasePackage)
+        .join(EacItem, EacItem.id == PurchasePackage.eac_item_id)
+        .where(EacItem.level == 3)
+    )
+    assert nivel3 == 20, "20 pacotes em itens de custo e 8 nos itens de nível 2 do mock"
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    listagem = suprimentos.list_packages(
+        db_session,
+        user=_user_of(admin),
+        scope=Scope(project_id=None, source="padrao"),
+        filters=suprimentos_validation.PackageFilters(),
+        reference_date=DEMO_ANCHOR,
+    )
+    resumo = listagem.summary
+    assert resumo.packages == 28
+    assert resumo.estimated_cents == 6_447_000_000
+    assert (resumo.with_baseline, resumo.forecast_until_reference, resumo.overdue) == (28, 26, 4)
+    assert (resumo.lli, resumo.lli_critical) == (7, 0)
+    assert resumo.adjudicated is None and resumo.saving_cents is None
+    etapas = Counter(line.stage for line in listagem.lines)
+    assert etapas == {
+        "Pedido/contrato emitido": 23,
+        "Propostas recebidas": 2,
+        "Equalização técnica": 1,
+        "Requisição": 1,
+        "Planejado": 1,
+    }
+    congelados = sum(1 for line in listagem.lines if line.frozen)
+    assert congelados == 27, "só o TR-PC-06 ainda tem a LB editável"
+
+    primeiro = next(line for line in listagem.lines if line.code == "PC-01")
+    assert primeiro.project_label.startswith("TN-2026-014")
+    assert primeiro.stage == "Pedido/contrato emitido"
+    assert primeiro.slack_days == 4, "ROS 12/01/2026 menos o pedido planejado de 08/01/2026"
+    assert primeiro.eac_code == "1.2"
+    assert primeiro.buyer == "Diego Matos"
+
+
+def _pacotes_no(db_session: Session, project_id: int) -> int:
+    return (
+        db_session.scalar(
+            select(func.count())
+            .select_from(PurchasePackage)
+            .where(PurchasePackage.project_id == project_id)
+        )
+        or 0
+    )
+
+
+def _count_where(db_session: Session, *conditions: Any) -> int:
+    return (
+        db_session.scalar(select(func.count()).select_from(PurchasePackage).where(*conditions)) or 0
+    )
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
