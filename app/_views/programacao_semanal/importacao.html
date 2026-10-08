@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--programacao_semanal-importacao"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['programacao_semanal/importacao'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -9,7 +9,10 @@
       </div>
     </div>
 
-    <div class="card">
+    <!-- O painel vem do servidor, dentro de #importacao-painel. -->
+    <div id="importacao-painel" x-show="estado === 'pronto'" x-cloak></div>
+
+    <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>

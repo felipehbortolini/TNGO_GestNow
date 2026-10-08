@@ -17,7 +17,9 @@ from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import attachments, calendario, rbac
+from src.core.export_document import ValueKind, format_value
+from src.core.spreadsheet_reader import MAX_DATA_ROWS, MAX_FILE_BYTES, MEGABYTE
 from src.modulos.configuracoes import registers
 from src.modulos.configuracoes.registers import Option
 from src.modulos.programacao_semanal import (
@@ -71,6 +73,11 @@ REQUEST_FORM_URL = f"{QUEUE_URL}/formulario"
 CONFIGURATION_URL = f"{BASE_URL}/configuracao"
 SETTINGS_SAVE_URL = f"{CONFIGURATION_URL}/parametros"
 WINDOW_SAVE_URL = f"{CONFIGURATION_URL}/janela"
+IMPORT_URL = f"{BASE_URL}/importacao"
+IMPORT_MODEL_URL = f"{IMPORT_URL}/modelo"
+IMPORT_CHECK_URL = f"{IMPORT_URL}/conferir"
+WEEK_EXCEL_URL = f"{BASE_URL}/semana/excel"
+WEEK_PRINTABLE_URL = f"{BASE_URL}/semana/imprimivel"
 
 # The app's week selector: the current year and the next two, one pill per ISO week.
 SELECTOR_YEARS = 3
@@ -594,6 +601,44 @@ def request_context(
         "previsto_texto": presentation.format_quantity(view.figures.planned_total, view.unit),
         "motivo_fechado": _closed_reason(view),
         "salvar_url": QUEUE_URL,
+    }
+
+
+# ── The import and the outputs of the week (ISSUE-055) ───────────────────
+
+
+def import_context(
+    session: Session, *, caller: Caller, params: Mapping[str, str | None]
+) -> dict[str, Any]:
+    """The import tab: the week, the registers the sheet accepts and the outputs of the week.
+
+    In the Portfólio the block only asks for a project (D8) and whoever cannot import
+    sees why (D7); the Excel and the printable sheet stay available in both cases.
+    """
+    week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
+    project_id = caller.scope.project_id
+    options = _options(session, caller)
+    return {
+        "semana": week,
+        "periodo": weeks.period_label(week),
+        "semanas": service.horizon_weeks(session, caller=caller),
+        "portfolio": caller.scope.is_portfolio,
+        "pode_importar": project_id is not None and permissions.can_import(caller.user, project_id),
+        "cadastros": {
+            "locais": [option.label for option in options.locations],
+            "empresas": [option.label for option in options.companies],
+            "unidades": [option.label for option in options.units],
+            "encarregados": [option.label for option in options.foremen],
+            "fiscais": [option.label for option in options.inspectors],
+        },
+        "limite_mb": MAX_FILE_BYTES // MEGABYTE,
+        "limite_linhas": format_value(ValueKind.INTEGER, MAX_DATA_ROWS),
+        "campo_arquivo": attachments.FILE_FIELD,
+        "painel_url": IMPORT_URL,
+        "modelo_url": IMPORT_MODEL_URL,
+        "conferir_url": IMPORT_CHECK_URL,
+        "excel_url": f"{WEEK_EXCEL_URL}?{urlencode({'semana': week})}",
+        "pdf_url": f"{WEEK_PRINTABLE_URL}?{urlencode({'semana': week})}",
     }
 
 

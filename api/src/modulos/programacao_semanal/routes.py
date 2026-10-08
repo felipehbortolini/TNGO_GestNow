@@ -20,25 +20,37 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario
-from src.core.errors import InvalidDataError, VersionConflictError
+from src.core import attachments, calendario, importing
+from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
-from src.core.export_document import Document
+from src.core.export_document import Document, ValueKind
 from src.core.printable import printable_response
 from src.core.responses import AlpineAjaxResponse
 from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.core.spreadsheet_reader import MAX_FILE_BYTES
 from src.modulos.configuracoes import registers
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.programacao_semanal import export, screen, service, validation
+from src.modulos.programacao_semanal import (
+    export,
+    importers,
+    permissions,
+    screen,
+    service,
+    validation,
+)
 from src.modulos.programacao_semanal.screen import SettingsSubmission, WindowSubmission
 from src.modulos.programacao_semanal.service import Caller
 from src.modulos.programacao_semanal.validation import ActivityForm
+from src.modulos.programacao_semanal.views import ActivityView
 
 bp = func.Blueprint()
+
+importers.register_importers()
 
 ACCESS = Access(module="programacao_semanal")
 TEMPLATE_DIR = "programacao_semanal"
@@ -881,3 +893,216 @@ def save_window(
     return _windows_answer(
         req, context, session, toast=service.WINDOW_SAVED.format(company=company)
     )
+
+
+# ── The import and the outputs of the week (ISSUE-055) ───────────────────
+#
+# The import is the generic flow of D12 with the app's importer: the model, the
+# check line by line (nothing written) and the confirmation, which writes every
+# line without error, all or none, with the digest of the checked file. The
+# model is a download (``file_route``: the browser opens it as a file, without
+# the Alpine gate). The Excel and the printable sheet of the week come from the
+# same module: the app's workbook and the app's printed sheet. The handlers are
+# named ``week_import_*`` because the generic blueprint of the platform already
+# owns the ``import_check``/``import_confirm`` names of the Azure Functions host.
+
+IMPORT_BASE = "programacao-semanal/importacao"
+WEEK_EXCEL_ROUTE = "programacao-semanal/semana/excel"
+WEEK_PRINTABLE_ROUTE = "programacao-semanal/semana/imprimivel"
+
+CHECKED_FIELD = "conferido"
+ACKNOWLEDGED_FIELD = "ciente"
+ACKNOWLEDGED_VALUE = "sim"
+
+_NUMERIC_KINDS = frozenset(
+    {ValueKind.INTEGER, ValueKind.DECIMAL, ValueKind.PERCENT, ValueKind.MONEY}
+)
+
+
+def _require_import(context: RequestContext) -> int:
+    """The import is the Planner of the project or the Admin, as the app's ``importar`` (D7)."""
+    project_id = context.scope.require_project()
+    if not permissions.can_import(context.user, project_id):
+        raise AccessDeniedError(permissions.IMPORT_DENIED)
+    return project_id
+
+
+def _import_context(context: RequestContext) -> importing.ImportContext:
+    """Who imports, in which scope and today: the only place of the flow that reads the clock."""
+    return importing.ImportContext(
+        user=context.user, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _upload_of(req: func.HttpRequest) -> importing.Upload:
+    """The file of the form; at most one byte over the limit is read."""
+    sent = req.files.get(attachments.FILE_FIELD)
+    if sent is None:
+        return importing.Upload(name=None, content=b"")
+    return importing.Upload(name=sent.filename, content=sent.stream.read(MAX_FILE_BYTES + 1))
+
+
+@bp.route(route=IMPORT_BASE, methods=["GET"])
+@fragment_route(access=ACCESS)
+def week_import(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The import and print tab: the model, the upload and the week's outputs."""
+    data = screen.import_context(session, caller=_caller(context), params=req.params)
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/importacao.html", context=data, request=req
+    )
+
+
+@bp.route(route=f"{IMPORT_BASE}/modelo", methods=["GET"])
+@file_route(access=ACCESS)
+def week_import_model(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The blank model (.xlsx) of the importer, with the app's columns and instructions."""
+    del req
+    _require_import(context)
+    importer = importers.programacao_importer()
+    document = importing.model_document(
+        session, importer=importer, context=_import_context(context)
+    )
+    return excel_response(document)
+
+
+def _check_context(preview: importing.ImportPreview) -> dict[str, Any]:
+    """What the check fragment prints: the preview, the counts and where the confirmation goes."""
+    return {
+        "arquivo": preview.file_name,
+        "preview": preview,
+        "colunas": [
+            {"cabecalho": column.header, "numerica": column.kind in _NUMERIC_KINDS}
+            for column in preview.columns
+        ],
+        "lidas": len(preview.rows),
+        "vao_gravar": len(preview.writable_rows),
+        "com_aviso": len(preview.warning_rows),
+        "com_erro": len(preview.error_rows),
+        "campo_conferido": CHECKED_FIELD,
+        "campo_ciente": ACKNOWLEDGED_FIELD,
+        "valor_ciente": ACKNOWLEDGED_VALUE,
+        "confirmar_url": f"/api/{IMPORT_BASE}/confirmar",
+    }
+
+
+@bp.route(route=f"{IMPORT_BASE}/conferir", methods=["POST"])
+@fragment_route(access=ACCESS)
+def week_import_check(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Read the spreadsheet and answer what each line will do; nothing is written."""
+    _require_import(context)
+    preview = importing.check(
+        session,
+        importer=importers.programacao_importer(),
+        upload=_upload_of(req),
+        context=_import_context(context),
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/importacao_conferencia.html",
+        context=_check_context(preview),
+        request=req,
+    )
+
+
+def _import_notice(result: importing.ImportResult) -> str:
+    """The toast: how many lines entered and, when an error left some out, how many did not."""
+    written = len(result.written)
+    imported = "1 linha importada" if written == 1 else f"{written} linhas importadas"
+    if not result.skipped:
+        return f"{imported}."
+    skipped = len(result.skipped)
+    left_out = "1 com erro não entrou" if skipped == 1 else f"{skipped} com erro não entraram"
+    return f"{imported}; {left_out}."
+
+
+def _imported_week(result: importing.ImportResult) -> str:
+    """The one week the written lines landed on, for the link back to the matrix."""
+    weeks_written = {
+        str(item.values.get(importers.FIELD_WEEK) or "").strip() for item in result.written
+    }
+    weeks_written.discard("")
+    return next(iter(weeks_written)) if len(weeks_written) == 1 else ""
+
+
+@bp.route(route=f"{IMPORT_BASE}/confirmar", methods=["POST"])
+@fragment_route(access=ACCESS)
+def week_import_confirm(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Write every line without error, all or none, after checking the file again."""
+    _require_import(context)
+    importer = importers.programacao_importer()
+    result = importing.confirm(
+        session,
+        importer=importer,
+        upload=_upload_of(req),
+        context=_import_context(context),
+        confirmation=importing.Confirmation(
+            checked_digest=(req.form.get(CHECKED_FIELD) or "").strip() or None,
+            acknowledged=req.form.get(ACKNOWLEDGED_FIELD) == ACKNOWLEDGED_VALUE,
+        ),
+    )
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/importacao_resultado.html",
+        context={
+            "resultado": result,
+            "importador": importer.title,
+            "semana": _imported_week(result),
+        },
+        request=req,
+        toast=_import_notice(result),
+        toast_tipo="aviso" if result.skipped else "ok",
+    )
+
+
+def _week_of(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> tuple[Caller, str, list[ActivityView]]:
+    """The week asked, its caller and the activities the user sees (the cut is the facade's)."""
+    caller = _caller(context)
+    week = service.resolve_week(session, caller=caller, raw=req.params.get("semana"))
+    return caller, week, service.list_activities(session, caller=caller, week=week)
+
+
+@bp.route(route=WEEK_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=ACCESS)
+def week_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The workbook of the week: the app's sheets, the matrix and the S-curve."""
+    caller, week, views = _week_of(req, session, context)
+    document = export.week_document(
+        week,
+        views,
+        service.week_summary(views),
+        service.week_curve(session, caller=caller, week=week),
+        service.parameters_of(session, caller.scope.project_id),
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=calendario.today(),
+    )
+    return excel_response(document)
+
+
+@bp.route(route=WEEK_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=ACCESS)
+def week_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable sheet of the week: what the PDF button mounts and prints."""
+    caller, week, views = _week_of(req, session, context)
+    document = export.week_report_document(
+        week,
+        views,
+        service.week_summary(views),
+        service.parameters_of(session, caller.scope.project_id),
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=calendario.today(),
+    )
+    return printable_response(document, req)

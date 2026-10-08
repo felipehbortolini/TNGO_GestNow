@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  A conferência da planilha da semana (#importacao-conferencia): resposta de
+  /api/programacao-semanal/importacao/conferir. É o parcial genérico do fluxo de
+  importação (D12) — erro bloqueia a linha, aviso não —, com o botão de confirmar
+  no mesmo formulário do envio, reenviando o arquivo e o resumo conferido.
+
+  Espera: o contexto de routes._check_context.
+#}
+{% block fragment %}
+{% include "comum/_importacao_conferencia.html" %}
+{% endblock %}

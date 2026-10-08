@@ -1,0 +1,51 @@
+{% extends "base_fragment.html" %}
+{#
+  O resultado da importação da semana (#importacao-conferencia): resposta de
+  /api/programacao-semanal/importacao/confirmar. A gravação foi tudo ou nada para
+  as linhas sem erro; as linhas com erro nunca entram e aparecem aqui para a
+  correção na planilha. O formulário do envio é limpo, porque o arquivo já foi
+  importado, e o link leva à programação da semana.
+
+  Espera: resultado (core.importing.ImportResult), importador e semana.
+#}
+{% block fragment %}
+<div class="mt-24" x-init="$el.closest('form').reset()">
+  <div class="aviso {{ 'aviso--ok' if resultado.written else 'aviso--warn' }}" role="status">
+    <strong>{{ resultado.written | length }} linha(s) de {{ importador }} importada(s)</strong>
+    <span>
+      {{ resultado.file_name }}: tudo foi gravado de uma vez, com o registro na trilha.
+      {% if resultado.with_warning %}{{ resultado.with_warning }} linha(s) entraram com aviso.{% endif %}
+    </span>
+  </div>
+
+  {% if resultado.skipped %}
+  <section class="card mt-16">
+    <div class="card__head">
+      <h3 class="h-card5">Linhas que ficaram de fora</h3>
+      <span class="hint">{{ resultado.skipped | length }} com erro, não gravadas: corrija na planilha e envie só elas</span>
+    </div>
+    <div class="card__body">
+      <ul class="lista-simples">
+        {% for item in resultado.skipped %}
+        <li class="lista-simples__item">
+          <span class="pill pill--erro">Linha {{ item.number }} · erro</span>
+          <span class="linha__main">
+            {% for motivo in item.errors %}
+            <span class="linha__titulo">{{ motivo }}</span>
+            {% endfor %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="acoes-rodape mt-16">
+    <a class="btn btn--secondary" data-tn-tela
+      href="/programacao_semanal/programacao{% if semana %}?semana={{ semana | urlencode }}{% endif %}">
+      Abrir a programação
+    </a>
+  </div>
+</div>
+{% endblock %}
