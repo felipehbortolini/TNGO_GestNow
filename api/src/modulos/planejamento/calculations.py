@@ -33,6 +33,14 @@ The planning KPIs (ISSUE-040): the SPI (real over predicted), the monthly SPI
 series up to the cut and the contribution of an area to the real of the project
 (weight times real). The cut already lives in the series, so no function here
 reads the clock (D6).
+
+The productivity (ISSUE-046): the distribution of the baseline total across the
+weeks by the chosen profile (S-curve 20/60/20, linear, concentrated at the start
+or at the end), always closing with the total by the largest remainder; the
+figures of an item (planned, realized, earned hours, factor of productivity and
+the finish trend by earned schedule); and the freeze/redistribute rule of a
+baseline revision, whose balance is the new total minus the frozen weeks. The
+cut, the current week and the reference date all come in as arguments (D6).
 """
 
 from __future__ import annotations
@@ -43,6 +51,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
+from math import ceil
+from typing import Any
 
 from src.core import calendario
 from src.modulos.planejamento.validation import MONTHLY, OPPORTUNITY, THREAT, WEEKLY
@@ -1157,3 +1167,827 @@ def spi_series(
 def area_contribution(weight: Decimal, real: Decimal) -> Decimal:
     """A contribuição da área para o real do projeto: peso vezes real dividido por 100, 1 casa."""
     return (weight * real / PERCENT).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
+
+
+# ── Produtividade: quantidades e apontamento (ISSUE-046) ──────────────────
+
+
+ITEM_DRAFT = "Em elaboração"
+
+
+ITEM_APPROVED = "Aprovada"
+
+
+ITEM_SITUATIONS = (ITEM_DRAFT, ITEM_APPROVED)
+
+
+PROFILE_S_CURVE = "curvaS"
+
+
+PROFILE_LINEAR = "linear"
+
+
+PROFILE_START = "inicio"
+
+
+PROFILE_END = "fim"
+
+
+PROFILES = (PROFILE_S_CURVE, PROFILE_LINEAR, PROFILE_START, PROFILE_END)
+
+
+# O prefixo do código do item quando o projeto ainda não tem nenhum.
+ITEM_CODE_PREFIX = "QTD-"
+
+
+SCURVE_RAMP = Decimal("0.2")
+
+
+SCURVE_BODY = Decimal("0.8")
+
+
+START_WEIGHT = Decimal("1.6")
+
+
+START_SLOPE = Decimal("1.2")
+
+
+END_WEIGHT = Decimal("0.4")
+
+
+END_SLOPE = Decimal("1.2")
+
+
+def item_tolerance(places: int) -> Decimal:
+    """Metade da menor casa da unidade: a folga que a soma das semanas aceita."""
+    return (Decimal(1) / (Decimal(10) ** places)) / 2
+
+
+def round_quantity(value: Decimal, places: int) -> Decimal:
+    """Arredonda uma quantidade na casa da unidade do item (a tolerância da validação)."""
+    return value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+
+
+def round_percent(value: Decimal, places: int = 1) -> Decimal:
+    """Arredonda um percentual (ou índice) com o número de casas que a tela mostra."""
+    return value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+
+
+def places_for_unit(unit_code: str) -> int:
+    """As casas da unidade do item: tonelada guarda uma casa; as demais, nenhuma."""
+    return 1 if unit_code == "t" else 0
+
+
+def s_curve_20_60_20(fraction: Decimal) -> Decimal:
+    """O peso da Curva S 20/60/20: rampa de 20%, pico de 60% e desmobilização de 20%.
+
+    ``fraction`` é o centro da semana no intervalo (``(k + 0,5) / n``); a rampa sobe até
+    20% do prazo, o corpo fica cheio e a desmobilização cai nos últimos 20%.
+    """
+    if fraction < SCURVE_RAMP:
+        return SCURVE_RAMP + SCURVE_BODY * fraction / SCURVE_RAMP
+    if fraction > Decimal(1) - SCURVE_RAMP:
+        return SCURVE_RAMP + SCURVE_BODY * (Decimal(1) - fraction) / SCURVE_RAMP
+    return Decimal(1)
+
+
+def profile_weight(fraction: Decimal, profile: str) -> Decimal:
+    """O peso de uma semana conforme o perfil: curva S, linear, início ou fim."""
+    if profile == PROFILE_S_CURVE:
+        return s_curve_20_60_20(fraction)
+    if profile == PROFILE_START:
+        return START_WEIGHT - START_SLOPE * fraction
+    if profile == PROFILE_END:
+        return END_WEIGHT + END_SLOPE * fraction
+    return Decimal(1)
+
+
+def profile_weights(count: int, profile: str) -> tuple[Decimal, ...]:
+    """O peso de cada uma das ``count`` semanas no perfil; sem semanas, nenhum peso."""
+    if count <= 0:
+        return ()
+    return tuple(
+        profile_weight((Decimal(index) + Decimal("0.5")) / Decimal(count), profile)
+        for index in range(count)
+    )
+
+
+def distribute_total(total: Decimal, count: int, profile: str, places: int) -> tuple[Decimal, ...]:
+    """Distribui o total pelas semanas no perfil, pelo maior resto: a soma fecha com o total.
+
+    O total é contado na sua menor unidade inteira (a casa da unidade); a sobra da divisão
+    vai para as semanas de maior resto, e o empate fica com a semana de menor índice.
+    """
+    if count <= 0:
+        return ()
+    factor = Decimal(10) ** places
+    units = int((total * factor).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    weights = profile_weights(count, profile)
+    weight_total = sum(weights, ZERO)
+    exact = tuple(units * weight / weight_total for weight in weights)
+    shares = [int(value) for value in exact]
+    missing = units - sum(shares)
+    order = sorted(range(count), key=lambda index: (-(exact[index] - shares[index]), index))
+    for index in order[: max(0, missing)]:
+        shares[index] += 1
+    return tuple(Decimal(share) / factor for share in shares)
+
+
+def distribution_closes(
+    values: Sequence[Decimal],
+    total: Decimal,
+    places: int,
+    *,
+    frozen: Decimal = ZERO,
+) -> bool:
+    """A soma das semanas (com as congeladas) fecha com o total dentro da tolerância."""
+    return abs(sum(values, ZERO) + frozen - total) <= item_tolerance(places)
+
+
+def entry_over_limit(others: Decimal, realized: Decimal, total: Decimal, places: int) -> bool:
+    """O acumulado do item passa o total da linha de base, além da tolerância da unidade."""
+    return others + realized > total + item_tolerance(places)
+
+
+def item_code_prefix(codes: Sequence[str]) -> str:
+    """O prefixo do código do item: o do primeiro item do projeto, ou ``QTD-`` quando não há."""
+    if not codes:
+        return ITEM_CODE_PREFIX
+    return re.sub(r"\d+$", "", codes[0])
+
+
+def next_item_code(codes: Sequence[str]) -> str:
+    """O próximo código do projeto: o maior número existente mais um, com dois dígitos."""
+    biggest = 0
+    for code in codes:
+        found = re.search(r"(\d+)$", code)
+        if found is not None:
+            biggest = max(biggest, int(found.group(1)))
+    return f"{item_code_prefix(codes)}{biggest + 1:02d}"
+
+
+def week_label(day: date) -> str:
+    """A semana ISO de uma data (``2026-S39``), a mesma escrita da plataforma."""
+    return calendario.iso_week(day)
+
+
+def week_start(label: str) -> date | None:
+    """A segunda-feira de uma semana ISO, ou ``None`` quando o rótulo não é válido."""
+    return calendario.week_start(label)
+
+
+def list_weeks(first: str, last: str) -> tuple[str, ...]:
+    """As semanas ISO de ``first`` a ``last``, em ordem crescente."""
+    return tuple(calendario.list_periods(WEEKLY, first, last))
+
+
+def weeks_between(first: str, last: str) -> int | None:
+    """Quantas semanas separam duas semanas ISO; ``None`` quando alguma não é válida."""
+    found = list_weeks(first, last)
+    return len(found) - 1 if found else None
+
+
+def shift_week(label: str, count: int) -> str | None:
+    """A semana ``count`` semanas depois (antes, quando negativo) do rótulo."""
+    return calendario.add_periods(WEEKLY, label, count)
+
+
+@dataclass(frozen=True)
+class PlannedWeek:
+    """O previsto da linha de base numa semana."""
+
+    week: str
+    planned: Decimal
+
+
+@dataclass(frozen=True)
+class ReportedWeek:
+    """O apontamento da contratada numa semana: realizado e HH apropriadas."""
+
+    week: str
+    realized: Decimal
+    hh: Decimal
+
+
+@dataclass(frozen=True)
+class ItemFigures:
+    """Os indicadores de um item no corte, como a tela e a exportação os leem.
+
+    Tudo é calculado dos fatos (D5b): o previsto da distribuição da revisão vigente, o
+    realizado e as HH dos apontamentos, e o total e o índice orçado do item. O saldo é o que
+    falta para o total; a tendência de término sai do earned schedule.
+    """
+
+    approved: bool
+    active: bool
+    pending: bool
+    prev_acum: Decimal
+    real_acum: Decimal
+    hh_acum: Decimal
+    prev_week: Decimal
+    real_week: Decimal | None
+    balance: Decimal
+    pct_prev: Decimal | None
+    pct_real: Decimal | None
+    deviation_pp: Decimal | None
+    week_adherence: Decimal | None
+    pf: Decimal | None
+    window_adherence: Decimal | None
+    pf_window: Decimal | None
+    trend_week: str | None
+    deviation_weeks: int | None
+    earned_hours: Decimal
+    planned_hours: Decimal
+    total_hours: Decimal
+    week_earned_hours: Decimal
+    week_planned_hours: Decimal
+    window_appropriated: Decimal
+    window_earned: Decimal
+    window_planned_hours: Decimal
+    window_capped_hours: Decimal
+
+
+def item_figures(
+    *,
+    start_week: str,
+    finish_week: str,
+    total: Decimal,
+    index_hh: Decimal,
+    places: int,
+    situation: str,
+    planned: Sequence[PlannedWeek],
+    reported: Sequence[ReportedWeek],
+    cut_week: str,
+    current_week: str,
+    window_weeks: int,
+) -> ItemFigures:
+    """Os indicadores do item no corte: acumulados, aderência, fator de produtividade e tendência."""
+    planned_by_week = {line.week: line.planned for line in planned}
+    window_start = shift_week(cut_week, -(window_weeks - 1)) or cut_week
+    prev_acum, prev_week, prev_window = _planned_until(
+        planned, cut_week=cut_week, window_start=window_start
+    )
+    real_acum, hh_acum, real_week, hh_window, real_window, capped = _reported_until(
+        reported, planned_by_week=planned_by_week, cut_week=cut_week, window_start=window_start
+    )
+    approved = situation == ITEM_APPROVED
+    balance = round_quantity(max(ZERO, total - real_acum), places)
+    earned = real_acum * index_hh
+    planned_hours = prev_acum * index_hh
+    total_hours = total * index_hh
+    trend_week, deviation_weeks = _finish_trend(
+        approved=approved,
+        balance=balance,
+        real_acum=real_acum,
+        planned=planned,
+        reported=reported,
+        start_week=start_week,
+        finish_week=finish_week,
+        cut_week=cut_week,
+    )
+    return ItemFigures(
+        approved=approved,
+        active=(
+            approved and start_week <= cut_week and (cut_week <= finish_week or real_acum < total)
+        ),
+        pending=(
+            approved
+            and real_week is None
+            and cut_week <= current_week
+            and (prev_week > ZERO or real_acum < total)
+        ),
+        prev_acum=prev_acum,
+        real_acum=real_acum,
+        hh_acum=hh_acum,
+        prev_week=prev_week,
+        real_week=real_week,
+        balance=balance,
+        pct_prev=_share(prev_acum, total),
+        pct_real=_share(real_acum, total),
+        deviation_pp=(
+            None if total <= ZERO else round_percent((real_acum - prev_acum) / total * PERCENT)
+        ),
+        week_adherence=_ratio(min(real_week, prev_week), prev_week)
+        if real_week is not None and prev_week > ZERO
+        else None,
+        pf=round_percent(hh_acum / earned, 2) if earned > ZERO else None,
+        window_adherence=_ratio(capped, prev_window),
+        pf_window=round_percent(hh_window / (real_window * index_hh), 2)
+        if real_window > ZERO
+        else None,
+        trend_week=trend_week,
+        deviation_weeks=deviation_weeks,
+        earned_hours=earned,
+        planned_hours=planned_hours,
+        total_hours=total_hours,
+        week_earned_hours=ZERO if real_week is None else min(real_week, prev_week) * index_hh,
+        week_planned_hours=prev_week * index_hh,
+        window_appropriated=hh_window,
+        window_earned=real_window * index_hh,
+        window_planned_hours=prev_window * index_hh,
+        window_capped_hours=capped * index_hh,
+    )
+
+
+def _planned_until(
+    planned: Sequence[PlannedWeek], *, cut_week: str, window_start: str
+) -> tuple[Decimal, Decimal, Decimal]:
+    """O previsto acumulado até o corte, o da semana do corte e o da janela da média."""
+    acum = ZERO
+    week = ZERO
+    window = ZERO
+    for line in planned:
+        if line.week > cut_week:
+            continue
+        acum += line.planned
+        if line.week >= window_start:
+            window += line.planned
+        if line.week == cut_week:
+            week = line.planned
+    return acum, week, window
+
+
+def _reported_until(
+    reported: Sequence[ReportedWeek],
+    *,
+    planned_by_week: Mapping[str, Decimal],
+    cut_week: str,
+    window_start: str,
+) -> tuple[Decimal, Decimal, Decimal | None, Decimal, Decimal, Decimal]:
+    """O realizado e as HH até o corte, o da semana, os da janela e o realizado limitado ao previsto."""
+    acum = ZERO
+    hours = ZERO
+    week: Decimal | None = None
+    hh_window = ZERO
+    real_window = ZERO
+    capped = ZERO
+    for line in reported:
+        if line.week > cut_week:
+            continue
+        acum += line.realized
+        hours += line.hh
+        if line.week == cut_week:
+            week = line.realized
+        if line.week >= window_start:
+            hh_window += line.hh
+            real_window += line.realized
+            capped += min(line.realized, planned_by_week.get(line.week, ZERO))
+    return acum, hours, week, hh_window, real_window, capped
+
+
+def _finish_trend(
+    *,
+    approved: bool,
+    balance: Decimal,
+    real_acum: Decimal,
+    planned: Sequence[PlannedWeek],
+    reported: Sequence[ReportedWeek],
+    start_week: str,
+    finish_week: str,
+    cut_week: str,
+) -> tuple[str | None, int | None]:
+    """A semana de término pela tendência (earned schedule) e o desvio em semanas da LB.
+
+    Sem saldo, a tendência é a última semana apontada; com saldo, o ritmo do realizado
+    (semanas da LB equivalentes ao realizado sobre as semanas decorridas) projeta a duração.
+    """
+    if not approved or real_acum <= ZERO:
+        return None, None
+    if balance <= ZERO:
+        weeks = sorted(line.week for line in reported if line.week <= cut_week)
+        trend = weeks[-1] if weeks else None
+    else:
+        elapsed = weeks_between(start_week, cut_week)
+        if elapsed is None:
+            return None, None
+        elapsed += 1
+        equivalent = _equivalent_weeks(planned, real_acum)
+        spi_t = equivalent / Decimal(elapsed)
+        if spi_t <= ZERO:
+            return None, None
+        projected = max(elapsed, ceil(Decimal(len(planned)) / spi_t))
+        trend = shift_week(start_week, projected - 1)
+    if trend is None:
+        return None, None
+    return trend, weeks_between(finish_week, trend)
+
+
+def _equivalent_weeks(planned: Sequence[PlannedWeek], real_acum: Decimal) -> Decimal:
+    """As semanas da LB necessárias para chegar ao realizado acumulado (earned schedule)."""
+    acum = ZERO
+    equivalent = ZERO
+    for index, line in enumerate(planned):
+        if acum + line.planned >= real_acum:
+            fraction = (real_acum - acum) / line.planned if line.planned > ZERO else ZERO
+            return Decimal(index) + fraction
+        acum += line.planned
+        equivalent = Decimal(index + 1)
+    return equivalent
+
+
+def _share(value: Decimal, total: Decimal) -> Decimal | None:
+    """O percentual de ``value`` sobre o total, com 1 casa; sem total, não há percentual."""
+    if total <= ZERO:
+        return None
+    return round_percent(value / total * PERCENT)
+
+
+def _ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
+    """A razão em percentual, com 1 casa; sem denominador, não há razão."""
+    if denominator <= ZERO:
+        return None
+    return round_percent(numerator / denominator * PERCENT)
+
+
+def indicator_band(
+    value: Decimal | None, bands: Sequence[Decimal], *, higher_is_better: bool
+) -> str | None:
+    """A faixa de um indicador: ``success``, ``warning`` ou ``danger`` (como no protótipo).
+
+    ``higher_is_better`` diz o sentido bom: aderência e SPI sobem, fator de produtividade desce.
+    """
+    if value is None:
+        return None
+    if higher_is_better:
+        return (
+            SUCCESS_BAND
+            if value >= bands[1]
+            else (WARNING_BAND if value >= bands[0] else DANGER_BAND)
+        )
+    return (
+        SUCCESS_BAND if value <= bands[0] else (WARNING_BAND if value <= bands[1] else DANGER_BAND)
+    )
+
+
+@dataclass(frozen=True)
+class ItemWeek:
+    """Uma semana da ficha do item: o previsto da LB, o apontamento e a aderência da semana."""
+
+    week: str
+    planned: Decimal
+    realized: Decimal | None
+    hh: Decimal | None
+    adherence: Decimal | None
+    pf: Decimal | None
+    planned_pct: Decimal
+    realized_pct: Decimal | None
+    pending: bool
+
+
+def item_weeks(
+    *,
+    start_week: str,
+    total: Decimal,
+    index_hh: Decimal,
+    places: int,
+    situation: str,
+    planned: Sequence[PlannedWeek],
+    reported: Sequence[ReportedWeek],
+    current_week: str,
+) -> tuple[ItemWeek, ...]:
+    """A ficha do item, semana a semana, na união da distribuição com os apontamentos."""
+    entries = {line.week: line for line in reported}
+    planned_by_week = {line.week: line.planned for line in planned}
+    weeks = sorted(set(planned_by_week) | set(entries))
+    approved = situation == ITEM_APPROVED
+    planned_acum = ZERO
+    real_acum = ZERO
+    rows: list[ItemWeek] = []
+    for week in weeks:
+        value = planned_by_week.get(week, ZERO)
+        entry = entries.get(week)
+        planned_acum += value
+        if entry is not None:
+            real_acum += entry.realized
+        realized = entry.realized if entry is not None else None
+        hours = entry.hh if entry is not None else None
+        rows.append(
+            ItemWeek(
+                week=week,
+                planned=round_quantity(value, places),
+                realized=None if realized is None else round_quantity(realized, places),
+                hh=hours,
+                adherence=(
+                    _ratio(min(realized, value), value)
+                    if realized is not None and value > ZERO
+                    else None
+                ),
+                pf=(
+                    round_percent(hours / (realized * index_hh), 2)
+                    if hours is not None and realized is not None and realized > ZERO
+                    else None
+                ),
+                planned_pct=_share(planned_acum, total) or ZERO,
+                realized_pct=None if realized is None else _share(real_acum, total),
+                pending=(
+                    entry is None and approved and week <= current_week and week >= start_week
+                ),
+            )
+        )
+    return tuple(rows)
+
+
+@dataclass(frozen=True)
+class QuantityIndicators:
+    """Os indicadores da aba Quantidades: avanço, SPI de quantidades, aderência e FP."""
+
+    items: int
+    pct_prev: Decimal | None
+    pct_real: Decimal | None
+    spi: Decimal | None
+    pf: Decimal | None
+    pf_window: Decimal | None
+    week_adherence: Decimal | None
+    window_adherence: Decimal | None
+    pending: int
+    late_trend: int
+    hh_appropriated: Decimal
+    earned_hours: Decimal
+    budgeted_hours: Decimal
+
+
+def quantities_indicators(figures: Sequence[ItemFigures]) -> QuantityIndicators:
+    """Os indicadores das quantidades: as horas ganhas somam unidades diferentes (o protótipo)."""
+    total_hours = sum((item.total_hours for item in figures), ZERO)
+    earned = sum((item.earned_hours for item in figures), ZERO)
+    planned = sum((item.planned_hours for item in figures), ZERO)
+    hours = sum((item.hh_acum for item in figures), ZERO)
+    with_entry = [
+        item for item in figures if item.week_planned_hours > ZERO and item.real_week is not None
+    ]
+    week_planned = sum((item.week_planned_hours for item in with_entry), ZERO)
+    window_appropriated = sum((item.window_appropriated for item in figures), ZERO)
+    window_earned = sum((item.window_earned for item in figures), ZERO)
+    window_planned = sum((item.window_planned_hours for item in figures), ZERO)
+    window_capped = sum((item.window_capped_hours for item in figures), ZERO)
+    return QuantityIndicators(
+        items=len(figures),
+        pct_prev=_share(planned, total_hours),
+        pct_real=_share(earned, total_hours),
+        spi=round_percent(earned / planned, 2) if planned > ZERO else None,
+        pf=round_percent(hours / earned, 2) if earned > ZERO else None,
+        pf_window=round_percent(window_appropriated / window_earned, 2)
+        if window_earned > ZERO
+        else None,
+        week_adherence=_ratio(
+            sum((item.week_earned_hours for item in with_entry), ZERO), week_planned
+        ),
+        window_adherence=_ratio(window_capped, window_planned),
+        pending=sum(1 for item in figures if item.pending),
+        late_trend=sum(1 for item in figures if (item.deviation_weeks or 0) > 0),
+        hh_appropriated=hours,
+        earned_hours=round_quantity(earned, 0),
+        budgeted_hours=round_quantity(total_hours, 0),
+    )
+
+
+@dataclass(frozen=True)
+class GroupedItem:
+    """Um item aprovado como o resumo por grupo o lê: grupo, unidade, total e indicadores."""
+
+    group: str
+    unit: str
+    places: int
+    total: Decimal
+    figures: ItemFigures
+
+
+@dataclass(frozen=True)
+class GroupSummary:
+    """O resumo de um grupo de itens aprovados na unidade deles."""
+
+    group: str
+    unit: str
+    places: int
+    items: int
+    total: Decimal
+    prev_acum: Decimal
+    real_acum: Decimal
+    prev_week: Decimal
+    real_week: Decimal
+    pct_prev: Decimal | None
+    pct_real: Decimal | None
+
+
+def group_summaries(items: Sequence[GroupedItem]) -> tuple[GroupSummary, ...]:
+    """Os grupos dos itens aprovados, somando cada grupo na sua unidade."""
+    buckets: dict[tuple[str, str], list[GroupedItem]] = {}
+    for item in items:
+        if item.figures.approved:
+            buckets.setdefault((item.group, item.unit), []).append(item)
+    summaries = [_group_summary(key[0], key[1], bucket) for key, bucket in sorted(buckets.items())]
+    return tuple(summaries)
+
+
+def _group_summary(group: str, unit: str, items: Sequence[GroupedItem]) -> GroupSummary:
+    places = items[0].places
+    total = sum((item.total for item in items), ZERO)
+    prev_acum = sum((item.figures.prev_acum for item in items), ZERO)
+    real_acum = sum((item.figures.real_acum for item in items), ZERO)
+    return GroupSummary(
+        group=group,
+        unit=unit,
+        places=places,
+        items=len(items),
+        total=total,
+        prev_acum=prev_acum,
+        real_acum=real_acum,
+        prev_week=sum((item.figures.prev_week for item in items), ZERO),
+        real_week=sum((item.figures.real_week or ZERO for item in items), ZERO),
+        pct_prev=_share(prev_acum, total),
+        pct_real=_share(real_acum, total),
+    )
+
+
+@dataclass(frozen=True)
+class SeriesItem:
+    """Um item aprovado como a série semanal o lê: total, índice orçado e os fatos."""
+
+    total: Decimal
+    index_hh: Decimal
+    planned: tuple[PlannedWeek, ...]
+    reported: tuple[ReportedWeek, ...]
+
+
+@dataclass(frozen=True)
+class QuantitySeries:
+    """A série semanal do filtro: previsto e realizado (em quantidade ou horas ganhas)."""
+
+    weeks: tuple[str, ...]
+    planned: tuple[Decimal, ...]
+    realized: tuple[Decimal | None, ...]
+    planned_pct: tuple[Decimal | None, ...]
+    realized_pct: tuple[Decimal | None, ...]
+    in_hours: bool
+    unit: str
+
+
+def quantities_series(
+    items: Sequence[SeriesItem], *, current_week: str, in_hours: bool, unit: str
+) -> QuantitySeries:
+    """A série semanal do filtro: a semana passada sem apontamento vale zero, a futura não existe.
+
+    Quando o filtro mistura unidades, a série sai em horas ganhas (quantidade vezes índice
+    orçado), que é o que soma unidades diferentes; a acumulada é percentual do total da série.
+    """
+    weeks = _series_weeks(items)
+    total_value = sum(
+        (item.total * (item.index_hh if in_hours else Decimal(1)) for item in items), ZERO
+    )
+    planned_acum = ZERO
+    realized_acum = ZERO
+    planned: list[Decimal] = []
+    realized: list[Decimal | None] = []
+    planned_pct: list[Decimal | None] = []
+    realized_pct: list[Decimal | None] = []
+    for week in weeks:
+        week_planned = _week_planned(items, week, in_hours=in_hours)
+        week_realized = _week_realized(items, week, in_hours=in_hours)
+        planned_acum += week_planned
+        planned.append(round_quantity(week_planned, 1))
+        planned_pct.append(_share(planned_acum, total_value))
+        if week > current_week:
+            realized.append(None)
+            realized_pct.append(None)
+            continue
+        realized_acum += week_realized or ZERO
+        if week_realized is not None:
+            realized.append(round_quantity(week_realized, 1))
+        else:
+            realized.append(None if week == current_week else ZERO)
+        realized_pct.append(_share(realized_acum, total_value))
+    return QuantitySeries(
+        weeks=weeks,
+        planned=tuple(planned),
+        realized=tuple(realized),
+        planned_pct=tuple(planned_pct),
+        realized_pct=tuple(realized_pct),
+        in_hours=in_hours,
+        unit=unit,
+    )
+
+
+def _series_weeks(items: Sequence[SeriesItem]) -> tuple[str, ...]:
+    weeks: set[str] = set()
+    for item in items:
+        weeks.update(line.week for line in item.planned)
+        weeks.update(line.week for line in item.reported)
+    return tuple(sorted(weeks))
+
+
+def _week_planned(items: Sequence[SeriesItem], week: str, *, in_hours: bool) -> Decimal:
+    total = ZERO
+    for item in items:
+        for line in item.planned:
+            if line.week == week:
+                total += line.planned * (item.index_hh if in_hours else Decimal(1))
+    return total
+
+
+def _week_realized(items: Sequence[SeriesItem], week: str, *, in_hours: bool) -> Decimal | None:
+    total = ZERO
+    found = False
+    for item in items:
+        for line in item.reported:
+            if line.week == week:
+                found = True
+                total += line.realized * (item.index_hh if in_hours else Decimal(1))
+    return total if found else None
+
+
+def weekly_chart(series: QuantitySeries) -> dict[str, Any]:
+    """O payload do gráfico de produção semanal: o servidor manda a quantidade de cada semana."""
+    return {
+        "titulo": "Produção semanal",
+        "modo": "periodo",
+        "formato": "numero",
+        "unidade": series.unit,
+        "casas": 1,
+        "series": [
+            {"id": "previsto", "rotulo": "Previsto (LB)", "papel": "linha-base", "tipo": "valor"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
+        ],
+        "periodos": _chart_periods(
+            series, {"previsto": series.planned, "realizado": series.realized}
+        ),
+    }
+
+
+def accumulated_chart(series: QuantitySeries) -> dict[str, Any]:
+    """O payload do avanço acumulado: percentual do previsto e do realizado por semana."""
+    return {
+        "titulo": "Avanço acumulado",
+        "modo": "acumulado",
+        "formato": "pct",
+        "unidade": "%",
+        "casas": 1,
+        "eixo_max": 100,
+        "series": [
+            {"id": "previsto", "rotulo": "Previsto (LB)", "papel": "linha-base", "tipo": "valor"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
+        ],
+        "periodos": _chart_periods(
+            series, {"previsto": series.planned_pct, "realizado": series.realized_pct}
+        ),
+    }
+
+
+def _chart_periods(
+    series: QuantitySeries, values: Mapping[str, Sequence[Decimal | None]]
+) -> list[dict[str, Any]]:
+    periods: list[dict[str, Any]] = []
+    for index, week in enumerate(series.weeks):
+        day = calendario.week_start(week)
+        if day is None:
+            continue
+        periods.append(
+            {
+                "ano": day.year,
+                "mes": day.month,
+                "semana": day.isocalendar()[1],
+                "valores": {
+                    name: _chart_number(values[name][index]) for name in ("previsto", "realizado")
+                },
+            }
+        )
+    return periods
+
+
+def _chart_number(value: Decimal | None) -> float | None:
+    """O número do gráfico: o ``data-dados`` viaja em JSON, que não conhece ``Decimal``."""
+    return None if value is None else float(value)
+
+
+def revision_distribution(
+    *,
+    total: Decimal,
+    frozen: Sequence[PlannedWeek],
+    start_week: str,
+    finish_week: str,
+    profile: str,
+    places: int,
+) -> tuple[PlannedWeek, ...]:
+    """Redistribui o saldo (novo total menos as semanas congeladas) da primeira semana livre em diante.
+
+    As semanas até a atual ficam congeladas (o fato da LB); o saldo é distribuído pelo perfil
+    entre as semanas livres, pelo maior resto. Novo total menor que as congeladas deixa saldo
+    zero — a validação é quem recusa fechar a soma com o total.
+    """
+    frozen_total = sum((line.planned for line in frozen), ZERO)
+    balance = max(ZERO, total - frozen_total)
+    weeks = calendario.list_periods(WEEKLY, start_week, finish_week)
+    values = distribute_total(balance, len(weeks), profile, places)
+    return tuple(
+        PlannedWeek(week=week, planned=value) for week, value in zip(weeks, values, strict=True)
+    )
+
+
+def frozen_planned(distribution: Sequence[PlannedWeek], cut_week: str) -> tuple[PlannedWeek, ...]:
+    """As semanas congeladas da distribuição: as que ficam até a semana de corte."""
+    return tuple(line for line in distribution if line.week <= cut_week)
+
+
+def first_free_week(item_start_week: str, cut_week: str) -> str:
+    """A primeira semana livre da revisão: a seguinte ao corte, ou o início do item, se posterior."""
+    following = shift_week(cut_week, 1) or cut_week
+    return item_start_week if item_start_week > following else following

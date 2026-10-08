@@ -22,6 +22,15 @@ package; the real progress is calculated from them (D5b).
 The physical S-curve (ISSUE-039): the baseline generated from the EAP revision
 and frozen in its own revision (the D5b exception), with the percentage of each
 month. The real comes from the dated measurements and the trend is calculated.
+
+The productivity (ISSUE-046): the quantity plan of the baseline per company and
+item (``produtividade_item``), the frozen total of each revision of the baseline
+(``produtividade_revisao``), the weekly distribution of the revision
+(``produtividade_distribuicao``) and the weekly report of the contractor
+(``produtividade_apontamento``). The last three are the D5b exception: they keep
+the frozen fact and have no ``versao`` of their own. The item carries the week
+bounds as dates (Monday of the ISO week); the distribution and the report carry
+the week label in text.
 """
 
 from __future__ import annotations
@@ -316,3 +325,113 @@ class CurvaFisicaMonth(Base):
     revision_id: Mapped[int] = mapped_column("revisao_id", ForeignKey("curva_fisica_revisao.id"))
     month: Mapped[date] = mapped_column("mes", Date)
     baseline_pct: Mapped[Decimal] = mapped_column("baseline_pct", Percent)
+
+
+class ProductivityItem(Base):
+    """Item de quantidade da linha de base de uma empresa: o plano que a produtividade controla.
+
+    O total é distribuído por semana pelo perfil (``produtividade_distribuicao``), a situação
+    vai de ``Em elaboração`` (editável, fora dos indicadores) a ``Aprovada`` (distribuição
+    congelada, D5b) e mudar a linha de base depois disso só por revisão com SM aprovada.
+    UK: projeto + código.
+    """
+
+    __tablename__ = "produtividade_item"
+    __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    unit_id: Mapped[int | None] = mapped_column("unidade_id", ForeignKey("unidade.id"))
+    discipline_id: Mapped[int | None] = mapped_column("disciplina_id", ForeignKey("disciplina.id"))
+    approved_by_id: Mapped[int | None] = mapped_column("aprovado_por_id", ForeignKey("pessoa.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    group: Mapped[str] = mapped_column("grupo", Text)
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    places: Mapped[int] = mapped_column("casas", Integer)
+    total: Mapped[Decimal] = mapped_column("total", Quantity)
+    index_hh: Mapped[Decimal] = mapped_column("indice_hh", Quantity)
+    profile: Mapped[str] = mapped_column("perfil", Text)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    revision: Mapped[int] = mapped_column("revisao", Integer)
+    start: Mapped[date] = mapped_column("inicio", Date)
+    finish: Mapped[date] = mapped_column("fim", Date)
+    approved_on: Mapped[date | None] = mapped_column("aprovado_em", Date)
+    notes: Mapped[str | None] = mapped_column("observacoes", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+    revisions: Mapped[list[ProductivityRevision]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="ProductivityRevision.revision",
+    )
+    entries: Mapped[list[ProductivityEntry]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="ProductivityEntry.week",
+    )
+
+
+class ProductivityRevision(Base):
+    """Total congelado de cada revisão da linha de base de um item (exceção da D5b).
+
+    A revisão 0 é a linha de base original, registrada por quem a elaborou; as seguintes
+    consolidam uma SM aprovada e redistribuem o saldo. Sem ``versao``.
+    """
+
+    __tablename__ = "produtividade_revisao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("produtividade_item.id"))
+    by_id: Mapped[int] = mapped_column("por_id", ForeignKey("pessoa.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    revision: Mapped[int] = mapped_column("revisao", Integer)
+    revision_date: Mapped[date] = mapped_column("data", Date)
+    total: Mapped[Decimal] = mapped_column("total", Quantity)
+    previous_total: Mapped[Decimal | None] = mapped_column("total_anterior", Quantity)
+    since: Mapped[str | None] = mapped_column("desde", Text)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
+
+    item: Mapped[ProductivityItem] = relationship(back_populates="revisions")
+    distributions: Mapped[list[ProductivityDistribution]] = relationship(
+        back_populates="revision",
+        cascade="all, delete-orphan",
+        order_by="ProductivityDistribution.week",
+    )
+
+
+class ProductivityDistribution(Base):
+    """Distribuição semanal congelada da linha de base dentro da revisão (exceção da D5b).
+
+    UK: revisão + semana. Sem ``versao``.
+    """
+
+    __tablename__ = "produtividade_distribuicao"
+    __table_args__ = (UniqueConstraint("revisao_id", "semana"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    revision_id: Mapped[int] = mapped_column("revisao_id", ForeignKey("produtividade_revisao.id"))
+    week: Mapped[str] = mapped_column("semana", Text)
+    planned: Mapped[Decimal] = mapped_column("previsto", Quantity)
+
+    revision: Mapped[ProductivityRevision] = relationship(back_populates="distributions")
+
+
+class ProductivityEntry(Base):
+    """Apontamento semanal da contratada: realizado e HH apropriadas por item e semana.
+
+    O ``informado_em`` só existe na semana em que a pessoa apontou; as semanas antigas da carga
+    ficam sem data. UK: item + semana. Sem ``versao``.
+    """
+
+    __tablename__ = "produtividade_apontamento"
+    __table_args__ = (UniqueConstraint("item_id", "semana"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column("item_id", ForeignKey("produtividade_item.id"))
+    week: Mapped[str] = mapped_column("semana", Text)
+    realized: Mapped[Decimal] = mapped_column("realizado", Quantity)
+    hh: Mapped[Decimal] = mapped_column("hh", Quantity)
+    informed_on: Mapped[date | None] = mapped_column("informado_em", Date)
+
+    item: Mapped[ProductivityItem] = relationship(back_populates="entries")
