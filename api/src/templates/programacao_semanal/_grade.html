@@ -1,0 +1,25 @@
+{#
+  Partial — a grade dos sete dias em modo de leitura (previsto em cima, realizado
+  embaixo), a mesma da matriz, para os painéis de aprovação e de detalhe. Não tem
+  raiz nem id próprios: nunca é alvo de x-target, só é incluída.
+
+  Espera: dias (DayCell), dias_rotulos.
+#}
+<div class="painel__dias">
+  <div class="dias dias--cabecalho">
+    <span class="dias__rotulo" aria-hidden="true"></span>
+    {% for dia in dias_rotulos %}
+    <span class="{{ 'is-fds' if dia.fim_de_semana }}" title="{{ dia.titulo }}">{{ dia.rotulo }}</span>
+    {% endfor %}
+  </div>
+  <div class="dias">
+    <span class="dias__rotulo">Prev</span>
+    {% for celula in dias %}
+    <span class="{{ celula.planned_classes }}" title="{{ celula.planned_title }}">{{ celula.planned_text }}</span>
+    {% endfor %}
+    <span class="dias__rotulo dias__rotulo--real">Real</span>
+    {% for celula in dias %}
+    <span class="{{ celula.done_classes }}" title="{{ celula.done_title }}">{{ celula.done_text }}{% if celula.has_night %}<i class="dia__noite" aria-label="inclui turno noite">N</i>{% endif %}</span>
+    {% endfor %}
+  </div>
+</div>

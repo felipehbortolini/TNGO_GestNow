@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  Painel de leitura de uma atividade (#drawer), o destino da próxima ação “ver”.
+
+  Espera: o contexto de screen.detail_context.
+#}
+{% block root %}
+<div id="drawer">{% include "programacao_semanal/_detalhe.html" %}</div>
+{% endblock %}

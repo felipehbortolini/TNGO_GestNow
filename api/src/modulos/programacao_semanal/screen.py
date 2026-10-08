@@ -26,9 +26,14 @@ from src.modulos.programacao_semanal import (
     service,
     weeks,
 )
-from src.modulos.programacao_semanal.service import Caller, Filters, FormOptions
-from src.modulos.programacao_semanal.validation import ActivityForm
-from src.modulos.programacao_semanal.views import build_row
+from src.modulos.programacao_semanal.service import Caller, Filters, FlowScreen, FormOptions
+from src.modulos.programacao_semanal.validation import (
+    ActivityForm,
+    ApprovalForm,
+    DoneForm,
+    ValidationForm,
+)
+from src.modulos.programacao_semanal.views import ActivityView, build_row
 
 BASE_URL = "/api/programacao-semanal"
 MATRIX_URL = f"{BASE_URL}/programacoes"
@@ -37,6 +42,24 @@ BANNER_URL = f"{MATRIX_URL}/janela"
 FORM_URL = f"{BASE_URL}/atividades/formulario"
 SAVE_URL = f"{BASE_URL}/atividades"
 DELETE_URL = f"{BASE_URL}/atividades/excluir"
+DETAIL_URL = f"{BASE_URL}/atividades/detalhe"
+VALIDATE_FORM_URL = f"{BASE_URL}/validacoes/formulario"
+VALIDATE_URL = f"{BASE_URL}/validacoes"
+REPORT_FORM_URL = f"{BASE_URL}/realizados/formulario"
+REPORT_URL = f"{BASE_URL}/realizados"
+APPROVE_FORM_URL = f"{BASE_URL}/aprovacoes/formulario"
+APPROVE_URL = f"{BASE_URL}/aprovacoes"
+REOPEN_URL = f"{BASE_URL}/reaberturas"
+PUBLISH_URL = f"{BASE_URL}/publicacoes"
+PUBLISH_WEEK_URL = f"{BASE_URL}/publicacoes/semana"
+
+# Where the button of the next action of each step opens its panel.
+ACTION_URLS = {
+    permissions.ACTION_VALIDATE: VALIDATE_FORM_URL,
+    permissions.ACTION_APPROVE: APPROVE_FORM_URL,
+    permissions.ACTION_REPORT: REPORT_FORM_URL,
+    permissions.ACTION_VIEW: DETAIL_URL,
+}
 
 # (sort field, header text): the columns of the matrix that sort.
 SORT_COLUMNS = (
@@ -212,6 +235,8 @@ def matrix_context(
         "somente_leitura": caller.scope.is_portfolio,
         "form_url": FORM_URL,
         "excluir_url": DELETE_URL,
+        "acao_urls": ACTION_URLS,
+        "publicar_url": PUBLISH_URL,
         "resumo": {
             "total": summary.total,
             "aderencia": presentation.format_percent(summary.adherence, 0),
@@ -237,6 +262,7 @@ def filters_context(
     week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
     filters = service.parse_filters(params)
     status = service.window_status(session, caller=caller, week=week)
+    project_id = caller.scope.project_id
     return {
         "semana": week,
         "semanas": service.horizon_weeks(session, caller=caller),
@@ -248,6 +274,9 @@ def filters_context(
         "form_url": FORM_URL,
         "fornecedor": status.is_supplier,
         "no_portfolio": caller.scope.is_portfolio,
+        "pode_publicar": project_id is not None
+        and permissions.can_publish(caller.user, project_id),
+        "publicar_semana_url": PUBLISH_WEEK_URL,
         "situacoes": SITUATION_CHIPS,
         "aprovacoes": APPROVAL_CHIPS,
         "faixas": {
@@ -270,6 +299,142 @@ def banner_context(
         "periodo": weeks.period_label(week),
         "janela": service.window_status(session, caller=caller, week=week),
     }
+
+
+# ── The panels of the flow ───────────────────────────────────────────────
+
+
+def _version(view: ActivityView, version: str | None) -> int | str:
+    """The version the panel carries: the one the screen opened, or the record's own."""
+    return version if version is not None else view.version
+
+
+def validation_context(
+    *,
+    opened: FlowScreen,
+    typed: ValidationForm | None = None,
+    errors: Mapping[str, str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
+    """The panel of validation: the inspector to name and the comments to the supplier."""
+    view = opened.view
+    return {
+        "atividade": view,
+        "semana": view.week,
+        "periodo": weeks.period_label(view.week),
+        "versao": _version(view, version),
+        "valores": typed or ValidationForm(inspector_id=view.inspector_id),
+        "fiscais": opened.options.inspectors,
+        "erros": dict(errors or {}),
+        "unidade": view.unit,
+        "previsto_texto": presentation.format_quantity(view.figures.planned_total, view.unit),
+        "salvar_url": VALIDATE_URL,
+    }
+
+
+def report_context(
+    *,
+    opened: FlowScreen,
+    typed: DoneForm | None = None,
+    errors: Mapping[str, str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
+    """The panel of the done work: both shifts, the plan of each day and the shortcuts."""
+    view = opened.view
+    figures = view.figures
+    form = typed or DoneForm(
+        day_shift=figures.day_shift, night_shift=figures.night_shift, notes=view.notes
+    )
+    dates = weeks.week_dates(view.week)
+    return {
+        "atividade": view,
+        "semana": view.week,
+        "periodo": weeks.period_label(view.week),
+        "versao": _version(view, version),
+        "dias": _form_days(view, dates),
+        "dias_dia_json": json.dumps([_number_text(value) for value in form.day_shift]),
+        "dias_noite_json": json.dumps([_number_text(value) for value in form.night_shift]),
+        "dias_previsto_json": json.dumps([_number_text(value) for value in figures.planned_days]),
+        "tem_noite": any(figures.night_shift),
+        "limite_desvio": opened.parameters.deviation_limit,
+        "exige_justificativa": opened.parameters.requires_deviation_note,
+        "observacoes": form.notes,
+        "erros": dict(errors or {}),
+        "unidade": view.unit,
+        "previsto_total_texto": presentation.format_quantity(figures.planned_total, view.unit),
+        "salvar_url": REPORT_URL,
+    }
+
+
+def approval_context(
+    *,
+    opened: FlowScreen,
+    typed: ApprovalForm | None = None,
+    errors: Mapping[str, str] | None = None,
+    version: str | None = None,
+) -> dict[str, Any]:
+    """The panel of the inspector: approve the done work, or reopen it with a reason."""
+    view = opened.view
+    figures = view.figures
+    dates = weeks.week_dates(view.week)
+    return {
+        "atividade": view,
+        "semana": view.week,
+        "periodo": weeks.period_label(view.week),
+        "versao": _version(view, version),
+        "dias": presentation.day_cells(figures, view.unit, dates),
+        "dias_rotulos": _day_headers(dates),
+        "aprovando": view.approval == calculations.APPROVAL_PENDING and figures.has_done,
+        "reabrindo": view.approval == calculations.APPROVAL_APPROVED,
+        "valores": typed or ApprovalForm(),
+        "erros": dict(errors or {}),
+        "unidade": view.unit,
+        "previsto_texto": presentation.format_quantity(figures.planned_total, view.unit),
+        "realizado_texto": presentation.format_quantity(figures.done_total, view.unit),
+        "ppc_texto": presentation.format_percent(figures.ppc, 0),
+        "observacoes": view.notes,
+        "aprovar_url": APPROVE_URL,
+        "reabrir_url": REOPEN_URL,
+    }
+
+
+def detail_context(session: Session, *, opened: FlowScreen) -> dict[str, Any]:
+    """The read-only panel of an activity: the ficha, the day grid and the history."""
+    view = opened.view
+    figures = view.figures
+    dates = weeks.week_dates(view.week)
+    return {
+        "atividade": view,
+        "semana": view.week,
+        "periodo": weeks.period_label(view.week),
+        "dias": presentation.day_cells(figures, view.unit, dates),
+        "dias_rotulos": _day_headers(dates),
+        "eventos": service.detail_events(session, activity_id=view.id),
+        "situacao_label": presentation.SITUATION_SHORT_LABELS.get(view.situation, view.situation),
+        "aprovacao_label": calculations.APPROVAL_LABELS.get(view.approval, view.approval),
+        "unidade": view.unit,
+        "previsto_texto": presentation.format_quantity(figures.planned_total, view.unit),
+        "realizado_texto": presentation.format_quantity(figures.done_total, view.unit),
+        "ppc_texto": presentation.format_percent(figures.ppc, 0),
+        "pode_reabrir": view.can_approve and view.approval == calculations.APPROVAL_APPROVED,
+        "aprovar_url": APPROVE_FORM_URL,
+    }
+
+
+def _form_days(view: ActivityView, dates: list[Any]) -> list[dict[str, Any]]:
+    """The seven days of a form: the label, the date and the plan already worded."""
+    figures = view.figures
+    return [
+        {
+            "indice": index,
+            "rotulo": calculations.DAY_LABELS[index],
+            "nome": calculations.DAY_NAMES[index],
+            "data": f"{dates[index]:%d/%m}" if dates else "",
+            "fim_de_semana": index >= calculations.DAYS - 2,
+            "previsto_texto": presentation.format_quantity(figures.planned_days[index], view.unit),
+        }
+        for index in range(calculations.DAYS)
+    ]
 
 
 def _options(session: Session, caller: Caller) -> FormOptions:

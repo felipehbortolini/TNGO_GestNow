@@ -101,28 +101,155 @@
               <span class="ppc__valor">{{ linha.ppc_text }}</span>
               <progress class="ppc__medidor" max="100" value="{{ linha.ppc_width }}">{{ linha.ppc_text }}</progress>
             </td>
+            {#
+              O botão principal é a PRÓXIMA AÇÃO DO FLUXO, não uma ação fixa.
+
+              A programação anda numa fila — elaborar, validar, lançar o realizado,
+              aprovar, publicar — e cada degrau tem um dono. O fiscal vê "Aprovar"
+              onde a contratada vê "Lançar"; quando o realizado já foi aprovado, os
+              dois viram "Publicar"; e quem só visualiza vê "Ver". O que virou botão
+              sai do menu, e o menu some por inteiro quando não sobra nada nele —
+              o caso do visualizador.
+            #}
+            {% set rotulos = {
+              'validar':  ('Validar',  'shield'),
+              'aprovar':  ('Aprovar',  'checkCircle'),
+              'lancar':   ('Lançar',   'taskList'),
+              'publicar': ('Publicar', 'send'),
+              'ver':      ('Ver',      'eye')
+            } %}
+            {% set rotulo, icone = rotulos[linha.next_action] %}
+            {% set restantes = namespace(total=0) %}
+            {% if linha.next_action != 'ver' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_edit and not somente_leitura %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_report and linha.next_action != 'lancar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_validate and linha.next_action != 'validar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_approve and linha.next_action != 'aprovar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_publish and linha.next_action != 'publicar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_delete and not somente_leitura %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+
             <td class="matriz__acoes" data-rotulo="Ações">
-              <div class="acoes-linha">
-                {% if linha.can_edit and not somente_leitura %}
-                <button type="button" class="btn btn--secondary btn--sm"
-                  title="Editar {{ linha.unique_id }}"
-                  @click="$ajax('{{ form_url }}?atividade={{ linha.id }}', { target: 'drawer' })">Editar</button>
-                {% endif %}
-                {% if linha.can_delete and not somente_leitura %}
-                <button type="button" class="btn btn--ghost btn--sm"
-                  data-id="{{ linha.unique_id }}" data-atividade="{{ linha.description }}" data-empresa="{{ linha.company }}"
+              <div class="acoes-linha" x-data="{ aberto: false }" @keydown.escape.window="aberto = false"
+                @click.outside="aberto = false">
+                {% if linha.next_action == 'publicar' %}
+                <button type="button" class="btn btn--primary btn--sm"
+                  title="Publicar {{ linha.unique_id }}" data-id="{{ linha.unique_id }}"
                   @click="TN.confirmarExclusao({
-                    mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.',
-                    rows: [
-                      { label: 'ID exclusiva', valor: $el.dataset.id },
-                      { label: 'Atividade', valor: $el.dataset.atividade },
-                      { label: 'Empresa', valor: $el.dataset.empresa }
-                    ]
+                    title: 'Publicar a programação',
+                    mensagem: 'Publicar libera esta programação para todos e encerra a edição.',
+                    labelConfirmar: 'Publicar',
+                    rows: [{ label: 'Atividade', valor: $el.dataset.id }]
                   }).then(function (ok) {
-                    if (ok) $ajax('{{ excluir_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
+                    if (ok) $ajax('{{ publicar_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
                       method: 'post', target: 'drawer prog-resumo prog-tabela'
                     });
-                  })">Excluir</button>
+                  })">
+                  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 15)" aria-hidden="true"></span>
+                  {{ rotulo }}
+                </button>
+                {% else %}
+                <button type="button" class="btn btn--sm {{ 'btn--secondary' if linha.next_action == 'ver' else 'btn--primary' }}"
+                  title="{{ rotulo }} {{ linha.unique_id }}"
+                  @click="$ajax('{{ acao_urls[linha.next_action] }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 15)" aria-hidden="true"></span>
+                  {{ rotulo }}
+                </button>
+                {% endif %}
+
+                {% if restantes.total %}
+                <div class="acoes-mais">
+                  <button type="button" class="btn btn--ghost btn--sm" aria-haspopup="menu"
+                    :aria-expanded="aberto ? 'true' : 'false'" aria-label="Mais ações para {{ linha.unique_id }}"
+                    @click="aberto = !aberto; if (aberto) $nextTick(() => TN.paginas['programacao_semanal/programacao'].ancorarMenu($refs.menu, $el))">
+                    <span x-init="$el.innerHTML = window.icon('listaPontos', 16)" aria-hidden="true"></span>
+                  </button>
+                  <div x-ref="menu" class="acoes-menu" x-show="aberto" x-cloak role="menu"
+                    aria-label="Ações de {{ linha.unique_id }}"
+                    @scroll.window.capture="aberto = false" @resize.window="aberto = false">
+                    <p class="acoes-menu__cabeca">{{ linha.unique_id }}</p>
+
+                    {% if linha.next_action != 'ver' %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ acao_urls.ver }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('eye', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Ver detalhes<small>Histórico, observações e números do dia</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_edit and not somente_leitura %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ form_url }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('edit', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Editar a programação<small>Muda o previsto, a frente, o encarregado</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_report and linha.next_action != 'lancar' %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ acao_urls.lancar }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('taskList', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Lançar o realizado<small>O que foi produzido em cada dia</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_validate and linha.next_action != 'validar' %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ acao_urls.validar }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('shield', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Validar a programação<small>Confere e escolhe o fiscal responsável</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_approve and linha.next_action != 'aprovar' %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ acao_urls.aprovar }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('checkCircle', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Aprovar o realizado<small>Confirma o que a contratada lançou</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_publish and linha.next_action != 'publicar' %}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      data-id="{{ linha.unique_id }}"
+                      @click="aberto = false;
+                        TN.confirmarExclusao({
+                          title: 'Publicar a programação',
+                          mensagem: 'Publicar libera esta programação para todos e encerra a edição.',
+                          labelConfirmar: 'Publicar',
+                          rows: [{ label: 'Atividade', valor: $el.dataset.id }]
+                        }).then(function (ok) {
+                          if (ok) $ajax('{{ publicar_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
+                            method: 'post', target: 'drawer prog-resumo prog-tabela'
+                          });
+                        })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('send', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Publicar<small>Libera para todos e encerra a edição</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_delete and not somente_leitura %}
+                    {# Separada no fim e em vermelho: é a única ação daqui que não tem volta. #}
+                    <button type="button" class="acoes-menu__item acoes-menu__item--perigo" role="menuitem"
+                      data-id="{{ linha.unique_id }}" data-atividade="{{ linha.description }}" data-empresa="{{ linha.company }}"
+                      @click="aberto = false;
+                        TN.confirmarExclusao({
+                          mensagem: 'Você confirma a exclusão desta atividade? A ação não pode ser desfeita.',
+                          rows: [
+                            { label: 'ID exclusiva', valor: $el.dataset.id },
+                            { label: 'Atividade', valor: $el.dataset.atividade },
+                            { label: 'Empresa', valor: $el.dataset.empresa }
+                          ]
+                        }).then(function (ok) {
+                          if (ok) $ajax('{{ excluir_url }}?atividade={{ linha.id }}&versao={{ linha.version }}&semana={{ semana | urlencode }}', {
+                            method: 'post', target: 'drawer prog-resumo prog-tabela'
+                          });
+                        })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('trash', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Excluir a atividade<small>Não tem como desfazer</small></span>
+                    </button>
+                    {% endif %}
+                  </div>
+                </div>
                 {% endif %}
               </div>
             </td>

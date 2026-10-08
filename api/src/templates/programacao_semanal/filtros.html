@@ -123,5 +123,29 @@
       </div>
     </div>
   </form>
+
+  {#
+    A ação da semana fica fora do formulário de refino de propósito: publicar as
+    validadas não depende do que está filtrado, e enterrá-la dentro de "Refinar"
+    era a razão de ninguém a achar.
+  #}
+  {% if pode_publicar %}
+  <div class="acoes-semana mb-16">
+    <span class="acoes-semana__rotulo">Semana {{ semana }}:</span>
+    <button type="button" class="btn btn--secondary"
+      @click="TN.confirmarExclusao({
+        title: 'Publicar a semana',
+        mensagem: 'Publicar todas as programações validadas da semana {{ semana }}?',
+        labelConfirmar: 'Publicar todas'
+      }).then(function (ok) {
+        if (ok) $ajax('{{ publicar_semana_url }}?semana={{ semana | urlencode }}', {
+          method: 'post', target: 'drawer prog-resumo prog-tabela'
+        });
+      })">
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+      Publicar as validadas
+    </button>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

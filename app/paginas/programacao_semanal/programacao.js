@@ -43,6 +43,19 @@
   }
 
   window.TN.paginas["programacao_semanal/programacao"] = {
+    /* Prende o menu de ações da linha ao botão que o abriu. O painel é fixed
+       porque a matriz rola: um menu absoluto seria cortado pela rolagem da
+       tabela. Vira para cima quando não cabe embaixo. */
+    ancorarMenu: function (menu, botao) {
+      if (!menu || !botao) return;
+      const alvo = botao.getBoundingClientRect();
+      const altura = menu.offsetHeight;
+      const acima = window.innerHeight - alvo.bottom < altura + 12 && alvo.top > altura + 12;
+      menu.style.left = "auto";
+      menu.style.right = Math.max(8, window.innerWidth - alvo.right) + "px";
+      menu.style.top = (acima ? alvo.top - altura - 6 : alvo.bottom + 6) + "px";
+    },
+
     iniciar: function (raiz) {
       const dados = window.Alpine.$data(raiz);
       const consulta = consultaDaSemana();

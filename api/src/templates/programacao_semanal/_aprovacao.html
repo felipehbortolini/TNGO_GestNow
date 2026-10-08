@@ -1,0 +1,122 @@
+{#
+  Partial — o painel do fiscal: aprovar o realizado (o passo pendente) ou reabri-lo
+  com motivo (quando já está aprovado).
+
+  A tela mostra o que está sendo aprovado dia a dia, e não só o total: aprovar sem
+  ver a distribuição é assinar embaixo de um número. A reabertura entra no mesmo
+  painel, com o motivo obrigatório — o app a disparava de um prompt, e aqui ela tem
+  formulário para o 422 ter onde mostrar a mensagem.
+
+  Espera: atividade, semana, periodo, versao, dias, dias_rotulos, aprovando,
+  reabrindo, valores, erros, unidade, previsto_texto, realizado_texto, ppc_texto,
+  observacoes, aprovar_url, reabrir_url.
+#}
+<div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+  <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-aprovacao" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="h-card3" id="titulo-aprovacao">
+          {{ 'Reabrir o realizado' if reabrindo else 'Aprovar o realizado' }}
+        </h2>
+        <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }}</p>
+      </div>
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+        x-init="$el.innerHTML = window.icon('dismiss', 18)"
+        @click="$root.closest('.painel-fundo').remove()"></button>
+    </div>
+
+    <div class="painel__corpo">
+      {% if erros._ %}
+      <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ }}</span></div>
+      {% endif %}
+
+      <div class="lancamento-resumo mb-16">
+        <div>
+          <span class="lancamento-resumo__rotulo">Previsto</span>
+          <span class="lancamento-resumo__valor">{{ previsto_texto }}</span>
+          <span class="hint">{{ unidade }}</span>
+        </div>
+        <div>
+          <span class="lancamento-resumo__rotulo">Realizado</span>
+          <span class="lancamento-resumo__valor">{{ realizado_texto }}</span>
+          <span class="hint">{{ unidade }}</span>
+        </div>
+        <div>
+          <span class="lancamento-resumo__rotulo">PPC</span>
+          <span class="lancamento-resumo__valor">{{ ppc_texto }}</span>
+        </div>
+      </div>
+
+      <p class="grupo-label">Dia a dia reportado</p>
+      {% include "programacao_semanal/_grade.html" %}
+
+      {% if observacoes %}
+      <div class="aviso aviso--warn mt-16">
+        <strong>Justificativa do fornecedor</strong>
+        <span>{{ observacoes }}</span>
+      </div>
+      {% endif %}
+
+      {% if aprovando %}
+      <form method="post" action="{{ aprovar_url }}" x-target="drawer prog-resumo prog-tabela"
+        data-tn-loading="Aprovando...">
+        <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <input type="hidden" name="semana" value="{{ semana }}" />
+        <div class="field mt-16">
+          <label for="campo-comentarios-aprovacao">Comentários da fiscalização</label>
+          <textarea id="campo-comentarios-aprovacao" class="input" name="comentarios" rows="3"
+            placeholder="Opcional — registro do que foi conferido em campo">{{ valores.comments }}</textarea>
+        </div>
+        <div class="painel__rodape painel__rodape--interno">
+          <span class="hint">Depois de aprovado, o realizado não pode mais ser alterado pelo fornecedor.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--primary">
+              <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+              Aprovar
+            </button>
+          </span>
+        </div>
+      </form>
+      {% elif reabrindo %}
+      <form method="post" action="{{ reabrir_url }}" x-target="drawer prog-resumo prog-tabela"
+        data-tn-loading="Reabrindo...">
+        <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+        <input type="hidden" name="versao" value="{{ versao }}" />
+        <input type="hidden" name="semana" value="{{ semana }}" />
+        <div class="aviso aviso--info mt-16">
+          <strong>O realizado já está aprovado</strong>
+          <span>Reabrir devolve o lançamento ao fornecedor para correção; o motivo fica registrado na trilha.</span>
+        </div>
+        <div class="field mt-16">
+          <label for="campo-motivo-reabertura">Motivo da reabertura</label>
+          <textarea id="campo-motivo-reabertura" class="input{{ ' input--erro' if erros.motivo }}" name="motivo"
+            rows="3" required placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."
+            {% if erros.motivo %}aria-invalid="true" aria-describedby="erro-motivo-reabertura"{% endif %}>{{ valores.reason }}</textarea>
+          {% if erros.motivo %}<span id="erro-motivo-reabertura" class="field__erro">{{ erros.motivo }}</span>{% endif %}
+        </div>
+        <div class="painel__rodape painel__rodape--interno">
+          <span class="hint">O fornecedor volta a poder reportar o realizado desta atividade.</span>
+          <span class="painel__atalhos">
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="submit" class="btn btn--secondary">
+              <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
+              Reabrir realizado
+            </button>
+          </span>
+        </div>
+      </form>
+      {% else %}
+      <div class="aviso aviso--info mt-16">
+        <strong>Não há realizado aguardando o fiscal</strong>
+        <span>O fornecedor ainda não reportou a produção desta atividade.</span>
+      </div>
+      <div class="painel__rodape painel__rodape--interno">
+        <span class="hint">Nada a aprovar por enquanto.</span>
+        <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Fechar</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

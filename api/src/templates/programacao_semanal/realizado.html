@@ -1,0 +1,16 @@
+{% extends "base_fragment.html" %}
+{#
+  Painel de anexar o realizado (#drawer). No erro (422/409) devolve também a faixa
+  de indicadores e a matriz: os três alvos do formulário precisam vir na resposta,
+  senão o Alpine AJAX esvazia o que faltar.
+
+  Espera: o contexto de screen.report_context e, com com_matriz, o de
+  screen.matrix_context.
+#}
+{% block root %}
+<div id="drawer">{% include "programacao_semanal/_realizado.html" %}</div>
+{% if com_matriz %}
+{% include "programacao_semanal/_resumo.html" %}
+{% include "programacao_semanal/_tabela.html" %}
+{% endif %}
+{% endblock %}
