@@ -425,21 +425,126 @@ def week_summary(views: list[ActivityView]) -> WeekSummary:
 CURVE_BACK_WEEKS = 12
 
 
-def week_curve(session: Session, *, caller: Caller, week: str) -> list[calculations.CurvePoint]:
-    """The S-curve of the week, over the horizon the app exported (the week and twelve before)."""
-    items: list[calculations.CurveActivity] = []
+def horizon_activities(
+    session: Session, *, caller: Caller, week: str, filters: Filters | None = None
+) -> list[ActivityView]:
+    """The week and the twelve before it, filtered: the horizon of the curve and the dashboard."""
+    chosen = filters or Filters()
+    views: list[ActivityView] = []
     for step in range(CURVE_BACK_WEEKS, -1, -1):
         reference = weeks.shift(week, -step)
-        for view in list_activities(session, caller=caller, week=reference):
-            items.append(
-                calculations.CurveActivity(
-                    week=view.week,
-                    identity=view.unique_id,
-                    planned_total=view.figures.planned_total,
-                    done_total=view.figures.done_total,
-                )
+        views.extend(apply_filters(list_activities(session, caller=caller, week=reference), chosen))
+    return views
+
+
+def week_curve(session: Session, *, caller: Caller, week: str) -> list[calculations.CurvePoint]:
+    """The S-curve of the week, over the horizon the app exported (the week and twelve before)."""
+    return _curve_points(
+        [_indicator(view) for view in horizon_activities(session, caller=caller, week=week)]
+    )
+
+
+# ── The dashboard (ISSUE-056) ────────────────────────────────────────────
+#
+# Ported from the app's ``indicadores.painel``: the week read as an operation, not
+# as a list. The facade assembles the material — the activities of the week, the
+# horizon of the curve and the parameters of the project — and the pure functions
+# of ``calculations`` produce the indicators. The cut by company is the supplier's,
+# as everywhere (D7), and the app's filters (company, location and foreman) come
+# from the same ``Filters`` of the matrix.
+
+
+def _indicator(view: ActivityView) -> calculations.IndicatorActivity:
+    """The read model of the dashboard: the cut keys and the figures of one activity."""
+    return calculations.IndicatorActivity(
+        week=view.week,
+        identity=view.unique_id,
+        description=view.description,
+        project_label=view.project_label,
+        location=view.location,
+        company=view.company,
+        foreman=view.foreman,
+        unit=view.unit,
+        situation=view.situation,
+        approval=view.approval,
+        figures=view.figures,
+    )
+
+
+def _curve_points(items: list[calculations.IndicatorActivity]) -> list[calculations.CurvePoint]:
+    """The curve of a horizon of dashboard activities: the scope of the ID over the horizon."""
+    return calculations.curve_points(
+        [
+            calculations.CurveActivity(
+                week=item.week,
+                identity=item.identity,
+                planned_total=item.figures.planned_total,
+                done_total=item.figures.done_total,
             )
-    return calculations.curve_points(items)
+            for item in items
+        ]
+    )
+
+
+@dataclass(frozen=True)
+class DashboardData:
+    """Everything the dashboard shows, computed once for the screen and the exports."""
+
+    week: str
+    period: str
+    parameters: ScheduleParameters
+    summary: WeekSummary
+    companies: int
+    locations: int
+    curve: list[calculations.CurvePoint]
+    status: tuple[calculations.StatusBlock, ...]
+    by_company: list[calculations.RankingLine]
+    by_location: list[calculations.RankingLine]
+    by_foreman: list[calculations.RankingLine]
+    heatmap: calculations.Heatmap
+    shifts: list[calculations.ShiftDay]
+    bottlenecks: list[calculations.Bottleneck]
+    evolution: calculations.Evolution
+    week_total: int
+    filters: Filters
+
+
+def dashboard_data(
+    session: Session,
+    *,
+    caller: Caller,
+    week: str,
+    filters: Filters | None = None,
+) -> DashboardData:
+    """The indicators of the dashboard: the week and its horizon, as the app computes them.
+
+    ``week_total`` is how many activities the week has without the filters, so the
+    screen can tell the empty week (nothing programmed yet) from the empty filter
+    (there is programming, none of it matches the refinement).
+    """
+    chosen = filters or Filters()
+    weekly = apply_filters(list_activities(session, caller=caller, week=week), chosen)
+    items = [_indicator(view) for view in weekly]
+    horizon = horizon_activities(session, caller=caller, week=week, filters=chosen)
+    return DashboardData(
+        week=week,
+        period=weeks.period_label(week),
+        parameters=parameters_of(session, caller.scope.project_id),
+        summary=week_summary(weekly),
+        companies=len({view.company for view in weekly if view.company}),
+        locations=len({view.location for view in weekly if view.location}),
+        curve=_curve_points([_indicator(view) for view in horizon]),
+        status=calculations.situation_distribution(items),
+        by_company=calculations.ranking(items, "company"),
+        by_location=calculations.ranking(items, "location"),
+        by_foreman=calculations.ranking(items, "foreman"),
+        heatmap=calculations.heatmap_day_front(items),
+        shifts=calculations.shifts_by_day(items),
+        bottlenecks=calculations.bottlenecks(items),
+        evolution=calculations.evolution_by_company([_indicator(view) for view in horizon]),
+        week_total=len(list_activities(session, caller=caller, week=week)),
+        filters=chosen,
+    )
 
 
 def get_activity(session: Session, *, caller: Caller, activity_id: int) -> ActivityView:

@@ -224,6 +224,17 @@ max-complexity = 10
 "tests/programacao_semanal/test_programacao_importacao_rotas.py" = ["PLR0913"]
 "tests/programacao_semanal/test_programacao_exportacao.py" = ["PLR0913"]
 
+# `_activity`, em tests/programacao_semanal/test_programacao_indicadores.py, monta a
+# atividade do dashboard com os cortes e o estado opcionais; `_store`, nos testes do
+# dashboard, monta a atividade da fachada com a semana, o previsto, o realizado, os
+# turnos e os cadastros. É assim de propósito: depois do `*` são todos KEYWORD-ONLY,
+# e cada teste informa só o que importa para o caso (ISSUE-056). A regra existe para
+# argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar um
+# objeto de opções, a mesma coisa com mais indireção.
+"tests/programacao_semanal/test_programacao_indicadores.py" = ["PLR0913"]
+"tests/programacao_semanal/test_programacao_dashboard.py" = ["PLR0913"]
+"tests/programacao_semanal/test_programacao_dashboard_rotas.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
 
