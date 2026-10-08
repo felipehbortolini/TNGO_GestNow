@@ -1,0 +1,91 @@
+{% extends "base_fragment.html" %}
+{% from "suprimentos/_documentos.html" import linhas %}
+{#
+  Atualizar qualificação (ISSUE-057): a situação, a validade da qualificação, as categorias, os
+  documentos com a validade de cada um, a observação e a justificativa. A justificativa é
+  obrigatória quando a situação muda (e Restrito ou Bloqueado exigem o motivo); o servidor
+  recusa sem ela. O 422 devolve este formulário preenchido; o sucesso atualiza a tela atrás do
+  modal.
+
+  Espera: valores, erros, documentos, situacoes, empresa_id, empresa_nome e referencia.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/suprimentos/fornecedores/{{ empresa_id }}/qualificacao"
+  x-target="fornecedores-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando a qualificação...">
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field">
+      <span class="fornecedor__rotulo">Empresa</span>
+      <p class="body-txt fw-600">{{ empresa_nome }}</p>
+    </div>
+
+    <div class="field">
+      <label for="fornecedor-situacao">Situação</label>
+      <select id="fornecedor-situacao" name="situacao" class="input{% if erros.get('situacao') %} input--erro{% endif %}" required
+        {% if erros.get('situacao') %}aria-invalid="true" aria-describedby="erro-situacao"{% endif %}>
+        {% for situacao in situacoes %}
+        <option value="{{ situacao }}"{% if valores.get('situacao') == situacao %} selected{% endif %}>{{ situacao }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Qualificado exige validade; Restrito e Bloqueado exigem o motivo.</span>
+      {{ campo_erro(erros, 'situacao') }}
+    </div>
+
+    <div class="field">
+      <label for="fornecedor-validade">Validade da qualificação</label>
+      <input id="fornecedor-validade" name="validade" type="date" min="{{ referencia }}"
+        class="input{% if erros.get('validade') %} input--erro{% endif %}" value="{{ valores.get('validade') or '' }}"
+        {% if erros.get('validade') %}aria-invalid="true" aria-describedby="erro-validade"{% endif %} />
+      {{ campo_erro(erros, 'validade') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="fornecedor-categorias">Categorias atendidas (separadas por vírgula)</label>
+      <input id="fornecedor-categorias" name="categorias" class="input{% if erros.get('categorias') %} input--erro{% endif %}"
+        maxlength="160" required value="{{ valores.get('categorias') or '' }}"
+        {% if erros.get('categorias') %}aria-invalid="true" aria-describedby="erro-categorias"{% endif %} />
+      {{ campo_erro(erros, 'categorias') }}
+    </div>
+
+    {{ linhas(documentos, target_id) }}
+
+    <div class="field field--full">
+      <label for="fornecedor-observacao">Observação</label>
+      <textarea id="fornecedor-observacao" name="observacao" rows="2" maxlength="300"
+        class="input{% if erros.get('observacao') %} input--erro{% endif %}"
+        {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
+      <span class="hint">Restrito ou Bloqueado exigem o motivo aqui (ou na justificativa).</span>
+      {{ campo_erro(erros, 'observacao') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="fornecedor-justificativa">Justificativa da mudança de situação</label>
+      <textarea id="fornecedor-justificativa" name="justificativa" rows="2" maxlength="300"
+        class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">Obrigatória quando a situação muda (mínimo de 10 caracteres); fica no histórico.</span>
+      {{ campo_erro(erros, 'justificativa') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Salvar qualificação
+    </button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,25 @@
+{#
+  As linhas de documento dos formulários do fornecedor (ISSUE-057): o nome do documento é fixo
+  (o protótipo também não o editava) e a validade é o campo. O id e a versão viajam em campos
+  ocultos; um documento novo (id vazio) nasce na gravação.
+
+  Espera: documentos (lista de dicts com id, nome, validade e versao) e prefixo (o id do alvo,
+  para os rótulos não colidirem entre o modal e a tela).
+#}
+{% macro linhas(documentos, prefixo) %}
+<fieldset class="field field--full fornecedor__documentos">
+  <legend>Documentos (validade)</legend>
+  <p class="hint">Documento vencido deixa o fornecedor com pendência no cadastro.</p>
+  {% for documento in documentos %}
+  <div class="fornecedor__documento">
+    <span class="fornecedor__documento-nome">{{ documento.nome }}</span>
+    <input type="hidden" name="documentoId" value="{{ documento.id }}" />
+    <input type="hidden" name="documentoNome" value="{{ documento.nome }}" />
+    <input type="hidden" name="documentoVersao" value="{{ documento.versao }}" />
+    <label class="sr-only" for="{{ prefixo }}-doc-{{ loop.index }}">Validade de {{ documento.nome }}</label>
+    <input id="{{ prefixo }}-doc-{{ loop.index }}" class="input" type="date" name="documentoValidade"
+      value="{{ documento.validade }}" />
+  </div>
+  {% endfor %}
+</fieldset>
+{% endmacro %}

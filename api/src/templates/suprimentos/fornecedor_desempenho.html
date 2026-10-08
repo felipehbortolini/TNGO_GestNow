@@ -1,0 +1,129 @@
+{% extends "base_fragment.html" %}
+{#
+  Desempenho e histórico de um fornecedor (ISSUE-057): o resumo (situação, nota média e valor
+  contratado), as avaliações de contrato do 03 (período, contrato, tipo, nota e classe), os
+  contratos da empresa e o histórico da qualificação (data, de, para, por e justificativa). O
+  OTD dos pedidos chega com a ISSUE-061. Leitura apenas: o modal não grava nada.
+
+  Espera: fornecedor (SupplierLine), formatar_data, formatar_moeda, pill_da_classe e
+  sem_qualificacao.
+#}
+{% block fragment %}
+<div class="fornecedor__resumo">
+  <table class="tbl">
+    <caption class="sr-only">Resumo do fornecedor</caption>
+    <tbody>
+      <tr>
+        <th scope="row">Situação</th>
+        <td><span class="pill {{ 'pill--neutral' if fornecedor.situation == sem_qualificacao else '' }}">{{ fornecedor.situation }}</span></td>
+        <th scope="row">Nota média</th>
+        <td class="num">{{ fornecedor.mean_score if fornecedor.mean_score is not none else '·' }}</td>
+      </tr>
+      <tr>
+        <th scope="row">Valor contratado</th>
+        <td class="num">{{ formatar_moeda(fornecedor.contracted_cents) }}</td>
+        <th scope="row">Categorias</th>
+        <td>{{ fornecedor.categories|join(', ') if fornecedor.categories else '—' }}</td>
+      </tr>
+      {% if fornecedor.observation %}
+      <tr>
+        <th scope="row">Observação</th>
+        <td colspan="3">{{ fornecedor.observation }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<h3 class="h-card5 mt-16">Avaliações de desempenho (03 Contratos)</h3>
+{% if fornecedor.evaluations %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Avaliações de desempenho da empresa</caption>
+    <thead>
+      <tr>
+        <th scope="col">Período</th>
+        <th scope="col">Contrato</th>
+        <th scope="col">Tipo</th>
+        <th scope="col" class="td-num">Nota</th>
+        <th scope="col">Classe</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for avaliacao in fornecedor.evaluations|reverse %}
+      <tr>
+        <td class="num">{{ '%02d/%d' % (avaliacao.period.month, avaliacao.period.year) }}</td>
+        <td>{{ avaliacao.contract_number }}</td>
+        <td>{{ avaliacao.kind }}</td>
+        <td class="td-num num"><b>{{ avaliacao.score if avaliacao.score is not none else '·' }}</b></td>
+        <td>
+          <span class="pill {{ pill_da_classe(avaliacao.score_class) }}">Classe {{ avaliacao.score_class or '·' }}</span>
+          {% if avaliacao.class_description %}<br /><span class="hint">{{ avaliacao.class_description }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="body-txt muted">Sem avaliações de contrato para esta empresa.</p>
+{% endif %}
+
+<h3 class="h-card5 mt-16">Contratos</h3>
+{% if fornecedor.contracts %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Contratos da empresa</caption>
+    <thead>
+      <tr>
+        <th scope="col">Número</th>
+        <th scope="col">Objeto</th>
+        <th scope="col" class="td-num">Valor original</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for contrato in fornecedor.contracts %}
+      <tr>
+        <td>{{ contrato.number }}</td>
+        <td>{{ contrato.object }}</td>
+        <td class="td-num num">{{ formatar_moeda(contrato.value_cents) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="body-txt muted">Sem contratos no escopo para esta empresa.</p>
+{% endif %}
+
+<h3 class="h-card5 mt-16">Histórico da qualificação</h3>
+{% if fornecedor.history %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Histórico da qualificação</caption>
+    <thead>
+      <tr>
+        <th scope="col">Data</th>
+        <th scope="col">De</th>
+        <th scope="col">Para</th>
+        <th scope="col">Por</th>
+        <th scope="col">Justificativa</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mudanca in fornecedor.history|reverse %}
+      <tr>
+        <td class="num">{{ formatar_data(mudanca.date) }}</td>
+        <td>{{ mudanca.from_situation or '·' }}</td>
+        <td>{{ mudanca.to_situation }}</td>
+        <td>{{ mudanca.author or '·' }}</td>
+        <td>{{ mudanca.justification }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="body-txt muted">Sem mudanças de situação registradas.</p>
+{% endif %}
+{% endblock %}

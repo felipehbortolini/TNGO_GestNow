@@ -1,0 +1,74 @@
+{% extends "base_fragment.html" %}
+{% from "suprimentos/_documentos.html" import linhas %}
+{#
+  Novo fornecedor (ISSUE-057): a razão social, o tipo, as categorias atendidas e os três
+  documentos de partida do protótipo (certidões e FGTS), com a validade de cada um. A empresa é
+  criada no cadastro pela fachada do 04 e entra como Em qualificação. O 422 devolve este
+  formulário preenchido com a mensagem sob cada campo; o sucesso atualiza a tela atrás do modal.
+
+  Espera: valores, erros, documentos, tipos e referencia.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/suprimentos/fornecedores/novo"
+  x-target="fornecedores-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando o fornecedor...">
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="fornecedor-nome">Razão social ou nome fantasia</label>
+      <input id="fornecedor-nome" name="nome" class="input{% if erros.get('nome') %} input--erro{% endif %}"
+        maxlength="80" required value="{{ valores.get('nome') or '' }}"
+        {% if erros.get('nome') %}aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
+      {{ campo_erro(erros, 'nome') }}
+    </div>
+
+    <div class="field">
+      <label for="fornecedor-tipo">Tipo</label>
+      <select id="fornecedor-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required
+        {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if valores.get('tipo', 'Fornecedor') == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'tipo') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="fornecedor-categorias">Categorias atendidas (separadas por vírgula)</label>
+      <input id="fornecedor-categorias" name="categorias" class="input{% if erros.get('categorias') %} input--erro{% endif %}"
+        maxlength="160" required value="{{ valores.get('categorias') or '' }}"
+        placeholder="Montagem eletromecânica, Estruturas metálicas"
+        {% if erros.get('categorias') %}aria-invalid="true" aria-describedby="erro-categorias"{% endif %} />
+      {{ campo_erro(erros, 'categorias') }}
+    </div>
+
+    {{ linhas(documentos, target_id) }}
+
+    <div class="field field--full">
+      <label for="fornecedor-observacao">Observação</label>
+      <textarea id="fornecedor-observacao" name="observacao" rows="3" maxlength="300"
+        class="input{% if erros.get('observacao') %} input--erro{% endif %}"
+        {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
+      {{ campo_erro(erros, 'observacao') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Cadastrar fornecedor
+    </button>
+  </div>
+</form>
+{% endblock %}

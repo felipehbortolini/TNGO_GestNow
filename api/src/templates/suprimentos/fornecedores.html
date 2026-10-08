@@ -1,0 +1,178 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Fornecedores (HU-105): os seis KPIs, a barra de busca e filtros, a tabela do cadastro e
+  a paginação. O fragmento é um só e se pede de novo, com os filtros na consulta, a cada clique:
+  KPI, página, busca ou filtro são links ou um formulário GET com x-target no próprio fragmento.
+  Os modais (Novo fornecedor, Atualizar qualificação e Desempenho e histórico) abrem por
+  JavaScript (fornecedores.js); os formulários o servidor entrega por GET no alvo do modal.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, situacoes, sem_qualificacao, link_anterior, link_proximo,
+  link_limpar, url_excel, url_pdf, consulta, parametro_consulta, pode_gravar, pill_da_situacao,
+  pill_da_classe, formatar_data, formatar_moeda, pagina_inicial e pagina_final.
+#}
+
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+  x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="fornecedores__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, icone) %}
+<button type="button" class="iconbtn" data-fornecedor-modal-url="{{ url }}"
+  data-fornecedor-modal-titulo="{{ titulo }}" data-fornecedor-modal-subtitulo="{{ subtitulo }}"
+  aria-label="{{ rotulo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+</button>
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis fornecedores__kpis" style="--kpis-colunas: 6">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/suprimentos/fornecedores" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar fornecedores</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar empresa ou categoria" />
+        <label class="sr-only" for="{{ target_id }}-situacao">Situação</label>
+        <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
+          <option value="">Todas as situações</option>
+          <option value="{{ sem_qualificacao }}"{% if filtros.situation == sem_qualificacao %} selected{% endif %}>{{ sem_qualificacao }}</option>
+          {% for situacao in situacoes %}
+          <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-categoria">Categoria</label>
+        <select id="{{ target_id }}-categoria" class="input" name="categoria" @change="$el.form.requestSubmit()">
+          <option value="">Todas as categorias</option>
+          {% for categoria in listagem.categories %}
+          <option value="{{ categoria }}"{% if filtros.category == categoria %} selected{% endif %}>{{ categoria }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn--secondary btn--sm">Filtrar</button>
+      </form>
+      <div class="fornecedores__barra">
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary"
+          data-fornecedor-modal-url="/api/suprimentos/fornecedores/novo?{{ parametro_consulta }}"
+          data-fornecedor-modal-titulo="Novo fornecedor"
+          data-fornecedor-modal-subtitulo="A empresa entra no cadastro como Em qualificação">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Novo fornecedor
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="hint fornecedores__contagem" role="status">
+      {{ listagem.total }} {{ 'fornecedor' if listagem.total == 1 else 'fornecedores' }} no filtro atual
+      {%- if listagem.summary.unregistered %} · {{ listagem.summary.unregistered }} empresas sem qualificação{% endif %}
+    </p>
+
+    {% if listagem.summary.registered == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há fornecedores qualificados</h2>
+      <p>Cadastre o primeiro fornecedor; ele entra como Em qualificação e recebe os documentos com validade.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum fornecedor encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver o cadastro.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl fornecedores__tabela">
+        <caption class="sr-only">Fornecedores e contratadas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Empresa</th>
+            <th scope="col">Categorias</th>
+            <th scope="col">Situação</th>
+            <th scope="col">Validade</th>
+            <th scope="col">Documentos</th>
+            <th scope="col">Desempenho</th>
+            <th scope="col" class="td-num">Valor contratado</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_lines %}
+          <tr class="{% if linha.situation == 'Bloqueado' or (linha.registered and not linha.documents_up_to_date) %}fornecedores__linha--alerta{% endif %}">
+            <td>
+              <span class="fw-600">{{ linha.name }}</span><br />
+              <span class="hint">{{ linha.kind or '—' }}{% if not linha.registered %} · {{ sem_qualificacao }}{% endif %}</span>
+            </td>
+            <td>{{ linha.categories|join(', ') if linha.categories else '—' }}</td>
+            <td>
+              <span class="pill {{ pill_da_situacao(linha.situation) }}">{{ linha.situation }}</span>
+              {% if linha.observation %}<br /><span class="hint">{{ linha.observation }}</span>{% endif %}
+            </td>
+            <td class="num">
+              {% if linha.validity %}
+              {{ formatar_data(linha.validity) }}
+              {% if linha.qualification_expired %}<br /><span class="pill pill--erro">vencida</span>
+              {% elif linha.qualification_expiring %}<br /><span class="hint">vence em até 90 dias</span>{% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if not linha.registered %}<span class="muted">—</span>
+              {% elif linha.documents_up_to_date %}<span class="pill pill--ok">Válidos</span>
+              {% else %}
+              <span class="pill pill--erro">{{ linha.expired_documents|length }} vencido{% if linha.expired_documents|length > 1 %}s{% endif %}</span>
+              <br /><span class="hint">{{ linha.expired_documents|map(attribute='name')|join(', ') }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set ultima = linha.last_evaluation %}
+              {% if ultima and ultima.score_class %}
+              <span class="pill {{ pill_da_classe(ultima.score_class) }}">Classe {{ ultima.score_class }}</span>
+              <span class="num">{{ ultima.score }}</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="td-num num">{{ formatar_moeda(linha.contracted_cents) }}</td>
+            <td class="fornecedores__acoes">
+              {% if pode_gravar %}
+              {{ botao_do_modal('/api/suprimentos/fornecedores/' ~ linha.company_id ~ '/qualificacao?' ~ parametro_consulta, 'Atualizar qualificação', linha.name, 'Atualizar qualificação de ' ~ linha.name, 'edit') }}
+              {% endif %}
+              {{ botao_do_modal('/api/suprimentos/fornecedores/' ~ linha.company_id ~ '/desempenho?' ~ parametro_consulta, linha.name, 'Desempenho e histórico', 'Desempenho e histórico de ' ~ linha.name, 'chartLine') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="fornecedores__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
