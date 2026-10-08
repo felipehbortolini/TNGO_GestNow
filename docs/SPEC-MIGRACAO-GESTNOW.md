@@ -1476,6 +1476,7 @@ do dono".
 | Decisão da execução (ISSUE-056), pendente de revisão do dono | filtros do dashboard | a barra fica fora do painel (`x-target="dash-painel"`), como no app: mudar um corte não perde o seletor; "Limpar" recarrega a barra e o painel com a semana; o fornecedor não vê o seletor de contratada | D10, D7, ISSUE-056 |
 | Decisão da execução (ISSUE-056), pendente de revisão do dono | exportações do dashboard | um `Document` para os dois mecanismos: o imprimível desenha os mesmos gráficos e o Excel leva os números atrás de cada um (rankings, gargalos, mapa de calor, turnos, previsto x realizado e evolução); a lista de gargalos é por projeto no Portfólio | D12, HU-016, ISSUE-056 |
 | Decisão da execução (ISSUE-056), pendente de revisão do dono | oráculo do dashboard | entra em `test_carga_demonstracao.py` com os números da S.34/2026 (aderência 66,19%, ranking por contratada, 2 gargalos, turnos, evolução e o fornecedor só com a própria empresa); a carga não mudou | D10, ISSUE-056 |
+| Decisão da execução (ISSUE-056), pendente de revisão do dono | pedido programático das telas | o `$ajax` é magic e só devolve promessa no escopo do Alpine (`Alpine.$data(raiz).$ajax(...)`); `Alpine.evaluate` devolve `undefined` antes da promessa e quebrava o carregamento das cinco telas do módulo (a matriz caía no `Promise.all` imediato) — vale também para a chamada avulsa da projeção do Mapa de controle (ISSUE-031) | D10, ISSUE-056, ISSUE-031 |
 
 ---
 
