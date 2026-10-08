@@ -81,7 +81,7 @@ vem primeiro.
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | 5 | task | done | ready-for-agent | ISSUE-051 | [ISSUE-052](./052-programacao-semanal-fluxo-de-cinco-passos.md) |
 | ISSUE-053 | Pedidos de alteração e governança da programação | 5 | task | done | ready-for-agent | ISSUE-052 | [ISSUE-053](./053-programacao-semanal-pedidos-de-alteracao-e-governanca.md) |
 | ISSUE-054 | Subpágina de configuração da programação, uma por projeto | 5 | task | done | ready-for-agent | ISSUE-051 | [ISSUE-054](./054-programacao-semanal-configuracao-por-projeto.md) |
-| ISSUE-055 | Importação da semana, planilha e relatório de impressão | 5 | task | proposed | ready-for-agent | ISSUE-052 | [ISSUE-055](./055-programacao-semanal-importacao-planilha-e-impressao.md) |
+| ISSUE-055 | Importação da semana, planilha e relatório de impressão | 5 | task | done | ready-for-agent | ISSUE-052 | [ISSUE-055](./055-programacao-semanal-importacao-planilha-e-impressao.md) |
 | ISSUE-056 | Dashboard da programação | 5 | task | proposed | ready-for-agent | ISSUE-052 | [ISSUE-056](./056-programacao-semanal-dashboard.md) |
 | ISSUE-057 | Fornecedores com qualificação, documentos com validade e desempenho | 6 | task | proposed | ready-for-agent | ISSUE-034 | [ISSUE-057](./057-fornecedores-qualificacao-e-desempenho.md) |
 | ISSUE-058 | Plano de compras | 6 | task | proposed | ready-for-agent | ISSUE-031, ISSUE-057 | [ISSUE-058](./058-plano-de-compras.md) |

@@ -59,20 +59,27 @@ Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_
 | `configuracao` | GET | Painel da configuração (`config-painel`): parâmetros e janelas por empresa; no Portfólio, o aviso de escolher um projeto |
 | `configuracao/parametros` | POST | Grava os parâmetros (Planejador no projeto ou Admin); 422/409 devolvem `config-parametros` preenchido |
 | `configuracao/janela` | POST | Grava a janela de uma empresa (dias, semanas e extras); 422/409 devolvem `config-janelas` com o cartão recusado preenchido |
+| `importacao` | GET | Aba de importação e impressão (`importacao-painel`): os passos, os cadastros aceitos e os botões da semana |
+| `importacao/modelo` | GET | Modelo da planilha do app (.xlsx, download pelo `file_route`, sem gate de fragmento) |
+| `importacao/conferir` | POST | Conferência linha a linha (`importacao-conferencia`), sem gravar; 422 quando o arquivo não é planilha |
+| `importacao/confirmar` | POST | Grava só o que passou, tudo ou nada, com o digest do `core.importing` |
+| `semana/excel` | GET | Excel da semana com as abas do app (download) |
+| `semana/imprimivel` | GET | Folha imprimível da semana (`data-tn-pdf`, imprimível genérico) |
 
 Os painéis do fluxo declaram `x-target="drawer prog-resumo prog-tabela"`: no 422/409 a resposta traz o painel **e** a faixa e a matriz, porque alvo declarado que não vem na resposta é esvaziado pelo Alpine AJAX. O formulário de decisão da fila declara `x-target="gov-pedidos gov-trilha"`, e a resposta (`fila_resposta.html`) traz os dois. Na configuração, cada formulário declara o seu próprio bloco (`config-parametros` ou `config-janelas`) e a resposta traz só ele — o `422/409` volta com o digitado e as mensagens ao lado dos campos.
 
-Previstas nas próximas issues: `importacoes` e `exportacoes` (055), `dashboard` (056).
+Na importação, o formulário do envio declara `x-target="importacao-conferencia"` e a conferência volta nesse alvo com o botão de confirmar (o mesmo formulário, que reenvia o arquivo e o resumo conferido); os fragmentos da conferência e do resultado são os do fluxo genérico (`comum/_importacao_conferencia.html` e o resultado do módulo). Prevista na próxima issue: `dashboard` (056).
 
 ## Estrutura portada do app
 
 | Arquivo | O que tem | Origem no app |
 |---|---|---|
 | `weeks.py` | Semana `S.30/2026`, segunda a domingo, ISO (2026 tem 53), `week_dates`, `shift`, `horizon` | `core/semanas.py` |
-| `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of` | `core/calculos.py` |
+| `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of` e a curva S (`CurveActivity`, `CurvePoint`, `curve_points`) | `core/calculos.py` |
 | `window.py` | `decide`: extraordinária vence, depois semana liberada, depois dia e hora | `core/janela.py` |
-| `permissions.py` | Quem cria, edita, valida, lança, aprova, publica e exclui (papel por projeto, D7) e `next_action`, a fila dos cinco degraus | `core/rbac.py` |
+| `permissions.py` | Quem cria, edita, valida, lança, aprova, publica, exclui (papel por projeto, D7) e `next_action`, a fila dos cinco degraus | `core/rbac.py` |
 | `validation.py` | Formulário da atividade (obrigatórios, soma dos dias com tolerância de 0,51) e os painéis do fluxo (validar, realizado, aprovar/reabrir) | `blueprints/atividades.py` |
+| `importers.py` | Importador da planilha do app (`programacao-semanal`): colunas, `_Conferencia` linha a linha e a gravação pela fachada | `core/planilha.py` (leitura) + `blueprints/importacao.py` |
 | `service.py` | Fachada: recorte por empresa, janela, Portfólio somente leitura, gravação pelo `recording`, as transições do fluxo e a regra do desvio | `core/registro.py`, `core/dados.py` |
 | `repository.py`, `models.py` | Consultas e tabelas `programacao_*` (migração `m051`); a trilha de uma atividade para o painel de detalhe | `core/repositorio.py` (JSON) |
 | `views.py`, `presentation.py`, `screen.py` | Linha da matriz com os textos e as ações decididos no Python, grade dos dias, pastilhas, cabeçalhos, contextos dos painéis | `templates/programacao/*` |
@@ -156,6 +163,61 @@ padrões do app; a gravação dos parâmetros cria a linha. No **Portfólio** a 
 somente leitura e pede um projeto (`configuration_of` não monta os formulários e a
 gravação recusa com 422); o **fornecedor** só vê a janela da própria empresa (D7).
 
+## Importação, planilha e impressão (ISSUE-055)
+
+A subpágina **Importação e impressão** fecha o ciclo da semana: importar a programação pela
+planilha modelo do app, baixar a semana em Excel com as abas do app e gerar o relatório para
+imprimir (a folha do app) pela folha de impressão do Design System. O importador é o
+`importers.programacao_importer` (chave `programacao-semanal`), registrado com
+`importers.register_importers()` e rodado pelo fluxo genérico do `core.importing` (D12): o
+modelo é um `Document` (download pelo `file_route`), a conferência lê a planilha e responde o
+que cada linha vai fazer **sem gravar**, e a confirmação reenvia o arquivo, confere de novo e
+grava tudo ou nada, com o digest do arquivo conferido.
+
+| Termo de negócio | Nome no código |
+|---|---|
+| Importador da semana | `importers.programacao_importer()` (`KEY = "programacao-semanal"`) |
+| Conferência linha a linha | `core.importing.check` com o `Importer` do módulo |
+| Confirmação | `core.importing.confirm` (digest e "estou ciente") |
+| Linha `Prev.` | a atividade (`service.store_activity`, situação em elaboração) |
+| Linha `Real.` | o turno dia do realizado (`service.import_done_days`) |
+| Curva S da semana | `calculations.curve_points` + `service.week_curve` |
+| Planilha da semana | `export.week_document` (Excel) |
+| Folha do relatório | `export.week_report_document` (imprimível) |
+
+As colunas do modelo são as do app na ordem dele (Item, Semana, ID Exclusiva, Atividade
+Detalhada, Local, Empresa, Fiscal, Encarregado, Prod. Prevista, Unidade, Prev/Real e os sete
+dias), com as regras da `_Conferencia` do app: Semana e ID Exclusiva obrigatórias (e a ID sem
+repetir na semana, no arquivo e no banco), Local/Empresa/Unidade/Encarregado/Fiscal dos
+cadastros do projeto (o Fiscal é opcional; o Encarregado é validado porque a atividade guarda
+`foreman_id`), Produção Prevista maior que zero e a soma dos sete dias batendo com ela
+(tolerância de 0,51). A coluna **Prev/Real** aceita `Prev.` e `Real.` (ignorando caixa,
+acentos e espaços); a linha `Prev.` cria a atividade e a `Real.` completa o turno dia da
+atividade de mesma semana e ID — sem a `Prev.`, a linha `Real.` é ignorada, como no app. A
+coluna `Item` é informativa: o item da semana é o próximo do projeto. O papel é o do projeto
+(D7): **Planejador no projeto ou Admin** (`permissions.can_import`), como o `importar` do app;
+o fornecedor e o visualizador recebem 403; no Portfólio a tela pede um projeto (D8). O modelo
+do GestNow é o genérico (`Dados` e `Instruções` com obrigatoriedade, formato e exemplo), não o
+arquivo de exemplo do app — os cadastros aceitos aparecem no próprio painel da aba.
+
+O **Excel** (`semana/excel`, download) tem as sete abas do app: `Resumo` (os indicadores e as
+contagens de situação, gerados dos KPIs do documento), `Programação` (duas linhas por
+atividade, Previsto e Realizado, com as vinte colunas do app), `Por contratada`, `Por frente`,
+`Por encarregado`, `Dia a dia` e `Curva S`. A curva é a do app (`indicadores.curva_s`): peso
+igual por atividade e o denominador da atividade é o escopo no horizonte de treze semanas (a
+semana e as doze anteriores), com base, previsto, realizado e os acumulados. O **relatório**
+(`semana/imprimivel`, botão `data-tn-pdf`) sai da mesma fonte: quatro indicadores (aderência,
+PPC médio, atividades e contratadas), a matriz com as mesmas linhas do Excel e as tabelas de
+contratada, frente e dia a dia, sem navegação no papel — a folha é a do Design System
+(`comum/imprimivel.html` + `print.css`). No Portfólio as listas levam a coluna Projeto
+(HU-016); as tabelas de quebra e de dia a dia são de conjunto e não são por projeto.
+
+Regras no código: a permissão genérica do importador é a leitura do módulo, e
+`permissions.can_import` decide (o `core.importing` não conhece papéis por projeto); a semana
+é canônica antes de gravar (`S.1/2026` vira `S.01/2026`) e a gravação repete a checagem de ID
+no banco, para que uma repetição que escapou da conferência vire 422 com a linha, não um erro
+de banco; a trilha é a única (`core.audit`), pela fachada.
+
 ## Integrações
 
 Projeto, empresas, colaboradores, fiscais e encarregados vêm de Configurações. A identidade e o papel da pessoa vêm da plataforma GestNow; fornecedor só acessa a própria empresa. Para isso as rotas declaram `Access(module="programacao_semanal")` e a fachada chama `core.rbac`: `company_scope(user)` corta a consulta pela empresa do fornecedor (e `require_company` recusa a de outra), e `has_schedule_role` / `require_schedule_role(user, project_id, *roles)` conferem o papel no projeto em que a pessoa o recebeu (Planejador, Fiscal, Encarregado, Fornecedor; o papel não vale em outro projeto). O fornecedor não tem permissão geral nenhuma: na programação ele age pelos papéis. O módulo não mantém cadastro paralelo de pessoas/empresas: a configuração lista as empresas do cadastro de Configurações. A saída alimenta o dashboard da programação e os relatórios previstos.
@@ -172,14 +234,15 @@ Cada projeto tem seus parâmetros e janelas: metas de PPC/aderência, semana de 
 | Fluxo, recorte por empresa e janela | `service.py`, `window.py`, `permissions.py` |
 | PPC, aderência e faixas | `calculations.py` |
 | Validações da atividade/planilha | `validation.py` |
+| Importação da semana | `importers.py` |
 | Planilha e impressão | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração; `configuracao.html`, `_parametros.html` e `_janelas.html` a configuração, com os invólucros `parametros.html` e `janelas.html` para as respostas de gravação) |
+| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração; `configuracao.html`, `_parametros.html` e `_janelas.html` a configuração, com os invólucros `parametros.html` e `janelas.html` para as respostas de gravação; `importacao.html` o painel da importação, `importacao_conferencia.html` a conferência e `importacao_resultado.html` o resultado) |
 | Carga de demonstração | `seed.py` e `demonstracao.json` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; a ISSUE-053, os pedidos de alteração e a governança; a ISSUE-054, a configuração por projeto; as ISSUE-055 e ISSUE-056 completam o resto do módulo.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; a ISSUE-053, os pedidos de alteração e a governança; a ISSUE-054, a configuração por projeto; a ISSUE-055, a importação, a planilha e o relatório de impressão; a ISSUE-056 completa o dashboard.
 
 ## Testes
 
@@ -192,4 +255,7 @@ O app de origem e seu glossário ficam somente para consulta em `docs/referencia
 - `test_programacao_governanca_rotas.py`: o HTTP do painel, da fila, da trilha e dos pedidos, os 403, os 422/409 e as exportações.
 - `test_programacao_configuracao.py`: os padrões de `ensure_settings`, a permissão por papel no projeto (Planejador e Admin editam; o Planejador de outro projeto, não), o efeito imediato, a trilha de antes e depois dos parâmetros e das janelas (com os extras entrando, trocando e saindo), o corte do fornecedor e o Portfólio somente leitura.
 - `test_programacao_configuracao_rotas.py`: o HTTP do painel, dos parâmetros e das janelas, os 403 por papel, os 422/409 preenchidos e o aviso de escolher um projeto no Portfólio.
+- `test_programacao_importacao.py`: o modelo com as colunas do app (gerado e lido de volta), a conferência linha a linha com o motivo e sem gravar, a confirmação gravando só o que passou (tudo ou nada), a linha `Real.` no turno dia, o digest e o "estou ciente", e os papéis e o Portfólio.
+- `test_programacao_importacao_rotas.py`: o HTTP da aba, do modelo (download sem gate), da conferência e da confirmação, os 403 de quem não importa e os 422 do arquivo trocado, do Portfólio e do que não é planilha; e as exportações da semana.
+- `test_programacao_exportacao.py`: o oráculo da curva S (peso igual por atividade e escopo no horizonte), as sete abas do Excel com as colunas do app e duas linhas por atividade, o Resumo, a coluna Projeto no Portfólio e o documento do relatório.
 - `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações) e da governança (painel por empresa/semana, pedidos e trilha na carga); a carga da configuração (parâmetros e janelas do app) não mudou com a ISSUE-054.
