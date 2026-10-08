@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta multi-alvo do pedido de alteração registrado: o drawer esvazia (fecha),
+  e a faixa e a matriz se redesennham com as ações de quem está olhando.
+
+  Espera: o contexto de screen.matrix_context.
+#}
+{% block root %}
+<div id="drawer"></div>
+{% include "programacao_semanal/_resumo.html" %}
+{% include "programacao_semanal/_tabela.html" %}
+{% endblock %}

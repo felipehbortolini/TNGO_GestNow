@@ -1,0 +1,12 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta multi-alvo da decisão de um pedido (aplicado, recusado ou recusado pela
+  validação): a fila (#gov-pedidos) e a trilha (#gov-trilha) se atualizam juntas —
+  os dois alvos que o formulário da fila declara.
+
+  Espera: o contexto de screen.queue_context e o de screen.trail_context.
+#}
+{% block root %}
+<div id="gov-pedidos">{% include "programacao_semanal/_fila.html" %}</div>
+<div id="gov-trilha">{% include "programacao_semanal/_trilha.html" %}</div>
+{% endblock %}

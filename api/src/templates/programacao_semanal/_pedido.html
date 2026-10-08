@@ -1,0 +1,75 @@
+{#
+  Partial — o painel de pedir alteração de uma atividade fechada para edição.
+
+  O pedido existe para o que já está publicado ou com o realizado aprovado — fora
+  disso a pessoa edita direto e o bilhete seria desvio. O motivo é obrigatório
+  (uma frase, como no app) e a decisão do planejador fica na Governança, com a
+  trilha de antes e depois.
+
+  Espera: atividade, semana, periodo, motivo, erros, unidade, previsto_texto,
+  motivo_fechado, salvar_url.
+#}
+<div class="painel-fundo" @click.self="$el.remove()" @keydown.escape.window="$el.remove()">
+  <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-pedido" @click.stop>
+    <div class="painel__topo">
+      <div>
+        <h2 class="h-card3" id="titulo-pedido">Pedir alteração</h2>
+        <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }} · {{ semana }}</p>
+      </div>
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+        x-init="$el.innerHTML = window.icon('dismiss', 18)"
+        @click="$root.closest('.painel-fundo').remove()"></button>
+    </div>
+
+    <form method="post" action="{{ salvar_url }}" x-target="drawer prog-resumo prog-tabela"
+      data-tn-loading="Enviando...">
+      <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+      <input type="hidden" name="semana" value="{{ semana }}" />
+      <div class="painel__corpo">
+        {% if erros._ %}
+        <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros._ }}</span></div>
+        {% endif %}
+
+        <div class="aviso aviso--info mb-16">
+          <strong>Este item está fechado para edição.</strong>
+          <span>
+            {{ motivo_fechado }} Para mudar alguma coisa, abra um pedido — ele fica
+            registrado na Governança, com quem pediu e quem decidiu.
+          </span>
+        </div>
+
+        <div class="det mb-16">
+          <div class="det__row"><span class="det__label">Atividade</span><span class="det__valor">{{ atividade.description }}</span></div>
+          <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">Previsto</span><span class="det__valor">{{ previsto_texto }} {{ unidade }}</span></div>
+        </div>
+
+        <div class="field">
+          <label for="campo-motivo-pedido">O que precisa mudar, e por quê</label>
+          <textarea id="campo-motivo-pedido" class="input{{ ' input--erro' if erros.motivo }}"
+            name="motivo" rows="4" required minlength="10"
+            placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."
+            {% if erros.motivo %}aria-invalid="true" aria-describedby="erro-motivo-pedido"{% endif %}
+          >{{ motivo }}</textarea>
+          {% if erros.motivo %}
+          <span id="erro-motivo-pedido" class="field__erro">{{ erros.motivo }}</span>
+          {% else %}
+          <span class="hint">Uma frase basta: o planejador decide pela Governança da programação.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="painel__rodape">
+        <span class="hint">Aplicar o pedido reabre a atividade para a sua empresa.</span>
+        <span class="painel__atalhos">
+          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+          <button type="submit" class="btn btn--primary">
+            <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+            Enviar pedido
+          </button>
+        </span>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  A fila de pedidos de alteração (#gov-pedidos): resposta de /api/programacao-semanal/pedidos.
+
+  Espera: o contexto de screen.queue_context.
+#}
+{% block fragment %}
+{% include "programacao_semanal/_fila.html" %}
+{% endblock %}

@@ -122,6 +122,7 @@
             {% set restantes = namespace(total=0) %}
             {% if linha.next_action != 'ver' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
             {% if linha.offer_edit and not somente_leitura %}{% set restantes.total = restantes.total + 1 %}{% endif %}
+            {% if linha.offer_request_change %}{% set restantes.total = restantes.total + 1 %}{% endif %}
             {% if linha.offer_report and linha.next_action != 'lancar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
             {% if linha.offer_validate and linha.next_action != 'validar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
             {% if linha.offer_approve and linha.next_action != 'aprovar' %}{% set restantes.total = restantes.total + 1 %}{% endif %}
@@ -181,6 +182,15 @@
                       @click="aberto = false; $ajax('{{ form_url }}?atividade={{ linha.id }}', { target: 'drawer' })">
                       <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('edit', 18)" aria-hidden="true"></span>
                       <span class="acoes-menu__texto">Editar a programação<small>Muda o previsto, a frente, o encarregado</small></span>
+                    </button>
+                    {% endif %}
+
+                    {% if linha.offer_request_change %}
+                    {# Só onde o app oferece: publicado ou com o realizado aprovado, que é onde a edição fecha. #}
+                    <button type="button" class="acoes-menu__item" role="menuitem"
+                      @click="aberto = false; $ajax('{{ pedir_url }}?atividade={{ linha.id }}', { target: 'drawer' })">
+                      <span class="acoes-menu__icone" x-init="$el.innerHTML = window.icon('fileAdd', 18)" aria-hidden="true"></span>
+                      <span class="acoes-menu__texto">Pedir alteração<small>Para o que está publicado ou aprovado</small></span>
                     </button>
                     {% endif %}
 

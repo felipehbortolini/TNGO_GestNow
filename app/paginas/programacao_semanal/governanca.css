@@ -1,16 +1,78 @@
 /* ============================================================
    governanca.css — Estilo da tela Governança da programação (programacao_semanal/governanca)
 
-   Pedidos de alteração da programação e histórico por empresa e semana.
+   Painel por contratada e semana, pedidos de alteração e trilha de auditoria.
 
    Escopo: tudo que morar aqui começa por .pagina--programacao_semanal-governanca, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-053.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--programacao_semanal-governanca [x-cloak] { display: none; }
+
+/* Quatro indicadores, como o painel do app: contratadas, janelas, fiscal e histórico. */
+.pagina--programacao_semanal-governanca .kpis { --kpis-colunas: 4; }
+
+.pagina--programacao_semanal-governanca .gov-exportar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--programacao_semanal-governanca .gov-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* A fila: o item da lista abre espaço para o formulário de decisão ao lado. */
+.pagina--programacao_semanal-governanca .gov-item {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.pagina--programacao_semanal-governanca .gov-item__ponto {
+  margin-top: 6px;
+  background: var(--warn-500);
+}
+
+.pagina--programacao_semanal-governanca .gov-decisao {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.pagina--programacao_semanal-governanca .gov-decisao__campo { max-width: 260px; }
+.pagina--programacao_semanal-governanca .gov-decisao__acoes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* A trilha da fila e da auditoria: uma linha por passo registrado. */
+.pagina--programacao_semanal-governanca .trilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.pagina--programacao_semanal-governanca .trilha__item { display: flex; gap: var(--space-sm); }
+.pagina--programacao_semanal-governanca .trilha__ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 9999px;
+  background: var(--brand-primary);
+}
+.pagina--programacao_semanal-governanca .trilha__ponto--ok { background: var(--ok-500); }
+.pagina--programacao_semanal-governanca .trilha__ponto--warn { background: var(--warn-500); }
+.pagina--programacao_semanal-governanca .trilha__ponto--neutral { background: var(--neutro-300); }
+.pagina--programacao_semanal-governanca .trilha__acao { font-size: 13px; font-weight: 600; }
+.pagina--programacao_semanal-governanca .trilha__meta { font-size: 11px; color: var(--text-secondary); }
+
+@media (max-width: 1100px) {
+  .pagina--programacao_semanal-governanca .kpis { --kpis-colunas: 2; }
+}

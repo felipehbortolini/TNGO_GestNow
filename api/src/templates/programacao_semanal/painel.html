@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  O painel da governança (#gov-painel): resposta de /api/programacao-semanal/governanca.
+  O alvo manda no id da raiz, então o fragmento usa o bloco padrão e inclui o partial.
+
+  Espera: o contexto de screen.governance_context.
+#}
+{% block fragment %}
+{% include "programacao_semanal/_painel.html" %}
+{% endblock %}

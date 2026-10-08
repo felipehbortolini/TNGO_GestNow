@@ -9,7 +9,9 @@ Targets of the screen (fixed ids, a multi-target answer): ``prog-janela`` (banne
 window), ``prog-filtros`` (toolbar), ``prog-resumo`` (strip) and ``prog-tabela`` (matrix);
 ``drawer`` is the panel of a form. The panels of the flow (validation, done work,
 approval) answer with the drawer plus the matrix on an error, so no declared target is
-left without content; the publication answers with the strip and the matrix.
+left without content; the publication answers with the strip and the matrix. The
+governance screen (ISSUE-053) adds ``gov-painel``, ``gov-pedidos`` and ``gov-trilha``:
+the panel, the queue of change requests and the module's audit trail.
 """
 
 from __future__ import annotations
@@ -22,9 +24,13 @@ from sqlalchemy.orm import Session
 
 from src.core import calendario
 from src.core.errors import InvalidDataError, VersionConflictError
+from src.core.excel import excel_response
+from src.core.export_document import Document
+from src.core.printable import printable_response
 from src.core.responses import AlpineAjaxResponse
-from src.core.routing import Access, RequestContext, fragment_route
-from src.modulos.programacao_semanal import screen, service, validation
+from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.modulos.configuracoes import service as configuracoes
+from src.modulos.programacao_semanal import export, screen, service, validation
 from src.modulos.programacao_semanal.service import Caller
 from src.modulos.programacao_semanal.validation import ActivityForm
 
@@ -556,3 +562,201 @@ def activity_detail(
         form=screen.detail_context(session, opened=opened),
         week=opened.view.week,
     )
+
+
+# ── The governance and the change requests (ISSUE-053) ───────────────────
+
+
+def _request_id(raw: str | None) -> int:
+    """The id of the change request in the address, or the not-found message."""
+    request_id = validation.parse_id(raw)
+    if request_id is None:
+        raise InvalidDataError(service.REQUEST_NOT_FOUND_MESSAGE)
+    return request_id
+
+
+@bp.route(route="programacao-semanal/governanca", methods=["GET"])
+@fragment_route(access=ACCESS)
+def governance_panel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The governance panel: the indicators, the control list, the windows and the queue."""
+    data = screen.governance_context(session, caller=_caller(context))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/painel.html", context=data, request=req
+    )
+
+
+@bp.route(route="programacao-semanal/governanca/trilha", methods=["GET"])
+@fragment_route(access=ACCESS)
+def governance_trail(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The module's audit trail: who changed what, and when."""
+    data = screen.trail_context(session, caller=_caller(context))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/trilha.html", context=data, request=req
+    )
+
+
+@bp.route(route="programacao-semanal/governanca/excel", methods=["GET"])
+@file_route(access=ACCESS)
+def governance_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the panel and of the queue."""
+    return excel_response(_governance_document(session, context))
+
+
+@bp.route(route="programacao-semanal/governanca/imprimivel", methods=["GET"])
+@fragment_route(access=ACCESS)
+def governance_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable version of the panel and of the queue: what the PDF button mounts."""
+    return printable_response(_governance_document(session, context), req)
+
+
+def _governance_document(session: Session, context: RequestContext) -> Document:
+    caller = _caller(context)
+    panel = service.governance_panel(session, caller=caller)
+    queue = service.request_queue(session, caller=caller)
+    return export.governance_document(
+        panel,
+        queue,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=calendario.today(),
+    )
+
+
+@bp.route(route="programacao-semanal/pedidos", methods=["GET"])
+@fragment_route(access=ACCESS)
+def request_queue(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The queue of change requests: what waits for a decision, and what was decided."""
+    data = screen.queue_context(session, caller=_caller(context))
+    return AlpineAjaxResponse(template_name=f"{TEMPLATE_DIR}/fila.html", context=data, request=req)
+
+
+@bp.route(route="programacao-semanal/pedidos/formulario", methods=["GET"])
+@fragment_route(access=ACCESS)
+def request_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The drawer of a change request: the item that is closed and the reason to type."""
+    caller = _caller(context)
+    view = service.open_request(
+        session, caller=caller, activity_id=_activity_id(req.params.get("atividade"))
+    )
+    return _panel(
+        req,
+        context,
+        session,
+        template="pedido.html",
+        form=screen.request_context(view=view),
+        week=view.week,
+    )
+
+
+@bp.route(route="programacao-semanal/pedidos", methods=["POST"])
+@fragment_route(access=ACCESS)
+def open_request(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Put a change request in the queue; 422 gives the drawer back filled."""
+    caller = _caller(context)
+    values = _body(req)
+    activity_id = _activity_id(values.get("atividade_id"))
+    reason = values.get("motivo") or ""
+    try:
+        request = service.request_change(
+            session, caller=caller, activity_id=activity_id, reason=reason
+        )
+    except InvalidDataError as error:
+        errors = _errors_of(error)
+        view = service.get_activity(session, caller=caller, activity_id=activity_id)
+        return _panel(
+            req,
+            context,
+            session,
+            template="pedido.html",
+            form=screen.request_context(view=view, typed=reason, errors=errors),
+            week=view.week,
+            status_code=422,
+            toast=next(iter(errors.values()), None),
+            with_matrix=True,
+        )
+    view = service.get_activity(session, caller=caller, activity_id=request.activity_id)
+    data = screen.matrix_context(session, caller=caller, params={"semana": view.week})
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/pedido_salvo.html",
+        context=data,
+        request=req,
+        toast=service.REQUEST_OPEN_TOAST.format(unique_id=view.unique_id),
+    )
+
+
+def _queue_answer(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    status_code: int = 200,
+    toast: str | None = None,
+    erro_id: int | None = None,
+    erro_mensagem: str = "",
+    resposta_digitada: str = "",
+) -> func.HttpResponse:
+    """The queue and the trail again, behind the modal of the decision."""
+    caller = _caller(context)
+    data = screen.queue_context(
+        session,
+        caller=caller,
+        erro_id=erro_id,
+        erro_mensagem=erro_mensagem,
+        resposta_digitada=resposta_digitada,
+    )
+    data.update(screen.trail_context(session, caller=caller))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/fila_resposta.html",
+        context=data,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo="erro" if status_code >= 400 else "ok",
+    )
+
+
+@bp.route(route="programacao-semanal/pedidos/{id}/decisao", methods=["POST"])
+@fragment_route(access=ACCESS)
+def decide_request(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Apply or refuse a change request; applying reopens the activity."""
+    caller = _caller(context)
+    values = _body(req)
+    request_id = _request_id(req.route_params.get("id") or req.params.get("id"))
+    form = validation.parse_decision(values)
+    try:
+        decided = service.decide_request(session, caller=caller, request_id=request_id, form=form)
+    except (InvalidDataError, VersionConflictError) as error:
+        errors = _errors_of(error)
+        message = next(iter(errors.values()), None)
+        return _queue_answer(
+            req,
+            session,
+            context,
+            status_code=409 if isinstance(error, VersionConflictError) else 422,
+            toast=message,
+            erro_id=request_id,
+            erro_mensagem=message or "",
+            resposta_digitada=form.answer,
+        )
+    toast = (
+        service.REQUEST_APPLY_TOAST.format(unique_id=decided.unique_id)
+        if form.apply
+        else service.REQUEST_REJECT_TOAST.format(unique_id=decided.unique_id)
+    )
+    return _queue_answer(req, session, context, toast=toast)

@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  A trilha de auditoria da programação (#gov-trilha): resposta de
+  /api/programacao-semanal/governanca/trilha.
+
+  Espera: o contexto de screen.trail_context.
+#}
+{% block fragment %}
+{% include "programacao_semanal/_trilha.html" %}
+{% endblock %}

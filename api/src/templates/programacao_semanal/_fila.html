@@ -1,0 +1,66 @@
+{#
+  Partial — a fila de pedidos de alteração (Request → Apply).
+
+  Programação publicada e realizado aprovado deixam de ser editáveis, e às vezes
+  precisam mudar mesmo assim. Sem a fila isso vira telefonema para quem administra,
+  que altera direto e sem rastro. Aplicar não altera o dado sozinho: registra a
+  decisão, reabre a atividade e anota o combinado; quem executa é a pessoa, pela
+  tela normal.
+
+  Espera: pendentes, resolvidos, total_pendentes, pode_decidir, portfolio,
+  pedidos_url, erro_id, erro_mensagem, resposta_digitada.
+#}
+{% if pendentes %}
+<ul class="lista-simples mb-16">
+  {% for p in pendentes %}
+  <li class="lista-simples__item gov-item">
+    <span class="linha__dot gov-item__ponto"></span>
+    <span class="linha__main">
+      <span class="linha__id">{{ p.unique_id }} · {{ p.company }} · {{ p.week }}{% if portfolio %} · {{ p.project_label }}{% endif %}</span>
+      <span class="linha__titulo">{{ p.reason }}</span>
+      <span class="linha__meta">{{ p.requested_by }} · {{ p.requested_at_text }}</span>
+    </span>
+
+    {% if pode_decidir %}
+    <form method="post" action="{{ pedidos_url }}/{{ p.id }}/decisao" x-target="gov-pedidos gov-trilha"
+      class="gov-decisao" data-tn-loading="Decidindo...">
+      <input type="hidden" name="versao" value="{{ p.version }}" />
+      <label class="sr-only" for="resposta-{{ p.id }}">Resposta ao pedido</label>
+      <input id="resposta-{{ p.id }}" class="input gov-decisao__campo" type="text" name="resposta"
+        placeholder="Resposta (obrigatória para recusar)"
+        {% if erro_id == p.id %}value="{{ resposta_digitada }}" aria-invalid="true" aria-describedby="erro-{{ p.id }}"{% endif %} />
+      {% if erro_id == p.id %}
+      <span id="erro-{{ p.id }}" class="field__erro">{{ erro_mensagem }}</span>
+      {% endif %}
+      <span class="gov-decisao__acoes">
+        <button type="submit" class="btn btn--primary btn--sm" name="decisao" value="aplicar">Liberar</button>
+        <button type="submit" class="btn btn--secondary btn--sm" name="decisao" value="recusar">Recusar</button>
+      </span>
+    </form>
+    {% else %}
+    <span class="pill pill--warn">Aguardando decisão</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty" style="min-height: 140px">
+  <p>Nenhum pedido de alteração aguardando decisão.</p>
+</div>
+{% endif %}
+
+{% if resolvidos %}
+<p class="grupo-label mt-16">Decididos recentemente</p>
+<div class="trilha">
+  {% for p in resolvidos %}
+  <div class="trilha__item">
+    <span class="trilha__ponto trilha__ponto--{{ p.situation_tone }}"></span>
+    <div class="trilha__corpo">
+      <div class="trilha__acao">{{ p.unique_id }} — {{ p.situation_label }}</div>
+      <div class="trilha__meta">{{ p.reason }}{% if p.answer %} · resposta: {{ p.answer }}{% endif %}</div>
+      <div class="trilha__meta">{{ p.company }} · {{ p.week }}{% if portfolio %} · {{ p.project_label }}{% endif %} · {{ p.decided_by }} · {{ p.decided_at_text }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

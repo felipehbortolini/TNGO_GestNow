@@ -67,6 +67,38 @@
       </div>
       {% endif %}
 
+      {#
+        O pedido de alteração aparece exatamente onde a pessoa descobre que não
+        pode mais editar: publicado ou realizado aprovado. Fora disso ela edita
+        direto, e o pedido seria um desvio inútil.
+      #}
+      {% if pode_pedir %}
+      <div class="aviso aviso--info mt-16" x-data="{ pedindo: false }">
+        <strong>Este item está fechado para edição.</strong>
+        <span>
+          {{ motivo_fechado }} Para mudar alguma coisa, abra um pedido — ele fica
+          registrado na Governança, com quem pediu e quem decidiu.
+        </span>
+        <button type="button" class="btn btn--secondary btn--sm mt-8" x-show="!pedindo"
+          @click="pedindo = true">Pedir alteração</button>
+        <form method="post" action="{{ pedir_url }}" x-target="drawer prog-resumo prog-tabela"
+          x-show="pedindo" class="mt-8" data-tn-loading="Enviando...">
+          <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
+          <input type="hidden" name="semana" value="{{ semana }}" />
+          <div class="field">
+            <label for="campo-motivo-pedido">O que precisa mudar, e por quê</label>
+            <textarea id="campo-motivo-pedido" class="input" name="motivo" rows="3" required
+              minlength="10"
+              placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."></textarea>
+          </div>
+          <div class="painel__atalhos mt-8">
+            <button type="button" class="btn btn--ghost btn--sm" @click="pedindo = false">Cancelar</button>
+            <button type="submit" class="btn btn--primary btn--sm">Enviar pedido</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
       {% if eventos %}
       <p class="grupo-label mt-16">Histórico</p>
       <div class="trilha">

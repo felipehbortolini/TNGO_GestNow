@@ -33,7 +33,13 @@ from src.modulos.programacao_semanal.validation import (
     DoneForm,
     ValidationForm,
 )
-from src.modulos.programacao_semanal.views import ActivityView, build_row
+from src.modulos.programacao_semanal.views import (
+    ActivityView,
+    ChangeRequestView,
+    GovernanceLine,
+    GovernancePanel,
+    build_row,
+)
 
 BASE_URL = "/api/programacao-semanal"
 MATRIX_URL = f"{BASE_URL}/programacoes"
@@ -52,6 +58,12 @@ APPROVE_URL = f"{BASE_URL}/aprovacoes"
 REOPEN_URL = f"{BASE_URL}/reaberturas"
 PUBLISH_URL = f"{BASE_URL}/publicacoes"
 PUBLISH_WEEK_URL = f"{BASE_URL}/publicacoes/semana"
+GOVERNANCE_URL = f"{BASE_URL}/governanca"
+GOVERNANCE_TRAIL_URL = f"{GOVERNANCE_URL}/trilha"
+GOVERNANCE_EXCEL_URL = f"{GOVERNANCE_URL}/excel"
+GOVERNANCE_PRINTABLE_URL = f"{GOVERNANCE_URL}/imprimivel"
+QUEUE_URL = f"{BASE_URL}/pedidos"
+REQUEST_FORM_URL = f"{QUEUE_URL}/formulario"
 
 # Where the button of the next action of each step opens its panel.
 ACTION_URLS = {
@@ -237,6 +249,7 @@ def matrix_context(
         "excluir_url": DELETE_URL,
         "acao_urls": ACTION_URLS,
         "publicar_url": PUBLISH_URL,
+        "pedir_url": REQUEST_FORM_URL,
         "resumo": {
             "total": summary.total,
             "aderencia": presentation.format_percent(summary.adherence, 0),
@@ -418,6 +431,158 @@ def detail_context(session: Session, *, opened: FlowScreen) -> dict[str, Any]:
         "ppc_texto": presentation.format_percent(figures.ppc, 0),
         "pode_reabrir": view.can_approve and view.approval == calculations.APPROVAL_APPROVED,
         "aprovar_url": APPROVE_FORM_URL,
+        "pode_pedir": view.can_request_change,
+        "motivo_fechado": _closed_reason(view),
+        "pedir_url": REQUEST_FORM_URL,
+    }
+
+
+def _closed_reason(view: ActivityView) -> str:
+    """Why the item is closed for editing, where the change request is offered."""
+    if view.situation == calculations.SITUATION_PUBLISHED:
+        return "A programação foi publicada."
+    return "O realizado foi aprovado pelo fiscal."
+
+
+# ── The screen of the governance (ISSUE-053) ─────────────────────────────
+
+
+def governance_context(session: Session, *, caller: Caller) -> dict[str, Any]:
+    """The governance panel: the indicators, the control list, the windows and the queue."""
+    panel = service.governance_panel(session, caller=caller)
+    return {
+        "linhas": [_governance_line(line) for line in panel.lines],
+        "situacao": panel.situations,
+        "kpis": _governance_kpis(panel),
+        "janelas": panel.windows,
+        "semana": panel.reference_week,
+        "periodo": panel.reference_period,
+        "portfolio": panel.is_portfolio,
+        "pode_ver_trilha": panel.can_view_trail,
+        "pedidos_url": QUEUE_URL,
+        "trilha_url": GOVERNANCE_TRAIL_URL,
+        "excel_url": GOVERNANCE_EXCEL_URL,
+        "pdf_url": GOVERNANCE_PRINTABLE_URL,
+    }
+
+
+def _governance_line(line: GovernanceLine) -> dict[str, Any]:
+    """One line of the control list with the adherence already coloured by its band."""
+    return {
+        "company": line.company,
+        "project_label": line.project_label,
+        "week": line.week,
+        "period": line.period,
+        "total": line.total,
+        "draft": line.draft,
+        "validated": line.validated,
+        "published": line.published,
+        "pending": line.pending,
+        "inspector": line.inspector or NO_LABEL,
+        "adherence_text": presentation.format_percent(line.adherence, 0),
+        "adherence_tone": TONE_OF_BAND[calculations.performance_band(line.adherence)],
+        "updated_at_text": line.updated_at_text or NO_LABEL,
+    }
+
+
+def _governance_kpis(panel: GovernancePanel) -> list[dict[str, Any]]:
+    """The four cards above the panel, with the tone and the icon the app gave them."""
+    return [
+        {
+            "label": "Contratadas ativas",
+            "value": panel.active_companies,
+            "tone": "neutro",
+            "icone": "building",
+        },
+        {
+            "label": "Janelas abertas hoje",
+            "value": panel.open_windows,
+            "tone": "info",
+            "icone": "calendar",
+        },
+        {
+            "label": "Aguardando fiscal",
+            "value": panel.situations.pending,
+            "tone": "warn",
+            "icone": "clock",
+        },
+        {
+            "label": "Atividades no histórico",
+            "value": panel.situations.total,
+            "tone": "ok",
+            "icone": "taskList",
+        },
+    ]
+
+
+def queue_context(
+    session: Session,
+    *,
+    caller: Caller,
+    erro_id: int | None = None,
+    erro_mensagem: str = "",
+    resposta_digitada: str = "",
+) -> dict[str, Any]:
+    """The queue of change requests: what waits for a decision and what was decided."""
+    queue = service.request_queue(session, caller=caller)
+    return {
+        "pendentes": [_request_row(view) for view in queue.pending],
+        "resolvidos": [_request_row(view) for view in queue.resolved],
+        "total_pendentes": queue.total_pending,
+        "pode_decidir": queue.can_decide,
+        "portfolio": queue.is_portfolio,
+        "pedidos_url": QUEUE_URL,
+        "erro_id": erro_id,
+        "erro_mensagem": erro_mensagem,
+        "resposta_digitada": resposta_digitada,
+    }
+
+
+def _request_row(view: ChangeRequestView) -> dict[str, Any]:
+    """One request of the queue, with the situation worded and the tones of the app."""
+    return {
+        "id": view.id,
+        "version": view.version,
+        "unique_id": view.unique_id,
+        "description": view.description,
+        "company": view.company,
+        "week": view.week,
+        "project_label": view.project_label,
+        "reason": view.reason,
+        "situation_label": presentation.REQUEST_SITUATION_LABELS.get(
+            view.situation, view.situation
+        ),
+        "situation_tone": presentation.REQUEST_SITUATION_TONES.get(view.situation, "neutral"),
+        "requested_by": view.requested_by,
+        "requested_at_text": view.requested_at_text,
+        "decided_by": view.decided_by,
+        "decided_at_text": view.decided_at_text,
+        "answer": view.answer,
+    }
+
+
+def trail_context(session: Session, *, caller: Caller) -> dict[str, Any]:
+    """The module's audit trail, worded for the screen."""
+    return {"eventos": service.governance_trail(session, caller=caller)}
+
+
+def request_context(
+    *,
+    view: ActivityView,
+    typed: str = "",
+    errors: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """The drawer of a change request: the item that is closed and the reason to type."""
+    return {
+        "atividade": view,
+        "semana": view.week,
+        "periodo": weeks.period_label(view.week),
+        "motivo": typed,
+        "erros": dict(errors or {}),
+        "unidade": view.unit,
+        "previsto_texto": presentation.format_quantity(view.figures.planned_total, view.unit),
+        "motivo_fechado": _closed_reason(view),
+        "salvar_url": QUEUE_URL,
     }
 
 

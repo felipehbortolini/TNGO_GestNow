@@ -1,0 +1,26 @@
+{#
+  Partial — a trilha de auditoria da programação, da mais recente para a mais antiga.
+
+  É a auditoria única da plataforma filtrada pelas entidades do módulo (a atividade,
+  o pedido, a janela e a configuração); as linhas de dia ficam de fora, como no
+  histórico de uma atividade.
+
+  Espera: eventos.
+#}
+{% if eventos %}
+<div class="trilha">
+  {% for evento in eventos %}
+  <div class="trilha__item">
+    <span class="trilha__ponto" aria-hidden="true"></span>
+    <div class="trilha__corpo">
+      <div class="trilha__acao">{{ evento.label }}{% if evento.summary %} — {{ evento.summary }}{% endif %}</div>
+      <div class="trilha__meta">{{ evento.actor }} · {{ evento.when }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <p>Nenhum evento registrado até agora.</p>
+</div>
+{% endif %}

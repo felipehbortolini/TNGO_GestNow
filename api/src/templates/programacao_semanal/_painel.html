@@ -1,0 +1,144 @@
+{#
+  Partial — o painel da governança: indicadores, janelas, lista de controle e os
+  pontos de carga da fila e da trilha.
+
+  Uma linha por contratada e semana: a pergunta que a tela responde não é "o que
+  tem nesta atividade", e sim "quem está segurando a semana" — por isso o corte é
+  por empresa e o destaque é a pendência, não o total. A fila e a trilha carregam
+  por AJAX nos seus próprios alvos (#gov-pedidos e #gov-trilha), como no app.
+
+  Espera: linhas, situacao, kpis, janelas, semana, periodo, portfolio,
+  pode_ver_trilha, pedidos_url, trilha_url, excel_url, pdf_url.
+#}
+<div class="kpis">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="kpi__value">{{ kpi.value }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Janelas de programação</h2>
+    <span class="hint">situação de agora, {{ semana }} · {{ periodo }}</span>
+  </div>
+  <div class="card__body">
+    {% if janelas %}
+    <ul class="lista-simples">
+      {% for janela in janelas %}
+      <li class="lista-simples__item">
+        <span class="linha__dot" style="background: var(--{{ 'verde' if janela.is_open else 'warn' }}-500)"></span>
+        <span class="linha__main">
+          <span class="linha__titulo">{{ janela.company }}{% if portfolio %} · {{ janela.project_label }}{% endif %}</span>
+          <span class="linha__meta">{{ janela.reason }}</span>
+        </span>
+        <span class="chip">{{ janela.released_count }} semana(s) liberada(s)</span>
+        {% if janela.weekday_label %}
+        <span class="chip chip--info">{{ janela.weekday_label }} · {{ janela.opens }}–{{ janela.closes }}</span>
+        {% endif %}
+        {% if janela.extras %}
+        <span class="chip chip--warn">{{ janela.extras }} extraordinária(s)</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty"><p>Nenhuma janela cadastrada.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Lista de controle</h2>
+    <span class="gov-exportar">
+      <span class="hint">uma linha por contratada e semana, da mais recente para a mais antiga</span>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">PDF</button>
+    </span>
+  </div>
+  <div class="card__body">
+    {% if linhas %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Situação das programações por contratada e semana</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Contratada</th>
+            <th scope="col">Semana</th>
+            <th scope="col" class="td-num">Programações</th>
+            <th scope="col">Situação</th>
+            <th scope="col" class="td-center">Pendências</th>
+            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col">Fiscal</th>
+            <th scope="col">Última alteração</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td class="muted">{{ linha.project_label }}</td>{% endif %}
+            <td class="fw-600">{{ linha.company }}</td>
+            <td>
+              {{ linha.week }}
+              <span class="linha__meta">{{ linha.period }}</span>
+            </td>
+            <td class="td-num">{{ linha.total }}</td>
+            <td>
+              <div class="gov-pills">
+                {% if linha.draft %}<span class="pill pill--warn">Elaboração {{ linha.draft }}</span>{% endif %}
+                {% if linha.validated %}<span class="pill pill--fix">Validada {{ linha.validated }}</span>{% endif %}
+                {% if linha.published %}<span class="pill pill--ok">Publicada {{ linha.published }}</span>{% endif %}
+              </div>
+            </td>
+            <td class="td-center">
+              {% if linha.pending %}<span class="pill pill--warn">{{ linha.pending }}</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="td-num"><span class="pill pill--{{ linha.adherence_tone }}">{{ linha.adherence_text }}</span></td>
+            <td>{{ linha.inspector }}</td>
+            <td class="muted">{{ linha.updated_at_text }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h3 class="h-card4">Nada registrado ainda</h3>
+      <p>Assim que a primeira programação for criada, o controle aparece aqui.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <h2 class="h-card4">Pedidos de alteração</h2>
+    <span class="hint">o caminho para mudar o que já está publicado ou aprovado</span>
+  </div>
+  <div class="card__body">
+    <div id="gov-pedidos" x-init="$ajax('{{ pedidos_url }}', { target: 'gov-pedidos' })">
+      <div class="empty"><div class="spinner" role="status" aria-label="Carregando"></div></div>
+    </div>
+  </div>
+</section>
+
+{% if pode_ver_trilha %}
+<section class="card">
+  <div class="card__head">
+    <h2 class="h-card4">Trilha de auditoria</h2>
+    <span class="hint">quem mudou o quê, e quando — só a programação deste escopo</span>
+  </div>
+  <div class="card__body">
+    <div id="gov-trilha" x-init="$ajax('{{ trilha_url }}', { target: 'gov-trilha' })">
+      <div class="empty"><div class="spinner" role="status" aria-label="Carregando"></div></div>
+    </div>
+  </div>
+</section>
+{% endif %}
