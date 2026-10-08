@@ -1,9 +1,10 @@
-"""Input validation of the activity of the Weekly Scheduling (D10).
+"""Input validation of the Weekly Scheduling: the activity and the panels of the flow (D10).
 
-The pure passes: what was filled, and whether the daily plan adds up to the weekly
-figure. The passes that need the database (the register the person chose, the
-repeated ID) live in the facade. Messages are the app's, field by field; the keys
-are the names of the form fields, in Portuguese like the rest of the interface.
+The pure passes: what was filled, whether the daily plan adds up to the weekly
+figure, and the reading of the panels of validation, done work and approval. The
+passes that need the database (the register the person chose, the repeated ID, the
+deviation limit) live in the facade. Messages are the app's, field by field; the
+keys are the names of the form fields, in Portuguese like the rest of the interface.
 """
 
 from __future__ import annotations
@@ -53,6 +54,59 @@ class ActivityForm:
     def planned_sum(self) -> float:
         """The sum of the planned days, rounded as the app rounds it."""
         return round(sum(self.planned_days), 2)
+
+
+@dataclass(frozen=True)
+class ValidationForm:
+    """What the planner typed in the panel of validation: the inspector and the comments."""
+
+    inspector_id: int | None = None
+    comments: str = ""
+
+
+@dataclass(frozen=True)
+class DoneForm:
+    """What was reported in the panel of the done work: both shifts and the justification."""
+
+    day_shift: tuple[float, ...] = field(default_factory=lambda: (0.0,) * calculations.DAYS)
+    night_shift: tuple[float, ...] = field(default_factory=lambda: (0.0,) * calculations.DAYS)
+    notes: str = ""
+
+
+@dataclass(frozen=True)
+class ApprovalForm:
+    """What the inspector typed in the panel of approval: the comments or the reason to reopen."""
+
+    comments: str = ""
+    reason: str = ""
+
+
+def parse_validation(values: Mapping[str, str | None]) -> ValidationForm:
+    """Read the fields of the validation panel (``responsavel``, ``comentarios``)."""
+    return ValidationForm(
+        inspector_id=parse_id(values.get("responsavel")),
+        comments=_text(values, "comentarios"),
+    )
+
+
+def parse_done(values: Mapping[str, str | None]) -> DoneForm:
+    """Read the fields of the done panel (``dias_realizado_0``... and ``observacoes``)."""
+    day_shift = calculations.seven_days(
+        [values.get(f"dias_realizado_{index}") for index in range(calculations.DAYS)]
+    )
+    night_shift = calculations.seven_days(
+        [values.get(f"dias_noite_{index}") for index in range(calculations.DAYS)]
+    )
+    return DoneForm(
+        day_shift=tuple(day_shift),
+        night_shift=tuple(night_shift),
+        notes=_text(values, "observacoes"),
+    )
+
+
+def parse_approval(values: Mapping[str, str | None]) -> ApprovalForm:
+    """Read the fields of the approval panel (``comentarios``) and of the reopen (``motivo``)."""
+    return ApprovalForm(comments=_text(values, "comentarios"), reason=_text(values, "motivo"))
 
 
 def parse_form(values: Mapping[str, str | None]) -> ActivityForm:

@@ -1,9 +1,11 @@
 """What the facade hands to the screen: the activity as read, and the row of the matrix (D10).
 
 ``ActivityView`` is the read model of one activity: the row of the table with the names
-of its registers resolved, the figures computed and what the user may do with it.
+of its registers resolved, the figures computed, the next action of the flow for the
+person looking and what the roles of the project let the person do.
 ``MatrixRow`` is that view worded for the matrix: the same columns as the app (item,
-atividade, execução, grade dos sete dias, situação, semana, PPC, ações).
+atividade, execução, grade dos sete dias, situação, semana, PPC, ações), with the
+actions the row offers already resolved.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from src.modulos.programacao_semanal import calculations, presentation
+from src.modulos.programacao_semanal import calculations, permissions, presentation
 from src.modulos.programacao_semanal.calculations import ActivityFigures
 from src.modulos.programacao_semanal.presentation import DayCell
 
@@ -46,13 +48,18 @@ class ActivityView:
     approval: str
     notes: str
     comments: str
+    next_action: str = permissions.ACTION_VIEW
     can_edit: bool = False
     can_delete: bool = False
+    can_validate: bool = False
+    can_report: bool = False
+    can_approve: bool = False
+    can_publish: bool = False
 
 
 @dataclass(frozen=True)
 class MatrixRow:
-    """A row of the matrix as the template prints it: every text already decided."""
+    """A row of the matrix as the template prints it: every text and offer already decided."""
 
     id: int
     version: int
@@ -77,8 +84,13 @@ class MatrixRow:
     band: str
     ppc_width: float
     row_class: str
-    can_edit: bool
-    can_delete: bool
+    next_action: str
+    offer_edit: bool
+    offer_delete: bool
+    offer_validate: bool
+    offer_report: bool
+    offer_approve: bool
+    offer_publish: bool
 
 
 def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
@@ -108,8 +120,22 @@ def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
         band=figures.band,
         ppc_width=min(figures.ppc, 100.0),
         row_class=_row_class(figures),
-        can_edit=view.can_edit,
-        can_delete=view.can_delete,
+        next_action=view.next_action,
+        offer_edit=view.can_edit,
+        offer_delete=view.can_delete,
+        offer_validate=view.can_validate and view.situation == calculations.SITUATION_DRAFT,
+        offer_report=(
+            view.can_report
+            and view.situation != calculations.SITUATION_DRAFT
+            and view.approval != calculations.APPROVAL_APPROVED
+        ),
+        offer_approve=(
+            view.can_approve
+            and view.situation != calculations.SITUATION_DRAFT
+            and view.approval == calculations.APPROVAL_PENDING
+            and figures.has_done
+        ),
+        offer_publish=(view.can_publish and view.situation == calculations.SITUATION_VALIDATED),
     )
 
 

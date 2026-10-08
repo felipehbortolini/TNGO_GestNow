@@ -1,11 +1,13 @@
-"""Business facade of the Weekly Scheduling: the week, the window and the activity (D10).
+"""Business facade of the Weekly Scheduling: the week, the window and the flow (D10).
 
-This slice (ISSUE-051) is the matrix of the week and the programming by the supplier:
-who sees which activities, who writes, and when. The rules are the app's, adapted as
-D10 says: the app's "ambiente" is the project of the scope (D8, with the Portfólio
-read-only), companies, people and locations come from Configurações
-(``configuracoes.registers``), the roles are the per-project roles of D7 and every
-write leaves the trail with before and after (D5b).
+The matrix of the week and the programming by the supplier (ISSUE-051) plus the flow
+of five steps (ISSUE-052): the planner validates and names the inspector, the foreman
+or the supplier reports the done work by shift, the inspector approves or reopens it,
+and the planner publishes it. The rules are the app's, adapted as D10 says: the app's
+"ambiente" is the project of the scope (D8, with the Portfólio read-only), companies,
+people and locations come from Configurações (``configuracoes.registers``), the roles
+are the per-project roles of D7 and every write leaves the trail with before and after
+(D5b).
 
 * **A supplier sees and writes only its own company**, always, with the cut made
   here and never on the screen: a list is cut by ``rbac.company_scope``, and
@@ -14,6 +16,9 @@ write leaves the trail with before and after (D5b).
   of the app. The Timenow team writes as support, without the window.
 * **No project, no write**: in the Portfólio the matrix is read-only and the write asks
   for a project (``Scope.require_project``).
+* **Every step belongs to a role of the project**: validating, reporting, approving and
+  publishing are refused with 403 for the others (D7); the situation and the approval of
+  the done work are distinct states, as in the app.
 
 Nothing here reads the clock: the caller passes the instant in the ``Caller``
 (``core.calendario.now``). Every write goes through ``core.recording`` with the
@@ -32,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from src.core import audit, calendario, rbac, recording
 from src.core.errors import AccessDeniedError, InvalidDataError
+from src.core.models import AuditEntry
 from src.core.rbac import ScheduleRole, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import registers
@@ -39,6 +45,7 @@ from src.modulos.configuracoes.registers import Option
 from src.modulos.programacao_semanal import (
     calculations,
     permissions,
+    presentation,
     repository,
     validation,
     weeks,
@@ -54,7 +61,12 @@ from src.modulos.programacao_semanal.models import (
     WindowWeek,
     WindowWeekday,
 )
-from src.modulos.programacao_semanal.validation import ActivityForm
+from src.modulos.programacao_semanal.validation import (
+    ActivityForm,
+    ApprovalForm,
+    DoneForm,
+    ValidationForm,
+)
 from src.modulos.programacao_semanal.views import ActivityView
 
 NOT_FOUND_MESSAGE = "Atividade não encontrada."
@@ -75,6 +87,36 @@ INSPECTOR_MISSING = (
     "A pessoa escolhida não tem o papel de Fiscal neste projeto. "
     "Dê o papel em Configurações, em Colaboradores."
 )
+
+# The messages of the flow (ISSUE-052), as the app has them.
+ONLY_DRAFT_VALIDATED = "Só programação em elaboração pode ser validada."
+INSPECTOR_REQUIRED = (
+    "Escolha um fiscal — a lista vem dos colaboradores com o papel de Fiscal neste projeto."
+)
+APPROVAL_FROZEN = "O realizado já foi aprovado pelo fiscal e não pode mudar."
+REPORT_BEFORE_VALIDATION = (
+    "A programação ainda não foi validada pelo planejador — não há o que reportar."
+)
+NEGATIVE_DONE = "Quantidade realizada não pode ser negativa."
+APPROVE_AFTER_VALIDATION = "O realizado só chega ao fiscal depois da validação do planejador."
+NOTHING_TO_APPROVE = "Não há realizado registrado para aprovar."
+REOPEN_NOT_APPROVED = "Este realizado não está aprovado."
+REOPEN_REASON_REQUIRED = "Explique por que está reabrindo o realizado."
+ONLY_VALIDATED_PUBLISHED = "Só programação validada pode ser publicada."
+DEVIATION_DEMANDS_NOTE = (
+    "O realizado está {deviation:.0f}% distante do previsto (limite de {limit:g}%). "
+    "Explique o desvio para salvar."
+)
+
+# How the history of the detail panel names the transitions a trail line caused.
+_TRAIL_SITUATION_LABELS = {
+    calculations.SITUATION_VALIDATED: "Programação validada",
+    calculations.SITUATION_PUBLISHED: "Programação publicada",
+}
+_TRAIL_APPROVAL_LABELS = {
+    calculations.APPROVAL_APPROVED: "Realizado aprovado",
+    calculations.APPROVAL_PENDING: "Realizado reaberto",
+}
 
 # The defaults of the app for a project that has no configuration row yet (D10); the
 # configuration screen (ISSUE-054) writes the row.
@@ -456,6 +498,67 @@ def open_form(
     return FormScreen(form=form, week=week, view=view, item=item, options=options)
 
 
+# ── The panels of the flow ───────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class FlowScreen:
+    """What a panel of the flow needs: the activity, the parameters and the registers."""
+
+    view: ActivityView
+    parameters: ScheduleParameters
+    options: FormOptions
+
+
+def flow_screen(session: Session, *, caller: Caller, activity_id: int) -> FlowScreen:
+    """The activity of the scope with the parameters and registers of its project.
+
+    No transition permission is asked here: the openers check it, and the re-render of
+    a refused save reuses this to draw the panel again.
+    """
+    view = get_activity(session, caller=caller, activity_id=activity_id)
+    return FlowScreen(
+        view=view,
+        parameters=parameters_of(session, view.project_id),
+        options=form_options(session, user=caller.user, project_id=view.project_id),
+    )
+
+
+def open_validation(session: Session, *, caller: Caller, activity_id: int) -> FlowScreen:
+    """The panel of validation: the planner or the Admin, in the project."""
+    project_id = caller.scope.require_project()
+    if not permissions.can_validate(caller.user, project_id):
+        raise AccessDeniedError(permissions.VALIDATE_DENIED)
+    return flow_screen(session, caller=caller, activity_id=activity_id)
+
+
+def open_report(session: Session, *, caller: Caller, activity_id: int) -> FlowScreen:
+    """The panel of the done work: who reports, over a validated and open activity."""
+    project_id = caller.scope.require_project()
+    if not permissions.can_report(caller.user, project_id):
+        raise AccessDeniedError(permissions.REPORT_DENIED)
+    screen = flow_screen(session, caller=caller, activity_id=activity_id)
+    activity = screen.view
+    if activity.approval == calculations.APPROVAL_APPROVED:
+        raise AccessDeniedError(APPROVAL_FROZEN)
+    if activity.situation == calculations.SITUATION_DRAFT:
+        raise AccessDeniedError(REPORT_BEFORE_VALIDATION)
+    return screen
+
+
+def open_approval(session: Session, *, caller: Caller, activity_id: int) -> FlowScreen:
+    """The panel of approval or reopening: the inspector or the Admin, in the project."""
+    project_id = caller.scope.require_project()
+    if not permissions.can_approve(caller.user, project_id):
+        raise AccessDeniedError(permissions.APPROVE_DENIED)
+    return flow_screen(session, caller=caller, activity_id=activity_id)
+
+
+def open_detail(session: Session, *, caller: Caller, activity_id: int) -> FlowScreen:
+    """The read-only panel of an activity; in the Portfólio it reads every project (D8)."""
+    return flow_screen(session, caller=caller, activity_id=activity_id)
+
+
 # ── Writing ──────────────────────────────────────────────────────────────
 
 
@@ -667,6 +770,232 @@ def store_window(
     return row
 
 
+# ── The five steps of the flow ───────────────────────────────────────────
+
+
+def validate_activity(
+    session: Session,
+    *,
+    caller: Caller,
+    activity_id: int,
+    form: ValidationForm,
+    version: str | None,
+) -> Activity:
+    """Validate an activity of the week and name the inspector who approves the done work.
+
+    The planner (or the Admin) only validates what is still in elaboration, and the
+    inspector is required: a validated programming without one is a pending question
+    that only shows up later, when someone looks for who approves.
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_validate(user, project_id):
+        raise AccessDeniedError(permissions.VALIDATE_DENIED)
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if activity.situation != calculations.SITUATION_DRAFT:
+        raise InvalidDataError(ONLY_DRAFT_VALIDATED)
+    if form.inspector_id is None or not _offers(
+        form_options(session, user=user, project_id=project_id).inspectors, form.inspector_id
+    ):
+        raise InvalidDataError({"responsavel": INSPECTOR_REQUIRED})
+
+    changes: dict[str, Any] = {
+        "situation": calculations.SITUATION_VALIDATED,
+        "inspector_id": form.inspector_id,
+        "updated_by_id": user.person_id,
+        "updated_at": caller.now,
+    }
+    if form.comments:
+        changes["timenow_comments"] = _append_comment(activity, form.comments, user, caller.now)
+    recording.update(session, user_id=user.id, record=activity, changes=changes, version=version)
+    return activity
+
+
+def report_done(
+    session: Session,
+    *,
+    caller: Caller,
+    activity_id: int,
+    form: DoneForm,
+    version: str | None,
+) -> Activity:
+    """Report what was produced, by shift and day; the deviation rule demands a note.
+
+    Only over validated programming and while the done work is not approved (the
+    approval freezes it). The rule of the deviation is the app's: when the total is
+    farther from the plan than the parameter's limit, the note is required.
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_report(user, project_id):
+        raise AccessDeniedError(permissions.REPORT_DENIED)
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if activity.approval == calculations.APPROVAL_APPROVED:
+        raise AccessDeniedError(APPROVAL_FROZEN)
+    if activity.situation == calculations.SITUATION_DRAFT:
+        raise AccessDeniedError(REPORT_BEFORE_VALIDATION)
+    if any(value < 0 for value in form.day_shift + form.night_shift):
+        raise InvalidDataError({"dias_realizado": NEGATIVE_DONE})
+
+    notes = form.notes.strip()
+    _require_deviation_note(
+        session, project_id=project_id, activity=activity, done=form, notes=notes
+    )
+    changes: dict[str, Any] = {
+        "updated_by_id": user.person_id,
+        "updated_at": caller.now,
+    }
+    if notes:
+        changes["supplier_notes"] = notes
+    recording.update(session, user_id=user.id, record=activity, changes=changes, version=version)
+    _change_done_days(
+        session,
+        user_id=user.id,
+        activity=activity,
+        day_shift=form.day_shift,
+        night_shift=form.night_shift,
+    )
+    return activity
+
+
+def approve_activity(
+    session: Session,
+    *,
+    caller: Caller,
+    activity_id: int,
+    form: ApprovalForm,
+    version: str | None,
+) -> Activity:
+    """Approve the done work of an activity: from here on it is frozen for the supplier."""
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_approve(user, project_id):
+        raise AccessDeniedError(permissions.APPROVE_DENIED)
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if activity.situation == calculations.SITUATION_DRAFT:
+        raise InvalidDataError(APPROVE_AFTER_VALIDATION)
+    if not _days_of(session, activity.id) or not _figures_of(session, activity).has_done:
+        raise InvalidDataError(NOTHING_TO_APPROVE)
+
+    changes: dict[str, Any] = {
+        "approval": calculations.APPROVAL_APPROVED,
+        "approved_by_id": user.person_id,
+        "approved_at": caller.now,
+        "updated_by_id": user.person_id,
+        "updated_at": caller.now,
+    }
+    if form.comments:
+        changes["timenow_comments"] = _append_comment(activity, form.comments, user, caller.now)
+    recording.update(session, user_id=user.id, record=activity, changes=changes, version=version)
+    return activity
+
+
+def reopen_activity(
+    session: Session,
+    *,
+    caller: Caller,
+    activity_id: int,
+    form: ApprovalForm,
+    version: str | None,
+) -> Activity:
+    """Reopen an approved done work, with the reason; the supplier may report again."""
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_approve(user, project_id):
+        raise AccessDeniedError(permissions.REOPEN_DENIED)
+    if not form.reason:
+        raise InvalidDataError({"motivo": REOPEN_REASON_REQUIRED})
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if activity.approval != calculations.APPROVAL_APPROVED:
+        raise InvalidDataError(REOPEN_NOT_APPROVED)
+
+    comment = _append_comment(activity, f"Realizado reaberto: {form.reason}", user, caller.now)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=activity,
+        changes={
+            "approval": calculations.APPROVAL_PENDING,
+            "timenow_comments": comment,
+            "updated_by_id": user.person_id,
+            "updated_at": caller.now,
+        },
+        version=version,
+    )
+    return activity
+
+
+def publish_activity(
+    session: Session, *, caller: Caller, activity_id: int, version: str | None
+) -> Activity:
+    """Publish a validated activity: it reaches everyone and closes the edition of the item."""
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_publish(user, project_id):
+        raise AccessDeniedError(permissions.PUBLISH_DENIED)
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if activity.situation != calculations.SITUATION_VALIDATED:
+        raise InvalidDataError(ONLY_VALIDATED_PUBLISHED)
+    _publish(session, user=user, activity=activity, at=caller.now, version=version)
+    return activity
+
+
+def publish_week(session: Session, *, caller: Caller, week: str) -> int:
+    """Publish every validated activity of the week the user sees, in one action.
+
+    Publishing one by one is the kind of repetition that gets abandoned halfway,
+    leaving a week half published — which reads as a data problem and is really a
+    workflow problem. Returns how many were published.
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_publish(user, project_id):
+        raise AccessDeniedError(permissions.PUBLISH_DENIED)
+    activities = repository.activities(
+        session, project_id=project_id, week=week, company_id=rbac.company_scope(user)
+    )
+    published = 0
+    for activity in activities:
+        if activity.situation != calculations.SITUATION_VALIDATED:
+            continue
+        _publish(
+            session, user=user, activity=activity, at=caller.now, version=str(activity.version)
+        )
+        published += 1
+    return published
+
+
+# ── The history of one activity ──────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class TrailEvent:
+    """One line of the activity's history, already worded for the panel."""
+
+    label: str
+    actor: str
+    when: str
+
+
+def detail_events(session: Session, *, activity_id: int, limit: int = 20) -> list[TrailEvent]:
+    """The most recent trail lines of the activity, newest first.
+
+    The lines of the days stay out: a single report of seven days would spawn seven
+    entries at once and bury the transitions the panel exists to show.
+    """
+    entries = repository.trail_entries(
+        session, entity=Activity.__tablename__, record_id=activity_id, limit=limit
+    )
+    return [
+        TrailEvent(
+            label=_trail_label(entry),
+            actor=audit.author_name(session, entry.user_id) or presentation.DASH,
+            when=calendario.in_product_timezone(entry.occurred_at).strftime("%d/%m/%Y %H:%M"),
+        )
+        for entry in entries
+    ]
+
+
 # ── Internals ────────────────────────────────────────────────────────────
 
 
@@ -812,6 +1141,125 @@ def _change_planned_days(
         )
 
 
+def _change_done_days(
+    session: Session,
+    *,
+    user_id: int,
+    activity: Activity,
+    day_shift: tuple[float, ...],
+    night_shift: tuple[float, ...],
+) -> None:
+    """Rewrite the done of each day that changed, with a trail line for each."""
+    day_values = calculations.seven_days(day_shift)
+    night_values = calculations.seven_days(night_shift)
+    for day in _days_of(session, activity.id):
+        new_day = day_values[day.day - 1]
+        new_night = night_values[day.day - 1]
+        if day.done_day_shift == new_day and day.done_night_shift == new_night:
+            continue
+        before = audit.snapshot(day)
+        day.done_day_shift = new_day
+        day.done_night_shift = new_night
+        session.flush()
+        audit.append(
+            session, _day_line(user_id, activity.project_id, day, audit.UPDATED, before=before)
+        )
+
+
+def _figures_of(session: Session, activity: Activity) -> calculations.ActivityFigures:
+    """The figures of an activity as it is stored, both shifts."""
+    days = _days_of(session, activity.id)
+    return calculations.figures_of(
+        [day.planned for day in days],
+        [day.done_day_shift for day in days],
+        [day.done_night_shift for day in days],
+        headline=activity.planned_headline,
+    )
+
+
+def _submitted_figures(
+    session: Session, activity: Activity, done: DoneForm
+) -> calculations.ActivityFigures:
+    """The figures of an activity with the done work being submitted (not yet stored)."""
+    days = _days_of(session, activity.id)
+    return calculations.figures_of(
+        [day.planned for day in days],
+        done.day_shift,
+        done.night_shift,
+        headline=activity.planned_headline,
+    )
+
+
+def _require_deviation_note(
+    session: Session, *, project_id: int, activity: Activity, done: DoneForm, notes: str
+) -> None:
+    """The app's rule: a deviation past the limit is only saved with a justification."""
+    parameters = parameters_of(session, project_id)
+    if not parameters.requires_deviation_note or notes:
+        return
+    figures = _submitted_figures(session, activity, done)
+    if not figures.planned_total:
+        return
+    deviation = calculations.deviation_percent(figures.done_total, figures.planned_total)
+    if deviation > parameters.deviation_limit:
+        raise InvalidDataError(
+            {
+                "observacoes": DEVIATION_DEMANDS_NOTE.format(
+                    deviation=deviation, limit=parameters.deviation_limit
+                )
+            }
+        )
+
+
+def _publish(
+    session: Session, *, user: User, activity: Activity, at: datetime, version: int | str | None
+) -> None:
+    """The write of a publication, shared by the single action and the week's action."""
+    recording.update(
+        session,
+        user_id=user.id,
+        record=activity,
+        changes={
+            "situation": calculations.SITUATION_PUBLISHED,
+            "published_at": at,
+            "updated_by_id": user.person_id,
+            "updated_at": at,
+        },
+        version=version,
+    )
+
+
+def _append_comment(activity: Activity, text: str, user: User, at: datetime) -> str:
+    """The comment of the app: stamped, signed, appended to what was already there."""
+    stamp = calendario.in_product_timezone(at).strftime("%d/%m %H:%M")
+    line = f"[{stamp} · {user.name}] {text}"
+    return f"{activity.timenow_comments or ''}\n{line}".strip()
+
+
+def _trail_label(entry: AuditEntry) -> str:
+    """What a trail line of an activity means, read from the transition it caused."""
+    if entry.action == audit.CREATED:
+        return "Atividade criada"
+    if entry.action == audit.DELETED:
+        return "Atividade excluída"
+    before, after = entry.before or {}, entry.after or {}
+    transitions = (
+        ("situacao", _TRAIL_SITUATION_LABELS, "Programação validada"),
+        ("aprovacao_realizado", _TRAIL_APPROVAL_LABELS, "Realizado reaberto"),
+        ("responsavel_id", {}, "Fiscal definido"),
+        ("observacoes_fornecedor", {}, "Realizado lançado"),
+    )
+    for field, labels, fallback in transitions:
+        if before.get(field) != after.get(field):
+            return labels.get(after.get(field), fallback)
+    return "Atividade alterada"
+
+
+def _offers(options: list[Option], chosen: int) -> bool:
+    """Whether one of the offered registers has the chosen id."""
+    return any(option.id == chosen for option in options)
+
+
 def _day_line(
     user_id: int, project_id: int, day: ActivityDay, action: str, before: dict[str, Any] | None
 ) -> audit.TrailLine:
@@ -876,11 +1324,13 @@ def _view(
     )
     # The Portfólio is read-only: nothing is editable or deletable from there (D8).
     editable = not caller.scope.is_portfolio
+    user = caller.user
+    project_id = activity.project_id
     return ActivityView(
         id=activity.id,
         version=activity.version,
-        project_id=activity.project_id,
-        project_label=names.projects.get(activity.project_id, ""),
+        project_id=project_id,
+        project_label=names.projects.get(project_id, ""),
         week=activity.week,
         unique_id=activity.unique_id,
         item=activity.item,
@@ -901,8 +1351,23 @@ def _view(
         approval=activity.approval,
         notes=activity.supplier_notes or "",
         comments=activity.timenow_comments or "",
-        can_edit=editable and _may_edit(caller.user, activity),
-        can_delete=editable and permissions.can_delete(caller.user),
+        next_action=(
+            permissions.next_action(
+                user,
+                project_id,
+                situation=activity.situation,
+                approval=activity.approval,
+                has_done=figures.has_done,
+            )
+            if editable
+            else permissions.ACTION_VIEW
+        ),
+        can_edit=editable and _may_edit(user, activity),
+        can_delete=editable and permissions.can_delete(user),
+        can_validate=editable and permissions.can_validate(user, project_id),
+        can_report=editable and permissions.can_report(user, project_id),
+        can_approve=editable and permissions.can_approve(user, project_id),
+        can_publish=editable and permissions.can_publish(user, project_id),
     )
 
 

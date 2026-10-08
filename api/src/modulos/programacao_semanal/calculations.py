@@ -13,6 +13,7 @@ of those three, as the app computes it: the same rounding, the same bands.
 | Aderência da programação | ``schedule_adherence`` |
 | PPC médio | ``mean_ppc`` |
 | Faixa de desempenho | ``performance_band`` |
+| Desvio do realizado | ``deviation_percent`` |
 
 No function reads the clock or the database.
 """
@@ -98,6 +99,18 @@ def performance_band(value: float, *, high: float = HIGH_BAND, medium: float = M
     if value >= medium:
         return BAND_MEDIUM
     return BAND_LOW
+
+
+def deviation_percent(done: float, planned: float) -> float:
+    """How far the done is from the plan, in percent: the rule of the app, without rounding.
+
+    It is the percentage the reporting panel shows and the one the deviation rule
+    compares with the parameter's limit: ``abs(done - planned) / planned * 100``.
+    Nothing planned means no deviation to accuse.
+    """
+    if not planned:
+        return 0.0
+    return abs(done - planned) / planned * 100
 
 
 @dataclass(frozen=True)

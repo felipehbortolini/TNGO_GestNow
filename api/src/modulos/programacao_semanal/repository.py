@@ -1,8 +1,9 @@
 """Reads of the tables of the Weekly Scheduling: the queries the facade composes (D10).
 
-Only this module's own tables, only reads. The writes go through ``core.recording``
-in the facade, and the registers of other modules (companies, people, locations,
-units) come from the facade of Configurações, never from here.
+Only reads: this module's own tables and the trail of an activity (the detail panel).
+The writes go through ``core.recording`` in the facade, and the registers of other
+modules (companies, people, locations, units) come from the facade of Configurações,
+never from here.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from collections.abc import Collection
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from src.core.models import AuditEntry
 from src.modulos.programacao_semanal import window as window_rules
 from src.modulos.programacao_semanal.models import (
     Activity,
@@ -115,6 +117,19 @@ def released_weeks(session: Session, *, project_id: int | None, company_id: int 
     if company_id is not None:
         statement = statement.where(ScheduleWindow.company_id == company_id)
     return set(session.scalars(statement))
+
+
+def trail_entries(
+    session: Session, *, entity: str, record_id: int, limit: int = 20
+) -> list[AuditEntry]:
+    """The most recent trail lines of one record, newest first."""
+    statement = (
+        select(AuditEntry)
+        .where(AuditEntry.entity == entity, AuditEntry.record_id == record_id)
+        .order_by(AuditEntry.occurred_at.desc(), AuditEntry.id.desc())
+        .limit(limit)
+    )
+    return list(session.scalars(statement))
 
 
 def window_of(session: Session, *, project_id: int, company_id: int) -> window_rules.Window | None:

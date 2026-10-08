@@ -10,8 +10,16 @@ roles. A Visualizador may well be Planejador: the axes are independent.
 |---|---|
 | Criar atividade | Planejador, Fornecedor ou Admin |
 | Editar atividade | Planejador, Fiscal, Fornecedor ou Admin |
+| Validar a programação e definir o fiscal | Planejador ou Admin |
+| Lançar o realizado (turno dia e noite) | Encarregado, Fornecedor ou Admin |
+| Aprovar e reabrir o realizado | Fiscal ou Admin |
 | Publicar (e editar o publicado) | Planejador ou Admin |
 | Excluir atividade | Admin |
+
+``next_action`` is the queue of the five steps in the order of the process
+(``validar`` → ``lancar`` → ``aprovar`` → ``publicar`` → ``ver``): the one thing
+the person looking at the row should do with it right now, resolved from the roles
+and the state. The profile with no step falls in ``ver``, which is all it does.
 
 Pure functions over ``rbac.User``: the facade calls them, the screen only draws what
 they allow.
@@ -21,11 +29,24 @@ from __future__ import annotations
 
 from src.core import rbac
 from src.core.rbac import Permission, ScheduleRole, User
+from src.modulos.programacao_semanal import calculations
 
 CREATE_DENIED = "Seu perfil não cria programação."
 EDIT_DENIED = "Seu perfil não edita programação."
+VALIDATE_DENIED = "Seu perfil não valida programação."
+REPORT_DENIED = "Seu perfil não registra o realizado."
+APPROVE_DENIED = "Seu perfil não aprova o realizado."
+REOPEN_DENIED = "Seu perfil não reabre o realizado."
+PUBLISH_DENIED = "Seu perfil não publica programação."
 PUBLISHED_LOCKED = "Programação publicada não pode ser editada."
 DELETE_DENIED = "Somente o Administrador exclui atividades."
+
+ACTION_VALIDATE = "validar"
+ACTION_REPORT = "lancar"
+ACTION_APPROVE = "aprovar"
+ACTION_PUBLISH = "publicar"
+ACTION_VIEW = "ver"
+ACTIONS = (ACTION_VALIDATE, ACTION_REPORT, ACTION_APPROVE, ACTION_PUBLISH, ACTION_VIEW)
 
 
 def is_admin(user: User) -> bool:
@@ -55,6 +76,23 @@ def can_edit(user: User, project_id: int) -> bool:
     )
 
 
+def can_validate(user: User, project_id: int) -> bool:
+    """Whether the user may validate the programming and name the inspector."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_report(user: User, project_id: int) -> bool:
+    """Whether the user may report the done work, day and night shift."""
+    return is_admin(user) or rbac.has_schedule_role(
+        user, project_id, ScheduleRole.FOREMAN, ScheduleRole.SUPPLIER
+    )
+
+
+def can_approve(user: User, project_id: int) -> bool:
+    """Whether the user may approve (and reopen) the reported work."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.INSPECTOR)
+
+
 def can_publish(user: User, project_id: int) -> bool:
     """Whether the user may publish in the project: the one who may also edit the published."""
     return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
@@ -63,6 +101,46 @@ def can_publish(user: User, project_id: int) -> bool:
 def can_delete(user: User) -> bool:
     """Whether the user may delete an activity: the Admin only."""
     return is_admin(user)
+
+
+def next_action(
+    user: User, project_id: int, *, situation: str, approval: str, has_done: bool
+) -> str:
+    """The one step of the queue that is this person's turn in this activity, right now.
+
+    Matches the role with the state: the inspector sees ``aprovar`` where the
+    supplier sees ``lancar``, and both see ``publicar`` once the done work is
+    approved and only the release is missing. Whoever holds no step — the viewer —
+    falls in ``ver``.
+
+    **The order of the tests is the order of the flow, not of convenience.**
+    ``aprovar`` is checked before ``lancar`` because, when there is done work
+    waiting for the inspector, the next step is the approval — including for an
+    Admin, who may do both; in the reverse order the Admin's button would offer
+    ``lancar`` over a report that is already waiting.
+
+    It is ordering of the screen, not authorisation: the button points at the same
+    endpoint as the menu, and every endpoint decides the access by itself.
+    """
+    draft = situation == calculations.SITUATION_DRAFT
+    if can_validate(user, project_id) and draft:
+        return ACTION_VALIDATE
+    if (
+        can_approve(user, project_id)
+        and not draft
+        and approval == calculations.APPROVAL_PENDING
+        and has_done
+    ):
+        return ACTION_APPROVE
+    if can_report(user, project_id) and not draft and approval != calculations.APPROVAL_APPROVED:
+        return ACTION_REPORT
+    if (
+        can_publish(user, project_id)
+        and situation == calculations.SITUATION_VALIDATED
+        and approval == calculations.APPROVAL_APPROVED
+    ):
+        return ACTION_PUBLISH
+    return ACTION_VIEW
 
 
 def is_supplier(user: User) -> bool:

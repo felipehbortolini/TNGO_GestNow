@@ -170,6 +170,13 @@ max-complexity = 10
 # opções, a mesma coisa com mais indireção.
 "src/modulos/planejamento/service.py" = ["PLR0913"]
 
+# `_panel` tem 8 parâmetros, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY (template, form, week, status_code, toast, with_matrix), o contrato da
+# resposta de um painel do fluxo da Programação Semanal (ISSUE-052) que as rotas
+# chamam. A regra existe para argumento posicional, onde a ordem se erra na chamada;
+# reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/programacao_semanal/routes.py" = ["PLR0913"]
+
 # `_modal_answer` e `_item_form_error` têm 8 parâmetros, e é assim de propósito: depois do `*`
 # são todos KEYWORD-ONLY (modal_template, filtro, valores, status_code, toast; e item_id, form,
 # error, status_code, filtro), o contrato da resposta com modal, filtros e conteúdo da
@@ -184,6 +191,13 @@ max-complexity = 10
 # a ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
 # mais indireção.
 "src/modulos/planejamento/seed_produtividade.py" = ["PLR0913"]
+
+# `_store`, em tests/programacao_semanal/test_programacao_fluxo.py, monta uma atividade
+# do fluxo com o estado opcional (situação, aprovação, turnos, observações e item), e é
+# assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste informa só o que
+# importa para o caso. A regra existe para argumento posicional, onde a ordem se erra na
+# chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"tests/programacao_semanal/test_programacao_fluxo.py" = ["PLR0913"]
 
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
