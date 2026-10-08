@@ -133,6 +133,22 @@ notificar no prazo contratual.
 **HH efetivas** — CP × efetivo da jornada, em horas-homem. **HH improdutivas** —
 (jornada de referência − CP) × efetivo.
 
+## Punch list
+
+**Punch list** — lista dos itens de completação de um sistema, com a hierarquia
+(área, sistema, subsistema, TAG), a disciplina, a categoria, o marco vinculado e
+o fluxo até o fechamento. A evidência do fechamento é um anexo.
+
+**Categoria do item** — A impede o marco seguinte; B fecha até o aceite
+definitivo; C conforme acordo.
+
+**Bloqueio do sistema** — item de categoria A aberto bloqueia o sistema no marco
+vinculado e nos seguintes; o aceite definitivo é bloqueado por qualquer item
+aberto do sistema. É calculado, não é um cadastro.
+
+**Verificação do item** — o fechamento exige evidência e verificador diferente
+do executante; a reprovação volta o item para Em tratamento.
+
 ## Indicadores de custo e HSE
 
 **EV** — Valor Agregado; **PV** — Valor Planejado; **AC** — Custo Real.

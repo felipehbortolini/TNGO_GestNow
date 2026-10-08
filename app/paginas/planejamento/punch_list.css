@@ -1,16 +1,93 @@
 /* ============================================================
    punch_list.css — Estilo da tela Punch list (planejamento/punch_list)
 
-   Itens de completação com verificação, bloqueio de sistema e painel.
+   Itens de completação com verificação, evidência obrigatória e bloqueio de sistema.
 
    Escopo: tudo que morar aqui começa por .pagina--planejamento-punch_list, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-049 e ISSUE-050.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--planejamento-punch_list .nowrap {
+  white-space: nowrap;
+}
+
+.pagina--planejamento-punch_list .d-inline {
+  display: inline;
+}
+
+.pagina--planejamento-punch_list .toolbar__espaco {
+  flex: 1;
+}
+
+.pagina--planejamento-punch_list .kpi--botao {
+  appearance: none;
+}
+
+.pagina--planejamento-punch_list .punch__nota {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.pagina--planejamento-punch_list .cell-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--planejamento-punch_list .cell-title small {
+  color: var(--text-secondary);
+}
+
+.pagina--planejamento-punch_list tr.is-alert td {
+  background: var(--erro-50);
+}
+
+.pagina--planejamento-punch_list .punch__lista {
+  margin-top: var(--space-lg);
+}
+
+.pagina--planejamento-punch_list .punch__form {
+  display: block;
+}
+
+.pagina--planejamento-punch_list .punch__campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.pagina--planejamento-punch_list .punch__identificacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-lg);
+}
+
+.pagina--planejamento-punch_list .punch__anexos {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+
+.pagina--planejamento-punch_list .punch__anexos h3 {
+  margin: 0 0 var(--space-xs);
+}
+
+.pagina--planejamento-punch_list .punch__anexos p {
+  margin: 0 0 var(--space-md);
+}
+
+@media (max-width: 700px) {
+  .pagina--planejamento-punch_list .punch__campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
