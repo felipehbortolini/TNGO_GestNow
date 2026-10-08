@@ -16,8 +16,11 @@
      fluxo      Tratar e Enviar para verificação são formulários escondidos por linha; a
                 resposta multi-alvo atualiza a lista
      gravação   o servidor responde o modal com a marca data-punch-salvo: o modal fecha
+     abas       Lista e Painel; o Painel chega junto com a tela e é refeito quando a aba abre
+                depois de uma gravação (a lista mudou)
      endereço   ?acao=novo|importar vem do mecanismo de inclusão do Portfólio (TN.escopo);
-                ?busca=PL-... vem do link da ação na Central e preenche a busca
+                ?busca=PL-... vem do link da ação na Central e preenche a busca;
+                ?aba=painel abre a aba do painel de completação
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
@@ -26,6 +29,7 @@
   "use strict";
 
   const RAIZ = "main.pagina--planejamento-punch_list";
+  const ABA_PAINEL = "painel";
   const LARGURA_FORM = 880;
   const LARGURA_FILTROS = 760;
 
@@ -34,6 +38,7 @@
   let acaoPendente = null;
   let buscaPendente = "";
   let importando = false;
+  let painelSujo = false;
 
   function raizDaTela() {
     return document.querySelector(RAIZ);
@@ -42,6 +47,30 @@
   function estadoDaTela(estado) {
     const raiz = raizDaTela();
     if (raiz) window.Alpine.$data(raiz).estado = estado;
+  }
+
+  /* ---------- Abas ---------- */
+
+  function trocarAba(aba) {
+    const raiz = raizDaTela();
+    if (!raiz) return;
+    window.Alpine.$data(raiz).aba = aba;
+    if (aba === ABA_PAINEL && painelSujo) carregarPainel();
+  }
+
+  function carregarPainel() {
+    const host = document.getElementById("punch-painel");
+    const marco = raizDaTela() && raizDaTela().querySelector("[data-punch-painel-url]");
+    if (!host || !marco) return;
+    painelSujo = false;
+    host.insertAdjacentHTML(
+      "afterbegin",
+      '<div class="empty" role="status"><div class="spinner" aria-hidden="true"></div><p>Carregando...</p></div>'
+    );
+    host.insertAdjacentHTML(
+      "beforeend",
+      '<span hidden x-init="$ajax(\'' + marco.dataset.punchPainelUrl + '\', { target: \'punch-painel\' })"></span>'
+    );
   }
 
   /* ---------- Filtros e lista ---------- */
@@ -184,6 +213,12 @@
 
   function aoClicar(evento) {
     if (!raizDaTela()) return;
+    const aba = evento.target.closest("[data-punch-aba]");
+    if (aba) {
+      evento.preventDefault();
+      trocarAba(aba.dataset.punchAba);
+      return;
+    }
     const kpi = evento.target.closest("[data-punch-kpi]");
     if (kpi) {
       evento.preventDefault();
@@ -206,9 +241,14 @@
     return Boolean(evento.target.closest && evento.target.closest("#punch-filtro, #punch-conteudo"));
   }
 
+  function doModal(evento) {
+    return Boolean(evento.target.closest && evento.target.closest("#punch-modal"));
+  }
+
   function aoResponder(evento) {
     if (!raizDaTela()) return;
     if (daCarga(evento) || doConteudo(evento)) aoChegarOConteudo(evento.detail);
+    if (doModal(evento) || doConteudo(evento)) painelSujo = true;
     aoGravar();
     abrirAcaoPendente();
   }
@@ -241,10 +281,12 @@
   window.TN.paginas["planejamento/punch_list"] = {
     iniciar: function (raiz) {
       const dados = window.Alpine.$data(raiz);
+      const consulta = new URLSearchParams(window.location.search);
       dados.estado = "carregando";
-      buscaPendente = new URLSearchParams(window.location.search).get("busca") || "";
+      buscaPendente = consulta.get("busca") || "";
       acaoPendente = window.TN.escopo.acaoPendente();
       ouvir();
+      if (consulta.get("aba") === ABA_PAINEL) dados.aba = ABA_PAINEL;
     }
   };
 })();

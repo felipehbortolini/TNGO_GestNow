@@ -149,6 +149,14 @@ aberto do sistema. É calculado, não é um cadastro.
 **Verificação do item** — o fechamento exige evidência e verificador diferente
 do executante; a reprovação volta o item para Em tratamento.
 
+**Aging** — tempo em aberto de um item, da abertura até a data de referência,
+classificado nas faixas dos parâmetros (até 7, de 8 a 30 e mais de 30 dias); o
+painel conta os abertos por faixa e categoria.
+
+**Burndown** — curva semanal da punch list com os itens não cancelados: abertos
+acumulados, fechados acumulados e o saldo em aberto, da abertura mais antiga até
+a semana seguinte à data de referência.
+
 ## Indicadores de custo e HSE
 
 **EV** — Valor Agregado; **PV** — Valor Planejado; **AC** — Custo Real.

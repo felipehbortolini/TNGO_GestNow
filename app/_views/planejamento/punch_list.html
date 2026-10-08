@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--planejamento-punch_list"
-  x-data="{ estado: 'carregando' }"
+  x-data="{ estado: 'carregando', aba: 'lista' }"
   x-init="TN.paginas['planejamento/punch_list'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -10,12 +10,29 @@
     </div>
 
     <span hidden data-punch-carga
-      x-init="$ajax('/api/planejamento/punch', { target: 'punch-filtros punch-conteudo' })"></span>
+      x-init="$ajax('/api/planejamento/punch', { target: 'punch-filtros punch-conteudo punch-painel' })"></span>
 
     <div x-show="estado === 'conteudo' || estado === 'vazio-filtro' || estado === 'vazio-origem'">
-      <div id="punch-filtros"></div>
+      <div class="tabs" role="tablist" aria-label="Visões da Punch list">
+        <button type="button" class="tab" role="tab" id="punch-aba-lista" aria-controls="punch-tab-lista"
+          :class="{ 'is-active': aba === 'lista' }" :aria-selected="aba === 'lista'"
+          data-punch-aba="lista">Lista</button>
+        <button type="button" class="tab" role="tab" id="punch-aba-painel" aria-controls="punch-tab-painel"
+          :class="{ 'is-active': aba === 'painel' }" :aria-selected="aba === 'painel'"
+          data-punch-aba="painel">Painel</button>
+      </div>
 
-      <div id="punch-conteudo"></div>
+      <section class="mt-16" role="tabpanel" id="punch-tab-lista" aria-labelledby="punch-aba-lista"
+        x-show="aba === 'lista'">
+        <div id="punch-filtros"></div>
+
+        <div id="punch-conteudo"></div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="punch-tab-painel" aria-labelledby="punch-aba-painel"
+        x-show="aba === 'painel'" data-punch-painel-url="/api/planejamento/punch/painel">
+        <div id="punch-painel"></div>
+      </section>
     </div>
 
     <div class="card" x-show="estado === 'carregando'">
