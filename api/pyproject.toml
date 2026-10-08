@@ -207,6 +207,12 @@ max-complexity = 10
 # KEYWORD-ONLY, e cada teste informa só o que importa para o caso.
 "tests/planejamento/test_produtividade_servico.py" = ["PLR0913"]
 
+# `_estado`, em tests/planejamento/test_punch_painel_calculos.py, monta o item do painel da
+# punch list com os campos opcionais, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY, e cada teste informa só o que importa para o caso (situação, categoria,
+# disciplina, empresa e fechamento).
+"tests/planejamento/test_punch_painel_calculos.py" = ["PLR0913"]
+
 # process_bind_param e process_result_value recebem o dialect por contrato do
 # SQLAlchemy (TypeDecorator) e não o usam: o tipo só converte centavos. O
 # parâmetro não pode ser renomeado para `_dialect` porque o ty exige o nome

@@ -59,15 +59,22 @@ the bands of the five indicators per company and the reference of the action of
 the Central (``PRD-2026-S39-01``). The cut and the reference date come in as
 arguments (D6); the chart payload hands the raw pair of each week, never the
 ready percentage (D11).
+
+The completion panel of the punch list (ISSUE-050): the weekly burndown of the
+non-cancelled items (opened, closed and the balance accumulated), the aging
+bands of the parameters with the open items per category, the counts by
+discipline and company, and the percentage of systems released per milestone.
+The reference date comes in as an argument (D6).
 """
 
 from __future__ import annotations
 
 import re
 from calendar import monthrange
+from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from math import ceil
 from typing import Any
@@ -2878,3 +2885,175 @@ def punch_action_description(system_label: str, tag: str, category: str, situati
     """A descrição que a ação da Central espelha do item (``acaoDoPunch`` do protótipo)."""
     tagged = f" · {tag}" if tag else ""
     return f"Sistema {system_label}{tagged} · categoria {category} · {situation}"
+
+
+# ── Painel da punch list (ISSUE-050) ──────────────────────────────────────
+
+
+PUNCH_AGING_BANDS = (7, 30)
+
+
+@dataclass(frozen=True)
+class PunchPanelState:
+    """O que o painel lê de um item: situação, categoria, sistema, disciplina, empresa e datas."""
+
+    situation: str
+    category: str
+    system_id: int
+    discipline: str
+    company: str
+    opened_on: date
+    closed_on: date | None
+
+
+@dataclass(frozen=True)
+class PunchCategoryCount:
+    """Os itens abertos de um recorte, por categoria (A, B e C)."""
+
+    a: int = 0
+    b: int = 0
+    c: int = 0
+
+    @property
+    def total(self) -> int:
+        """Quantos itens abertos o recorte tem."""
+        return self.a + self.b + self.c
+
+
+@dataclass(frozen=True)
+class PunchCountRow:
+    """Uma linha do painel: o rótulo do recorte e os abertos por categoria."""
+
+    label: str
+    counts: PunchCategoryCount
+
+
+@dataclass(frozen=True)
+class PunchBurndownPoint:
+    """Um ponto do burndown: a segunda-feira da semana e os acumulados de abertura e fechamento."""
+
+    week: date
+    opened: int
+    closed: int
+    balance: int
+
+
+def punch_aging_labels(bands: Sequence[int]) -> tuple[str, str, str]:
+    """Os rótulos das faixas do aging: ``Até 7 dias``, ``8 a 30 dias`` e ``Mais de 30 dias``."""
+    first, last = bands[0], bands[-1]
+    return (f"Até {first} dias", f"{first + 1} a {last} dias", f"Mais de {last} dias")
+
+
+def punch_aging_band(age_days: int, bands: Sequence[int] = PUNCH_AGING_BANDS) -> int:
+    """A faixa do aging de uma idade: 0 (até o primeiro limite), 1 (até o segundo) ou 2."""
+    if age_days <= bands[0]:
+        return 0
+    return 1 if age_days <= bands[1] else 2
+
+
+def punch_category_count(states: Iterable[PunchPanelState]) -> PunchCategoryCount:
+    """Os itens abertos do conjunto, por categoria."""
+    counts = Counter(state.category for state in states if punch_is_open(state.situation))
+    return PunchCategoryCount(a=counts.get("A", 0), b=counts.get("B", 0), c=counts.get("C", 0))
+
+
+def punch_aging_counts(
+    states: Sequence[PunchPanelState],
+    *,
+    reference_date: date,
+    bands: Sequence[int] = PUNCH_AGING_BANDS,
+) -> tuple[PunchCountRow, ...]:
+    """O aging: os abertos por faixa de idade e categoria, na ordem das faixas dos parâmetros."""
+    buckets: list[list[PunchPanelState]] = [[], [], []]
+    for state in states:
+        if punch_is_open(state.situation):
+            age = punch_age_days(state.opened_on, reference_date)
+            buckets[punch_aging_band(age, bands)].append(state)
+    return tuple(
+        PunchCountRow(label=label, counts=punch_category_count(bucket))
+        for label, bucket in zip(punch_aging_labels(bands), buckets, strict=True)
+    )
+
+
+def punch_discipline_counts(
+    states: Sequence[PunchPanelState], *, order: Sequence[str]
+) -> tuple[PunchCountRow, ...]:
+    """Os abertos por disciplina, na ordem do cadastro, só as disciplinas com item aberto."""
+    return _punch_group_rows(states, lambda state: state.discipline, order=order)
+
+
+def punch_company_counts(states: Sequence[PunchPanelState]) -> tuple[PunchCountRow, ...]:
+    """Os abertos por empresa, na ordem em que a primeira aparece (a ordem do código)."""
+    return _punch_group_rows(states, lambda state: state.company, order=())
+
+
+def _punch_group_rows(
+    states: Sequence[PunchPanelState],
+    key: Callable[[PunchPanelState], str],
+    *,
+    order: Sequence[str],
+) -> tuple[PunchCountRow, ...]:
+    grouped: dict[str, list[PunchPanelState]] = {}
+    for state in states:
+        if punch_is_open(state.situation):
+            grouped.setdefault(key(state), []).append(state)
+    labels = [label for label in order if label in grouped] if order else list(grouped)
+    return tuple(
+        PunchCountRow(label=label, counts=punch_category_count(grouped[label])) for label in labels
+    )
+
+
+def punch_burndown_week_start(day: date) -> date:
+    """A segunda-feira da semana ISO do dia: o passo do burndown."""
+    return day - timedelta(days=day.weekday())
+
+
+def punch_burndown_weeks(opened_on: Sequence[date], *, reference_date: date) -> tuple[date, ...]:
+    """As semanas do burndown: da abertura mais antiga até a referência, mais uma, como o protótipo."""
+    first = (
+        punch_burndown_week_start(min(opened_on))
+        if opened_on
+        else punch_burndown_week_start(reference_date)
+    )
+    last = punch_burndown_week_start(reference_date) + timedelta(days=7)
+    weeks: list[date] = []
+    week = first
+    while week <= last:
+        weeks.append(week)
+        week += timedelta(days=7)
+    return tuple(weeks)
+
+
+def punch_burndown(
+    states: Sequence[PunchPanelState], *, reference_date: date
+) -> tuple[PunchBurndownPoint, ...]:
+    """A curva de abertura e fechamento acumulados por semana (o burndown do protótipo).
+
+    Os itens cancelados ficam fora; um item conta como aberto na semana quando a abertura é
+    anterior à segunda-feira dela e como fechado quando o fechamento é anterior.
+    """
+    alive = [state for state in states if state.situation != PUNCH_CANCELLED]
+    weeks = punch_burndown_weeks(
+        [state.opened_on for state in alive], reference_date=reference_date
+    )
+    points: list[PunchBurndownPoint] = []
+    for week in weeks:
+        opened = sum(1 for state in alive if state.opened_on < week)
+        closed = sum(
+            1
+            for state in alive
+            if state.situation == PUNCH_CLOSED
+            and state.closed_on is not None
+            and state.closed_on < week
+        )
+        points.append(
+            PunchBurndownPoint(week=week, opened=opened, closed=closed, balance=opened - closed)
+        )
+    return tuple(points)
+
+
+def punch_released_pct(systems: int, blocked: int) -> Decimal | None:
+    """O % de sistemas liberados num marco: os sem bloqueio sobre o total de sistemas."""
+    if systems <= 0:
+        return None
+    return round_percent(Decimal(systems - blocked) / Decimal(systems) * PERCENT, 1)
