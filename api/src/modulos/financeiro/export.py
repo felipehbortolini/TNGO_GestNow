@@ -16,7 +16,9 @@ against the expected balance (and, for the spreadsheet, the same numbers in the 
 composition of the budget, the statement of movements and, in the Portfólio, the table per project.
 The Curva S financeira and the KPIs de custo of ISSUE-042 bring one document each: the indicators,
 the chart (the four series of the curve and the CPI against the SPI) and the tables, with the
-portfolio table of the cost performance of each project.
+portfolio table of the cost performance of each project. The Cronograma de desembolso of
+ISSUE-043 brings the four indicators, the monthly chart of the three series (previsto, realizado
+and projetado) and the item x month table of the balance to pay.
 """
 
 from __future__ import annotations
@@ -79,6 +81,8 @@ from src.modulos.financeiro.service import (
     CostKpiMonth,
     CostKpiProjectRow,
     CostKpisOverview,
+    DisbursementItem,
+    DisbursementOverview,
     EacView,
     EvaluationCriterionSpec,
     EvaluationCriterionView,
@@ -2191,3 +2195,206 @@ def curva_financeira_month_label(month: date | None) -> str:
     if month is None:
         return ""
     return f"{MONTH_NAMES[month.month - 1]}/{month.year % 100:02d}"
+
+
+# ── Cronograma de desembolso (ISSUE-043) ─────────────────────────────────
+
+
+DESEMBOLSO_TITLE = "Cronograma de desembolso"
+DESEMBOLSO_CHART_TITLE = "Desembolso mensal"
+DESEMBOLSO_BALANCE_TITLE = "Saldo a pagar por mês"
+
+
+def desembolso_document(
+    view: DisbursementOverview, *, scope_label: str, generated_on: date, level: int
+) -> Document:
+    """O cronograma como documento: os indicadores, o gráfico mensal e a tabela item x mês.
+
+    ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota, e ``level`` é o
+    nível que o seletor do protótipo pediu. A tabela lista os itens até esse nível com saldo a
+    pagar, com o total do rodapé; no Portfólio a coluna Projeto vem pelo mecanismo genérico
+    (HU-016).
+    """
+    return Document(
+        title=DESEMBOLSO_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=view.is_portfolio,
+        context=_desembolso_context(view),
+        kpis=desembolso_kpis(view),
+        charts=(Chart(DESEMBOLSO_CHART_TITLE, "curva-s-barra-linha", desembolso_chart(view)),),
+        tables=(_desembolso_months_table(view), _desembolso_table(view, level=level)),
+    )
+
+
+def desembolso_kpis(view: DisbursementOverview) -> tuple[Kpi, ...]:
+    """Os quatro indicadores do topo, com o previsto da linha de base na referência."""
+    kpis = view.kpis
+    if kpis is None:
+        return ()
+    future = view.future_months
+    return (
+        Kpi(
+            "Realizado até o corte",
+            kpis.actual_until_cut_cents,
+            f"Previsto: {_financial_money(kpis.planned_until_cut_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=(
+                f"{format_value(ValueKind.PERCENT, kpis.actual_pct, 1)} da projeção no término"
+                if kpis.actual_pct is not None
+                else ""
+            ),
+        ),
+        Kpi(
+            "Saldo a desembolsar",
+            kpis.balance_cents,
+            f"Previsto: {_financial_money(kpis.planned_balance_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.INFO,
+            status=(
+                f"de {curva_financeira_month_label(future[0])} a "
+                f"{curva_financeira_month_label(future[-1])}"
+                if future
+                else ""
+            ),
+        ),
+        Kpi(
+            "Próximos 3 meses",
+            kpis.next_three_cents,
+            f"Previsto: {_financial_money(kpis.planned_next_three_cents)}",
+            ValueKind.MONEY,
+            tone=Tone.WARN,
+            status=", ".join(curva_financeira_month_label(month) for month in future[:3]),
+        ),
+        Kpi(
+            "Mês de corte",
+            kpis.cut_actual_cents,
+            f"Previsto: {_financial_money(kpis.cut_planned_cents)}",
+            ValueKind.MONEY,
+            tone=_desembolso_cut_tone(kpis.cut_actual_cents, kpis.cut_planned_cents),
+            status=_desembolso_cut_status(view, kpis.peak_month),
+        ),
+    )
+
+
+def _desembolso_cut_tone(actual_cents: int | None, planned_cents: int | None) -> Tone:
+    if actual_cents is None or planned_cents is None:
+        return Tone.NEUTRAL
+    return Tone.WARN if actual_cents > planned_cents else Tone.OK
+
+
+def _desembolso_cut_status(view: DisbursementOverview, peak_month: date | None) -> str:
+    cut = curva_financeira_month_label(view.cut_month)
+    if peak_month is None:
+        return cut
+    return f"{cut} · pico {curva_financeira_month_label(peak_month)}"
+
+
+def desembolso_chart(view: DisbursementOverview) -> dict[str, object]:
+    """O ``data-dados`` do desembolso mensal (curva-s-barra-linha), em R$ mil.
+
+    As três séries do protótipo: o previsto da linha de base, o realizado até o corte e o
+    projetado depois dele; um mês sem valor quebra a barra e a linha da série.
+    """
+    return {
+        "titulo": DESEMBOLSO_CHART_TITLE,
+        "modo": "periodo",
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "previsto", "rotulo": "Previsto", "papel": "previsto"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado"},
+            {"id": "projetado", "rotulo": "Projetado", "papel": "tendencia"},
+        ],
+        "periodos": [
+            {
+                "ano": row.month.year,
+                "mes": row.month.month,
+                "valores": {
+                    "previsto": _financial_mil_or_none(row.planned_cents),
+                    "realizado": _financial_mil_or_none(row.actual_cents),
+                    "projetado": _financial_mil_or_none(row.projected_cents),
+                },
+            }
+            for row in view.histogram
+        ],
+    }
+
+
+def desembolso_visible_items(
+    view: DisbursementOverview, *, level: int
+) -> tuple[DisbursementItem, ...]:
+    """As linhas que a tela e a exportação mostram: os itens até o nível pedido com saldo a pagar."""
+    return tuple(item for item in view.items if item.level <= level and item.balance_cents > 0)
+
+
+def desembolso_row_description(item: DisbursementItem) -> str:
+    """A descrição da linha; na linha de projeto do Portfólio, só o nome, sem repetir o rótulo."""
+    if item.level == 1 and item.description == item.project_label:
+        _, _, name = item.project_label.partition(" · ")
+        return name or item.description
+    return item.description
+
+
+def _desembolso_context(view: DisbursementOverview) -> tuple[tuple[str, str], ...]:
+    lines = [("Referência", format_value(ValueKind.DATE, view.reference_date))]
+    if view.cut_month is not None:
+        lines.append(("Corte", curva_financeira_month_label(view.cut_month)))
+    return tuple(lines)
+
+
+def _desembolso_months_table(view: DisbursementOverview) -> Table:
+    """Os números por trás do gráfico: o previsto, o realizado e o projetado de cada mês."""
+    return Table(
+        title=DESEMBOLSO_CHART_TITLE,
+        columns=(
+            Column("Mês", width=16),
+            Column("Previsto", ValueKind.MONEY),
+            Column("Realizado", ValueKind.MONEY),
+            Column("Projetado", ValueKind.MONEY),
+        ),
+        rows=tuple(
+            row(
+                curva_financeira_month_label(item.month),
+                item.planned_cents,
+                item.actual_cents,
+                item.projected_cents,
+            )
+            for item in view.histogram
+        ),
+        per_project=False,
+    )
+
+
+def _desembolso_table(view: DisbursementOverview, *, level: int) -> Table:
+    return Table(
+        title=DESEMBOLSO_BALANCE_TITLE,
+        columns=(
+            Column("Código", width=12),
+            Column("Descrição", width=48),
+            Column("Saldo a pagar", ValueKind.MONEY),
+            *(
+                Column(curva_financeira_month_label(month), ValueKind.MONEY)
+                for month in view.future_months
+            ),
+        ),
+        rows=tuple(_desembolso_row(item) for item in desembolso_visible_items(view, level=level)),
+        totals=(
+            Cell(),
+            Cell("Total"),
+            Cell(view.balance_cents),
+            *(Cell(value) for value in view.totals),
+        ),
+    )
+
+
+def _desembolso_row(item: DisbursementItem) -> Row:
+    return row(
+        item.code,
+        desembolso_row_description(item),
+        item.balance_cents,
+        *item.amounts,
+        project=item.project_label,
+    )

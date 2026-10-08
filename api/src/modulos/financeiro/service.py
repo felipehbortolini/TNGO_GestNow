@@ -6315,6 +6315,8 @@ def _project_disbursement(
         part.curve.series.months,
         planned_cumulative=part.curve.series.planned,
         actual_cumulative=part.curve.series.actual,
+        projected_cumulative=part.curve.series.trend,
+        cut_index=part.curve.series.cut_index,
     )
     return DisbursementOverview(
         reference_date=reference_date,
@@ -6411,6 +6413,8 @@ def _portfolio_disbursement(
         series.months,
         planned_cumulative=series.planned,
         actual_cumulative=series.actual,
+        projected_cumulative=series.trend,
+        cut_index=series.cut_index,
     )
     return DisbursementOverview(
         reference_date=reference_date,
@@ -6657,40 +6661,54 @@ def _empty_disbursement(
     )
 
 
+def treasury_sendable_project(scope: Scope, overview: DisbursementOverview) -> int:
+    """O projeto do envio à tesouraria, recusando o escopo sem projeto e o sem cronograma."""
+    project_id = scope.require_project()
+    if overview.is_empty or overview.cut_month is None or not overview.future_months:
+        raise InvalidDataError(NO_DISBURSEMENT_MESSAGE)
+    return project_id
+
+
+def treasury_default_message(overview: DisbursementOverview) -> str:
+    """A mensagem do protótipo, com o mês do fechamento e o saldo a desembolsar."""
+    if overview.cut_month is None:
+        return ""
+    return TREASURY_BODY.format(
+        cut=_short_month(overview.cut_month), balance=format_brl(overview.balance_cents)
+    )
+
+
 def send_to_treasury(
     session: Session,
     *,
     user: User,
     scope: Scope,
     reference_date: date,
+    recipient: str | None = None,
+    message: str | None = None,
     channel: NotificationChannel | None = None,
 ) -> notification.NotificationOutcome:
     """Envia o cronograma de desembolso à tesouraria pela porta de notificação (HU-091).
 
-    O destinatário é o da tesouraria, o assunto diz de que mês em diante o cronograma vai e o
-    corpo repete a mensagem do protótipo, com o mês do fechamento e o saldo a desembolsar. Só o
-    perfil com escrita envia, e o envio pertence a um projeto: no Portfólio a visão consolidada
-    não é registro de um projeto. O registro e a linha da trilha entram na transação do
-    chamador; desligado, tudo fica como ``simulado``.
+    O destinatário e a mensagem vêm do formulário da tela; sem eles valem os do protótipo — a
+    tesouraria e o corpo com o mês do fechamento e o saldo a desembolsar. O assunto diz de que
+    mês em diante o cronograma vai. Só o perfil com escrita envia, e o envio pertence a um
+    projeto: no Portfólio a visão consolidada não é registro de um projeto. O registro e a linha
+    da trilha entram na transação do chamador; desligado, tudo fica como ``simulado``.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.WRITE)
-    project_id = scope.require_project()
     overview = disbursement_overview(session, scope=scope, reference_date=reference_date)
-    if overview.is_empty or overview.cut_month is None or not overview.future_months:
-        raise InvalidDataError(NO_DISBURSEMENT_MESSAGE)
+    project_id = treasury_sendable_project(scope, overview)
     return notification.send(
         session,
         user_id=user.id,
         request=NotificationRequest(
             kind=notification.TREASURY,
             project_id=project_id,
-            recipients=[TREASURY_EMAIL],
+            recipients=[recipient or TREASURY_EMAIL],
             subject=TREASURY_SUBJECT.format(month=_short_month(overview.future_months[0])),
-            body=TREASURY_BODY.format(
-                cut=_short_month(overview.cut_month),
-                balance=format_brl(overview.balance_cents),
-            ),
+            body=message or treasury_default_message(overview),
         ),
         channel=channel,
     )

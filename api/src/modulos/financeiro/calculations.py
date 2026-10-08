@@ -1803,11 +1803,12 @@ class PaymentMilestone:
 
 @dataclass(frozen=True)
 class DisbursementMonth:
-    """Um mês do histograma do desembolso: o previsto e o realizado do mês."""
+    """Um mês do histograma do desembolso: o previsto, o realizado e o projetado do mês."""
 
     month: date
     planned_cents: int | None
     actual_cents: int | None
+    projected_cents: int | None = None
 
 
 def monthly_amounts(cumulative: Sequence[int | None]) -> tuple[int | None, ...]:
@@ -1828,16 +1829,27 @@ def disbursement_histogram(
     *,
     planned_cumulative: Sequence[int],
     actual_cumulative: Sequence[int | None],
+    projected_cumulative: Sequence[int | None] | None = None,
+    cut_index: int = -1,
 ) -> tuple[DisbursementMonth, ...]:
-    """O histograma mensal do desembolso: o previsto x realizado, mês a mês.
+    """O histograma mensal do desembolso: o previsto, o realizado e o projetado, mês a mês.
 
     O previsto é a variação da linha de base financeira e o realizado, a variação do acumulado
-    dos fatos do ERP; depois do corte o realizado fica nulo, como a curva o entrega.
+    dos fatos do ERP; depois do corte o realizado fica nulo, como a curva o entrega. O projetado
+    é a variação da tendência e só existe depois do corte, como o protótipo desenha.
     """
     planned = monthly_amounts(planned_cumulative)
     actual = monthly_amounts(actual_cumulative)
+    projected = monthly_amounts(projected_cumulative) if projected_cumulative is not None else ()
     return tuple(
-        DisbursementMonth(month=month, planned_cents=planned[index], actual_cents=actual[index])
+        DisbursementMonth(
+            month=month,
+            planned_cents=planned[index],
+            actual_cents=actual[index],
+            projected_cents=(
+                projected[index] if index > cut_index and index < len(projected) else None
+            ),
+        )
         for index, month in enumerate(months)
     )
 

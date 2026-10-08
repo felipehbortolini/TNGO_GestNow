@@ -81,6 +81,15 @@ indicators with the CPI against the SPI and the value table — in the Portfóli
 performance per project); ``GET .../excel`` and ``GET .../imprimivel`` are the two exports of each
 screen, with the same content, the ``Projeto`` column coming from the generic mechanism in the
 Portfólio.
+
+The Cronograma de desembolso of ISSUE-043 lives under ``/api/financeiro/desembolso``: ``GET`` is
+the content of the screen for the scope of the request (the four indicators with the planned
+reference, the monthly chart of previsto, realizado and projetado and the balance to pay per item
+and month, with the ``Projeto`` column in the Portfólio); ``GET .../excel`` and
+``GET .../imprimivel`` are its two exports, with the same content; ``GET .../enviar`` is the modal
+form of the send to the treasury, prefilled with the default recipient and message, and
+``POST .../enviar`` sends it through the notification port (recorded as ``simulado`` while the
+e-mail sending is off), refusing the Portfólio and the scope without a schedule.
 """
 
 from __future__ import annotations
@@ -95,7 +104,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, database, importing, rbac
+from src.core import attachments, calendario, database, importing, notification, rbac
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -4662,3 +4671,280 @@ def _custos_resumo_linhas(view: service.CostKpisOverview) -> tuple[CustosResumoL
 
 def _resumo_value_text(item: export.CustosResumoItem) -> str:
     return CONTINGENCY_NO_VALUE if item.value is None else format_value(item.kind, item.value, 2)
+
+
+# ── Cronograma de desembolso (ISSUE-043) ─────────────────────────────────
+
+
+DESEMBOLSO_ROUTE = "financeiro/desembolso"
+DESEMBOLSO_EXCEL_ROUTE = f"{DESEMBOLSO_ROUTE}/excel"
+DESEMBOLSO_PRINTABLE_ROUTE = f"{DESEMBOLSO_ROUTE}/imprimivel"
+DESEMBOLSO_SEND_ROUTE = f"{DESEMBOLSO_ROUTE}/enviar"
+
+DESEMBOLSO_TEMPLATE = "financeiro/desembolso.html"
+DESEMBOLSO_SEND_TEMPLATE = "financeiro/desembolso_envio.html"
+
+DESEMBOLSO_TARGET = "desembolso-conteudo"
+DESEMBOLSO_MODAL_TARGET = "desembolso-modal"
+
+DESEMBOLSO_KPI_ICONS = ("money", "calendar", "clock", "chartLine")
+
+DESEMBOLSO_SUBTITLE = "previsto na linha de base, realizado até o corte e projetado depois"
+DESEMBOLSO_PORTFOLIO_SUFFIX = " · soma dos projetos da carteira"
+
+
+@dataclass(frozen=True)
+class DesembolsoKpi:
+    """Um indicador do cronograma, já escrito como a pessoa o lê."""
+
+    rotulo: str
+    valor: str
+    referencia: str
+    rodape: str
+    tom: str
+    icone: str
+
+
+@dataclass(frozen=True)
+class DesembolsoLinha:
+    """Uma linha da tabela saldo a pagar por mês, com os valores já formatados."""
+
+    codigo: str
+    descricao: str
+    nivel: int
+    projeto: str
+    saldo: str
+    meses: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DesembolsoTotais:
+    """A linha de totais da tabela: o saldo do escopo e a soma dos meses."""
+
+    saldo: str
+    meses: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DesembolsoEnvioForm:
+    """O formulário do envio, com o destinatário e a mensagem que o protótipo sugere."""
+
+    para: str
+    mensagem: str
+
+
+@dataclass(frozen=True)
+class DesembolsoEnvioResultado:
+    """O que o modal mostra depois do envio: o aviso da porta e a situação."""
+
+    aviso: str
+    simulado: bool
+    erro: bool
+
+
+def _desembolso_envio_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
+    """A recusa dentro do modal: a mensagem no corpo onde a pessoa está olhando."""
+    mensagens = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    return AlpineAjaxResponse(
+        template_name="comum/erro.html",
+        context={"mensagens": mensagens},
+        request=req,
+        target_id=DESEMBOLSO_MODAL_TARGET,
+        status_code=_desembolso_error_status(error),
+        toast=mensagens[0] if mensagens else "Não foi possível concluir.",
+        toast_tipo="erro",
+    )
+
+
+def _desembolso_error_status(error: DomainError) -> int:
+    if isinstance(error, AccessDeniedError):
+        return 403
+    return 409 if isinstance(error, VersionConflictError) else 422
+
+
+@bp.route(route=DESEMBOLSO_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def desembolso_content(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O cronograma do escopo: os indicadores, o gráfico mensal e a tabela item x mês."""
+    nivel = validation.parse_desembolso_level(req.params.get("nivel"))
+    return AlpineAjaxResponse(
+        template_name=DESEMBOLSO_TEMPLATE,
+        context=_desembolso_context(_desembolso_view(session, context), nivel=nivel),
+        request=req,
+    )
+
+
+@bp.route(route=DESEMBOLSO_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def desembolso_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel do cronograma: os indicadores, o gráfico e a tabela, no escopo do pedido."""
+    nivel = validation.parse_desembolso_level(req.params.get("nivel"))
+    return excel_response(_desembolso_document_of(session, context, nivel=nivel))
+
+
+@bp.route(route=DESEMBOLSO_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def desembolso_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível do cronograma: o mesmo documento que o Excel carrega."""
+    nivel = validation.parse_desembolso_level(req.params.get("nivel"))
+    return printable_response(_desembolso_document_of(session, context, nivel=nivel), req)
+
+
+@bp.route(route=DESEMBOLSO_SEND_ROUTE, methods=["GET"])
+@fragment_route(access=WRITE_ACCESS, on_error=_desembolso_envio_error)
+def desembolso_envio_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O modal do envio: Para e Mensagem preenchidos do cronograma do escopo."""
+    view = _desembolso_view(session, context)
+    service.treasury_sendable_project(context.scope, view)
+    return AlpineAjaxResponse(
+        template_name=DESEMBOLSO_SEND_TEMPLATE,
+        context={"formulario": _desembolso_envio_formulario(view), "resultado": None},
+        request=req,
+        target_id=DESEMBOLSO_MODAL_TARGET,
+    )
+
+
+@bp.route(route=DESEMBOLSO_SEND_ROUTE, methods=["POST"])
+@fragment_route(access=WRITE_ACCESS, on_error=_desembolso_envio_error)
+def desembolso_envio_send(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Envia o cronograma à tesouraria e responde o que foi registrado, com o toast."""
+    formulario = validation.parse_treasury_form(req.form)
+    resultado = service.send_to_treasury(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=calendario.today(),
+        recipient=formulario.recipient,
+        message=formulario.message or None,
+    )
+    return AlpineAjaxResponse(
+        template_name=DESEMBOLSO_SEND_TEMPLATE,
+        context={"formulario": None, "resultado": _desembolso_envio_resultado(resultado)},
+        request=req,
+        target_id=DESEMBOLSO_MODAL_TARGET,
+        toast=_desembolso_envio_toast(formulario.recipient, resultado),
+        toast_tipo=resultado.toast_kind,
+    )
+
+
+def _desembolso_view(session: Session, context: RequestContext) -> service.DisbursementOverview:
+    """O cronograma do escopo do pedido; a única leitura da rota que vê o relógio."""
+    return service.disbursement_overview(
+        session, scope=context.scope, reference_date=calendario.today()
+    )
+
+
+def _desembolso_document_of(session: Session, context: RequestContext, *, nivel: int) -> Document:
+    return export.desembolso_document(
+        _desembolso_view(session, context),
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+        level=nivel,
+    )
+
+
+def _desembolso_context(view: service.DisbursementOverview, *, nivel: int) -> dict[str, object]:
+    """O que o fragmento imprime: a visão, os indicadores, o gráfico e a tabela do nível."""
+    return {
+        "visao": view,
+        "carteira": view.is_portfolio,
+        "situacao": "vazio-origem" if view.is_empty else "conteudo",
+        "kpis": _desembolso_kpis(view),
+        "grafico": export.desembolso_chart(view),
+        "meses": _desembolso_meses(view),
+        "linhas": _desembolso_linhas(view, nivel=nivel),
+        "totais": _desembolso_totais(view),
+        "subtitulo": _desembolso_subtitulo(view),
+        "alvo_conteudo": DESEMBOLSO_TARGET,
+    }
+
+
+def _desembolso_kpis(view: service.DisbursementOverview) -> tuple[DesembolsoKpi, ...]:
+    """Os quatro indicadores do serviço como a faixa os imprime."""
+    kpis = export.desembolso_kpis(view)
+    if not kpis:
+        return ()
+    return tuple(
+        DesembolsoKpi(
+            rotulo=kpi.label,
+            valor=_kpi_value_text(kpi),
+            referencia=kpi.reference,
+            rodape=kpi.status,
+            tom=kpi.tone.value if kpi.tone is not None else "neutro",
+            icone=icone,
+        )
+        for kpi, icone in zip(kpis, DESEMBOLSO_KPI_ICONS, strict=True)
+    )
+
+
+def _desembolso_meses(view: service.DisbursementOverview) -> tuple[str, ...]:
+    return tuple(export.curva_financeira_month_label(month) for month in view.future_months)
+
+
+def _desembolso_linhas(
+    view: service.DisbursementOverview, *, nivel: int
+) -> tuple[DesembolsoLinha, ...]:
+    """As linhas da tabela até o nível pedido, com os meses já escritos."""
+    return tuple(
+        DesembolsoLinha(
+            codigo=item.code,
+            descricao=export.desembolso_row_description(item),
+            nivel=item.level,
+            projeto=item.project_label,
+            saldo=_money(item.balance_cents),
+            meses=tuple(_desembolso_mes_value(value) for value in item.amounts),
+        )
+        for item in export.desembolso_visible_items(view, level=nivel)
+    )
+
+
+def _desembolso_mes_value(cents: int) -> str:
+    """O valor de um mês; o zero fica em branco, e o fragmento desenha o ponto médio."""
+    return "" if cents == 0 else _money(cents)
+
+
+def _desembolso_totais(view: service.DisbursementOverview) -> DesembolsoTotais:
+    return DesembolsoTotais(
+        saldo=_money(view.balance_cents),
+        meses=tuple(_money(value) for value in view.totals),
+    )
+
+
+def _desembolso_subtitulo(view: service.DisbursementOverview) -> str:
+    cut = export.curva_financeira_month_label(view.cut_month)
+    text = f"Corte em {cut} · {DESEMBOLSO_SUBTITLE}" if cut else DESEMBOLSO_SUBTITLE
+    return text + (DESEMBOLSO_PORTFOLIO_SUFFIX if view.is_portfolio else "")
+
+
+def _desembolso_envio_formulario(view: service.DisbursementOverview) -> DesembolsoEnvioForm:
+    return DesembolsoEnvioForm(
+        para=service.TREASURY_EMAIL,
+        mensagem=service.treasury_default_message(view),
+    )
+
+
+def _desembolso_envio_resultado(
+    outcome: notification.NotificationOutcome,
+) -> DesembolsoEnvioResultado:
+    return DesembolsoEnvioResultado(
+        aviso=outcome.notice,
+        simulado=outcome.situation == notification.SIMULATED,
+        erro=outcome.situation == notification.FAILED,
+    )
+
+
+def _desembolso_envio_toast(recipient: str, outcome: notification.NotificationOutcome) -> str:
+    """O toast do protótipo quando o envio é simulado; senão, o aviso da porta."""
+    if outcome.situation == notification.SIMULATED:
+        return f"Cronograma enviado para {recipient} (envio simulado)."
+    return outcome.notice

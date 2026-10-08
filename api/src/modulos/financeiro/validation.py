@@ -7,6 +7,7 @@ with the messages next to the fields.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -1411,3 +1412,65 @@ def reserve_release_error(
 def reserve_missing_error() -> str:
     """A recusa do projeto sem reserva constituída, na mensagem do protótipo."""
     return RESERVE_MISSING
+
+
+# ── Envio à tesouraria (ISSUE-043) ───────────────────────────────────────
+
+
+FIELD_TREASURY_TO = "para"
+FIELD_TREASURY_MESSAGE = "mensagem"
+
+TREASURY_TO_REQUIRED = "Informe o destinatário."
+TREASURY_TO_INVALID = "Informe um e-mail válido."
+
+_ADDRESS = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+
+
+@dataclass(frozen=True)
+class TreasuryForm:
+    """O envio do cronograma pedido pela tela: o destinatário e a mensagem."""
+
+    recipient: str
+    message: str
+
+
+def parse_treasury_form(form: Mapping[str, str | None]) -> TreasuryForm:
+    """Confere o formulário de envio; recusa com 422, a mensagem no campo ``para``.
+
+    A mensagem é opcional: em branco, vale a do protótipo, montada pelo serviço. O endereço só
+    é aceito no formato do protótipo; a porta de notificação o valida de novo com o seu limite.
+    """
+    recipient = _text(form, FIELD_TREASURY_TO)
+    message = _text(form, FIELD_TREASURY_MESSAGE)
+    problem = ""
+    if not recipient:
+        problem = TREASURY_TO_REQUIRED
+    elif _ADDRESS.fullmatch(recipient) is None:
+        problem = TREASURY_TO_INVALID
+    _refuse({FIELD_TREASURY_TO: problem})
+    return TreasuryForm(recipient=recipient, message=message)
+
+
+# ── Nível da tabela do cronograma de desembolso (ISSUE-043) ──────────────
+
+
+FIELD_DESEMBOLSO_LEVEL = "nivel"
+
+DESEMBOLSO_LEVELS = (1, 2, 3)
+DESEMBOLSO_LEVEL_DEFAULT = 2
+DESEMBOLSO_LEVEL_INVALID = "Informe um nível de 1 a 3."
+
+
+def parse_desembolso_level(raw: str | None) -> int:
+    """O nível da tabela do cronograma: 1 a 3, como o seletor do protótipo.
+
+    Em branco vale o 2 do protótipo (pacotes e subpacotes); um valor fora da faixa é recusado
+    com 422, a mensagem no campo ``nivel``.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return DESEMBOLSO_LEVEL_DEFAULT
+    level = int(text) if text.isdigit() else 0
+    if level not in DESEMBOLSO_LEVELS:
+        raise InvalidDataError({FIELD_DESEMBOLSO_LEVEL: DESEMBOLSO_LEVEL_INVALID})
+    return level

@@ -584,6 +584,62 @@ def test_oraculo_da_curva_s_financeira_e_dos_kpis_de_custo(db_session: Session) 
     ]
 
 
+def test_oraculo_do_cronograma_de_desembolso(db_session: Session) -> None:
+    """O oráculo da ISSUE-043: o saldo a desembolsar do protótipo, com a data deslocada.
+
+    A mesma referência do oráculo da Curva S financeira (a âncora mais cinco dias), que mantém
+    o corte em set/26. No projeto 1, a projeção no término fecha em R$ 45.255.000,00 e o
+    realizado do ERP, em R$ 28.700.000,00, deixando R$ 16.555.000,00 a desembolsar; a soma dos
+    meses futuros de cada item é o seu saldo (o invariante da distribuição) e o histograma traz
+    o previsto, o realizado e o projetado do mês. A carteira soma os três projetos.
+    """
+    reference_date = DEMO_ANCHOR + timedelta(days=5)
+    run_demonstration(db_session, reference_date=reference_date)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    visao = financeiro.disbursement_overview(
+        db_session,
+        scope=Scope(project_id=project.id, source="url"),
+        reference_date=reference_date,
+    )
+
+    assert visao.cut_month == date(2026, 9, 1), "o mês do corte"
+    assert visao.future_months[0] == date(2026, 10, 1), "os meses a desembolsar começam em out/26"
+    assert visao.projection_cents == 4_525_500_000, "a projeção no término do protótipo"
+    assert visao.actual_until_cut_cents == 2_870_000_000, "o realizado do ERP até o corte"
+    assert visao.balance_cents == 1_655_500_000, "R$ 16.555.000,00 a desembolsar"
+    assert visao.balance_cents == visao.projection_cents - visao.actual_until_cut_cents
+
+    for item in visao.items:
+        assert sum(item.amounts) == item.balance_cents, (
+            f"a soma dos meses futuros do item {item.code} é o seu saldo"
+        )
+    assert sum(visao.totals) == visao.balance_cents, "o rodapé fecha o saldo do escopo"
+
+    meses = {linha.month: linha for linha in visao.histogram}
+    setembro = meses[date(2026, 9, 1)]
+    assert setembro.actual_cents == 590_000_000, "o realizado de set/26 do fechamento"
+    assert setembro.projected_cents is None, "o projetado só existe depois do corte"
+    outubro = meses[date(2026, 10, 1)]
+    assert outubro.planned_cents == 450_460_000
+    assert outubro.actual_cents is None, "depois do corte não há realizado"
+    assert outubro.projected_cents is not None, "a tendência mensal entra como projetado"
+
+    assert visao.kpis is not None
+    assert visao.kpis.actual_pct == Decimal("63.4")
+
+    carteira = financeiro.disbursement_overview(
+        db_session, scope=Scope(project_id=None, source="padrao"), reference_date=reference_date
+    )
+    assert carteira.is_portfolio
+    assert carteira.balance_cents == 3_399_500_000, "16.555 + 12.430 + 5.010 mil da carteira"
+    assert [row.code for row in carteira.items if row.level == 1] == ["1", "2", "3"]
+    assert carteira.totals == tuple(
+        sum(row.amounts[index] for row in carteira.items if row.level == 1)
+        for index in range(len(carteira.future_months))
+    )
+
+
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 

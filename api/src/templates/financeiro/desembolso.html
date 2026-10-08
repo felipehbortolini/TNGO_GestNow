@@ -1,0 +1,95 @@
+{% extends "base_fragment.html" %}
+{#
+  Cronograma de desembolso (ISSUE-043, HU-091): os quatro indicadores do topo, com o previsto da
+  linha de base na referência, o gráfico mensal das três séries (Previsto, Realizado e Projetado)
+  no visual Curva S Barra e Linha (D11; em R$ mil) e a tabela saldo a pagar por mês, item a item,
+  com os totais e, no Portfólio, a coluna Projeto. A raiz leva o id que a tela pediu
+  ({{ target_id }}); o marcador data-situacao diz à tela qual estado mostrar (conteudo ou
+  vazio-origem). Sem <link>, <style> nem <script>: o gráfico nasce do elemento com data-grafico e
+  data-dados.
+
+  A tela é só de leitura: o cronograma vem da curva financeira congelada e dos fatos do ERP, e o
+  envio à tesouraria vive no modal (desembolso_envio.html).
+
+  Espera: visao, carteira, situacao, kpis, grafico, meses, linhas, totais, subtitulo e
+  alvo_conteudo.
+#}
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
+
+{% if visao.is_empty %}
+<p class="body-txt">{{ 'Nenhum projeto da carteira tem curva financeira cadastrada.' if carteira else 'Este projeto ainda não tem curva financeira cadastrada.' }}</p>
+{% else %}
+<div class="kpis" role="group" aria-label="Indicadores do cronograma de desembolso">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.rotulo }}
+      {% if kpi.referencia %}<small class="hint">{{ kpi.referencia }}</small>{% endif %}
+      {% if kpi.rodape %}<small class="hint">{{ kpi.rodape }}</small>{% endif %}
+    </span>
+    <span class="kpi__value">{{ kpi.valor }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card mb-16" aria-labelledby="desembolso-grafico-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="desembolso-grafico-titulo">Desembolso mensal{{ ' da carteira' if carteira }}</h2>
+      <span class="hint">{{ subtitulo }} · valores em R$ mil</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="curva-s-barra-linha" data-dados='{{ grafico | tojson }}'></div>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="desembolso-tabela-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="desembolso-tabela-titulo">Saldo a pagar por mês</h2>
+      <span class="hint">Valores em reais; a soma dos meses de cada item é a projeção no término menos o realizado</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-saldo>
+        <caption class="sr-only">Saldo a pagar por mês</caption>
+        <thead>
+          <tr>
+            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Código</th>
+            <th scope="col">Descrição</th>
+            <th scope="col" class="td-num">Saldo a pagar</th>
+            {% for mes in meses %}<th scope="col" class="td-num">{{ mes }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr{% if linha.nivel == 1 %} class="fw-600"{% endif %}>
+            {% if carteira %}<td>{{ linha.projeto }}</td>{% endif %}
+            <td>{{ linha.codigo }}</td>
+            <td>{% if linha.nivel == 1 %}<b>{{ linha.descricao }}</b>{% else %}{{ linha.descricao }}{% endif %}</td>
+            <td class="td-num"><b>{{ linha.saldo }}</b></td>
+            {% for valor in linha.meses %}<td class="td-num">{% if valor %}{{ valor }}{% else %}<span class="muted">·</span>{% endif %}</td>{% endfor %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ (4 if carteira else 3) + (meses | length) }}" class="muted">Sem saldo a desembolsar.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="fw-600">
+            {% if carteira %}<td></td>{% endif %}
+            <td></td>
+            <td>Total</td>
+            <td class="td-num">{{ totais.saldo }}</td>
+            {% for valor in totais.meses %}<td class="td-num">{{ valor }}</td>{% endfor %}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
