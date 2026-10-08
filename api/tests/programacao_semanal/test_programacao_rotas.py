@@ -252,6 +252,9 @@ def test_every_route_of_the_module_declares_its_access() -> None:
         routes.request_form,
         routes.open_request,
         routes.decide_request,
+        routes.configuration,
+        routes.save_settings,
+        routes.save_window,
     ):
         # `bp.route` embala a função do `fragment_route`; o `Access` mora na função de dentro.
         funcao = handler.build().get_user_function()

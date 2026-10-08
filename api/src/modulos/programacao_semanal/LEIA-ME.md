@@ -26,9 +26,9 @@ As cinco telas aparecem como abas do grupo Programação Semanal no módulo 02 P
 | Importação e impressão | `app/_views/programacao_semanal/importacao.html` | `app/paginas/programacao_semanal/importacao.css` | `app/paginas/programacao_semanal/importacao.js` |
 | Configuração da programação | `app/_views/programacao_semanal/configuracao.html` | `app/paginas/programacao_semanal/configuracao.css` | `app/paginas/programacao_semanal/configuracao.js` |
 
-## Rotas (ISSUE-051 a ISSUE-053)
+## Rotas (ISSUE-051 a ISSUE-054)
 
-Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_semanal")` (o fornecedor alcança o módulo; o recorte por empresa e o papel são da fachada) e respondem fragmento com alvos de id fixo: `prog-janela`, `prog-filtros`, `prog-resumo`, `prog-tabela` e `drawer`. A governança (ISSUE-053) usa `gov-painel`, `gov-pedidos` e `gov-trilha`.
+Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_semanal")` (o fornecedor alcança o módulo; o recorte por empresa e o papel são da fachada) e respondem fragmento com alvos de id fixo: `prog-janela`, `prog-filtros`, `prog-resumo`, `prog-tabela` e `drawer`. A governança (ISSUE-053) usa `gov-painel`, `gov-pedidos` e `gov-trilha`; a configuração (ISSUE-054) usa `config-painel`, `config-parametros` e `config-janelas`.
 
 | Rota | Método | O que devolve |
 |---|---|---|
@@ -56,10 +56,13 @@ Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_
 | `pedidos/formulario` | GET | Painel de abrir um pedido (`atividade`), com o motivo |
 | `pedidos` | POST | Abre o pedido (qualquer perfil que enxerga o item; motivo de 10 caracteres); 422 devolve o painel e a matriz |
 | `pedidos/{id}/decisao` | POST | Aplica ou recusa o pedido (Planejador); 422/409 devolvem a fila e a trilha |
+| `configuracao` | GET | Painel da configuração (`config-painel`): parâmetros e janelas por empresa; no Portfólio, o aviso de escolher um projeto |
+| `configuracao/parametros` | POST | Grava os parâmetros (Planejador no projeto ou Admin); 422/409 devolvem `config-parametros` preenchido |
+| `configuracao/janela` | POST | Grava a janela de uma empresa (dias, semanas e extras); 422/409 devolvem `config-janelas` com o cartão recusado preenchido |
 
-Os painéis do fluxo declaram `x-target="drawer prog-resumo prog-tabela"`: no 422/409 a resposta traz o painel **e** a faixa e a matriz, porque alvo declarado que não vem na resposta é esvaziado pelo Alpine AJAX. O formulário de decisão da fila declara `x-target="gov-pedidos gov-trilha"`, e a resposta (`fila_resposta.html`) traz os dois.
+Os painéis do fluxo declaram `x-target="drawer prog-resumo prog-tabela"`: no 422/409 a resposta traz o painel **e** a faixa e a matriz, porque alvo declarado que não vem na resposta é esvaziado pelo Alpine AJAX. O formulário de decisão da fila declara `x-target="gov-pedidos gov-trilha"`, e a resposta (`fila_resposta.html`) traz os dois. Na configuração, cada formulário declara o seu próprio bloco (`config-parametros` ou `config-janelas`) e a resposta traz só ele — o `422/409` volta com o digitado e as mensagens ao lado dos campos.
 
-Previstas nas próximas issues: `configuracoes` (054), `importacoes` e `exportacoes` (055), `dashboard` (056).
+Previstas nas próximas issues: `importacoes` e `exportacoes` (055), `dashboard` (056).
 
 ## Estrutura portada do app
 
@@ -117,13 +120,49 @@ decidir é do Planejador ou do Admin (`permissions.can_decide_requests`); a tril
 Planejador no projeto e do Admin fora dele (`permissions.can_view_trail`); a fila corta
 por empresa do fornecedor e a decisão passa pelo controle de versão do pedido (409).
 
+## Configuração da programação (ISSUE-054)
+
+A subpágina **Configuração da programação** é uma por projeto: os **parâmetros** da
+programação e as **janelas por empresa**. É o que o app tinha em Configurações e é da
+programação; os cadastros de empresas e pessoas e o de Colaboradores **não** ficam aqui —
+são os do GestNow, no módulo Configurações.
+
+| Termo de negócio | Nome no código |
+|---|---|
+| Parâmetros do projeto | `ScheduleSettingsForm` (form), `service.ScheduleParameters` (leitura), `service.save_parameters` (gravação) |
+| Padrões de um projeto novo | `service.ensure_settings` (linha com 60/75/15 e a regra de desvio ligada) |
+| Janela de uma empresa | `WindowForm` (form), `window_rules.Window` (domínio), `service.save_window` (gravação) |
+| Quem edita | `permissions.can_manage_settings` (Planejador no projeto ou Admin) |
+| Configuração do escopo | `service.configuration_of` (`ScheduleConfiguration` + `SettingsWindow`) |
+
+Os parâmetros são a meta de aderência (padrão 60), a meta de PPC (75), a semana de
+referência (vazia = semana corrente) e a regra de desvio: `exige_justificativa_desvio`
+ligada com o limite de 15%. A **semana de referência** é o que `service.default_week`
+devolve para a matriz, o dashboard e a própria configuração. A janela é a do app, com
+as três camadas de `window.py`: liberação extraordinária (vence tudo), semana liberada
+e dia/horário; o formulário oferece o dia com abre/fecha, as pastilhas de semana de três
+anos com os atalhos de trimestre e de ano, e as liberações extraordinárias (uma por
+semana, com início e fim absolutos).
+
+Regras: só o **Planejador do projeto ou o Admin** editam (`can_manage_settings`; os
+demais recebem 403 — inclusive o Planejador de outro projeto, porque o papel é por
+projeto); a mudança **vale na hora** (a próxima requisição lê o novo valor) e a **trilha
+única** (`core/audit`) guarda o antes e o depois — sem o versionamento com justificativa
+dos parâmetros gerais do GestNow. A janela é gravada como um conjunto: os dias, as
+semanas e os extras substituem os anteriores, e o `save_window` compõe a linha da trilha
+com as regras (não só a linha da tabela). A gravação dos parâmetros passa pelo controle
+de versão da linha (409); a da janela, pela versão da janela. Um projeto sem linha lê os
+padrões do app; a gravação dos parâmetros cria a linha. No **Portfólio** a subpágina é
+somente leitura e pede um projeto (`configuration_of` não monta os formulários e a
+gravação recusa com 422); o **fornecedor** só vê a janela da própria empresa (D7).
+
 ## Integrações
 
-Projeto, empresas, colaboradores, fiscais e encarregados vêm de Configurações. A identidade e o papel da pessoa vêm da plataforma GestNow; fornecedor só acessa a própria empresa. Para isso as rotas declaram `Access(module="programacao_semanal")` e a fachada chama `core.rbac`: `company_scope(user)` corta a consulta pela empresa do fornecedor (e `require_company` recusa a de outra), e `has_schedule_role` / `require_schedule_role(user, project_id, *roles)` conferem o papel no projeto em que a pessoa o recebeu (Planejador, Fiscal, Encarregado, Fornecedor; o papel não vale em outro projeto). O fornecedor não tem permissão geral nenhuma: na programação ele age pelos papéis. O módulo não mantém cadastro paralelo de pessoas/empresas. A saída alimenta o dashboard da programação e os relatórios previstos.
+Projeto, empresas, colaboradores, fiscais e encarregados vêm de Configurações. A identidade e o papel da pessoa vêm da plataforma GestNow; fornecedor só acessa a própria empresa. Para isso as rotas declaram `Access(module="programacao_semanal")` e a fachada chama `core.rbac`: `company_scope(user)` corta a consulta pela empresa do fornecedor (e `require_company` recusa a de outra), e `has_schedule_role` / `require_schedule_role(user, project_id, *roles)` conferem o papel no projeto em que a pessoa o recebeu (Planejador, Fiscal, Encarregado, Fornecedor; o papel não vale em outro projeto). O fornecedor não tem permissão geral nenhuma: na programação ele age pelos papéis. O módulo não mantém cadastro paralelo de pessoas/empresas: a configuração lista as empresas do cadastro de Configurações. A saída alimenta o dashboard da programação e os relatórios previstos.
 
 ## Parâmetros
 
-Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite de desvio que exige justificativa, semanas/dias/horários liberados e liberações extraordinárias. Projeto novo recebe valores padrão. A alteração vale na hora e deixa auditoria (ISSUE-054).
+Cada projeto tem seus parâmetros e janelas: metas de PPC/aderência, semana de referência, limite de desvio que exige justificativa, semanas/dias/horários liberados e liberações extraordinárias. Projeto novo recebe os padrões do app por `service.ensure_settings` (a criação de projeto, ISSUE-078, chama essa função); a alteração vale na hora e deixa a trilha com antes e depois (ISSUE-054).
 
 ## Onde mexer
 
@@ -135,12 +174,12 @@ Cada projeto tem seus parâmetros e janelas: limites de PPC/aderência, limite d
 | Validações da atividade/planilha | `validation.py` |
 | Planilha e impressão | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração) |
+| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração; `configuracao.html`, `_parametros.html` e `_janelas.html` a configuração, com os invólucros `parametros.html` e `janelas.html` para as respostas de gravação) |
 | Carga de demonstração | `seed.py` e `demonstracao.json` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; as ISSUE-053 a ISSUE-056 completam o resto do módulo.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; a ISSUE-053, os pedidos de alteração e a governança; a ISSUE-054, a configuração por projeto; as ISSUE-055 e ISSUE-056 completam o resto do módulo.
 
 ## Testes
 
@@ -151,4 +190,6 @@ O app de origem e seu glossário ficam somente para consulta em `docs/referencia
 - `test_programacao_fluxo_rotas.py`: os 403 de cada papel, o fornecedor só da própria empresa, 422/409 e o botão/menu por perfil na matriz.
 - `test_programacao_governanca.py`: os números do painel como o app calcula, a fila por empresa, abrir/aplicar/recusar com trilha de antes e depois, a reabertura e os papéis.
 - `test_programacao_governanca_rotas.py`: o HTTP do painel, da fila, da trilha e dos pedidos, os 403, os 422/409 e as exportações.
-- `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações) e da governança (painel por empresa/semana, pedidos e trilha na carga).
+- `test_programacao_configuracao.py`: os padrões de `ensure_settings`, a permissão por papel no projeto (Planejador e Admin editam; o Planejador de outro projeto, não), o efeito imediato, a trilha de antes e depois dos parâmetros e das janelas (com os extras entrando, trocando e saindo), o corte do fornecedor e o Portfólio somente leitura.
+- `test_programacao_configuracao_rotas.py`: o HTTP do painel, dos parâmetros e das janelas, os 403 por papel, os 422/409 preenchidos e o aviso de escolher um projeto no Portfólio.
+- `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações) e da governança (painel por empresa/semana, pedidos e trilha na carga); a carga da configuração (parâmetros e janelas do app) não mudou com a ISSUE-054.

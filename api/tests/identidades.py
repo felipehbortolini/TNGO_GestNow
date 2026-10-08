@@ -113,14 +113,15 @@ def requisicao(
     cookies: Mapping[str, str] | None = None,
     alvo: str = "main-nav module-tabs",
     params: Mapping[str, str] | None = None,
-    corpo: Mapping[str, str] | None = None,
+    corpo: Mapping[str, str | Iterable[str]] | None = None,
     rota: Mapping[str, str] | None = None,
 ) -> func.HttpRequest:
     """A request as the shell sends it, with the principal of ``email`` when informed.
 
     ``cabecalho_bruto`` replaces the principal header with any text, to test
     what a malformed header does. ``rota`` are the route parameters of an
-    address with ``{}`` placeholders (``{"id": "7"}``).
+    address with ``{}`` placeholders (``{"id": "7"}``). A value of ``corpo``
+    that is a list becomes repeated keys (the ``semanas`` checkboxes).
     """
     headers = {"X-Alpine-Request": "true", "X-Alpine-Target": alvo}
     if cabecalho_bruto is not None:
@@ -137,7 +138,7 @@ def requisicao(
         headers=headers,
         params=dict(params or {}),
         route_params=dict(rota or {}),
-        body=urlencode(corpo).encode() if corpo is not None else b"",
+        body=urlencode(corpo, doseq=True).encode() if corpo is not None else b"",
     )
 
 

@@ -102,6 +102,13 @@ de Programação Semanal.
 programação de um projeto. A liberação extraordinária prevalece; depois são
 verificadas as semanas liberadas e o dia/horário.
 
+**Configuração da programação** — os parâmetros e as janelas de um projeto: as
+metas de aderência e de PPC, a semana de referência, a regra de justificativa de
+desvio e, por empresa, as semanas liberadas e as liberações extraordinárias. Uma
+por projeto; o projeto novo nasce com os padrões do app (60, 75 e 15) e a mudança
+vale na hora, com antes e depois na trilha. Edita o Planejador do projeto ou o
+Admin.
+
 **Fluxo da programação** — a fila de cinco degraus: elaborar, validar (o
 Planejador define o fiscal), lançar o realizado (Encarregado ou Fornecedor, por
 turno dia e noite), aprovar o realizado (Fiscal; reabrir exige motivo) e
