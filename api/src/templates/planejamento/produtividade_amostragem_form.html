@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da rodada da amostragem, nova ou em edição (ISSUE-047). O corpo mora no partial para
+  a resposta multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_prod_amostragem_form.html" %}{% endblock %}

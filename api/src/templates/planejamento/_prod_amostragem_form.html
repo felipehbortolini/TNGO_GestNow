@@ -1,0 +1,126 @@
+{#
+  Formulário da rodada da amostragem do trabalho (ISSUE-047): a frente, o instante da rodada e
+  a grade dos motivos de parada (12) e de trânsito (5). Os catálogos vêm do servidor (nunca
+  fixos no cliente); o servidor soma as paradas e o trânsito das quantidades por motivo.
+  Espera: formulario (WorkSampleFormView), registro_id, filtro_horas, api_horas, hoje.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="horas-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+<div class="produtividade__form">
+  <form method="post" x-data x-target="produtividade-modal produtividade-horas"
+    action="{% if registro_id %}{{ api_horas }}/amostragens/{{ registro_id }}{% else %}{{ api_horas }}/amostragens{% endif %}" novalidate>
+    <input type="hidden" name="versao" value="{{ formulario.fields.get('versao', '') }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro_horas.empresa }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro_horas.corte }}" />
+    <input type="hidden" name="f_area" value="{{ filtro_horas.area }}" />
+    <input type="hidden" name="f_encarregado" value="{{ filtro_horas.encarregado }}" />
+    <input type="hidden" name="f_periodo" value="{{ filtro_horas.periodo }}" />
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      {% if formulario.record %}
+      <span class="pill pill--neutral">Editar rodada</span>
+      <span class="fw-600">{{ formulario.record.area }} · {{ formulario.record.foreman }}</span>
+      <span class="hint">{{ formulario.record.project_label }}</span>
+      {% else %}
+      <span class="pill pill--neutral">Nova rodada</span>
+      <span class="hint">Pessoas trabalhando, em trânsito e paradas no instante da rodada</span>
+      {% endif %}
+    </p>
+
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="horas-amostra-data">Data</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('data') }}" id="horas-amostra-data"
+          name="data" type="date" max="{{ hoje }}" value="{{ formulario.fields.get('data', '') }}"{{ marcas('data') }} />
+        {{ erro('data') }}
+      </div>
+      <div class="field">
+        <label for="horas-amostra-hora">Hora da rodada</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('hora') }}" id="horas-amostra-hora"
+          name="hora" type="time" value="{{ formulario.fields.get('hora', '') }}"{{ marcas('hora') }} />
+        {{ erro('hora') }}
+      </div>
+      <div class="field">
+        <label for="horas-amostra-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="horas-amostra-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for opcao in formulario.options.companies %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="horas-amostra-area">Área (CWA)</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('area') }}" id="horas-amostra-area"
+          name="area" type="text" maxlength="80" list="horas-amostra-areas"
+          value="{{ formulario.fields.get('area', '') }}"{{ marcas('area') }} />
+        <datalist id="horas-amostra-areas">
+          {% for area in formulario.options.areas %}<option value="{{ area }}"></option>{% endfor %}
+        </datalist>
+        {{ erro('area') }}
+      </div>
+      <div class="field">
+        <label for="horas-amostra-encarregado">Encarregado</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('encarregado') }}" id="horas-amostra-encarregado"
+          name="encarregado" type="text" maxlength="80" list="horas-amostra-encarregados"
+          value="{{ formulario.fields.get('encarregado', '') }}"{{ marcas('encarregado') }} />
+        <datalist id="horas-amostra-encarregados">
+          {% for foreman in formulario.options.foremen %}<option value="{{ foreman }}"></option>{% endfor %}
+        </datalist>
+        {{ erro('encarregado') }}
+      </div>
+      <div class="field">
+        <label for="horas-amostra-trabalhando">Pessoas trabalhando</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('trabalhando') }}" id="horas-amostra-trabalhando"
+          name="trabalhando" type="number" min="0" step="1" value="{{ formulario.fields.get('trabalhando', '') }}"{{ marcas('trabalhando') }} />
+        {{ erro('trabalhando') }}
+      </div>
+    </div>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Paradas, por motivo</legend>
+      <div class="produtividade__grade">
+        {% for motivo in formulario.options.stop_reasons %}
+        {% set campo = 'parado_' ~ loop.index0 %}
+        <label class="produtividade__celula-grade">
+          <span>{{ motivo }}</span>
+          <input class="input input--grade" type="number" min="0" step="1"
+            name="{{ campo }}" value="{{ formulario.fields.get(campo, '') }}"
+            aria-label="Parados: {{ motivo }}"{{ marcas(campo) }} />
+        </label>
+        {% endfor %}
+      </div>
+      {{ erro('parado_0') }}
+    </fieldset>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Em trânsito, por motivo</legend>
+      <div class="produtividade__grade">
+        {% for motivo in formulario.options.transit_reasons %}
+        {% set campo = 'transito_' ~ loop.index0 %}
+        <label class="produtividade__celula-grade">
+          <span>{{ motivo }}</span>
+          <input class="input input--grade" type="number" min="0" step="1"
+            name="{{ campo }}" value="{{ formulario.fields.get(campo, '') }}"
+            aria-label="Em trânsito: {{ motivo }}"{{ marcas(campo) }} />
+        </label>
+        {% endfor %}
+      </div>
+      {{ erro('transito_0') }}
+    </fieldset>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if registro_id else 'Registrar rodada' }}</button>
+    </div>
+  </form>
+</div>

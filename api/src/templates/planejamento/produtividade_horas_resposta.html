@@ -1,0 +1,8 @@
+{#
+  Resposta de uma gravação do campo (ISSUE-047): o modal e a aba Horas efetivas de uma vez.
+  O formulário do campo declara os dois alvos e o Alpine AJAX esvazia o alvo declarado que não
+  volta; por isso as duas raízes vêm sempre, inclusive no 422 e no 409 (o modal volta com as
+  mensagens). Com o modal vazio, fechou.
+#}
+{% include "planejamento/produtividade_modal.html" %}
+{% include "planejamento/produtividade_horas.html" %}

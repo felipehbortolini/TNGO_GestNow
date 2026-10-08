@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário da paralisação, nova ou em edição (ISSUE-047). O corpo mora no partial para a
+  resposta multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_prod_paralisacao_form.html" %}{% endblock %}

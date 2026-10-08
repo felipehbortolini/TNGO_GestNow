@@ -46,6 +46,16 @@ the SPI is the weighted one of the portfolio. The attention figures of the EAP
 (overdue packages and change requests still to incorporate) come from the same
 reading of ``eap_overview``. The chart payloads follow the DS library (D11) and
 the business labels live in the templates. Nothing here reads the clock (D6).
+
+The field hours (ISSUE-047): ``hours_overview`` serves the Horas efetivas tab —
+the journey of each front and day, the observation round of the work sampling
+with its reasons, the stoppage of crew or machine, and the summaries (capacity,
+share, Pareto, Hhora and Mhora) of the period. Writing goes through
+``save_field_day``, ``save_work_sample`` and ``save_stoppage``, with the trail
+and the version; the second day of the same front is refused. The foreman is
+text typed by the inspector, as in the prototype, not a person register; the
+observer and the recorder of the record are people. Nothing here reads the clock
+(D6).
 """
 
 from __future__ import annotations
@@ -53,7 +63,7 @@ from __future__ import annotations
 from calendar import monthrange
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -77,6 +87,7 @@ from src.modulos.planejamento.models import (
     EapMeasurement,
     EapRevision,
     EapRevisionItem,
+    FieldDay,
     Lookahead,
     LookaheadConstraint,
     LookaheadWeek,
@@ -87,6 +98,9 @@ from src.modulos.planejamento.models import (
     Report,
     ReportActivity,
     ReportPoint,
+    Stoppage,
+    WorkSample,
+    WorkSampleReason,
 )
 from src.modulos.planejamento.validation import MONTHLY, WEEKLY, PointInput
 
@@ -178,6 +192,7 @@ class ProductivityParameters:
     adherence_bands: tuple[Decimal, Decimal]
     pf_bands: tuple[Decimal, Decimal]
     spi_bands: tuple[Decimal, Decimal]
+    delay_bands: tuple[Decimal, Decimal]
     daily_hours: Decimal
     working_pct: Decimal
     utilization_pct: Decimal
@@ -375,6 +390,7 @@ def productivity_parameters(session: Session, *, reference_date: date) -> Produc
         adherence_bands=_bands(values.get("aderenciaFaixas"), DEFAULT_ADHERENCE_BANDS),
         pf_bands=_bands(values.get("pfFaixas"), DEFAULT_PF_BANDS),
         spi_bands=_bands(values.get("spiFaixas"), DEFAULT_SPI_BANDS),
+        delay_bands=_bands(values.get("atrasoInicioFaixasMin"), DEFAULT_DELAY_BANDS),
         daily_hours=_decimal_value(values.get("jornadaDiariaHoras"), DEFAULT_DAILY_HOURS),
         working_pct=_decimal_value(values.get("metaTrabalhandoPct"), DEFAULT_WORKING_PCT),
         utilization_pct=_decimal_value(values.get("metaUtilizacaoPct"), DEFAULT_UTILIZATION_PCT),
@@ -6103,3 +6119,1307 @@ def _comparison_chart(rows: Sequence[PlanningKpiLine], *, is_portfolio: bool) ->
             }
         )
     return {"titulo": titulo, "paineis": paineis}
+
+
+# ── Horas efetivas: jornada, amostragem e paralisações (ISSUE-047) ─────────
+
+
+FIELD_DAY_NOT_FOUND_MESSAGE = "O registro de jornada não foi encontrado."
+
+
+SAMPLE_NOT_FOUND_MESSAGE = "A rodada de amostragem não foi encontrada."
+
+
+STOPPAGE_NOT_FOUND_MESSAGE = "O registro de paralisação não foi encontrado."
+
+
+FIELD_PROJECT_MESSAGE = "O registro pertence a outro projeto: abra a tela no projeto dele."
+
+
+FIELD_DAY_DUPLICATE_MESSAGE = (
+    "Já existe registro desta frente (empresa, área e encarregado) nesta data. "
+    "Edite o registro existente."
+)
+
+
+# As faixas do atraso de início em minutos, quando o parâmetro não traz as dele.
+DEFAULT_DELAY_BANDS = (Decimal("15"), Decimal("30"))
+
+
+PERIOD_WEEK_LABEL = "Semana de corte"
+
+
+PERIOD_ALL_LABEL = "Desde o início"
+
+
+@dataclass(frozen=True)
+class HoursFilter:
+    """O filtro da aba Horas efetivas: empresa, área, encarregado e período (vazio é o padrão)."""
+
+    company_id: int | None = None
+    area: str = ""
+    foreman: str = ""
+    period: str = calculations.PERIOD_WINDOW
+    cut_week: str = ""
+
+
+@dataclass(frozen=True)
+class FieldDayView:
+    """Uma jornada como a tela a lê, com as figuras calculadas dela (D6)."""
+
+    id: int
+    project_id: int
+    project_code: str
+    project_name: str
+    company_id: int
+    company_name: str
+    day: date
+    area: str
+    foreman: str
+    crew: int
+    morning: calculations.ShiftTimes
+    afternoon: calculations.ShiftTimes
+    notes: str
+    version: int
+    figures: calculations.FieldDayFigures
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Nome do projeto``: como o Portfólio nomeia o projeto de uma linha."""
+        return f"{self.project_code} · {self.project_name}"
+
+
+@dataclass(frozen=True)
+class WorkSampleReasonView:
+    """Um motivo da rodada, de parada ou de trânsito, com a quantidade observada."""
+
+    kind: str
+    reason: str
+    quantity: int
+
+
+@dataclass(frozen=True)
+class WorkSampleView:
+    """Uma rodada da amostragem como a tela a lê, com os motivos das paradas e do trânsito."""
+
+    id: int
+    project_id: int
+    project_code: str
+    project_name: str
+    company_id: int
+    company_name: str
+    day: date
+    hour: time
+    area: str
+    foreman: str
+    working: int
+    transit: int
+    stopped: int
+    reasons: tuple[WorkSampleReasonView, ...]
+    version: int
+
+    @property
+    def project_label(self) -> str:
+        return f"{self.project_code} · {self.project_name}"
+
+    @property
+    def people(self) -> int:
+        """As pessoas observadas na rodada: trabalhando, em trânsito e paradas."""
+        return self.working + self.transit + self.stopped
+
+    @property
+    def working_pct(self) -> Decimal | None:
+        if self.people <= 0:
+            return None
+        return calculations.round_percent(Decimal(self.working) / Decimal(self.people) * 100)
+
+
+@dataclass(frozen=True)
+class StoppageView:
+    """Uma paralisação como a tela a lê, com as horas e o total (Hhora ou Mhora) calculados."""
+
+    id: int
+    project_id: int
+    project_code: str
+    project_name: str
+    company_id: int
+    company_name: str
+    day: date
+    area: str
+    kind: str
+    resource: str
+    quantity: Decimal
+    start: time
+    end: time
+    reason: str
+    responsibility: str
+    description: str
+    version: int
+    figures: calculations.StoppageFigures
+
+    @property
+    def project_label(self) -> str:
+        return f"{self.project_code} · {self.project_name}"
+
+
+@dataclass(frozen=True)
+class CapacityAreaRow:
+    """A linha do resumo por área: CP média, utilização, Hhora e Mhora do período."""
+
+    area: str
+    capacity: Decimal | None
+    utilization: Decimal | None
+    crew_hours: Decimal
+    machine_hours: Decimal
+    records: int
+
+
+@dataclass(frozen=True)
+class HoursDayRow:
+    """A linha do resumo por dia: CP média e a distribuição da amostragem."""
+
+    day: date
+    capacity: Decimal | None
+    working_pct: Decimal | None
+    transit_pct: Decimal | None
+    stopped_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class ForemanSampleRow:
+    """O resumo da amostragem de um encarregado."""
+
+    foreman: str
+    share: calculations.SampleShare
+
+
+@dataclass(frozen=True)
+class CompanySampleRow:
+    """O resumo da amostragem de uma empresa e dos encarregados dela."""
+
+    company_id: int
+    company_name: str
+    share: calculations.SampleShare
+    foremen: tuple[ForemanSampleRow, ...]
+
+
+@dataclass(frozen=True)
+class HoursOverview:
+    """A aba Horas efetivas: filtros, capacidade, amostragem, paralisações e resumos."""
+
+    reference_date: date
+    current_week: str
+    cut_week: str
+    cut_options: tuple[str, ...]
+    company_options: tuple[QuantityOption, ...]
+    area_options: tuple[str, ...]
+    foreman_options: tuple[str, ...]
+    period_options: tuple[QuantityOption, ...]
+    filter: HoursFilter
+    window_start: date | None
+    window_end: date
+    capacity: calculations.CapacitySummary
+    field_days: tuple[FieldDayView, ...]
+    samples: tuple[WorkSampleView, ...]
+    sample_summary: calculations.SampleShare
+    stop_reasons: tuple[calculations.ReasonTotal, ...]
+    transit_reasons: tuple[calculations.ReasonTotal, ...]
+    sample_companies: tuple[CompanySampleRow, ...]
+    stoppages: tuple[StoppageView, ...]
+    stoppage_summary: calculations.StoppageSummary
+    by_area: tuple[CapacityAreaRow, ...]
+    by_day: tuple[HoursDayRow, ...]
+    parameters: ProductivityParameters
+    is_portfolio: bool
+    can_write: bool
+
+
+def hours_overview(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    hours_filter: HoursFilter | None = None,
+    reference_date: date,
+) -> HoursOverview:
+    """A aba Horas efetivas do escopo: a jornada, a amostragem e as paralisações do período.
+
+    O período vem do filtro (semana de corte, últimas N semanas ou desde o início) e o fim
+    nunca passa da data de referência. As listas de opções vêm de todos os registros do
+    escopo, para o filtro não se fechar sobre si mesmo.
+    """
+    rbac.require_module(user, MODULE)
+    chosen = hours_filter or HoursFilter()
+    parameters = productivity_parameters(session, reference_date=reference_date)
+    reference_week = calendario.iso_week(reference_date)
+    cut_week = _cut_week(chosen.cut_week, reference_week)
+    period = chosen.period if chosen.period in calculations.PERIODS else calculations.PERIOD_WINDOW
+    window_start, window_end = calculations.hours_window(
+        period,
+        cut_week=cut_week,
+        window_weeks=parameters.window_weeks,
+        reference_date=reference_date,
+    )
+    everything = _hours_records(session, scope)
+    lookups = _hours_lookups(session, everything)
+    kept = _hours_filtered(everything, chosen, start=window_start, end=window_end)
+    field_days = _field_day_views(kept[0], lookups, parameters=parameters)
+    samples = _sample_views(kept[1], lookups)
+    stoppages = _stoppage_views(kept[2], lookups)
+    figures = [view.figures for view in field_days]
+    sample_counts = [
+        calculations.SampleCounts(working=view.working, transit=view.transit, stopped=view.stopped)
+        for view in samples
+    ]
+    return HoursOverview(
+        reference_date=reference_date,
+        current_week=reference_week,
+        cut_week=cut_week,
+        cut_options=_hours_cut_options(everything, reference_week),
+        company_options=_hours_company_options(everything, lookups),
+        area_options=_hours_areas(everything),
+        foreman_options=_hours_foremen(everything, chosen),
+        period_options=_period_options(parameters.window_weeks),
+        filter=HoursFilter(
+            company_id=chosen.company_id,
+            area=chosen.area,
+            foreman=chosen.foreman,
+            period=period,
+            cut_week=cut_week,
+        ),
+        window_start=window_start,
+        window_end=window_end,
+        capacity=calculations.capacity_summary(figures, daily_hours=parameters.daily_hours),
+        field_days=field_days,
+        samples=samples,
+        sample_summary=calculations.sample_share(sample_counts),
+        stop_reasons=calculations.reason_pareto(
+            _reason_counts(samples, calculations.SAMPLE_STOPPED),
+            catalog=calculations.STOP_REASONS,
+        ),
+        transit_reasons=calculations.reason_pareto(
+            _reason_counts(samples, calculations.SAMPLE_TRANSIT),
+            catalog=calculations.TRANSIT_REASONS,
+        ),
+        sample_companies=_company_samples(samples, lookups),
+        stoppages=stoppages,
+        stoppage_summary=calculations.stoppage_summary([view.figures for view in stoppages]),
+        by_area=_capacity_areas(field_days, stoppages, daily_hours=parameters.daily_hours),
+        by_day=_hours_days(field_days, samples, daily_hours=parameters.daily_hours),
+        parameters=parameters,
+        is_portfolio=scope.is_portfolio,
+        can_write=rbac.can(user, Permission.WRITE),
+    )
+
+
+def _period_options(window_weeks: int) -> tuple[QuantityOption, ...]:
+    return (
+        QuantityOption(value=calculations.PERIOD_WEEK, label=PERIOD_WEEK_LABEL),
+        QuantityOption(value=calculations.PERIOD_WINDOW, label=f"Últimas {window_weeks} semanas"),
+        QuantityOption(value=calculations.PERIOD_ALL, label=PERIOD_ALL_LABEL),
+    )
+
+
+def _hours_cut_options(records: _HoursRecords, reference_week: str) -> tuple[str, ...]:
+    days = (
+        [record.day for record in records[0]]
+        + [record.day for record in records[1]]
+        + [record.day for record in records[2]]
+    )
+    weeks = {calendario.iso_week(day) for day in days if calendario.iso_week(day) <= reference_week}
+    first = min(weeks, default=reference_week)
+    return tuple(calculations.list_weeks(first, reference_week))
+
+
+@dataclass(frozen=True)
+class _HoursLookups:
+    """Os nomes que as linhas do campo leem, carregados uma vez por consulta."""
+
+    projects: Mapping[int, configuracoes.ProjectSummary]
+    companies: Mapping[int, str]
+
+
+def _hours_lookups(session: Session, records: _HoursRecords) -> _HoursLookups:
+    project_ids = (
+        {record.project_id for record in records[0]}
+        | {record.project_id for record in records[1]}
+        | {record.project_id for record in records[2]}
+    )
+    return _HoursLookups(
+        projects={
+            project.id: project
+            for project in configuracoes.list_projects(session)
+            if project.id in project_ids
+        },
+        companies=configuracoes.list_company_names(session),
+    )
+
+
+type _HoursRecords = tuple[list[FieldDay], list[WorkSample], list[Stoppage]]
+
+
+def _hours_records(session: Session, scope: Scope) -> _HoursRecords:
+    """Os três conjuntos do escopo: jornadas, rodadas (com os motivos) e paralisações."""
+    field_days = select(FieldDay)
+    samples = select(WorkSample).options(selectinload(WorkSample.reasons))
+    stoppages = select(Stoppage)
+    if scope.project_id is not None:
+        field_days = field_days.where(FieldDay.project_id == scope.project_id)
+        samples = samples.where(WorkSample.project_id == scope.project_id)
+        stoppages = stoppages.where(Stoppage.project_id == scope.project_id)
+    return (
+        list(session.scalars(field_days.order_by(FieldDay.day, FieldDay.id))),
+        list(session.scalars(samples.order_by(WorkSample.day, WorkSample.id))),
+        list(session.scalars(stoppages.order_by(Stoppage.day, Stoppage.id))),
+    )
+
+
+def _hours_filtered(
+    records: _HoursRecords, chosen: HoursFilter, *, start: date | None, end: date
+) -> _HoursRecords:
+    """Os registros que passam pelo filtro: empresa, área, encarregado e a janela do período.
+
+    A paralisação não tem encarregado: como no protótipo, filtrar por encarregado a deixa fora.
+    """
+    return (
+        [
+            record
+            for record in records[0]
+            if _in_hours_window(record.day, start, end)
+            and _passes_company(record.company_id, chosen)
+            and (not chosen.area or record.area == chosen.area)
+            and (not chosen.foreman or record.foreman == chosen.foreman)
+        ],
+        [
+            record
+            for record in records[1]
+            if _in_hours_window(record.day, start, end)
+            and _passes_company(record.company_id, chosen)
+            and (not chosen.area or record.area == chosen.area)
+            and (not chosen.foreman or record.foreman == chosen.foreman)
+        ],
+        [
+            record
+            for record in records[2]
+            if _in_hours_window(record.day, start, end)
+            and _passes_company(record.company_id, chosen)
+            and (not chosen.area or record.area == chosen.area)
+            and not chosen.foreman
+        ],
+    )
+
+
+def _in_hours_window(day: date, start: date | None, end: date) -> bool:
+    return (start is None or day >= start) and day <= end
+
+
+def _passes_company(company_id: int, chosen: HoursFilter) -> bool:
+    return chosen.company_id is None or company_id == chosen.company_id
+
+
+def _hours_areas(records: _HoursRecords) -> tuple[str, ...]:
+    areas = (
+        {record.area for record in records[0]}
+        | {record.area for record in records[1]}
+        | {record.area for record in records[2]}
+    )
+    return tuple(sorted(areas))
+
+
+def _hours_foremen(records: _HoursRecords, chosen: HoursFilter) -> tuple[str, ...]:
+    foremen = {
+        record.foreman
+        for record in records[0] + records[1]
+        if chosen.company_id is None or record.company_id == chosen.company_id
+    }
+    return tuple(sorted(foremen))
+
+
+def _hours_company_options(
+    records: _HoursRecords, lookups: _HoursLookups
+) -> tuple[QuantityOption, ...]:
+    ids = (
+        {record.company_id for record in records[0]}
+        | {record.company_id for record in records[1]}
+        | {record.company_id for record in records[2]}
+    )
+    return tuple(
+        QuantityOption(value=str(company_id), label=lookups.companies.get(company_id, ""))
+        for company_id in sorted(ids)
+        if lookups.companies.get(company_id)
+    )
+
+
+def _shift(morning_arrival: time, start: time, end: time) -> calculations.ShiftTimes:
+    return calculations.ShiftTimes(arrival=morning_arrival, start=start, end=end)
+
+
+def _field_day_views(
+    records: Sequence[FieldDay],
+    lookups: _HoursLookups,
+    *,
+    parameters: ProductivityParameters,
+) -> tuple[FieldDayView, ...]:
+    views = [
+        FieldDayView(
+            id=record.id,
+            project_id=record.project_id,
+            project_code=lookups.projects[record.project_id].code,
+            project_name=lookups.projects[record.project_id].name,
+            company_id=record.company_id,
+            company_name=lookups.companies.get(record.company_id, ""),
+            day=record.day,
+            area=record.area,
+            foreman=record.foreman,
+            crew=record.crew,
+            morning=_shift(record.morning_arrival, record.morning_start, record.morning_end),
+            afternoon=_shift(
+                record.afternoon_arrival, record.afternoon_start, record.afternoon_end
+            ),
+            notes=record.notes or "",
+            version=record.version,
+            figures=calculations.field_day_figures(
+                day=record.day,
+                crew=record.crew,
+                morning=_shift(record.morning_arrival, record.morning_start, record.morning_end),
+                afternoon=_shift(
+                    record.afternoon_arrival, record.afternoon_start, record.afternoon_end
+                ),
+                daily_hours=parameters.daily_hours,
+            ),
+        )
+        for record in records
+    ]
+    return tuple(sorted(views, key=lambda view: (view.day, view.id), reverse=True))
+
+
+def _sample_views(
+    records: Sequence[WorkSample], lookups: _HoursLookups
+) -> tuple[WorkSampleView, ...]:
+    views = [
+        WorkSampleView(
+            id=record.id,
+            project_id=record.project_id,
+            project_code=lookups.projects[record.project_id].code,
+            project_name=lookups.projects[record.project_id].name,
+            company_id=record.company_id,
+            company_name=lookups.companies.get(record.company_id, ""),
+            day=record.day,
+            hour=record.hour,
+            area=record.area,
+            foreman=record.foreman,
+            working=record.working,
+            transit=record.transit,
+            stopped=record.stopped,
+            reasons=tuple(
+                WorkSampleReasonView(
+                    kind=reason.kind, reason=reason.reason, quantity=reason.quantity
+                )
+                for reason in record.reasons
+            ),
+            version=record.version,
+        )
+        for record in records
+    ]
+    return tuple(sorted(views, key=lambda view: (view.day, view.hour, view.id), reverse=True))
+
+
+def _stoppage_views(
+    records: Sequence[Stoppage], lookups: _HoursLookups
+) -> tuple[StoppageView, ...]:
+    views = [
+        StoppageView(
+            id=record.id,
+            project_id=record.project_id,
+            project_code=lookups.projects[record.project_id].code,
+            project_name=lookups.projects[record.project_id].name,
+            company_id=record.company_id,
+            company_name=lookups.companies.get(record.company_id, ""),
+            day=record.day,
+            area=record.area,
+            kind=record.kind,
+            resource=record.resource,
+            quantity=record.quantity,
+            start=record.start,
+            end=record.end,
+            reason=record.reason,
+            responsibility=record.responsibility,
+            description=record.description or "",
+            version=record.version,
+            figures=calculations.stoppage_figures(
+                day=record.day,
+                kind=record.kind,
+                reason=record.reason,
+                responsibility=record.responsibility,
+                quantity=record.quantity,
+                start=record.start,
+                end=record.end,
+            ),
+        )
+        for record in records
+    ]
+    return tuple(sorted(views, key=lambda view: (view.day, view.id), reverse=True))
+
+
+def _reason_counts(samples: Sequence[WorkSampleView], kind: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for sample in samples:
+        for reason in sample.reasons:
+            if reason.kind == kind:
+                counts[reason.reason] = counts.get(reason.reason, 0) + reason.quantity
+    return counts
+
+
+def _company_samples(
+    samples: Sequence[WorkSampleView], lookups: _HoursLookups
+) -> tuple[CompanySampleRow, ...]:
+    grouped: dict[int, list[WorkSampleView]] = {}
+    for sample in samples:
+        grouped.setdefault(sample.company_id, []).append(sample)
+    rows: list[CompanySampleRow] = []
+    for company_id, company_group in sorted(
+        grouped.items(), key=lambda item: lookups.companies.get(item[0], "")
+    ):
+        foremen: dict[str, list[WorkSampleView]] = {}
+        for sample in company_group:
+            foremen.setdefault(sample.foreman, []).append(sample)
+        rows.append(
+            CompanySampleRow(
+                company_id=company_id,
+                company_name=lookups.companies.get(company_id, ""),
+                share=calculations.sample_share([_counts_of(sample) for sample in company_group]),
+                foremen=tuple(
+                    ForemanSampleRow(
+                        foreman=name,
+                        share=calculations.sample_share(
+                            [_counts_of(sample) for sample in foreman_group]
+                        ),
+                    )
+                    for name, foreman_group in sorted(foremen.items())
+                ),
+            )
+        )
+    return tuple(rows)
+
+
+def _counts_of(sample: WorkSampleView) -> calculations.SampleCounts:
+    return calculations.SampleCounts(
+        working=sample.working, transit=sample.transit, stopped=sample.stopped
+    )
+
+
+def _capacity_areas(
+    field_days: Sequence[FieldDayView],
+    stoppages: Sequence[StoppageView],
+    *,
+    daily_hours: Decimal,
+) -> tuple[CapacityAreaRow, ...]:
+    areas = {view.area for view in field_days} | {view.area for view in stoppages}
+    rows: list[CapacityAreaRow] = []
+    for area in sorted(areas):
+        local_days = [view for view in field_days if view.area == area]
+        local_stops = [view for view in stoppages if view.area == area]
+        summary = calculations.capacity_summary(
+            [view.figures for view in local_days], daily_hours=daily_hours
+        )
+        stops = calculations.stoppage_summary([view.figures for view in local_stops])
+        rows.append(
+            CapacityAreaRow(
+                area=area,
+                capacity=summary.capacity,
+                utilization=summary.utilization,
+                crew_hours=stops.crew_hours,
+                machine_hours=stops.machine_hours,
+                records=summary.records,
+            )
+        )
+    return tuple(rows)
+
+
+def _hours_days(
+    field_days: Sequence[FieldDayView],
+    samples: Sequence[WorkSampleView],
+    *,
+    daily_hours: Decimal,
+) -> tuple[HoursDayRow, ...]:
+    days = {view.day for view in field_days} | {view.day for view in samples}
+    rows: list[HoursDayRow] = []
+    for day in sorted(days):
+        local_days = [view.figures for view in field_days if view.day == day]
+        local_samples = [view for view in samples if view.day == day]
+        share = calculations.sample_share([_counts_of(sample) for sample in local_samples])
+        rows.append(
+            HoursDayRow(
+                day=day,
+                capacity=calculations.capacity_summary(
+                    local_days, daily_hours=daily_hours
+                ).capacity,
+                working_pct=share.working_pct,
+                transit_pct=share.transit_pct,
+                stopped_pct=share.stopped_pct,
+            )
+        )
+    return tuple(rows)
+
+
+# ── Escrita do campo: jornada, amostragem e paralisação (ISSUE-047) ────────
+
+
+def _field_choices(session: Session) -> validation.FieldChoices:
+    """As escolhas dos formulários do campo: as empresas do cadastro."""
+    return validation.FieldChoices(
+        company_ids=frozenset(option.id for option in configuracoes.list_company_options(session))
+    )
+
+
+def save_field_day(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    day_id: int | None,
+    form: validation.FieldDayForm,
+    reference_date: date,
+) -> FieldDay:
+    """Cria ou grava a jornada; a segunda jornada da mesma frente e dia é recusada."""
+    rbac.require(user, Permission.WRITE)
+    data = validation.parse_field_day(form, _field_choices(session), reference_date=reference_date)
+    record = _scoped_field_day(session, scope, day_id) if day_id is not None else None
+    project_id = record.project_id if record is not None else scope.require_project()
+    _refuse_duplicate_field_day(
+        session,
+        project_id=project_id,
+        data=data,
+        exclude_id=None if record is None else record.id,
+    )
+    changes = _field_day_changes(data)
+    if record is None:
+        return recording.create(
+            session,
+            user_id=user.id,
+            record=FieldDay(
+                project_id=project_id,
+                recorded_by_id=user.person_id,
+                **changes,
+            ),
+        )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=record,
+        changes=changes,
+        version=form.fields.get("versao"),
+    )
+    return record
+
+
+def _field_day_changes(data: validation.FieldDayData) -> dict[str, Any]:
+    return {
+        "company_id": data.company_id,
+        "day": data.day,
+        "area": data.area,
+        "foreman": data.foreman,
+        "crew": data.crew,
+        "morning_arrival": data.morning.arrival,
+        "morning_start": data.morning.start,
+        "morning_end": data.morning.end,
+        "afternoon_arrival": data.afternoon.arrival,
+        "afternoon_start": data.afternoon.start,
+        "afternoon_end": data.afternoon.end,
+        "notes": data.notes,
+    }
+
+
+def _refuse_duplicate_field_day(
+    session: Session,
+    *,
+    project_id: int,
+    data: validation.FieldDayData,
+    exclude_id: int | None,
+) -> None:
+    """Recusa a segunda jornada da mesma frente (empresa, área e encarregado) no dia."""
+    found = session.scalars(
+        select(FieldDay.id).where(
+            FieldDay.project_id == project_id,
+            FieldDay.day == data.day,
+            FieldDay.company_id == data.company_id,
+            FieldDay.area == data.area,
+            FieldDay.foreman == data.foreman,
+        )
+    ).all()
+    if any(record_id != exclude_id for record_id in found):
+        raise InvalidDataError(FIELD_DAY_DUPLICATE_MESSAGE)
+
+
+def save_work_sample(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    sample_id: int | None,
+    form: validation.WorkSampleForm,
+    reference_date: date,
+) -> WorkSample:
+    """Cria ou grava a rodada da amostragem, trocando os motivos junto com ela."""
+    rbac.require(user, Permission.WRITE)
+    data = validation.parse_work_sample(
+        form, _field_choices(session), reference_date=reference_date
+    )
+    record = _scoped_sample(session, scope, sample_id) if sample_id is not None else None
+    project_id = record.project_id if record is not None else scope.require_project()
+    stopped = sum(quantity for _, quantity in data.stopped_reasons)
+    transit = sum(quantity for _, quantity in data.transit_reasons)
+    if record is None:
+        record = WorkSample(
+            project_id=project_id,
+            company_id=data.company_id,
+            observer_id=user.person_id,
+            day=data.day,
+            hour=data.hour,
+            area=data.area,
+            foreman=data.foreman,
+            working=data.working,
+            transit=transit,
+            stopped=stopped,
+        )
+        session.add(record)
+        session.flush()
+        record.reasons = _sample_reasons(data)
+        session.flush()
+        audit.append(
+            session,
+            TrailLine(
+                user_id=user.id,
+                entity=WorkSample.__tablename__,
+                record_id=record.id,
+                action=audit.CREATED,
+                after=_sample_aggregate(record),
+                project_id=project_id,
+            ),
+        )
+        return record
+    before = _sample_aggregate(record)
+    versioning.require(session, record, form.fields.get("versao"))
+    record.company_id = data.company_id
+    record.day = data.day
+    record.hour = data.hour
+    record.area = data.area
+    record.foreman = data.foreman
+    record.working = data.working
+    record.transit = transit
+    record.stopped = stopped
+    record.reasons = _sample_reasons(data)
+    versioning.advance(record)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=WorkSample.__tablename__,
+            record_id=record.id,
+            action=audit.UPDATED,
+            before=before,
+            after=_sample_aggregate(record),
+            project_id=record.project_id,
+        ),
+    )
+    return record
+
+
+def _sample_reasons(data: validation.WorkSampleData) -> list[WorkSampleReason]:
+    return [
+        WorkSampleReason(kind=calculations.SAMPLE_STOPPED, reason=reason, quantity=quantity)
+        for reason, quantity in data.stopped_reasons
+    ] + [
+        WorkSampleReason(kind=calculations.SAMPLE_TRANSIT, reason=reason, quantity=quantity)
+        for reason, quantity in data.transit_reasons
+    ]
+
+
+def _sample_aggregate(record: WorkSample) -> dict[str, Any]:
+    """A rodada e os motivos como a trilha os guarda, nos nomes em português."""
+    return {
+        **audit.snapshot(record),
+        "motivos": [
+            {"tipo": reason.kind, "motivo": reason.reason, "quantidade": reason.quantity}
+            for reason in record.reasons
+        ],
+    }
+
+
+def save_stoppage(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    stoppage_id: int | None,
+    form: validation.StoppageForm,
+    reference_date: date,
+) -> Stoppage:
+    """Cria ou grava a paralisação de efetivo ou de máquina e equipamento."""
+    rbac.require(user, Permission.WRITE)
+    data = validation.parse_stoppage(form, _field_choices(session), reference_date=reference_date)
+    record = _scoped_stoppage(session, scope, stoppage_id) if stoppage_id is not None else None
+    project_id = record.project_id if record is not None else scope.require_project()
+    changes = _stoppage_changes(data)
+    if record is None:
+        return recording.create(
+            session,
+            user_id=user.id,
+            record=Stoppage(
+                project_id=project_id,
+                recorded_by_id=user.person_id,
+                **changes,
+            ),
+        )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=record,
+        changes=changes,
+        version=form.fields.get("versao"),
+    )
+    return record
+
+
+def _stoppage_changes(data: validation.StoppageData) -> dict[str, Any]:
+    return {
+        "company_id": data.company_id,
+        "day": data.day,
+        "area": data.area,
+        "kind": data.kind,
+        "resource": data.resource,
+        "quantity": data.quantity,
+        "start": data.start,
+        "end": data.end,
+        "reason": data.reason,
+        "responsibility": data.responsibility,
+        "description": data.description,
+    }
+
+
+def _scoped_field_day(session: Session, scope: Scope, day_id: int) -> FieldDay:
+    record = session.scalars(
+        select(FieldDay).execution_options(populate_existing=True).where(FieldDay.id == day_id)
+    ).one_or_none()
+    if record is None:
+        raise InvalidDataError(FIELD_DAY_NOT_FOUND_MESSAGE)
+    if scope.project_id is not None and record.project_id != scope.project_id:
+        raise InvalidDataError(FIELD_PROJECT_MESSAGE)
+    return record
+
+
+def _scoped_sample(session: Session, scope: Scope, sample_id: int) -> WorkSample:
+    record = session.scalars(
+        select(WorkSample)
+        .options(selectinload(WorkSample.reasons))
+        .execution_options(populate_existing=True)
+        .where(WorkSample.id == sample_id)
+    ).one_or_none()
+    if record is None:
+        raise InvalidDataError(SAMPLE_NOT_FOUND_MESSAGE)
+    if scope.project_id is not None and record.project_id != scope.project_id:
+        raise InvalidDataError(FIELD_PROJECT_MESSAGE)
+    return record
+
+
+def _scoped_stoppage(session: Session, scope: Scope, stoppage_id: int) -> Stoppage:
+    record = session.scalars(
+        select(Stoppage).execution_options(populate_existing=True).where(Stoppage.id == stoppage_id)
+    ).one_or_none()
+    if record is None:
+        raise InvalidDataError(STOPPAGE_NOT_FOUND_MESSAGE)
+    if scope.project_id is not None and record.project_id != scope.project_id:
+        raise InvalidDataError(FIELD_PROJECT_MESSAGE)
+    return record
+
+
+# ── Carga do campo ─────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LoadedFieldDay:
+    """Uma jornada da carga de demonstração, com os ids do banco e as datas já deslocadas."""
+
+    project_id: int
+    company_id: int
+    recorded_by_id: int
+    day: date
+    area: str
+    foreman: str
+    crew: int
+    morning: calculations.ShiftTimes
+    afternoon: calculations.ShiftTimes
+    notes: str | None
+
+
+@dataclass(frozen=True)
+class LoadedSampleReason:
+    """Um motivo da rodada da carga de demonstração."""
+
+    kind: str
+    reason: str
+    quantity: int
+
+
+@dataclass(frozen=True)
+class LoadedWorkSample:
+    """Uma rodada da amostragem da carga de demonstração."""
+
+    project_id: int
+    company_id: int
+    observer_id: int
+    day: date
+    hour: time
+    area: str
+    foreman: str
+    working: int
+    transit: int
+    stopped: int
+    reasons: tuple[LoadedSampleReason, ...]
+
+
+@dataclass(frozen=True)
+class LoadedStoppage:
+    """Uma paralisação da carga de demonstração."""
+
+    project_id: int
+    company_id: int
+    recorded_by_id: int
+    day: date
+    area: str
+    kind: str
+    resource: str
+    quantity: Decimal
+    start: time
+    end: time
+    reason: str
+    responsibility: str
+    description: str | None
+
+
+def load_field_day(session: Session, *, author_id: int, data: LoadedFieldDay) -> FieldDay:
+    """Grava uma jornada da demonstração, com a trilha."""
+    return recording.create(
+        session,
+        user_id=author_id,
+        record=FieldDay(
+            project_id=data.project_id,
+            company_id=data.company_id,
+            recorded_by_id=data.recorded_by_id,
+            day=data.day,
+            area=data.area,
+            foreman=data.foreman,
+            crew=data.crew,
+            morning_arrival=data.morning.arrival,
+            morning_start=data.morning.start,
+            morning_end=data.morning.end,
+            afternoon_arrival=data.afternoon.arrival,
+            afternoon_start=data.afternoon.start,
+            afternoon_end=data.afternoon.end,
+            notes=data.notes,
+        ),
+    )
+
+
+def load_work_sample(session: Session, *, author_id: int, data: LoadedWorkSample) -> WorkSample:
+    """Grava uma rodada da demonstração com os motivos, com a trilha do agregado."""
+    record = WorkSample(
+        project_id=data.project_id,
+        company_id=data.company_id,
+        observer_id=data.observer_id,
+        day=data.day,
+        hour=data.hour,
+        area=data.area,
+        foreman=data.foreman,
+        working=data.working,
+        transit=data.transit,
+        stopped=data.stopped,
+    )
+    session.add(record)
+    session.flush()
+    record.reasons = [
+        WorkSampleReason(kind=reason.kind, reason=reason.reason, quantity=reason.quantity)
+        for reason in data.reasons
+    ]
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=author_id,
+            entity=WorkSample.__tablename__,
+            record_id=record.id,
+            action=audit.CREATED,
+            after=_sample_aggregate(record),
+            project_id=data.project_id,
+        ),
+    )
+    return record
+
+
+def load_stoppage(session: Session, *, author_id: int, data: LoadedStoppage) -> Stoppage:
+    """Grava uma paralisação da demonstração, com a trilha."""
+    return recording.create(
+        session,
+        user_id=author_id,
+        record=Stoppage(
+            project_id=data.project_id,
+            company_id=data.company_id,
+            recorded_by_id=data.recorded_by_id,
+            day=data.day,
+            area=data.area,
+            kind=data.kind,
+            resource=data.resource,
+            quantity=data.quantity,
+            start=data.start,
+            end=data.end,
+            reason=data.reason,
+            responsibility=data.responsibility,
+            description=data.description,
+        ),
+    )
+
+
+# ── Formulários do campo (ISSUE-047) ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class FieldFormOptions:
+    """O que os formulários do campo oferecem: cadastros, sugestões e os catálogos."""
+
+    companies: tuple[configuracoes.RegisterOption, ...]
+    areas: tuple[str, ...]
+    foremen: tuple[str, ...]
+    stop_reasons: tuple[str, ...]
+    transit_reasons: tuple[str, ...]
+    stoppage_reasons: tuple[str, ...]
+    responsibilities: tuple[str, ...]
+    kinds: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FieldDayFormView:
+    """O formulário da jornada pronto para o template: valores, opções e erros."""
+
+    record: FieldDayView | None
+    fields: Mapping[str, str]
+    options: FieldFormOptions
+    errors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class WorkSampleFormView:
+    """O formulário da rodada pronto para o template: valores, opções e erros."""
+
+    record: WorkSampleView | None
+    fields: Mapping[str, str]
+    options: FieldFormOptions
+    errors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class StoppageFormView:
+    """O formulário da paralisação pronto para o template: valores, opções e erros."""
+
+    record: StoppageView | None
+    fields: Mapping[str, str]
+    options: FieldFormOptions
+    errors: Mapping[str, str]
+
+
+def field_form_options(session: Session, scope: Scope) -> FieldFormOptions:
+    """As opções dos formulários do campo: empresas, as áreas e encarregados já registrados."""
+    records = _hours_records(session, scope)
+    return FieldFormOptions(
+        companies=tuple(configuracoes.list_company_options(session)),
+        areas=_hours_areas(records),
+        foremen=_hours_foremen(records, HoursFilter()),
+        stop_reasons=calculations.STOP_REASONS,
+        transit_reasons=calculations.TRANSIT_REASONS,
+        stoppage_reasons=calculations.STOPPAGE_REASONS,
+        responsibilities=calculations.RESPONSIBILITIES,
+        kinds=calculations.STOPPAGE_KINDS,
+    )
+
+
+def field_day_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    day_id: int | None,
+    form: validation.FieldDayForm | None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> FieldDayFormView:
+    """O formulário da jornada: em branco, reaberto com o que foi digitado, ou em edição."""
+    rbac.require_module(user, MODULE)
+    record = _scoped_field_day(session, scope, day_id) if day_id is not None else None
+    view = _single_field_day(session, record, reference_date=reference_date)
+    return FieldDayFormView(
+        record=view,
+        fields=_field_day_fields(record, form=form, reference_date=reference_date),
+        options=field_form_options(session, scope),
+        errors=errors or {},
+    )
+
+
+def _single_field_day(
+    session: Session, record: FieldDay | None, *, reference_date: date
+) -> FieldDayView | None:
+    if record is None:
+        return None
+    lookups = _hours_lookups(session, ([record], [], []))
+    parameters = productivity_parameters(session, reference_date=reference_date)
+    return _field_day_views([record], lookups, parameters=parameters)[0]
+
+
+def _field_day_fields(
+    record: FieldDay | None,
+    *,
+    form: validation.FieldDayForm | None,
+    reference_date: date,
+) -> dict[str, str]:
+    if form is not None:
+        return dict(form.fields)
+    if record is None:
+        return {
+            validation.FIELD_DAY_DATE: reference_date.isoformat(),
+            validation.FIELD_DAY_MORNING: "07:30",
+        }
+    return {
+        validation.FIELD_DAY_DATE: record.day.isoformat(),
+        validation.FIELD_DAY_COMPANY: str(record.company_id),
+        validation.FIELD_DAY_AREA: record.area,
+        validation.FIELD_DAY_FOREMAN: record.foreman,
+        validation.FIELD_DAY_CREW: str(record.crew),
+        validation.FIELD_DAY_MORNING: _clock(record.morning_arrival),
+        validation.FIELD_DAY_MORNING_START: _clock(record.morning_start),
+        validation.FIELD_DAY_MORNING_END: _clock(record.morning_end),
+        validation.FIELD_DAY_AFTERNOON: _clock(record.afternoon_arrival),
+        validation.FIELD_DAY_AFTERNOON_START: _clock(record.afternoon_start),
+        validation.FIELD_DAY_AFTERNOON_END: _clock(record.afternoon_end),
+        validation.FIELD_DAY_NOTES: record.notes or "",
+        "versao": str(record.version),
+    }
+
+
+def work_sample_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    sample_id: int | None,
+    form: validation.WorkSampleForm | None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> WorkSampleFormView:
+    """O formulário da rodada: em branco, reaberto com o que foi digitado, ou em edição."""
+    rbac.require_module(user, MODULE)
+    record = _scoped_sample(session, scope, sample_id) if sample_id is not None else None
+    view = None
+    if record is not None:
+        lookups = _hours_lookups(session, ([], [record], []))
+        view = _sample_views([record], lookups)[0]
+    return WorkSampleFormView(
+        record=view,
+        fields=_work_sample_fields(record, form=form, reference_date=reference_date),
+        options=field_form_options(session, scope),
+        errors=errors or {},
+    )
+
+
+def _work_sample_fields(
+    record: WorkSample | None,
+    *,
+    form: validation.WorkSampleForm | None,
+    reference_date: date,
+) -> dict[str, str]:
+    if form is not None:
+        fields = dict(form.fields)
+        for index, value in form.stopped.items():
+            fields[f"{validation.FIELD_STOPPED_PREFIX}{index}"] = value
+        for index, value in form.transit.items():
+            fields[f"{validation.FIELD_TRANSIT_PREFIX}{index}"] = value
+        return fields
+    if record is None:
+        return {
+            validation.FIELD_DAY_DATE: reference_date.isoformat(),
+            validation.FIELD_SAMPLE_HOUR: "09:30",
+        }
+    fields = {
+        validation.FIELD_DAY_DATE: record.day.isoformat(),
+        validation.FIELD_SAMPLE_HOUR: _clock(record.hour),
+        validation.FIELD_DAY_COMPANY: str(record.company_id),
+        validation.FIELD_DAY_AREA: record.area,
+        validation.FIELD_DAY_FOREMAN: record.foreman,
+        validation.FIELD_SAMPLE_WORKING: str(record.working),
+        "versao": str(record.version),
+    }
+    for reason in record.reasons:
+        if reason.kind == calculations.SAMPLE_STOPPED:
+            prefix, catalog = validation.FIELD_STOPPED_PREFIX, calculations.STOP_REASONS
+        else:
+            prefix, catalog = validation.FIELD_TRANSIT_PREFIX, calculations.TRANSIT_REASONS
+        if reason.reason in catalog:
+            fields[f"{prefix}{catalog.index(reason.reason)}"] = str(reason.quantity)
+    return fields
+
+
+def stoppage_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    stoppage_id: int | None,
+    form: validation.StoppageForm | None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> StoppageFormView:
+    """O formulário da paralisação: em branco, reaberto com o que foi digitado, ou em edição."""
+    rbac.require_module(user, MODULE)
+    record = _scoped_stoppage(session, scope, stoppage_id) if stoppage_id is not None else None
+    view = None
+    if record is not None:
+        lookups = _hours_lookups(session, ([], [], [record]))
+        view = _stoppage_views([record], lookups)[0]
+    return StoppageFormView(
+        record=view,
+        fields=_stoppage_fields(record, form=form, reference_date=reference_date),
+        options=field_form_options(session, scope),
+        errors=errors or {},
+    )
+
+
+def _stoppage_fields(
+    record: Stoppage | None,
+    *,
+    form: validation.StoppageForm | None,
+    reference_date: date,
+) -> dict[str, str]:
+    if form is not None:
+        return dict(form.fields)
+    if record is None:
+        return {
+            validation.FIELD_DAY_DATE: reference_date.isoformat(),
+            validation.FIELD_STOPPAGE_KIND: calculations.STOPPAGE_CREW,
+            validation.FIELD_STOPPAGE_RESPONSIBILITY: calculations.RESPONSIBILITIES[0],
+        }
+    return {
+        validation.FIELD_DAY_DATE: record.day.isoformat(),
+        validation.FIELD_DAY_COMPANY: str(record.company_id),
+        validation.FIELD_DAY_AREA: record.area,
+        validation.FIELD_STOPPAGE_KIND: record.kind,
+        validation.FIELD_STOPPAGE_RESOURCE: record.resource,
+        validation.FIELD_STOPPAGE_QUANTITY: _plain_decimal(record.quantity),
+        validation.FIELD_STOPPAGE_START: _clock(record.start),
+        validation.FIELD_STOPPAGE_END: _clock(record.end),
+        validation.FIELD_STOPPAGE_REASON: record.reason,
+        validation.FIELD_STOPPAGE_RESPONSIBILITY: record.responsibility,
+        validation.FIELD_STOPPAGE_DESCRIPTION: record.description or "",
+        "versao": str(record.version),
+    }
+
+
+def _clock(value: time) -> str:
+    return value.strftime("%H:%M")

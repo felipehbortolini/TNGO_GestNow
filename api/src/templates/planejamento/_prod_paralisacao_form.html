@@ -1,0 +1,141 @@
+{#
+  Formulário da paralisação (ISSUE-047): efetivo (Hhora) ou máquina e equipamento (Mhora), com
+  recurso, quantidade, janela, motivo e responsabilidade. Responsabilidade do cliente, da
+  gerenciadora ou de terceiros orienta notificar no prazo contratual e avaliar o pleito em
+  Contratos (03); o aviso é leitura da tela, como no protótipo.
+  Espera: formulario (StoppageFormView), registro_id, filtro_horas, api_horas, hoje.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="horas-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+{% set responsabilidade = formulario.fields.get('responsabilidade', '') %}
+<div class="produtividade__form">
+  <form method="post" x-data="{ responsabilidade: '{{ responsabilidade }}' }"
+    x-target="produtividade-modal produtividade-horas"
+    action="{% if registro_id %}{{ api_horas }}/paralisacoes/{{ registro_id }}{% else %}{{ api_horas }}/paralisacoes{% endif %}" novalidate>
+    <input type="hidden" name="versao" value="{{ formulario.fields.get('versao', '') }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro_horas.empresa }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro_horas.corte }}" />
+    <input type="hidden" name="f_area" value="{{ filtro_horas.area }}" />
+    <input type="hidden" name="f_encarregado" value="{{ filtro_horas.encarregado }}" />
+    <input type="hidden" name="f_periodo" value="{{ filtro_horas.periodo }}" />
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      {% if formulario.record %}
+      <span class="pill pill--neutral">Editar paralisação</span>
+      <span class="fw-600">{{ formulario.record.resource }} · {{ formulario.record.area }}</span>
+      <span class="hint">{{ formulario.record.project_label }}</span>
+      {% else %}
+      <span class="pill pill--neutral">Nova paralisação</span>
+      <span class="hint">Efetivo (Hhora) ou máquina e equipamento (Mhora) parados na frente</span>
+      {% endif %}
+    </p>
+
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="horas-paralisacao-data">Data</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('data') }}" id="horas-paralisacao-data"
+          name="data" type="date" max="{{ hoje }}" value="{{ formulario.fields.get('data', '') }}"{{ marcas('data') }} />
+        {{ erro('data') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="horas-paralisacao-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for opcao in formulario.options.companies %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-area">Área (CWA)</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('area') }}" id="horas-paralisacao-area"
+          name="area" type="text" maxlength="80" list="horas-paralisacao-areas"
+          value="{{ formulario.fields.get('area', '') }}"{{ marcas('area') }} />
+        <datalist id="horas-paralisacao-areas">
+          {% for area in formulario.options.areas %}<option value="{{ area }}"></option>{% endfor %}
+        </datalist>
+        {{ erro('area') }}
+      </div>
+      <div class="field produtividade__campo--largo">
+        <label for="horas-paralisacao-tipo">Tipo</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('tipo') }}" id="horas-paralisacao-tipo" name="tipo"{{ marcas('tipo') }}>
+          {% for tipo in formulario.options.kinds %}
+          <option value="{{ tipo }}"{% if formulario.fields.get('tipo') == tipo %} selected{% endif %}>{{ 'Efetivo (pessoas · Hhora)' if tipo == 'Efetivo' else 'Máquina ou equipamento (unidades · Mhora)' }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('tipo') }}
+      </div>
+      <div class="field produtividade__campo--largo">
+        <label for="horas-paralisacao-recurso">Recurso parado</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('recurso') }}" id="horas-paralisacao-recurso"
+          name="recurso" type="text" maxlength="80" placeholder="Ex.: Montadores de estrutura; Guindaste 90 t"
+          value="{{ formulario.fields.get('recurso', '') }}"{{ marcas('recurso') }} />
+        {{ erro('recurso') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-quantidade">Quantidade</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('quantidade') }}" id="horas-paralisacao-quantidade"
+          name="quantidade" type="number" min="1" step="1" value="{{ formulario.fields.get('quantidade', '') }}"{{ marcas('quantidade') }} />
+        {{ erro('quantidade') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-inicio">Hora de início</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('inicio') }}" id="horas-paralisacao-inicio"
+          name="inicio" type="time" value="{{ formulario.fields.get('inicio', '') }}"{{ marcas('inicio') }} />
+        {{ erro('inicio') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-termino">Hora de término</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('termino') }}" id="horas-paralisacao-termino"
+          name="termino" type="time" value="{{ formulario.fields.get('termino', '') }}"{{ marcas('termino') }} />
+        {{ erro('termino') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-motivo">Motivo</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('motivo') }}" id="horas-paralisacao-motivo" name="motivo"{{ marcas('motivo') }}>
+          <option value="">Escolha o motivo</option>
+          {% for motivo in formulario.options.stoppage_reasons %}
+          <option value="{{ motivo }}"{% if formulario.fields.get('motivo') == motivo %} selected{% endif %}>{{ motivo }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('motivo') }}
+      </div>
+      <div class="field">
+        <label for="horas-paralisacao-responsabilidade">Responsabilidade</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('responsabilidade') }}" id="horas-paralisacao-responsabilidade"
+          name="responsabilidade" x-model="responsabilidade"{{ marcas('responsabilidade') }}>
+          <option value="">Escolha a responsabilidade</option>
+          {% for opcao in formulario.options.responsibilities %}
+          <option value="{{ opcao }}"{% if formulario.fields.get('responsabilidade') == opcao %} selected{% endif %}>{{ opcao }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('responsabilidade') }}
+      </div>
+    </div>
+
+    <div class="aviso aviso--warn" role="note" x-show="['Cliente', 'Gerenciadora', 'Terceiros'].includes(responsabilidade)" x-cloak>
+      <span>Tempo potencialmente excusável<span x-show="responsabilidade === 'Cliente'"> e compensável</span>: notifique formalmente dentro do prazo contratual e avalie o pleito em Contratos (03).</span>
+    </div>
+
+    <div class="field">
+      <label for="horas-paralisacao-descricao">Descrição</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('descricao') }}" id="horas-paralisacao-descricao"
+        name="descricao" rows="2" maxlength="300"{{ marcas('descricao') }}>{{ formulario.fields.get('descricao', '') }}</textarea>
+      {{ erro('descricao') }}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if registro_id else 'Registrar paralisação' }}</button>
+    </div>
+  </form>
+</div>

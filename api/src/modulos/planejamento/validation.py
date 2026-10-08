@@ -31,8 +31,9 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from decimal import ROUND_HALF_UP, Decimal
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 from src.core.errors import AccessDeniedError, InvalidDataError
@@ -2143,3 +2144,450 @@ def _entry_of(
         errors[field] = problem
         return None
     return EntryData(item_id=item_id, realized=amount, hh=hh or Decimal(0))
+
+
+# ── Campo: jornada, amostragem e paralisação (ISSUE-047) ───────────────────
+
+
+FIELD_DAY_DATE = "data"
+
+
+FIELD_DAY_COMPANY = "empresa"
+
+
+FIELD_DAY_AREA = "area"
+
+
+FIELD_DAY_FOREMAN = "encarregado"
+
+
+FIELD_DAY_CREW = "efetivo"
+
+
+FIELD_DAY_MORNING = "mChegada"
+
+
+FIELD_DAY_MORNING_START = "mInicio"
+
+
+FIELD_DAY_MORNING_END = "mTermino"
+
+
+FIELD_DAY_AFTERNOON = "tChegada"
+
+
+FIELD_DAY_AFTERNOON_START = "tInicio"
+
+
+FIELD_DAY_AFTERNOON_END = "tTermino"
+
+
+FIELD_DAY_NOTES = "observacoes"
+
+
+FIELD_SAMPLE_HOUR = "hora"
+
+
+FIELD_SAMPLE_WORKING = "trabalhando"
+
+
+FIELD_STOPPAGE_KIND = "tipo"
+
+
+FIELD_STOPPAGE_RESOURCE = "recurso"
+
+
+FIELD_STOPPAGE_QUANTITY = "quantidade"
+
+
+FIELD_STOPPAGE_START = "inicio"
+
+
+FIELD_STOPPAGE_END = "termino"
+
+
+FIELD_STOPPAGE_REASON = "motivo"
+
+
+FIELD_STOPPAGE_RESPONSIBILITY = "responsabilidade"
+
+
+FIELD_STOPPAGE_DESCRIPTION = "descricao"
+
+
+# Os prefixos da grade de motivos: ``parado_<índice>`` e ``transito_<índice>``.
+FIELD_STOPPED_PREFIX = "parado_"
+
+
+FIELD_TRANSIT_PREFIX = "transito_"
+
+
+AREA_MAX = 80
+
+
+FOREMAN_MAX = 80
+
+
+RESOURCE_MAX = 80
+
+
+FIELD_NOTES_MAX = 300
+
+
+FUTURE_DATE_MESSAGE = "Não é possível registrar data futura."
+
+
+CREW_MESSAGE = "Informe o efetivo na frente (1 ou mais)."
+
+
+HOUR_MESSAGE = "Informe a hora (hh:mm)."
+
+
+HOUR_ORDER_MESSAGE = (
+    "Os horários devem seguir a ordem: chegada, início e término de cada turno, "
+    "e a tarde depois da manhã."
+)
+
+
+OBSERVED_MESSAGE = "Registre ao menos uma pessoa observada."
+
+
+REASON_VALUE_MESSAGE = "Use números inteiros maiores ou iguais a zero."
+
+
+STOPPAGE_QUANTITY_MESSAGE = "Informe a quantidade (1 ou mais)."
+
+
+STOPPAGE_END_MESSAGE = "O término deve ser depois do início."
+
+
+@dataclass(frozen=True)
+class FieldChoices:
+    """O que o cadastro oferece aos formulários do campo: as empresas."""
+
+    company_ids: frozenset[int]
+
+
+@dataclass(frozen=True)
+class ShiftTimesInput:
+    """Os três horários de um turno como a validação os leu."""
+
+    arrival: time
+    start: time
+    end: time
+
+
+@dataclass(frozen=True)
+class FieldDayForm:
+    """O que o formulário da jornada mandou: os campos como foram digitados."""
+
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class FieldDayData:
+    """Uma jornada válida: a frente, o dia, o efetivo e os dois turnos."""
+
+    company_id: int
+    day: date
+    area: str
+    foreman: str
+    crew: int
+    morning: ShiftTimesInput
+    afternoon: ShiftTimesInput
+    notes: str | None
+
+
+@dataclass(frozen=True)
+class WorkSampleForm:
+    """O que o formulário da rodada mandou: os campos e a grade de cada tipo de motivo."""
+
+    fields: Mapping[str, str]
+    stopped: Mapping[int, str]
+    transit: Mapping[int, str]
+
+
+@dataclass(frozen=True)
+class WorkSampleData:
+    """Uma rodada válida: a frente, o instante e os motivos de parada e trânsito."""
+
+    company_id: int
+    day: date
+    hour: time
+    area: str
+    foreman: str
+    working: int
+    stopped_reasons: tuple[tuple[str, int], ...]
+    transit_reasons: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True)
+class StoppageForm:
+    """O que o formulário da paralisação mandou: os campos como foram digitados."""
+
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class StoppageData:
+    """Uma paralisação válida: tipo, recurso, quantidade, janela, motivo e responsabilidade."""
+
+    company_id: int
+    day: date
+    area: str
+    kind: str
+    resource: str
+    quantity: Decimal
+    start: time
+    end: time
+    reason: str
+    responsibility: str
+    description: str | None
+
+
+def _required_hour(raw: Mapping[str, str], field: str, *, errors: dict[str, str]) -> time | None:
+    text = _text(raw, field)
+    if not text:
+        errors[field] = HOUR_MESSAGE
+        return None
+    parts = text.split(":")
+    if len(parts) != 2 or not all(part.isascii() and part.isdigit() for part in parts):
+        errors[field] = HOUR_MESSAGE
+        return None
+    hour, minute = int(parts[0]), int(parts[1])
+    if hour > 23 or minute > 59:
+        errors[field] = HOUR_MESSAGE
+        return None
+    return time(hour=hour, minute=minute)
+
+
+def _field_day_date(
+    raw: Mapping[str, str], *, reference_date: date, errors: dict[str, str]
+) -> date:
+    day = _required_date(raw, FIELD_DAY_DATE, label="a data", errors=errors)
+    if FIELD_DAY_DATE not in errors and day > reference_date:
+        errors[FIELD_DAY_DATE] = FUTURE_DATE_MESSAGE
+    return day
+
+
+def _field_day_front(
+    raw: Mapping[str, str], choices: FieldChoices, errors: dict[str, str]
+) -> tuple[int, str, str]:
+    company_id, area = _company_area(raw, choices, errors)
+    foreman = _required_text(
+        raw, FIELD_DAY_FOREMAN, label="o encarregado", limit=FOREMAN_MAX, errors=errors
+    )
+    return company_id, area, foreman
+
+
+def _company_area(
+    raw: Mapping[str, str], choices: FieldChoices, errors: dict[str, str]
+) -> tuple[int, str]:
+    company_id = _choice_id(
+        raw, FIELD_DAY_COMPANY, label="a empresa", allowed=choices.company_ids, errors=errors
+    )
+    area = _required_text(raw, FIELD_DAY_AREA, label="a área (CWA)", limit=AREA_MAX, errors=errors)
+    return company_id, area
+
+
+def parse_field_day(
+    form: FieldDayForm,
+    choices: FieldChoices,
+    *,
+    reference_date: date,
+) -> FieldDayData:
+    """A jornada do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    raw = form.fields
+    errors: dict[str, str] = {}
+    day = _field_day_date(raw, reference_date=reference_date, errors=errors)
+    company_id, area, foreman = _field_day_front(raw, choices, errors)
+    crew = _required_whole(raw, FIELD_DAY_CREW, label="o efetivo", errors=errors)
+    if FIELD_DAY_CREW not in errors and crew < 1:
+        errors[FIELD_DAY_CREW] = CREW_MESSAGE
+    marks = (
+        (FIELD_DAY_MORNING, FIELD_DAY_MORNING_START, FIELD_DAY_MORNING_END),
+        (FIELD_DAY_AFTERNOON, FIELD_DAY_AFTERNOON_START, FIELD_DAY_AFTERNOON_END),
+    )
+    times = {field: _required_hour(raw, field, errors=errors) for trio in marks for field in trio}
+    sequence = [value for value in times.values() if value is not None]
+    if len(sequence) == len(times) and any(
+        later < earlier for earlier, later in pairwise(sequence)
+    ):
+        errors[FIELD_DAY_AFTERNOON_END] = HOUR_ORDER_MESSAGE
+    notes = _text(raw, FIELD_DAY_NOTES)
+    if len(notes) > FIELD_NOTES_MAX:
+        errors[FIELD_DAY_NOTES] = TOO_LONG_MESSAGE.format(
+            label="As observações", limit=FIELD_NOTES_MAX
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return FieldDayData(
+        company_id=company_id,
+        day=day,
+        area=area,
+        foreman=foreman,
+        crew=crew,
+        morning=ShiftTimesInput(
+            arrival=_hour_value(times[FIELD_DAY_MORNING]),
+            start=_hour_value(times[FIELD_DAY_MORNING_START]),
+            end=_hour_value(times[FIELD_DAY_MORNING_END]),
+        ),
+        afternoon=ShiftTimesInput(
+            arrival=_hour_value(times[FIELD_DAY_AFTERNOON]),
+            start=_hour_value(times[FIELD_DAY_AFTERNOON_START]),
+            end=_hour_value(times[FIELD_DAY_AFTERNOON_END]),
+        ),
+        notes=notes or None,
+    )
+
+
+def _hour_value(value: time | None) -> time:
+    """A hora lida; a mensagem do campo já foi registrada quando o valor é nulo."""
+    return value if value is not None else time(0, 0)
+
+
+def _required_whole(
+    raw: Mapping[str, str], field: str, *, label: str, errors: dict[str, str]
+) -> int:
+    text = _text(raw, field)
+    if not text:
+        errors[field] = REQUIRED_MESSAGE.format(label=label)
+        return 0
+    found = parse_id(text)
+    if found is None:
+        errors[field] = f"{label.capitalize()} precisa ser um número inteiro."
+        return 0
+    return found
+
+
+def _optional_whole(raw: Mapping[str, str], field: str, *, errors: dict[str, str]) -> int:
+    text = _text(raw, field)
+    if not text:
+        return 0
+    found = parse_id(text)
+    if found is None or found < 0:
+        errors[field] = REASON_VALUE_MESSAGE
+        return 0
+    return found
+
+
+def parse_work_sample(
+    form: WorkSampleForm,
+    choices: FieldChoices,
+    *,
+    reference_date: date,
+) -> WorkSampleData:
+    """A rodada do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    from src.modulos.planejamento import calculations
+
+    raw = form.fields
+    errors: dict[str, str] = {}
+    day = _field_day_date(raw, reference_date=reference_date, errors=errors)
+    hour = _required_hour(raw, FIELD_SAMPLE_HOUR, errors=errors)
+    company_id, area, foreman = _field_day_front(raw, choices, errors)
+    working = _optional_whole(raw, FIELD_SAMPLE_WORKING, errors=errors)
+    stopped = _reason_grid(form.stopped, FIELD_STOPPED_PREFIX, calculations.STOP_REASONS, errors)
+    transit = _reason_grid(form.transit, FIELD_TRANSIT_PREFIX, calculations.TRANSIT_REASONS, errors)
+    if FIELD_SAMPLE_WORKING not in errors:
+        total = working + sum(value for _, value in stopped) + sum(value for _, value in transit)
+        if total <= 0:
+            errors[FIELD_SAMPLE_WORKING] = OBSERVED_MESSAGE
+    if errors:
+        raise InvalidDataError(errors)
+    return WorkSampleData(
+        company_id=company_id,
+        day=day,
+        hour=_hour_value(hour),
+        area=area,
+        foreman=foreman,
+        working=working,
+        stopped_reasons=stopped,
+        transit_reasons=transit,
+    )
+
+
+def _reason_grid(
+    values: Mapping[int, str],
+    prefix: str,
+    catalog: Sequence[str],
+    errors: dict[str, str],
+) -> tuple[tuple[str, int], ...]:
+    reasons: list[tuple[str, int]] = []
+    for index, reason in enumerate(catalog):
+        field = f"{prefix}{index}"
+        text = (values.get(index) or "").strip()
+        if not text:
+            continue
+        found = parse_id(text)
+        if found is None or found < 0:
+            errors[field] = REASON_VALUE_MESSAGE
+            continue
+        if found:
+            reasons.append((reason, found))
+    return tuple(reasons)
+
+
+def parse_stoppage(
+    form: StoppageForm,
+    choices: FieldChoices,
+    *,
+    reference_date: date,
+) -> StoppageData:
+    """A paralisação do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    from src.modulos.planejamento import calculations
+
+    raw = form.fields
+    errors: dict[str, str] = {}
+    day = _field_day_date(raw, reference_date=reference_date, errors=errors)
+    company_id, area = _company_area(raw, choices, errors)
+    kind = _choice_text(
+        raw,
+        FIELD_STOPPAGE_KIND,
+        label="o tipo",
+        allowed=frozenset(calculations.STOPPAGE_KINDS),
+        errors=errors,
+    )
+    resource = _required_text(
+        raw, FIELD_STOPPAGE_RESOURCE, label="o recurso parado", limit=RESOURCE_MAX, errors=errors
+    )
+    quantity = _quantity(raw, FIELD_STOPPAGE_QUANTITY, label="a quantidade", errors=errors)
+    if FIELD_STOPPAGE_QUANTITY not in errors and quantity < 1:
+        errors[FIELD_STOPPAGE_QUANTITY] = STOPPAGE_QUANTITY_MESSAGE
+    start = _required_hour(raw, FIELD_STOPPAGE_START, errors=errors)
+    end = _required_hour(raw, FIELD_STOPPAGE_END, errors=errors)
+    if start is not None and end is not None and end <= start:
+        errors[FIELD_STOPPAGE_END] = STOPPAGE_END_MESSAGE
+    reason = _choice_text(
+        raw,
+        FIELD_STOPPAGE_REASON,
+        label="o motivo",
+        allowed=frozenset(calculations.STOPPAGE_REASONS),
+        errors=errors,
+    )
+    responsibility = _choice_text(
+        raw,
+        FIELD_STOPPAGE_RESPONSIBILITY,
+        label="a responsabilidade",
+        allowed=frozenset(calculations.RESPONSIBILITIES),
+        errors=errors,
+    )
+    description = _text(raw, FIELD_STOPPAGE_DESCRIPTION)
+    if len(description) > FIELD_NOTES_MAX:
+        errors[FIELD_STOPPAGE_DESCRIPTION] = TOO_LONG_MESSAGE.format(
+            label="A descrição", limit=FIELD_NOTES_MAX
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return StoppageData(
+        company_id=company_id,
+        day=day,
+        area=area,
+        kind=kind,
+        resource=resource,
+        quantity=quantity,
+        start=_hour_value(start),
+        end=_hour_value(end),
+        reason=reason,
+        responsibility=responsibility,
+        description=description or None,
+    )

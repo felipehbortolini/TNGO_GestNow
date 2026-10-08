@@ -85,6 +85,19 @@ The productivity (ISSUE-046, HU-065), prefix ``/api/planejamento/produtividade``
   approved baseline with an approved change request and a justification;
 * ``POST /apontamento``  registers or updates the week of the contractor (``?acao=recarregar``
   draws the grid again). The import goes through the generic flow (ISSUE-018).
+
+The field hours (ISSUE-047), prefix ``/api/planejamento/produtividade/horas-efetivas``:
+
+* ``GET  /``  the Horas efetivas tab: the filters (``empresa``, ``corte``, ``area``,
+  ``encarregado`` and ``periodo``) and the three views — capacity, work sampling and stoppages
+  — with the Pareto of the stop reasons (D11);
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the filter;
+* ``GET  /jornadas/nova``, ``/jornadas/{registro_id}/editar`` and the same pair for
+  ``/amostragens`` and ``/paralisacoes``  the modals of the field: the day, the observation
+  round with its reason grid and the stoppage; the Portfólio asks for the project first;
+* ``POST /jornadas`` and ``POST /jornadas/{registro_id}`` (and the pairs for samples and
+  stoppages)  write the record; the answer carries the modal and the tab in one multi-target
+  reply (422 per field, 409 for a stale version); the second day of the same front receives 422.
 """
 
 from __future__ import annotations
@@ -2941,15 +2954,17 @@ def _modal_answer(
 def productivity_screen(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
-    """Os filtros e a aba Quantidades do escopo, no corte pedido."""
+    """Os filtros, a aba Quantidades e a aba Horas efetivas do escopo, no corte pedido."""
     filtro = service.QuantityFilter(
         company_id=_integer(req.params.get("empresa")),
         group=(req.params.get("grupo") or "").strip(),
         cut_week=(req.params.get("corte") or "").strip(),
     )
+    page = _quantities_context(session, context, quantity_filter=filtro)
+    page.update(_hours_context(session, context, hours_filter=_hours_params(req.params)))
     return AlpineAjaxResponse(
         template_name=PROD_SCREEN,
-        context=_quantities_context(session, context, quantity_filter=filtro),
+        context=page,
         request=req,
     )
 
@@ -3629,3 +3644,671 @@ def _entry_form_of(req: func.HttpRequest) -> validation.EntryForm:
 def _posted_values(req: func.HttpRequest) -> dict[str, str]:
     """Os campos de texto que o formulário mandou, como foram digitados."""
     return {key: value for key, value in req.form.items() if isinstance(value, str)}
+
+
+# ── Horas efetivas da Produtividade: jornada, amostragem e paralisação ─────
+
+
+HOURS_BASE = f"{PRODUTIVIDADE_BASE}/horas-efetivas"
+
+
+HOURS_API = f"/api/{HOURS_BASE}"
+
+
+HOURS_TEMPLATE = "planejamento/produtividade_horas.html"
+
+
+HOURS_ANSWER = "planejamento/produtividade_horas_resposta.html"
+
+
+FIELD_DAY_FORM_TEMPLATE = "planejamento/produtividade_jornada_form.html"
+
+
+FIELD_DAY_FORM_INNER = "planejamento/_prod_jornada_form.html"
+
+
+SAMPLE_FORM_TEMPLATE = "planejamento/produtividade_amostragem_form.html"
+
+
+SAMPLE_FORM_INNER = "planejamento/_prod_amostragem_form.html"
+
+
+STOPPAGE_FORM_TEMPLATE = "planejamento/produtividade_paralisacao_form.html"
+
+
+STOPPAGE_FORM_INNER = "planejamento/_prod_paralisacao_form.html"
+
+
+FIELD_DAY_CREATED_MESSAGE = "Jornada registrada."
+
+
+FIELD_DAY_UPDATED_MESSAGE = "Jornada atualizada."
+
+
+SAMPLE_CREATED_MESSAGE = "Rodada registrada."
+
+
+SAMPLE_UPDATED_MESSAGE = "Rodada atualizada."
+
+
+STOPPAGE_CREATED_MESSAGE = "Paralisação registrada."
+
+
+STOPPAGE_UPDATED_MESSAGE = "Paralisação atualizada."
+
+
+def _hours_params(params: Mapping[str, str]) -> service.HoursFilter:
+    """O filtro da aba Horas efetivas como a URL o traz."""
+    return service.HoursFilter(
+        company_id=_integer(params.get("empresa")),
+        area=(params.get("area") or "").strip(),
+        foreman=(params.get("encarregado") or "").strip(),
+        period=(params.get("periodo") or "").strip(),
+        cut_week=(params.get("corte") or "").strip(),
+    )
+
+
+def _posted_hours_filter(values: Mapping[str, str]) -> service.HoursFilter:
+    """O filtro que o formulário do modal carregou nos campos ocultos ``f_*``."""
+    return service.HoursFilter(
+        company_id=_integer(values.get("f_empresa")),
+        area=(values.get("f_area") or "").strip(),
+        foreman=(values.get("f_encarregado") or "").strip(),
+        period=(values.get("f_periodo") or "").strip(),
+        cut_week=(values.get("f_corte") or "").strip(),
+    )
+
+
+def _hours_filter_values(chosen: service.HoursFilter) -> dict[str, str]:
+    return {
+        "empresa": "" if chosen.company_id is None else str(chosen.company_id),
+        "corte": chosen.cut_week,
+        "area": chosen.area,
+        "encarregado": chosen.foreman,
+        "periodo": chosen.period,
+    }
+
+
+def _hours_context(
+    session: Session, context: RequestContext, *, hours_filter: service.HoursFilter
+) -> dict[str, Any]:
+    """O contexto da aba Horas efetivas: a visão do escopo e os auxiliares de escrita."""
+    visao = service.hours_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        hours_filter=hours_filter,
+        reference_date=calendario.today(),
+    )
+    parameters = visao.parameters
+    return {
+        "horas": visao,
+        "filtro_horas": _hours_filter_values(visao.filter),
+        "api_horas": HOURS_API,
+        "tempo": export.hours_clock,
+        "horas_num": export.hours_text,
+        "percentual_horas": export.percent_text,
+        "pareto_paradas": export.stop_reason_chart(visao).data,
+        "rotulo_semana": export.productivity_week_caption,
+        "tom": _tone_class,
+        "faixa_utilizacao": lambda value: calculations.utilization_band(
+            value, target=parameters.utilization_pct
+        ),
+        "faixa_trabalho": lambda value: calculations.working_band(
+            value, target=parameters.working_pct
+        ),
+        "faixa_atraso": lambda value: calculations.start_delay_band(value, parameters.delay_bands),
+    }
+
+
+def _hours_form_context(
+    context: RequestContext, hours_filter: service.HoursFilter, **valores: Any
+) -> dict[str, Any]:
+    """O contexto de um formulário do campo: os auxiliares e nada da aba carregada."""
+    return {
+        "api_horas": HOURS_API,
+        "filtro_horas": _hours_filter_values(hours_filter),
+        "horas_num": export.hours_text,
+        "percentual_horas": export.percent_text,
+        "hoje": calendario.today().isoformat(),
+        "tom": _tone_class,
+        "pode_gerir": rbac.can(context.user, Permission.MANAGE),
+        **valores,
+    }
+
+
+def _hours_answer(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    modal_template: str,
+    hours_filter: service.HoursFilter,
+    valores: Mapping[str, Any],
+    status_code: int = 200,
+    toast: str | None = None,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A resposta com o modal e a aba Horas efetivas: o que a gravação precisa atualizar."""
+    page = _hours_context(session, context, hours_filter=hours_filter)
+    page.update(_hours_form_context(context, hours_filter, **valores))
+    page["modal_template"] = modal_template
+    return AlpineAjaxResponse(
+        template_name=HOURS_ANSWER,
+        context=page,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo=toast_tipo,
+    )
+
+
+@bp.route(route=HOURS_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_hours(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A aba Horas efetivas do escopo, no período e nos filtros pedidos."""
+    return AlpineAjaxResponse(
+        template_name=HOURS_TEMPLATE,
+        context=_hours_context(session, context, hours_filter=_hours_params(req.params)),
+        request=req,
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def productivity_hours_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba Horas efetivas, com o filtro de agora."""
+    return excel_response(_hours_document(req, session, context))
+
+
+@bp.route(route=f"{HOURS_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_hours_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba Horas efetivas: o que o botão PDF monta e imprime."""
+    return printable_response(_hours_document(req, session, context), req)
+
+
+def _hours_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    visao = service.hours_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        hours_filter=_hours_params(req.params),
+        reference_date=calendario.today(),
+    )
+    return export.hours_document(
+        visao,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+# ── Os modais do campo ─────────────────────────────────────────────────────
+
+
+@bp.route(route=f"{HOURS_BASE}/jornadas/nova", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_new_field_day(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A jornada em branco; no Portfólio o shell pede o projeto antes."""
+    context.scope.require_project()
+    formulario = service.field_day_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        day_id=None,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        FIELD_DAY_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=None
+        ),
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/jornadas/{{registro_id}}/editar", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_edit_field_day(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A jornada em edição, com os horários e o efetivo do registro."""
+    registro_id = _route_id(req, "registro_id")
+    formulario = service.field_day_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        day_id=registro_id,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        FIELD_DAY_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=registro_id
+        ),
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/amostragens/nova", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_new_sample(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A rodada em branco; no Portfólio o shell pede o projeto antes."""
+    context.scope.require_project()
+    formulario = service.work_sample_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        sample_id=None,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        SAMPLE_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=None
+        ),
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/amostragens/{{registro_id}}/editar", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_edit_sample(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A rodada em edição, com os motivos já registrados."""
+    registro_id = _route_id(req, "registro_id")
+    formulario = service.work_sample_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        sample_id=registro_id,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        SAMPLE_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=registro_id
+        ),
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/paralisacoes/nova", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_new_stoppage(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A paralisação em branco; no Portfólio o shell pede o projeto antes."""
+    context.scope.require_project()
+    formulario = service.stoppage_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        stoppage_id=None,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        STOPPAGE_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=None
+        ),
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/paralisacoes/{{registro_id}}/editar", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_edit_stoppage(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A paralisação em edição, com o recurso e a janela do registro."""
+    registro_id = _route_id(req, "registro_id")
+    formulario = service.stoppage_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        stoppage_id=registro_id,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        STOPPAGE_FORM_TEMPLATE,
+        _hours_form_context(
+            context, _hours_params(req.params), formulario=formulario, registro_id=registro_id
+        ),
+    )
+
+
+# ── As gravações do campo ──────────────────────────────────────────────────
+
+
+def _field_day_form_of(req: func.HttpRequest) -> validation.FieldDayForm:
+    return validation.FieldDayForm(fields=_posted_values(req))
+
+
+def _work_sample_form_of(req: func.HttpRequest) -> validation.WorkSampleForm:
+    """A rodada como a validação a lê: os campos e a grade de cada tipo de motivo."""
+    fields = _posted_values(req)
+    stopped = _grid_of(fields, validation.FIELD_STOPPED_PREFIX)
+    transit = _grid_of(fields, validation.FIELD_TRANSIT_PREFIX)
+    return validation.WorkSampleForm(fields=fields, stopped=stopped, transit=transit)
+
+
+def _grid_of(fields: Mapping[str, str], prefix: str) -> dict[int, str]:
+    found: dict[int, str] = {}
+    for key, value in fields.items():
+        if key.startswith(prefix) and key[len(prefix) :].isdigit():
+            found[int(key[len(prefix) :])] = value
+    return found
+
+
+def _stoppage_form_of(req: func.HttpRequest) -> validation.StoppageForm:
+    return validation.StoppageForm(fields=_posted_values(req))
+
+
+@bp.route(route=f"{HOURS_BASE}/jornadas", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_create_field_day(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra a jornada do dia; a segunda da mesma frente e dia recebe a recusa."""
+    return _save_field_day(req, session, context, day_id=None)
+
+
+@bp.route(route=f"{HOURS_BASE}/jornadas/{{registro_id}}", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_update_field_day(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava a edição da jornada."""
+    return _save_field_day(req, session, context, day_id=_route_id(req, "registro_id"))
+
+
+def _save_field_day(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    day_id: int | None,
+) -> func.HttpResponse:
+    form = _field_day_form_of(req)
+    filtro = _posted_hours_filter(req.form)
+    try:
+        service.save_field_day(
+            session,
+            user=context.user,
+            scope=context.scope,
+            day_id=day_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _field_day_error(
+            req, session, context, day_id=day_id, form=form, error=error, filtro=filtro
+        )
+    except VersionConflictError as error:
+        return _field_day_error(
+            req,
+            session,
+            context,
+            day_id=day_id,
+            form=form,
+            error=InvalidDataError(str(error)),
+            filtro=filtro,
+            status_code=409,
+        )
+    mensagem = FIELD_DAY_UPDATED_MESSAGE if day_id is not None else FIELD_DAY_CREATED_MESSAGE
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        hours_filter=filtro,
+        valores={"mensagem": mensagem, "atualiza_conteudo": True},
+        toast=mensagem,
+    )
+
+
+def _field_day_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    day_id: int | None,
+    form: validation.FieldDayForm,
+    error: InvalidDataError,
+    filtro: service.HoursFilter,
+    status_code: int = 422,
+) -> func.HttpResponse:
+    errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+    formulario = service.field_day_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        day_id=day_id,
+        form=form,
+        reference_date=calendario.today(),
+        errors=errors,
+    )
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=FIELD_DAY_FORM_INNER,
+        hours_filter=filtro,
+        valores={"formulario": formulario, "registro_id": day_id},
+        status_code=status_code,
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/amostragens", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_create_sample(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra a rodada de observação com os motivos."""
+    return _save_sample(req, session, context, sample_id=None)
+
+
+@bp.route(route=f"{HOURS_BASE}/amostragens/{{registro_id}}", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_update_sample(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava a edição da rodada, trocando os motivos junto."""
+    return _save_sample(req, session, context, sample_id=_route_id(req, "registro_id"))
+
+
+def _save_sample(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    sample_id: int | None,
+) -> func.HttpResponse:
+    form = _work_sample_form_of(req)
+    filtro = _posted_hours_filter(req.form)
+    try:
+        service.save_work_sample(
+            session,
+            user=context.user,
+            scope=context.scope,
+            sample_id=sample_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _sample_error(
+            req, session, context, sample_id=sample_id, form=form, error=error, filtro=filtro
+        )
+    except VersionConflictError as error:
+        return _sample_error(
+            req,
+            session,
+            context,
+            sample_id=sample_id,
+            form=form,
+            error=InvalidDataError(str(error)),
+            filtro=filtro,
+            status_code=409,
+        )
+    mensagem = SAMPLE_UPDATED_MESSAGE if sample_id is not None else SAMPLE_CREATED_MESSAGE
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        hours_filter=filtro,
+        valores={"mensagem": mensagem, "atualiza_conteudo": True},
+        toast=mensagem,
+    )
+
+
+def _sample_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    sample_id: int | None,
+    form: validation.WorkSampleForm,
+    error: InvalidDataError,
+    filtro: service.HoursFilter,
+    status_code: int = 422,
+) -> func.HttpResponse:
+    errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+    formulario = service.work_sample_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        sample_id=sample_id,
+        form=form,
+        reference_date=calendario.today(),
+        errors=errors,
+    )
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=SAMPLE_FORM_INNER,
+        hours_filter=filtro,
+        valores={"formulario": formulario, "registro_id": sample_id},
+        status_code=status_code,
+    )
+
+
+@bp.route(route=f"{HOURS_BASE}/paralisacoes", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_create_stoppage(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registra a paralisação de efetivo ou de máquina e equipamento."""
+    return _save_stoppage(req, session, context, stoppage_id=None)
+
+
+@bp.route(route=f"{HOURS_BASE}/paralisacoes/{{registro_id}}", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_update_stoppage(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava a edição da paralisação."""
+    return _save_stoppage(req, session, context, stoppage_id=_route_id(req, "registro_id"))
+
+
+def _save_stoppage(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    stoppage_id: int | None,
+) -> func.HttpResponse:
+    form = _stoppage_form_of(req)
+    filtro = _posted_hours_filter(req.form)
+    try:
+        service.save_stoppage(
+            session,
+            user=context.user,
+            scope=context.scope,
+            stoppage_id=stoppage_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _stoppage_error(
+            req,
+            session,
+            context,
+            stoppage_id=stoppage_id,
+            form=form,
+            error=error,
+            filtro=filtro,
+        )
+    except VersionConflictError as error:
+        return _stoppage_error(
+            req,
+            session,
+            context,
+            stoppage_id=stoppage_id,
+            form=form,
+            error=InvalidDataError(str(error)),
+            filtro=filtro,
+            status_code=409,
+        )
+    mensagem = STOPPAGE_UPDATED_MESSAGE if stoppage_id is not None else STOPPAGE_CREATED_MESSAGE
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        hours_filter=filtro,
+        valores={"mensagem": mensagem, "atualiza_conteudo": True},
+        toast=mensagem,
+    )
+
+
+def _stoppage_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    stoppage_id: int | None,
+    form: validation.StoppageForm,
+    error: InvalidDataError,
+    filtro: service.HoursFilter,
+    status_code: int = 422,
+) -> func.HttpResponse:
+    errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+    formulario = service.stoppage_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        stoppage_id=stoppage_id,
+        form=form,
+        reference_date=calendario.today(),
+        errors=errors,
+    )
+    return _hours_answer(
+        req,
+        session,
+        context,
+        modal_template=STOPPAGE_FORM_INNER,
+        hours_filter=filtro,
+        valores={"formulario": formulario, "registro_id": stoppage_id},
+        status_code=status_code,
+    )

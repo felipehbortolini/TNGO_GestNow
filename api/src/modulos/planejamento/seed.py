@@ -28,6 +28,10 @@ A Produtividade (ISSUE-046) é a parte ``planejamento-produtividade``: o plano d
 LB com a distribuição semanal, as revisões e os apontamentos do mock, gravado por
 ``seed_produtividade.load_items``. As semanas andam em semanas inteiras, para o corte continuar
 coerente com o protótipo.
+
+As Horas efetivas (ISSUE-047) são a parte ``planejamento-campo``: as jornadas, as rodadas da
+amostragem (com os motivos de parada e trânsito) e as paralisações do mock, gravadas por
+``seed_campo.load_field``. As datas andam em dias inteiros, como nas demais partes.
 """
 
 from __future__ import annotations
@@ -44,7 +48,13 @@ from sqlalchemy.orm import Session
 from src.carga import prototype_collection, register, shift_date
 from src.core import calendario, recording
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.planejamento import calculations, seed_produtividade, seed_relato, service
+from src.modulos.planejamento import (
+    calculations,
+    seed_campo,
+    seed_produtividade,
+    seed_relato,
+    service,
+)
 from src.modulos.planejamento.models import (
     CurvaFisicaMonth,
     CurvaFisicaRevision,
@@ -60,6 +70,7 @@ PART_NAME = "planejamento"
 EAP_PART_NAME = "planejamento-eap"
 CURVA_PART_NAME = "planejamento-curva"
 PRODUTIVIDADE_PART_NAME = "planejamento-produtividade"
+CAMPO_PART_NAME = "planejamento-campo"
 ADMIN_PROFILE = "Admin"
 TWO_PLACES = Decimal("0.01")
 
@@ -584,3 +595,4 @@ register(PART_NAME, load)
 register(EAP_PART_NAME, load_eap)
 register(CURVA_PART_NAME, load_curva)
 register(PRODUTIVIDADE_PART_NAME, seed_produtividade.load_items)
+register(CAMPO_PART_NAME, seed_campo.load_field)

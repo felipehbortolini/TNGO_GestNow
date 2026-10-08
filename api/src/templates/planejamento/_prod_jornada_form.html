@@ -1,0 +1,147 @@
+{#
+  Formulário da jornada do campo (ISSUE-047): a frente (empresa, área CWA, encarregado), o
+  efetivo e os horários dos dois turnos. O servidor valida e calcula CP, utilização e HH (D6);
+  os campos ocultos `f_*` levam o filtro da aba de volta na resposta multi-alvo.
+  Espera: formulario (FieldDayFormView), registro_id, filtro_horas, api_horas, hoje, tom.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="horas-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+<div class="produtividade__form">
+  <form method="post" x-data x-target="produtividade-modal produtividade-horas"
+    action="{% if registro_id %}{{ api_horas }}/jornadas/{{ registro_id }}{% else %}{{ api_horas }}/jornadas{% endif %}" novalidate>
+    <input type="hidden" name="versao" value="{{ formulario.fields.get('versao', '') }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro_horas.empresa }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro_horas.corte }}" />
+    <input type="hidden" name="f_area" value="{{ filtro_horas.area }}" />
+    <input type="hidden" name="f_encarregado" value="{{ filtro_horas.encarregado }}" />
+    <input type="hidden" name="f_periodo" value="{{ filtro_horas.periodo }}" />
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      {% if formulario.record %}
+      <span class="pill pill--neutral">Editar jornada</span>
+      <span class="fw-600">{{ formulario.record.area }} · {{ formulario.record.foreman }}</span>
+      <span class="hint">{{ formulario.record.project_label }}</span>
+      {% else %}
+      <span class="pill pill--neutral">Nova jornada</span>
+      <span class="hint">Fiscalização da frente de serviço: horários dos dois turnos e efetivo</span>
+      {% endif %}
+    </p>
+
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="horas-jornada-data">Data</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('data') }}" id="horas-jornada-data"
+          name="data" type="date" max="{{ hoje }}" value="{{ formulario.fields.get('data', '') }}"{{ marcas('data') }} />
+        {{ erro('data') }}
+      </div>
+      <div class="field">
+        <label for="horas-jornada-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="horas-jornada-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for opcao in formulario.options.companies %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="horas-jornada-efetivo">Efetivo na frente</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('efetivo') }}" id="horas-jornada-efetivo"
+          name="efetivo" type="number" min="1" step="1" value="{{ formulario.fields.get('efetivo', '') }}"{{ marcas('efetivo') }} />
+        {{ erro('efetivo') }}
+      </div>
+      <div class="field">
+        <label for="horas-jornada-area">Área (CWA)</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('area') }}" id="horas-jornada-area"
+          name="area" type="text" maxlength="80" list="horas-jornada-areas"
+          value="{{ formulario.fields.get('area', '') }}"{{ marcas('area') }} />
+        <datalist id="horas-jornada-areas">
+          {% for area in formulario.options.areas %}<option value="{{ area }}"></option>{% endfor %}
+        </datalist>
+        {{ erro('area') }}
+      </div>
+      <div class="field">
+        <label for="horas-jornada-encarregado">Encarregado</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('encarregado') }}" id="horas-jornada-encarregado"
+          name="encarregado" type="text" maxlength="80" list="horas-jornada-encarregados"
+          value="{{ formulario.fields.get('encarregado', '') }}"{{ marcas('encarregado') }} />
+        <datalist id="horas-jornada-encarregados">
+          {% for foreman in formulario.options.foremen %}<option value="{{ foreman }}"></option>{% endfor %}
+        </datalist>
+        {{ erro('encarregado') }}
+      </div>
+      <div class="field">
+        <label for="horas-jornada-previa">Resultado</label>
+        <span class="hint" id="horas-jornada-previa">O CP, a utilização e as HH saem do servidor ao salvar.</span>
+      </div>
+    </div>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Turno da manhã</legend>
+      <div class="produtividade__campos">
+        <div class="field">
+          <label for="horas-jornada-mchegada">Chegada na frente</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('mChegada') }}" id="horas-jornada-mchegada"
+            name="mChegada" type="time" value="{{ formulario.fields.get('mChegada', '') }}"{{ marcas('mChegada') }} />
+          {{ erro('mChegada') }}
+        </div>
+        <div class="field">
+          <label for="horas-jornada-minicio">Início das atividades</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('mInicio') }}" id="horas-jornada-minicio"
+            name="mInicio" type="time" value="{{ formulario.fields.get('mInicio', '') }}"{{ marcas('mInicio') }} />
+          {{ erro('mInicio') }}
+        </div>
+        <div class="field">
+          <label for="horas-jornada-mtermino">Término das atividades</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('mTermino') }}" id="horas-jornada-mtermino"
+            name="mTermino" type="time" value="{{ formulario.fields.get('mTermino', '') }}"{{ marcas('mTermino') }} />
+          {{ erro('mTermino') }}
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Turno da tarde</legend>
+      <div class="produtividade__campos">
+        <div class="field">
+          <label for="horas-jornada-tchegada">Chegada na frente</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('tChegada') }}" id="horas-jornada-tchegada"
+            name="tChegada" type="time" value="{{ formulario.fields.get('tChegada', '') }}"{{ marcas('tChegada') }} />
+          {{ erro('tChegada') }}
+        </div>
+        <div class="field">
+          <label for="horas-jornada-tinicio">Início das atividades</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('tInicio') }}" id="horas-jornada-tinicio"
+            name="tInicio" type="time" value="{{ formulario.fields.get('tInicio', '') }}"{{ marcas('tInicio') }} />
+          {{ erro('tInicio') }}
+        </div>
+        <div class="field">
+          <label for="horas-jornada-ttermino">Término das atividades</label>
+          <input class="input{{ ' input--erro' if formulario.errors.get('tTermino') }}" id="horas-jornada-ttermino"
+            name="tTermino" type="time" value="{{ formulario.fields.get('tTermino', '') }}"{{ marcas('tTermino') }} />
+          {{ erro('tTermino') }}
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label for="horas-jornada-observacoes">Observações</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('observacoes') }}" id="horas-jornada-observacoes"
+        name="observacoes" rows="2" maxlength="300"{{ marcas('observacoes') }}>{{ formulario.fields.get('observacoes', '') }}</textarea>
+      {{ erro('observacoes') }}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if registro_id else 'Registrar jornada' }}</button>
+    </div>
+  </form>
+</div>

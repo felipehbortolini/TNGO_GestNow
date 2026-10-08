@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
@@ -62,6 +62,8 @@ from src.modulos.planejamento.service import (
     LEVEL_PACKAGE,
     PORTFOLIO_LABEL,
     ActivityView,
+    CapacityAreaRow,
+    CompanySampleRow,
     ConstraintView,
     CurvaFisicaComposition,
     CurvaFisicaIndicators,
@@ -71,6 +73,8 @@ from src.modulos.planejamento.service import (
     EapNode,
     EapOverview,
     EapRevisionView,
+    FieldDayView,
+    HoursOverview,
     LookaheadBoard,
     PeriodCoverage,
     PlanningKpiLine,
@@ -79,6 +83,8 @@ from src.modulos.planejamento.service import (
     QuantityItemView,
     ReportSummary,
     ReportView,
+    StoppageView,
+    WorkSampleView,
 )
 from src.modulos.planejamento.validation import OPPORTUNITY
 
@@ -1445,4 +1451,468 @@ def _productivity_item_row(item: QuantityItemView) -> Row:
         ),
         f"Aprovada rev {item.revision}" if item.approved else "Em elaboração",
         project=item.project_label,
+    )
+
+
+# ── Horas efetivas: jornada, amostragem e paralisação (ISSUE-047) ──────────
+
+
+HOURS_TITLE = "Produtividade: horas efetivas e amostragem do trabalho"
+
+
+HOURS_CAPACITY_TITLE = "Capacidade produtiva e jornada"
+
+
+HOURS_FIELD_DAYS_TITLE = "Registros de jornada"
+
+
+HOURS_AREAS_TITLE = "Capacidade produtiva por área (CWA)"
+
+
+HOURS_STOP_REASONS_TITLE = "Pareto dos motivos de parada"
+
+
+HOURS_TRANSIT_REASONS_TITLE = "Motivos em trânsito"
+
+
+HOURS_SAMPLE_TITLE = "Amostragem por empresa e encarregado"
+
+
+HOURS_SAMPLES_TITLE = "Rodadas de observação"
+
+
+HOURS_AREA_STOPPAGE_TITLE = "Por área (CWA)"
+
+
+HOURS_STOPPAGE_REASONS_TITLE = "Efetivo paralisado por motivo"
+
+
+HOURS_STOPPAGE_RESPONSIBILITY_TITLE = "Efetivo paralisado por responsabilidade"
+
+
+HOURS_STOPPAGES_TITLE = "Registros de paralisação"
+
+
+def hours_document(visao: HoursOverview, *, scope_label: str, generated_on: date) -> Document:
+    """O documento da aba Horas efetivas: os indicadores, o Pareto e as tabelas."""
+    return Document(
+        title=HOURS_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_hours_context(visao),
+        kpis=hours_kpis(visao),
+        charts=(stop_reason_chart(visao),),
+        tables=(
+            _field_days_table(visao),
+            _capacity_areas_table(visao),
+            _reason_table(HOURS_STOP_REASONS_TITLE, visao.stop_reasons),
+            _reason_table(HOURS_TRANSIT_REASONS_TITLE, visao.transit_reasons),
+            _sample_companies_table(visao),
+            _samples_table(visao),
+            _stoppages_table(visao),
+            _stoppage_totals_table(HOURS_STOPPAGE_REASONS_TITLE, visao, attribute="by_reason"),
+            _stoppage_totals_table(
+                HOURS_STOPPAGE_RESPONSIBILITY_TITLE,
+                visao,
+                attribute="by_responsibility",
+            ),
+        ),
+        paper=Paper.A4,
+    )
+
+
+def _hours_context(visao: HoursOverview) -> tuple[tuple[str, str], ...]:
+    company = next(
+        (
+            option.label
+            for option in visao.company_options
+            if option.value == str(visao.filter.company_id)
+        ),
+        "Todas",
+    )
+    period = next(
+        (option.label for option in visao.period_options if option.value == visao.filter.period),
+        "",
+    )
+    return (
+        ("Semana de corte", productivity_week_caption(visao.cut_week)),
+        ("Período", period),
+        ("Empresa", company or "Todas"),
+        ("Área (CWA)", visao.filter.area or "Todas"),
+        ("Encarregado", visao.filter.foreman or "Todos"),
+    )
+
+
+def hours_kpis(visao: HoursOverview) -> tuple[Kpi, ...]:
+    """Os indicadores da aba Horas efetivas, os mesmos dos cartões do topo da tela."""
+    capacidade = visao.capacity
+    amostragem = visao.sample_summary
+    paradas = visao.stoppage_summary
+    parameters = visao.parameters
+    return (
+        Kpi(
+            "Capacidade produtiva (CP)",
+            capacidade.capacity,
+            f"Meta: ≥ {hours_text(parameters.daily_hours * parameters.utilization_pct / 100, 2)} h",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=_band_tone(
+                calculations.utilization_band(
+                    capacidade.utilization, target=parameters.utilization_pct
+                )
+            ),
+            status=(
+                f"manhã {hours_text(capacidade.morning_capacity, 2)} h · "
+                f"tarde {hours_text(capacidade.afternoon_capacity, 2)} h"
+            ),
+        ),
+        Kpi(
+            "Utilização da jornada",
+            capacidade.utilization,
+            f"Meta: ≥ {percent_text(parameters.utilization_pct, 0)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_band_tone(
+                calculations.utilization_band(
+                    capacidade.utilization, target=parameters.utilization_pct
+                )
+            ),
+            status=f"CP ÷ jornada de {hours_text(parameters.daily_hours, 1)} h",
+        ),
+        Kpi(
+            "Atraso médio de início",
+            capacidade.morning_delay_min,
+            f"Limite: ≤ {hours_text(parameters.delay_bands[0], 0)} min",
+            ValueKind.INTEGER,
+            tone=_band_tone(
+                calculations.start_delay_band(capacidade.morning_delay_min, parameters.delay_bands)
+            ),
+            status=f"manhã, da chegada ao início · tarde {hours_text(capacidade.afternoon_delay_min, 0)} min",
+        ),
+        Kpi(
+            "HH efetivas",
+            capacidade.effective_hh,
+            "Esperado: 0 improdutivas",
+            ValueKind.DECIMAL,
+            digits=0,
+            tone=Tone.INFO,
+            status="CP x efetivo nas frentes registradas",
+        ),
+        Kpi(
+            "HH improdutivas na frente",
+            capacidade.idle_hh,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=0,
+            tone=Tone.WARN if capacidade.idle_hh else Tone.OK,
+            status="(jornada - CP) x efetivo",
+        ),
+        Kpi(
+            "Trabalhando",
+            amostragem.working_pct,
+            f"Meta: ≥ {percent_text(parameters.working_pct, 0)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_band_tone(
+                calculations.working_band(amostragem.working_pct, target=parameters.working_pct)
+            ),
+            status=f"{amostragem.people} pessoas observadas",
+        ),
+        Kpi(
+            "Em trânsito",
+            amostragem.transit_pct,
+            "Esperado: 0 parado",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.WARN,
+            status=f"{amostragem.transit} pessoas",
+        ),
+        Kpi(
+            "Parado",
+            amostragem.stopped_pct,
+            "Esperado: 0",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.ERROR,
+            status=f"{amostragem.stopped} pessoas",
+        ),
+        Kpi(
+            "Efetivo paralisado",
+            paradas.crew_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.ERROR if paradas.crew_hours else Tone.OK,
+            status="Hhora · pessoas x horas paradas",
+        ),
+        Kpi(
+            "Máquinas e equipamentos parados",
+            paradas.machine_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.WARN if paradas.machine_hours else Tone.OK,
+            status="Mhora · unidades x horas paradas",
+        ),
+        Kpi(
+            "Responsabilidade do cliente",
+            paradas.client_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.WARN if paradas.client_hours else Tone.OK,
+            status="pleito potencial · externas em Hhora",
+        ),
+        Kpi(
+            "Clima",
+            paradas.weather_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.INFO,
+            status="tempo excusável sem compensação",
+        ),
+    )
+
+
+def _band_tone(band: str | None) -> Tone:
+    return {
+        "success": Tone.OK,
+        "warning": Tone.WARN,
+        "danger": Tone.ERROR,
+    }.get(band or "", Tone.INFO)
+
+
+def hours_text(value: Decimal | None, places: int) -> str:
+    """Uma hora ou média na escrita brasileira (ou ``·``)."""
+    return NO_VALUE if value is None else format_value(ValueKind.DECIMAL, value, places)
+
+
+def hours_clock(value: time | None) -> str:
+    """Um horário como a tela o lê: ``HH:MM`` (ou ``·``)."""
+    return NO_VALUE if value is None else value.strftime("%H:%M")
+
+
+def stop_reason_chart(visao: HoursOverview) -> Chart:
+    """O ``data-dados`` do Pareto dos motivos de parada (D11): o servidor manda o total."""
+    return Chart(
+        HOURS_STOP_REASONS_TITLE,
+        "pareto",
+        {
+            "titulo": HOURS_STOP_REASONS_TITLE,
+            "eixo_esquerdo": "Pessoas paradas",
+            "eixo_direito": "% acumulado",
+            "status": [{"id": "total", "rotulo": "Pessoas paradas", "papel": "erro"}],
+            "categorias": [
+                {"rotulo": row.reason, "valores": {"total": row.total}}
+                for row in visao.stop_reasons
+            ],
+        },
+    )
+
+
+def _field_days_table(visao: HoursOverview) -> Table:
+    return Table(
+        title=HOURS_FIELD_DAYS_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Empresa"),
+            Column("Área (CWA)"),
+            Column("Encarregado"),
+            Column("Efetivo", ValueKind.INTEGER),
+            Column("Manhã (chegada · início · término)"),
+            Column("Tarde (chegada · início · término)"),
+            Column("Atraso (min)", ValueKind.INTEGER),
+            Column("CP (h/dia)", ValueKind.DECIMAL, digits=2),
+            Column("Utilização", ValueKind.PERCENT, digits=0),
+            Column("HH efetivas", ValueKind.DECIMAL, digits=1),
+            Column("HH improdutivas", ValueKind.DECIMAL, digits=1),
+        ),
+        rows=tuple(_field_day_row(view) for view in visao.field_days),
+    )
+
+
+def _field_day_row(view: FieldDayView) -> Row:
+    figures = view.figures
+    return row(
+        view.day,
+        view.company_name,
+        view.area,
+        view.foreman,
+        view.crew,
+        f"{hours_clock(figures.morning.arrival)} · {hours_clock(figures.morning.start)} · {hours_clock(figures.morning.end)}",
+        f"{hours_clock(figures.afternoon.arrival)} · {hours_clock(figures.afternoon.start)} · {hours_clock(figures.afternoon.end)}",
+        figures.morning_delay_min + figures.afternoon_delay_min,
+        figures.capacity,
+        figures.utilization,
+        figures.effective_hh,
+        figures.idle_hh,
+        project=view.project_label,
+    )
+
+
+def _capacity_areas_table(visao: HoursOverview) -> Table:
+    return Table(
+        title=HOURS_AREAS_TITLE,
+        columns=(
+            Column("Área (CWA)"),
+            Column("CP (h/dia)", ValueKind.DECIMAL, digits=2),
+            Column("Utilização", ValueKind.PERCENT, digits=0),
+            Column("Efetivo paralisado (Hhora)", ValueKind.DECIMAL, digits=1),
+            Column("Máq./equip. parados (Mhora)", ValueKind.DECIMAL, digits=1),
+            Column("Jornadas", ValueKind.INTEGER),
+        ),
+        rows=tuple(_capacity_area_row(line) for line in visao.by_area),
+    )
+
+
+def _capacity_area_row(line: CapacityAreaRow) -> Row:
+    return row(
+        line.area,
+        line.capacity,
+        line.utilization,
+        line.crew_hours,
+        line.machine_hours,
+        line.records,
+    )
+
+
+def _reason_table(title: str, rows: Sequence[calculations.ReasonTotal]) -> Table:
+    return Table(
+        title=title,
+        columns=(
+            Column("Motivo"),
+            Column("Pessoas", ValueKind.INTEGER),
+            Column("%", ValueKind.PERCENT, digits=1),
+            Column("% acumulado", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(row(line.reason, line.total, line.percent, line.accumulated) for line in rows),
+    )
+
+
+def _sample_companies_table(visao: HoursOverview) -> Table:
+    return Table(
+        title=HOURS_SAMPLE_TITLE,
+        columns=(
+            Column("Empresa / encarregado"),
+            Column("Rodadas", ValueKind.INTEGER),
+            Column("Pessoas observadas", ValueKind.INTEGER),
+            Column("% trabalhando", ValueKind.PERCENT, digits=1),
+            Column("% em trânsito", ValueKind.PERCENT, digits=1),
+            Column("% parado", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(_sample_company_rows(visao.sample_companies)),
+    )
+
+
+def _sample_company_rows(companies: Sequence[CompanySampleRow]) -> list[Row]:
+    rows: list[Row] = []
+    for company in companies:
+        rows.append(
+            row(
+                company.company_name,
+                company.share.records,
+                company.share.people,
+                company.share.working_pct,
+                company.share.transit_pct,
+                company.share.stopped_pct,
+            )
+        )
+        rows.extend(
+            row(
+                f"    {foreman.foreman}",
+                foreman.share.records,
+                foreman.share.people,
+                foreman.share.working_pct,
+                foreman.share.transit_pct,
+                foreman.share.stopped_pct,
+            )
+            for foreman in company.foremen
+        )
+    return rows
+
+
+def _samples_table(visao: HoursOverview) -> Table:
+    return Table(
+        title=HOURS_SAMPLES_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Hora"),
+            Column("Empresa"),
+            Column("Área (CWA)"),
+            Column("Encarregado"),
+            Column("Trabalhando", ValueKind.INTEGER),
+            Column("Em trânsito", ValueKind.INTEGER),
+            Column("Parado", ValueKind.INTEGER),
+            Column("% trabalhando", ValueKind.PERCENT, digits=0),
+        ),
+        rows=tuple(_sample_row(view) for view in visao.samples),
+    )
+
+
+def _sample_row(view: WorkSampleView) -> Row:
+    return row(
+        view.day,
+        hours_clock(view.hour),
+        view.company_name,
+        view.area,
+        view.foreman,
+        view.working,
+        view.transit,
+        view.stopped,
+        view.working_pct,
+        project=view.project_label,
+    )
+
+
+def _stoppages_table(visao: HoursOverview) -> Table:
+    return Table(
+        title=HOURS_STOPPAGES_TITLE,
+        columns=(
+            Column("Data", ValueKind.DATE),
+            Column("Empresa"),
+            Column("Área (CWA)"),
+            Column("Tipo"),
+            Column("Recurso parado"),
+            Column("Quantidade", ValueKind.DECIMAL, digits=0),
+            Column("Início"),
+            Column("Término"),
+            Column("Horas", ValueKind.DECIMAL, digits=2),
+            Column("Hhora / Mhora", ValueKind.DECIMAL, digits=1),
+            Column("Motivo"),
+            Column("Responsabilidade"),
+        ),
+        rows=tuple(_stoppage_row(view) for view in visao.stoppages),
+    )
+
+
+def _stoppage_row(view: StoppageView) -> Row:
+    return row(
+        view.day,
+        view.company_name,
+        view.area,
+        view.kind,
+        view.resource,
+        view.quantity,
+        hours_clock(view.start),
+        hours_clock(view.end),
+        view.figures.hours,
+        view.figures.total,
+        view.reason,
+        view.responsibility,
+        project=view.project_label,
+    )
+
+
+def _stoppage_totals_table(title: str, visao: HoursOverview, *, attribute: str) -> Table:
+    totals = getattr(visao.stoppage_summary, attribute)
+    return Table(
+        title=title,
+        columns=(
+            Column("Chave"),
+            Column("Hhora", ValueKind.DECIMAL, digits=1),
+            Column("Eventos", ValueKind.INTEGER),
+        ),
+        rows=tuple(row(item.key, item.total, item.events) for item in totals),
     )

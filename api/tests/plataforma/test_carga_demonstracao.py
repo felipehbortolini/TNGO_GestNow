@@ -66,10 +66,14 @@ from src.modulos.planejamento.models import (
     EapMeasurement,
     EapRevision,
     EapRevisionItem,
+    FieldDay,
     ProductivityDistribution,
     ProductivityEntry,
     ProductivityItem,
     ProductivityRevision,
+    Stoppage,
+    WorkSample,
+    WorkSampleReason,
 )
 from src.modulos.riscos.models import Risk
 
@@ -91,6 +95,7 @@ PARTS = [
     "planejamento-eap",
     "planejamento-curva",
     "planejamento-produtividade",
+    "planejamento-campo",
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
@@ -744,6 +749,109 @@ def test_oraculo_da_produtividade_com_a_data_deslocada(db_session: Session) -> N
         Decimal("55.9"),
         Decimal("0.87"),
     )
+
+
+def test_oraculo_das_horas_efetivas_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-047: a jornada, a amostragem e as paralisações do protótipo.
+
+    O mock traz 180 jornadas, 360 rodadas e 31 paralisações nos três projetos; no projeto 1
+    (TN-2026-014), desde o início e sem deslocamento, são 120 jornadas, 240 rodadas e 25
+    paralisações: CP média de 6,81 h/dia (utilização 77,4%), 22.870 HH efetivas e 6.691 HH
+    improdutivas, 55,26% trabalhando, o Pareto de paradas começando no direcionamento da
+    liderança (686) e fechando no direito de recusa (47), e 750,0 Hhora e 58,5 Mhora parados.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, FieldDay) == 180
+    assert _count(db_session, WorkSample) == 360
+    assert _count(db_session, WorkSampleReason) == 2411
+    assert _count(db_session, Stoppage) == 31
+    project_1 = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    dias = db_session.scalar(
+        select(func.count()).select_from(FieldDay).where(FieldDay.project_id == project_1.id)
+    )
+    rodadas = db_session.scalar(
+        select(func.count()).select_from(WorkSample).where(WorkSample.project_id == project_1.id)
+    )
+    paradas = db_session.scalar(
+        select(func.count()).select_from(Stoppage).where(Stoppage.project_id == project_1.id)
+    )
+    assert (dias, rodadas, paradas) == (120, 240, 25)
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    scope = Scope(project_id=project_1.id, source="url")
+    visao = planejamento.hours_overview(
+        db_session,
+        user=user,
+        scope=scope,
+        hours_filter=planejamento.HoursFilter(period="tudo"),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert visao.cut_week == "2026-S39"
+    assert visao.current_week == "2026-S39"
+    assert (visao.window_start, visao.window_end) == (None, DEMO_ANCHOR)
+
+    capacidade = visao.capacity
+    assert capacidade.records == 120
+    assert capacidade.capacity == Decimal("6.81")
+    assert capacidade.utilization == Decimal("77.4")
+    assert capacidade.effective_hh == Decimal("22870")
+    assert capacidade.idle_hh == Decimal("6691")
+    assert (capacidade.morning_delay_min, capacidade.afternoon_delay_min) == (
+        Decimal("32"),
+        Decimal("7"),
+    )
+    assert capacidade.lunch_min == Decimal("88")
+
+    amostragem = visao.sample_summary
+    assert (amostragem.records, amostragem.people) == (240, 5711)
+    assert (
+        amostragem.working_pct,
+        amostragem.transit_pct,
+        amostragem.stopped_pct,
+    ) == (Decimal("55.26"), Decimal("9.93"), Decimal("34.81"))
+    assert (visao.stop_reasons[0].reason, visao.stop_reasons[0].total) == (
+        "Direcionamento da liderança para execução",
+        686,
+    )
+    assert (visao.stop_reasons[-1].reason, visao.stop_reasons[-1].total) == (
+        "Direito de recusa (trabalho seguro)",
+        47,
+    )
+    assert visao.stop_reasons[0].accumulated == Decimal("34.5")
+    assert [row.reason for row in visao.transit_reasons] == [
+        "Material / insumo / acessório",
+        "Água / banheiro",
+        "Ferramenta",
+        "Máquina / equipamento",
+        "Entre frentes de serviço",
+    ]
+
+    resumo = visao.stoppage_summary
+    assert resumo.events == 25
+    assert resumo.crew_hours == Decimal("750.0")
+    assert resumo.machine_hours == Decimal("58.5")
+    assert resumo.client_hours == Decimal("372.0")
+    assert resumo.weather_hours == Decimal("127.3")
+    assert resumo.by_responsibility[0].key == "Cliente"
+    assert visao.by_area[0].area == "Flotação 310"
+
+    carteira = planejamento.hours_overview(
+        db_session,
+        user=user,
+        scope=Scope(project_id=None, source="padrao"),
+        hours_filter=planejamento.HoursFilter(period="tudo"),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert carteira.is_portfolio
+    assert len(carteira.field_days) == 180
+    assert len(carteira.samples) == 360
+    assert len(carteira.stoppages) == 31
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
