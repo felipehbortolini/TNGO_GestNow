@@ -1292,6 +1292,79 @@ def test_oraculo_da_governanca_da_programacao_semanal(db_session: Session) -> No
         programacao_semanal.governance_trail(db_session, caller=supplier_caller)
 
 
+def test_oraculo_do_dashboard_da_programacao_semanal(db_session: Session) -> None:
+    """O oráculo da ISSUE-056: os indicadores do dashboard, com a carga.
+
+    Na semana S.34/2026 do projeto TN-2026-014, a aderência fecha em 66,19% (PPC
+    médio de 65,86%), com 3 contratadas e 6 frentes; o ranking vai de Elmec
+    Montagens (59,82%) a M. Roscoe (72,79%); a faixa de PPC tem 10 médias e 2
+    baixas; os dois gargalos são CAL-TUB-012 e CAL-ISO-018; a evolução tem as três
+    contratadas, com o par (previsto, realizado) de cada semana, e o fornecedor
+    M. Roscoe vê só a própria empresa. O dashboard lê a mesma ``week_summary`` da
+    matriz (o oráculo da ISSUE-052) e o mesmo horizonte da curva (a ISSUE-055).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    accesses = {access.email: access for access in configuracoes.list_active_access(db_session)}
+    planner = _user_of(accesses["planejador@timenow.com.br"])
+    supplier = _user_of(accesses["programacao@mroscoe.com.br"])
+    scope = Scope(project_id=project.id, source="url")
+    friday = datetime(2026, 8, 28, 13, 0, tzinfo=UTC)
+    caller = programacao_semanal.Caller(user=planner, scope=scope, now=friday)
+
+    data = programacao_semanal.dashboard_data(db_session, caller=caller, week="S.34/2026")
+    summary = data.summary
+    assert (summary.total, summary.adherence, summary.mean_ppc) == (12, 66.19, 65.86)
+    assert (data.companies, data.locations) == (3, 6)
+
+    assert [
+        (line.label, line.activities, line.adherence, line.pending) for line in data.by_company
+    ] == [
+        ("Elmec Montagens", 3, 59.82, 2),
+        ("Bremmer", 4, 62.47, 1),
+        ("M. Roscoe", 5, 72.79, 1),
+    ]
+    assert [segment.value for segment in data.status[1].segments] == [8, 4, 0]
+    assert [segment.value for segment in data.status[2].segments] == [0, 10, 2]
+
+    assert [(item.identity, item.ppc) for item in data.bottlenecks] == [
+        ("CAL-TUB-012", 55.87),
+        ("CAL-ISO-018", 59.22),
+    ]
+
+    assert (data.shifts[0].planned, data.shifts[0].day_shift, data.shifts[0].night_shift) == (
+        2006.2,
+        1187.8,
+        202.7,
+    )
+    assert data.shifts[-1].night_shift == 0.0
+
+    assert [row.label for row in data.heatmap.rows] == [
+        "Base Caldeira",
+        "Potato Storage 1",
+        "Potato Storage 2",
+        "Potato Storage 3",
+        "Prédio de Produção",
+        "Subestação",
+    ]
+    assert data.heatmap.rows[0].cells[0].percent == 59.4
+    assert data.heatmap.rows[0].cells[-1].percent == 14.8
+
+    assert data.curve[-1].planned_accumulated == pytest.approx(100.0, abs=0.02)
+    assert data.curve[-1].done_accumulated == 55.0
+    assert data.evolution.series == ("Bremmer", "Elmec Montagens", "M. Roscoe")
+    roscoe_30 = data.evolution.points[0].totals["M. Roscoe"]
+    assert (roscoe_30.planned, roscoe_30.done) == (4347.7, 2235.4)
+
+    supplier_caller = programacao_semanal.Caller(user=supplier, scope=scope, now=friday)
+    supplier_data = programacao_semanal.dashboard_data(
+        db_session, caller=supplier_caller, week="S.34/2026"
+    )
+    assert supplier_data.summary.total == 5
+    assert supplier_data.evolution.series == ("M. Roscoe",)
+
+
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 

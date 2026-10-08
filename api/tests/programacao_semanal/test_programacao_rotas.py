@@ -261,6 +261,10 @@ def test_every_route_of_the_module_declares_its_access() -> None:
         routes.week_import_confirm,
         routes.week_excel,
         routes.week_printable,
+        routes.dashboard,
+        routes.dashboard_filters,
+        routes.dashboard_excel,
+        routes.dashboard_printable,
     ):
         # `bp.route` embala a função do `fragment_route`; o `Access` mora na função de dentro.
         funcao = handler.build().get_user_function()

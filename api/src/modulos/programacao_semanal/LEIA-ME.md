@@ -68,14 +68,14 @@ Prefixo `/api/programacao-semanal/`. Todas declaram `Access(module="programacao_
 
 Os painéis do fluxo declaram `x-target="drawer prog-resumo prog-tabela"`: no 422/409 a resposta traz o painel **e** a faixa e a matriz, porque alvo declarado que não vem na resposta é esvaziado pelo Alpine AJAX. O formulário de decisão da fila declara `x-target="gov-pedidos gov-trilha"`, e a resposta (`fila_resposta.html`) traz os dois. Na configuração, cada formulário declara o seu próprio bloco (`config-parametros` ou `config-janelas`) e a resposta traz só ele — o `422/409` volta com o digitado e as mensagens ao lado dos campos.
 
-Na importação, o formulário do envio declara `x-target="importacao-conferencia"` e a conferência volta nesse alvo com o botão de confirmar (o mesmo formulário, que reenvia o arquivo e o resumo conferido); os fragmentos da conferência e do resultado são os do fluxo genérico (`comum/_importacao_conferencia.html` e o resultado do módulo). Prevista na próxima issue: `dashboard` (056).
+Na importação, o formulário do envio declara `x-target="importacao-conferencia"` e a conferência volta nesse alvo com o botão de confirmar (o mesmo formulário, que reenvia o arquivo e o resumo conferido); os fragmentos da conferência e do resultado são os do fluxo genérico (`comum/_importacao_conferencia.html` e o resultado do módulo). O dashboard (ISSUE-056) usa `dash-painel` e `dash-filtros` e as rotas `dashboard`, `dashboard/filtros`, `dashboard/excel` e `dashboard/imprimivel`, descritas na seção própria.
 
 ## Estrutura portada do app
 
 | Arquivo | O que tem | Origem no app |
 |---|---|---|
 | `weeks.py` | Semana `S.30/2026`, segunda a domingo, ISO (2026 tem 53), `week_dates`, `shift`, `horizon` | `core/semanas.py` |
-| `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of` e a curva S (`CurveActivity`, `CurvePoint`, `curve_points`) | `core/calculos.py` |
+| `calculations.py` | Os sete dias, total, PPC, faixa, aderência, PPC médio, `figures_of`, a curva S (`CurveActivity`, `CurvePoint`, `curve_points`) e os indicadores do dashboard (`IndicatorActivity`, `ranking`, `situation_distribution`, `heatmap_day_front`, `heat_band`/`heat_faixas`, `shifts_by_day`, `bottlenecks`, `evolution_by_company`) | `core/calculos.py` + `core/indicadores.py` |
 | `window.py` | `decide`: extraordinária vence, depois semana liberada, depois dia e hora | `core/janela.py` |
 | `permissions.py` | Quem cria, edita, valida, lança, aprova, publica, exclui (papel por projeto, D7) e `next_action`, a fila dos cinco degraus | `core/rbac.py` |
 | `validation.py` | Formulário da atividade (obrigatórios, soma dos dias com tolerância de 0,51) e os painéis do fluxo (validar, realizado, aprovar/reabrir) | `blueprints/atividades.py` |
@@ -218,6 +218,55 @@ Regras no código: a permissão genérica do importador é a leitura do módulo,
 no banco, para que uma repetição que escapou da conferência vire 422 com a linha, não um erro
 de banco; a trilha é a única (`core.audit`), pela fachada.
 
+## Dashboard da programação (ISSUE-056)
+
+A aba **Dashboard da programação** lê a semana como operação, não como lista, e porta os
+indicadores de `indicadores.py` do app: a **curva S do avanço** (peso igual por atividade e o
+escopo da atividade somado no horizonte de treze semanas), o **previsto contra realizado** por
+semana, a **evolução da aderência por contratada** com drill, a distribuição por situação,
+aprovação e faixa de PPC, os **rankings** por contratada, frente e encarregado, o **mapa de
+calor dia x frente**, os **turnos** por dia e a lista de **gargalos**.
+
+| Termo de negócio | Nome no código |
+|---|---|
+| Curva S do avanço | `calculations.curve_points` + `service.horizon_activities` |
+| Ranking por contratada/frente/encarregado | `calculations.ranking` |
+| Distribuição por situação, aprovação e faixa | `calculations.situation_distribution` |
+| Mapa de calor dia x frente | `calculations.heatmap_day_front`; o tom de cada célula é `calculations.heat_band`/`heat_faixas` |
+| Turnos por dia | `calculations.shifts_by_day` |
+| Gargalos | `calculations.bottlenecks` (PPC abaixo de 60, pior primeiro, até 8) |
+| Evolução por contratada | `calculations.evolution_by_company` (o par previsto/realizado de cada semana) |
+| Indicadores da semana | `service.dashboard_data` (usa `week_summary` e `parameters_of`) |
+| Gráficos do painel | `export.curve_chart`, `weekly_chart`, `adherence_chart`, `status_chart`, `heatmap_chart`, `daily_chart` |
+| Excel e PDF do painel | `export.dashboard_document` (o mesmo `Document` para os dois) |
+
+Os gráficos são da biblioteca do Design System (D11) e nascem do elemento com
+`data-grafico`/`data-dados`, sem `<script>` no fragmento: a evolução e a curva usam a **Curva
+S Linha**, o previsto x realizado a **Curva S Barra e Linha**, os três painéis de estado o
+**HTML KPI Status**, o mapa de calor a **Tabela Heatmap** e a produção por dia o
+**Comparativo de Barras**. O servidor manda **quantidade, nunca percentual pronto**: a
+evolução manda o par (realizado, previsto) de cada semana e a biblioteca fecha o mês somando o
+numerador e o denominador (série `razao`); a curva manda os acumulados; o mês de cada semana é
+decisão do calendário da plataforma (`weeks.describe`). O mapa de calor usa a escala única do
+módulo (60 e 80) com tom, nível e ícone — o dia sem previsão não é 0%, é ausência de plano.
+
+| Rota | Método | O que devolve |
+|---|---|---|
+| `dashboard` | GET | Painel (`dash-painel`): KPIs, gráficos, rankings, mapa de calor, turnos e gargalos |
+| `dashboard/filtros` | GET | Barra de ferramentas (`dash-filtros`): semana, contratada, frente e encarregado |
+| `dashboard/excel` | GET | Excel do painel e das tabelas (download, `file_route`) |
+| `dashboard/imprimivel` | GET | PDF do painel (`data-tn-pdf`, imprimível genérico) |
+
+Os filtros são os do app (semana, contratada, frente e encarregado) e a barra fica **fora do
+painel**: o formulário tem `x-target="dash-painel"`, então mudar um corte redesenha só o
+painel e o seletor não se perde. O Excel e o PDF saem do mesmo `Document`
+(`export.dashboard_document`), com os mesmos gráficos (o imprimível os desenha) e as tabelas
+dos números por trás deles: rankings, gargalos, mapa de calor, turnos, previsto x realizado e
+evolução. No Portfólio a lista de gargalos abre a coluna Projeto (HU-016); o fornecedor vê só
+a própria empresa — o corte é da fachada, como sempre (D7) — e nem o seletor de contratada
+aparece para ele. A semana vazia (nada programado) e o filtro vazio (há programação, nada do
+corte) são estados distintos, decididos no servidor.
+
 ## Integrações
 
 Projeto, empresas, colaboradores, fiscais e encarregados vêm de Configurações. A identidade e o papel da pessoa vêm da plataforma GestNow; fornecedor só acessa a própria empresa. Para isso as rotas declaram `Access(module="programacao_semanal")` e a fachada chama `core.rbac`: `company_scope(user)` corta a consulta pela empresa do fornecedor (e `require_company` recusa a de outra), e `has_schedule_role` / `require_schedule_role(user, project_id, *roles)` conferem o papel no projeto em que a pessoa o recebeu (Planejador, Fiscal, Encarregado, Fornecedor; o papel não vale em outro projeto). O fornecedor não tem permissão geral nenhuma: na programação ele age pelos papéis. O módulo não mantém cadastro paralelo de pessoas/empresas: a configuração lista as empresas do cadastro de Configurações. A saída alimenta o dashboard da programação e os relatórios previstos.
@@ -233,16 +282,18 @@ Cada projeto tem seus parâmetros e janelas: metas de PPC/aderência, semana de 
 | Rotas | `routes.py` (e `screen.py` para o que a tela imprime) |
 | Fluxo, recorte por empresa e janela | `service.py`, `window.py`, `permissions.py` |
 | PPC, aderência e faixas | `calculations.py` |
+| Indicadores do dashboard (curva, rankings, calor, turnos, gargalos, evolução) | `calculations.py`; a fachada é `service.dashboard_data` |
+| Gráficos e documento do dashboard | `export.py` (`dashboard_charts`, `dashboard_document`); o contexto é `screen.dashboard_context` |
 | Validações da atividade/planilha | `validation.py` |
 | Importação da semana | `importers.py` |
 | Planilha e impressão | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração; `configuracao.html`, `_parametros.html` e `_janelas.html` a configuração, com os invólucros `parametros.html` e `janelas.html` para as respostas de gravação; `importacao.html` o painel da importação, `importacao_conferencia.html` a conferência e `importacao_resultado.html` o resultado) |
+| Fragmentos | `api/src/templates/programacao_semanal/` (`_tabela.html` é a matriz; `formulario.html` o painel da atividade; `_validar.html`, `_realizado.html`, `_aprovacao.html` e `_detalhe.html` os painéis do fluxo; `_painel.html`, `_fila.html` e `_trilha.html` a governança; `_pedido.html` o painel do pedido de alteração; `configuracao.html`, `_parametros.html` e `_janelas.html` a configuração, com os invólucros `parametros.html` e `janelas.html` para as respostas de gravação; `importacao.html` o painel da importação, `importacao_conferencia.html` a conferência e `importacao_resultado.html` o resultado; `dashboard.html` o painel do dashboard, `dashboard_filtros.html` a barra e `_dashboard_painel.html`, `_dashboard_ranking.html`, `_dashboard_turnos.html` e `_dashboard_gargalos.html` os blocos dele) |
 | Carga de demonstração | `seed.py` e `demonstracao.json` |
 | Tela, estilo e comportamento | `app/_views/programacao_semanal/` e `app/paginas/programacao_semanal/` |
 | Testes | `api/tests/programacao_semanal/` |
 
-O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; a ISSUE-053, os pedidos de alteração e a governança; a ISSUE-054, a configuração por projeto; a ISSUE-055, a importação, a planilha e o relatório de impressão; a ISSUE-056 completa o dashboard.
+O app de origem e seu glossário ficam somente para consulta em `docs/referencia/programacao-semanal/`. Multi-ambiente, seletor de clientes, área do operador, login próprio, SharePoint/JSON e API JSON de leitura permanecem fora de escopo. A ISSUE-051 trouxe a matriz e a programação pelo fornecedor; a ISSUE-052, o fluxo de cinco passos; a ISSUE-053, os pedidos de alteração e a governança; a ISSUE-054, a configuração por projeto; a ISSUE-055, a importação, a planilha e o relatório de impressão; a ISSUE-056, o dashboard da programação.
 
 ## Testes
 
@@ -258,4 +309,7 @@ O app de origem e seu glossário ficam somente para consulta em `docs/referencia
 - `test_programacao_importacao.py`: o modelo com as colunas do app (gerado e lido de volta), a conferência linha a linha com o motivo e sem gravar, a confirmação gravando só o que passou (tudo ou nada), a linha `Real.` no turno dia, o digest e o "estou ciente", e os papéis e o Portfólio.
 - `test_programacao_importacao_rotas.py`: o HTTP da aba, do modelo (download sem gate), da conferência e da confirmação, os 403 de quem não importa e os 422 do arquivo trocado, do Portfólio e do que não é planilha; e as exportações da semana.
 - `test_programacao_exportacao.py`: o oráculo da curva S (peso igual por atividade e escopo no horizonte), as sete abas do Excel com as colunas do app e duas linhas por atividade, o Resumo, a coluna Projeto no Portfólio e o documento do relatório.
-- `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações) e da governança (painel por empresa/semana, pedidos e trilha na carga); a carga da configuração (parâmetros e janelas do app) não mudou com a ISSUE-054.
+- `test_programacao_indicadores.py`: os indicadores portados do app — a curva fecha em 100% do previsto, a ordem é a do calendário, unidades diferentes não se somam, a medida respeita a unidade, as fronteiras do calor (60/80), a evolução manda o par de cada semana, os gargalos e os turnos.
+- `test_programacao_dashboard.py`: a fachada do dashboard — os indicadores do painel, o horizonte de treze semanas, os filtros, o drill da aderência (o mês soma numerador e denominador), gargalos/heatmap/turnos, o fornecedor recortado à própria empresa e os vazios de origem e de filtro.
+- `test_programacao_dashboard_rotas.py`: o HTTP do painel (os gráficos e as exportações), da barra de filtros, do recorte do fornecedor, dos vazios e o Excel com o Resumo e as tabelas dos gráficos.
+- `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações), da governança (painel por empresa/semana, pedidos e trilha na carga) e do dashboard (aderência, ranking, gargalos, turnos, evolução e o recorte do fornecedor na S.34/2026); a carga não mudou com a ISSUE-056.
