@@ -73,8 +73,8 @@
   }
 
   function abrirProjecao(raiz, itemId) {
-    window.Alpine.evaluate(raiz, "$ajax(endereco, { target: alvo })", {
-      scope: { endereco: ROTA + "/projecao/" + itemId + "/formulario", alvo: ALVO_FORMULARIO }
+    dadosDaTela(raiz).$ajax(ROTA + "/projecao/" + itemId + "/formulario", {
+      target: ALVO_FORMULARIO
     });
   }
 

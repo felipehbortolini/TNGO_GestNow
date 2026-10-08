@@ -19,10 +19,10 @@
   const BASE = "/api/programacao-semanal";
   const HTTP_PROIBIDO = 403;
 
+  /* $ajax é magic: só devolve promessa quando chamado no escopo do Alpine. Por
+     Alpine.evaluate o evaluator aguarda a promessa e devolve undefined antes. */
   function pedir(raiz, endereco, alvo) {
-    return window.Alpine.evaluate(raiz, "$ajax(endereco, { target: alvo })", {
-      scope: { endereco: endereco, alvo: alvo }
-    });
+    return window.Alpine.$data(raiz).$ajax(endereco, { target: alvo });
   }
 
   function vigiarRecusa(raiz, dados) {
