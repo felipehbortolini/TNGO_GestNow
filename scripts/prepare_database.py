@@ -139,6 +139,8 @@ def write_local_settings(url_text: str) -> None:
     if not isinstance(values, dict):
         values = {}
     values[DATABASE_URL_VARIABLE] = url_text
+    # Core Tools 4.13 treats a missing flag as encrypted and refuses to start.
+    settings["IsEncrypted"] = False
     settings["Values"] = values
     LOCAL_SETTINGS_PATH.write_text(
         json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
