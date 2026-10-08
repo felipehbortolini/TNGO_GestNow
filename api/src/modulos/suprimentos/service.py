@@ -1,4 +1,4 @@
-"""Business facade of the Procurement module: supplier qualification and performance (ISSUE-057).
+"""Business facade of the Procurement module: suppliers and the purchase plan (ISSUE-057/058).
 
 The supplier register is global: ``fornecedor`` is the qualification of a company of the
 Configurações register, with its categories, its documents with validity and the history of
@@ -11,12 +11,23 @@ qualification, its documents (each with its own ``versao``) and the history fact
 situation requires a justification, and Restrito and Bloqueado require the reason; the history
 row is a fact and records de/para/author/justificativa.
 
+The purchase plan: ``list_packages``/``find_package`` read the package with its seven acquisition
+milestones and calculate stage, slack and adjudication deviation on every query; ``create_package``
+and ``update_package`` write the full plan before the requisition, and ``change_package`` writes
+the four fields that may still change after it, with the justification. The saldo a comprometer
+of the EAC item is read from the Financeiro on every query (D9). The history of the package
+travels in the audit trail, as the ISSUE-004 decision determines; the future fields
+(adjudicated, supplier, saving) are empty until the process (ISSUE-059) and the order
+(ISSUE-061) exist (DECISION, ISSUE-058).
+
 The final evaluation of a contract (ISSUE-034) updates the existing qualification through
 ``apply_final_evaluation``, registered as a listener of the Financeiro (D9): class A and B
 qualify, C restricts and D blocks, inside the same transaction of the evaluation.
 
 Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``find_supplier``,
-``create_supplier``, ``save_qualification`` and ``apply_final_evaluation``.
+``create_supplier``, ``save_qualification``, ``apply_final_evaluation``, ``list_packages``,
+``find_package``, ``package_options``, ``create_package``, ``update_package`` and
+``change_package``.
 """
 
 from __future__ import annotations
@@ -26,12 +37,14 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.core import audit, rbac, recording
+from src.core import audit, rbac, recording, versioning
 from src.core.errors import InvalidDataError
+from src.core.export_document import project_label
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
@@ -39,6 +52,8 @@ from src.modulos.configuracoes.models import Company
 from src.modulos.financeiro import service as financeiro
 from src.modulos.suprimentos import calculations, validation
 from src.modulos.suprimentos.models import (
+    PackageMilestone,
+    PurchasePackage,
     Supplier,
     SupplierCategory,
     SupplierDocument,
@@ -46,6 +61,9 @@ from src.modulos.suprimentos.models import (
 )
 from src.modulos.suprimentos.validation import (
     DocumentInput,
+    PackageChangeInput,
+    PackageFilters,
+    PackageInput,
     QualificationInput,
     SupplierFilters,
     SupplierInput,
@@ -673,6 +691,729 @@ def _company(session: Session, company_id: int) -> configuracoes.CompanySummary 
 
 def _supplier_of_company(session: Session, company_id: int) -> Supplier | None:
     return session.scalars(select(Supplier).where(Supplier.company_id == company_id)).one_or_none()
+
+
+# ── The purchase plan (ISSUE-058) ────────────────────────────────────────────────────────────
+
+HISTORY_ENTITY = "pacote_compra.historico"
+INCLUSION_NOTE = "Pacote incluído no plano de compras."
+IMPORT_NOTE = "Importado do plano de compras (planilha)."
+BASELINE_NOTE = "Ajuste do plano antes da requisição."
+
+CREATION_LABEL = "criacao"
+IMPORT_LABEL = "importacao"
+PLAN_LABEL = "plano"
+
+# The history of the package speaks the Portuguese of the columns, as the trail does.
+HISTORY_FIELDS: Mapping[str, str] = {
+    "scope": "escopo",
+    "kind": "tipo",
+    "modality": "modalidade",
+    "discipline_id": "disciplina",
+    "buyer_id": "comprador",
+    "eac_item_id": "item da EAC",
+    "estimate_cents": "estimativa",
+    "ros": "ros",
+    "lli": "lli",
+    "emergency": "emergencial",
+    "gate_lli_date": "gate LLI",
+    "gate_lli_reference": "gate LLI",
+}
+
+
+@dataclass(frozen=True)
+class MilestoneLine:
+    """One acquisition milestone with its three layers, as the screen reads it."""
+
+    key: str
+    label: str
+    plan: date | None
+    forecast: date | None
+    real: date | None
+    version: int
+
+
+@dataclass(frozen=True)
+class PackageLine:
+    """One package of the plan: the record, its milestones and everything calculated from them."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    scope: str
+    kind: str
+    modality: str
+    discipline_id: int | None
+    discipline: str
+    buyer_id: int
+    buyer: str
+    eac_item_id: int
+    eac_code: str
+    eac_description: str
+    estimate_cents: int
+    ros: date | None
+    lli: bool
+    emergency: bool
+    gate_date: date | None
+    gate_reference: str
+    version: int
+    milestones: tuple[MilestoneLine, ...]
+    reference_date: date
+    # The process (ISSUE-059) and the order (ISSUE-061) do not exist yet: these read empty.
+    adjudicated_cents: int | None = None
+    supplier: str | None = None
+    saving_cents: int | None = None
+
+    def milestone(self, key: str) -> MilestoneLine | None:
+        """The milestone named by key, or ``None`` when the package has no such row."""
+        return next((item for item in self.milestones if item.key == key), None)
+
+    @property
+    def requisition_real(self) -> date | None:
+        """The real date of the requisition; from it on the baseline is frozen."""
+        requisition = self.milestone(calculations.REQUISITION_MILESTONE)
+        return requisition.real if requisition is not None else None
+
+    @property
+    def frozen(self) -> bool:
+        """Whether the baseline is frozen: the requisition already has a real date."""
+        return calculations.lb_frozen(self.requisition_real)
+
+    @property
+    def plan_order(self) -> date | None:
+        """The planned date of the order/contract milestone."""
+        order = self.milestone(calculations.ORDER_MILESTONE)
+        return order.plan if order is not None else None
+
+    @property
+    def stage(self) -> str:
+        """The stage the real dates lead to."""
+        return calculations.package_stage({item.key: item.real for item in self.milestones})
+
+    @property
+    def slack_days(self) -> int | None:
+        """The planned slack: the ROS minus the planned order date."""
+        return calculations.planned_slack_days(self.ros, self.plan_order)
+
+    @property
+    def adjudication(self) -> MilestoneLine | None:
+        """The adjudication milestone."""
+        return self.milestone(calculations.ADJUDICATION_MILESTONE)
+
+    @property
+    def adjudication_deviation_days(self) -> int | None:
+        """The deviation of the adjudication against its LB; positive is late."""
+        adjudication = self.adjudication
+        return calculations.adjudication_deviation_days(
+            adjudication.plan if adjudication else None,
+            adjudication.real if adjudication else None,
+            adjudication.forecast if adjudication else None,
+            self.reference_date,
+        )
+
+    @property
+    def adjudication_overdue(self) -> bool:
+        """Whether the adjudication is late: not done and past its LB or forecast."""
+        adjudication = self.adjudication
+        return calculations.adjudication_overdue(
+            adjudication.plan if adjudication else None,
+            adjudication.real if adjudication else None,
+            adjudication.forecast if adjudication else None,
+            self.reference_date,
+        )
+
+
+@dataclass(frozen=True)
+class PackageSummary:
+    """The KPIs of the plan, counted on the whole universe (the filters cut the table)."""
+
+    packages: int
+    estimated_cents: int
+    with_baseline: int
+    lli: int
+    lli_critical: int
+    forecast_until_reference: int
+    overdue: int
+    # The adjudicated packages and the saving depend on the process and the order: empty for now.
+    adjudicated: int | None = None
+    saving_cents: int | None = None
+
+
+@dataclass(frozen=True)
+class PackageListing:
+    """What the plan shows for a filter: the lines, the KPIs and the filter choices."""
+
+    lines: tuple[PackageLine, ...]
+    summary: PackageSummary
+    filters: PackageFilters
+    page: int
+
+    @property
+    def total(self) -> int:
+        """How many packages the filter holds, whatever the page."""
+        return len(self.lines)
+
+    @property
+    def page_count(self) -> int:
+        """How many pages the list has; an empty list still has one."""
+        return max(1, -(-len(self.lines) // validation.PACKAGE_PAGE_SIZE))
+
+    @property
+    def page_lines(self) -> tuple[PackageLine, ...]:
+        """The lines of the current page."""
+        start = (self.page - 1) * validation.PACKAGE_PAGE_SIZE
+        return self.lines[start : start + validation.PACKAGE_PAGE_SIZE]
+
+
+@dataclass(frozen=True)
+class PackageOptions:
+    """What the package forms list: buyers, disciplines and the cost items of the EAC."""
+
+    buyers: tuple[configuracoes.RegisterOption, ...]
+    disciplines: tuple[configuracoes.RegisterOption, ...]
+    eac_items: tuple[financeiro.CostItemBalance, ...]
+
+    @property
+    def eac_items_by_code(self) -> dict[str, financeiro.CostItemBalance]:
+        """The cost items by code: how the form and the checks resolve the chosen item."""
+        return {item.code: item for item in self.eac_items}
+
+
+@dataclass(frozen=True)
+class PackageSave:
+    """What saving a package answers: the record and whether it was born now."""
+
+    package_id: int
+    code: str
+    created: bool
+
+
+# ── Reading the plan ─────────────────────────────────────────────────────────────────────────
+
+
+def list_packages(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: PackageFilters,
+    reference_date: date,
+) -> PackageListing:
+    """The plan for the filters: the lines and the KPIs of the whole universe."""
+    universe = _package_universe(session, user=user, scope=scope, reference_date=reference_date)
+    shown = tuple(line for line in universe if _matches_package(line, filters))
+    page = min(max(filters.page, 1), max(1, -(-len(shown) // validation.PACKAGE_PAGE_SIZE)))
+    return PackageListing(
+        lines=shown,
+        summary=_package_summary(universe),
+        filters=filters,
+        page=page,
+    )
+
+
+def find_package(
+    session: Session, *, user: User, scope: Scope, package_id: int, reference_date: date
+) -> PackageLine | None:
+    """The line of one package, or ``None`` when it is not in the scope."""
+    for line in _package_universe(session, user=user, scope=scope, reference_date=reference_date):
+        if line.id == package_id:
+            return line
+    return None
+
+
+def package_options(
+    session: Session, *, user: User, project_id: int, reference_date: date
+) -> PackageOptions:
+    """The choices of the forms: people of the cadastro, disciplines and cost items of the EAC.
+
+    The saldo a comprometer of each EAC item is read from the Financeiro on this query (D9);
+    the item is always from the project the package belongs to.
+    """
+    rbac.require_module(user, MODULE)
+    disciplines = configuracoes.discipline_names_by_id(session)
+    return PackageOptions(
+        buyers=tuple(configuracoes.list_person_options(session)),
+        disciplines=tuple(
+            configuracoes.RegisterOption(id=discipline_id, name=name)
+            for discipline_id, name in disciplines.items()
+        ),
+        eac_items=financeiro.cost_item_balances(
+            session, project_id=project_id, reference_date=reference_date
+        ),
+    )
+
+
+def _package_universe(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> tuple[PackageLine, ...]:
+    """Every package of the scope, by project and code, with its milestones and names."""
+    rbac.require_module(user, MODULE)
+    projects = configuracoes.list_projects(session)
+    wanted = [
+        project for project in projects if scope.is_portfolio or project.id == scope.project_id
+    ]
+    if not wanted:
+        return ()
+    statement = (
+        select(PurchasePackage)
+        .where(PurchasePackage.project_id.in_([project.id for project in wanted]))
+        .order_by(PurchasePackage.project_id, PurchasePackage.code)
+    )
+    packages = list(session.scalars(statement))
+    milestones = _milestones_by_package(session, [package.id for package in packages])
+    labels = {project.id: project_label(project) for project in projects}
+    buyers = configuracoes.person_names(session, {package.buyer_id for package in packages})
+    disciplines = configuracoes.discipline_names_by_id(session)
+    eac_items = financeiro.eac_item_labels(session, [package.eac_item_id for package in packages])
+    return tuple(
+        _package_line(
+            package,
+            project=labels.get(package.project_id, ""),
+            milestones=milestones.get(package.id, ()),
+            buyers=buyers,
+            disciplines=disciplines,
+            eac_items=eac_items,
+            reference_date=reference_date,
+        )
+        for package in packages
+    )
+
+
+def _milestones_by_package(
+    session: Session, package_ids: Collection[int]
+) -> dict[int, tuple[PackageMilestone, ...]]:
+    if not package_ids:
+        return {}
+    statement = select(PackageMilestone).where(PackageMilestone.package_id.in_(package_ids))
+    grouped: dict[int, dict[str, PackageMilestone]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.package_id, {})[row.milestone] = row
+    return {
+        package_id: tuple(rows[key] for key in calculations.MILESTONE_KEYS if key in rows)
+        for package_id, rows in grouped.items()
+    }
+
+
+def _package_line(
+    package: PurchasePackage,
+    *,
+    project: str,
+    milestones: Sequence[PackageMilestone],
+    buyers: Mapping[int, str],
+    disciplines: Mapping[int, str],
+    eac_items: Mapping[int, tuple[str, str]],
+    reference_date: date,
+) -> PackageLine:
+    code, description = eac_items.get(package.eac_item_id, ("", ""))
+    return PackageLine(
+        id=package.id,
+        project_id=package.project_id,
+        project_label=project,
+        code=package.code,
+        scope=package.scope,
+        kind=package.kind,
+        modality=package.modality,
+        discipline_id=package.discipline_id,
+        discipline=disciplines.get(package.discipline_id or 0, ""),
+        buyer_id=package.buyer_id,
+        buyer=buyers.get(package.buyer_id, ""),
+        eac_item_id=package.eac_item_id,
+        eac_code=code,
+        eac_description=description,
+        estimate_cents=package.estimate_cents,
+        ros=package.ros,
+        lli=package.lli,
+        emergency=package.emergency,
+        gate_date=package.gate_lli_date,
+        gate_reference=package.gate_lli_reference or "",
+        version=package.version,
+        milestones=tuple(
+            MilestoneLine(
+                key=row.milestone,
+                label=calculations.MILESTONE_LABELS.get(row.milestone, row.milestone),
+                plan=row.plan_date,
+                forecast=row.forecast_date,
+                real=row.real_date,
+                version=row.version,
+            )
+            for row in milestones
+        ),
+        reference_date=reference_date,
+    )
+
+
+def _matches_package(line: PackageLine, filters: PackageFilters) -> bool:
+    if filters.kind and line.kind != filters.kind:
+        return False
+    if filters.lli_only and not line.lli:
+        return False
+    if filters.search:
+        searched = " ".join(
+            (
+                line.code,
+                line.scope,
+                line.eac_code,
+                line.eac_description,
+                line.buyer,
+                line.discipline,
+            )
+        )
+        if _normalize(filters.search) not in _normalize(searched):
+            return False
+    return True
+
+
+def _package_summary(universe: Sequence[PackageLine]) -> PackageSummary:
+    return PackageSummary(
+        packages=len(universe),
+        estimated_cents=sum(line.estimate_cents for line in universe),
+        with_baseline=sum(
+            1
+            for line in universe
+            if (adjudication := line.adjudication) is not None and adjudication.plan is not None
+        ),
+        lli=sum(1 for line in universe if line.lli),
+        lli_critical=sum(
+            1
+            for line in universe
+            if line.lli and line.slack_days is not None and line.slack_days < 0
+        ),
+        forecast_until_reference=sum(
+            1
+            for line in universe
+            if (adjudication := line.adjudication) is not None
+            and adjudication.plan is not None
+            and adjudication.plan <= line.reference_date
+        ),
+        overdue=sum(1 for line in universe if line.adjudication_overdue),
+    )
+
+
+# ── Writing the plan ─────────────────────────────────────────────────────────────────────────
+
+
+def create_package(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    data: PackageInput,
+    reference_date: date,
+    note: str = INCLUSION_NOTE,
+) -> PackageSave:
+    """Create a package of the plan, always tied to a cost item of the project's EAC.
+
+    The code follows the project sequence; the three intermediate plan dates are derived from
+    the informed ones and the whole plan is born as the seven milestones of the baseline. The
+    emergency justification and the gate reference ride in the history line of the trail.
+    """
+    rbac.require(user, Permission.WRITE)
+    options = package_options(
+        session, user=user, project_id=project_id, reference_date=reference_date
+    )
+    problems = validation.package_problems(
+        data,
+        eac_items=options.eac_items_by_code,
+        discipline_ids={choice.id for choice in options.disciplines},
+        buyer_ids={choice.id for choice in options.buyers},
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    item = options.eac_items_by_code.get(data.eac_code.strip())
+    if item is None:
+        raise InvalidDataError({"eac": validation.EAC_REQUIRED})
+    plan = calculations.derived_plan_dates(
+        requisition=_required_date(data.requisition, validation.PLAN_DATE_REQUIRED),
+        rfx=_required_date(data.rfx, validation.PLAN_DATE_REQUIRED),
+        adjudication=_required_date(data.adjudication, validation.PLAN_DATE_REQUIRED),
+        order=_required_date(data.order, validation.PLAN_DATE_REQUIRED),
+    )
+    gate = data.lli and data.anticipated_fid
+    package = recording.create(
+        session,
+        user_id=user.id,
+        record=PurchasePackage(
+            project_id=project_id,
+            eac_item_id=item.item_id,
+            buyer_id=_required_int(data.buyer_id, validation.CHOOSE_BUYER),
+            discipline_id=data.discipline_id,
+            code=_next_code(session, project_id),
+            scope=data.scope.strip(),
+            kind=data.kind,
+            modality=data.modality,
+            lli=data.lli,
+            estimate_cents=_required_int(data.estimate_cents, validation.ESTIMATE_REQUIRED),
+            ros=_required_date(data.ros, validation.ROS_REQUIRED),
+            emergency=data.emergency,
+            gate_lli_date=reference_date if gate else None,
+            gate_lli_reference=data.gate_reference.strip() if gate else None,
+        ),
+    )
+    _write_plan(session, user=user, package=package, plan=plan)
+    _append_history(
+        session,
+        user=user,
+        package=package,
+        fields=(IMPORT_LABEL,) if note == IMPORT_NOTE else (CREATION_LABEL,),
+        justification=note,
+        reference_date=reference_date,
+        emergency=data.emergency,
+        emergency_justification=data.emergency_justification,
+    )
+    return PackageSave(package_id=package.id, code=package.code, created=True)
+
+
+def update_package(
+    session: Session, *, user: User, package_id: int, data: PackageInput, reference_date: date
+) -> PackageSave:
+    """Write the full plan of a package whose baseline is still editable.
+
+    The frozen baseline is refused here too: after the requisition only ``change_package``
+    writes. The three intermediate plan dates are derived again, and everything leaves the trail
+    with before and after.
+    """
+    rbac.require(user, Permission.WRITE)
+    package = _package_or_refuse(session, package_id)
+    if calculations.lb_frozen(_requisition_real(session, package)):
+        raise InvalidDataError({"geral": validation.FROZEN_BASELINE})
+    options = package_options(
+        session, user=user, project_id=package.project_id, reference_date=reference_date
+    )
+    problems = validation.package_problems(
+        data,
+        eac_items=options.eac_items_by_code,
+        discipline_ids={choice.id for choice in options.disciplines},
+        buyer_ids={choice.id for choice in options.buyers},
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    item = options.eac_items_by_code.get(data.eac_code.strip())
+    if item is None:
+        raise InvalidDataError({"eac": validation.EAC_REQUIRED})
+    plan = calculations.derived_plan_dates(
+        requisition=_required_date(data.requisition, validation.PLAN_DATE_REQUIRED),
+        rfx=_required_date(data.rfx, validation.PLAN_DATE_REQUIRED),
+        adjudication=_required_date(data.adjudication, validation.PLAN_DATE_REQUIRED),
+        order=_required_date(data.order, validation.PLAN_DATE_REQUIRED),
+    )
+    changes = _package_changes(package, data, item_id=item.item_id, reference_date=reference_date)
+    rows = _milestone_rows(session, package_id=package.id)
+    plan_changes = [
+        key
+        for key in calculations.MILESTONE_KEYS
+        if key in rows and rows[key].plan_date != plan[key]
+    ]
+    if not changes and not plan_changes:
+        return PackageSave(package_id=package.id, code=package.code, created=False)
+    if changes:
+        recording.update(
+            session, user_id=user.id, record=package, changes=changes, version=data.version
+        )
+    else:
+        versioning.require(session, package, data.version)
+    for key in plan_changes:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=rows[key],
+            changes={"plan_date": plan[key]},
+            version=rows[key].version,
+        )
+    fields = [*_history_fields(changes), PLAN_LABEL]
+    _append_history(
+        session,
+        user=user,
+        package=package,
+        fields=fields,
+        justification=BASELINE_NOTE,
+        reference_date=reference_date,
+        emergency=data.emergency,
+        emergency_justification=data.emergency_justification,
+    )
+    return PackageSave(package_id=package.id, code=package.code, created=False)
+
+
+def change_package(
+    session: Session, *, user: User, package_id: int, data: PackageChangeInput, reference_date: date
+) -> PackageSave:
+    """Change what may still change after the requisition: scope, buyer, estimate and ROS.
+
+    The justification is demanded when something really changes (10 characters and up) and the
+    changed fields go to the history line of the trail; a frozen package keeps its four plan
+    dates and the rest of the strategy untouched.
+    """
+    rbac.require(user, Permission.WRITE)
+    package = _package_or_refuse(session, package_id)
+    if not calculations.lb_frozen(_requisition_real(session, package)):
+        raise InvalidDataError({"geral": validation.BASELINE_EDITABLE})
+    changes = _frozen_changes(package, data)
+    problems = validation.change_problems(data, changed=bool(changes))
+    if problems:
+        raise InvalidDataError(problems)
+    if not changes:
+        return PackageSave(package_id=package.id, code=package.code, created=False)
+    recording.update(
+        session, user_id=user.id, record=package, changes=changes, version=data.version
+    )
+    _append_history(
+        session,
+        user=user,
+        package=package,
+        fields=_history_fields(changes),
+        justification=data.justification.strip(),
+        reference_date=reference_date,
+    )
+    return PackageSave(package_id=package.id, code=package.code, created=False)
+
+
+def _next_code(session: Session, project_id: int) -> str:
+    codes = list(
+        session.scalars(
+            select(PurchasePackage.code).where(PurchasePackage.project_id == project_id)
+        )
+    )
+    return calculations.next_package_code(codes)
+
+
+def _write_plan(
+    session: Session, *, user: User, package: PurchasePackage, plan: Mapping[str, date]
+) -> None:
+    for key in calculations.MILESTONE_KEYS:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=PackageMilestone(package_id=package.id, milestone=key, plan_date=plan[key]),
+        )
+
+
+def _package_changes(
+    package: PurchasePackage,
+    data: PackageInput,
+    *,
+    item_id: int,
+    reference_date: date,
+) -> dict[str, object]:
+    """The package fields that really change in the full edit (the plan dates have their own)."""
+    changes: dict[str, object] = {}
+    scope = data.scope.strip()
+    values: Mapping[str, object] = {
+        "scope": scope,
+        "kind": data.kind,
+        "modality": data.modality,
+        "discipline_id": data.discipline_id,
+        "buyer_id": data.buyer_id,
+        "eac_item_id": item_id,
+        "estimate_cents": data.estimate_cents,
+        "ros": data.ros,
+        "lli": data.lli,
+        "emergency": data.emergency,
+    }
+    for field, value in values.items():
+        if getattr(package, field) != value:
+            changes[field] = value
+    gate = data.lli and data.anticipated_fid
+    gate_date = reference_date if gate else None
+    gate_reference = data.gate_reference.strip() if gate else None
+    if package.gate_lli_date != gate_date:
+        changes["gate_lli_date"] = gate_date
+    if (package.gate_lli_reference or None) != gate_reference:
+        changes["gate_lli_reference"] = gate_reference
+    return changes
+
+
+def _frozen_changes(package: PurchasePackage, data: PackageChangeInput) -> dict[str, object]:
+    """The four fields the frozen form may change, and only them."""
+    changes: dict[str, object] = {}
+    scope = data.scope.strip()
+    values: Mapping[str, object] = {
+        "scope": scope,
+        "buyer_id": data.buyer_id,
+        "estimate_cents": data.estimate_cents,
+        "ros": data.ros,
+    }
+    for field, value in values.items():
+        if getattr(package, field) != value:
+            changes[field] = value
+    return changes
+
+
+def _history_fields(changes: Mapping[str, object]) -> list[str]:
+    """The changed fields named as the history prints them, without repeats."""
+    return list(dict.fromkeys(HISTORY_FIELDS.get(field, field) for field in changes))
+
+
+def _append_history(
+    session: Session,
+    *,
+    user: User,
+    package: PurchasePackage,
+    fields: Sequence[str],
+    justification: str,
+    reference_date: date,
+    emergency: bool = False,
+    emergency_justification: str = "",
+) -> None:
+    """The history line of the package, as the prototype kept it; it lives in the audit trail.
+
+    The emergency justification has no column in the model of the plan, so it rides here, in the
+    same trail line of the operation (DECISION, ISSUE-058).
+    """
+    after: dict[str, Any] = {
+        "data": reference_date.isoformat(),
+        "por_id": user.person_id,
+        "campos": list(fields),
+        "justificativa": justification,
+    }
+    if emergency:
+        after["justificativa_emergencial"] = emergency_justification.strip()
+    audit.append(
+        session,
+        audit.TrailLine(
+            user_id=user.id,
+            entity=HISTORY_ENTITY,
+            record_id=package.id,
+            action=audit.CREATED,
+            after=after,
+            project_id=package.project_id,
+        ),
+    )
+
+
+def _milestone_rows(session: Session, *, package_id: int) -> dict[str, PackageMilestone]:
+    statement = select(PackageMilestone).where(PackageMilestone.package_id == package_id)
+    return {row.milestone: row for row in session.scalars(statement)}
+
+
+def _requisition_real(session: Session, package: PurchasePackage) -> date | None:
+    row = session.scalars(
+        select(PackageMilestone).where(
+            PackageMilestone.package_id == package.id,
+            PackageMilestone.milestone == calculations.REQUISITION_MILESTONE,
+        )
+    ).one_or_none()
+    return row.real_date if row is not None else None
+
+
+def _package_or_refuse(session: Session, package_id: int) -> PurchasePackage:
+    package = session.get(PurchasePackage, package_id)
+    if package is None:
+        raise InvalidDataError(validation.PACKAGE_NOT_FOUND)
+    return package
+
+
+def _required_int(value: int | None, message: str) -> int:
+    """A value the checks already approved; ``None`` here is a mistake of the caller."""
+    if value is None:
+        raise InvalidDataError(message)
+    return value
+
+
+def _required_date(value: date | None, message: str) -> date:
+    """A date the checks already approved; ``None`` here is a mistake of the caller."""
+    if value is None:
+        raise InvalidDataError(message)
+    return value
 
 
 # ── The final evaluation of a contract (D9, ISSUE-034) ───────────────────────────────────────

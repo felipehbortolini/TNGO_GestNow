@@ -687,6 +687,19 @@ def eac_item_codes(session: Session, item_ids: Sequence[int]) -> dict[int, str]:
     return {row.id: row.code for row in session.execute(statement)}
 
 
+def eac_item_labels(session: Session, item_ids: Sequence[int]) -> dict[int, tuple[str, str]]:
+    """O código e a descrição de cada item da EAC, por id, para a tela que os lista (D9).
+
+    Leitura aditiva para o plano de compras: o pacote guarda o id do item e a lista precisa do
+    código e da descrição, inclusive dos itens de nível 2 que o mock já vinculava.
+    """
+    wanted = set(item_ids)
+    if not wanted:
+        return {}
+    statement = select(EacItem.id, EacItem.code, EacItem.description).where(EacItem.id.in_(wanted))
+    return {row.id: (row.code, row.description) for row in session.execute(statement)}
+
+
 def eac_item_levels_by_code(
     session: Session, *, project_id: int, codes: Sequence[str]
 ) -> dict[str, int]:
@@ -1016,6 +1029,43 @@ def item_options(session: Session, *, project_id: int) -> tuple[EacOption, ...]:
         )
         for item in items
         if item.level >= calculations.LEAF_LEVEL
+    )
+
+
+@dataclass(frozen=True)
+class CostItemBalance:
+    """Um item de custo (nível 3) com o saldo a comprometer, como o plano de compras o lê (D9)."""
+
+    item_id: int
+    code: str
+    description: str
+    saldo_cents: int
+
+
+def cost_item_balances(
+    session: Session, *, project_id: int, reference_date: date
+) -> tuple[CostItemBalance, ...]:
+    """Os itens de custo do projeto com o saldo a comprometer na data de referência (D9).
+
+    Leitura aditiva para o plano de compras: o saldo é o do mapa de controle (orçado atual menos
+    o comprometido do ERP), calculado na hora; nada é gravado. O item de nível 3 é a folha que
+    um pacote pode custear.
+    """
+    projects = configuracoes.list_projects(session)
+    project = next((item for item in projects if item.id == project_id), None)
+    if project is None:
+        return ()
+    bands = _deviation_bands(session, reference_date=reference_date)
+    columns = _project_columns(session, project, bands=bands, reference_date=reference_date)
+    return tuple(
+        CostItemBalance(
+            item_id=row.item_id,
+            code=row.code,
+            description=row.description,
+            saldo_cents=row.saldo_cents,
+        )
+        for row in columns.rows
+        if row.level == calculations.LEAF_LEVEL and row.item_id is not None
     )
 
 
