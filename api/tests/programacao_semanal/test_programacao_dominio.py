@@ -6,12 +6,23 @@ borders, with the names of the code in English.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, time
+from pathlib import Path
 
 import pytest
 
 from src.modulos.programacao_semanal import calculations, weeks
 from src.modulos.programacao_semanal import window as window_rules
+
+DEMO_DATA_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "modulos"
+    / "programacao_semanal"
+    / "demonstracao.json"
+)
+DEMO_WEEK = "S.34/2026"
 
 # ── Weeks ───────────────────────────────────────────────────────────────
 
@@ -198,3 +209,34 @@ def test_extra_release_also_closes_what_was_released() -> None:
 def test_no_weekday_configured_releases_any_day() -> None:
     window = window_rules.Window(company_id=1, days=(), weeks=REGULAR.weeks)
     assert window_rules.decide("S.31/2026", window, SATURDAY).is_open
+
+
+# ── PPC e aderência com os dados do app ─────────────────────────────────
+
+
+def test_ppc_and_adherence_are_the_apps_numbers_for_the_apps_data() -> None:
+    """O caso do app: a semana S.34/2026 da demonstração ``demo-obra``.
+
+    Os mesmos dados que o app calculava: a PS2-EST-003 fecha 74,11% de PPC (1.944,8 de
+    2.624,3) na faixa média; a semana inteira fecha 66,19% de aderência e 65,86% de PPC
+    médio, com 2 atividades na faixa baixa. Os números vêm escritos à mão: se a conta
+    do código mudar, o teste quebra, que é o ponto de um oráculo.
+    """
+    data = json.loads(DEMO_DATA_PATH.read_text(encoding="utf-8"))
+    activities = [item for item in data["atividades"] if item["semana"] == DEMO_WEEK]
+    figures = {
+        item["id_exclusiva"]: calculations.figures_of(
+            item["dias_previsto"],
+            item["dias_realizado"],
+            item["dias_noite"],
+            headline=item["prod_prevista"],
+        )
+        for item in activities
+    }
+
+    assert len(figures) == 12
+    assert figures["PS2-EST-003"].ppc == 74.11
+    assert figures["PS2-EST-003"].band == calculations.BAND_MEDIUM
+    assert calculations.schedule_adherence(figures.values()) == 66.19
+    assert calculations.mean_ppc(figures.values()) == 65.86
+    assert sum(1 for item in figures.values() if item.band == calculations.BAND_LOW) == 2

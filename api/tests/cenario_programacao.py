@@ -38,6 +38,9 @@ class Scenario:
     foreman_b: int
     author_id: int
     planner: User
+    fiscal: User
+    foreman: User
+    admin: User
     supplier_a: User
     supplier_b: User
     viewer: User
@@ -84,6 +87,12 @@ def build_scenario(db_session: Session) -> Scenario:
     planner_c = criar_colaborador(
         db_session, email="ps-plan@example.invalid", papeis=[(project.id, "Planejador")]
     )
+    fiscal_c = criar_colaborador(
+        db_session, email="ps-fisc@example.invalid", papeis=[(project.id, "Fiscal")]
+    )
+    foreman_c = criar_colaborador(
+        db_session, email="ps-enc@example.invalid", papeis=[(project.id, "Encarregado")]
+    )
     viewer_c = criar_colaborador(db_session, email="ps-view@example.invalid", perfil="Visualizador")
     author = admin.id
     location = registers.ensure_location(
@@ -115,6 +124,17 @@ def build_scenario(db_session: Session) -> Scenario:
             db_session.get(Person, planner_c.person_id),
             {(project.id, ScheduleRole.PLANNER)},
         ),
+        fiscal=_user(
+            fiscal_c,
+            db_session.get(Person, fiscal_c.person_id),
+            {(project.id, ScheduleRole.INSPECTOR)},
+        ),
+        foreman=_user(
+            foreman_c,
+            db_session.get(Person, foreman_c.person_id),
+            {(project.id, ScheduleRole.FOREMAN)},
+        ),
+        admin=_user(admin, db_session.get(Person, admin.person_id), set()),
         supplier_a=_supplier(db_session, "ps-forn-a@example.invalid", project.id, company_a),
         supplier_b=_supplier(db_session, "ps-forn-b@example.invalid", project.id, company_b),
         viewer=_user(viewer_c, db_session.get(Person, viewer_c.person_id), set()),

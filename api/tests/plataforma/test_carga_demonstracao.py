@@ -22,7 +22,7 @@ from src.carga import (
     run_for_mode,
 )
 from src.carga.plataforma import DATA_PATH
-from src.core import config
+from src.core import calendario, config
 from src.core.auth import _user_of
 from src.core.errors import InvalidDataError
 from src.core.models import AuditEntry, Client, SeedRun
@@ -77,6 +77,10 @@ from src.modulos.planejamento.models import (
     WorkSample,
     WorkSampleReason,
 )
+from src.modulos.programacao_semanal import permissions
+from src.modulos.programacao_semanal import service as programacao_semanal
+from src.modulos.programacao_semanal.models import Activity
+from src.modulos.programacao_semanal.views import ActivityView
 from src.modulos.riscos.models import Risk
 
 # A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
@@ -1107,6 +1111,68 @@ def test_oraculo_do_painel_da_punch_list(db_session: Session) -> None:
         "8 a 30 dias",
         "Mais de 30 dias",
     ]
+
+
+def test_oraculo_do_fluxo_da_programacao_semanal(db_session: Session) -> None:
+    """O oráculo da ISSUE-052: os estados do fluxo e a fila da próxima ação, com a carga.
+
+    Na âncora, o projeto 1 (TN-2026-014) tem as 92 atividades do app: 48 publicadas com o
+    realizado aprovado, 8 validadas com o realizado aprovado, 11 validadas aguardando o
+    fiscal e 25 em elaboração. Na semana S.34/2026, a aderência fecha em 66,19% (PPC médio
+    de 65,86%, 4 aguardando o fiscal e 2 na faixa baixa); a próxima ação de cada perfil
+    segue a fila do app (validar → lançar → aprovar → publicar → ver).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    states = {
+        (row.situation, row.approval): row.total
+        for row in db_session.execute(
+            select(Activity.situation, Activity.approval, func.count().label("total"))
+            .where(Activity.project_id == project.id)
+            .group_by(Activity.situation, Activity.approval)
+        )
+    }
+    assert states == {
+        ("publicada", "aprovado"): 48,
+        ("validada", "aprovado"): 8,
+        ("validada", "pendente"): 11,
+        ("em_elaboracao", "pendente"): 25,
+    }
+
+    accesses = {access.email: access for access in configuracoes.list_active_access(db_session)}
+    planner = _user_of(accesses["planejador@timenow.com.br"])
+    fiscal = _user_of(accesses["fiscal@timenow.com.br"])
+    supplier = _user_of(accesses["programacao@mroscoe.com.br"])
+    scope = Scope(project_id=project.id, source="url")
+    caller = programacao_semanal.Caller(user=planner, scope=scope, now=calendario.now())
+
+    def views_of(week: str) -> dict[str, ActivityView]:
+        return {
+            view.unique_id: view
+            for view in programacao_semanal.list_activities(db_session, caller=caller, week=week)
+        }
+
+    def action(view: ActivityView, user) -> str:
+        return permissions.next_action(
+            user,
+            project.id,
+            situation=view.situation,
+            approval=view.approval,
+            has_done=view.figures.has_done,
+        )
+
+    week_34 = views_of("S.34/2026")
+    summary = programacao_semanal.week_summary(list(week_34.values()))
+    assert (summary.total, summary.adherence, summary.mean_ppc) == (12, 66.19, 65.86)
+    assert (summary.awaiting_inspector, summary.low_band) == (4, 2)
+
+    assert action(week_34["PRD-ELT-015"], planner) == "publicar"
+    assert action(week_34["CAL-ISO-018"], planner) == "ver"
+    assert action(week_34["CAL-ISO-018"], fiscal) == "aprovar"
+    assert action(week_34["PS1-CON-021"], supplier) == "lancar"
+    assert action(views_of("S.35/2026")["SUB-TRF-010"], planner) == "validar"
+    assert action(views_of("S.30/2026")["PRD-ELT-015"], planner) == "ver"
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

@@ -102,6 +102,18 @@ de Programação Semanal.
 programação de um projeto. A liberação extraordinária prevalece; depois são
 verificadas as semanas liberadas e o dia/horário.
 
+**Fluxo da programação** — a fila de cinco degraus: elaborar, validar (o
+Planejador define o fiscal), lançar o realizado (Encarregado ou Fornecedor, por
+turno dia e noite), aprovar o realizado (Fiscal; reabrir exige motivo) e
+publicar (Planejador; encerra a edição). **Situação** (em elaboração, validada,
+publicada) e **aprovação do realizado** (pendente, aprovado) são estados
+distintos: uma atividade publicada pode ter realizado pendente. O lançamento
+acima do limite de desvio do projeto exige observação.
+
+**Próxima ação** — o degrau do fluxo que é a vez de quem está olhando a matriz,
+resolvido pelo servidor por papel no projeto e estado: validar, lançar, aprovar,
+publicar ou ver. É ordenação da tela, não autorização.
+
 **FP** — Fator de Produtividade: horas-homem apropriadas divididas pelas horas
 ganhas; 1,00 corresponde ao índice da proposta.
 
