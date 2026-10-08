@@ -41,6 +41,15 @@ figures of an item (planned, realized, earned hours, factor of productivity and
 the finish trend by earned schedule); and the freeze/redistribute rule of a
 baseline revision, whose balance is the new total minus the frozen weeks. The
 cut, the current week and the reference date all come in as arguments (D6).
+
+The field hours (ISSUE-047): the capacity of a field day (the execution of the
+two shifts), the utilization against the reference journey, the delay, the
+lunch break, the effective and the idle man-hours; the summary of the journeys
+of a period; the share of the work sampling (working, transit and stopped), the
+Pareto of the reasons (descending order with the accumulated) and the stoppage
+figures (crew hours and machine hours). The window of the period and the bands
+of the indicators come in as arguments; the catalogs of the reasons are the ones
+of the prototype, read here by the server, never by the screen (D6).
 """
 
 from __future__ import annotations
@@ -49,7 +58,7 @@ import re
 from calendar import monthrange
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from math import ceil
 from typing import Any
@@ -1991,3 +2000,493 @@ def first_free_week(item_start_week: str, cut_week: str) -> str:
     """A primeira semana livre da revisão: a seguinte ao corte, ou o início do item, se posterior."""
     following = shift_week(cut_week, 1) or cut_week
     return item_start_week if item_start_week > following else following
+
+
+# ── Horas efetivas e campo (ISSUE-047) ─────────────────────────────────────
+
+
+PERIOD_WEEK = "semana"
+
+
+PERIOD_WINDOW = "janela"
+
+
+PERIOD_ALL = "tudo"
+
+
+PERIODS = (PERIOD_WEEK, PERIOD_WINDOW, PERIOD_ALL)
+
+
+# Os 12 motivos de parada e os 5 de trânsito da amostragem, como no protótipo.
+STOP_REASONS = (
+    "Direcionamento da liderança para execução",
+    "Descanso entre atividades",
+    "Término da atividade antecessora",
+    "Raio de ação de içamento (munck, guindaste)",
+    "Pit stop",
+    "Raio de ação de máquina",
+    "Dúvida de execução / interferência",
+    "Mais pessoas que a frente de serviço comporta",
+    "Material / insumo / acessório",
+    "Sobreposição de atividades na própria frente",
+    "Direito de recusa (trabalho seguro)",
+    "Máquina ou equipamento indisponível",
+)
+
+
+TRANSIT_REASONS = (
+    "Material / insumo / acessório",
+    "Água / banheiro",
+    "Entre frentes de serviço",
+    "Ferramenta",
+    "Máquina / equipamento",
+)
+
+
+# Os 10 motivos e as 5 responsabilidades da paralisação, como no protótipo.
+STOPPAGE_REASONS = (
+    "Chuva / condição climática",
+    "Falta de material",
+    "Falta de liberação de área / permissão de trabalho",
+    "Interferência com a operação da planta",
+    "Aguardando equipamento de içamento",
+    "Quebra de máquina / equipamento",
+    "Aguardando frente (atividade predecessora)",
+    "Falta de projeto / dúvida técnica",
+    "Parada de segurança",
+    "Terceiros (concreteira, concessionária)",
+)
+
+
+RESPONSIBILITIES = ("Contratada", "Cliente", "Gerenciadora", "Clima", "Terceiros")
+
+
+# Tempo perdido que não é da contratada: potencialmente excusável (base de pleito em Contratos).
+EXTERNAL_RESPONSIBILITIES = ("Cliente", "Gerenciadora", "Terceiros")
+
+
+SAMPLE_STOPPED = "Parado"
+
+
+SAMPLE_TRANSIT = "Trânsito"
+
+
+STOPPAGE_CREW = "Efetivo"
+
+
+STOPPAGE_MACHINE = "Máquina/Equipamento"
+
+
+STOPPAGE_KINDS = (STOPPAGE_CREW, STOPPAGE_MACHINE)
+
+
+DEFAULT_DELAY_BANDS = (Decimal("15"), Decimal("30"))
+
+
+# A margem em pontos percentuais que ainda vale atenção nas bandas de utilização e de trabalho.
+BAND_MARGIN = Decimal("10")
+
+
+MINUTES_PER_HOUR = Decimal(60)
+
+
+def minutes_of(value: time) -> int:
+    """Os minutos desde a meia-noite de um horário."""
+    return value.hour * 60 + value.minute
+
+
+def shift_hours(start: time, end: time) -> Decimal | None:
+    """As horas de execução de um turno; nulo quando o término vem antes do início."""
+    if end < start:
+        return None
+    return Decimal(minutes_of(end) - minutes_of(start)) / MINUTES_PER_HOUR
+
+
+@dataclass(frozen=True)
+class ShiftTimes:
+    """Os três horários de um turno: chegada na frente, início e término das atividades."""
+
+    arrival: time
+    start: time
+    end: time
+
+
+@dataclass(frozen=True)
+class FieldDayFigures:
+    """Uma jornada lida: atrasos, execuções, capacidade produtiva e horas-homem (ISSUE-047)."""
+
+    morning: ShiftTimes
+    afternoon: ShiftTimes
+    crew: int
+    morning_delay_min: int
+    afternoon_delay_min: int
+    lunch_min: int
+    morning_execution: Decimal | None
+    afternoon_execution: Decimal | None
+    capacity: Decimal
+    utilization: Decimal
+    effective_hh: Decimal
+    idle_hh: Decimal
+    week: str
+
+
+def field_day_figures(
+    *,
+    day: date,
+    crew: int,
+    morning: ShiftTimes,
+    afternoon: ShiftTimes,
+    daily_hours: Decimal,
+) -> FieldDayFigures:
+    """As figuras da jornada: CP = execução da manhã + da tarde; utilização, atrasos e HH.
+
+    HH efetivas = CP x efetivo; HH improdutivas = (jornada de referência - CP) x efetivo, sem
+    contar a diferença negativa. Tudo arredondado como a tela mostra (D6: nada lê o relógio).
+    """
+    morning_execution = shift_hours(morning.start, morning.end)
+    afternoon_execution = shift_hours(afternoon.start, afternoon.end)
+    capacity = (morning_execution or ZERO) + (afternoon_execution or ZERO)
+    utilization = round_percent(capacity / daily_hours * PERCENT, 1) if daily_hours > ZERO else ZERO
+    return FieldDayFigures(
+        morning=morning,
+        afternoon=afternoon,
+        crew=crew,
+        morning_delay_min=minutes_of(morning.start) - minutes_of(morning.arrival),
+        afternoon_delay_min=minutes_of(afternoon.start) - minutes_of(afternoon.arrival),
+        lunch_min=minutes_of(afternoon.arrival) - minutes_of(morning.end),
+        morning_execution=morning_execution,
+        afternoon_execution=afternoon_execution,
+        capacity=round_quantity(capacity, 2),
+        utilization=utilization,
+        effective_hh=round_quantity(capacity * crew, 1),
+        idle_hh=round_quantity(max(ZERO, daily_hours - capacity) * crew, 1),
+        week=calendario.iso_week(day),
+    )
+
+
+@dataclass(frozen=True)
+class CapacitySummary:
+    """O resumo das jornadas do filtro: médias de horário e de CP, somas de HH (Hhora das horas)."""
+
+    records: int
+    average_crew: Decimal | None
+    morning: ShiftTimes | None
+    afternoon: ShiftTimes | None
+    morning_delay_min: Decimal | None
+    afternoon_delay_min: Decimal | None
+    lunch_min: Decimal | None
+    morning_capacity: Decimal | None
+    afternoon_capacity: Decimal | None
+    capacity: Decimal | None
+    utilization: Decimal | None
+    effective_hh: Decimal
+    idle_hh: Decimal
+
+
+def capacity_summary(
+    figures: Sequence[FieldDayFigures], *, daily_hours: Decimal
+) -> CapacitySummary:
+    """O resumo das jornadas: médias como o protótipo as mostra e somas de HH inteiras."""
+    capacity = _average([figure.capacity for figure in figures])
+    utilization = (
+        round_percent(capacity / daily_hours * PERCENT, 1)
+        if capacity is not None and daily_hours > ZERO
+        else None
+    )
+    return CapacitySummary(
+        records=len(figures),
+        average_crew=_rounded_average([figure.crew for figure in figures], 1),
+        morning=_average_times([figure.morning for figure in figures]),
+        afternoon=_average_times([figure.afternoon for figure in figures]),
+        morning_delay_min=_rounded_average([figure.morning_delay_min for figure in figures], 0),
+        afternoon_delay_min=_rounded_average([figure.afternoon_delay_min for figure in figures], 0),
+        lunch_min=_rounded_average([figure.lunch_min for figure in figures], 0),
+        morning_capacity=_rounded_average([figure.morning_execution for figure in figures], 2),
+        afternoon_capacity=_rounded_average([figure.afternoon_execution for figure in figures], 2),
+        capacity=None if capacity is None else round_quantity(capacity, 2),
+        utilization=utilization,
+        effective_hh=round_quantity(sum((figure.effective_hh for figure in figures), ZERO), 0),
+        idle_hh=round_quantity(sum((figure.idle_hh for figure in figures), ZERO), 0),
+    )
+
+
+def _average(values: Sequence[Decimal | None]) -> Decimal | None:
+    """A média dos valores presentes; lista vazia (ou toda nula) devolve nulo."""
+    kept = [value for value in values if value is not None]
+    if not kept:
+        return None
+    return sum(kept, ZERO) / Decimal(len(kept))
+
+
+def _rounded_average(values: Sequence[Decimal | int | None], places: int) -> Decimal | None:
+    found = _average([None if value is None else Decimal(value) for value in values])
+    return None if found is None else round_quantity(found, places)
+
+
+def _average_times(shifts: Sequence[ShiftTimes]) -> ShiftTimes | None:
+    """O turno médio das jornadas: a média dos minutos de cada marco, em hora cheia."""
+    if not shifts:
+        return None
+    return ShiftTimes(
+        arrival=_mean_time([minutes_of(shift.arrival) for shift in shifts]),
+        start=_mean_time([minutes_of(shift.start) for shift in shifts]),
+        end=_mean_time([minutes_of(shift.end) for shift in shifts]),
+    )
+
+
+def _mean_time(values: Sequence[int]) -> time:
+    total = sum(values, 0)
+    minutes = round(Decimal(total) / Decimal(len(values)))
+    return time(hour=(minutes // 60) % 24, minute=minutes % 60)
+
+
+@dataclass(frozen=True)
+class SampleCounts:
+    """As pessoas observadas numa rodada: trabalhando, em trânsito e paradas."""
+
+    working: int
+    transit: int
+    stopped: int
+
+
+@dataclass(frozen=True)
+class SampleShare:
+    """O resumo da amostragem: totais de pessoas e os três percentuais."""
+
+    records: int
+    people: int
+    working: int
+    transit: int
+    stopped: int
+    working_pct: Decimal | None
+    transit_pct: Decimal | None
+    stopped_pct: Decimal | None
+
+
+def sample_share(rows: Sequence[SampleCounts]) -> SampleShare:
+    """O resumo da amostragem: soma as pessoas e divide cada estado pelo total observado."""
+    working = sum(row.working for row in rows)
+    transit = sum(row.transit for row in rows)
+    stopped = sum(row.stopped for row in rows)
+    people = working + transit + stopped
+    return SampleShare(
+        records=len(rows),
+        people=people,
+        working=working,
+        transit=transit,
+        stopped=stopped,
+        working_pct=_people_share(working, people),
+        transit_pct=_people_share(transit, people),
+        stopped_pct=_people_share(stopped, people),
+    )
+
+
+def _people_share(people: int, total: int) -> Decimal | None:
+    if total <= 0:
+        return None
+    return round_percent(Decimal(people) / Decimal(total) * PERCENT, 2)
+
+
+@dataclass(frozen=True)
+class ReasonTotal:
+    """Um motivo do Pareto: o total e, no Pareto, o percentual e o acumulado."""
+
+    reason: str
+    total: int
+    percent: Decimal | None
+    accumulated: Decimal | None
+
+
+def reason_pareto(counts: Mapping[str, int], *, catalog: Sequence[str]) -> tuple[ReasonTotal, ...]:
+    """O Pareto dos motivos: ordem decrescente do total, com o percentual e o acumulado.
+
+    O empate fica com a ordem do catálogo do protótipo; motivo fora do catálogo entra depois,
+    em ordem alfabética, para nada sumir da tela.
+    """
+    total = sum(counts.values())
+    ordered = sorted(
+        counts.items(),
+        key=lambda item: (-item[1], _catalog_index(item[0], catalog), item[0]),
+    )
+    accumulated = 0
+    rows: list[ReasonTotal] = []
+    for reason, amount in ordered:
+        accumulated += amount
+        rows.append(
+            ReasonTotal(
+                reason=reason,
+                total=amount,
+                percent=_reason_share(amount, total),
+                accumulated=_reason_share(accumulated, total),
+            )
+        )
+    return tuple(rows)
+
+
+def _reason_share(value: int, total: int) -> Decimal | None:
+    if total <= 0:
+        return None
+    return round_percent(Decimal(value) / Decimal(total) * PERCENT, 1)
+
+
+def _catalog_index(reason: str, catalog: Sequence[str]) -> int:
+    return catalog.index(reason) if reason in catalog else len(catalog)
+
+
+@dataclass(frozen=True)
+class StoppageFigures:
+    """Uma paralisação lida: as horas, o total (Hhora ou Mhora) e se é externa."""
+
+    kind: str
+    reason: str
+    responsibility: str
+    hours: Decimal
+    total: Decimal
+    external: bool
+    week: str
+
+
+def stoppage_figures(
+    *,
+    day: date,
+    kind: str,
+    reason: str,
+    responsibility: str,
+    quantity: Decimal,
+    start: time,
+    end: time,
+) -> StoppageFigures:
+    """As figuras da paralisação: horas = término menos início; total = quantidade x horas.
+
+    O total é Hhora no efetivo (pessoas x horas) e Mhora na máquina ou equipamento
+    (unidades x horas); o tipo escolhe o nome, a conta é a mesma.
+    """
+    hours = shift_hours(start, end) or ZERO
+    return StoppageFigures(
+        kind=kind,
+        reason=reason,
+        responsibility=responsibility,
+        hours=round_quantity(hours, 2),
+        total=round_quantity(hours * quantity, 1),
+        external=responsibility in EXTERNAL_RESPONSIBILITIES,
+        week=calendario.iso_week(day),
+    )
+
+
+@dataclass(frozen=True)
+class StoppageTotal:
+    """Um agrupamento da paralisação: a chave, o total e o número de eventos."""
+
+    key: str
+    total: Decimal
+    events: int
+
+
+@dataclass(frozen=True)
+class StoppageSummary:
+    """O resumo das paralisações: Hhora, Mhora, as externas e os agrupamentos."""
+
+    events: int
+    crew_hours: Decimal
+    machine_hours: Decimal
+    external_hours: Decimal
+    client_hours: Decimal
+    weather_hours: Decimal
+    by_reason: tuple[StoppageTotal, ...]
+    by_responsibility: tuple[StoppageTotal, ...]
+    machine_by_reason: tuple[StoppageTotal, ...]
+
+
+def stoppage_summary(rows: Sequence[StoppageFigures]) -> StoppageSummary:
+    """O resumo das paralisações: Hhora do efetivo, Mhora das máquinas e os agrupamentos."""
+    return StoppageSummary(
+        events=len(rows),
+        crew_hours=_sum_totals(row for row in rows if row.kind == STOPPAGE_CREW),
+        machine_hours=_sum_totals(row for row in rows if row.kind != STOPPAGE_CREW),
+        external_hours=_sum_totals(
+            row for row in rows if row.kind == STOPPAGE_CREW and row.external
+        ),
+        client_hours=_sum_totals(
+            row for row in rows if row.kind == STOPPAGE_CREW and row.responsibility == "Cliente"
+        ),
+        weather_hours=_sum_totals(
+            row for row in rows if row.kind == STOPPAGE_CREW and row.responsibility == "Clima"
+        ),
+        by_reason=_group_stoppages([row for row in rows if row.kind == STOPPAGE_CREW], "reason"),
+        by_responsibility=_group_stoppages(
+            [row for row in rows if row.kind == STOPPAGE_CREW], "responsibility"
+        ),
+        machine_by_reason=_group_stoppages(
+            [row for row in rows if row.kind != STOPPAGE_CREW], "reason"
+        ),
+    )
+
+
+def _sum_totals(rows: Iterable[StoppageFigures]) -> Decimal:
+    return round_quantity(sum((row.total for row in rows), ZERO), 1)
+
+
+def _group_stoppages(rows: Sequence[StoppageFigures], attribute: str) -> tuple[StoppageTotal, ...]:
+    grouped: dict[str, list[StoppageFigures]] = {}
+    for row in rows:
+        grouped.setdefault(getattr(row, attribute), []).append(row)
+    totals = [
+        StoppageTotal(key=key, total=_sum_totals(group), events=len(group))
+        for key, group in grouped.items()
+    ]
+    return tuple(sorted(totals, key=lambda item: (-item.total, item.key)))
+
+
+def utilization_band(utilization: Decimal | None, *, target: Decimal) -> str | None:
+    """A faixa da utilização: na meta ou acima é bom, até 10 p.p. abaixo é atenção."""
+    if utilization is None:
+        return None
+    if utilization >= target:
+        return "success"
+    return "warning" if utilization >= target - BAND_MARGIN else "danger"
+
+
+def working_band(working_pct: Decimal | None, *, target: Decimal) -> str | None:
+    """A faixa do % trabalhando: na meta ou acima é bom, até 10 p.p. abaixo é atenção."""
+    if working_pct is None:
+        return None
+    if working_pct >= target:
+        return "success"
+    return "warning" if working_pct >= target - BAND_MARGIN else "danger"
+
+
+def start_delay_band(minutes: Decimal | None, bands: Sequence[Decimal]) -> str | None:
+    """A faixa do atraso de início: até o primeiro limite é bom, até o segundo é atenção."""
+    if minutes is None:
+        return None
+    if minutes <= bands[0]:
+        return "success"
+    return "warning" if minutes <= bands[1] else "danger"
+
+
+def hours_window(
+    period: str,
+    *,
+    cut_week: str,
+    window_weeks: int,
+    reference_date: date,
+) -> tuple[date | None, date]:
+    """A janela do período do filtro: de onde até onde os registros entram.
+
+    ``semana`` é a semana de corte; ``janela`` são as últimas N semanas; ``tudo`` começa vazio.
+    O fim nunca passa da data de referência (D6); semana inválida cai na semana da referência.
+    """
+    monday = calendario.week_start(cut_week) or calendario.week_start(
+        calendario.iso_week(reference_date)
+    )
+    if monday is None:
+        monday = reference_date
+    end = calendario.add_days(monday, DAYS_IN_WEEK - 1)
+    if end > reference_date:
+        end = reference_date
+    if period == PERIOD_ALL:
+        return None, end
+    if period == PERIOD_WINDOW:
+        first = shift_week(calendario.iso_week(monday), -(window_weeks - 1))
+        monday = calendario.week_start(first) if first is not None else monday
+    return monday, end

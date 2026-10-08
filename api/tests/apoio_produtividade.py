@@ -230,3 +230,112 @@ def pedido(caminho: str, *, email: str, envio: Envio | None = None) -> func.Http
         route_params=dict(dados.rota or {}),
         body=corpo,
     )
+
+
+# ── Campo: jornada, amostragem e paralisação (ISSUE-047) ───────────────────
+
+
+def campos_da_jornada(
+    cenario: Cenario,
+    *,
+    data: str = HOJE.isoformat(),
+    area: str = "Flotação 310",
+    encarregado: str = "Sérgio Pinto",
+    efetivo: str = "12",
+    manha: tuple[str, str, str] = ("07:30", "08:00", "11:30"),
+    tarde: tuple[str, str, str] = ("13:00", "13:10", "17:00"),
+) -> dict[str, str]:
+    """Os campos do formulário da jornada, como a tela os envia."""
+    return {
+        validation.FIELD_DAY_DATE: data,
+        validation.FIELD_DAY_COMPANY: str(cenario.empresa.id),
+        validation.FIELD_DAY_AREA: area,
+        validation.FIELD_DAY_FOREMAN: encarregado,
+        validation.FIELD_DAY_CREW: efetivo,
+        validation.FIELD_DAY_MORNING: manha[0],
+        validation.FIELD_DAY_MORNING_START: manha[1],
+        validation.FIELD_DAY_MORNING_END: manha[2],
+        validation.FIELD_DAY_AFTERNOON: tarde[0],
+        validation.FIELD_DAY_AFTERNOON_START: tarde[1],
+        validation.FIELD_DAY_AFTERNOON_END: tarde[2],
+        validation.FIELD_DAY_NOTES: "",
+    }
+
+
+def form_jornada(cenario: Cenario, **overrides: str) -> validation.FieldDayForm:
+    """O formulário da jornada com os campos padrão do cenário."""
+    campos = campos_da_jornada(cenario)
+    campos.update(overrides)
+    return validation.FieldDayForm(fields=campos)
+
+
+def campos_da_amostra(
+    cenario: Cenario,
+    *,
+    data: str = HOJE.isoformat(),
+    hora: str = "09:30",
+    area: str = "Flotação 310",
+    encarregado: str = "Sérgio Pinto",
+    trabalhando: str = "10",
+    parado: Mapping[int, str] | None = None,
+    transito: Mapping[int, str] | None = None,
+) -> tuple[dict[str, str], dict[int, str], dict[int, str]]:
+    """Os campos e as duas grades de motivos do formulário da rodada."""
+    campos = {
+        validation.FIELD_DAY_DATE: data,
+        validation.FIELD_SAMPLE_HOUR: hora,
+        validation.FIELD_DAY_COMPANY: str(cenario.empresa.id),
+        validation.FIELD_DAY_AREA: area,
+        validation.FIELD_DAY_FOREMAN: encarregado,
+        validation.FIELD_SAMPLE_WORKING: trabalhando,
+    }
+    return campos, dict(parado or {}), dict(transito or {})
+
+
+def form_amostra(
+    cenario: Cenario,
+    *,
+    parado: Mapping[int, str] | None = None,
+    transito: Mapping[int, str] | None = None,
+    **overrides: str,
+) -> validation.WorkSampleForm:
+    """O formulário da rodada com os campos padrão do cenário."""
+    campos, parados, transitos = campos_da_amostra(cenario, parado=parado, transito=transito)
+    campos.update(overrides)
+    return validation.WorkSampleForm(fields=campos, stopped=parados, transit=transitos)
+
+
+def campos_da_paralisacao(
+    cenario: Cenario,
+    *,
+    data: str = HOJE.isoformat(),
+    area: str = "Terraplenagem",
+    tipo: str = "Efetivo",
+    recurso: str = "Equipe de terraplenagem",
+    quantidade: str = "16",
+    inicio: str = "13:20",
+    termino: str = "16:40",
+    motivo: str = "Falta de material",
+    responsabilidade: str = "Contratada",
+) -> dict[str, str]:
+    """Os campos do formulário da paralisação, como a tela os envia."""
+    return {
+        validation.FIELD_DAY_DATE: data,
+        validation.FIELD_DAY_COMPANY: str(cenario.empresa.id),
+        validation.FIELD_DAY_AREA: area,
+        validation.FIELD_STOPPAGE_KIND: tipo,
+        validation.FIELD_STOPPAGE_RESOURCE: recurso,
+        validation.FIELD_STOPPAGE_QUANTITY: quantidade,
+        validation.FIELD_STOPPAGE_START: inicio,
+        validation.FIELD_STOPPAGE_END: termino,
+        validation.FIELD_STOPPAGE_REASON: motivo,
+        validation.FIELD_STOPPAGE_RESPONSIBILITY: responsabilidade,
+        validation.FIELD_STOPPAGE_DESCRIPTION: "",
+    }
+
+
+def form_paralisacao(cenario: Cenario, **overrides: str) -> validation.StoppageForm:
+    """O formulário da paralisação com os campos padrão do cenário."""
+    campos = campos_da_paralisacao(cenario)
+    campos.update(overrides)
+    return validation.StoppageForm(fields=campos)

@@ -31,11 +31,20 @@ item (``produtividade_item``), the frozen total of each revision of the baseline
 the frozen fact and have no ``versao`` of their own. The item carries the week
 bounds as dates (Monday of the ISO week); the distribution and the report carry
 the week label in text.
+
+The field hours (ISSUE-047): the daily shift of the foreman front
+(``jornada_campo``), the observation round of the work sampling
+(``amostragem``) with its stop and transit reasons (``amostragem_motivo``) and
+the stoppage of crew or machine (``paralisacao``). The foreman is the text the
+inspector types, as in the prototype (``encarregado``), not a person register.
+The capacity, the percentages, the Pareto, the Hhora and the Mhora are all
+calculated; the reasons of a round enter and leave with it and have no
+``versao`` of their own.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -47,6 +56,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     Text,
+    Time,
     UniqueConstraint,
     func,
     text,
@@ -435,3 +445,106 @@ class ProductivityEntry(Base):
     informed_on: Mapped[date | None] = mapped_column("informado_em", Date)
 
     item: Mapped[ProductivityItem] = relationship(back_populates="entries")
+
+
+class FieldDay(Base):
+    """Jornada da fiscalização por frente (empresa, área e encarregado) e dia (ISSUE-047).
+
+    Capacidade produtiva, utilização, HH efetivas e HH improdutivas são calculadas dos horários
+    dos dois turnos e do efetivo. UK: projeto + data + empresa + área + encarregado (um registro
+    por frente e dia, como o protótipo recusa).
+    """
+
+    __tablename__ = "jornada_campo"
+    __table_args__ = (UniqueConstraint("projeto_id", "data", "empresa_id", "area", "encarregado"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    recorded_by_id: Mapped[int] = mapped_column("registrado_por_id", ForeignKey("pessoa.id"))
+    day: Mapped[date] = mapped_column("data", Date)
+    area: Mapped[str] = mapped_column("area", Text)
+    foreman: Mapped[str] = mapped_column("encarregado", Text)
+    crew: Mapped[int] = mapped_column("efetivo", Integer)
+    morning_arrival: Mapped[time] = mapped_column("manha_chegada", Time)
+    morning_start: Mapped[time] = mapped_column("manha_inicio", Time)
+    morning_end: Mapped[time] = mapped_column("manha_termino", Time)
+    afternoon_arrival: Mapped[time] = mapped_column("tarde_chegada", Time)
+    afternoon_start: Mapped[time] = mapped_column("tarde_inicio", Time)
+    afternoon_end: Mapped[time] = mapped_column("tarde_termino", Time)
+    notes: Mapped[str | None] = mapped_column("observacoes", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class WorkSample(Base):
+    """Rodada da amostragem do trabalho: pessoas trabalhando, em trânsito e paradas (ISSUE-047).
+
+    Os motivos de cada parada e de cada trânsito são filhos da rodada (``amostragem_motivo``),
+    editados junto com ela e protegidos pela ``versao`` da raiz, como o relato.
+    """
+
+    __tablename__ = "amostragem"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    observer_id: Mapped[int] = mapped_column("observador_id", ForeignKey("pessoa.id"))
+    day: Mapped[date] = mapped_column("data", Date)
+    hour: Mapped[time] = mapped_column("hora", Time)
+    area: Mapped[str] = mapped_column("area", Text)
+    foreman: Mapped[str] = mapped_column("encarregado", Text)
+    working: Mapped[int] = mapped_column("trabalhando", Integer)
+    transit: Mapped[int] = mapped_column("transito", Integer)
+    stopped: Mapped[int] = mapped_column("parado", Integer)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+    reasons: Mapped[list[WorkSampleReason]] = relationship(
+        back_populates="sample",
+        cascade="all, delete-orphan",
+        order_by="WorkSampleReason.id",
+    )
+
+
+class WorkSampleReason(Base):
+    """Motivo de cada parada ou trânsito da rodada, com a quantidade (ISSUE-047).
+
+    Sem ``versao`` própria: entra junto com a rodada. UK: rodada + tipo + motivo.
+    """
+
+    __tablename__ = "amostragem_motivo"
+    __table_args__ = (UniqueConstraint("amostragem_id", "tipo", "motivo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    sample_id: Mapped[int] = mapped_column("amostragem_id", ForeignKey("amostragem.id"))
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    reason: Mapped[str] = mapped_column("motivo", Text)
+    quantity: Mapped[int] = mapped_column("quantidade", Integer)
+
+    sample: Mapped[WorkSample] = relationship(back_populates="reasons")
+
+
+class Stoppage(Base):
+    """Paralisação de efetivo ou de máquina e equipamento na frente (ISSUE-047).
+
+    Hhora = pessoas x horas no efetivo; Mhora = unidades x horas na máquina ou equipamento;
+    os dois são calculados do tipo. Responsabilidade do cliente, da gerenciadora ou de
+    terceiros é tempo potencialmente excusável (base de pleito em Contratos).
+    """
+
+    __tablename__ = "paralisacao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    recorded_by_id: Mapped[int] = mapped_column("registrado_por_id", ForeignKey("pessoa.id"))
+    day: Mapped[date] = mapped_column("data", Date)
+    area: Mapped[str] = mapped_column("area", Text)
+    kind: Mapped[str] = mapped_column("tipo", Text)
+    resource: Mapped[str] = mapped_column("recurso", Text)
+    quantity: Mapped[Decimal] = mapped_column("quantidade", Quantity)
+    start: Mapped[time] = mapped_column("inicio", Time)
+    end: Mapped[time] = mapped_column("termino", Time)
+    reason: Mapped[str] = mapped_column("motivo", Text)
+    responsibility: Mapped[str] = mapped_column("responsabilidade", Text)
+    description: Mapped[str | None] = mapped_column("descricao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
