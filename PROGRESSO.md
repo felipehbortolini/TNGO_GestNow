@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 55 de 93 -->
+<!-- Progresso da migração: 56 de 93 -->
 
 # Progresso da migração
 
-**55 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 08/10/2026 15:34 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**56 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 08/10/2026 16:19 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 55 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 064, 072 |
-| na fila | 38 | 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 56 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 064, 072 |
+| na fila | 37 | 055, 056, 057, 058, 059, 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -66,6 +66,7 @@
 | ISSUE-051 | Matriz da programação semanal portada: semana de segunda a domingo, janela e programação pelo fornecedor | `ba87520` |
 | ISSUE-052 | Fluxo de cinco passos: validar com fiscal, realizado por turno, aprovação do fiscal e publicação | `6599c00` |
 | ISSUE-053 | Pedidos de alteração e governança da programação | `d1b3416` |
+| ISSUE-054 | Subpágina de configuração da programação, uma por projeto | `83ec550` |
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
@@ -73,7 +74,6 @@
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-054 | Subpágina de configuração da programação, uma por projeto | na fila | ISSUE-051 |
 | ISSUE-055 | Importação da semana, planilha e relatório de impressão | na fila | ISSUE-052 |
 | ISSUE-056 | Dashboard da programação | na fila | ISSUE-052 |
 | ISSUE-057 | Fornecedores com qualificação, documentos com validade e desempenho | na fila | ISSUE-034 |
