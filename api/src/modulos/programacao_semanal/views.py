@@ -55,6 +55,7 @@ class ActivityView:
     can_report: bool = False
     can_approve: bool = False
     can_publish: bool = False
+    can_request_change: bool = False
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,7 @@ class MatrixRow:
     offer_report: bool
     offer_approve: bool
     offer_publish: bool
+    offer_request_change: bool
 
 
 def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
@@ -136,7 +138,118 @@ def build_row(view: ActivityView, dates: list[date]) -> MatrixRow:
             and figures.has_done
         ),
         offer_publish=(view.can_publish and view.situation == calculations.SITUATION_VALIDATED),
+        offer_request_change=view.can_request_change,
     )
+
+
+@dataclass(frozen=True)
+class GovernanceLine:
+    """One row of the control list: a company's week with its counts and adherence (D10)."""
+
+    company_id: int
+    company: str
+    project_id: int
+    project_label: str
+    week: str
+    period: str
+    total: int
+    draft: int
+    validated: int
+    published: int
+    pending: int
+    inspector: str
+    adherence: float
+    updated_at_text: str
+
+
+@dataclass(frozen=True)
+class SituationCounts:
+    """The general indicators of the schedule: how many activities in each state."""
+
+    total: int
+    draft: int
+    validated: int
+    published: int
+    approved: int
+    pending: int
+    no_done: int
+
+
+@dataclass(frozen=True)
+class WindowView:
+    """One programming window as the governance screen reads it (open or not, and why)."""
+
+    company_id: int
+    company: str
+    project_id: int
+    project_label: str
+    is_open: bool
+    reason: str
+    released_count: int
+    weekday_label: str
+    opens: str
+    closes: str
+    extras: int
+
+
+@dataclass(frozen=True)
+class GovernancePanel:
+    """The governance screen: the control list, the indicators and the windows."""
+
+    lines: list[GovernanceLine]
+    situations: SituationCounts
+    active_companies: int
+    open_windows: int
+    windows: list[WindowView]
+    reference_week: str
+    reference_period: str
+    is_portfolio: bool
+    can_decide: bool
+    can_view_trail: bool
+
+
+@dataclass(frozen=True)
+class ChangeRequestView:
+    """One change request of the queue, with its activity and its decision."""
+
+    id: int
+    version: int
+    activity_id: int
+    unique_id: str
+    description: str
+    company_id: int
+    company: str
+    week: str
+    project_id: int
+    project_label: str
+    reason: str
+    situation: str
+    requested_by: str
+    requested_at_text: str
+    decided_by: str
+    decided_at_text: str
+    answer: str
+
+
+@dataclass(frozen=True)
+class RequestQueue:
+    """The queue of change requests: what waits for a decision and what was decided."""
+
+    pending: list[ChangeRequestView]
+    resolved: list[ChangeRequestView]
+    total_pending: int
+    can_decide: bool
+    is_portfolio: bool
+
+
+@dataclass(frozen=True)
+class GovernanceTrailEvent:
+    """One line of the module's audit trail, already worded for the screen."""
+
+    label: str
+    summary: str
+    actor: str
+    when: str
 
 
 def _approval_label(view: ActivityView) -> str:

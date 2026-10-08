@@ -18,6 +18,7 @@ from src.modulos.programacao_semanal import window as window_rules
 from src.modulos.programacao_semanal.models import (
     Activity,
     ActivityDay,
+    ChangeRequest,
     ScheduleSettings,
     ScheduleWindow,
     WindowExtraRelease,
@@ -35,6 +36,26 @@ def settings_of(session: Session, project_id: int) -> ScheduleSettings | None:
 def find_activity(session: Session, activity_id: int) -> Activity | None:
     """The activity with the id, or ``None``."""
     return session.get(Activity, activity_id)
+
+
+def find_activity_of_week(
+    session: Session, *, project_id: int, week: str, unique_id: str
+) -> Activity | None:
+    """The activity of a project, week and exclusive ID, or ``None`` (the demonstration load)."""
+    statement = select(Activity).where(
+        Activity.project_id == project_id,
+        Activity.week == week,
+        Activity.unique_id == unique_id,
+    )
+    return session.scalars(statement).first()
+
+
+def activities_by_ids(session: Session, activity_ids: Collection[int]) -> list[Activity]:
+    """The activities with the given ids, by id."""
+    if not activity_ids:
+        return []
+    statement = select(Activity).where(Activity.id.in_(activity_ids)).order_by(Activity.id)
+    return list(session.scalars(statement))
 
 
 def activities(
@@ -129,6 +150,56 @@ def trail_entries(
         .order_by(AuditEntry.occurred_at.desc(), AuditEntry.id.desc())
         .limit(limit)
     )
+    return list(session.scalars(statement))
+
+
+def trail_of_module(
+    session: Session, *, project_id: int | None, entities: Collection[str], limit: int = 40
+) -> list[AuditEntry]:
+    """The most recent trail lines of the module's entities, newest first (the governance trail)."""
+    statement = (
+        select(AuditEntry)
+        .where(AuditEntry.entity.in_(entities))
+        .order_by(AuditEntry.occurred_at.desc(), AuditEntry.id.desc())
+        .limit(limit)
+    )
+    if project_id is not None:
+        statement = statement.where(AuditEntry.project_id == project_id)
+    return list(session.scalars(statement))
+
+
+def change_requests(
+    session: Session, *, project_id: int | None, company_id: int | None
+) -> list[ChangeRequest]:
+    """The change requests of the scope, newest first; the cut is on the activity's company."""
+    statement = (
+        select(ChangeRequest)
+        .join(Activity, Activity.id == ChangeRequest.activity_id)
+        .order_by(ChangeRequest.requested_at.desc(), ChangeRequest.id.desc())
+    )
+    if project_id is not None:
+        statement = statement.where(Activity.project_id == project_id)
+    if company_id is not None:
+        statement = statement.where(Activity.company_id == company_id)
+    return list(session.scalars(statement))
+
+
+def find_change_request(session: Session, request_id: int) -> ChangeRequest | None:
+    """The change request with the id, or ``None``."""
+    return session.get(ChangeRequest, request_id)
+
+
+def windows(
+    session: Session, *, project_id: int | None, company_id: int | None
+) -> list[ScheduleWindow]:
+    """The programming windows of the scope, by project and company (the governance panel)."""
+    statement = select(ScheduleWindow).order_by(
+        ScheduleWindow.project_id, ScheduleWindow.company_id
+    )
+    if project_id is not None:
+        statement = statement.where(ScheduleWindow.project_id == project_id)
+    if company_id is not None:
+        statement = statement.where(ScheduleWindow.company_id == company_id)
     return list(session.scalars(statement))
 
 

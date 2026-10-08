@@ -32,6 +32,18 @@ SITUATION_SHORT_LABELS = {
     calculations.SITUATION_PUBLISHED: "Publicada",
 }
 
+# How the governance screen words the situation of a change request.
+REQUEST_SITUATION_LABELS = {
+    "pendente": "Aguardando decisão",
+    "aplicado": "Aplicado",
+    "rejeitado": "Recusado",
+}
+REQUEST_SITUATION_TONES = {
+    "pendente": "warn",
+    "aplicado": "ok",
+    "rejeitado": "neutral",
+}
+
 
 def format_number(value: float | None, digits: int = 1) -> str:
     """``1234.5`` as ``1.234,5``: Brazilian numbers, never ``1234.5`` on a screen."""

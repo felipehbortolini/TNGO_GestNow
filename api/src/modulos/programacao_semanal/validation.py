@@ -81,6 +81,15 @@ class ApprovalForm:
     reason: str = ""
 
 
+@dataclass(frozen=True)
+class DecisionForm:
+    """What the planner chose in the queue of change requests: decide, answer and version."""
+
+    apply: bool = False
+    answer: str = ""
+    version: str = ""
+
+
 def parse_validation(values: Mapping[str, str | None]) -> ValidationForm:
     """Read the fields of the validation panel (``responsavel``, ``comentarios``)."""
     return ValidationForm(
@@ -107,6 +116,15 @@ def parse_done(values: Mapping[str, str | None]) -> DoneForm:
 def parse_approval(values: Mapping[str, str | None]) -> ApprovalForm:
     """Read the fields of the approval panel (``comentarios``) and of the reopen (``motivo``)."""
     return ApprovalForm(comments=_text(values, "comentarios"), reason=_text(values, "motivo"))
+
+
+def parse_decision(values: Mapping[str, str | None]) -> DecisionForm:
+    """Read the fields of the queue decision (``decisao``, ``resposta``, ``versao``)."""
+    return DecisionForm(
+        apply=_text(values, "decisao") == "aplicar",
+        answer=_text(values, "resposta"),
+        version=_text(values, "versao"),
+    )
 
 
 def parse_form(values: Mapping[str, str | None]) -> ActivityForm:

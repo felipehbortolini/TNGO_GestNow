@@ -15,6 +15,8 @@ roles. A Visualizador may well be Planejador: the axes are independent.
 | Aprovar e reabrir o realizado | Fiscal ou Admin |
 | Publicar (e editar o publicado) | Planejador ou Admin |
 | Excluir atividade | Admin |
+| Decidir pedido de alteração | Planejador ou Admin |
+| Ver a trilha de auditoria | Planejador no projeto, Admin fora dele |
 
 ``next_action`` is the queue of the five steps in the order of the process
 (``validar`` → ``lancar`` → ``aprovar`` → ``publicar`` → ``ver``): the one thing
@@ -39,6 +41,8 @@ APPROVE_DENIED = "Seu perfil não aprova o realizado."
 REOPEN_DENIED = "Seu perfil não reabre o realizado."
 PUBLISH_DENIED = "Seu perfil não publica programação."
 PUBLISHED_LOCKED = "Programação publicada não pode ser editada."
+DECIDE_DENIED = "Seu perfil não decide pedidos de alteração."
+TRAIL_DENIED = "Seu perfil não vê a trilha de auditoria da programação."
 DELETE_DENIED = "Somente o Administrador exclui atividades."
 
 ACTION_VALIDATE = "validar"
@@ -101,6 +105,22 @@ def can_publish(user: User, project_id: int) -> bool:
 def can_delete(user: User) -> bool:
     """Whether the user may delete an activity: the Admin only."""
     return is_admin(user)
+
+
+def can_decide_requests(user: User, project_id: int) -> bool:
+    """Whether the user applies or refuses change requests: the Planner or the Admin."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_view_trail(user: User, project_id: int | None) -> bool:
+    """Whether the user reads the module's audit trail: the Planner in the project, Admin anywhere.
+
+    The app gave ``ver_auditoria`` to the Admin and the Planejador only; the supplier
+    never sees the trail. In the Portfólio the roles are per project, so only the Admin.
+    """
+    if is_admin(user):
+        return True
+    return project_id is not None and rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
 
 
 def next_action(

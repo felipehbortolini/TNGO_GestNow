@@ -1,13 +1,15 @@
 """Business facade of the Weekly Scheduling: the week, the window and the flow (D10).
 
-The matrix of the week and the programming by the supplier (ISSUE-051) plus the flow
-of five steps (ISSUE-052): the planner validates and names the inspector, the foreman
-or the supplier reports the done work by shift, the inspector approves or reopens it,
-and the planner publishes it. The rules are the app's, adapted as D10 says: the app's
-"ambiente" is the project of the scope (D8, with the Portfólio read-only), companies,
-people and locations come from Configurações (``configuracoes.registers``), the roles
-are the per-project roles of D7 and every write leaves the trail with before and after
-(D5b).
+The matrix of the week and the programming by the supplier (ISSUE-051), the flow of
+five steps (ISSUE-052) and the change requests with the governance panel (ISSUE-053):
+the planner validates and names the inspector, the foreman or the supplier reports the
+done work by shift, the inspector approves or reopens it, and the planner publishes it;
+the supplier asks for a change on what is closed for editing and the planner applies
+(reopening the activity) or refuses it. The rules are the app's, adapted as D10 says:
+the app's "ambiente" is the project of the scope (D8, with the Portfólio read-only),
+companies, people and locations come from Configurações (``configuracoes.registers``),
+the roles are the per-project roles of D7 and every write leaves the trail with before
+and after (D5b).
 
 * **A supplier sees and writes only its own company**, always, with the cut made
   here and never on the screen: a list is cut by ``rbac.company_scope``, and
@@ -19,6 +21,8 @@ are the per-project roles of D7 and every write leaves the trail with before and
 * **Every step belongs to a role of the project**: validating, reporting, approving and
   publishing are refused with 403 for the others (D7); the situation and the approval of
   the done work are distinct states, as in the app.
+* **A change request is for the closed item**: publicada or approved, exactly where
+  the app offers the button; the planner decides and applying reopens the activity.
 
 Nothing here reads the clock: the caller passes the instant in the ``Caller``
 (``core.calendario.now``). Every write goes through ``core.recording`` with the
@@ -28,14 +32,14 @@ version the screen opened.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from src.core import audit, calendario, rbac, recording
+from src.core import audit, calendario, rbac, recording, versioning
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry
 from src.core.rbac import ScheduleRole, User
@@ -64,10 +68,20 @@ from src.modulos.programacao_semanal.models import (
 from src.modulos.programacao_semanal.validation import (
     ActivityForm,
     ApprovalForm,
+    DecisionForm,
     DoneForm,
     ValidationForm,
 )
-from src.modulos.programacao_semanal.views import ActivityView
+from src.modulos.programacao_semanal.views import (
+    ActivityView,
+    ChangeRequestView,
+    GovernanceLine,
+    GovernancePanel,
+    GovernanceTrailEvent,
+    RequestQueue,
+    SituationCounts,
+    WindowView,
+)
 
 NOT_FOUND_MESSAGE = "Atividade não encontrada."
 INVALID_WEEK_MESSAGE = "Informe uma semana válida, no formato S.30/2026."
@@ -106,6 +120,37 @@ ONLY_VALIDATED_PUBLISHED = "Só programação validada pode ser publicada."
 DEVIATION_DEMANDS_NOTE = (
     "O realizado está {deviation:.0f}% distante do previsto (limite de {limit:g}%). "
     "Explique o desvio para salvar."
+)
+
+# The change requests (ISSUE-053), as the app has them.
+REQUEST_PENDING = "pendente"
+REQUEST_APPLIED = "aplicado"
+REQUEST_REJECTED = "rejeitado"
+REQUEST_SITUATIONS = (REQUEST_PENDING, REQUEST_APPLIED, REQUEST_REJECTED)
+
+REQUEST_MIN_REASON = 10
+REQUEST_MIN_ANSWER = 5
+REQUEST_RESOLVED_LIMIT = 20
+TRAIL_LIMIT = 40
+REQUEST_NOT_FOUND_MESSAGE = "Pedido não encontrado."
+REQUEST_REASON_REQUIRED = "Explique o que precisa mudar, e por quê, em uma frase."
+REQUEST_ANSWER_REQUIRED = "Diga por que o pedido está sendo recusado."
+REQUEST_ALREADY_DECIDED = "Este pedido já foi decidido."
+REQUEST_EDITABLE = (
+    "A atividade ainda está aberta para edição: o pedido de alteração é para o que "
+    "está publicado ou com o realizado aprovado."
+)
+REQUEST_OPEN_TOAST = "Pedido registrado para {unique_id}."
+REQUEST_APPLY_TOAST = "{unique_id} liberado para alteração."
+REQUEST_REJECT_TOAST = "Pedido de {unique_id} recusado."
+
+# The module's entities the governance trail reads; the day lines stay out so a single
+# report of seven days does not bury the transitions with seven entries at once.
+TRAIL_ENTITIES = (
+    Activity.__tablename__,
+    ChangeRequest.__tablename__,
+    ScheduleWindow.__tablename__,
+    ScheduleSettings.__tablename__,
 )
 
 # How the history of the detail panel names the transitions a trail line caused.
@@ -996,6 +1041,361 @@ def detail_events(session: Session, *, activity_id: int, limit: int = 20) -> lis
     ]
 
 
+# ── The governance of the schedule (ISSUE-053) ───────────────────────────
+#
+# The change request exists because published programming and approved done work
+# stop being editable and sometimes have to change anyway; without the queue that
+# becomes a phone call to whoever administers, who edits it directly and leaves no
+# trace. Applying does not change the data by itself: it records the decision,
+# reopens the item and writes the agreement in the comments — whoever wants the
+# change makes it on the normal screen.
+
+
+@dataclass
+class _Group:
+    """The accumulator of one company's week, while the panel reads the activities."""
+
+    company: str
+    project_id: int
+    project_label: str
+    week: str
+    total: int = 0
+    draft: int = 0
+    validated: int = 0
+    published: int = 0
+    pending: int = 0
+    inspector: str = ""
+    updated_at: datetime | None = None
+    figures: list[calculations.ActivityFigures] = field(default_factory=list)
+
+
+def governance_panel(session: Session, *, caller: Caller) -> GovernancePanel:
+    """The control list by company and week, the indicators and the windows.
+
+    The numbers are the app's (``dados.governanca``): the line counts the activities of
+    the company and the week, the pending approvals that already have done work, the last
+    non-empty inspector and the weighted adherence; the indicators count the situations of
+    every activity of the scope. The cut by company is the supplier's, as always (D7).
+    """
+    user = caller.user
+    activities = repository.activities(
+        session,
+        project_id=caller.scope.project_id,
+        week=None,
+        company_id=rbac.company_scope(user),
+    )
+    days = repository.days_by_activity(session, [activity.id for activity in activities])
+    names = _Names.load(session, activities)
+    figures = {
+        activity.id: _figures_for(days.get(activity.id, []), activity.planned_headline)
+        for activity in activities
+    }
+
+    groups: dict[tuple[int, str], _Group] = {}
+    for activity in activities:
+        figure = figures[activity.id]
+        group = groups.setdefault(
+            (activity.company_id, activity.week),
+            _Group(
+                company=names.companies.get(activity.company_id, ""),
+                project_id=activity.project_id,
+                project_label=names.projects.get(activity.project_id, ""),
+                week=activity.week,
+            ),
+        )
+        group.total += 1
+        if activity.situation == calculations.SITUATION_DRAFT:
+            group.draft += 1
+        elif activity.situation == calculations.SITUATION_VALIDATED:
+            group.validated += 1
+        elif activity.situation == calculations.SITUATION_PUBLISHED:
+            group.published += 1
+        if activity.approval == calculations.APPROVAL_PENDING and figure.has_done:
+            group.pending += 1
+        inspector = names.people.get(activity.inspector_id or 0, "")
+        if inspector:
+            group.inspector = inspector
+        group.figures.append(figure)
+        updated = activity.updated_at
+        if group.updated_at is None or updated > group.updated_at:
+            group.updated_at = updated
+
+    lines = [
+        GovernanceLine(
+            company_id=company_id,
+            company=group.company,
+            project_id=group.project_id,
+            project_label=group.project_label,
+            week=group.week,
+            period=weeks.period_label(group.week),
+            total=group.total,
+            draft=group.draft,
+            validated=group.validated,
+            published=group.published,
+            pending=group.pending,
+            inspector=group.inspector,
+            adherence=calculations.schedule_adherence(group.figures),
+            updated_at_text=_moment_text(group.updated_at),
+        )
+        for (company_id, _week), group in groups.items()
+    ]
+    lines.sort(key=lambda line: (weeks.sort_key(line.week), line.company), reverse=True)
+
+    reference_week = default_week(session, caller=caller)
+    windows = _window_views(session, caller=caller, week=reference_week)
+    project_id = caller.scope.project_id
+    return GovernancePanel(
+        lines=lines,
+        situations=_situation_counts(activities, figures),
+        active_companies=len({activity.company_id for activity in activities}),
+        open_windows=sum(1 for window in windows if window.is_open),
+        windows=windows,
+        reference_week=reference_week,
+        reference_period=weeks.period_label(reference_week),
+        is_portfolio=caller.scope.is_portfolio,
+        can_decide=project_id is not None and permissions.can_decide_requests(user, project_id),
+        can_view_trail=permissions.can_view_trail(user, project_id),
+    )
+
+
+def _situation_counts(
+    activities: list[Activity], figures: dict[int, calculations.ActivityFigures]
+) -> SituationCounts:
+    """How many activities of the scope are in each state, with the app's reading of pending."""
+    return SituationCounts(
+        total=len(activities),
+        draft=sum(1 for a in activities if a.situation == calculations.SITUATION_DRAFT),
+        validated=sum(1 for a in activities if a.situation == calculations.SITUATION_VALIDATED),
+        published=sum(1 for a in activities if a.situation == calculations.SITUATION_PUBLISHED),
+        approved=sum(1 for a in activities if a.approval == calculations.APPROVAL_APPROVED),
+        pending=sum(
+            1
+            for a in activities
+            if a.approval == calculations.APPROVAL_PENDING and figures[a.id].has_done
+        ),
+        no_done=sum(1 for a in activities if not figures[a.id].has_done),
+    )
+
+
+def _window_views(session: Session, *, caller: Caller, week: str) -> list[WindowView]:
+    """The windows of the scope, as the panel reads them: open now in the reference week, or not."""
+    rows = repository.windows(
+        session,
+        project_id=caller.scope.project_id,
+        company_id=rbac.company_scope(caller.user),
+    )
+    companies = registers.company_names(session, {row.company_id for row in rows})
+    projects = registers.project_labels(session, {row.project_id for row in rows})
+    now_local = calendario.in_product_timezone(caller.now)
+    views = []
+    for row in rows:
+        window = repository.window_of(session, project_id=row.project_id, company_id=row.company_id)
+        decision = window_rules.decide(week, window, now_local)
+        first = window.days[0] if window and window.days else None
+        views.append(
+            WindowView(
+                company_id=row.company_id,
+                company=companies.get(row.company_id, ""),
+                project_id=row.project_id,
+                project_label=projects.get(row.project_id, ""),
+                is_open=decision.is_open,
+                reason=decision.reason,
+                released_count=len(window.weeks) if window else 0,
+                weekday_label=window_rules.WEEKDAY_NAMES.get(first.weekday, "") if first else "",
+                opens=window_rules.hours_text(first.opens) if first else "",
+                closes=window_rules.hours_text(first.closes) if first else "",
+                extras=len(window.extras) if window else 0,
+            )
+        )
+    return views
+
+
+def request_queue(session: Session, *, caller: Caller) -> RequestQueue:
+    """The change requests of the scope, split between what waits and what was decided."""
+    user = caller.user
+    rows = repository.change_requests(
+        session, project_id=caller.scope.project_id, company_id=rbac.company_scope(user)
+    )
+    views = _request_views(session, rows)
+    pending = [view for view in views if view.situation == REQUEST_PENDING]
+    resolved = [view for view in views if view.situation != REQUEST_PENDING][
+        :REQUEST_RESOLVED_LIMIT
+    ]
+    project_id = caller.scope.project_id
+    return RequestQueue(
+        pending=pending,
+        resolved=resolved,
+        total_pending=len(pending),
+        can_decide=project_id is not None and permissions.can_decide_requests(user, project_id),
+        is_portfolio=caller.scope.is_portfolio,
+    )
+
+
+def open_request(session: Session, *, caller: Caller, activity_id: int) -> ActivityView:
+    """The activity of a change request, ensured to be out of the editing path."""
+    caller.scope.require_project()
+    view = get_activity(session, caller=caller, activity_id=activity_id)
+    if not _closed_for_editing(view.situation, view.approval):
+        raise InvalidDataError(REQUEST_EDITABLE)
+    return view
+
+
+def request_change(
+    session: Session, *, caller: Caller, activity_id: int, reason: str
+) -> ChangeRequest:
+    """Put a change request in the queue: any profile that sees the item may open one.
+
+    The reason is required, as the app demands it; the item has to be closed for
+    editing (published or with the done approved), which is where the app offers it.
+    """
+    text = (reason or "").strip()
+    if len(text) < REQUEST_MIN_REASON:
+        raise InvalidDataError({"motivo": REQUEST_REASON_REQUIRED})
+
+    caller.scope.require_project()
+    activity = _activity_of(session, caller=caller, activity_id=activity_id)
+    if not _closed_for_editing(activity.situation, activity.approval):
+        raise InvalidDataError(REQUEST_EDITABLE)
+
+    request = ChangeRequest(
+        activity_id=activity.id,
+        requested_by_id=caller.user.person_id,
+        decided_by_id=None,
+        reason=text,
+        situation=REQUEST_PENDING,
+        requested_at=caller.now,
+        decided_at=None,
+        answer=None,
+    )
+    session.add(request)
+    session.flush()
+    audit.append(
+        session,
+        audit.TrailLine(
+            user_id=caller.user.id,
+            entity=ChangeRequest.__tablename__,
+            record_id=request.id,
+            action=audit.CREATED,
+            before=None,
+            after=audit.snapshot(request),
+            project_id=activity.project_id,
+            occurred_at=caller.now,
+        ),
+    )
+    return request
+
+
+def decide_request(
+    session: Session,
+    *,
+    caller: Caller,
+    request_id: int,
+    form: DecisionForm,
+) -> ChangeRequestView:
+    """Apply or refuse a change request; applying reopens the activity.
+
+    Only the planner (or the Admin) decides. A refusal demands an answer, as the app
+    demands it. Applying has one concrete effect beyond the record: an approved done
+    work goes back to pending, so the item is once again free to change; the decision
+    becomes a comment on the activity, and both rows leave the trail with before and
+    after.
+    """
+    user = caller.user
+    project_id = caller.scope.require_project()
+    if not permissions.can_decide_requests(user, project_id):
+        raise AccessDeniedError(permissions.DECIDE_DENIED)
+    request = _request_of(session, caller=caller, request_id=request_id)
+    if request.situation != REQUEST_PENDING:
+        raise InvalidDataError(REQUEST_ALREADY_DECIDED)
+    if not form.apply and len(form.answer) < REQUEST_MIN_ANSWER:
+        raise InvalidDataError({"resposta": REQUEST_ANSWER_REQUIRED})
+
+    before = audit.snapshot(request)
+    versioning.require(session, request, form.version)
+    request.situation = REQUEST_APPLIED if form.apply else REQUEST_REJECTED
+    request.decided_by_id = user.person_id
+    request.decided_at = caller.now
+    request.answer = form.answer or None
+    versioning.advance(request)
+    session.flush()
+    activity = session.get(Activity, request.activity_id)
+    if activity is not None:
+        audit.append(
+            session,
+            audit.TrailLine(
+                user_id=user.id,
+                entity=ChangeRequest.__tablename__,
+                record_id=request.id,
+                action=audit.UPDATED,
+                before=before,
+                after=audit.snapshot(request),
+                project_id=activity.project_id,
+                occurred_at=caller.now,
+            ),
+        )
+        _answer_activity(session, user=user, request=request, activity=activity, at=caller.now)
+    return _request_views(session, [request])[0]
+
+
+def governance_trail(
+    session: Session, *, caller: Caller, limit: int = TRAIL_LIMIT
+) -> list[GovernanceTrailEvent]:
+    """The audit trail of the schedule, newest first, worded for the screen.
+
+    It is the platform's single trail (``core.audit``) filtered to the module's
+    entities: the activity, the change request, the window and the configuration.
+    The day lines stay out, as in the history of one activity.
+    """
+    if not permissions.can_view_trail(caller.user, caller.scope.project_id):
+        raise AccessDeniedError(permissions.TRAIL_DENIED)
+    entries = repository.trail_of_module(
+        session,
+        project_id=caller.scope.project_id,
+        entities=TRAIL_ENTITIES,
+        limit=limit,
+    )
+    companies = _trail_companies(session, entries)
+    return [
+        GovernanceTrailEvent(
+            label=_governance_label(entry),
+            summary=_governance_summary(entry, companies),
+            actor=audit.author_name(session, entry.user_id) or presentation.DASH,
+            when=calendario.in_product_timezone(entry.occurred_at).strftime("%d/%m/%Y %H:%M"),
+        )
+        for entry in entries
+    ]
+
+
+def _answer_activity(
+    session: Session,
+    *,
+    user: User,
+    request: ChangeRequest,
+    activity: Activity,
+    at: datetime,
+) -> None:
+    """Write the decision on the activity: the comment, the reopened approval and the trail."""
+    applied = request.situation == REQUEST_APPLIED
+    verdict = "liberado para alteração" if applied else "recusado"
+    text = f"Pedido de alteração {verdict}: {request.reason}"
+    if request.answer:
+        text += f" — {request.answer}"
+    changes: dict[str, Any] = {
+        "timenow_comments": _append_comment(activity, text, user, at),
+        "updated_by_id": user.person_id,
+        "updated_at": at,
+    }
+    if applied and activity.approval == calculations.APPROVAL_APPROVED:
+        changes["approval"] = calculations.APPROVAL_PENDING
+    recording.update(
+        session,
+        user_id=user.id,
+        record=activity,
+        changes=changes,
+        version=str(activity.version),
+    )
+
+
 # ── Internals ────────────────────────────────────────────────────────────
 
 
@@ -1166,15 +1566,19 @@ def _change_done_days(
         )
 
 
-def _figures_of(session: Session, activity: Activity) -> calculations.ActivityFigures:
-    """The figures of an activity as it is stored, both shifts."""
-    days = _days_of(session, activity.id)
+def _figures_for(days: list[ActivityDay], headline: float) -> calculations.ActivityFigures:
+    """The figures of an activity from its day rows and its weekly headline."""
     return calculations.figures_of(
         [day.planned for day in days],
         [day.done_day_shift for day in days],
         [day.done_night_shift for day in days],
-        headline=activity.planned_headline,
+        headline=headline,
     )
+
+
+def _figures_of(session: Session, activity: Activity) -> calculations.ActivityFigures:
+    """The figures of an activity as it is stored, both shifts."""
+    return _figures_for(_days_of(session, activity.id), activity.planned_headline)
 
 
 def _submitted_figures(
@@ -1249,10 +1653,146 @@ def _trail_label(entry: AuditEntry) -> str:
         ("responsavel_id", {}, "Fiscal definido"),
         ("observacoes_fornecedor", {}, "Realizado lançado"),
     )
-    for field, labels, fallback in transitions:
-        if before.get(field) != after.get(field):
-            return labels.get(after.get(field), fallback)
+    for field_name, labels, fallback in transitions:
+        if before.get(field_name) != after.get(field_name):
+            return labels.get(after.get(field_name), fallback)
+    if before.get("comentarios_timenow") != after.get("comentarios_timenow"):
+        return _comment_label(after.get("comentarios_timenow"))
     return "Atividade alterada"
+
+
+def _comment_label(comment: str | None) -> str:
+    """The meaning of an appended comment: the change request decision or a plain note."""
+    new_line = (comment or "").rsplit("\n", 1)[-1]
+    if "Pedido de alteração liberado" in new_line:
+        return "Pedido de alteração aplicado"
+    if "Pedido de alteração recusado" in new_line:
+        return "Pedido de alteração recusado"
+    return "Comentário registrado"
+
+
+def _moment_text(moment: datetime | None) -> str:
+    """An instant as the screens print it; empty for none."""
+    if moment is None:
+        return ""
+    return calendario.in_product_timezone(moment).strftime("%d/%m/%Y %H:%M")
+
+
+def _request_of(session: Session, *, caller: Caller, request_id: int) -> ChangeRequest:
+    """The change request of the scope, with the company cut of the supplier (D7)."""
+    request = repository.find_change_request(session, request_id)
+    if request is None:
+        raise InvalidDataError(REQUEST_NOT_FOUND_MESSAGE)
+    activity = session.get(Activity, request.activity_id)
+    project_id = caller.scope.project_id
+    if activity is None or (project_id is not None and activity.project_id != project_id):
+        raise InvalidDataError(REQUEST_NOT_FOUND_MESSAGE)
+    rbac.require_company(caller.user, activity.company_id)
+    return request
+
+
+def _request_views(session: Session, requests: list[ChangeRequest]) -> list[ChangeRequestView]:
+    """The requests with their activity and the names of who asked and decided."""
+    if not requests:
+        return []
+    activities = {
+        activity.id: activity
+        for activity in repository.activities_by_ids(
+            session, [request.activity_id for request in requests]
+        )
+    }
+    companies = registers.company_names(
+        session, {activity.company_id for activity in activities.values()}
+    )
+    projects = registers.project_labels(
+        session, {activity.project_id for activity in activities.values()}
+    )
+    people = registers.person_names(
+        session,
+        {
+            person_id
+            for request in requests
+            for person_id in (request.requested_by_id, request.decided_by_id)
+            if person_id is not None
+        },
+    )
+    views = []
+    for request in requests:
+        activity = activities.get(request.activity_id)
+        if activity is None:
+            continue
+        views.append(
+            ChangeRequestView(
+                id=request.id,
+                version=request.version,
+                activity_id=activity.id,
+                unique_id=activity.unique_id,
+                description=activity.description,
+                company_id=activity.company_id,
+                company=companies.get(activity.company_id, ""),
+                week=activity.week,
+                project_id=activity.project_id,
+                project_label=projects.get(activity.project_id, ""),
+                reason=request.reason,
+                situation=request.situation,
+                requested_by=people.get(request.requested_by_id, ""),
+                requested_at_text=_moment_text(request.requested_at),
+                decided_by=people.get(request.decided_by_id or 0, ""),
+                decided_at_text=_moment_text(request.decided_at),
+                answer=request.answer or "",
+            )
+        )
+    return views
+
+
+def _trail_companies(session: Session, entries: list[AuditEntry]) -> dict[int, str]:
+    """The company names a trail line may name, for the lines of a window."""
+    ids = set()
+    for entry in entries:
+        for side in (entry.before, entry.after):
+            if side and side.get("empresa_id") is not None:
+                ids.add(int(side["empresa_id"]))
+    return registers.company_names(session, ids)
+
+
+def _governance_label(entry: AuditEntry) -> str:
+    """What a line of the module's trail means, read from the entity and the transition."""
+    action = entry.action
+    if entry.entity == ChangeRequest.__tablename__:
+        if action == audit.CREATED:
+            return "Pedido de alteração aberto"
+        situation = (entry.after or {}).get("situacao")
+        return {
+            REQUEST_APPLIED: "Pedido de alteração aplicado",
+            REQUEST_REJECTED: "Pedido de alteração recusado",
+        }.get(situation, "Pedido de alteração alterado")
+    if entry.entity == Activity.__tablename__:
+        return _trail_label(entry)
+    if entry.entity == ScheduleWindow.__tablename__:
+        return {
+            audit.CREATED: "Janela de programação criada",
+            audit.DELETED: "Janela de programação excluída",
+        }.get(action, "Janela alterada")
+    return {
+        audit.CREATED: "Configuração da programação gravada",
+    }.get(action, "Configuração da programação alterada")
+
+
+def _governance_summary(entry: AuditEntry, companies: dict[int, str]) -> str:
+    """The line under the label: the item, the week, the reason or the company of a window."""
+    after, before = entry.after or {}, entry.before or {}
+    if entry.entity == ChangeRequest.__tablename__:
+        text = after.get("motivo") or before.get("motivo") or ""
+        answer = after.get("resposta")
+        return f"{text} — resposta: {answer}" if answer else text
+    if entry.entity == Activity.__tablename__:
+        unique_id = after.get("id_exclusiva") or before.get("id_exclusiva") or ""
+        week = after.get("semana") or before.get("semana") or ""
+        return " · ".join(part for part in (unique_id, week) if part)
+    if entry.entity == ScheduleWindow.__tablename__:
+        company_id = after.get("empresa_id") or before.get("empresa_id")
+        return companies.get(int(company_id), "") if company_id is not None else ""
+    return ""
 
 
 def _offers(options: list[Option], chosen: int) -> bool:
@@ -1368,6 +1908,18 @@ def _view(
         can_report=editable and permissions.can_report(user, project_id),
         can_approve=editable and permissions.can_approve(user, project_id),
         can_publish=editable and permissions.can_publish(user, project_id),
+        can_request_change=editable and _closed_for_editing(activity.situation, activity.approval),
+    )
+
+
+def _closed_for_editing(situation: str, approval: str) -> bool:
+    """Whether the item is out of the editing path: published or with the done approved.
+
+    It is exactly where the app offers the change request, and the same condition the
+    facade demands before writing one.
+    """
+    return (
+        situation == calculations.SITUATION_PUBLISHED or approval == calculations.APPROVAL_APPROVED
     )
 
 

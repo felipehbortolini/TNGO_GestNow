@@ -175,7 +175,11 @@ max-complexity = 10
 # resposta de um painel do fluxo da Programação Semanal (ISSUE-052) que as rotas
 # chamam. A regra existe para argumento posicional, onde a ordem se erra na chamada;
 # reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
-"src/modulos/programacao_semanal/routes.py" = ["PLR0913"]
+# O ARG001 é o `req` de `governance_excel`: o modelo V2 do Azure Functions exige o
+# parâmetro na assinatura de todo handler, e o `file_route` já apresentou a assinatura
+# `(req)` ao worker — a função interna não lê a requisição num download (ISSUE-053).
+# O mesmo falso positivo estrutural que o ARG001 dos blueprints registra.
+"src/modulos/programacao_semanal/routes.py" = ["PLR0913", "ARG001"]
 
 # `_modal_answer` e `_item_form_error` têm 8 parâmetros, e é assim de propósito: depois do `*`
 # são todos KEYWORD-ONLY (modal_template, filtro, valores, status_code, toast; e item_id, form,
@@ -197,7 +201,10 @@ max-complexity = 10
 # assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste informa só o que
 # importa para o caso. A regra existe para argumento posicional, onde a ordem se erra na
 # chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+# Os mesmos helpers de montagem e as decisões dos pedidos (ISSUE-053) valem para os testes
+# da governança: cada caso informa só o estado que importa, tudo KEYWORD-ONLY depois do `*`.
 "tests/programacao_semanal/test_programacao_fluxo.py" = ["PLR0913"]
+"tests/programacao_semanal/test_programacao_governanca*.py" = ["PLR0913"]
 
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
