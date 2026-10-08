@@ -339,3 +339,34 @@ def form_paralisacao(cenario: Cenario, **overrides: str) -> validation.StoppageF
     campos = campos_da_paralisacao(cenario)
     campos.update(overrides)
     return validation.StoppageForm(fields=campos)
+
+
+# ── KPIs de performance: o plano de ação (ISSUE-048) ───────────────────────
+
+
+def campos_do_plano(
+    cenario: Cenario,
+    *,
+    empresa: int | None = None,
+    assunto: str = "Recuperar a produtividade da empresa (S39)",
+    responsavel: int | None = None,
+    prevista: str = "2026-10-09",
+    descricao: str = "Aderência e fator de produtividade fora da faixa na janela de avaliação.",
+) -> dict[str, str]:
+    """Os campos do formulário do plano de ação, como a tela os envia."""
+    return {
+        validation.FIELD_PLAN_COMPANY: str(cenario.empresa.id if empresa is None else empresa),
+        validation.FIELD_PLAN_SUBJECT: assunto,
+        validation.FIELD_PLAN_DESCRIPTION: descricao,
+        validation.FIELD_PLAN_RESPONSIBLE: str(
+            cenario.gestor.person_id if responsavel is None else responsavel
+        ),
+        validation.FIELD_PLAN_DATE: prevista,
+    }
+
+
+def form_plano(cenario: Cenario, **overrides: str) -> validation.ActionPlanForm:
+    """O formulário do plano de ação com os campos padrão do cenário."""
+    campos = campos_do_plano(cenario)
+    campos.update(overrides)
+    return validation.ActionPlanForm(fields=campos)

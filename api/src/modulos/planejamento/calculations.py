@@ -50,6 +50,15 @@ Pareto of the reasons (descending order with the accumulated) and the stoppage
 figures (crew hours and machine hours). The window of the period and the bands
 of the indicators come in as arguments; the catalogs of the reasons are the ones
 of the prototype, read here by the server, never by the screen (D6).
+
+The performance KPIs (ISSUE-048): the aggregate trend of the schedule (the
+earned schedule index of a set of items, SPI(t), and the slip in weeks), the
+weekly trend of a company (factor of productivity, adherence, percentage
+working and capacity), the share of the stoppages over the available man-hours,
+the bands of the five indicators per company and the reference of the action of
+the Central (``PRD-2026-S39-01``). The cut and the reference date come in as
+arguments (D6); the chart payload hands the raw pair of each week, never the
+ready percentage (D11).
 """
 
 from __future__ import annotations
@@ -2490,3 +2499,263 @@ def hours_window(
         first = shift_week(calendario.iso_week(monday), -(window_weeks - 1))
         monday = calendario.week_start(first) if first is not None else monday
     return monday, end
+
+
+# ── KPIs de performance da Produtividade (ISSUE-048) ───────────────────────
+
+
+# A janela da tendência semanal por empresa, como no protótipo: 12 semanas até o corte.
+TREND_WEEKS = 12
+
+
+PERFORMANCE_ORIGIN = "Produtividade"
+
+
+PERFORMANCE_ACTION_PREFIX = "PRD"
+
+
+_ACTION_REFERENCE = re.compile(r"^PRD-(\d{4}-S\d{2})-(\d+)$")
+
+
+# Os indicadores que podem pôr a empresa em alerta ou em atenção, na ordem do protótipo.
+PERFORMANCE_BAND_KEYS = ("adherence", "pf", "spi", "working", "utilization")
+
+
+@dataclass(frozen=True)
+class PlannedHours:
+    """O previsto da linha de base numa semana, em horas ganhas (quantidade x índice orçado)."""
+
+    week: str
+    hours: Decimal
+
+
+@dataclass(frozen=True)
+class ScheduleTrend:
+    """A tendência de término pelo prazo agregado (earned schedule) de um conjunto de itens."""
+
+    equivalent_weeks: Decimal
+    elapsed_weeks: int
+    spi_t: Decimal | None
+    trend_week: str | None
+    slip_weeks: int | None
+
+
+def schedule_trend(
+    planned: Sequence[PlannedHours], earned_hours: Decimal, *, cut_week: str
+) -> ScheduleTrend:
+    """As semanas da LB equivalentes ao realizado sobre as decorridas: o SPI(t) agregado.
+
+    ``planned`` é o previsto da linha de base somado por semana, em horas ganhas; o ES é
+    interpolado na semana em que o acumulado alcança o realizado. Sem realizado não há
+    índice; o atraso em semanas compara o término projetado com o fim da linha de base.
+    """
+    if not planned or earned_hours <= ZERO:
+        return ScheduleTrend(
+            equivalent_weeks=ZERO, elapsed_weeks=0, spi_t=None, trend_week=None, slip_weeks=None
+        )
+    elapsed = weeks_between(planned[0].week, cut_week)
+    if elapsed is None:
+        return ScheduleTrend(
+            equivalent_weeks=ZERO, elapsed_weeks=0, spi_t=None, trend_week=None, slip_weeks=None
+        )
+    elapsed += 1
+    equivalent = _equivalent_hours(planned, earned_hours)
+    spi_t = round_percent(equivalent / Decimal(elapsed), 2)
+    if spi_t <= ZERO:
+        return ScheduleTrend(
+            equivalent_weeks=equivalent,
+            elapsed_weeks=elapsed,
+            spi_t=None,
+            trend_week=None,
+            slip_weeks=None,
+        )
+    duration = Decimal(len(planned))
+    projected = max(elapsed, ceil(duration / spi_t))
+    trend = shift_week(planned[0].week, projected - 1)
+    slip = None if trend is None else weeks_between(planned[-1].week, trend)
+    return ScheduleTrend(
+        equivalent_weeks=equivalent,
+        elapsed_weeks=elapsed,
+        spi_t=spi_t,
+        trend_week=trend,
+        slip_weeks=slip,
+    )
+
+
+def _equivalent_hours(planned: Sequence[PlannedHours], earned_hours: Decimal) -> Decimal:
+    """As semanas da LB necessárias para chegar ao realizado acumulado (earned schedule)."""
+    acum = ZERO
+    equivalent = ZERO
+    for index, line in enumerate(planned):
+        if acum + line.hours >= earned_hours:
+            fraction = (earned_hours - acum) / line.hours if line.hours > ZERO else ZERO
+            return Decimal(index) + fraction
+        acum += line.hours
+        equivalent = Decimal(index + 1)
+    return equivalent
+
+
+def stoppage_share(crew_hours: Decimal, available_hh: Decimal) -> Decimal | None:
+    """As HH paradas como percentual das HH disponíveis, com 2 casas; sem disponível, nada."""
+    if available_hh <= ZERO:
+        return None
+    return round_percent(crew_hours / available_hh * PERCENT, 2)
+
+
+def performance_action_reference(company_id: int, cut_week: str) -> str:
+    """A referência da ação da empresa na semana: ``PRD-2026-S39-01`` (semana e empresa)."""
+    return f"{PERFORMANCE_ACTION_PREFIX}-{cut_week}-{company_id:02d}"
+
+
+def performance_action_parts(reference: str) -> tuple[str, int] | None:
+    """A semana e a empresa de uma referência ``PRD-2026-S39-01``; ``None`` fora do formato."""
+    found = _ACTION_REFERENCE.fullmatch(reference.strip())
+    if found is None:
+        return None
+    return found[1], int(found[2])
+
+
+@dataclass(frozen=True)
+class PerformanceBands:
+    """As faixas (success, warning ou danger) dos cinco indicadores de um bloco."""
+
+    adherence: str | None = None
+    pf: str | None = None
+    spi: str | None = None
+    working: str | None = None
+    utilization: str | None = None
+
+
+def performance_alerts(bands: PerformanceBands) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Os indicadores em alerta (danger) e em atenção (warning), na ordem do protótipo."""
+    alerts = tuple(key for key in PERFORMANCE_BAND_KEYS if getattr(bands, key) == DANGER_BAND)
+    attentions = tuple(key for key in PERFORMANCE_BAND_KEYS if getattr(bands, key) == WARNING_BAND)
+    return alerts, attentions
+
+
+@dataclass(frozen=True)
+class TrendInput:
+    """Os fatos de uma semana de uma empresa: o apontamento das quantidades e o campo."""
+
+    appropriated: Decimal
+    earned: Decimal
+    planned: Decimal
+    capped: Decimal
+    working: int
+    transit: int
+    stopped: int
+    capacities: tuple[Decimal, ...]
+
+
+@dataclass(frozen=True)
+class TrendWeek:
+    """Uma semana da tendência por empresa: FP, aderência, % trabalhando e CP.
+
+    ``adherence_ratio`` e ``working_ratio`` levam o numerador e o denominador crus da
+    semana: o gráfico da biblioteca resume o período pelo par, nunca pelo percentual pronto.
+    """
+
+    week: str
+    pf: Decimal | None
+    adherence: Decimal | None
+    working_pct: Decimal | None
+    capacity: Decimal | None
+    adherence_ratio: tuple[Decimal, Decimal] | None
+    working_ratio: tuple[Decimal, Decimal] | None
+
+
+def weekly_trend(weeks: Sequence[str], inputs: Mapping[str, TrendInput]) -> tuple[TrendWeek, ...]:
+    """A tendência semanal por empresa: uma linha por semana, sem dado a semana sai vazia."""
+    rows: list[TrendWeek] = []
+    for week in weeks:
+        data = inputs.get(week)
+        if data is None:
+            rows.append(
+                TrendWeek(
+                    week=week,
+                    pf=None,
+                    adherence=None,
+                    working_pct=None,
+                    capacity=None,
+                    adherence_ratio=None,
+                    working_ratio=None,
+                )
+            )
+            continue
+        rows.append(_trend_week(week, data))
+    return tuple(rows)
+
+
+def _trend_week(week: str, data: TrendInput) -> TrendWeek:
+    people = data.working + data.transit + data.stopped
+    return TrendWeek(
+        week=week,
+        pf=round_percent(data.appropriated / data.earned, 2) if data.earned > ZERO else None,
+        adherence=_ratio(data.capped, data.planned),
+        working_pct=(
+            round_percent(Decimal(data.working) / Decimal(people) * PERCENT, 2)
+            if people > 0
+            else None
+        ),
+        capacity=_rounded_average(data.capacities, 2),
+        adherence_ratio=(data.capped, data.planned) if data.planned > ZERO else None,
+        working_ratio=(Decimal(data.working), Decimal(people)) if people > 0 else None,
+    )
+
+
+@dataclass(frozen=True)
+class TrendSeries:
+    """Uma empresa no gráfico da tendência: o rótulo e o par (num, den) de cada semana."""
+
+    label: str
+    ratios: tuple[tuple[Decimal, Decimal] | None, ...]
+
+
+def ratio_chart(
+    title: str,
+    *,
+    weeks: Sequence[str],
+    series: Sequence[TrendSeries],
+    target: Decimal,
+    target_label: str,
+) -> dict[str, Any]:
+    """O ``data-dados`` do gráfico semanal de uma taxa (D11), com a meta em tracejado."""
+    identifiers = [f"serie-{index + 1}" for index in range(len(series))]
+    chart_series: list[dict[str, Any]] = [
+        {"id": identifier, "rotulo": item.label}
+        for identifier, item in zip(identifiers, series, strict=True)
+    ]
+    chart_series.append({"id": "meta", "rotulo": target_label, "papel": "linha-base"})
+    periods: list[dict[str, Any]] = []
+    for index, week in enumerate(weeks):
+        day = week_start(week)
+        if day is None:
+            continue
+        values: dict[str, Any] = {}
+        for identifier, item in zip(identifiers, series, strict=True):
+            ratio = item.ratios[index]
+            values[identifier] = (
+                None
+                if ratio is None
+                else {"num": _chart_number(ratio[0]), "den": _chart_number(ratio[1])}
+            )
+        values["meta"] = {"num": _chart_number(target), "den": 100.0}
+        periods.append(
+            {
+                "ano": day.year,
+                "mes": day.month,
+                "semana": day.isocalendar()[1],
+                "valores": values,
+            }
+        )
+    return {
+        "titulo": title,
+        "modo": "periodo",
+        "formato": "pct",
+        "unidade": "%",
+        "casas": 1,
+        "casas_dica": 1,
+        "eixo_max": 100,
+        "series": chart_series,
+        "periodos": periods,
+    }
