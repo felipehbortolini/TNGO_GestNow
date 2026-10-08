@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--financeiro-desembolso"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando' }"
   x-init="TN.paginas['financeiro/desembolso'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -7,19 +7,49 @@
         <h1 class="h-dash">Cronograma de desembolso</h1>
         <p class="page-head__sub">Saldo a pagar distribuído por mês, previsto e realizado, para alinhar com a tesouraria.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--secondary" data-desembolso-enviar>
+          <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+          Enviar à tesouraria
+        </button>
+        <button type="button" class="btn btn--ghost" data-tn-excel="/api/financeiro/desembolso/excel">
+          <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+          Excel
+        </button>
+        <button type="button" class="btn btn--ghost" data-tn-pdf="/api/financeiro/desembolso/imprimivel">
+          <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+          PDF
+        </button>
+      </div>
     </div>
 
-    <div class="card">
+    <form class="toolbar" method="get" action="/api/financeiro/desembolso" role="search"
+      x-target="desembolso-conteudo"
+      x-init="$ajax('/api/financeiro/desembolso', { target: 'desembolso-conteudo' })"
+      @change="$el.requestSubmit()" @submit="estado = 'carregando'">
+      <div class="field desembolso-nivel">
+        <label for="desembolso-nivel">Mostrar até</label>
+        <select class="input" id="desembolso-nivel" name="nivel">
+          <option value="1">Mostrar pacotes</option>
+          <option value="2" selected>Mostrar subpacotes</option>
+          <option value="3">Mostrar itens</option>
+        </select>
+      </div>
+    </form>
+
+    <div id="desembolso-conteudo" x-show="estado === 'conteudo'"></div>
+
+    <div class="card" x-show="estado !== 'conteudo'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p>Carregando o cronograma de desembolso...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há dados aqui</h2>
-          <p>Assim que os registros desta tela forem lançados, eles aparecem aqui.</p>
+          <h2 class="h-card4">Ainda não há cronograma de desembolso neste escopo</h2>
+          <p>Assim que a curva financeira do projeto for congelada e o ERP trouxer o realizado, o cronograma aparece aqui.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
