@@ -1,17 +1,21 @@
 /* ============================================================
    produtividade.css — Estilo da tela Produtividade (planejamento/produtividade)
 
-   Plano de quantidades da linha de base, apontamento semanal e indicadores por empresa.
+   Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.
 
    Escopo: tudo que morar aqui começa por .pagina--planejamento-produtividade, a classe da raiz
-   da view. Os modais (ficha, formulário, revisão e apontamento) moram fora da raiz, mas o
-   fragmento que o servidor devolve para eles traz a mesma classe na sua raiz. Só tokens do
-   Design System: nenhum valor de cor, espaçamento, raio ou sombra escrito direto. O que se
-   repetir em três telas sobe para ds/patterns.css.
+   da view. Os modais (ficha, formulário, revisão, apontamento e os registros do campo) moram
+   fora da raiz, mas o fragmento que o servidor devolve para eles traz a mesma classe na sua
+   raiz. Só tokens do Design System: nenhum valor de cor, espaçamento, raio ou sombra escrito
+   direto. O que se repetir em três telas sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--planejamento-produtividade [x-cloak] {
+  display: none;
+}
 
 /* ---------- Filtros globais e botões da aba ---------- */
 .pagina--planejamento-produtividade .produtividade__filtros {
@@ -224,6 +228,83 @@
 .pagina--planejamento-produtividade .produtividade__salvo {
   padding: var(--space-lg) 0;
   color: var(--text-primary);
+}
+
+/* ---------- Aba Horas efetivas ---------- */
+.pagina--planejamento-produtividade .produtividade__barra {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin: var(--space-lg) 0 var(--space-lg);
+}
+
+.pagina--planejamento-produtividade .produtividade__barra .produtividade__contexto {
+  flex: 1;
+  min-width: 280px;
+  margin: 0;
+}
+
+.pagina--planejamento-produtividade .produtividade__visao {
+  margin-top: var(--space-lg);
+}
+
+.pagina--planejamento-produtividade .produtividade__jornada,
+.pagina--planejamento-produtividade .produtividade__lista {
+  margin-top: var(--space-lg);
+}
+
+.pagina--planejamento-produtividade .produtividade__lista .tbl-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.pagina--planejamento-produtividade .produtividade__horarios {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagina--planejamento-produtividade .produtividade__grafico--pareto {
+  min-height: 460px;
+}
+
+.pagina--planejamento-produtividade .produtividade__motivos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--planejamento-produtividade .produtividade__motivos li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--borda);
+}
+
+.pagina--planejamento-produtividade .produtividade__motivos li:last-child {
+  border-bottom: none;
+}
+
+.pagina--planejamento-produtividade .produtividade__motivo {
+  color: var(--text-primary);
+}
+
+.pagina--planejamento-produtividade .produtividade__motivo-valor {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pagina--planejamento-produtividade .produtividade__linha--nivel-1 td {
+  background: var(--frio-50);
+}
+
+.pagina--planejamento-produtividade .produtividade__nivel-2 {
+  padding-left: var(--space-xl);
+  color: var(--text-secondary);
 }
 
 /* ---------- Telas estreitas ---------- */

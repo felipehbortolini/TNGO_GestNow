@@ -1,49 +1,62 @@
 <main id="app-shell" class="content pagina--planejamento-produtividade"
-  x-data="{ estado: 'carregando' }"
+  x-data="{ estado: 'carregando', aba: 'quantidades' }"
   x-init="TN.paginas['planejamento/produtividade'].iniciar($el)">
   <div class="page">
     <div class="page-head">
       <div>
         <h1 class="h-dash">Produtividade</h1>
-        <p class="page-head__sub">Plano de quantidades da linha de base, apontamento semanal e indicadores por empresa.</p>
-      </div>
-      <div class="page-head__actions">
-        <button type="button" class="btn btn--secondary" id="produtividade-excel"
-          data-tn-excel="/api/planejamento/produtividade/excel">Excel</button>
-        <button type="button" class="btn btn--secondary" id="produtividade-pdf"
-          data-tn-pdf="/api/planejamento/produtividade/imprimivel">PDF</button>
+        <p class="page-head__sub">Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.</p>
       </div>
     </div>
 
     <span hidden data-produtividade-carga
-      x-init="$ajax('/api/planejamento/produtividade', { target: 'produtividade-filtros produtividade-conteudo' })"></span>
+      x-init="$ajax('/api/planejamento/produtividade', { target: 'produtividade-filtros produtividade-conteudo produtividade-horas' })"></span>
 
-    <div id="produtividade-filtros"></div>
+    <div x-show="estado === 'conteudo' || estado === 'vazio-filtro' || estado === 'vazio-origem'">
+      <div class="tabs" role="tablist" aria-label="Visões da produtividade">
+        <button type="button" class="tab" role="tab" id="prod-aba-quantidades" aria-controls="prod-painel-quantidades"
+          :class="{ 'is-active': aba === 'quantidades' }" :aria-selected="aba === 'quantidades'"
+          @click="aba = 'quantidades'">Quantidades</button>
+        <button type="button" class="tab" role="tab" id="prod-aba-horas" aria-controls="prod-painel-horas"
+          :class="{ 'is-active': aba === 'horas' }" :aria-selected="aba === 'horas'"
+          @click="aba = 'horas'">Horas efetivas</button>
+      </div>
 
-    <div x-show="estado === 'conteudo' || estado === 'vazio-filtro'">
-      <div id="produtividade-conteudo"></div>
+      <section class="mt-16" role="tabpanel" id="prod-painel-quantidades" aria-labelledby="prod-aba-quantidades" x-show="aba === 'quantidades'">
+        <div id="produtividade-filtros"></div>
 
-      <div class="card" x-show="estado === 'vazio-filtro'">
-        <div class="card__body">
-          <div class="empty" data-estado="vazio-filtro">
-            <h2 class="h-card4">Nenhum item para os filtros aplicados</h2>
-            <p>Ajuste a empresa, o grupo ou a semana de corte para ver o plano de quantidades.</p>
+        <div id="produtividade-conteudo"></div>
+
+        <div class="card" x-show="estado === 'vazio-filtro'">
+          <div class="card__body">
+            <div class="empty" data-estado="vazio-filtro">
+              <h2 class="h-card4">Nenhum item para os filtros aplicados</h2>
+              <p>Ajuste a empresa, o grupo ou a semana de corte para ver o plano de quantidades.</p>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div class="card" x-show="estado === 'vazio-origem'">
+          <div class="card__body">
+            <div class="empty" data-estado="vazio-origem">
+              <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+              <h2 class="h-card4">Nenhum item da linha de base ainda</h2>
+              <p>Crie o primeiro item com o botão Novo item da LB ou importe o plano de quantidades em Excel.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="prod-painel-horas" aria-labelledby="prod-aba-horas" x-show="aba === 'horas'">
+        <div id="produtividade-horas"></div>
+      </section>
     </div>
 
-    <div class="card" x-show="estado === 'vazio-origem' || estado === 'carregando'">
+    <div class="card" x-show="estado === 'carregando'">
       <div class="card__body">
-        <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
+        <div class="empty" data-estado="carregando" role="status">
           <div class="spinner" aria-hidden="true"></div>
           <p>Carregando...</p>
-        </div>
-
-        <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
-          <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhum item da linha de base ainda</h2>
-          <p>Crie o primeiro item com o botão Novo item da LB ou importe o plano de quantidades em Excel.</p>
         </div>
       </div>
     </div>

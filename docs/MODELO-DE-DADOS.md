@@ -1064,10 +1064,10 @@ erDiagram
         bigint id PK
         bigint projeto_id FK
         bigint empresa_id FK
-        bigint encarregado_id FK
         bigint registrado_por_id FK
         date data
         text area
+        text encarregado
         integer efetivo
         time manha_chegada
         time manha_inicio
@@ -1082,11 +1082,11 @@ erDiagram
         bigint id PK
         bigint projeto_id FK
         bigint empresa_id FK
-        bigint encarregado_id FK
         bigint observador_id FK
         date data
         time hora
         text area
+        text encarregado
         integer trabalhando
         integer transito
         integer parado
@@ -2002,7 +2002,7 @@ fachada, não por coluna.
 | `produtividade_revisao` | **Exceção da D5b**: total congelado de cada revisão da LB (revisão, data, total, total anterior, desde, SM, autor e justificativa). Sem `versao`. | planejamento |
 | `produtividade_distribuicao` | **Exceção da D5b**: distribuição semanal da LB dentro da revisão (semana e previsto). UK: revisão + semana. Sem `versao`. | planejamento |
 | `produtividade_apontamento` | Apontamento semanal da contratada (semana, realizado, HH apropriadas e informado em). UK: item + semana. Sem `versao`. | planejamento |
-| `jornada_campo` | Jornada da fiscalização por frente e dia: efetivo e horários de chegada, início e término dos dois turnos. CP, utilização, HH efetivas e HH improdutivas são calculadas. UK: projeto + data + empresa + área. | planejamento |
+| `jornada_campo` | Jornada da fiscalização por frente e dia: efetivo e horários de chegada, início e término dos dois turnos. CP, utilização, HH efetivas e HH improdutivas são calculadas. O `encarregado` é o texto digitado pela fiscalização, como no protótipo (não é cadastro). UK: projeto + data + empresa + área + encarregado. | planejamento |
 | `amostragem` | Rodada da amostragem do trabalho (trabalhando, trânsito e parado) por empresa, área, encarregado e horário. Percentuais e Pareto são calculados. | planejamento |
 | `amostragem_motivo` | Motivo de cada parada ou trânsito da rodada, com quantidade. Sem `versao` própria: entra junto com a rodada. | planejamento |
 | `paralisacao` | Paralisação de efetivo ou de máquina/equipamento (tipo, recurso, quantidade, horários, motivo, responsabilidade e descrição). Hhora e Mhora são calculados. | planejamento |

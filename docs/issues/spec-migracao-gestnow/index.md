@@ -73,7 +73,7 @@ vem primeiro.
 | ISSUE-044 | Relato do período | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-044](./044-relato-do-periodo.md) |
 | ISSUE-045 | 6WLA: atividades por semana, restrições e responsáveis | 5 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-045](./045-6wla.md) |
 | ISSUE-046 | Produtividade: plano de quantidades, ciclo da linha de base e apontamento semanal | 5 | task | done | ready-for-agent | ISSUE-025 | [ISSUE-046](./046-produtividade-quantidades-lb-e-apontamento.md) |
-| ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | 5 | task | proposed | ready-for-agent | ISSUE-046 | [ISSUE-047](./047-produtividade-horas-efetivas-amostragem-e-paralisacoes.md) |
+| ISSUE-047 | Produtividade: horas efetivas, amostragem do trabalho e paralisações | 5 | task | done | ready-for-agent | ISSUE-046 | [ISSUE-047](./047-produtividade-horas-efetivas-amostragem-e-paralisacoes.md) |
 | ISSUE-048 | Produtividade: KPIs de performance e plano de ação na Central | 5 | task | proposed | ready-for-agent | ISSUE-046, ISSUE-047, ISSUE-019 | [ISSUE-048](./048-produtividade-kpis-e-plano-de-acao.md) |
 | ISSUE-049 | Punch list: itens, fluxo com verificação e bloqueio de sistema | 5 | task | proposed | ready-for-agent | ISSUE-019 | [ISSUE-049](./049-punch-list-itens-verificacao-e-bloqueio.md) |
 | ISSUE-050 | Punch list: painel de completação | 5 | task | proposed | ready-for-agent | ISSUE-049 | [ISSUE-050](./050-punch-list-painel.md) |

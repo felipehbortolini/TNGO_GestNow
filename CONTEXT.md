@@ -108,6 +108,31 @@ ganhas; 1,00 corresponde ao índice da proposta.
 **CP** — Capacidade Produtiva: horas produtivas do dia, calculadas a partir
 das execuções dos turnos.
 
+## Horas efetivas e campo
+
+**Jornada de campo** — registro diário da fiscalização por frente (empresa,
+área CWA e encarregado): efetivo e horários de chegada, início e término dos
+dois turnos. Um registro por frente e dia; a CP, a utilização, o atraso de
+início, o almoço, as HH efetivas e as HH improdutivas saem dela.
+
+**Amostragem do trabalho** — rodada de observação instantânea da frente: pessoas
+trabalhando, em trânsito e paradas, com o motivo de cada parada e de cada
+trânsito. Os percentuais e o Pareto dos motivos são calculados; os catálogos de
+motivos vêm do servidor.
+
+**Pareto dos motivos** — motivos de parada em ordem decrescente de pessoas, com
+o percentual de cada um e o acumulado.
+
+**Paralisação** — evento datado de efetivo parado (pessoas × horas = Hhora) ou
+de máquina e equipamento parado (unidades × horas = Mhora), com motivo e
+responsabilidade (Contratada, Cliente, Gerenciadora, Clima ou Terceiros). A
+responsabilidade do cliente, da gerenciadora ou de terceiros é tempo
+potencialmente excusável — base de pleito em Contratos — e o formulário orienta
+notificar no prazo contratual.
+
+**HH efetivas** — CP × efetivo da jornada, em horas-homem. **HH improdutivas** —
+(jornada de referência − CP) × efetivo.
+
 ## Indicadores de custo e HSE
 
 **EV** — Valor Agregado; **PV** — Valor Planejado; **AC** — Custo Real.

@@ -56,6 +56,16 @@
       "significado": "Capacidade Produtiva: horas produtivas do dia, calculadas a partir das execuções dos turnos."
     },
     {
+      "sigla": "HH",
+      "termo": "HH efetivas",
+      "significado": "CP × efetivo da jornada, em horas-homem."
+    },
+    {
+      "sigla": "HH",
+      "termo": "HH improdutivas",
+      "significado": "(jornada de referência − CP) × efetivo."
+    },
+    {
       "sigla": "EV",
       "termo": "EV",
       "significado": "Valor Agregado"

@@ -1,21 +1,24 @@
 /* ============================================================
    produtividade.js — Comportamento da tela Produtividade (planejamento/produtividade)
 
-   Plano de quantidades da linha de base, apontamento semanal e indicadores por empresa.
+   Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.
 
    Registra um único objeto em TN.paginas["planejamento/produtividade"]. A view o aciona por
    x-init com iniciar(raiz), e raiz é o <main> da tela. O estado da tela (carregando,
-   vazio-origem, vazio-filtro, conteudo, erro ou sem-permissao) mora no x-data da view; os
-   filtros, a aba e os modais são fragmentos do servidor, e este arquivo só liga as pontas:
+   vazio-origem, vazio-filtro, conteudo, erro ou sem-permissao) mora no x-data da view; a aba
+   ativa também (Quantidades ou Horas efetivas). Os filtros, as abas de conteúdo e os modais são
+   fragmentos do servidor, e este arquivo só liga as pontas:
 
-     filtros    o formulário pede só o conteúdo; o `data-resultado` que chega decide o estado
-     modais     Novo item, ficha, revisão e apontamento abrem um modal cujo corpo busca o
-                fragmento no servidor
+     filtros    o formulário da aba Quantidades pede só o conteúdo; o da aba Horas pede só a
+                própria aba; o `data-resultado` que chega decide o estado da tela
+     modais     Novo item, ficha, revisão e apontamento (Quantidades) e jornada, amostragem e
+                paralisação (Horas) abrem um modal cujo corpo busca o fragmento no servidor
      gravação   o servidor responde o modal com a marca data-produtividade-salvo: o modal fecha
                 e, quando o conteúdo não veio na mesma resposta, os filtros são refeitos
      exclusão   confirmação do Design System; depois o formulário escondido pede ao servidor
-     exportação os botões Excel e PDF levam o filtro de agora (o que a lista mostra vai)
-     endereço   ?acao=item|apontar|importar vem do mecanismo de inclusão do Portfólio (TN.escopo)
+     exportação os botões Excel e PDF moram em cada aba e levam o filtro de agora
+     endereço   ?acao=item|apontar|importar|jornada|amostragem|paralisacao vem do mecanismo de
+                inclusão do Portfólio (TN.escopo)
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
@@ -29,6 +32,7 @@
   const LARGURA_FORMULARIO = 860;
   const LARGURA_FICHA = 900;
   const LARGURA_APONTAMENTO = 960;
+  const LARGURA_CAMPO = 860;
 
   let modalAberto = null;
   let ouvindo = false;
@@ -43,7 +47,7 @@
     if (raiz) window.Alpine.$data(raiz).estado = estado;
   }
 
-  /* ---------- Filtros, conteúdo e exportação ---------- */
+  /* ---------- Filtros e conteúdo ---------- */
 
   function filtroDeAgora() {
     const formulario = document.getElementById("produtividade-filtro");
@@ -63,14 +67,6 @@
     return texto ? "?" + texto : "";
   }
 
-  function atualizarExportacao() {
-    const sufixo = sufixoDeFiltro();
-    const excel = document.getElementById("produtividade-excel");
-    const pdf = document.getElementById("produtividade-pdf");
-    if (excel) excel.dataset.tnExcel = BASE + "/excel" + sufixo;
-    if (pdf) pdf.dataset.tnPdf = BASE + "/imprimivel" + sufixo;
-  }
-
   function refazerConteudo() {
     const formulario = document.getElementById("produtividade-filtro");
     if (formulario) formulario.requestSubmit();
@@ -80,7 +76,6 @@
     if (detalhe && detalhe.ok) {
       const marca = document.querySelector("#produtividade-conteudo[data-resultado]");
       estadoDaTela(marca ? marca.dataset.resultado : "conteudo");
-      atualizarExportacao();
       return;
     }
     const status = detalhe ? detalhe.status : 0;
@@ -168,6 +163,23 @@
     });
   }
 
+  const TITULOS_CAMPO = {
+    jornada: ["Registrar jornada", "Fiscalização da frente de serviço: horários dos dois turnos e efetivo"],
+    amostragem: ["Registrar observação", "Pessoas trabalhando, em trânsito e paradas no instante da rodada"],
+    paralisacao: ["Registrar paralisação", "Efetivo (Hhora) ou máquina e equipamento (Mhora) parados na frente"]
+  };
+
+  function campo(dados) {
+    fecharModal();
+    const textos = TITULOS_CAMPO[dados.acao] || ["Registro de campo", ""];
+    abrirModal({
+      titulo: textos[0],
+      subtitulo: textos[1],
+      largura: LARGURA_CAMPO,
+      endereco: dados.endereco
+    });
+  }
+
   /* ---------- Aprovação, exclusão e resposta ---------- */
 
   function aprovar(dados) {
@@ -216,8 +228,16 @@
   };
 
   function aoClicar(evento) {
+    if (!raizDaTela()) return;
+    const campoBotao = evento.target.closest("[data-horas-acao]");
+    if (campoBotao) {
+      evento.preventDefault();
+      if (campoBotao.dataset.horasAcao === "fechar") { fecharModal(); return; }
+      campo({ acao: campoBotao.dataset.horasAcao, endereco: campoBotao.dataset.horasEndereco });
+      return;
+    }
     const botao = evento.target.closest("[data-prod-acao]");
-    if (!botao || !raizDaTela()) return;
+    if (!botao) return;
     const acao = ACOES[botao.dataset.prodAcao];
     if (!acao) return;
     evento.preventDefault();
@@ -264,7 +284,6 @@
       window.Alpine.$data(raiz).estado = "carregando";
       acaoPendente = window.TN.escopo.acaoPendente();
       ouvir();
-      atualizarExportacao();
     }
   };
 })();
