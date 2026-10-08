@@ -1006,6 +1006,109 @@ def test_oraculo_da_punch_list_com_a_data_deslocada(db_session: Session) -> None
     assert {item.project_code for item in carteira.rows} == {"TN-2026-014", "TN-2026-021"}
 
 
+def test_oraculo_do_painel_da_punch_list(db_session: Session) -> None:
+    """O oráculo da ISSUE-050: o aging, as contagens, a liberação por marco e o burndown.
+
+    No projeto 1, na âncora: 3 itens abertos na faixa até 7 dias, 7 na de 8 a 30 e 2 acima de 30,
+    por categoria; os abertos por disciplina, empresa e sistema; os sistemas 210, 310 e 420
+    bloqueados para a Completação mecânica ou o Comissionamento (75,0% e 25,0% liberados) e o
+    Aceite definitivo bloqueado pelos 4 sistemas; o burndown acumulado dos 15 itens válidos,
+    fechando com 15 abertos, 3 fechados e 12 em aberto.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    project_1 = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    painel = planejamento.punch_dashboard(
+        db_session,
+        user=user,
+        scope=Scope(project_id=project_1.id, source="url"),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    assert not painel.is_empty
+    assert [
+        (linha.label, linha.counts.a, linha.counts.b, linha.counts.c) for linha in painel.aging
+    ] == [
+        ("Até 7 dias", 1, 1, 1),
+        ("8 a 30 dias", 3, 3, 1),
+        ("Mais de 30 dias", 0, 2, 0),
+    ]
+    assert [(linha.label, linha.counts.total) for linha in painel.disciplines] == [
+        ("Arquitetura", 1),
+        ("Automação", 1),
+        ("Civil", 1),
+        ("Elétrica", 1),
+        ("Instrumentação", 2),
+        ("Mecânica", 3),
+        ("Tubulação", 3),
+    ]
+    assert [
+        (linha.label, linha.counts.a, linha.counts.b, linha.counts.c) for linha in painel.companies
+    ] == [
+        ("Alfa Montagens", 4, 6, 0),
+        ("Zeta Civil", 0, 0, 2),
+    ]
+    assert [
+        (sistema.code, sistema.a_open, sistema.b_open, sistema.c_open) for sistema in painel.systems
+    ] == [
+        ("210", 2, 2, 0),
+        ("310", 1, 3, 0),
+        ("420", 1, 0, 0),
+        ("510", 0, 1, 2),
+    ]
+    assert [
+        (liberacao.milestone, liberacao.systems, liberacao.blocked, liberacao.released_pct)
+        for liberacao in painel.releases
+    ] == [
+        ("Completação mecânica", 4, 1, Decimal("75.0")),
+        ("Comissionamento", 4, 3, Decimal("25.0")),
+        ("Aceite definitivo", 4, 4, Decimal("0.0")),
+    ]
+    assert [sistema.code for sistema in painel.blocked_systems] == ["210", "310", "420"]
+
+    assert [point.week for point in painel.burndown] == [
+        date(2026, 7, 27),
+        date(2026, 8, 3),
+        date(2026, 8, 10),
+        date(2026, 8, 17),
+        date(2026, 8, 24),
+        date(2026, 8, 31),
+        date(2026, 9, 7),
+        date(2026, 9, 14),
+        date(2026, 9, 21),
+        date(2026, 9, 28),
+    ]
+    assert [(point.opened, point.closed, point.balance) for point in painel.burndown] == [
+        (0, 0, 0),
+        (1, 0, 1),
+        (2, 0, 2),
+        (4, 0, 4),
+        (4, 2, 2),
+        (6, 2, 4),
+        (8, 3, 5),
+        (11, 3, 8),
+        (14, 3, 11),
+        (15, 3, 12),
+    ]
+    assert painel.burndown_chart["modo"] == "acumulado"
+    assert [serie["rotulo"] for serie in painel.burndown_chart["series"]] == [
+        "Abertos (acumulado)",
+        "Fechados (acumulado)",
+        "Saldo em aberto",
+    ]
+    assert [grafico["linhas"][0]["rotulo"] for grafico in painel.aging_chart["paineis"]] == [
+        "Até 7 dias",
+        "8 a 30 dias",
+        "Mais de 30 dias",
+    ]
+
+
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 

@@ -75,6 +75,13 @@ not be the executant (D7, 403). Every write keeps the action of the Central in
 step through the single seam (D9): creation, the mirrored fields, the closing
 and the cancellation; the reaction of the origin reflects a completion or a
 replan of the action back into the item. Nothing here reads the clock (D6).
+
+The completion panel (ISSUE-050): ``punch_dashboard`` serves the Painel tab -
+the burndown of the weeks, the aging bands of the parameters, the open items by
+discipline and company, the systems with their block per milestone, the release
+percentage of each milestone and the alert of the blocked systems; the charts
+(D11) leave here as the raw numbers and the series are drawn by the library.
+Nothing here reads the clock (D6).
 """
 
 from __future__ import annotations
@@ -9136,3 +9143,278 @@ attachment_origins.register(
     )
 )
 action_origins.register_reaction(PUNCH_ORIGIN, react_to_punch_action)
+
+
+# ── Painel da Punch list (ISSUE-050) ──────────────────────────────────────
+
+
+PUNCH_GROUP = "punch"
+
+
+DEFAULT_PUNCH_AGING_BANDS = (7, 30)
+
+
+PUNCH_DASHBOARD_MILESTONES = ("Completação mecânica", "Comissionamento", "Aceite definitivo")
+
+
+PUNCH_DASHBOARD_ALERT_MILESTONES = ("Completação mecânica", "Comissionamento")
+
+
+PUNCH_BURNDOWN_TITLE = "Abertura e fechamento acumulados (burndown)"
+
+
+PUNCH_AGING_TITLE = "Tempo em aberto por faixa e categoria"
+
+
+PUNCH_DISCIPLINE_TITLE = "Abertos por disciplina e categoria"
+
+
+PUNCH_COMPANY_TITLE = "Abertos por empresa e categoria"
+
+
+@dataclass(frozen=True)
+class PunchParameters:
+    """O grupo ``punch`` dos parâmetros vigentes: as faixas do aging."""
+
+    aging_bands: tuple[int, int]
+
+
+@dataclass(frozen=True)
+class PunchDashboardSystem:
+    """Uma linha da tabela de sistemas do painel: a qualificação e o bloqueio por marco."""
+
+    project_code: str
+    project_name: str
+    system_id: int
+    code: str
+    name: str
+    area: str
+    a_open: int
+    b_open: int
+    c_open: int
+    blocks: Mapping[str, int]
+
+    @property
+    def label(self) -> str:
+        """``310 Flotação``: como a tabela e o alerta nomeiam o sistema."""
+        return f"{self.code} {self.name}"
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Projeto``, como o Portfólio nomeia o projeto da linha."""
+        return f"{self.project_code} · {self.project_name}"
+
+
+@dataclass(frozen=True)
+class PunchMilestoneRelease:
+    """O % de sistemas liberados num marco: os sem bloqueio sobre o total de sistemas."""
+
+    milestone: str
+    systems: int
+    blocked: int
+
+    @property
+    def released(self) -> int:
+        """Quantos sistemas o marco tem liberados."""
+        return self.systems - self.blocked
+
+    @property
+    def released_pct(self) -> Decimal | None:
+        """O percentual de sistemas liberados no marco."""
+        return calculations.punch_released_pct(self.systems, self.blocked)
+
+
+@dataclass(frozen=True)
+class PunchDashboard:
+    """O painel da Punch list: o burndown, o aging, as contagens, os sistemas e os gráficos (D11)."""
+
+    reference_date: date
+    is_portfolio: bool
+    burndown: tuple[calculations.PunchBurndownPoint, ...]
+    aging: tuple[calculations.PunchCountRow, ...]
+    disciplines: tuple[calculations.PunchCountRow, ...]
+    companies: tuple[calculations.PunchCountRow, ...]
+    systems: tuple[PunchDashboardSystem, ...]
+    releases: tuple[PunchMilestoneRelease, ...]
+    blocked_systems: tuple[PunchDashboardSystem, ...]
+    burndown_chart: dict[str, Any]
+    aging_chart: dict[str, Any]
+    discipline_chart: dict[str, Any]
+    company_chart: dict[str, Any]
+
+    @property
+    def is_empty(self) -> bool:
+        """Se o escopo ainda não tem item de punch list nenhum."""
+        return not self.systems
+
+
+def punch_parameters(session: Session, *, reference_date: date) -> PunchParameters:
+    """O grupo ``punch`` dos parâmetros vigentes, com os valores iniciais de reserva."""
+    values = (
+        configuracoes.current_group(session, group=PUNCH_GROUP, reference_date=reference_date)
+        or configuracoes.INITIAL_PARAMETERS[PUNCH_GROUP]
+    )
+    return PunchParameters(aging_bands=_punch_aging_bands(values.get("agingFaixas")))
+
+
+def punch_dashboard(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> PunchDashboard:
+    """O painel do escopo: burndown, aging, contagens por disciplina e empresa, e a liberação."""
+    rbac.require_module(user, MODULE)
+    records = _punch_records(session, scope)
+    parameters = punch_parameters(session, reference_date=reference_date)
+    companies = {option.id: option.name for option in configuracoes.list_company_options(session)}
+    projects = {
+        project.id: (project.code, project.name) for project in configuracoes.list_projects(session)
+    }
+    states = tuple(_punch_panel_state(record, companies) for record in records)
+    blocks = _punch_blocks(session, records, tuple(_punch_state(record) for record in records))
+    systems = tuple(_punch_dashboard_system(block, records, projects) for block in blocks)
+    releases = tuple(
+        PunchMilestoneRelease(
+            milestone=milestone,
+            systems=len(systems),
+            blocked=sum(1 for row in systems if row.blocks.get(milestone, 0) > 0),
+        )
+        for milestone in PUNCH_DASHBOARD_MILESTONES
+    )
+    aging = calculations.punch_aging_counts(
+        states, reference_date=reference_date, bands=parameters.aging_bands
+    )
+    disciplines = calculations.punch_discipline_counts(
+        states, order=configuracoes.list_discipline_names(session)
+    )
+    company_rows = calculations.punch_company_counts(states)
+    points = calculations.punch_burndown(states, reference_date=reference_date)
+    return PunchDashboard(
+        reference_date=reference_date,
+        is_portfolio=scope.is_portfolio,
+        burndown=points,
+        aging=aging,
+        disciplines=disciplines,
+        companies=company_rows,
+        systems=systems,
+        releases=releases,
+        blocked_systems=tuple(
+            row
+            for row in systems
+            if any(
+                row.blocks.get(milestone, 0) > 0 for milestone in PUNCH_DASHBOARD_ALERT_MILESTONES
+            )
+        ),
+        burndown_chart=_punch_burndown_chart(points),
+        aging_chart=_punch_stacked_chart(PUNCH_AGING_TITLE, aging),
+        discipline_chart=_punch_stacked_chart(PUNCH_DISCIPLINE_TITLE, disciplines),
+        company_chart=_punch_stacked_chart(PUNCH_COMPANY_TITLE, company_rows),
+    )
+
+
+def _punch_aging_bands(value: Any) -> tuple[int, int]:
+    """As faixas do aging do parâmetro: dois limites crescentes, ou os iniciais."""
+    if not isinstance(value, Sequence) or isinstance(value, str) or len(value) != 2:
+        return DEFAULT_PUNCH_AGING_BANDS
+    first = _integer_value(value[0], DEFAULT_PUNCH_AGING_BANDS[0])
+    last = _integer_value(value[1], DEFAULT_PUNCH_AGING_BANDS[1])
+    return (first, last) if 0 <= first < last else DEFAULT_PUNCH_AGING_BANDS
+
+
+def _punch_panel_state(
+    item: PunchItem, companies: Mapping[int, str]
+) -> calculations.PunchPanelState:
+    """O item como o painel o lê, com o nome da empresa resolvido."""
+    return calculations.PunchPanelState(
+        situation=item.situation,
+        category=item.category,
+        system_id=item.system_id,
+        discipline=item.discipline,
+        company=companies.get(item.company_id or 0, ""),
+        opened_on=item.opened_on,
+        closed_on=item.closed_on,
+    )
+
+
+def _punch_dashboard_system(
+    block: PunchSystemBlock,
+    records: Sequence[PunchItem],
+    projects: Mapping[int, tuple[str, str]],
+) -> PunchDashboardSystem:
+    """O sistema do painel, com o projeto do item que o povoou (a coluna do Portfólio)."""
+    project_id = next(
+        (record.project_id for record in records if record.system_id == block.system_id),
+        None,
+    )
+    code, name = projects.get(project_id or 0, ("", ""))
+    return PunchDashboardSystem(
+        project_code=code,
+        project_name=name,
+        system_id=block.system_id,
+        code=block.code,
+        name=block.name,
+        area=block.area,
+        a_open=block.a_open,
+        b_open=block.b_open,
+        c_open=block.c_open,
+        blocks=block.blocks,
+    )
+
+
+def _punch_burndown_chart(
+    points: Sequence[calculations.PunchBurndownPoint],
+) -> dict[str, Any]:
+    """O ``data-dados`` do burndown (D11): as três séries acumuladas por semana."""
+    periods = []
+    for point in points:
+        year, number, _ = point.week.isocalendar()
+        periods.append(
+            {
+                "ano": year,
+                "mes": (point.week + timedelta(days=3)).month,
+                "semana": number,
+                "valores": {
+                    "abertos": point.opened,
+                    "fechados": point.closed,
+                    "saldo": point.balance,
+                },
+            }
+        )
+    return {
+        "titulo": PUNCH_BURNDOWN_TITLE,
+        "modo": "acumulado",
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "abertos", "rotulo": "Abertos (acumulado)", "papel": "previsto"},
+            {"id": "fechados", "rotulo": "Fechados (acumulado)", "papel": "realizado"},
+            {"id": "saldo", "rotulo": "Saldo em aberto", "papel": "atencao", "traco": "6,4"},
+        ],
+        "periodos": periods,
+    }
+
+
+def _punch_stacked_chart(title: str, rows: Sequence[calculations.PunchCountRow]) -> dict[str, Any]:
+    """O ``data-dados`` das barras empilhadas por categoria (comparativo-barras, D11)."""
+    return {
+        "titulo": title,
+        "paineis": [
+            {
+                "categorias": [
+                    {"id": "A", "rotulo": "Categoria A", "papel": "erro"},
+                    {"id": "B", "rotulo": "Categoria B", "papel": "comprometido"},
+                    {"id": "C", "rotulo": "Categoria C", "papel": "info"},
+                ],
+                "linhas": [
+                    {
+                        "rotulo": row.label,
+                        "valores": {
+                            "A": row.counts.a,
+                            "B": row.counts.b,
+                            "C": row.counts.c,
+                        },
+                    }
+                ],
+            }
+            for row in rows
+        ],
+    }

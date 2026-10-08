@@ -7,9 +7,11 @@ pessoa a veria (status, texto, cabeçalho do aviso).
 from __future__ import annotations
 
 import html
+from io import BytesIO
 
 import azure.functions as func
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -33,11 +35,13 @@ from tests.identidades import cabecalho_do_principal
 from tests.importadores_de_teste import corpo_multipart
 
 BASE = "/api/planejamento/punch"
+PAINEL = f"{BASE}/painel"
 IMPORTACAO = "/api/importacao/punch-itens"
 EMAIL_MEMBRO = "membro-punch@example.invalid"
 EMAIL_GESTOR = "gestor-punch@example.invalid"
-ALVO_TELA = "punch-filtros punch-conteudo"
+ALVO_TELA = "punch-filtros punch-conteudo punch-painel"
 ALVO_TRES = "punch-modal punch-filtros punch-conteudo"
+ALVO_PAINEL = "punch-painel"
 
 
 def _texto(resposta: func.HttpResponse) -> str:
@@ -449,6 +453,101 @@ def test_o_excel_e_o_imprimivel_da_lista(sessao: Session, cenario: Cenario) -> N
     assert imprimivel.status_code == 200
     assert "Itens da Punch list" in texto
     assert "PL-TN-2026-0001" in texto
+    assert "Projeto" in texto
+
+
+def test_a_aba_do_painel_traz_os_graficos_e_a_liberacao(sessao: Session, cenario: Cenario) -> None:
+    _criar(cenario, sessao, categoria="A", marco="Comissionamento")
+
+    resposta = routes.punch_dashboard(
+        pedido(
+            PAINEL,
+            email=EMAIL_MEMBRO,
+            envio=Envio(params=_projeto(cenario), alvo=ALVO_PAINEL),
+        )
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert 'id="punch-painel"' in texto
+    assert 'data-punch-painel-resultado="conteudo"' in texto
+    assert 'data-grafico="curva-s-linha"' in texto
+    assert texto.count('data-grafico="comparativo-barras"') == 3
+    assert "Sistemas e liberação por marco" in texto
+    assert "Bloqueado (1)" in texto
+    assert "Sistemas bloqueados" in texto
+    assert "310 Flotação" in texto
+
+
+def test_a_tela_traz_o_alvo_do_painel(sessao: Session, cenario: Cenario) -> None:
+    _criar(cenario, sessao)
+
+    resposta = routes.punch_screen(
+        pedido(BASE, email=EMAIL_MEMBRO, envio=Envio(params=_projeto(cenario), alvo=ALVO_TELA))
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert 'id="punch-painel"' in texto
+    assert "Abertura e fechamento acumulados" in texto
+
+
+def test_o_painel_do_portfolio_traz_a_coluna_projeto(sessao: Session, cenario: Cenario) -> None:
+    _criar(cenario, sessao)
+
+    resposta = routes.punch_dashboard(
+        pedido(
+            PAINEL,
+            email=EMAIL_MEMBRO,
+            envio=Envio(params={"projeto": "portfolio"}, alvo=ALVO_PAINEL),
+        )
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert "Projeto" in texto
+    assert "TN-PUNCH-001" in texto
+
+
+def test_o_excel_e_o_imprimivel_do_painel(sessao: Session, cenario: Cenario) -> None:
+    _criar(cenario, sessao, categoria="A", marco="Comissionamento")
+
+    excel = routes.punch_dashboard_excel(
+        pedido(
+            f"{PAINEL}/excel",
+            email=EMAIL_MEMBRO,
+            envio=Envio(params=_projeto(cenario), alpine=False),
+        )
+    )
+    carteira = routes.punch_dashboard_excel(
+        pedido(
+            f"{PAINEL}/excel",
+            email=EMAIL_MEMBRO,
+            envio=Envio(params={"projeto": "portfolio"}, alpine=False),
+        )
+    )
+    imprimivel = routes.punch_dashboard_printable(
+        pedido(
+            f"{PAINEL}/imprimivel",
+            email=EMAIL_MEMBRO,
+            envio=Envio(params={"projeto": "portfolio"}),
+        )
+    )
+
+    assert excel.status_code == 200
+    assert "spreadsheetml" in excel.mimetype
+    assert excel.get_body()[:2] == b"PK"
+    sheets = load_workbook(BytesIO(carteira.get_body())).worksheets
+    sistemas = next(sheet for sheet in sheets if sheet.title == "Sistemas e liberação por marco")
+    cabecalho = int(sistemas.auto_filter.ref.split(":")[0].lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+    assert sistemas.cell(row=cabecalho, column=1).value == "Projeto", (
+        "no Portfólio a exportação traz a coluna"
+    )
+    texto = _texto(imprimivel)
+    assert imprimivel.status_code == 200
+    assert "Sistemas e liberação por marco" in texto
+    assert "Abertura e fechamento acumulados" in texto
+    assert 'data-grafico="curva-s-linha"' in texto
     assert "Projeto" in texto
 
 

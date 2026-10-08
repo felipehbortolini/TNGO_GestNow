@@ -29,13 +29,18 @@ shows: the indicators with their management reference, the SPI per month and the
 forecast x actual charts (D11) and the advance per area — per project in the
 Portfólio, with the ``Projeto`` column — carrying the numbers behind the charts
 as tables for the Excel.
+
+The completion panel of the punch list (ISSUE-050) hands the export one
+``Document`` with the release indicators, the four charts (D11) and the tables
+behind them for the spreadsheet; the systems table opens with ``Projeto`` in the
+Portfólio.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -61,6 +66,11 @@ from src.modulos.planejamento import calculations
 from src.modulos.planejamento.service import (
     LEVEL_PACKAGE,
     PORTFOLIO_LABEL,
+    PUNCH_AGING_TITLE,
+    PUNCH_BURNDOWN_TITLE,
+    PUNCH_COMPANY_TITLE,
+    PUNCH_DASHBOARD_MILESTONES,
+    PUNCH_DISCIPLINE_TITLE,
     ActivityView,
     CapacityAreaRow,
     CompanySampleRow,
@@ -81,6 +91,7 @@ from src.modulos.planejamento.service import (
     PeriodCoverage,
     PlanningKpiLine,
     PlanningKpisOverview,
+    PunchDashboard,
     PunchFilterOptions,
     PunchListing,
     PunchRow,
@@ -2317,3 +2328,188 @@ def _punch_item_row(item: PunchRow) -> Row:
         item.closed_on,
         project=item.project_label,
     )
+
+
+# ── Painel da Punch list (ISSUE-050) ──────────────────────────────────────
+
+
+PUNCH_DASHBOARD_TITLE = "Punch list · painel de completação"
+
+
+PUNCH_BURNDOWN_TABLE_TITLE = "Abertura e fechamento acumulados (burndown)"
+
+
+PUNCH_AGING_TABLE_TITLE = "Tempo em aberto por faixa e categoria"
+
+
+PUNCH_DISCIPLINE_TABLE_TITLE = "Abertos por disciplina e categoria"
+
+
+PUNCH_COMPANY_TABLE_TITLE = "Abertos por empresa e categoria"
+
+
+PUNCH_SYSTEMS_TABLE_TITLE = "Sistemas e liberação por marco"
+
+
+def punch_dashboard_document(
+    visao: PunchDashboard, *, scope_label: str, generated_on: date
+) -> Document:
+    """O documento do painel: os indicadores de liberação, os gráficos e as tabelas (D11/D12)."""
+    return Document(
+        title=PUNCH_DASHBOARD_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=(("Referência", format_value(ValueKind.DATE, visao.reference_date)),),
+        kpis=punch_dashboard_kpis(visao),
+        charts=(
+            Chart(PUNCH_BURNDOWN_TITLE, "curva-s-linha", visao.burndown_chart),
+            Chart(PUNCH_AGING_TITLE, "comparativo-barras", visao.aging_chart),
+            Chart(PUNCH_DISCIPLINE_TITLE, "comparativo-barras", visao.discipline_chart),
+            Chart(PUNCH_COMPANY_TITLE, "comparativo-barras", visao.company_chart),
+        ),
+        tables=(
+            _punch_burndown_table(visao),
+            _punch_aging_table(visao),
+            _punch_group_table(PUNCH_DISCIPLINE_TABLE_TITLE, "Disciplina", visao.disciplines),
+            _punch_group_table(PUNCH_COMPANY_TABLE_TITLE, "Empresa", visao.companies),
+            _punch_systems_table(visao),
+        ),
+        paper=Paper.A4,
+    )
+
+
+def punch_dashboard_kpis(visao: PunchDashboard) -> tuple[Kpi, ...]:
+    """Os indicadores do painel: o % liberado por marco e os sistemas bloqueados."""
+    kpis = [
+        Kpi(
+            f"Sistemas liberados · {release.milestone}",
+            release.released_pct,
+            "Meta: 100%",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=(
+                Tone.OK
+                if not release.blocked
+                else Tone.ERROR
+                if not release.released
+                else Tone.WARN
+            ),
+            status=f"{release.released} de {release.systems} sistemas",
+        )
+        for release in visao.releases
+    ]
+    blocked = len(visao.blocked_systems)
+    kpis.append(
+        Kpi(
+            "Sistemas bloqueados",
+            blocked,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if blocked else Tone.OK,
+            status=(
+                "bloqueio por item A aberto na completacão e no comissionamento"
+                if blocked
+                else "nenhum sistema bloqueado"
+            ),
+        )
+    )
+    return tuple(kpis)
+
+
+def _punch_week_text(week: date) -> str:
+    """``S39 · 21/09 a 27/09``: a mesma escrita da semana ISO da tela."""
+    _, number, _ = week.isocalendar()
+    last = week + timedelta(days=6)
+    return f"S{number:02d} · {week:%d/%m} a {last:%d/%m}"
+
+
+def _punch_burndown_table(visao: PunchDashboard) -> Table:
+    return Table(
+        title=PUNCH_BURNDOWN_TABLE_TITLE,
+        columns=(
+            Column("Semana"),
+            Column("Abertos (acumulado)", ValueKind.INTEGER),
+            Column("Fechados (acumulado)", ValueKind.INTEGER),
+            Column("Saldo em aberto", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(_punch_week_text(point.week), point.opened, point.closed, point.balance)
+            for point in visao.burndown
+        ),
+        per_project=False,
+    )
+
+
+def _punch_aging_table(visao: PunchDashboard) -> Table:
+    return Table(
+        title=PUNCH_AGING_TABLE_TITLE,
+        columns=(
+            Column("Faixa"),
+            Column("Categoria A", ValueKind.INTEGER),
+            Column("Categoria B", ValueKind.INTEGER),
+            Column("Categoria C", ValueKind.INTEGER),
+            Column("Total", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(item.label, item.counts.a, item.counts.b, item.counts.c, item.counts.total)
+            for item in visao.aging
+        ),
+        per_project=False,
+    )
+
+
+def _punch_group_table(
+    title: str, first_header: str, lines: Sequence[calculations.PunchCountRow]
+) -> Table:
+    return Table(
+        title=title,
+        columns=(
+            Column(first_header),
+            Column("Categoria A", ValueKind.INTEGER),
+            Column("Categoria B", ValueKind.INTEGER),
+            Column("Categoria C", ValueKind.INTEGER),
+            Column("Total", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(line.label, line.counts.a, line.counts.b, line.counts.c, line.counts.total)
+            for line in lines
+        ),
+        per_project=False,
+    )
+
+
+def _punch_systems_table(visao: PunchDashboard) -> Table:
+    return Table(
+        title=PUNCH_SYSTEMS_TABLE_TITLE,
+        columns=(
+            Column("Sistema"),
+            Column("Área"),
+            Column("A abertos", ValueKind.INTEGER),
+            Column("B abertos", ValueKind.INTEGER),
+            Column("C abertos", ValueKind.INTEGER),
+            *(Column(milestone) for milestone in PUNCH_DASHBOARD_MILESTONES),
+        ),
+        rows=tuple(
+            row(
+                sistema.label,
+                sistema.area,
+                sistema.a_open,
+                sistema.b_open,
+                sistema.c_open,
+                *(
+                    _punch_block_cell(sistema.blocks.get(milestone, 0))
+                    for milestone in PUNCH_DASHBOARD_MILESTONES
+                ),
+                project=sistema.project_label,
+            )
+            for sistema in visao.systems
+        ),
+    )
+
+
+def _punch_block_cell(blocked: int) -> Cell:
+    """``Liberado`` ou ``Bloqueado (n)``, com o tom da situação."""
+    if blocked:
+        return Cell(f"Bloqueado ({blocked})", tone=Tone.ERROR)
+    return Cell("Liberado", tone=Tone.OK)

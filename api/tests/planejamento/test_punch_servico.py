@@ -6,7 +6,8 @@ ação da Central é lida pela tabela ``acao``, no teste, para provar a costura 
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import func, select
@@ -414,3 +415,78 @@ def test_o_filtro_de_categoria_e_busca_recorta_a_lista(cenario: Cenario, sessao:
     assert [item.tag for item in por_categoria.rows] == ["310-P-040"]
     assert [item.tag for item in por_busca.rows] == ["310-P-041"]
     assert por_categoria.kpis.opened == 2, "os indicadores são do conjunto, não do filtro"
+
+
+def test_o_painel_vazio_nao_tem_sistema_nem_liberacao(cenario: Cenario, sessao: Session) -> None:
+    painel = service.punch_dashboard(
+        sessao, user=cenario.usuario_membro, scope=cenario.escopo, reference_date=HOJE
+    )
+
+    assert painel.is_empty
+    assert painel.systems == ()
+    assert [linha.label for linha in painel.aging] == [
+        "Até 7 dias",
+        "8 a 30 dias",
+        "Mais de 30 dias",
+    ]
+    assert [linha.counts.total for linha in painel.aging] == [0, 0, 0]
+    assert len(painel.burndown) == 2
+    assert all(liberacao.released_pct is None for liberacao in painel.releases)
+
+
+def test_o_painel_resume_a_liberacao_por_marco(cenario: Cenario, sessao: Session) -> None:
+    _criar(cenario, sessao, categoria="A", marco="Comissionamento")
+
+    painel = service.punch_dashboard(
+        sessao, user=cenario.usuario_membro, scope=cenario.escopo, reference_date=HOJE
+    )
+
+    assert not painel.is_empty
+    assert [liberacao.milestone for liberacao in painel.releases] == [
+        "Completação mecânica",
+        "Comissionamento",
+        "Aceite definitivo",
+    ]
+    assert [
+        (liberacao.systems, liberacao.blocked, liberacao.released_pct)
+        for liberacao in painel.releases
+    ] == [
+        (1, 0, Decimal("100.0")),
+        (1, 1, Decimal("0.0")),
+        (1, 1, Decimal("0.0")),
+    ]
+    assert [sistema.code for sistema in painel.blocked_systems] == ["310"]
+    sistema = painel.systems[0]
+    assert (sistema.code, sistema.a_open, sistema.b_open, sistema.c_open) == ("310", 1, 0, 0)
+    assert (sistema.project_code, sistema.project_name) == ("TN-PUNCH-001", "Projeto da punch list")
+
+
+def test_o_painel_conta_aging_e_burndown_com_as_datas_dos_itens(
+    cenario: Cenario, sessao: Session
+) -> None:
+    item = _criar(cenario, sessao, categoria="A")
+    item.opened_on = date(2026, 8, 10)
+    sessao.flush()
+
+    painel = service.punch_dashboard(
+        sessao, user=cenario.usuario_membro, scope=cenario.escopo, reference_date=HOJE
+    )
+
+    assert [linha.counts.total for linha in painel.aging] == [0, 0, 1]
+    assert painel.aging[2].counts.a == 1
+    assert painel.burndown[0].week == date(2026, 8, 10)
+    ultimo = painel.burndown[-1]
+    assert (ultimo.opened, ultimo.closed, ultimo.balance) == (1, 0, 1)
+    assert painel.burndown_chart["modo"] == "acumulado"
+    assert [serie["id"] for serie in painel.burndown_chart["series"]] == [
+        "abertos",
+        "fechados",
+        "saldo",
+    ]
+    assert len(painel.aging_chart["paineis"]) == 3
+
+
+def test_o_painel_le_as_faixas_do_parametro(sessao: Session) -> None:
+    parametros = service.punch_parameters(sessao, reference_date=HOJE)
+
+    assert parametros.aging_bands == (7, 30)

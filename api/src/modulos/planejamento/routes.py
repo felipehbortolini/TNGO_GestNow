@@ -125,6 +125,15 @@ The punch list (ISSUE-049), prefix ``/api/planejamento/punch``:
   /itens/{id}/verificacao``  approves (422 without evidence, 403 for the executant) or rejects;
   ``POST /itens/{id}/cancelamento``  cancels with a justification. Every write answers the
   modal, the toolbar and the list in one multi-target reply, and the Central action follows.
+
+The completion panel (ISSUE-050), prefix ``/api/planejamento/punch/painel``:
+
+* ``GET  /``  the panel tab: the alert of the blocked systems, the release indicators per
+  milestone, the burndown, the aging, the counts by discipline and company (the charts of the
+  DS library, D11) and the table of systems by milestone (with ``Projeto`` in the Portfólio);
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the charts
+  as tables in the spreadsheet; the screen answers the panel together with the list, and the
+  tab is addressable by ``?aba=painel``.
 """
 
 from __future__ import annotations
@@ -4678,6 +4687,18 @@ PUNCH_MODAL_TARGET = "punch-modal"
 PUNCH_PAGE_CLASS = "pagina--planejamento-punch_list"
 
 
+PUNCH_DASHBOARD_BASE = f"{PUNCH_BASE}/painel"
+
+
+PUNCH_DASHBOARD_API = f"/api/{PUNCH_DASHBOARD_BASE}"
+
+
+PUNCH_DASHBOARD_TEMPLATE = "planejamento/punch_painel.html"
+
+
+PUNCH_DASHBOARD_TARGET = "punch-painel"
+
+
 PUNCH_CREATED_MESSAGE = "{code} aberto; ação criada na Central."
 
 
@@ -4804,6 +4825,21 @@ def _punch_form_context(
     }
 
 
+def _punch_dashboard_context(session: Session, context: RequestContext) -> dict[str, Any]:
+    """O contexto do painel da Punch list: a visão do escopo e os auxiliares de formatação."""
+    painel = service.punch_dashboard(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=calendario.today(),
+    )
+    return {
+        "painel": painel,
+        "api_painel": PUNCH_DASHBOARD_API,
+        "percentual": export.percent_text,
+    }
+
+
 def _punch_modal(
     req: func.HttpRequest,
     template: str,
@@ -4862,10 +4898,12 @@ def _format_punch_date(value: date | None) -> str:
 def punch_screen(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
-    """Os filtros, a lista e o modal vazio do escopo, no filtro da URL."""
+    """Os filtros, a lista, o painel e o modal vazio do escopo, no filtro da URL."""
+    page = _punch_context(session, context, punch_filter=_punch_params(req.params))
+    page.update(_punch_dashboard_context(session, context))
     return AlpineAjaxResponse(
         template_name=PUNCH_SCREEN_TEMPLATE,
-        context=_punch_context(session, context, punch_filter=_punch_params(req.params)),
+        context=page,
         request=req,
     )
 
@@ -5330,3 +5368,53 @@ def punch_cancel_item(
         valores={"mensagem": mensagem},
         toast=mensagem,
     )
+
+
+# ── Painel da Punch list (ISSUE-050) ───────────────────────────────────────
+
+
+@bp.route(route=PUNCH_DASHBOARD_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def punch_dashboard(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O painel de completação do escopo: burndown, aging, contagens e liberação (HU-070)."""
+    return AlpineAjaxResponse(
+        template_name=PUNCH_DASHBOARD_TEMPLATE,
+        context=_punch_dashboard_context(session, context),
+        request=req,
+    )
+
+
+def _punch_dashboard_document(session: Session, context: RequestContext) -> Document:
+    """O documento do painel: o mesmo conteúdo da tela para o Excel e a impressão."""
+    painel = service.punch_dashboard(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=calendario.today(),
+    )
+    return export.punch_dashboard_document(
+        painel,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+@bp.route(route=f"{PUNCH_DASHBOARD_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def punch_dashboard_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel do painel: indicadores, gráficos como tabelas e a liberação dos sistemas."""
+    del req
+    return excel_response(_punch_dashboard_document(session, context))
+
+
+@bp.route(route=f"{PUNCH_DASHBOARD_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def punch_dashboard_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível do painel: o que o botão PDF monta e imprime."""
+    return printable_response(_punch_dashboard_document(session, context), req)

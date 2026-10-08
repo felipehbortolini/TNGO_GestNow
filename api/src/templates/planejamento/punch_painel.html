@@ -1,0 +1,158 @@
+{#
+  Painel da Punch list (ISSUE-050): o alerta dos sistemas bloqueados, os indicadores de
+  liberação por marco, o burndown, o aging e as contagens por disciplina e empresa (gráficos da
+  biblioteca do Design System, D11) e a tabela de sistemas × marcos. O servidor calcula tudo
+  (D6); o fragmento não traz <script>. Raiz fixa `punch-painel`; o `data-punch-painel-resultado`
+  diz à tela se há conteúdo ou se o escopo ainda não tem item.
+
+  Espera: painel, api_painel, percentual.
+#}
+<div id="punch-painel" class="pagina--planejamento-punch_list"
+  data-punch-painel-resultado="{{ 'vazio-origem' if painel.is_empty else 'conteudo' }}">
+  {% if painel.is_empty %}
+  <div class="card">
+    <div class="card__body">
+      <div class="empty" data-estado="vazio-origem">
+        <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+        <h2 class="h-card4">Nenhum item da Punch list ainda</h2>
+        <p>Importe uma lista de walkdown ou abra o primeiro item para acompanhar a completação.</p>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="punch__barra">
+    <p class="hint">Painel da completação na data de referência, com os itens não cancelados.</p>
+    <div class="punch__inclusao">
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_painel }}/excel">Excel</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_painel }}/imprimivel">PDF</button>
+    </div>
+  </div>
+
+  {% if painel.blocked_systems %}
+  <div class="aviso aviso--warn punch__alerta" role="alert">
+    <strong>{{ painel.blocked_systems | length }} sistema(s) bloqueado(s) por item A aberto:</strong>
+    <span>{% for sistema in painel.blocked_systems %}{{ sistema.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</span>
+  </div>
+  {% endif %}
+
+  <div class="kpis" role="group" aria-label="Sistemas liberados por marco">
+    {% for liberacao in painel.releases %}
+    <div class="kpi kpi--{{ 'ok' if not liberacao.blocked else ('erro' if not liberacao.released else 'warn') }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Liberados · {{ liberacao.milestone }}
+        <span class="punch__nota">Meta: 100%</span>
+        <span class="punch__nota">{{ liberacao.released }} de {{ liberacao.systems }} sistemas</span>
+      </span>
+      <span class="kpi__value">{{ percentual(liberacao.released_pct) }}</span>
+    </div>
+    {% endfor %}
+    <div class="kpi {{ 'kpi--warn' if painel.blocked_systems else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Sistemas bloqueados
+        <span class="punch__nota">Esperado: 0</span>
+        <span class="punch__nota">completação e comissionamento</span>
+      </span>
+      <span class="kpi__value">{{ painel.blocked_systems | length }}</span>
+    </div>
+  </div>
+
+  <div class="punch__graficos">
+    <section class="card" aria-labelledby="punch-t-burndown">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="punch-t-burndown">Abertura e fechamento acumulados</h2>
+          <span class="hint">Por semana (burndown); os itens cancelados ficam fora</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="punch__grafico" data-grafico="curva-s-linha" data-dados='{{ painel.burndown_chart | tojson }}'></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="punch-t-aging">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="punch-t-aging">Tempo em aberto</h2>
+          <span class="hint">Itens abertos por faixa de idade e categoria</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="punch__grafico" data-grafico="comparativo-barras" data-dados='{{ painel.aging_chart | tojson }}'></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="punch-t-disciplina">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="punch-t-disciplina">Abertos por disciplina</h2>
+          <span class="hint">Por categoria</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="punch__grafico" data-grafico="comparativo-barras" data-dados='{{ painel.discipline_chart | tojson }}'></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="punch-t-empresa">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="punch-t-empresa">Abertos por empresa</h2>
+          <span class="hint">Por categoria</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="punch__grafico" data-grafico="comparativo-barras" data-dados='{{ painel.company_chart | tojson }}'></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card punch__lista" aria-labelledby="punch-t-sistemas">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="punch-t-sistemas">Sistemas e liberação por marco</h2>
+        <span class="hint">Sistema com item A aberto fica bloqueado para o marco vinculado</span>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Sistemas e liberação por marco</caption>
+        <thead>
+          <tr>
+            {% if painel.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Sistema</th>
+            <th scope="col">Área</th>
+            <th scope="col" class="td-num">A abertos</th>
+            <th scope="col" class="td-num">B abertos</th>
+            <th scope="col" class="td-num">C abertos</th>
+            {% for liberacao in painel.releases %}<th scope="col">{{ liberacao.milestone }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for sistema in painel.systems %}
+          <tr>
+            {% if painel.is_portfolio %}
+            <td><span class="pill pill--neutral">{{ sistema.project_code }}</span> <span class="body-txt">{{ sistema.project_name }}</span></td>
+            {% endif %}
+            <td><b>{{ sistema.label }}</b></td>
+            <td>{{ sistema.area }}</td>
+            <td class="td-num num">{{ sistema.a_open }}</td>
+            <td class="td-num num">{{ sistema.b_open }}</td>
+            <td class="td-num num">{{ sistema.c_open }}</td>
+            {% for liberacao in painel.releases %}
+            {% set bloqueio = sistema.blocks.get(liberacao.milestone, 0) %}
+            <td>
+              {% if bloqueio %}
+              <span class="pill pill--erro">Bloqueado ({{ bloqueio }})</span>
+              {% else %}
+              <span class="pill pill--ok">Liberado</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
