@@ -10,7 +10,7 @@
     </div>
 
     <span hidden data-produtividade-carga
-      x-init="$ajax('/api/planejamento/produtividade', { target: 'produtividade-filtros produtividade-conteudo produtividade-horas' })"></span>
+      x-init="$ajax('/api/planejamento/produtividade', { target: 'produtividade-filtros produtividade-conteudo produtividade-horas produtividade-kpis' })"></span>
 
     <div x-show="estado === 'conteudo' || estado === 'vazio-filtro' || estado === 'vazio-origem'">
       <div class="tabs" role="tablist" aria-label="Visões da produtividade">
@@ -20,6 +20,9 @@
         <button type="button" class="tab" role="tab" id="prod-aba-horas" aria-controls="prod-painel-horas"
           :class="{ 'is-active': aba === 'horas' }" :aria-selected="aba === 'horas'"
           @click="aba = 'horas'">Horas efetivas</button>
+        <button type="button" class="tab" role="tab" id="prod-aba-kpis" aria-controls="prod-painel-kpis"
+          :class="{ 'is-active': aba === 'kpis' }" :aria-selected="aba === 'kpis'"
+          @click="aba = 'kpis'">KPIs de performance</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="prod-painel-quantidades" aria-labelledby="prod-aba-quantidades" x-show="aba === 'quantidades'">
@@ -49,6 +52,10 @@
 
       <section class="mt-16" role="tabpanel" id="prod-painel-horas" aria-labelledby="prod-aba-horas" x-show="aba === 'horas'">
         <div id="produtividade-horas"></div>
+      </section>
+
+      <section class="mt-16" role="tabpanel" id="prod-painel-kpis" aria-labelledby="prod-aba-kpis" x-show="aba === 'kpis'">
+        <div id="produtividade-kpis"></div>
       </section>
     </div>
 

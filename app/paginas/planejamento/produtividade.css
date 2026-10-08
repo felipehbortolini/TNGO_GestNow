@@ -307,6 +307,23 @@
   color: var(--text-secondary);
 }
 
+/* ---------- Aba KPIs de performance ---------- */
+.pagina--planejamento-produtividade .produtividade__definicoes {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+
+.pagina--planejamento-produtividade .produtividade__definicoes summary {
+  cursor: pointer;
+  color: var(--brand-title);
+}
+
+.pagina--planejamento-produtividade .produtividade__definicoes dl {
+  margin-top: var(--space-lg);
+}
+
 /* ---------- Telas estreitas ---------- */
 @media (max-width: 1100px) {
   .pagina--planejamento-produtividade .produtividade__kpis {

@@ -6,19 +6,21 @@
    Registra um único objeto em TN.paginas["planejamento/produtividade"]. A view o aciona por
    x-init com iniciar(raiz), e raiz é o <main> da tela. O estado da tela (carregando,
    vazio-origem, vazio-filtro, conteudo, erro ou sem-permissao) mora no x-data da view; a aba
-   ativa também (Quantidades ou Horas efetivas). Os filtros, as abas de conteúdo e os modais são
-   fragmentos do servidor, e este arquivo só liga as pontas:
+   ativa também (Quantidades, Horas efetivas ou KPIs de performance). Os filtros, as abas de
+   conteúdo e os modais são fragmentos do servidor, e este arquivo só liga as pontas:
 
      filtros    o formulário da aba Quantidades pede só o conteúdo; o da aba Horas pede só a
                 própria aba; o `data-resultado` que chega decide o estado da tela
-     modais     Novo item, ficha, revisão e apontamento (Quantidades) e jornada, amostragem e
-                paralisação (Horas) abrem um modal cujo corpo busca o fragmento no servidor
+     modais     Novo item, ficha, revisão e apontamento (Quantidades), jornada, amostragem e
+                paralisação (Horas) e o plano de ação (KPIs) abrem um modal cujo corpo busca o
+                fragmento no servidor
      gravação   o servidor responde o modal com a marca data-produtividade-salvo: o modal fecha
                 e, quando o conteúdo não veio na mesma resposta, os filtros são refeitos
      exclusão   confirmação do Design System; depois o formulário escondido pede ao servidor
      exportação os botões Excel e PDF moram em cada aba e levam o filtro de agora
-     endereço   ?acao=item|apontar|importar|jornada|amostragem|paralisacao vem do mecanismo de
-                inclusão do Portfólio (TN.escopo)
+     endereço   ?acao=item|apontar|importar|jornada|amostragem|paralisacao|plano vem do
+                mecanismo de inclusão do Portfólio (TN.escopo); ?aba=kpis (e empresa e corte)
+                vem do link da ação na Central e abre a aba certa
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
@@ -33,6 +35,7 @@
   const LARGURA_FICHA = 900;
   const LARGURA_APONTAMENTO = 960;
   const LARGURA_CAMPO = 860;
+  const ABAS = ["quantidades", "horas", "kpis"];
 
   let modalAberto = null;
   let ouvindo = false;
@@ -163,6 +166,20 @@
     });
   }
 
+  function plano(dados) {
+    fecharModal();
+    const parametros = new URLSearchParams();
+    if (dados.empresa) parametros.set("empresa", dados.empresa);
+    if (dados.corte) parametros.set("corte", dados.corte);
+    const texto = parametros.toString();
+    abrirModal({
+      titulo: "Plano de ação de produtividade",
+      subtitulo: "Empresa com indicador fora da faixa: a ação vai para a Central (origem Produtividade)",
+      largura: LARGURA_FORMULARIO,
+      endereco: BASE + "/kpis/acoes/nova" + (texto ? "?" + texto : "")
+    });
+  }
+
   const TITULOS_CAMPO = {
     jornada: ["Registrar jornada", "Fiscalização da frente de serviço: horários dos dois turnos e efetivo"],
     amostragem: ["Registrar observação", "Pessoas trabalhando, em trânsito e paradas no instante da rodada"],
@@ -224,6 +241,7 @@
     importar: importar,
     aprovar: aprovar,
     excluir: excluir,
+    plano: plano,
     fechar: fecharModal
   };
 
@@ -245,7 +263,9 @@
       id: botao.dataset.prodId,
       versao: botao.dataset.prodVersao,
       titulo: botao.dataset.prodTitulo,
-      subtitulo: botao.dataset.prodSubtitulo
+      subtitulo: botao.dataset.prodSubtitulo,
+      empresa: botao.dataset.prodEmpresa,
+      corte: botao.dataset.prodCorte
     });
   }
 
@@ -281,7 +301,10 @@
 
   window.TN.paginas["planejamento/produtividade"] = {
     iniciar: function (raiz) {
-      window.Alpine.$data(raiz).estado = "carregando";
+      const dados = window.Alpine.$data(raiz);
+      dados.estado = "carregando";
+      const escolhida = new URLSearchParams(window.location.search).get("aba");
+      if (ABAS.indexOf(escolhida) >= 0) dados.aba = escolhida;
       acaoPendente = window.TN.escopo.acaoPendente();
       ouvir();
     }
