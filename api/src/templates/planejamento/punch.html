@@ -1,0 +1,9 @@
+{#
+  Punch list (ISSUE-049): os blocos que a tela pede ao abrir — a barra de filtros, a lista e o
+  modal vazio. A resposta traz as raízes irmãs (ids fixos, de propósito: a view declara os
+  alvos). O modal vazio vem junto para o formulário de filtros, que declara os três alvos,
+  poder esvaziá-lo ao aplicar.
+#}
+{% include "planejamento/punch_filtros.html" %}
+{% include "planejamento/punch_conteudo.html" %}
+{% include "planejamento/punch_modal.html" %}

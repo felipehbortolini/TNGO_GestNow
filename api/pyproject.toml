@@ -195,6 +195,13 @@ max-complexity = 10
 # a mesma coisa com mais indireção.
 "tests/apoio_produtividade.py" = ["PLR0913"]
 
+# `linha_punch`, em tests/apoio_punch.py, monta a linha da planilha de importação com muitos
+# campos opcionais, e é assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste
+# informa só o que importa para o caso. A regra existe para argumento posicional, onde a ordem
+# se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais
+# indireção.
+"tests/apoio_punch.py" = ["PLR0913"]
+
 # `_apontar`, em tests/planejamento/test_produtividade_servico.py, monta o apontamento semanal
 # com a semana, o realizado e as HH opcionais, e é assim de propósito: depois do `*` são todos
 # KEYWORD-ONLY, e cada teste informa só o que importa para o caso.

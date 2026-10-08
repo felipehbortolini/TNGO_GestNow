@@ -65,6 +65,16 @@ bands of the five indicators. ``create_performance_action`` opens the plan of
 action in the Central through the single seam (D9), one open action per company
 and week, referenced as ``PRD-2026-S39-01``; the Central links back to this tab
 with the company and the week. Nothing here reads the clock (D6).
+
+The punch list (ISSUE-049): ``punch_overview`` serves the List tab — the
+indicators, the filter and the items of the scope with the blocked systems; the
+flow goes from Aberto to Em tratamento, Aguardando verificação and Fechado, with
+the verification refused back to treatment, the cancellation demanding a
+justification and the closing demanding an attachment (D5a). The verifier may
+not be the executant (D7, 403). Every write keeps the action of the Central in
+step through the single seam (D9): creation, the mirrored fields, the closing
+and the cancellation; the reaction of the origin reflects a completion or a
+replan of the action back into the item. Nothing here reads the clock (D6).
 """
 
 from __future__ import annotations
@@ -79,12 +89,26 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from src.core import audit, calendario, origin_links, rbac, recording, versioning
+from src.core import (
+    attachment_origins,
+    attachments,
+    audit,
+    calendario,
+    numbering,
+    origin_links,
+    rbac,
+    recording,
+    versioning,
+)
 from src.core.audit import TrailLine
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.import_values import normalize_text
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
+from src.modulos.central_acoes import origins as action_origins
+from src.modulos.central_acoes.models import Action
+from src.modulos.central_acoes.origins import ActionEvent
+from src.modulos.configuracoes import registers as cadastros
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.planejamento import calculations, validation
 from src.modulos.planejamento.models import (
@@ -104,6 +128,7 @@ from src.modulos.planejamento.models import (
     ProductivityEntry,
     ProductivityItem,
     ProductivityRevision,
+    PunchItem,
     Report,
     ReportActivity,
     ReportPoint,
@@ -8225,3 +8250,889 @@ origin_links.register(
         kind=calculations.PERFORMANCE_ORIGIN, build=_performance_action_link
     )
 )
+
+
+# ── Punch list (ISSUE-049) ────────────────────────────────────────────────
+
+
+PUNCH_ORIGIN = "Punch list"
+
+
+PUNCH_KIND = "punch"
+
+
+PUNCH_ATTACHMENT_TABLE = "punch_item"
+
+
+PUNCH_SCREEN = "planejamento/punch_list"
+
+
+PUNCH_NOT_FOUND_MESSAGE = "Item da punch list não encontrado."
+
+
+PUNCH_PROJECT_MESSAGE = "O projeto do item não existe."
+
+
+PUNCH_TREATMENT_MESSAGE = "Só um item aberto entra em tratamento."
+
+
+PUNCH_SEND_MESSAGE = "Só um item em tratamento vai para a verificação."
+
+
+PUNCH_VERIFY_MESSAGE = "Só um item aguardando verificação é verificado."
+
+
+PUNCH_SEGREGATION_MESSAGE = "O verificador não pode ser o executante do item."
+
+
+PUNCH_EVIDENCE_MESSAGE = "Anexe a evidência (foto ou documento) antes de fechar o item."
+
+
+@dataclass(frozen=True)
+class PunchFilter:
+    """O filtro da lista: a busca, a situação, os vencidos e as escolhas do modal de filtros."""
+
+    search: str = ""
+    situation: str = validation.PUNCH_SITUATION_FILTER_OPEN
+    category: str = ""
+    system_id: int | None = None
+    discipline: str = ""
+    company_id: int | None = None
+    overdue: bool = False
+
+
+@dataclass(frozen=True)
+class PunchActionRef:
+    """A ação da Central ligada a um item: a referência e o link de volta à Central."""
+
+    reference: str
+    url: str | None
+
+
+@dataclass(frozen=True)
+class PunchRow:
+    """Uma linha da lista: o item com o que a tabela e as exportações imprimem."""
+
+    id: int
+    version: int
+    code: str
+    category: str
+    system_id: int
+    system_label: str
+    project_code: str
+    project_name: str
+    subsystem: str
+    tag: str
+    discipline: str
+    description: str
+    milestone: str
+    origin: str
+    company_name: str
+    owner_id: int
+    owner_name: str
+    identified_by_name: str
+    opened_on: date
+    due_date: date
+    closed_on: date | None
+    situation: str
+    verified_by_name: str
+    age_days: int
+    overdue: bool
+    action: PunchActionRef | None
+
+    @property
+    def is_open(self) -> bool:
+        """Se o item segue aberto (nem fechado nem cancelado)."""
+        return calculations.punch_is_open(self.situation)
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Projeto``, como o Portfólio nomeia o projeto da linha."""
+        return f"{self.project_code} · {self.project_name}"
+
+
+@dataclass(frozen=True)
+class PunchSystemBlock:
+    """O bloqueio de um sistema: os abertos por categoria e a contagem por marco."""
+
+    system_id: int
+    code: str
+    name: str
+    area: str
+    a_open: int
+    b_open: int
+    c_open: int
+    blocks: Mapping[str, int]
+
+    @property
+    def label(self) -> str:
+        """``310 Flotação``: como a lista e o alerta nomeiam o sistema."""
+        return f"{self.code} {self.name}"
+
+
+@dataclass(frozen=True)
+class PunchListing:
+    """O que a lista mostra: os indicadores, as linhas do filtro e os sistemas bloqueados."""
+
+    rows: tuple[PunchRow, ...]
+    kpis: calculations.PunchKpis
+    filter: PunchFilter
+    is_portfolio: bool
+    blocks: tuple[PunchSystemBlock, ...]
+
+    @property
+    def is_empty(self) -> bool:
+        """Se o escopo não tem item nenhum, mesmo sem filtro."""
+        return not self.rows and not self.blocks
+
+    def blocked_for(self, milestone: str) -> tuple[PunchSystemBlock, ...]:
+        """Os sistemas bloqueados num marco, na ordem do código."""
+        return tuple(block for block in self.blocks if block.blocks.get(milestone, 0) > 0)
+
+
+@dataclass(frozen=True)
+class PunchFilterOptions:
+    """As escolhas do modal de filtros: sistemas do escopo, empresas e disciplinas."""
+
+    systems: tuple[cadastros.SystemOption, ...]
+    companies: tuple[configuracoes.RegisterOption, ...]
+    disciplines: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PunchFormOptions:
+    """As escolhas dos formulários do item e da verificação."""
+
+    systems: tuple[cadastros.SystemOption, ...]
+    companies: tuple[configuracoes.RegisterOption, ...]
+    people: tuple[configuracoes.RegisterOption, ...]
+    disciplines: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PunchItemFormView:
+    """O formulário do item: o que veio digitado, o item editado e as escolhas."""
+
+    item: PunchItem | None
+    fields: Mapping[str, str]
+    options: PunchFormOptions
+    errors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PunchVerificationFormView:
+    """O formulário do fechamento com verificação: o item, o digitado e as escolhas."""
+
+    item: PunchItem
+    fields: Mapping[str, str]
+    options: PunchFormOptions
+    errors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PunchCancellationFormView:
+    """O formulário do cancelamento: o item, o digitado e as mensagens."""
+
+    item: PunchItem
+    fields: Mapping[str, str]
+    errors: Mapping[str, str]
+
+
+def punch_overview(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    punch_filter: PunchFilter,
+    reference_date: date,
+) -> PunchListing:
+    """A lista do escopo no filtro: os indicadores do conjunto, as linhas e o bloqueio dos sistemas."""
+    rbac.require_module(user, MODULE)
+    records = _punch_records(session, scope)
+    systems = _systems(session, records)
+    states = tuple(_punch_state(record) for record in records)
+    chosen = [
+        record
+        for record in records
+        if _passes_punch_filter(record, punch_filter, systems, reference_date)
+    ]
+    return PunchListing(
+        rows=_punch_rows(session, chosen, reference_date=reference_date),
+        kpis=calculations.punch_kpis(states, reference_date),
+        filter=punch_filter,
+        is_portfolio=scope.is_portfolio,
+        blocks=_punch_blocks(session, records, states),
+    )
+
+
+def punch_filter_options(session: Session, *, scope: Scope) -> PunchFilterOptions:
+    """As escolhas do modal de filtros: no Portfólio, os sistemas de todos os projetos."""
+    return PunchFilterOptions(
+        systems=tuple(cadastros.list_systems(session, project_id=scope.project_id)),
+        companies=tuple(configuracoes.list_company_options(session)),
+        disciplines=tuple(configuracoes.list_discipline_names(session)),
+    )
+
+
+def punch_item_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int | None = None,
+    form: validation.PunchItemForm | None = None,
+    errors: Mapping[str, str] | None = None,
+) -> PunchItemFormView:
+    """O formulário do item, em branco ou com o que foi digitado, e as suas escolhas."""
+    rbac.require_module(user, MODULE)
+    item = _punch_item(session, scope, item_id) if item_id is not None else None
+    project_id = item.project_id if item is not None else scope.require_project()
+    options = punch_form_options(session, project_id=project_id)
+    fields = dict(form.fields) if form is not None else _punch_default_fields(item, user)
+    return PunchItemFormView(item=item, fields=fields, options=options, errors=dict(errors or {}))
+
+
+def punch_verification_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.PunchVerificationForm | None = None,
+    errors: Mapping[str, str] | None = None,
+) -> PunchVerificationFormView:
+    """O formulário do fechamento com verificação, com o item e as escolhas de pessoa."""
+    rbac.require_module(user, MODULE)
+    item = _punch_item(session, scope, item_id)
+    options = punch_form_options(session, project_id=item.project_id)
+    fields = (
+        dict(form.fields)
+        if form is not None
+        else {validation.FIELD_PUNCH_RESULT: validation.PUNCH_RESULT_APPROVED}
+    )
+    return PunchVerificationFormView(
+        item=item, fields=fields, options=options, errors=dict(errors or {})
+    )
+
+
+def punch_cancellation_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.PunchCancellationForm | None = None,
+    errors: Mapping[str, str] | None = None,
+) -> PunchCancellationFormView:
+    """O formulário do cancelamento, com o item e o digitado."""
+    rbac.require_module(user, MODULE)
+    return PunchCancellationFormView(
+        item=_punch_item(session, scope, item_id),
+        fields=dict(form.fields) if form is not None else {},
+        errors=dict(errors or {}),
+    )
+
+
+def punch_form_options(session: Session, *, project_id: int) -> PunchFormOptions:
+    """As escolhas dos formulários: sistemas do projeto, empresas, pessoas e disciplinas."""
+    return PunchFormOptions(
+        systems=tuple(cadastros.list_systems(session, project_id=project_id)),
+        companies=tuple(configuracoes.list_company_options(session)),
+        people=tuple(configuracoes.list_person_options(session)),
+        disciplines=tuple(configuracoes.list_discipline_names(session)),
+    )
+
+
+def create_punch_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    form: validation.PunchItemForm,
+    reference_date: date,
+) -> PunchItem:
+    """Inclui o item com a numeração do projeto e abre a ação da Central na mesma transação."""
+    rbac.require(user, Permission.WRITE)
+    project_id = scope.require_project()
+    project = configuracoes.find_project(session, project_id)
+    if project is None:
+        raise InvalidDataError(PUNCH_PROJECT_MESSAGE)
+    options = punch_form_options(session, project_id=project_id)
+    data = validation.parse_punch_item(form, _punch_choices(options))
+    item = PunchItem(
+        project_id=project_id,
+        system_id=data.system_id,
+        company_id=data.company_id,
+        owner_id=data.owner_id,
+        identified_by_id=data.identified_by_id,
+        code=numbering.next_number(
+            session, project=project, kind=PUNCH_KIND, reference_date=reference_date
+        ),
+        subsystem=data.subsystem,
+        tag=data.tag,
+        discipline=data.discipline,
+        category=data.category,
+        milestone=data.milestone,
+        origin=data.origin,
+        description=data.description,
+        opened_on=reference_date,
+        due_date=data.due_date,
+        situation=validation.PUNCH_OPEN,
+    )
+    recording.create(session, user_id=user.id, record=item)
+    _create_punch_action(
+        session,
+        user=user,
+        item=item,
+        system=_system_of(options, item.system_id),
+        reference_date=reference_date,
+    )
+    return item
+
+
+def update_punch_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.PunchItemForm,
+    version: int | str | None,
+    reference_date: date,
+) -> PunchItem:
+    """Edita o item aberto e espelha os campos que a ação da Central copia dele."""
+    rbac.require(user, Permission.WRITE)
+    item = _punch_item(session, scope, item_id)
+    options = punch_form_options(session, project_id=item.project_id)
+    data = validation.parse_punch_item(form, _punch_choices(options))
+    recording.update(
+        session,
+        user_id=user.id,
+        record=item,
+        changes={
+            "system_id": data.system_id,
+            "company_id": data.company_id,
+            "owner_id": data.owner_id,
+            "identified_by_id": data.identified_by_id,
+            "subsystem": data.subsystem,
+            "tag": data.tag,
+            "discipline": data.discipline,
+            "category": data.category,
+            "milestone": data.milestone,
+            "origin": data.origin,
+            "description": data.description,
+            "due_date": data.due_date,
+        },
+        version=version,
+    )
+    _sync_punch_action(
+        session,
+        user=user,
+        item=item,
+        system=_system_of(options, item.system_id),
+        reference_date=reference_date,
+    )
+    return item
+
+
+def treat_punch_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    version: int | str | None,
+    reference_date: date,
+) -> PunchItem:
+    """Move o item aberto para Em tratamento."""
+    rbac.require(user, Permission.WRITE)
+    item = _punch_item(session, scope, item_id)
+    if item.situation != validation.PUNCH_OPEN:
+        raise InvalidDataError(PUNCH_TREATMENT_MESSAGE)
+    return _move_punch_item(
+        session,
+        user=user,
+        item=item,
+        version=version,
+        changes={"situation": validation.PUNCH_TREATMENT},
+        reference_date=reference_date,
+    )
+
+
+def send_punch_item_to_verification(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    version: int | str | None,
+    reference_date: date,
+) -> PunchItem:
+    """Envia o item em tratamento para a verificação."""
+    rbac.require(user, Permission.WRITE)
+    item = _punch_item(session, scope, item_id)
+    if item.situation != validation.PUNCH_TREATMENT:
+        raise InvalidDataError(PUNCH_SEND_MESSAGE)
+    return _move_punch_item(
+        session,
+        user=user,
+        item=item,
+        version=version,
+        changes={"situation": validation.PUNCH_VERIFYING},
+        reference_date=reference_date,
+    )
+
+
+def verify_punch_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.PunchVerificationForm,
+    version: int | str | None,
+    reference_date: date,
+) -> PunchItem:
+    """Registra a verificação: aprovada fecha o item (exige evidência), reprovada o devolve.
+
+    O verificador igual ao executante recebe 403 (D7, segregação de funções); o fechamento sem
+    anexo é recusado com 422 e a ação da Central acompanha na mesma transação (D9).
+    """
+    rbac.require(user, Permission.WRITE)
+    item = _punch_item(session, scope, item_id)
+    if item.situation != validation.PUNCH_VERIFYING:
+        raise InvalidDataError(PUNCH_VERIFY_MESSAGE)
+    options = punch_form_options(session, project_id=item.project_id)
+    data = validation.parse_punch_verification(form, _punch_choices(options))
+    if data.verifier_id == item.owner_id:
+        raise AccessDeniedError(PUNCH_SEGREGATION_MESSAGE)
+    if not data.approved:
+        return _move_punch_item(
+            session,
+            user=user,
+            item=item,
+            version=version,
+            changes={"situation": validation.PUNCH_TREATMENT},
+            reference_date=reference_date,
+        )
+    if not attachments.has_evidence(
+        session, origin_table=PUNCH_ATTACHMENT_TABLE, origin_record_id=item.id
+    ):
+        raise InvalidDataError({validation.FIELD_PUNCH_RESULT: PUNCH_EVIDENCE_MESSAGE})
+    recording.update(
+        session,
+        user_id=user.id,
+        record=item,
+        changes={
+            "situation": validation.PUNCH_CLOSED,
+            "closed_on": reference_date,
+            "verified_by_id": data.verifier_id,
+        },
+        version=version,
+    )
+    _close_punch_action(
+        session, user=user, item=item, closed_on=reference_date, reference_date=reference_date
+    )
+    return item
+
+
+def cancel_punch_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.PunchCancellationForm,
+    version: int | str | None,
+    reference_date: date,
+) -> PunchItem:
+    """Cancela o item aberto com justificativa e encerra a ação ligada a ele."""
+    rbac.require(user, Permission.WRITE)
+    item = _punch_item(session, scope, item_id)
+    if not calculations.punch_is_open(item.situation):
+        raise InvalidDataError(PUNCH_TREATMENT_MESSAGE)
+    validation.parse_punch_cancellation(form)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=item,
+        changes={"situation": validation.PUNCH_CANCELLED},
+        version=version,
+    )
+    _close_punch_action(
+        session, user=user, item=item, closed_on=reference_date, reference_date=reference_date
+    )
+    return item
+
+
+def read_punch_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """A leitura dos anexos do item: quem lê o item lê os arquivos dele."""
+    item = session.get(PunchItem, record_id)
+    if item is None:
+        return None
+    rbac.require_module(user, MODULE)
+    return attachment_origins.OriginRecord(project_id=item.project_id)
+
+
+def react_to_punch_action(session: Session, user: User, action: Action, event: ActionEvent) -> None:
+    """A ação mudou na Central: o item espelha a conclusão ou o replanejamento (D9).
+
+    A origem Punch list é tratada no registro de origem (decisão da ISSUE-019), então a tela da
+    Central só mostra e linka; a reação é o caminho previsto na costura para quando a ação for
+    concluída ou replanejada por ela: o item fecha na data da conclusão ou segue o novo prazo.
+    """
+    item = _item_of_punch_action(session, action)
+    if item is None or item.situation in calculations.PUNCH_FINAL_SITUATIONS:
+        return
+    if event is ActionEvent.COMPLETED and action.completed_on is not None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=item,
+            changes={"situation": validation.PUNCH_CLOSED, "closed_on": action.completed_on},
+            version=item.version,
+        )
+    elif event is ActionEvent.REPLANNED and action.replanned_date is not None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=item,
+            changes={"due_date": action.replanned_date},
+            version=item.version,
+        )
+
+
+# ── Punch list: internos ─────────────────────────────────────────────────
+
+
+def _punch_records(session: Session, scope: Scope) -> list[PunchItem]:
+    """Os itens do escopo, na ordem do código (a ordem da tela e das exportações)."""
+    statement = select(PunchItem).order_by(PunchItem.code, PunchItem.id)
+    if scope.project_id is not None:
+        statement = statement.where(PunchItem.project_id == scope.project_id)
+    return list(session.scalars(statement).all())
+
+
+def _punch_item(session: Session, scope: Scope, item_id: int) -> PunchItem:
+    """O item do escopo, ou 422; um item de outro projeto não é alcançado pelo escopo."""
+    item = session.get(PunchItem, item_id)
+    if item is None or (scope.project_id is not None and item.project_id != scope.project_id):
+        raise InvalidDataError(PUNCH_NOT_FOUND_MESSAGE)
+    return item
+
+
+def _punch_state(item: PunchItem) -> calculations.PunchState:
+    return calculations.PunchState(
+        situation=item.situation,
+        category=item.category,
+        milestone=item.milestone,
+        system_id=item.system_id,
+        due_date=item.due_date,
+    )
+
+
+def _systems(session: Session, records: Sequence[PunchItem]) -> dict[int, cadastros.SystemOption]:
+    return cadastros.system_options_by_id(session, {record.system_id for record in records})
+
+
+def _passes_punch_filter(
+    item: PunchItem,
+    punch_filter: PunchFilter,
+    systems: Mapping[int, cadastros.SystemOption],
+    reference_date: date,
+) -> bool:
+    if punch_filter.overdue and not calculations.punch_is_overdue(
+        _punch_state(item), reference_date
+    ):
+        return False
+    return _matches_punch_context(item, punch_filter) and _matches_punch_search(
+        item, punch_filter, systems
+    )
+
+
+def _matches_punch_context(item: PunchItem, punch_filter: PunchFilter) -> bool:
+    """As escolhas do modal: categoria, sistema, disciplina, empresa e situação."""
+    return (
+        (not punch_filter.category or item.category == punch_filter.category)
+        and (punch_filter.system_id is None or item.system_id == punch_filter.system_id)
+        and (not punch_filter.discipline or item.discipline == punch_filter.discipline)
+        and (punch_filter.company_id is None or item.company_id == punch_filter.company_id)
+        and _matches_punch_situation(item.situation, punch_filter.situation)
+    )
+
+
+def _matches_punch_situation(situation: str, wanted: str) -> bool:
+    if wanted == validation.PUNCH_SITUATION_FILTER_OPEN:
+        return calculations.punch_is_open(situation)
+    return not wanted or situation == wanted
+
+
+def _matches_punch_search(
+    item: PunchItem, punch_filter: PunchFilter, systems: Mapping[int, cadastros.SystemOption]
+) -> bool:
+    """A busca livre: código, descrição, TAG, subsistema e o sistema por código e nome."""
+    if not punch_filter.search:
+        return True
+    system = systems.get(item.system_id)
+    searchable = " ".join(
+        part
+        for part in (
+            item.code,
+            item.description,
+            item.tag,
+            item.subsystem,
+            None if system is None else f"{system.code} {system.name}",
+        )
+        if part
+    )
+    return normalize_text(punch_filter.search) in normalize_text(searchable)
+
+
+def _punch_rows(
+    session: Session, records: Sequence[PunchItem], *, reference_date: date
+) -> tuple[PunchRow, ...]:
+    """As linhas da lista, com os nomes lidos de uma vez só."""
+    if not records:
+        return ()
+    systems = _systems(session, records)
+    companies = {option.id: option.name for option in configuracoes.list_company_options(session)}
+    people = {option.id: option.name for option in configuracoes.list_person_options(session)}
+    projects = {
+        project.id: (project.code, project.name) for project in configuracoes.list_projects(session)
+    }
+    central_url = origin_links.link_to_screen("central_acoes/acoes")
+    rows: list[PunchRow] = []
+    for item in records:
+        system = systems.get(item.system_id)
+        project = projects.get(item.project_id, ("", ""))
+        rows.append(
+            PunchRow(
+                id=item.id,
+                version=item.version,
+                code=item.code,
+                category=item.category,
+                system_id=item.system_id,
+                system_label="" if system is None else system.label,
+                project_code=project[0],
+                project_name=project[1],
+                subsystem=item.subsystem,
+                tag=item.tag,
+                discipline=item.discipline,
+                description=item.description,
+                milestone=item.milestone,
+                origin=item.origin,
+                company_name=companies.get(item.company_id or 0, ""),
+                owner_id=item.owner_id,
+                owner_name=people.get(item.owner_id, ""),
+                identified_by_name=people.get(item.identified_by_id, ""),
+                opened_on=item.opened_on,
+                due_date=item.due_date,
+                closed_on=item.closed_on,
+                situation=item.situation,
+                verified_by_name=people.get(item.verified_by_id or 0, ""),
+                age_days=calculations.punch_age_days(item.opened_on, reference_date),
+                overdue=calculations.punch_is_overdue(_punch_state(item), reference_date),
+                action=PunchActionRef(
+                    reference=item.code,
+                    url=None if central_url is None else f"{central_url}?busca={item.code}",
+                ),
+            )
+        )
+    return tuple(rows)
+
+
+def _punch_blocks(
+    session: Session, records: Sequence[PunchItem], states: Sequence[calculations.PunchState]
+) -> tuple[PunchSystemBlock, ...]:
+    """O bloqueio de cada sistema do escopo: os abertos por categoria e a contagem por marco."""
+    if not records:
+        return ()
+    systems = _systems(session, records)
+    blocks: list[PunchSystemBlock] = []
+    for system_id, system in sorted(systems.items(), key=lambda pair: (pair[1].code, pair[1].id)):
+        mine = [state for state in states if state.system_id == system_id]
+        opened = [state for state in mine if calculations.punch_is_open(state.situation)]
+        blocks.append(
+            PunchSystemBlock(
+                system_id=system_id,
+                code=system.code,
+                name=system.name,
+                area=system.area,
+                a_open=sum(1 for state in opened if state.category == "A"),
+                b_open=sum(1 for state in opened if state.category == "B"),
+                c_open=sum(1 for state in opened if state.category == "C"),
+                blocks={
+                    milestone: calculations.punch_system_block_count(
+                        mine, system_id=system_id, milestone=milestone
+                    )
+                    for milestone in validation.PUNCH_MILESTONES
+                },
+            )
+        )
+    return tuple(blocks)
+
+
+def _punch_default_fields(item: PunchItem | None, user: User) -> dict[str, str]:
+    """O formulário em branco, com quem identificou já preenchido; na edição, o item."""
+    if item is None:
+        return {
+            validation.FIELD_PUNCH_IDENTIFIED: str(user.person_id),
+            validation.FIELD_PUNCH_ORIGIN: validation.PUNCH_ORIGINS[0],
+        }
+    return {
+        validation.FIELD_PUNCH_SYSTEM: str(item.system_id),
+        validation.FIELD_PUNCH_SUBSYSTEM: item.subsystem,
+        validation.FIELD_PUNCH_TAG: item.tag,
+        validation.FIELD_PUNCH_DISCIPLINE: item.discipline,
+        validation.FIELD_PUNCH_CATEGORY: item.category,
+        validation.FIELD_PUNCH_MILESTONE: item.milestone,
+        validation.FIELD_PUNCH_ORIGIN: item.origin,
+        validation.FIELD_PUNCH_DESCRIPTION: item.description,
+        validation.FIELD_PUNCH_COMPANY: "" if item.company_id is None else str(item.company_id),
+        validation.FIELD_PUNCH_OWNER: str(item.owner_id),
+        validation.FIELD_PUNCH_IDENTIFIED: str(item.identified_by_id),
+        validation.FIELD_PUNCH_DUE: item.due_date.isoformat(),
+    }
+
+
+def _punch_choices(options: PunchFormOptions) -> validation.PunchChoices:
+    return validation.PunchChoices(
+        system_ids=frozenset(option.id for option in options.systems),
+        company_ids=frozenset(option.id for option in options.companies),
+        person_ids=frozenset(option.id for option in options.people),
+        disciplines=frozenset(options.disciplines),
+    )
+
+
+def _system_of(options: PunchFormOptions, system_id: int) -> cadastros.SystemOption | None:
+    return next((option for option in options.systems if option.id == system_id), None)
+
+
+def _move_punch_item(
+    session: Session,
+    *,
+    user: User,
+    item: PunchItem,
+    version: int | str | None,
+    changes: Mapping[str, Any],
+    reference_date: date,
+) -> PunchItem:
+    """Uma transição do fluxo: grava a situação e mantém a ação em dia."""
+    recording.update(session, user_id=user.id, record=item, changes=changes, version=version)
+    options = punch_form_options(session, project_id=item.project_id)
+    _sync_punch_action(
+        session,
+        user=user,
+        item=item,
+        system=_system_of(options, item.system_id),
+        reference_date=reference_date,
+    )
+    return item
+
+
+def _create_punch_action(
+    session: Session,
+    *,
+    user: User,
+    item: PunchItem,
+    system: cadastros.SystemOption | None,
+    reference_date: date,
+) -> None:
+    """Abre a ação da Central da origem Punch list pela costura única (D9)."""
+    from src.modulos.central_acoes import service as central
+    from src.modulos.central_acoes.validation import NewAction
+
+    central.create_action(
+        session,
+        user=user,
+        new=NewAction(
+            project_id=item.project_id,
+            origin=PUNCH_ORIGIN,
+            origin_ref=item.code,
+            subject=item.description,
+            description=calculations.punch_action_description(
+                system.label if system is not None else "",
+                item.tag,
+                item.category,
+                item.situation,
+            ),
+            requester_id=item.identified_by_id,
+            responsible_id=item.owner_id,
+            planned_date=item.due_date,
+            group="" if system is None else system.label,
+        ),
+        reference_date=reference_date,
+    )
+
+
+def _sync_punch_action(
+    session: Session,
+    *,
+    user: User,
+    item: PunchItem,
+    system: cadastros.SystemOption | None,
+    reference_date: date,
+) -> None:
+    """Espelha no item o que a ação copiou dele: assunto, descrição, grupo, prazo e responsável."""
+    from src.modulos.central_acoes import service as central
+
+    central.sync_from_origin(
+        session,
+        user=user,
+        origin=origin_links.OriginRef(kind=PUNCH_ORIGIN, reference=item.code, record_id=item.id),
+        changes={
+            "subject": item.description,
+            "description": calculations.punch_action_description(
+                system.label if system is not None else "",
+                item.tag,
+                item.category,
+                item.situation,
+            ),
+            "group": "" if system is None else system.label,
+            "planned_date": item.due_date,
+            "responsible_id": item.owner_id,
+        },
+        reference_date=reference_date,
+    )
+
+
+def _close_punch_action(
+    session: Session, *, user: User, item: PunchItem, closed_on: date, reference_date: date
+) -> None:
+    """O item fechou ou foi cancelado: conclui a ação aberta que aponta para ele (D9)."""
+    from src.modulos.central_acoes import service as central
+
+    central.close_from_origin(
+        session,
+        user=user,
+        origin=origin_links.OriginRef(kind=PUNCH_ORIGIN, reference=item.code, record_id=item.id),
+        completed_on=closed_on,
+        reference_date=reference_date,
+    )
+
+
+def _item_of_punch_action(session: Session, action: Action) -> PunchItem | None:
+    """O item que a ação aponta: a referência é o código, dentro do projeto da ação."""
+    if not action.origin_ref:
+        return None
+    return session.scalars(
+        select(PunchItem).where(
+            PunchItem.project_id == action.project_id, PunchItem.code == action.origin_ref
+        )
+    ).one_or_none()
+
+
+def _punch_action_link(reference: origin_links.OriginRef) -> str | None:
+    """O link de volta da ação da Central: a tela da punch list com a busca pelo código."""
+    return origin_links.link_to_screen(PUNCH_SCREEN, busca=reference.reference)
+
+
+origin_links.register(origin_links.OriginLinkType(kind=PUNCH_ORIGIN, build=_punch_action_link))
+attachment_origins.register(
+    attachment_origins.OriginType(
+        table=PUNCH_ATTACHMENT_TABLE, module=MODULE, read=read_punch_origin
+    )
+)
+action_origins.register_reaction(PUNCH_ORIGIN, react_to_punch_action)

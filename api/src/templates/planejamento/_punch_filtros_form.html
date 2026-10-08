@@ -1,0 +1,68 @@
+{#
+  Filtros da Punch list (ISSUE-049): situação, categoria, sistema, disciplina e empresa. O
+  formulário aplica pela rota da tela (GET) e a resposta troca o modal (esvaziado), a barra e a
+  lista; a busca fica na barra e viaja escondida para não se perder ao aplicar.
+
+  Espera: api, consulta, filtro, opcoes, pode_gravar.
+#}
+<div class="punch__form">
+  <form method="get" action="{{ api }}" x-data x-target="punch-modal punch-filtros punch-conteudo">
+    <input type="hidden" name="busca" value="{{ filtro.busca }}" />
+    <div class="punch__campos">
+      <div class="field">
+        <label for="punch-f-situacao">Situação</label>
+        <select class="input" id="punch-f-situacao" name="situacao">
+          <option value="abertos"{% if filtro.situacao == 'abertos' %} selected{% endif %}>Abertos (não fechados)</option>
+          {% for situacao in ["Aberto", "Em tratamento", "Aguardando verificação", "Fechado", "Cancelado"] %}
+          <option value="{{ situacao }}"{% if filtro.situacao == situacao %} selected{% endif %}>{{ situacao }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="punch-f-categoria">Categoria</label>
+        <select class="input" id="punch-f-categoria" name="categoria">
+          <option value="">Todas</option>
+          {% for categoria in ["A", "B", "C"] %}
+          <option value="{{ categoria }}"{% if filtro.categoria == categoria %} selected{% endif %}>Categoria {{ categoria }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="punch-f-sistema">Sistema</label>
+        <select class="input" id="punch-f-sistema" name="sistema">
+          <option value="">Todos</option>
+          {% for sistema in opcoes.systems %}
+          <option value="{{ sistema.id }}"{% if filtro.sistema == sistema.id | string %} selected{% endif %}>{{ sistema.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="punch-f-disciplina">Disciplina</label>
+        <select class="input" id="punch-f-disciplina" name="disciplina">
+          <option value="">Todas</option>
+          {% for disciplina in opcoes.disciplines %}
+          <option value="{{ disciplina }}"{% if filtro.disciplina == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field--full">
+        <label for="punch-f-empresa">Empresa</label>
+        <select class="input" id="punch-f-empresa" name="empresa">
+          <option value="">Todas</option>
+          {% for empresa in opcoes.companies %}
+          <option value="{{ empresa.id }}"{% if filtro.empresa == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--ghost"
+        @click="Array.from($root.querySelectorAll('select,input')).forEach((campo) => { campo.value = campo.name === 'situacao' ? 'abertos' : ''; }); $root.requestSubmit()">
+        Limpar filtros
+      </button>
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">Aplicar</button>
+    </div>
+  </form>
+</div>

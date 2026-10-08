@@ -559,7 +559,12 @@ def _plain(value: object) -> str:
 
 def register_importers() -> None:
     """Registra os importadores do módulo uma vez; chamar de novo mantém o que já está registrado."""
-    for importer in (progress_importer(), packages_importer(), quantity_importer()):
+    for importer in (
+        progress_importer(),
+        packages_importer(),
+        quantity_importer(),
+        punch_importer(),
+    ):
         if importing.find(importer.key) is None:
             importing.register(importer)
 
@@ -802,4 +807,226 @@ def _save_quantity(session: Session, *, values: Mapping[str, Any], context: Impo
         scope=context.scope,
         form=validation.ItemForm(fields=fields, planned=_quantity_planned(fields)),
         reference_date=context.reference_date,
+    )
+
+
+# ── Importação de itens da punch list (ISSUE-049) ─────────────────────────
+
+
+PUNCH_KEY = "punch-itens"
+
+
+PUNCH_SYSTEM_FIELD = "sistema"
+
+PUNCH_SUBSYSTEM_FIELD = "subsistema"
+
+PUNCH_TAG_FIELD = "tag"
+
+PUNCH_DISCIPLINE_FIELD = "disciplina"
+
+PUNCH_CATEGORY_FIELD = "categoria"
+
+PUNCH_MILESTONE_FIELD = "marco"
+
+PUNCH_ORIGIN_FIELD = "origem"
+
+PUNCH_DESCRIPTION_FIELD = "descricao"
+
+PUNCH_COMPANY_FIELD = "empresa"
+
+PUNCH_OWNER_FIELD = "responsavel"
+
+PUNCH_DUE_FIELD = "prazo"
+
+
+PUNCH_SYSTEM_HEADER = "Sistema"
+
+PUNCH_SUBSYSTEM_HEADER = "Subsistema"
+
+PUNCH_TAG_HEADER = "TAG"
+
+PUNCH_DISCIPLINE_HEADER = "Disciplina"
+
+PUNCH_CATEGORY_HEADER = "Categoria"
+
+PUNCH_MILESTONE_HEADER = "Marco"
+
+PUNCH_ORIGIN_HEADER = "Origem"
+
+PUNCH_DESCRIPTION_HEADER = "Descrição"
+
+PUNCH_COMPANY_HEADER = "Empresa"
+
+PUNCH_OWNER_HEADER = "Responsável"
+
+PUNCH_DUE_HEADER = "Prazo"
+
+
+PUNCH_SYSTEM_MESSAGE = "o sistema {name} não está no cadastro do projeto"
+
+PUNCH_COMPANY_MESSAGE = "a empresa {name} não está no cadastro"
+
+PUNCH_OWNER_MESSAGE = "o responsável {name} não está no cadastro"
+
+
+def punch_importer() -> Importer:
+    """O importador dos itens da punch list: o sistema pelo código e a ação criada por linha."""
+    return Importer(
+        key=PUNCH_KEY,
+        title="Itens da Punch list",
+        module=MODULE,
+        columns=(
+            ImportColumn(PUNCH_SYSTEM_FIELD, PUNCH_SYSTEM_HEADER, required=True, example="310"),
+            ImportColumn(
+                PUNCH_SUBSYSTEM_FIELD, PUNCH_SUBSYSTEM_HEADER, required=True, example="Tubulação"
+            ),
+            ImportColumn(PUNCH_TAG_FIELD, PUNCH_TAG_HEADER, required=True, example="310-P-030"),
+            ImportColumn(
+                PUNCH_DISCIPLINE_FIELD, PUNCH_DISCIPLINE_HEADER, required=True, example="Tubulação"
+            ),
+            ImportColumn(
+                PUNCH_CATEGORY_FIELD,
+                PUNCH_CATEGORY_HEADER,
+                options=validation.PUNCH_CATEGORIES,
+                required=True,
+                example="B",
+            ),
+            ImportColumn(
+                PUNCH_MILESTONE_FIELD,
+                PUNCH_MILESTONE_HEADER,
+                options=validation.PUNCH_MILESTONES,
+                required=True,
+                example="Aceite provisório",
+            ),
+            ImportColumn(
+                PUNCH_ORIGIN_FIELD,
+                PUNCH_ORIGIN_HEADER,
+                options=validation.PUNCH_ORIGINS,
+                required=True,
+                example="Walkdown",
+            ),
+            ImportColumn(
+                PUNCH_DESCRIPTION_FIELD,
+                PUNCH_DESCRIPTION_HEADER,
+                required=True,
+                example="Isolamento térmico incompleto",
+            ),
+            ImportColumn(
+                PUNCH_COMPANY_FIELD,
+                PUNCH_COMPANY_HEADER,
+                required=True,
+                example="Alfa Montagens",
+            ),
+            ImportColumn(
+                PUNCH_OWNER_FIELD,
+                PUNCH_OWNER_HEADER,
+                required=True,
+                example="Carlos Nunes",
+            ),
+            ImportColumn(PUNCH_DUE_FIELD, PUNCH_DUE_HEADER, ValueKind.DATE, required=True),
+        ),
+        validate=_validate_punch,
+        save=_save_punch,
+    )
+
+
+def _punch_import_fields(
+    session: Session, values: Mapping[str, Any], *, project_id: int
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Os campos do formulário do item a partir da linha, com os vínculos resolvidos pelo cadastro."""
+    problems: list[str] = []
+    system_code = str(values.get(PUNCH_SYSTEM_FIELD) or "").strip()
+    system = next(
+        (
+            option
+            for option in service.punch_form_options(session, project_id=project_id).systems
+            if option.code == system_code
+        ),
+        None,
+    )
+    if system is None:
+        problems.append(PUNCH_SYSTEM_MESSAGE.format(name=system_code))
+    company_name = str(values.get(PUNCH_COMPANY_FIELD) or "")
+    company_id = next(
+        (
+            option.id
+            for option in configuracoes.list_company_options(session)
+            if normalize_text(option.name) == normalize_text(company_name)
+        ),
+        None,
+    )
+    if company_id is None:
+        problems.append(PUNCH_COMPANY_MESSAGE.format(name=company_name))
+    owner_name = str(values.get(PUNCH_OWNER_FIELD) or "")
+    owner_id = next(
+        (
+            option.id
+            for option in configuracoes.list_person_options(session)
+            if normalize_text(option.name) == normalize_text(owner_name)
+        ),
+        None,
+    )
+    if owner_id is None:
+        problems.append(PUNCH_OWNER_MESSAGE.format(name=owner_name))
+    fields = {
+        validation.FIELD_PUNCH_SYSTEM: "" if system is None else str(system.id),
+        validation.FIELD_PUNCH_SUBSYSTEM: str(values.get(PUNCH_SUBSYSTEM_FIELD) or ""),
+        validation.FIELD_PUNCH_TAG: str(values.get(PUNCH_TAG_FIELD) or ""),
+        validation.FIELD_PUNCH_DISCIPLINE: str(values.get(PUNCH_DISCIPLINE_FIELD) or ""),
+        validation.FIELD_PUNCH_CATEGORY: str(values.get(PUNCH_CATEGORY_FIELD) or ""),
+        validation.FIELD_PUNCH_MILESTONE: str(values.get(PUNCH_MILESTONE_FIELD) or ""),
+        validation.FIELD_PUNCH_ORIGIN: str(values.get(PUNCH_ORIGIN_FIELD) or ""),
+        validation.FIELD_PUNCH_DESCRIPTION: str(values.get(PUNCH_DESCRIPTION_FIELD) or ""),
+        validation.FIELD_PUNCH_COMPANY: "" if company_id is None else str(company_id),
+        validation.FIELD_PUNCH_OWNER: "" if owner_id is None else str(owner_id),
+        validation.FIELD_PUNCH_IDENTIFIED: "",
+        validation.FIELD_PUNCH_DUE: _date_text(values.get(PUNCH_DUE_FIELD)),
+    }
+    return fields, tuple(problems)
+
+
+def _validate_punch(
+    session: Session, *, values: Mapping[str, Any], context: ImportContext
+) -> RowCheck:
+    """Confere uma linha como o formulário do item, sem gravar."""
+    try:
+        project_id = context.scope.require_project()
+    except InvalidDataError as error:
+        return RowCheck(errors=tuple(error.messages()))
+    fields, problems = _punch_import_fields(session, values, project_id=project_id)
+    if problems:
+        return RowCheck(errors=problems)
+    options = service.punch_form_options(session, project_id=project_id)
+    fields[validation.FIELD_PUNCH_IDENTIFIED] = str(context.user.person_id)
+    try:
+        validation.parse_punch_item(
+            validation.PunchItemForm(fields=fields), _punch_choices(options)
+        )
+    except InvalidDataError as error:
+        return RowCheck(errors=tuple(error.messages()))
+    return RowCheck()
+
+
+def _save_punch(session: Session, *, values: Mapping[str, Any], context: ImportContext) -> None:
+    """Grava uma linha pela fachada: item novo com a numeração do projeto e ação na Central."""
+    project_id = context.scope.require_project()
+    fields, problems = _punch_import_fields(session, values, project_id=project_id)
+    if problems:
+        raise InvalidDataError(problems[0])
+    fields[validation.FIELD_PUNCH_IDENTIFIED] = str(context.user.person_id)
+    service.create_punch_item(
+        session,
+        user=context.user,
+        scope=context.scope,
+        form=validation.PunchItemForm(fields=fields),
+        reference_date=context.reference_date,
+    )
+
+
+def _punch_choices(options: service.PunchFormOptions) -> validation.PunchChoices:
+    return validation.PunchChoices(
+        system_ids=frozenset(option.id for option in options.systems),
+        company_ids=frozenset(option.id for option in options.companies),
+        person_ids=frozenset(option.id for option in options.people),
+        disciplines=frozenset(options.disciplines),
     )

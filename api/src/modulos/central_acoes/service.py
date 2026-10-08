@@ -17,6 +17,9 @@ Public API (stable; a change needs an issue of its own, a new field comes with a
   ``reopen_from_origin(session, *, user, origin, reference_date)``, where ``origin`` is an
   ``origin_links.OriginRef(kind, reference)``: the origin closed or reopened a record on its own
   screen, the Central follows;
+* ``sync_from_origin(session, *, user, origin, changes, reference_date)``: the origin changed
+  the fields the action copies from it (the punch item mirrors its deadline and its subject), the
+  open actions follow;
 * ``find_action``, ``list_actions``, ``replan_history``, ``count_by_status`` and
   ``count_actions_of_origin``: reading.
 
@@ -27,9 +30,10 @@ never reads the table ``acao``; it uses the functions above.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -313,6 +317,39 @@ def close_from_origin(
     return changed
 
 
+# What an action mirrors from its record of origin; anything else of ``changes`` is ignored.
+MIRRORED_FIELDS = frozenset(
+    {"subject", "description", "group", "planned_date", "responsible_id", "requester_id"}
+)
+
+
+def sync_from_origin(
+    session: Session,
+    *,
+    user: User,
+    origin: origin_links.OriginRef,
+    changes: Mapping[str, Any],
+    reference_date: date,
+) -> list[ActionRecord]:
+    """The origin changed the data the action copies from it: the open actions follow.
+
+    Only the mirrored fields enter; the version written is the one of the action row itself and
+    the trail keeps before and after. Does not tell the origin back (it is the one that moved).
+    Returns the actions that changed now.
+    """
+    rbac.require(user, Permission.WRITE)
+    mirror = {key: value for key, value in changes.items() if key in MIRRORED_FIELDS}
+    if not mirror:
+        return []
+    changed: list[ActionRecord] = []
+    for action in _actions_of_origin(session, origin):
+        if action.completed_on is not None or calculations.is_information(action.kind):
+            continue
+        _update(session, user=user, action=action, changes=mirror)
+        changed.append(_record_of(action, reference_date))
+    return changed
+
+
 def reopen_from_origin(
     session: Session, *, user: User, origin: origin_links.OriginRef, reference_date: date
 ) -> list[ActionRecord]:
@@ -531,9 +568,7 @@ def _record_of(action: Action, reference_date: date) -> ActionRecord:
     )
 
 
-def _update(
-    session: Session, *, user: User, action: Action, changes: dict[str, date | None]
-) -> None:
+def _update(session: Session, *, user: User, action: Action, changes: Mapping[str, Any]) -> None:
     """A change that comes from the origin: the version in the row is the one it is written over."""
     recording.update(
         session, user_id=user.id, record=action, changes=changes, version=action.version

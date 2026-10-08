@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Cancelamento do item da Punch list (ISSUE-049): o corpo mora no partial para a resposta
+  multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_punch_cancelar_form.html" %}{% endblock %}

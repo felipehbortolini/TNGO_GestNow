@@ -1,0 +1,9 @@
+{#
+  Corpo do modal da Punch list (ISSUE-049): o formulário, o fechamento com verificação, o
+  cancelamento, o aviso de sucesso ou o aviso de recusa, conforme o que a rota mandou em
+  `modal_template`. A raiz fixa é o alvo que a tela declara; a classe da página traz o estilo
+  escopado para dentro do modal.
+#}
+<div id="punch-modal" class="pagina--planejamento-punch_list">
+{% if modal_template %}{% include modal_template %}{% endif %}
+</div>

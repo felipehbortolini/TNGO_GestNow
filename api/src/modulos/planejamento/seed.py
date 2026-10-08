@@ -32,6 +32,11 @@ coerente com o protótipo.
 As Horas efetivas (ISSUE-047) são a parte ``planejamento-campo``: as jornadas, as rodadas da
 amostragem (com os motivos de parada e trânsito) e as paralisações do mock, gravadas por
 ``seed_campo.load_field``. As datas andam em dias inteiros, como nas demais partes.
+
+A Punch list (ISSUE-049) é a parte ``planejamento-punch``: os itens do mock nos sistemas do
+cadastro de apoio, com a numeração de cada projeto continuando depois do maior código, gravados
+por ``seed_punch.load_punch``. As ações da origem Punch list vêm da parte ``central_acoes``;
+esta parte não as cria de novo.
 """
 
 from __future__ import annotations
@@ -52,6 +57,7 @@ from src.modulos.planejamento import (
     calculations,
     seed_campo,
     seed_produtividade,
+    seed_punch,
     seed_relato,
     service,
 )
@@ -71,6 +77,7 @@ EAP_PART_NAME = "planejamento-eap"
 CURVA_PART_NAME = "planejamento-curva"
 PRODUTIVIDADE_PART_NAME = "planejamento-produtividade"
 CAMPO_PART_NAME = "planejamento-campo"
+PUNCH_PART_NAME = "planejamento-punch"
 ADMIN_PROFILE = "Admin"
 TWO_PLACES = Decimal("0.01")
 
@@ -596,3 +603,4 @@ register(EAP_PART_NAME, load_eap)
 register(CURVA_PART_NAME, load_curva)
 register(PRODUTIVIDADE_PART_NAME, seed_produtividade.load_items)
 register(CAMPO_PART_NAME, seed_campo.load_field)
+register(PUNCH_PART_NAME, seed_punch.load_punch)

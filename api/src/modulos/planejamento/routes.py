@@ -110,6 +110,21 @@ The performance KPIs (ISSUE-048), prefix ``/api/planejamento/produtividade/kpis`
 * ``POST /acoes``  opens the plan in the Central (one open action per company and week); the
   second attempt receives 422; the answer carries the modal and the tab in one multi-target
   reply, and the Central links back to this tab with the company and the week.
+
+The punch list (ISSUE-049), prefix ``/api/planejamento/punch``:
+
+* ``GET  /``  the screen: the toolbar with the filters and the buttons, the indicators, the
+  list of items (with the ``Projeto`` column in the Portfólio) and the empty modal;
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same list, with the filter;
+* ``GET  /filtros``  the filter modal; ``GET /itens/novo`` and ``/itens/{id}/editar``  the item
+  form (the Portfólio asks for the project first); ``GET /itens/{id}/verificacao``  the closing
+  with verification, with the attachments of the item; ``GET /itens/{id}/cancelamento``  the
+  cancellation;
+* ``POST /itens`` and ``POST /itens/{id}``  create and save the item (422 per field, 409 for a
+  stale version); ``POST /itens/{id}/tratar`` and ``/enviar``  move the flow; ``POST
+  /itens/{id}/verificacao``  approves (422 without evidence, 403 for the executant) or rejects;
+  ``POST /itens/{id}/cancelamento``  cancels with a justification. Every write answers the
+  modal, the toolbar and the list in one multi-target reply, and the Central action follows.
 """
 
 from __future__ import annotations
@@ -120,6 +135,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlencode
 
 import azure.functions as func
 from sqlalchemy.orm import Session
@@ -4611,4 +4627,706 @@ def _performance_action_error(
         performance_filter=visao.filter,
         valores={"formulario": formulario},
         status_code=status_code,
+    )
+
+
+# ── Punch list (ISSUE-049) ────────────────────────────────────────────────
+
+
+PUNCH_BASE = "planejamento/punch"
+
+
+PUNCH_API = f"/api/{PUNCH_BASE}"
+
+
+PUNCH_SCREEN_TEMPLATE = "planejamento/punch.html"
+
+
+PUNCH_FILTERS_FORM_TEMPLATE = "planejamento/punch_filtros_form.html"
+
+
+PUNCH_ITEM_FORM_TEMPLATE = "planejamento/punch_item_form.html"
+
+
+PUNCH_ITEM_FORM_INNER = "planejamento/_punch_item_form.html"
+
+
+PUNCH_VERIFICATION_FORM_TEMPLATE = "planejamento/punch_fechamento_form.html"
+
+
+PUNCH_VERIFICATION_FORM_INNER = "planejamento/_punch_fechamento_form.html"
+
+
+PUNCH_CANCELLATION_FORM_TEMPLATE = "planejamento/punch_cancelar_form.html"
+
+
+PUNCH_CANCELLATION_FORM_INNER = "planejamento/_punch_cancelar_form.html"
+
+
+PUNCH_ANSWER_TEMPLATE = "planejamento/punch_resposta.html"
+
+
+PUNCH_SAVED_INNER = "planejamento/_punch_salvo.html"
+
+
+PUNCH_ERROR_INNER = "planejamento/_punch_erro.html"
+
+
+PUNCH_MODAL_TARGET = "punch-modal"
+
+
+PUNCH_PAGE_CLASS = "pagina--planejamento-punch_list"
+
+
+PUNCH_CREATED_MESSAGE = "{code} aberto; ação criada na Central."
+
+
+PUNCH_UPDATED_MESSAGE = "{code} atualizado."
+
+
+PUNCH_TREATED_MESSAGE = "{code} em tratamento."
+
+
+PUNCH_SENT_MESSAGE = "{code} enviado para verificação."
+
+
+PUNCH_CLOSED_MESSAGE = "{code} fechado."
+
+
+PUNCH_REJECTED_MESSAGE = "{code} reprovado e devolvido para tratamento."
+
+
+PUNCH_CANCELLED_MESSAGE = "{code} cancelado."
+
+
+PUNCH_SITUATION_TONES = {
+    "Aberto": "warn",
+    "Em tratamento": "info",
+    "Aguardando verificação": "fix",
+    "Fechado": "ok",
+    "Cancelado": "neutral",
+}
+
+
+PUNCH_CATEGORY_TONES = {"A": "erro", "B": "fix", "C": "info"}
+
+
+def _punch_filter_values(chosen: service.PunchFilter) -> dict[str, str]:
+    """O filtro como os formulários e a tela o leem."""
+    return {
+        "busca": chosen.search,
+        "situacao": chosen.situation,
+        "categoria": chosen.category,
+        "sistema": "" if chosen.system_id is None else str(chosen.system_id),
+        "disciplina": chosen.discipline,
+        "empresa": "" if chosen.company_id is None else str(chosen.company_id),
+        "vencidos": "1" if chosen.overdue else "",
+    }
+
+
+def _punch_params(params: Mapping[str, str]) -> service.PunchFilter:
+    """O filtro que a URL trouxe."""
+    return service.PunchFilter(
+        search=(params.get("busca") or "").strip(),
+        situation=(params.get("situacao") or validation.PUNCH_SITUATION_FILTER_OPEN).strip(),
+        category=(params.get("categoria") or "").strip(),
+        system_id=_integer(params.get("sistema")),
+        discipline=(params.get("disciplina") or "").strip(),
+        company_id=_integer(params.get("empresa")),
+        overdue=(params.get("vencidos") or "") == "1",
+    )
+
+
+def _posted_punch_filter(values: Mapping[str, str]) -> service.PunchFilter:
+    """O filtro que o formulário carregou nos campos ocultos ``f_*``."""
+    return service.PunchFilter(
+        search=(values.get("f_busca") or "").strip(),
+        situation=(values.get("f_situacao") or "").strip(),
+        category=(values.get("f_categoria") or "").strip(),
+        system_id=_integer(values.get("f_sistema")),
+        discipline=(values.get("f_disciplina") or "").strip(),
+        company_id=_integer(values.get("f_empresa")),
+        overdue=(values.get("f_vencidos") or "") == "1",
+    )
+
+
+def _punch_query(chosen: service.PunchFilter) -> str:
+    """A consulta dos modais e da exportação, sem os valores que são o padrão da tela."""
+    return urlencode(
+        {
+            key: value
+            for key, value in _punch_filter_values(chosen).items()
+            if value and not (key == "situacao" and value == validation.PUNCH_SITUATION_FILTER_OPEN)
+        }
+    )
+
+
+def _punch_context(
+    session: Session, context: RequestContext, *, punch_filter: service.PunchFilter
+) -> dict[str, Any]:
+    """O contexto da tela: a visão, as escolhas do filtro e os auxiliares de formatação."""
+    visao = service.punch_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        punch_filter=punch_filter,
+        reference_date=calendario.today(),
+    )
+    return {
+        "visao": visao,
+        "filtro": _punch_filter_values(visao.filter),
+        "opcoes": service.punch_filter_options(session, scope=context.scope),
+        "api": PUNCH_API,
+        "consulta": _punch_query(visao.filter),
+        "hoje": calendario.today().isoformat(),
+        "pode_gravar": rbac.can(context.user, Permission.WRITE),
+        "percentual": export.percent_text,
+        "tom_situacao": lambda situacao: PUNCH_SITUATION_TONES.get(situacao, "neutral"),
+        "tom_categoria": lambda categoria: PUNCH_CATEGORY_TONES.get(categoria, "neutral"),
+        "formatar_data": _format_punch_date,
+    }
+
+
+def _punch_form_context(
+    context: RequestContext, chosen: service.PunchFilter, **valores: Any
+) -> dict[str, Any]:
+    """O contexto de um formulário do modal: o filtro de volta e nada da lista carregada."""
+    return {
+        "api": PUNCH_API,
+        "hoje": calendario.today().isoformat(),
+        "pode_gravar": rbac.can(context.user, Permission.WRITE),
+        "consulta": _punch_query(chosen),
+        "filtro": _punch_filter_values(chosen),
+        "tom_situacao": lambda situacao: PUNCH_SITUATION_TONES.get(situacao, "neutral"),
+        "tom_categoria": lambda categoria: PUNCH_CATEGORY_TONES.get(categoria, "neutral"),
+        "formatar_data": _format_punch_date,
+        **valores,
+    }
+
+
+def _punch_modal(
+    req: func.HttpRequest,
+    template: str,
+    context: Mapping[str, Any],
+    *,
+    status_code: int = 200,
+) -> func.HttpResponse:
+    """Um modal sozinho, para o pedido que o abre (alvo: ``punch-modal``)."""
+    return AlpineAjaxResponse(
+        template_name=template,
+        context=dict(context),
+        request=req,
+        target_id=PUNCH_MODAL_TARGET,
+        root_class=PUNCH_PAGE_CLASS,
+        status_code=status_code,
+    )
+
+
+def _punch_answer(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    modal_template: str,
+    punch_filter: service.PunchFilter,
+    valores: Mapping[str, Any],
+    status_code: int = 200,
+    toast: str | None = None,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A resposta com o modal, os filtros e a lista: o que a gravação precisa atualizar."""
+    page = _punch_context(session, context, punch_filter=punch_filter)
+    page.update(_punch_form_context(context, punch_filter, **valores))
+    page["modal_template"] = modal_template
+    return AlpineAjaxResponse(
+        template_name=PUNCH_ANSWER_TEMPLATE,
+        context=page,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo=toast_tipo,
+    )
+
+
+def _punch_errors(error: InvalidDataError) -> dict[str, str]:
+    return dict(error.detail) if isinstance(error.detail, Mapping) else {"geral": str(error)}
+
+
+def _format_punch_date(value: date | None) -> str:
+    """``25/09/2026``; o travessão quando não há data."""
+    return "—" if value is None else format_value(ValueKind.DATE, value)
+
+
+@bp.route(route=PUNCH_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def punch_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os filtros, a lista e o modal vazio do escopo, no filtro da URL."""
+    return AlpineAjaxResponse(
+        template_name=PUNCH_SCREEN_TEMPLATE,
+        context=_punch_context(session, context, punch_filter=_punch_params(req.params)),
+        request=req,
+    )
+
+
+def _punch_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    """O documento da lista para o filtro do pedido; o único lugar com o relógio."""
+    chosen = _punch_params(req.params)
+    visao = service.punch_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        punch_filter=chosen,
+        reference_date=calendario.today(),
+    )
+    return export.punch_document(
+        visao,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+        options=service.punch_filter_options(session, scope=context.scope),
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def punch_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da lista, com o filtro de agora."""
+    return excel_response(_punch_document(req, session, context))
+
+
+@bp.route(route=f"{PUNCH_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def punch_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da lista: o que o botão PDF monta e imprime."""
+    return printable_response(_punch_document(req, session, context), req)
+
+
+@bp.route(route=f"{PUNCH_BASE}/filtros", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def punch_filters(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O modal de filtros, com as escolhas do escopo."""
+    chosen = _punch_params(req.params)
+    return _punch_modal(
+        req,
+        PUNCH_FILTERS_FORM_TEMPLATE,
+        _punch_form_context(
+            context,
+            chosen,
+            opcoes=service.punch_filter_options(session, scope=context.scope),
+        ),
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/novo", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_new_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do item em branco; no Portfólio o shell pede o projeto antes."""
+    chosen = _punch_params(req.params)
+    formulario = service.punch_item_form(session, user=context.user, scope=context.scope)
+    return _punch_modal(
+        req,
+        PUNCH_ITEM_FORM_TEMPLATE,
+        _punch_form_context(context, chosen, formulario=formulario),
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/editar", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_edit_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do item com o que está gravado."""
+    chosen = _punch_params(req.params)
+    formulario = service.punch_item_form(
+        session, user=context.user, scope=context.scope, item_id=_route_id(req, "item_id")
+    )
+    return _punch_modal(
+        req,
+        PUNCH_ITEM_FORM_TEMPLATE,
+        _punch_form_context(context, chosen, formulario=formulario),
+    )
+
+
+def _punch_item_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    item_id: int | None,
+    form: validation.PunchItemForm,
+    error: InvalidDataError,
+    status_code: int,
+    chosen: service.PunchFilter,
+) -> func.HttpResponse:
+    """O formulário do item de volta, preenchido e com as mensagens."""
+    formulario = service.punch_item_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=form,
+        errors=_punch_errors(error),
+    )
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_ITEM_FORM_INNER,
+        punch_filter=chosen,
+        valores={"formulario": formulario},
+        status_code=status_code,
+        toast=error.messages()[0] if error.messages() else None,
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_create_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Inclui o item e abre a ação da Central; o formulário volta com as mensagens no 422."""
+    form = validation.PunchItemForm(fields=_posted_values(req))
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.create_punch_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _punch_item_error(
+            req,
+            session,
+            context,
+            item_id=None,
+            form=form,
+            error=error,
+            status_code=422,
+            chosen=chosen,
+        )
+    mensagem = PUNCH_CREATED_MESSAGE.format(code=item.code)
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_update_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Salva o item aberto e espelha a ação ligada a ele."""
+    item_id = _route_id(req, "item_id")
+    form = validation.PunchItemForm(fields=_posted_values(req))
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.update_punch_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _punch_item_error(
+            req,
+            session,
+            context,
+            item_id=item_id,
+            form=form,
+            error=error,
+            status_code=422,
+            chosen=chosen,
+        )
+    except VersionConflictError as error:
+        return _punch_item_error(
+            req,
+            session,
+            context,
+            item_id=item_id,
+            form=form,
+            error=InvalidDataError(str(error)),
+            status_code=409,
+            chosen=chosen,
+        )
+    mensagem = PUNCH_UPDATED_MESSAGE.format(code=item.code)
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+def _punch_refusal(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    error: InvalidDataError | VersionConflictError | AccessDeniedError,
+    chosen: service.PunchFilter,
+) -> func.HttpResponse:
+    """A recusa de uma transição: a lista de volta, o aviso do motivo e o status certo."""
+    if isinstance(error, AccessDeniedError):
+        status = 403
+    elif isinstance(error, VersionConflictError):
+        status = 409
+    else:
+        status = 422
+    mensagens = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_ERROR_INNER,
+        punch_filter=chosen,
+        valores={"mensagens": mensagens},
+        status_code=status,
+        toast=str(error),
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/tratar", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_treat_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Move o item aberto para Em tratamento."""
+    item_id = _route_id(req, "item_id")
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.treat_punch_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except (InvalidDataError, VersionConflictError, AccessDeniedError) as error:
+        return _punch_refusal(req, session, context, error=error, chosen=chosen)
+    mensagem = PUNCH_TREATED_MESSAGE.format(code=item.code)
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/enviar", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_send_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Envia o item em tratamento para a verificação."""
+    item_id = _route_id(req, "item_id")
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.send_punch_item_to_verification(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except (InvalidDataError, VersionConflictError, AccessDeniedError) as error:
+        return _punch_refusal(req, session, context, error=error, chosen=chosen)
+    mensagem = PUNCH_SENT_MESSAGE.format(code=item.code)
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/verificacao", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_verification_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O fechamento com verificação: o resumo, os anexos do item e o resultado."""
+    chosen = _punch_params(req.params)
+    formulario = service.punch_verification_form(
+        session, user=context.user, scope=context.scope, item_id=_route_id(req, "item_id")
+    )
+    return _punch_modal(
+        req,
+        PUNCH_VERIFICATION_FORM_TEMPLATE,
+        _punch_form_context(context, chosen, formulario=formulario),
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/verificacao", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_verify_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Aprova (exige evidência; o executante recebe 403) ou reprova a verificação do item."""
+    item_id = _route_id(req, "item_id")
+    form = validation.PunchVerificationForm(fields=_posted_values(req))
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.verify_punch_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except AccessDeniedError as error:
+        formulario = service.punch_verification_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            errors={"geral": str(error)},
+        )
+        return _punch_answer(
+            req,
+            session,
+            context,
+            modal_template=PUNCH_VERIFICATION_FORM_INNER,
+            punch_filter=chosen,
+            valores={"formulario": formulario},
+            status_code=403,
+            toast=str(error),
+            toast_tipo="erro",
+        )
+    except InvalidDataError as error:
+        formulario = service.punch_verification_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            errors=_punch_errors(error),
+        )
+        return _punch_answer(
+            req,
+            session,
+            context,
+            modal_template=PUNCH_VERIFICATION_FORM_INNER,
+            punch_filter=chosen,
+            valores={"formulario": formulario},
+            status_code=422,
+            toast=error.messages()[0] if error.messages() else None,
+            toast_tipo="erro",
+        )
+    mensagem = (
+        PUNCH_CLOSED_MESSAGE.format(code=item.code)
+        if item.situation == validation.PUNCH_CLOSED
+        else PUNCH_REJECTED_MESSAGE.format(code=item.code)
+    )
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/cancelamento", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_cancellation_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O cancelamento do item: a justificativa obrigatória."""
+    chosen = _punch_params(req.params)
+    formulario = service.punch_cancellation_form(
+        session, user=context.user, scope=context.scope, item_id=_route_id(req, "item_id")
+    )
+    return _punch_modal(
+        req,
+        PUNCH_CANCELLATION_FORM_TEMPLATE,
+        _punch_form_context(context, chosen, formulario=formulario),
+    )
+
+
+@bp.route(route=f"{PUNCH_BASE}/itens/{{item_id}}/cancelamento", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def punch_cancel_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cancela o item aberto com justificativa e encerra a ação ligada a ele."""
+    item_id = _route_id(req, "item_id")
+    form = validation.PunchCancellationForm(fields=_posted_values(req))
+    chosen = _posted_punch_filter(req.form)
+    try:
+        item = service.cancel_punch_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        formulario = service.punch_cancellation_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            errors=_punch_errors(error),
+        )
+        return _punch_answer(
+            req,
+            session,
+            context,
+            modal_template=PUNCH_CANCELLATION_FORM_INNER,
+            punch_filter=chosen,
+            valores={"formulario": formulario},
+            status_code=422,
+            toast=error.messages()[0] if error.messages() else None,
+            toast_tipo="erro",
+        )
+    mensagem = PUNCH_CANCELLED_MESSAGE.format(code=item.code)
+    return _punch_answer(
+        req,
+        session,
+        context,
+        modal_template=PUNCH_SAVED_INNER,
+        punch_filter=chosen,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
     )

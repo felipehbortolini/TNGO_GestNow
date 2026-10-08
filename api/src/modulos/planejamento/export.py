@@ -81,6 +81,9 @@ from src.modulos.planejamento.service import (
     PeriodCoverage,
     PlanningKpiLine,
     PlanningKpisOverview,
+    PunchFilterOptions,
+    PunchListing,
+    PunchRow,
     QuantitiesOverview,
     QuantityItemView,
     ReportSummary,
@@ -2167,3 +2170,150 @@ def _performance_trend_rows(visao: PerformanceOverview) -> list[Row]:
                 )
             )
     return rows
+
+
+# ── Punch list (ISSUE-049) ────────────────────────────────────────────────
+
+
+PUNCH_TITLE = "Punch list"
+
+
+PUNCH_ITEMS_TITLE = "Itens da Punch list"
+
+
+PUNCH_SITUATION_TONES = {
+    "Aberto": Tone.WARN,
+    "Em tratamento": Tone.INFO,
+    "Aguardando verificação": Tone.INFO,
+    "Fechado": Tone.OK,
+    "Cancelado": Tone.NEUTRAL,
+}
+
+
+PUNCH_CATEGORY_TONES = {"A": Tone.ERROR, "B": Tone.WARN, "C": Tone.INFO}
+
+
+def punch_document(
+    visao: PunchListing,
+    *,
+    scope_label: str,
+    generated_on: date,
+    options: PunchFilterOptions,
+) -> Document:
+    """O documento da lista: os indicadores e a tabela de itens, como o filtro os mostra."""
+    return Document(
+        title=PUNCH_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_punch_context(visao, options),
+        kpis=punch_kpis(visao),
+        tables=(_punch_items_table(visao),),
+        paper=Paper.A4,
+    )
+
+
+def punch_kpis(visao: PunchListing) -> tuple[Kpi, ...]:
+    """Os cinco indicadores da lista, os mesmos dos cartões da tela."""
+    kpis = visao.kpis
+    return (
+        Kpi("Abertos", kpis.opened, "Esperado: 0", ValueKind.INTEGER),
+        Kpi(
+            "Categoria A abertos",
+            kpis.open_a,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if kpis.open_a else Tone.OK,
+            status="impedem o marco seguinte",
+        ),
+        Kpi("Aguardando verificação", kpis.verifying, "Esperado: 0", ValueKind.INTEGER),
+        Kpi(
+            "Vencidos",
+            kpis.overdue,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if kpis.overdue else Tone.OK,
+            status="prazo passou e o item segue aberto",
+        ),
+        Kpi(
+            "Fechados",
+            kpis.closed,
+            f"Previsto: {kpis.valid}",
+            ValueKind.INTEGER,
+            tone=Tone.OK,
+            status=(
+                ""
+                if kpis.closed_pct is None
+                else f"{percent_text(kpis.closed_pct, 0)} dos itens válidos"
+            ),
+        ),
+    )
+
+
+def _punch_context(visao: PunchListing, options: PunchFilterOptions) -> tuple[tuple[str, str], ...]:
+    chosen = visao.filter
+    systems = {option.id: option.label for option in options.systems}
+    companies = {option.id: option.name for option in options.companies}
+    situation = "Abertos (não fechados)" if chosen.situation == "abertos" else chosen.situation
+    return (
+        ("Busca", chosen.search or "Todas"),
+        ("Situação", situation or "Todas"),
+        ("Categoria", f"Categoria {chosen.category}" if chosen.category else "Todas"),
+        (
+            "Sistema",
+            systems.get(chosen.system_id, "") if chosen.system_id is not None else "Todos",
+        ),
+        ("Disciplina", chosen.discipline or "Todas"),
+        (
+            "Empresa",
+            companies.get(chosen.company_id, "") if chosen.company_id is not None else "Todas",
+        ),
+        ("Vencidos", "Só vencidos" if chosen.overdue else "Todos"),
+    )
+
+
+def _punch_items_table(visao: PunchListing) -> Table:
+    return Table(
+        title=PUNCH_ITEMS_TITLE,
+        columns=(
+            Column("Nº"),
+            Column("Categoria"),
+            Column("Sistema"),
+            Column("Subsistema"),
+            Column("TAG"),
+            Column("Disciplina"),
+            Column("Descrição", width=TEXT_WIDTH),
+            Column("Marco"),
+            Column("Origem"),
+            Column("Responsável"),
+            Column("Empresa"),
+            Column("Abertura", ValueKind.DATE),
+            Column("Prazo", ValueKind.DATE),
+            Column("Idade (dias)", ValueKind.INTEGER),
+            Column("Situação"),
+            Column("Fechamento", ValueKind.DATE),
+        ),
+        rows=tuple(_punch_item_row(item) for item in visao.rows),
+    )
+
+
+def _punch_item_row(item: PunchRow) -> Row:
+    return row(
+        item.code,
+        Cell(item.category, tone=PUNCH_CATEGORY_TONES.get(item.category)),
+        item.system_label,
+        item.subsystem,
+        item.tag,
+        item.discipline,
+        item.description,
+        item.milestone,
+        item.origin,
+        item.owner_name,
+        item.company_name,
+        item.opened_on,
+        item.due_date,
+        item.age_days,
+        Cell(item.situation, tone=PUNCH_SITUATION_TONES.get(item.situation)),
+        item.closed_on,
+        project=item.project_label,
+    )

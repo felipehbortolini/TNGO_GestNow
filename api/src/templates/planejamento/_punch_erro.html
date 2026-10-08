@@ -1,0 +1,8 @@
+{#
+  Aviso de recusa da Punch list (ISSUE-049): a mensagem onde a ação aconteceu, sem fechar nada.
+#}
+<div class="aviso aviso--erro" role="alert">
+  {% for mensagem in mensagens %}
+  <span>{{ mensagem }}</span>
+  {% endfor %}
+</div>

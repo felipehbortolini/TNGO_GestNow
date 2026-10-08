@@ -1,0 +1,35 @@
+{#
+  Cancelamento do item da Punch list (ISSUE-049): a justificativa é obrigatória (mínimo de dez
+  caracteres) e o item cancelado sai dos indicadores de válidos. A ação ligada a ele é
+  encerrada na mesma transação.
+
+  Espera: formulario (PunchCancellationFormView), filtro, api.
+#}
+{% set item = formulario.item %}
+<div class="punch__form">
+  <form method="post" x-data x-target="punch-modal punch-filtros punch-conteudo" novalidate
+    action="{{ api }}/itens/{{ item.id }}/cancelamento">
+    <input type="hidden" name="versao" value="{{ item.version }}" />
+    {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
+
+    <p class="punch__identificacao">
+      <span class="pill pill--erro">Cancelar item</span>
+      <b>{{ item.code }}</b>
+      <span class="body-txt">{{ item.description }}</span>
+    </p>
+
+    <div class="field">
+      <label for="punch-justificativa">Justificativa</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('justificativa') }}" id="punch-justificativa"
+        name="justificativa" rows="2" maxlength="300"{% if formulario.errors.get('justificativa') %} aria-invalid="true"{% endif %}>{{ formulario.fields.get('justificativa', '') }}</textarea>
+      {% if formulario.errors.get('justificativa') %}
+      <span class="field__erro" role="alert">{{ formulario.errors['justificativa'] }}</span>
+      {% endif %}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Voltar</button>
+      <button type="submit" class="btn btn--danger">Cancelar item</button>
+    </div>
+  </form>
+</div>

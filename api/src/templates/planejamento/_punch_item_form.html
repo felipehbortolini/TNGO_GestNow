@@ -1,0 +1,144 @@
+{#
+  Formulário do item da Punch list (ISSUE-049): sistema, subsistema, TAG, disciplina, categoria,
+  marco, origem, descrição, empresa executante, responsável, identificado por e prazo. O
+  servidor valida (422 por campo) e a inclusão numera pelo padrão do projeto (PL-TN-2026-0001)
+  e abre a ação na Central; os campos ocultos `f_*` devolvem o filtro na resposta multi-alvo.
+
+  Espera: formulario (PunchItemFormView), filtro, api, hoje.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true"{% endif %}{% endmacro %}
+
+{% set item = formulario.item %}
+<div class="punch__form">
+  <form method="post" x-data x-target="punch-modal punch-filtros punch-conteudo" novalidate
+    action="{{ api }}/itens{% if item %}/{{ item.id }}{% endif %}">
+    {% if item %}<input type="hidden" name="versao" value="{{ item.version }}" />{% endif %}
+    {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="punch__identificacao">
+      <span class="pill pill--neutral">{{ item.code if item else 'Novo item' }}</span>
+      <span class="hint">Cada item gera uma ação na Central (origem Punch list); a categoria A bloqueia o marco seguinte</span>
+    </p>
+
+    <div class="punch__campos">
+      <div class="field">
+        <label for="punch-sistema">Sistema</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('sistema') }}" id="punch-sistema" name="sistema"{{ marcas('sistema') }}>
+          <option value="">Escolha o sistema</option>
+          {% for sistema in formulario.options.systems %}
+          <option value="{{ sistema.id }}"{% if formulario.fields.get('sistema') == sistema.id | string %} selected{% endif %}>{{ sistema.label }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('sistema') }}
+      </div>
+      <div class="field">
+        <label for="punch-subsistema">Subsistema</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('subsistema') }}" id="punch-subsistema" name="subsistema"
+          type="text" maxlength="120" value="{{ formulario.fields.get('subsistema', '') }}"{{ marcas('subsistema') }} />
+        {{ erro('subsistema') }}
+      </div>
+      <div class="field">
+        <label for="punch-tag">TAG</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('tag') }}" id="punch-tag" name="tag"
+          type="text" maxlength="60" value="{{ formulario.fields.get('tag', '') }}"{{ marcas('tag') }} />
+        {{ erro('tag') }}
+      </div>
+      <div class="field">
+        <label for="punch-disciplina">Disciplina</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('disciplina') }}" id="punch-disciplina" name="disciplina"{{ marcas('disciplina') }}>
+          <option value="">Escolha a disciplina</option>
+          {% for disciplina in formulario.options.disciplines %}
+          <option value="{{ disciplina }}"{% if formulario.fields.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('disciplina') }}
+      </div>
+      <div class="field">
+        <label for="punch-categoria">Categoria</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('categoria') }}" id="punch-categoria" name="categoria"{{ marcas('categoria') }}>
+          <option value="">Escolha a categoria</option>
+          <option value="A"{% if formulario.fields.get('categoria') == 'A' %} selected{% endif %}>A: impede o marco seguinte</option>
+          <option value="B"{% if formulario.fields.get('categoria') == 'B' %} selected{% endif %}>B: não impede a operação</option>
+          <option value="C"{% if formulario.fields.get('categoria') == 'C' %} selected{% endif %}>C: melhoria ou acabamento</option>
+        </select>
+        {{ erro('categoria') }}
+      </div>
+      <div class="field">
+        <label for="punch-marco">Marco vinculado</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('marco') }}" id="punch-marco" name="marco"{{ marcas('marco') }}>
+          <option value="">Escolha o marco</option>
+          {% for marco in ["Completação mecânica", "Pré-comissionamento", "Comissionamento", "Partida", "Aceite provisório", "Aceite definitivo"] %}
+          <option value="{{ marco }}"{% if formulario.fields.get('marco') == marco %} selected{% endif %}>{{ marco }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('marco') }}
+      </div>
+      <div class="field">
+        <label for="punch-origem">Origem</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('origem') }}" id="punch-origem" name="origem"{{ marcas('origem') }}>
+          <option value="">Escolha a origem</option>
+          {% for origem in ["Walkdown", "Inspeção", "Comissionamento", "Cliente", "Auditoria"] %}
+          <option value="{{ origem }}"{% if formulario.fields.get('origem') == origem %} selected{% endif %}>{{ origem }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('origem') }}
+      </div>
+      <div class="field">
+        <label for="punch-prazo">Prazo</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('prazo') }}" id="punch-prazo" name="prazo"
+          type="date" value="{{ formulario.fields.get('prazo', '') }}"{{ marcas('prazo') }} />
+        {{ erro('prazo') }}
+      </div>
+      <div class="field">
+        <label for="punch-empresa">Empresa executante</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="punch-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for empresa in formulario.options.companies %}
+          <option value="{{ empresa.id }}"{% if formulario.fields.get('empresa') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="punch-responsavel">Responsável</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('responsavel') }}" id="punch-responsavel" name="responsavel"{{ marcas('responsavel') }}>
+          <option value="">Escolha o responsável</option>
+          {% for pessoa in formulario.options.people %}
+          <option value="{{ pessoa.id }}"{% if formulario.fields.get('responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('responsavel') }}
+      </div>
+      <div class="field">
+        <label for="punch-identificado">Identificado por</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('identificado') }}" id="punch-identificado" name="identificado"{{ marcas('identificado') }}>
+          <option value="">Quem identificou</option>
+          {% for pessoa in formulario.options.people %}
+          <option value="{{ pessoa.id }}"{% if formulario.fields.get('identificado') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('identificado') }}
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="punch-descricao">Descrição</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('descricao') }}" id="punch-descricao"
+        name="descricao" rows="2" maxlength="300"{{ marcas('descricao') }}>{{ formulario.fields.get('descricao', '') }}</textarea>
+      {{ erro('descricao') }}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">{{ 'Salvar item' if item else 'Abrir item' }}</button>
+    </div>
+  </form>
+</div>

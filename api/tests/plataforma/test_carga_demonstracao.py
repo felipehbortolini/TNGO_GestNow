@@ -27,6 +27,7 @@ from src.core.auth import _user_of
 from src.core.errors import InvalidDataError
 from src.core.models import AuditEntry, Client, SeedRun
 from src.core.scope import Scope
+from src.modulos.central_acoes.models import Action
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import (
     Collaborator,
@@ -71,6 +72,7 @@ from src.modulos.planejamento.models import (
     ProductivityEntry,
     ProductivityItem,
     ProductivityRevision,
+    PunchItem,
     Stoppage,
     WorkSample,
     WorkSampleReason,
@@ -96,6 +98,7 @@ PARTS = [
     "planejamento-curva",
     "planejamento-produtividade",
     "planejamento-campo",
+    "planejamento-punch",
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
@@ -921,6 +924,86 @@ def test_oraculo_dos_kpis_de_produtividade_com_a_data_deslocada(db_session: Sess
     assert alfa_anterior.action is not None
     assert alfa_anterior.action.reference == f"PRD-2026-S38-{alfa.company_id:02d}"
     assert alfa.action is None
+
+
+def test_oraculo_da_punch_list_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-049: os itens do protótipo, o bloqueio dos sistemas e a ação na Central.
+
+    O mock traz 20 itens (16 no projeto 1 e 4 no projeto 2), um cancelado sem ação derivada; no
+    projeto 1, sem deslocamento, são 12 abertos (4 da categoria A), 2 aguardando verificação e
+    2 vencidos no prazo, com 3 fechados. O sistema 420 fica bloqueado para a Completação
+    mecânica pelo item A aberto e os sistemas 210, 310 e 420 para o Comissionamento; o item
+    PL-TN-2026-0001, fechado, tem a ação concluída na data do fechamento, como o protótipo
+    derivava (``acaoDoPunch``).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, PunchItem) == 20
+    project_1 = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    do_projeto = db_session.scalar(
+        select(func.count()).select_from(PunchItem).where(PunchItem.project_id == project_1.id)
+    )
+    assert do_projeto == 16
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    visao = planejamento.punch_overview(
+        db_session,
+        user=user,
+        scope=Scope(project_id=project_1.id, source="url"),
+        punch_filter=planejamento.PunchFilter(),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    assert (
+        visao.kpis.opened,
+        visao.kpis.open_a,
+        visao.kpis.verifying,
+        visao.kpis.overdue,
+        visao.kpis.closed,
+        visao.kpis.valid,
+    ) == (12, 4, 2, 2, 3, 15)
+    assert [bloco.code for bloco in visao.blocked_for("Completação mecânica")] == ["420"]
+    assert [bloco.code for bloco in visao.blocked_for("Comissionamento")] == ["210", "310", "420"]
+    assert len(visao.blocked_for("Aceite definitivo")) == 4
+
+    acoes = db_session.scalars(
+        select(Action).where(Action.origin == "Punch list", Action.project_id == project_1.id)
+    ).all()
+    assert len(acoes) == 15, "o item cancelado não gera ação, como o protótipo"
+    por_referencia = {acao.origin_ref: acao for acao in acoes}
+    assert por_referencia["PL-TN-2026-0001"].completed_on == date(2026, 8, 20)
+    assert por_referencia["PL-TN-2026-0003"].completed_on is None
+    todas = planejamento.punch_overview(
+        db_session,
+        user=user,
+        scope=Scope(project_id=project_1.id, source="url"),
+        punch_filter=planejamento.PunchFilter(situation=""),
+        reference_date=DEMO_ANCHOR,
+    )
+    fechado = next(item for item in todas.rows if item.code == "PL-TN-2026-0001")
+    aberto = next(item for item in todas.rows if item.code == "PL-TN-2026-0003")
+    assert (fechado.situation, fechado.action is not None) == ("Fechado", True)
+    assert (aberto.situation, aberto.overdue, aberto.action is not None) == (
+        "Em tratamento",
+        True,
+        True,
+    )
+
+    carteira = planejamento.punch_overview(
+        db_session,
+        user=user,
+        scope=Scope(project_id=None, source="padrao"),
+        punch_filter=planejamento.PunchFilter(situation=""),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert carteira.is_portfolio
+    assert len(carteira.rows) == 20, "a carteira traz os itens dos dois projetos, cancelado incluso"
+    assert {item.project_code for item in carteira.rows} == {"TN-2026-014", "TN-2026-021"}
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

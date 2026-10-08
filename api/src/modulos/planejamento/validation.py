@@ -2697,3 +2697,332 @@ def parse_action_plan(
         responsible_id=responsible_id,
         planned_date=planned_date,
     )
+
+
+# ── Punch list: o item e a verificação (ISSUE-049) ─────────────────────────
+
+
+PUNCH_OPEN = "Aberto"
+
+
+PUNCH_TREATMENT = "Em tratamento"
+
+
+PUNCH_VERIFYING = "Aguardando verificação"
+
+
+PUNCH_CLOSED = "Fechado"
+
+
+PUNCH_CANCELLED = "Cancelado"
+
+
+PUNCH_SITUATIONS = (
+    PUNCH_OPEN,
+    PUNCH_TREATMENT,
+    PUNCH_VERIFYING,
+    PUNCH_CLOSED,
+    PUNCH_CANCELLED,
+)
+
+
+PUNCH_CATEGORIES = ("A", "B", "C")
+
+
+PUNCH_MILESTONES = (
+    "Completação mecânica",
+    "Pré-comissionamento",
+    "Comissionamento",
+    "Partida",
+    "Aceite provisório",
+    "Aceite definitivo",
+)
+
+
+PUNCH_ORIGINS = (
+    "Walkdown",
+    "Inspeção",
+    "Comissionamento",
+    "Cliente",
+    "Auditoria",
+)
+
+
+PUNCH_RESULT_APPROVED = "Aprovado"
+
+
+PUNCH_RESULT_REJECTED = "Reprovado"
+
+
+PUNCH_RESULTS = (PUNCH_RESULT_APPROVED, PUNCH_RESULT_REJECTED)
+
+
+PUNCH_SITUATION_FILTER_OPEN = "abertos"
+
+
+PUNCH_DESCRIPTION_MAX = 300
+
+
+PUNCH_TEXT_MAX = 120
+
+
+PUNCH_TAG_MAX = 60
+
+
+PUNCH_COMMENT_MAX = 300
+
+
+PUNCH_JUSTIFICATION_MIN = 10
+
+
+FIELD_PUNCH_SYSTEM = "sistema"
+
+
+FIELD_PUNCH_SUBSYSTEM = "subsistema"
+
+
+FIELD_PUNCH_TAG = "tag"
+
+
+FIELD_PUNCH_DISCIPLINE = "disciplina"
+
+
+FIELD_PUNCH_CATEGORY = "categoria"
+
+
+FIELD_PUNCH_MILESTONE = "marco"
+
+
+FIELD_PUNCH_ORIGIN = "origem"
+
+
+FIELD_PUNCH_DESCRIPTION = "descricao"
+
+
+FIELD_PUNCH_COMPANY = "empresa"
+
+
+FIELD_PUNCH_OWNER = "responsavel"
+
+
+FIELD_PUNCH_IDENTIFIED = "identificado"
+
+
+FIELD_PUNCH_DUE = "prazo"
+
+
+FIELD_PUNCH_RESULT = "resultado"
+
+
+FIELD_PUNCH_VERIFIER = "verificador"
+
+
+FIELD_PUNCH_COMMENT = "comentario"
+
+
+FIELD_PUNCH_JUSTIFICATION = "justificativa"
+
+
+PUNCH_JUSTIFICATION_MESSAGE = (
+    f"Justifique o cancelamento (mínimo de {PUNCH_JUSTIFICATION_MIN} caracteres)."
+)
+
+
+PUNCH_REJECTION_MESSAGE = "Explique o motivo da reprovação."
+
+
+@dataclass(frozen=True)
+class PunchChoices:
+    """O que o cadastro oferece ao item da punch list: sistemas, empresas, pessoas e disciplinas."""
+
+    system_ids: frozenset[int]
+    company_ids: frozenset[int]
+    person_ids: frozenset[int]
+    disciplines: frozenset[str]
+
+
+@dataclass(frozen=True)
+class PunchItemForm:
+    """O que o formulário do item mandou: os campos."""
+
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PunchItemData:
+    """Um item da punch list válido, pronto para a fachada."""
+
+    system_id: int
+    subsystem: str
+    tag: str
+    discipline: str
+    category: str
+    milestone: str
+    origin: str
+    description: str
+    company_id: int
+    owner_id: int
+    identified_by_id: int
+    due_date: date
+
+
+@dataclass(frozen=True)
+class PunchVerificationForm:
+    """O que o formulário do fechamento com verificação mandou: os campos."""
+
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PunchVerificationData:
+    """Uma verificação válida: aprovada ou reprovada, com o verificador e o comentário."""
+
+    approved: bool
+    verifier_id: int
+    comment: str | None
+
+
+@dataclass(frozen=True)
+class PunchCancellationForm:
+    """O que o formulário do cancelamento mandou: os campos."""
+
+    fields: Mapping[str, str]
+
+
+def _optional_text(
+    raw: Mapping[str, str], field: str, *, label: str, limit: int, errors: dict[str, str]
+) -> str:
+    value = _text(raw, field)
+    if len(value) > limit:
+        errors[field] = TOO_LONG_MESSAGE.format(label=label, limit=limit)
+    return value
+
+
+def parse_punch_item(form: PunchItemForm, choices: PunchChoices) -> PunchItemData:
+    """O item do formulário, ou ``InvalidDataError`` com a mensagem de cada campo."""
+    raw = form.fields
+    errors: dict[str, str] = {}
+    system_id = _choice_id(
+        raw, FIELD_PUNCH_SYSTEM, label="o sistema", allowed=choices.system_ids, errors=errors
+    )
+    subsystem = _required_text(
+        raw, FIELD_PUNCH_SUBSYSTEM, label="o subsistema", limit=PUNCH_TEXT_MAX, errors=errors
+    )
+    tag = _required_text(raw, FIELD_PUNCH_TAG, label="a TAG", limit=PUNCH_TAG_MAX, errors=errors)
+    discipline = _choice_text(
+        raw,
+        FIELD_PUNCH_DISCIPLINE,
+        label="a disciplina",
+        allowed=choices.disciplines,
+        errors=errors,
+    )
+    category = _choice_text(
+        raw,
+        FIELD_PUNCH_CATEGORY,
+        label="a categoria",
+        allowed=frozenset(PUNCH_CATEGORIES),
+        errors=errors,
+    )
+    milestone = _choice_text(
+        raw,
+        FIELD_PUNCH_MILESTONE,
+        label="o marco vinculado",
+        allowed=frozenset(PUNCH_MILESTONES),
+        errors=errors,
+    )
+    origin = _choice_text(
+        raw,
+        FIELD_PUNCH_ORIGIN,
+        label="a origem",
+        allowed=frozenset(PUNCH_ORIGINS),
+        errors=errors,
+    )
+    description = _required_text(
+        raw,
+        FIELD_PUNCH_DESCRIPTION,
+        label="a descrição",
+        limit=PUNCH_DESCRIPTION_MAX,
+        errors=errors,
+    )
+    company_id = _choice_id(
+        raw,
+        FIELD_PUNCH_COMPANY,
+        label="a empresa executante",
+        allowed=choices.company_ids,
+        errors=errors,
+    )
+    owner_id = _choice_id(
+        raw, FIELD_PUNCH_OWNER, label="o responsável", allowed=choices.person_ids, errors=errors
+    )
+    identified_by_id = _choice_id(
+        raw,
+        FIELD_PUNCH_IDENTIFIED,
+        label="quem identificou",
+        allowed=choices.person_ids,
+        errors=errors,
+    )
+    due_date = _required_date(raw, FIELD_PUNCH_DUE, label="o prazo", errors=errors)
+    if errors:
+        raise InvalidDataError(errors)
+    return PunchItemData(
+        system_id=system_id,
+        subsystem=subsystem,
+        tag=tag,
+        discipline=discipline,
+        category=category,
+        milestone=milestone,
+        origin=origin,
+        description=description,
+        company_id=company_id,
+        owner_id=owner_id,
+        identified_by_id=identified_by_id,
+        due_date=due_date,
+    )
+
+
+def parse_punch_verification(
+    form: PunchVerificationForm, choices: PunchChoices
+) -> PunchVerificationData:
+    """A verificação do formulário, ou ``InvalidDataError`` com a mensagem de cada campo."""
+    raw = form.fields
+    errors: dict[str, str] = {}
+    result = _choice_text(
+        raw,
+        FIELD_PUNCH_RESULT,
+        label="o resultado",
+        allowed=frozenset(PUNCH_RESULTS),
+        errors=errors,
+    )
+    verifier_id = _choice_id(
+        raw,
+        FIELD_PUNCH_VERIFIER,
+        label="o verificador",
+        allowed=choices.person_ids,
+        errors=errors,
+    )
+    comment = _optional_text(
+        raw, FIELD_PUNCH_COMMENT, label="O comentário", limit=PUNCH_COMMENT_MAX, errors=errors
+    )
+    approved = result == PUNCH_RESULT_APPROVED
+    if not approved and not comment:
+        errors[FIELD_PUNCH_COMMENT] = PUNCH_REJECTION_MESSAGE
+    if errors:
+        raise InvalidDataError(errors)
+    return PunchVerificationData(
+        approved=approved, verifier_id=verifier_id, comment=comment or None
+    )
+
+
+def parse_punch_cancellation(form: PunchCancellationForm) -> str:
+    """A justificativa do cancelamento, ou ``InvalidDataError`` com a mensagem do campo."""
+    justification = _text(form.fields, FIELD_PUNCH_JUSTIFICATION)
+    errors: dict[str, str] = {}
+    if len(justification) < PUNCH_JUSTIFICATION_MIN:
+        errors[FIELD_PUNCH_JUSTIFICATION] = PUNCH_JUSTIFICATION_MESSAGE
+    elif len(justification) > PUNCH_COMMENT_MAX:
+        errors[FIELD_PUNCH_JUSTIFICATION] = TOO_LONG_MESSAGE.format(
+            label="A justificativa", limit=PUNCH_COMMENT_MAX
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return justification

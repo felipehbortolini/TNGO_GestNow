@@ -1,0 +1,73 @@
+{#
+  Fechamento com verificação (ISSUE-049): o resumo do item, os anexos (a aprovação exige ao
+  menos um), o resultado, o verificador (pessoa diferente do executante, D7) e o comentário.
+  A reprovação exige o motivo e devolve o item para tratamento. Os campos ocultos `f_*`
+  devolvem o filtro na resposta multi-alvo.
+
+  Espera: formulario (PunchVerificationFormView), filtro, api, hoje.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% set item = formulario.item %}
+{% set executante = formulario.options.people | selectattr('id', 'equalto', item.owner_id) | first %}
+<div class="punch__form">
+  <form method="post" x-data x-target="punch-modal punch-filtros punch-conteudo" novalidate
+    action="{{ api }}/itens/{{ item.id }}/verificacao">
+    <input type="hidden" name="versao" value="{{ item.version }}" />
+    {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="punch__identificacao">
+      <span class="pill pill--neutral">{{ item.code }}</span>
+      <span class="fw-600">{{ item.description }}</span>
+      <span class="hint">Executante: {{ executante.name if executante else '·' }} · o verificador precisa ser outra pessoa (segregação de funções)</span>
+    </p>
+
+    <section class="punch__anexos" aria-labelledby="punch-anexos-titulo">
+      <h3 class="h-card5" id="punch-anexos-titulo">Evidência do fechamento</h3>
+      <p class="hint">A aprovação exige ao menos um anexo (foto ou documento) gravado no item.</p>
+      <div id="punch-anexos" x-data x-init="$ajax($el.dataset.url, { target: 'punch-anexos' })"
+        data-url="/api/anexos?origem=punch_item&registro={{ item.id }}">
+        <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+      </div>
+    </section>
+
+    <div class="punch__campos">
+      <div class="field">
+        <label for="punch-resultado">Resultado</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('resultado') }}" id="punch-resultado" name="resultado">
+          <option value="Aprovado"{% if formulario.fields.get('resultado') == 'Aprovado' %} selected{% endif %}>Aprovado: fechar o item</option>
+          <option value="Reprovado"{% if formulario.fields.get('resultado') == 'Reprovado' %} selected{% endif %}>Reprovado: volta para tratamento</option>
+        </select>
+        {{ erro('resultado') }}
+      </div>
+      <div class="field">
+        <label for="punch-verificador">Verificado por</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('verificador') }}" id="punch-verificador" name="verificador">
+          <option value="">Escolha o verificador</option>
+          {% for pessoa in formulario.options.people if pessoa.id != item.owner_id %}
+          <option value="{{ pessoa.id }}"{% if formulario.fields.get('verificador') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('verificador') }}
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="punch-comentario">Comentário</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('comentario') }}" id="punch-comentario"
+        name="comentario" rows="2" maxlength="300">{{ formulario.fields.get('comentario', '') }}</textarea>
+      {{ erro('comentario') }}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">Registrar verificação</button>
+    </div>
+  </form>
+</div>

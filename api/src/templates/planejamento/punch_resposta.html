@@ -1,0 +1,8 @@
+{#
+  Resposta multi-alvo da Punch list (ISSUE-049): o modal, a barra de filtros e a lista de uma
+  vez. O formulário declara os três alvos e o Alpine AJAX esvazia o alvo declarado que não
+  volta; por isso as três raízes vêm sempre, inclusive no 422 (o modal volta com as mensagens).
+#}
+{% include "planejamento/punch_modal.html" %}
+{% include "planejamento/punch_filtros.html" %}
+{% include "planejamento/punch_conteudo.html" %}

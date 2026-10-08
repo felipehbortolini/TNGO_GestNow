@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Fechamento com verificação da Punch list (ISSUE-049): o corpo mora no partial para a resposta
+  multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_punch_fechamento_form.html" %}{% endblock %}
