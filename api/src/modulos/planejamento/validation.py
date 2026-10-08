@@ -1571,3 +1571,575 @@ def _revision_finish(
     if package is not None and package.start is not None and finish < package.start:
         errors[FIELD_FINISH] = REVISION_FINISH_MESSAGE.format(start=f"{package.start:%d/%m/%Y}")
     return finish
+
+
+# ── Produtividade: formulários e limites (ISSUE-046) ──────────────────────
+
+
+QUANTITY_GROUPS = ("Cabo elétrico", "Concreto", "Aço", "Tubulação", "Painel elétrico", "Outros")
+
+
+QUANTITY_UNITS = ("m", "m²", "m³", "t", "un", "kg")
+
+
+ITEM_KIND_MIN = 3
+
+
+ITEM_KIND_MAX = 80
+
+
+ITEM_NOTES_MAX = 300
+
+
+ITEM_MAX_WEEKS = 104
+
+
+REVISION_JUSTIFICATION_MIN = 15
+
+
+REVISION_JUSTIFICATION_MAX = 400
+
+
+FIELD_ITEM_COMPANY = "empresa"
+
+
+FIELD_ITEM_GROUP = "grupo"
+
+
+FIELD_ITEM_KIND = "tipo"
+
+
+FIELD_ITEM_DISCIPLINE = "disciplina"
+
+
+FIELD_ITEM_UNIT = "unidade"
+
+
+FIELD_ITEM_TOTAL = "total"
+
+
+FIELD_ITEM_INDEX = "indiceHH"
+
+
+FIELD_ITEM_START = "inicio"
+
+
+FIELD_ITEM_FINISH = "fim"
+
+
+FIELD_ITEM_PROFILE = "perfil"
+
+
+FIELD_ITEM_NOTES = "observacoes"
+
+
+FIELD_DISTRIBUTION = "distribuicao"
+
+
+FIELD_REVISION_CHANGE = "smRef"
+
+
+FIELD_REVISION_TOTAL = "total"
+
+
+FIELD_REVISION_FINISH = "fim"
+
+
+FIELD_REVISION_PROFILE = "perfil"
+
+
+FIELD_REVISION_JUSTIFICATION = "justificativa"
+
+
+FIELD_ENTRY_WEEK = "semana"
+
+
+FIELD_ENTRY_COMPANY = "empresa"
+
+
+ITEM_KIND_MESSAGE = "Descreva o tipo (ex.: Cabo de controle)."
+
+
+ITEM_DISCIPLINE_MESSAGE = "Escolha a disciplina da lista."
+
+
+ITEM_TOTAL_MESSAGE = "A quantidade total da LB deve ser maior que zero."
+
+
+ITEM_INDEX_MESSAGE = "Informe o índice orçado (HH por unidade), maior que zero."
+
+
+ITEM_WEEK_MESSAGE = "Escolha a semana inicial e a final."
+
+
+ITEM_FINISH_MESSAGE = "A semana final deve ser igual ou posterior à inicial."
+
+
+ITEM_SPAN_MESSAGE = f"A distribuição passa de {ITEM_MAX_WEEKS} semanas; divida o item."
+
+
+ITEM_PROFILE_MESSAGE = "Escolha o perfil de distribuição."
+
+
+DISTRIBUTION_VALUES_MESSAGE = "As quantidades semanais devem ser números maiores ou iguais a zero."
+
+
+DISTRIBUTION_WEEKS_MESSAGE = "A distribuição não corresponde às semanas escolhidas."
+
+
+DISTRIBUTION_EMPTY_MESSAGE = "Distribua a quantidade por semana."
+
+
+DISTRIBUTION_TOTAL_MESSAGE = (
+    "A soma das semanas ({total}) precisa fechar com o total da LB ({expected})."
+)
+
+
+REVISION_CHANGE_MESSAGE = "Escolha uma SM aprovada (08) que autoriza a revisão da linha de base."
+
+
+REVISION_TOTAL_MESSAGE = (
+    "O novo total não pode ser menor que o realizado acumulado ({realized} {unit})."
+)
+
+
+REVISION_FROZEN_MESSAGE = (
+    "O novo total não pode ser menor que o previsto das semanas congeladas ({frozen} {unit})."
+)
+
+
+REVISION_WEEK_MESSAGE = "A nova semana final deve ser posterior à semana corrente."
+
+
+REVISION_REASON_MESSAGE = (
+    f"Justifique a revisão (mínimo de {REVISION_JUSTIFICATION_MIN} caracteres)."
+)
+
+
+ENTRY_WEEK_MESSAGE = "Escolha a semana."
+
+
+ENTRY_FUTURE_MESSAGE = "Não é possível apontar semana futura."
+
+
+ENTRY_ITEM_MESSAGE = "Item inválido para a empresa."
+
+
+ENTRY_DRAFT_MESSAGE = "{code}: a linha de base ainda não foi aprovada."
+
+
+ENTRY_NEGATIVE_MESSAGE = "{code}: use valores maiores ou iguais a zero."
+
+
+ENTRY_HH_MESSAGE = "{code}: informe as HH apropriadas da semana (base do fator de produtividade)."
+
+
+ENTRY_LIMIT_MESSAGE = (
+    "{code}: o acumulado ({total} {unit}) passa o total da LB ({expected}). "
+    "Registre uma SM (08) para revisar a linha de base antes de apontar."
+)
+
+
+ENTRY_EMPTY_MESSAGE = "Informe o realizado de ao menos um item."
+
+
+@dataclass(frozen=True)
+class ItemChoices:
+    """O que o cadastro oferece ao formulário do item: empresas, unidades e disciplinas."""
+
+    company_ids: frozenset[int]
+    units: frozenset[str]
+    disciplines: frozenset[str]
+
+
+@dataclass(frozen=True)
+class ItemForm:
+    """O que o formulário do item mandou: os campos e o previsto de cada semana."""
+
+    fields: Mapping[str, str]
+    planned: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class ItemData:
+    """Um item válido do plano, pronto para a fachada."""
+
+    company_id: int
+    group: str
+    kind: str
+    discipline: str
+    unit: str
+    places: int
+    total: Decimal
+    index_hh: Decimal
+    start_week: str
+    finish_week: str
+    profile: str
+    notes: str | None
+    planned: tuple[tuple[str, Decimal], ...]
+
+
+@dataclass(frozen=True)
+class RevisionChoices:
+    """Os códigos das SM aprovadas que podem autorizar a revisão da linha de base."""
+
+    change_codes: frozenset[str]
+
+
+@dataclass(frozen=True)
+class RevisionContext:
+    """O item como a revisão o lê: unidade, casas, realizado, congelado e a primeira semana livre."""
+
+    unit: str
+    places: int
+    realized: Decimal
+    frozen: Decimal
+    first_free_week: str
+
+
+@dataclass(frozen=True)
+class RevisionForm:
+    """O que o formulário da revisão mandou: os campos e o previsto das semanas livres."""
+
+    fields: Mapping[str, str]
+    planned: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class PlanRevisionData:
+    """Uma revisão válida da linha de base, pronta para a fachada."""
+
+    change_code: str
+    total: Decimal
+    finish_week: str
+    profile: str
+    justification: str
+    planned: tuple[tuple[str, Decimal], ...]
+
+
+@dataclass(frozen=True)
+class EntryTarget:
+    """O item como a validação do apontamento o lê: código, unidade, situação e acumulado."""
+
+    code: str
+    places: int
+    unit: str
+    approved: bool
+    total: Decimal
+    others: Decimal
+
+
+@dataclass(frozen=True)
+class EntryForm:
+    """O que o apontamento mandou: a semana e o realizado/HH de cada item."""
+
+    week: str
+    lines: Mapping[int, tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class EntryData:
+    """Um apontamento válido: o item e os valores da semana (nulo é o que ficou em branco)."""
+
+    item_id: int
+    realized: Decimal | None
+    hh: Decimal | None
+
+
+def _required_week(
+    raw: Mapping[str, str], field: str, *, label: str, errors: dict[str, str]
+) -> str:
+    from src.modulos.planejamento import calculations
+
+    text = _text(raw, field)
+    if not text:
+        errors[field] = REQUIRED_MESSAGE.format(label=label)
+        return ""
+    if calculations.week_start(text) is None:
+        errors[field] = UNKNOWN_CHOICE_MESSAGE.format(label=label)
+        return ""
+    return text
+
+
+def _quantity(raw: Mapping[str, str], field: str, *, label: str, errors: dict[str, str]) -> Decimal:
+    text = _text(raw, field)
+    if not text:
+        errors[field] = REQUIRED_MESSAGE.format(label=label)
+        return Decimal(0)
+    found = _decimal(text)
+    if found is None:
+        errors[field] = f"{label.capitalize()} precisa ser um número."
+        return Decimal(0)
+    return found
+
+
+def parse_notes(raw: Mapping[str, str]) -> str:
+    """As observações do item aprovado (o único campo que muda fora da revisão)."""
+    notes = _text(raw, FIELD_ITEM_NOTES)
+    if len(notes) > ITEM_NOTES_MAX:
+        raise InvalidDataError(
+            {
+                FIELD_ITEM_NOTES: TOO_LONG_MESSAGE.format(
+                    label="As observações", limit=ITEM_NOTES_MAX
+                )
+            }
+        )
+    return notes
+
+
+def parse_item(form: ItemForm, choices: ItemChoices) -> ItemData:
+    """O item do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    from src.modulos.planejamento import calculations
+
+    raw = form.fields
+    errors: dict[str, str] = {}
+    company_id = _choice_id(
+        raw, FIELD_ITEM_COMPANY, label="a empresa", allowed=choices.company_ids, errors=errors
+    )
+    group = _choice_text(
+        raw,
+        FIELD_ITEM_GROUP,
+        label="o grupo",
+        allowed=frozenset(QUANTITY_GROUPS),
+        errors=errors,
+    )
+    kind = _text(raw, FIELD_ITEM_KIND)
+    if len(kind) < ITEM_KIND_MIN:
+        errors[FIELD_ITEM_KIND] = ITEM_KIND_MESSAGE
+    elif len(kind) > ITEM_KIND_MAX:
+        errors[FIELD_ITEM_KIND] = TOO_LONG_MESSAGE.format(label="O tipo", limit=ITEM_KIND_MAX)
+    discipline = _text(raw, FIELD_ITEM_DISCIPLINE)
+    if discipline and discipline not in choices.disciplines:
+        errors[FIELD_ITEM_DISCIPLINE] = ITEM_DISCIPLINE_MESSAGE
+    unit = _choice_text(
+        raw, FIELD_ITEM_UNIT, label="a unidade", allowed=choices.units, errors=errors
+    )
+    total = _quantity(raw, FIELD_ITEM_TOTAL, label="a quantidade total da LB", errors=errors)
+    if FIELD_ITEM_TOTAL not in errors and total <= 0:
+        errors[FIELD_ITEM_TOTAL] = ITEM_TOTAL_MESSAGE
+    index_hh = _quantity(raw, FIELD_ITEM_INDEX, label="o índice orçado", errors=errors)
+    if FIELD_ITEM_INDEX not in errors and index_hh <= 0:
+        errors[FIELD_ITEM_INDEX] = ITEM_INDEX_MESSAGE
+    start_week = _required_week(raw, FIELD_ITEM_START, label="a semana inicial", errors=errors)
+    finish_week = _required_week(raw, FIELD_ITEM_FINISH, label="a semana final", errors=errors)
+    weeks = _weeks_of(start_week, finish_week, errors=errors)
+    profile = _choice_text(
+        raw,
+        FIELD_ITEM_PROFILE,
+        label="o perfil de distribuição",
+        allowed=frozenset(calculations.PROFILES),
+        errors=errors,
+    )
+    notes = _text(raw, FIELD_ITEM_NOTES)
+    if len(notes) > ITEM_NOTES_MAX:
+        errors[FIELD_ITEM_NOTES] = TOO_LONG_MESSAGE.format(
+            label="As observações", limit=ITEM_NOTES_MAX
+        )
+    planned = _planned_of(form.planned, weeks, errors=errors)
+    places = calculations.places_for_unit(unit)
+    if not errors and not calculations.distribution_closes(
+        [value for _, value in planned], total, places
+    ):
+        errors[FIELD_DISTRIBUTION] = DISTRIBUTION_TOTAL_MESSAGE.format(
+            total=_plain_number(sum((value for _, value in planned), Decimal(0))),
+            expected=_plain_number(total),
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return ItemData(
+        company_id=company_id,
+        group=group,
+        kind=kind,
+        discipline=discipline,
+        unit=unit,
+        places=places,
+        total=total,
+        index_hh=index_hh,
+        start_week=start_week,
+        finish_week=finish_week,
+        profile=profile,
+        notes=notes or None,
+        planned=planned,
+    )
+
+
+def _weeks_of(start_week: str, finish_week: str, *, errors: dict[str, str]) -> tuple[str, ...]:
+    from src.modulos.planejamento import calculations
+
+    if not start_week or not finish_week:
+        return ()
+    if finish_week < start_week:
+        errors[FIELD_ITEM_FINISH] = ITEM_FINISH_MESSAGE
+        return ()
+    weeks = calculations.list_weeks(start_week, finish_week)
+    if not weeks:
+        errors[FIELD_ITEM_FINISH] = ITEM_WEEK_MESSAGE
+        return ()
+    if len(weeks) > ITEM_MAX_WEEKS:
+        errors[FIELD_ITEM_FINISH] = ITEM_SPAN_MESSAGE
+        return ()
+    return weeks
+
+
+def _planned_of(
+    raw_planned: Mapping[str, str], weeks: Sequence[str], *, errors: dict[str, str]
+) -> tuple[tuple[str, Decimal], ...]:
+    if not weeks:
+        return ()
+    if not raw_planned:
+        errors[FIELD_DISTRIBUTION] = DISTRIBUTION_EMPTY_MESSAGE
+        return ()
+    if set(raw_planned) != set(weeks):
+        errors[FIELD_DISTRIBUTION] = DISTRIBUTION_WEEKS_MESSAGE
+        return ()
+    planned: list[tuple[str, Decimal]] = []
+    invalid = False
+    for week in weeks:
+        value = _decimal(raw_planned[week])
+        if value is None or value < 0:
+            invalid = True
+            break
+        planned.append((week, value))
+    if invalid:
+        errors[FIELD_DISTRIBUTION] = DISTRIBUTION_VALUES_MESSAGE
+        return ()
+    return tuple(planned)
+
+
+def parse_revision(
+    form: RevisionForm, choices: RevisionChoices, *, context: RevisionContext
+) -> PlanRevisionData:
+    """A revisão do formulário, ou ``InvalidDataError`` com a mensagem de cada campo errado."""
+    from src.modulos.planejamento import calculations
+
+    raw = form.fields
+    errors: dict[str, str] = {}
+    change_code = _choice_text(
+        raw,
+        FIELD_REVISION_CHANGE,
+        label="a SM que autoriza",
+        allowed=choices.change_codes,
+        errors=errors,
+    )
+    total = _quantity(raw, FIELD_REVISION_TOTAL, label="o novo total da LB", errors=errors)
+    if FIELD_REVISION_TOTAL not in errors and total < context.realized:
+        errors[FIELD_REVISION_TOTAL] = REVISION_TOTAL_MESSAGE.format(
+            realized=_plain_number(context.realized), unit=context.unit
+        )
+    frozen = _plain_number(context.frozen)
+    if FIELD_REVISION_TOTAL not in errors and total < context.frozen:
+        errors[FIELD_REVISION_TOTAL] = REVISION_FROZEN_MESSAGE.format(
+            frozen=frozen, unit=context.unit
+        )
+    finish_week = _required_week(
+        raw, FIELD_REVISION_FINISH, label="a nova semana final", errors=errors
+    )
+    if finish_week and finish_week < context.first_free_week:
+        errors[FIELD_REVISION_FINISH] = REVISION_WEEK_MESSAGE
+    profile = _choice_text(
+        raw,
+        FIELD_REVISION_PROFILE,
+        label="o perfil do saldo",
+        allowed=frozenset(calculations.PROFILES),
+        errors=errors,
+    )
+    justification = _text(raw, FIELD_REVISION_JUSTIFICATION)
+    if len(justification) < REVISION_JUSTIFICATION_MIN:
+        errors[FIELD_REVISION_JUSTIFICATION] = REVISION_REASON_MESSAGE
+    elif len(justification) > REVISION_JUSTIFICATION_MAX:
+        errors[FIELD_REVISION_JUSTIFICATION] = TOO_LONG_MESSAGE.format(
+            label="A justificativa", limit=REVISION_JUSTIFICATION_MAX
+        )
+    weeks = (
+        calculations.list_weeks(context.first_free_week, finish_week)
+        if finish_week and finish_week >= context.first_free_week
+        else ()
+    )
+    planned = _planned_of(form.planned, weeks, errors=errors)
+    if not errors and not calculations.distribution_closes(
+        [value for _, value in planned], total, context.places, frozen=context.frozen
+    ):
+        errors[FIELD_DISTRIBUTION] = DISTRIBUTION_TOTAL_MESSAGE.format(
+            total=_plain_number(sum((value for _, value in planned), Decimal(0)) + context.frozen),
+            expected=_plain_number(total),
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return PlanRevisionData(
+        change_code=change_code,
+        total=total,
+        finish_week=finish_week,
+        profile=profile,
+        justification=justification,
+        planned=planned,
+    )
+
+
+def parse_entries(
+    form: EntryForm, *, current_week: str, targets: Mapping[int, EntryTarget]
+) -> tuple[EntryData, ...]:
+    """Os apontamentos do formulário, ou ``InvalidDataError`` com a mensagem de cada linha errada."""
+    from src.modulos.planejamento import calculations
+
+    errors: dict[str, str] = {}
+    if not form.week or calculations.week_start(form.week) is None:
+        errors[FIELD_ENTRY_WEEK] = ENTRY_WEEK_MESSAGE
+    elif form.week > current_week:
+        errors[FIELD_ENTRY_WEEK] = ENTRY_FUTURE_MESSAGE
+    entries: list[EntryData] = []
+    for item_id, (realized_text, hh_text) in form.lines.items():
+        target = targets.get(item_id)
+        if target is None:
+            errors["geral"] = ENTRY_ITEM_MESSAGE
+            continue
+        entry = _entry_of(item_id, realized_text, hh_text, target=target, errors=errors)
+        if entry is not None:
+            entries.append(entry)
+    if not errors and not entries:
+        errors["geral"] = ENTRY_EMPTY_MESSAGE
+    if errors:
+        raise InvalidDataError(errors)
+    return tuple(entries)
+
+
+def _entry_of(
+    item_id: int,
+    realized_text: str,
+    hh_text: str,
+    *,
+    target: EntryTarget,
+    errors: dict[str, str],
+) -> EntryData | None:
+    from src.modulos.planejamento import calculations
+
+    realized = _decimal(realized_text) if realized_text else None
+    hh = _decimal(hh_text) if hh_text else None
+    realized_field = f"realizado_{item_id}"
+    hh_field = f"hh_{item_id}"
+    field = ""
+    problem = ""
+    if (realized_text and realized is None) or (realized is not None and realized < 0):
+        field, problem = realized_field, ENTRY_NEGATIVE_MESSAGE.format(code=target.code)
+    elif (hh_text and hh is None) or (hh is not None and hh < 0):
+        field, problem = hh_field, ENTRY_NEGATIVE_MESSAGE.format(code=target.code)
+    elif realized is None and hh is None:
+        return None
+    elif not target.approved:
+        field, problem = realized_field, ENTRY_DRAFT_MESSAGE.format(code=target.code)
+    elif realized is not None and realized > 0 and (hh is None or hh <= 0):
+        field, problem = hh_field, ENTRY_HH_MESSAGE.format(code=target.code)
+    amount = realized or Decimal(0)
+    if not problem and calculations.entry_over_limit(
+        target.others, amount, target.total, target.places
+    ):
+        field = realized_field
+        problem = ENTRY_LIMIT_MESSAGE.format(
+            code=target.code,
+            total=_plain_number(target.others + amount),
+            unit=target.unit,
+            expected=_plain_number(target.total),
+        )
+    if problem:
+        errors[field] = problem
+        return None
+    return EntryData(item_id=item_id, realized=amount, hh=hh or Decimal(0))

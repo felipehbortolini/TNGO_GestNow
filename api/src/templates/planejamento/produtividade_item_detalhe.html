@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Ficha do item da linha de base, em modal (ISSUE-046). O corpo mora no partial para a
+  resposta multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_prod_item_detalhe.html" %}{% endblock %}

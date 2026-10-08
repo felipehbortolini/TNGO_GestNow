@@ -75,6 +75,8 @@ from src.modulos.planejamento.service import (
     PeriodCoverage,
     PlanningKpiLine,
     PlanningKpisOverview,
+    QuantitiesOverview,
+    QuantityItemView,
     ReportSummary,
     ReportView,
 )
@@ -1208,4 +1210,239 @@ def _planning_totals(visao: PlanningKpisOverview) -> tuple[Cell, ...]:
         Cell(indicadores.deviation_pp, deviation_tone(indicadores.deviation_pp)),
         Cell(),
         Cell(),
+    )
+
+
+# ── Produtividade: quantidades e apontamento (ISSUE-046) ──────────────────
+
+
+PRODUCTIVITY_TITLE = "Produtividade: plano de quantidades da linha de base"
+
+
+PRODUCTIVITY_GROUPS_TITLE = "Quantidades por grupo"
+
+
+PRODUCTIVITY_ITEMS_TITLE = "Plano x realizado por item"
+
+
+PRODUCTIVITY_CHART_TITLE = "Produção semanal"
+
+
+PRODUCTIVITY_ACCUMULATED_TITLE = "Avanço acumulado"
+
+
+def productivity_week_caption(week: str) -> str:
+    """O rótulo de uma semana ISO como a tela o lê: ``S39 · 21/09 a 27/09``."""
+    day = calendario.week_start(week)
+    if day is None:
+        return week
+    last = calendario.add_days(day, 6)
+    return f"S{day.isocalendar()[1]:02d} · {day:%d/%m} a {last:%d/%m}"
+
+
+def productivity_week_short(week: str) -> str:
+    """O número curto da semana ISO (``S39``), como a grade do formulário escreve."""
+    day = calendario.week_start(week)
+    return f"S{day.isocalendar()[1]:02d}" if day is not None else week
+
+
+def quantity_text(value: Decimal | None, places: int) -> str:
+    """Uma quantidade na escrita brasileira, com as casas da unidade (ou ``·``)."""
+    return NO_VALUE if value is None else format_value(ValueKind.DECIMAL, value, places)
+
+
+def index_text(value: Decimal | None) -> str:
+    """Um índice (HH por unidade, SPI ou FP) com duas casas (ou ``·``)."""
+    return NO_VALUE if value is None else format_value(ValueKind.DECIMAL, value, 2)
+
+
+def percent_text(value: Decimal | None, places: int = 1) -> str:
+    """Um percentual na escrita brasileira (ou ``·``)."""
+    return NO_VALUE if value is None else format_value(ValueKind.PERCENT, value, places)
+
+
+def productivity_document(
+    visao: QuantitiesOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """O documento da aba Quantidades: os indicadores, os gráficos e as duas tabelas."""
+    return Document(
+        title=PRODUCTIVITY_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_productivity_context(visao),
+        kpis=productivity_kpis(visao),
+        charts=(
+            Chart(PRODUCTIVITY_CHART_TITLE, "curva-s-barra-linha", visao.weekly),
+            Chart(PRODUCTIVITY_ACCUMULATED_TITLE, "curva-s-linha", visao.accumulated),
+        ),
+        tables=(_productivity_groups_table(visao), _productivity_items_table(visao)),
+        paper=Paper.A4,
+    )
+
+
+def _productivity_context(visao: QuantitiesOverview) -> tuple[tuple[str, str], ...]:
+    company = next(
+        (
+            option.label
+            for option in visao.company_options
+            if option.value == str(visao.filter.company_id)
+        ),
+        "Todas",
+    )
+    return (
+        ("Semana de corte", productivity_week_caption(visao.cut_week)),
+        ("Empresa", company or "Todas"),
+        ("Grupo", visao.filter.group or "Todos"),
+    )
+
+
+def productivity_kpis(visao: QuantitiesOverview) -> tuple[Kpi, ...]:
+    """Os indicadores da aba Quantidades, os mesmos da faixa do topo da tela."""
+    indicadores = visao.indicators
+    parameters = visao.parameters
+    return (
+        Kpi(
+            "Avanço por quantidades",
+            indicadores.pct_real,
+            f"Previsto: {percent_text(indicadores.pct_prev)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=spi_tone(indicadores.spi),
+            status=f"SPI de quantidades: {index_text(indicadores.spi)}",
+        ),
+        Kpi(
+            "Aderência da semana",
+            indicadores.week_adherence,
+            f"Meta: ≥ {percent_text(parameters.adherence_bands[1], 0)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_adherence_tone(indicadores.week_adherence, parameters),
+            status=f"Média de {parameters.window_weeks} semanas: {percent_text(indicadores.window_adherence, 0)}",
+        ),
+        Kpi(
+            "Fator de produtividade",
+            indicadores.pf_window,
+            f"Meta: ≤ {index_text(parameters.pf_bands[0])}",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=_pf_tone(indicadores.pf_window, parameters),
+            status=f"Acumulado: {index_text(indicadores.pf)}",
+        ),
+        Kpi(
+            "Apontamentos pendentes",
+            indicadores.pending,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if indicadores.pending else Tone.OK,
+            status=f"Itens ativos sem apontamento em {productivity_week_caption(visao.cut_week)}",
+        ),
+        Kpi(
+            "Tendência de atraso",
+            indicadores.late_trend,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if indicadores.late_trend else Tone.OK,
+            status="Itens com término previsto depois da linha de base",
+        ),
+    )
+
+
+def _adherence_tone(value: Decimal | None, parameters: Any) -> Tone:
+    if value is None:
+        return Tone.INFO
+    if value >= parameters.adherence_bands[1]:
+        return Tone.OK
+    return Tone.WARN if value >= parameters.adherence_bands[0] else Tone.ERROR
+
+
+def _pf_tone(value: Decimal | None, parameters: Any) -> Tone:
+    if value is None:
+        return Tone.INFO
+    if value <= parameters.pf_bands[0]:
+        return Tone.OK
+    return Tone.WARN if value <= parameters.pf_bands[1] else Tone.ERROR
+
+
+def _productivity_groups_table(visao: QuantitiesOverview) -> Table:
+    return Table(
+        title=PRODUCTIVITY_GROUPS_TITLE,
+        columns=(
+            Column("Grupo"),
+            Column("Unidade"),
+            Column("Itens", ValueKind.INTEGER),
+            Column("Total da LB", ValueKind.DECIMAL, digits=1),
+            Column("Previsto até o corte", ValueKind.DECIMAL, digits=1),
+            Column("Realizado acumulado", ValueKind.DECIMAL, digits=1),
+            Column("% real (prev.)", ValueKind.PERCENT, digits=1),
+            Column("Previsto na semana", ValueKind.DECIMAL, digits=1),
+            Column("Realizado na semana", ValueKind.DECIMAL, digits=1),
+        ),
+        rows=tuple(
+            row(
+                grupo.group,
+                grupo.unit,
+                grupo.items,
+                grupo.total,
+                grupo.prev_acum,
+                grupo.real_acum,
+                Cell(
+                    grupo.pct_real,
+                    deviation_tone((grupo.pct_real or Decimal(0)) - (grupo.pct_prev or Decimal(0))),
+                ),
+                grupo.prev_week,
+                grupo.real_week,
+            )
+            for grupo in visao.groups
+        ),
+    )
+
+
+def _productivity_items_table(visao: QuantitiesOverview) -> Table:
+    return Table(
+        title=PRODUCTIVITY_ITEMS_TITLE,
+        columns=(
+            Column("Item"),
+            Column("Empresa"),
+            Column("Grupo"),
+            Column("Unidade"),
+            Column("Total da LB", ValueKind.DECIMAL, digits=1),
+            Column("Índice HH por unidade", ValueKind.DECIMAL, digits=2),
+            Column("Realizado acumulado", ValueKind.DECIMAL, digits=1),
+            Column("Previsto até o corte", ValueKind.DECIMAL, digits=1),
+            Column("% real (prev.)", ValueKind.PERCENT, digits=1),
+            Column("Realizado na semana", ValueKind.DECIMAL, digits=1),
+            Column("Previsto na semana", ValueKind.DECIMAL, digits=1),
+            Column("Aderência da semana", ValueKind.PERCENT, digits=0),
+            Column("FP", ValueKind.DECIMAL, digits=2),
+            Column("Término pela tendência"),
+            Column("Situação da LB"),
+        ),
+        rows=tuple(_productivity_item_row(item) for item in visao.items),
+    )
+
+
+def _productivity_item_row(item: QuantityItemView) -> Row:
+    figures = item.figures
+    return row(
+        f"{item.code} · {item.kind}",
+        item.company_name,
+        item.group,
+        item.unit,
+        item.total,
+        item.index_hh,
+        figures.real_acum,
+        figures.prev_acum,
+        Cell(figures.pct_real, deviation_tone(figures.deviation_pp)),
+        figures.real_week,
+        figures.prev_week,
+        figures.week_adherence,
+        figures.pf,
+        (
+            productivity_week_caption(figures.trend_week)
+            if figures.trend_week
+            else ("no prazo" if figures.deviation_weeks == 0 else NO_VALUE)
+        ),
+        f"Aprovada rev {item.revision}" if item.approved else "Em elaboração",
+        project=item.project_label,
     )

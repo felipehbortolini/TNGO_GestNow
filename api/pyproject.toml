@@ -170,8 +170,35 @@ max-complexity = 10
 # opções, a mesma coisa com mais indireção.
 "src/modulos/planejamento/service.py" = ["PLR0913"]
 
+# `_modal_answer` e `_item_form_error` têm 8 parâmetros, e é assim de propósito: depois do `*`
+# são todos KEYWORD-ONLY (modal_template, filtro, valores, status_code, toast; e item_id, form,
+# error, status_code, filtro), o contrato da resposta com modal, filtros e conteúdo da
+# produtividade (ISSUE-046) que a rota chama. A regra existe para argumento posicional, onde a
+# ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
+# mais indireção.
+"src/modulos/planejamento/routes.py" = ["PLR0913"]
+
+# `_revision` tem 6 parâmetros, e é assim de propósito: depois do `*` são todos KEYWORD-ONLY
+# (item, source, weeks, ids, changes, reference_date), o contexto da revisão do mock na carga
+# de demonstração da produtividade (ISSUE-046). A regra existe para argumento posicional, onde
+# a ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
+# mais indireção.
+"src/modulos/planejamento/seed_produtividade.py" = ["PLR0913"]
+
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
+
+# `campos_do_item` e `form_revisao`, em tests/apoio_produtividade.py, montam o formulário da
+# produtividade com muitos campos opcionais, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY, e cada teste informa só o que importa para o caso. A regra existe para argumento
+# posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de opções,
+# a mesma coisa com mais indireção.
+"tests/apoio_produtividade.py" = ["PLR0913"]
+
+# `_apontar`, em tests/planejamento/test_produtividade_servico.py, monta o apontamento semanal
+# com a semana, o realizado e as HH opcionais, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY, e cada teste informa só o que importa para o caso.
+"tests/planejamento/test_produtividade_servico.py" = ["PLR0913"]
 
 # process_bind_param e process_result_value recebem o dialect por contrato do
 # SQLAlchemy (TypeDecorator) e não o usam: o tipo só converte centavos. O

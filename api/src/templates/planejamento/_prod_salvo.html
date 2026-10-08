@@ -1,0 +1,12 @@
+{#
+  Aviso de sucesso de uma gravação da Produtividade: o marcador `data-produtividade-salvo`
+  fecha o modal na tela; `atualiza_conteudo` avisa que os filtros e o conteúdo já vieram na
+  mesma resposta (o item novo), para a tela não pedir de novo.
+#}
+{% if erro %}
+<div class="aviso aviso--erro" role="alert">{{ mensagem }}</div>
+{% else %}
+<div class="produtividade__salvo" data-produtividade-salvo{% if atualiza_conteudo %} data-prod-conteudo="1"{% endif %}>
+  <p class="body-txt">{{ mensagem }}</p>
+</div>
+{% endif %}

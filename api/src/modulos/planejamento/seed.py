@@ -23,6 +23,11 @@ do projeto 1, mas a distribuição linear das datas da EAP daria 69,2%: a carga 
 do protótipo (Q31) e o mecanismo de geração vale para as revisões novas em runtime; a diferença
 está registrada em ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``. A parte roda depois da EAP e substitui
 as medições que a carga antiga tinha deixado, para a série fechar.
+
+A Produtividade (ISSUE-046) é a parte ``planejamento-produtividade``: o plano de quantidades da
+LB com a distribuição semanal, as revisões e os apontamentos do mock, gravado por
+``seed_produtividade.load_items``. As semanas andam em semanas inteiras, para o corte continuar
+coerente com o protótipo.
 """
 
 from __future__ import annotations
@@ -39,7 +44,7 @@ from sqlalchemy.orm import Session
 from src.carga import prototype_collection, register, shift_date
 from src.core import calendario, recording
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.planejamento import calculations, seed_relato, service
+from src.modulos.planejamento import calculations, seed_produtividade, seed_relato, service
 from src.modulos.planejamento.models import (
     CurvaFisicaMonth,
     CurvaFisicaRevision,
@@ -54,6 +59,7 @@ from src.modulos.planejamento.models import (
 PART_NAME = "planejamento"
 EAP_PART_NAME = "planejamento-eap"
 CURVA_PART_NAME = "planejamento-curva"
+PRODUTIVIDADE_PART_NAME = "planejamento-produtividade"
 ADMIN_PROFILE = "Admin"
 TWO_PLACES = Decimal("0.01")
 
@@ -577,3 +583,4 @@ def _shifted_date(value: str | None, reference_date: date) -> date | None:
 register(PART_NAME, load)
 register(EAP_PART_NAME, load_eap)
 register(CURVA_PART_NAME, load_curva)
+register(PRODUTIVIDADE_PART_NAME, seed_produtividade.load_items)

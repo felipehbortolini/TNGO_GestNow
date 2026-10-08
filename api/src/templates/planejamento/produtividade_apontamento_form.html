@@ -1,0 +1,6 @@
+{% extends "base_fragment.html" %}
+{#
+  Formulário do apontamento semanal, em modal (ISSUE-046). O corpo mora no partial para
+  a resposta multi-alvo reaproveitá-lo.
+#}
+{% block fragment %}{% include "planejamento/_prod_entry_form.html" %}{% endblock %}

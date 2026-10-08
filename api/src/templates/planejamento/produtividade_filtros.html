@@ -1,0 +1,56 @@
+{#
+  Filtros globais da Produtividade (ISSUE-046): Empresa, Semana de corte e Grupo, com os
+  botões de apontamento, item novo e importação. Raiz fixa `produtividade-filtros`; o
+  formulário pede só o conteúdo (`x-target`). Os botões abrem os modais no fim da tela.
+  No Portfólio o shell pede o projeto antes (`data-tn-incluir`).
+  Espera: visao, filtro, api, rotulo_semana.
+#}
+<div id="produtividade-filtros">
+  <form class="toolbar produtividade__filtros" id="produtividade-filtro" method="get" action="{{ api }}"
+    x-target="produtividade-conteudo" role="search" aria-label="Filtros da produtividade" x-data
+    @change="$el.requestSubmit()">
+    <div class="field">
+      <label class="sr-only" for="prod-empresa">Empresa</label>
+      <select id="prod-empresa" name="empresa" class="input">
+        <option value="">Todas as empresas</option>
+        {% for opcao in visao.company_options %}
+        <option value="{{ opcao.value }}"{% if opcao.value == filtro.empresa %} selected{% endif %}>{{ opcao.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="sr-only" for="prod-corte">Semana de corte</label>
+      <select id="prod-corte" name="corte" class="input">
+        {% for semana in visao.cut_options | reverse %}
+        <option value="{{ semana }}"{% if semana == visao.cut_week %} selected{% endif %}>Corte {{ rotulo_semana(semana) }}{% if semana == visao.current_week %} (atual){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="sr-only" for="prod-grupo">Grupo</label>
+      <select id="prod-grupo" name="grupo" class="input">
+        <option value="">Todos os grupos</option>
+        {% for grupo in visao.group_options %}
+        <option value="{{ grupo }}"{% if grupo == filtro.grupo %} selected{% endif %}>{{ grupo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <p class="hint produtividade__contexto" id="prod-contexto">Semana atual {{ semana_atual }} · janela de {{ visao.parameters.window_weeks }} semanas para médias e tendência</p>
+    {% if visao.can_write %}
+    <div class="produtividade__inclusao">
+      <button type="button" class="btn btn--primary" data-tn-incluir="apontar" data-prod-acao="apontar">
+        <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+        Apontar semana
+      </button>
+      <button type="button" class="btn btn--secondary" data-tn-incluir="item" data-prod-acao="novo">
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+        Novo item da LB
+      </button>
+      <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-prod-acao="importar">
+        <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
+        Importar Excel
+      </button>
+    </div>
+    {% endif %}
+  </form>
+</div>

@@ -1,0 +1,141 @@
+{#
+  Ficha do item da linha de base (ISSUE-046): identificação, situação, o fluxo da LB (editar,
+  aprovar, excluir, revisar e observações), as semanas e o histórico de revisões. O servidor
+  calcula tudo; a tela só oferece o próximo passo. Os formulários escondidos carregam a versão
+  e o filtro de agora.
+  Espera: detalhe, filtro, api, pode_gerir, pode_gravar, rotulo_semana, semana_curta,
+  quantidade, indice, percentual, tom, erro.
+#}
+{% set item = detalhe.item %}
+{% set figuras = item.figures %}
+<div class="produtividade__detalhe">
+  <p class="produtividade__identificacao">
+    <span class="pill {{ 'pill--ok' if item.approved else 'pill--warn' }}">{{ 'Aprovada rev ' ~ item.revision if item.approved else 'Em elaboração' }}</span>
+    <span class="fw-600">{{ item.code }} · {{ item.kind }}</span>
+    <span class="hint">{{ item.project_label }}</span>
+  </p>
+
+  {% if erro %}
+  <div class="aviso aviso--erro" role="alert">{{ erro }}</div>
+  {% endif %}
+
+  <dl class="produtividade__dl">
+    <dt>Empresa</dt><dd>{{ item.company_name }}</dd>
+    <dt>Grupo e disciplina</dt><dd>{{ item.group }} · {{ item.discipline or 'sem disciplina' }}</dd>
+    <dt>Total da LB</dt><dd>{{ quantidade(item.total, item.places) }} {{ item.unit }} · índice orçado {{ indice(item.index_hh) }} HH/{{ item.unit }}</dd>
+    <dt>Distribuição</dt><dd>{{ rotulo_semana(item.start_week) }} → {{ rotulo_semana(item.finish_week) }} · {{ item.profile_name }}</dd>
+    <dt>Situação</dt>
+    <dd>{% if item.approved %}aprovada por {{ item.approved_by }} em {{ item.approved_on.strftime('%d/%m/%Y') if item.approved_on else '·' }}{% else %}fora dos indicadores até a aprovação{% endif %}</dd>
+    {% if item.notes %}<dt>Observações</dt><dd>{{ item.notes }}</dd>{% endif %}
+    <dt>No corte</dt>
+    <dd>realizado {{ quantidade(figuras.real_acum, item.places) }} {{ item.unit }} ({{ percentual(figuras.pct_real) }}) x previsto {{ percentual(figuras.pct_prev) }} · FP {{ indice(figuras.pf) }} · tendência {{ figuras.trend_week or '·' }}</dd>
+  </dl>
+
+  <div class="modal__actions produtividade__fluxo">
+    {% if not item.approved %}
+    {% if pode_gravar %}
+    <button type="button" class="btn btn--secondary" data-prod-acao="editar" data-prod-id="{{ item.id }}">
+      <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+      Editar distribuição
+    </button>
+    {% endif %}
+    {% if pode_gerir %}
+    <button type="button" class="btn btn--primary" data-prod-acao="aprovar" data-prod-id="{{ item.id }}"
+      data-prod-versao="{{ item.version }}" data-prod-titulo="{{ item.code }}">
+      <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      Aprovar LB
+    </button>
+    {% endif %}
+    {% if pode_gravar %}
+    <button type="button" class="btn btn--ghost" data-prod-acao="excluir" data-prod-id="{{ item.id }}"
+      data-prod-versao="{{ item.version }}" data-prod-titulo="{{ item.code }}">
+      <span x-init="$el.innerHTML = window.icon('trash', 16)" aria-hidden="true"></span>
+      Excluir
+    </button>
+    {% endif %}
+    {% else %}
+    {% if pode_gravar %}
+    <button type="button" class="btn btn--secondary" data-prod-acao="revisar" data-prod-id="{{ item.id }}">
+      <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
+      Revisar LB (com SM)
+    </button>
+    <button type="button" class="btn btn--ghost" data-prod-acao="editar" data-prod-id="{{ item.id }}">
+      <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+      Observações
+    </button>
+    {% endif %}
+    {% endif %}
+    <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Fechar</button>
+  </div>
+
+  {% if pode_gravar %}
+  <form id="prod-aprovacao" method="post" action="{{ api }}/itens/{{ item.id }}/aprovacao" x-target="produtividade-modal" hidden>
+    <input type="hidden" name="versao" value="{{ item.version }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro.corte }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro.empresa }}" />
+    <input type="hidden" name="f_grupo" value="{{ filtro.grupo }}" />
+  </form>
+  <form id="prod-exclusao" method="post" action="{{ api }}/itens/{{ item.id }}/exclusao" x-target="produtividade-modal" hidden>
+    <input type="hidden" name="versao" value="{{ item.version }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro.corte }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro.empresa }}" />
+    <input type="hidden" name="f_grupo" value="{{ filtro.grupo }}" />
+  </form>
+  {% endif %}
+
+  <h3 class="h-card5 produtividade__subtitulo">Semanas</h3>
+  <div class="tbl-wrap produtividade__semanas">
+    <table class="tbl">
+      <caption class="sr-only">Distribuição semanal do item, com o realizado e as HH apropriadas</caption>
+      <thead>
+        <tr>
+          <th scope="col">Semana</th>
+          <th scope="col" class="td-num">Previsto</th>
+          <th scope="col" class="td-num">Realizado</th>
+          <th scope="col" class="td-num">HH apropriadas</th>
+          <th scope="col" class="td-num">Aderência</th>
+          <th scope="col" class="td-num">FP</th>
+          <th scope="col" class="td-num">Prev. acum.</th>
+          <th scope="col" class="td-num">Real. acum.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for semana in detalhe.weeks %}
+        <tr{% if semana.week == semana_corte %} class="produtividade__linha--alerta"{% endif %}>
+          <th scope="row" class="num">{{ rotulo_semana(semana.week) }}</th>
+          <td class="td-num num">{{ quantidade(semana.planned, item.places) }}</td>
+          <td class="td-num num">
+            {% if semana.realized is not none %}{{ quantidade(semana.realized, item.places) }}
+            {% elif semana.pending %}<span class="pill pill--warn">Pendente</span>
+            {% else %}·{% endif %}
+          </td>
+          <td class="td-num num">{{ quantidade(semana.hh, 0) if semana.hh is not none else '·' }}</td>
+          <td class="td-num">
+            {% if semana.adherence is not none %}
+            <span class="pill pill--{{ 'neutral' if tom(faixa_aderencia(semana.adherence)) == 'info' else tom(faixa_aderencia(semana.adherence)) }}">{{ percentual(semana.adherence, 0) }}</span>
+            {% else %}·{% endif %}
+          </td>
+          <td class="td-num">
+            {% if semana.pf is not none %}
+            <span class="pill pill--{{ 'neutral' if tom(faixa_pf(semana.pf)) == 'info' else tom(faixa_pf(semana.pf)) }}">{{ indice(semana.pf) }}</span>
+            {% else %}·{% endif %}
+          </td>
+          <td class="td-num num">{{ percentual(semana.planned_pct) }}</td>
+          <td class="td-num num">{{ percentual(semana.realized_pct) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="h-card5 produtividade__subtitulo">Revisões da linha de base</h3>
+  <ul class="produtividade__revisoes">
+    {% for revisao in detalhe.revisions %}
+    <li>
+      <span class="fw-600">Rev {{ revisao.revision }}</span>
+      <span class="produtividade__celula-nota">{{ revisao.revision_date.strftime('%d/%m/%Y') }} · {{ revisao.author }} · total {{ quantidade(revisao.total, item.places) }} {{ item.unit }}{% if revisao.previous_total is not none %} (antes {{ quantidade(revisao.previous_total, item.places) }} {{ item.unit }}){% endif %}{% if revisao.change_code %} · SM {{ revisao.change_code }}{% endif %}{% if revisao.since %} · desde {{ revisao.since }}{% endif %}</span>
+      {% if revisao.justification %}<p class="produtividade__celula-nota">{{ revisao.justification }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>

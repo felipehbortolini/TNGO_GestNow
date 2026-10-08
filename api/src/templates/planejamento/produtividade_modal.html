@@ -1,0 +1,8 @@
+{#
+  Corpo do modal da Produtividade (ISSUE-046): a ficha do item, um formulário ou o aviso de
+  sucesso, conforme o que a rota mandou em `modal_template`. A raiz fixa é o alvo que a tela
+  declara; a classe da página traz o estilo escopado para dentro do modal.
+#}
+<div id="produtividade-modal" class="pagina--planejamento-produtividade">
+{% if modal_template %}{% include modal_template %}{% endif %}
+</div>

@@ -1,0 +1,129 @@
+{#
+  Revisão da linha de base (ISSUE-046): exige SM aprovada e justificativa; as semanas até a
+  atual ficam congeladas e o saldo (novo total menos o congelado) é redistribuído pelo perfil
+  a partir da primeira semana livre. O servidor recalcula a grade livre a cada mudança.
+  Espera: formulario (RevisionFormView), item_id, filtro, api, quantidade, indice, percentual,
+  rotulo_semana, semana_curta.
+#}
+{% set item = formulario.item %}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="prod-rev-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+<div class="produtividade__form">
+  <form method="post" x-data x-target="produtividade-modal"
+    action="{{ api }}/itens/{{ item_id }}/revisoes" novalidate>
+    <input type="hidden" name="f_corte" value="{{ filtro.corte }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro.empresa }}" />
+    <input type="hidden" name="f_grupo" value="{{ filtro.grupo }}" />
+    <input type="hidden" name="versao" value="{{ item.version }}" />
+    <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
+      formaction="{{ api }}/itens/{{ item_id }}/revisao/formulario"></button>
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      <span class="pill pill--ok">Aprovada rev {{ item.revision }}</span>
+      <span class="fw-600">{{ item.code }} · {{ item.kind }}</span>
+      <span class="hint">{{ item.project_label }}</span>
+    </p>
+    <p class="hint">Semanas até a semana corrente ficam congeladas; a revisão redistribui o saldo a partir de {{ formulario.first_free_week }}. Realizado acumulado: {{ quantidade(formulario.realized, item.places) }} {{ item.unit }} · congelado: {{ quantidade(formulario.frozen_total, item.places) }} {{ item.unit }}.</p>
+
+    {% if not formulario.changes %}
+    <div class="aviso aviso--warn" role="note">
+      <span>Nenhuma SM aprovada disponível. Registre a mudança em Governança (08) antes de revisar a linha de base.</span>
+    </div>
+    {% endif %}
+
+    <div class="produtividade__campos">
+      <div class="field produtividade__campo--largo">
+        <label for="prod-rev-sm">SM que autoriza</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('smRef') }}" id="prod-rev-sm" name="smRef"{{ marcas('smRef') }}>
+          <option value="">Escolha a SM aprovada</option>
+          {% for sm in formulario.changes %}
+          <option value="{{ sm.code }}"{% if formulario.fields.get('smRef') == sm.code %} selected{% endif %}>{{ sm.code }} · {{ sm.title }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('smRef') }}
+      </div>
+      <div class="field">
+        <label for="prod-rev-total">Novo total da LB ({{ item.unit }})</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('total') }}" id="prod-rev-total" name="total"
+          type="number" min="0" step="any" value="{{ formulario.fields.get('total', '') }}"
+          @change="$el.form.requestSubmit($refs.recarregar)"{{ marcas('total') }} />
+        {{ erro('total') }}
+      </div>
+      <div class="field">
+        <label for="prod-rev-fim">Nova semana final</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('fim') }}" id="prod-rev-fim" name="fim"{{ marcas('fim') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for semana in formulario.options.week_options %}
+          <option value="{{ semana }}"{% if formulario.fields.get('fim') == semana %} selected{% endif %}>{{ rotulo_semana(semana) }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('fim') }}
+      </div>
+      <div class="field">
+        <label for="prod-rev-perfil">Perfil do saldo</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('perfil') }}" id="prod-rev-perfil" name="perfil"{{ marcas('perfil') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for perfil in formulario.options.profiles %}
+          <option value="{{ perfil.value }}"{% if formulario.fields.get('perfil') == perfil.value %} selected{% endif %}>{{ perfil.label }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('perfil') }}
+      </div>
+      <div class="field produtividade__campo--largo">
+        <label for="prod-rev-justificativa">Justificativa</label>
+        <textarea class="input{{ ' input--erro' if formulario.errors.get('justificativa') }}" id="prod-rev-justificativa"
+          name="justificativa" rows="2" maxlength="400"{{ marcas('justificativa') }}>{{ formulario.fields.get('justificativa', '') }}</textarea>
+        {{ erro('justificativa') }}
+      </div>
+    </div>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Semanas congeladas (até a semana corrente)</legend>
+      {% if formulario.frozen %}
+      <div class="produtividade__grade produtividade__grade--travada">
+        {% for linha in formulario.frozen %}
+        <span class="produtividade__celula-grade">
+          <span>{{ semana_curta(linha.week) }}</span>
+          <span class="num">{{ quantidade(linha.planned, item.places) }}</span>
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">Nenhuma semana congelada: a revisão redistribui o total inteiro.</p>
+      {% endif %}
+    </fieldset>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Previsto por semana a partir de {{ formulario.first_free_week }}</legend>
+      {% if formulario.planned %}
+      <div class="produtividade__grade">
+        {% for linha in formulario.planned %}
+        <label class="produtividade__celula-grade">
+          <span>{{ semana_curta(linha.week) }}</span>
+          <input class="input input--grade" type="number" min="0" step="{{ '0.1' if item.places else '1' }}"
+            name="previsto_{{ linha.week }}" value="{{ linha.planned | float if item.places else linha.planned | int }}"
+            aria-label="Previsto de {{ rotulo_semana(linha.week) }}" />
+        </label>
+        {% endfor %}
+      </div>
+      <p class="hint">{{ formulario.free_weeks | length }} semanas livres · a soma com as congeladas precisa fechar com o novo total.</p>
+      {% else %}
+      <p class="muted">Escolha a nova semana final para o servidor distribuir o saldo.</p>
+      {% endif %}
+      {{ erro('distribuicao') }}
+    </fieldset>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.changes }}>Revisar LB</button>
+    </div>
+  </form>
+</div>

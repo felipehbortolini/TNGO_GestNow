@@ -1,0 +1,9 @@
+{#
+  Resposta de uma gravação da Produtividade: o modal, os filtros e o conteúdo de uma vez.
+  O formulário declara os três alvos e o Alpine AJAX esvazia o alvo declarado que não volta;
+  por isso as três raízes vêm sempre, inclusive no 422 e no 409 (o modal volta com as
+  mensagens). Com o modal vazio, fechou.
+#}
+{% include "planejamento/produtividade_modal.html" %}
+{% include "planejamento/produtividade_filtros.html" %}
+{% include "planejamento/produtividade_conteudo.html" %}

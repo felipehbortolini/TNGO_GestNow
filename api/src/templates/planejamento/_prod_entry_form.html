@@ -1,0 +1,101 @@
+{#
+  Apontamento semanal (ISSUE-046): o realizado e as HH apropriadas da contratada por item da
+  LB. A empresa e a semana recarregam a grade pelo servidor (não se aponta semana futura nem
+  acumulado acima do total da LB). Deixar em branco é não apontar o item.
+  Espera: formulario (EntryFormView), filtro, api, quantidade, rotulo_semana, semana_curta.
+#}
+{% set empresa_escolhida = formulario.company_id if formulario.company_id is not none else (formulario.company_options[0].value if formulario.company_options else '') %}
+<div class="produtividade__form">
+  <form method="post" action="{{ api }}/apontamento" x-data x-target="produtividade-modal" novalidate>
+    <input type="hidden" name="f_corte" value="{{ filtro.corte }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro.empresa }}" />
+    <input type="hidden" name="f_grupo" value="{{ filtro.grupo }}" />
+    <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
+      formaction="{{ api }}/apontamento?acao=recarregar"></button>
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      <span class="pill pill--neutral">Apontamento da contratada</span>
+      <span class="hint">Realizado e HH apropriadas por item da linha de base; a semana futura é recusada.</span>
+    </p>
+
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="prod-ap-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="prod-ap-empresa" name="empresa"
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for opcao in formulario.company_options %}
+          <option value="{{ opcao.value }}"{% if opcao.value == empresa_escolhida %} selected{% endif %}>{{ opcao.label }}</option>
+          {% endfor %}
+        </select>
+        {% if formulario.errors.get('empresa') %}<span class="field__erro" role="alert">{{ formulario.errors.get('empresa') }}</span>{% endif %}
+      </div>
+      <div class="field">
+        <label for="prod-ap-semana">Semana</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('semana') }}" id="prod-ap-semana" name="semana"
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for semana in formulario.week_options %}
+          <option value="{{ semana }}"{% if semana == formulario.week %} selected{% endif %}>{{ rotulo_semana(semana) }}</option>
+          {% endfor %}
+        </select>
+        {% if formulario.errors.get('semana') %}<span class="field__erro" role="alert">{{ formulario.errors.get('semana') }}</span>{% endif %}
+      </div>
+    </div>
+
+    {% if formulario.rows %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Itens da empresa com o previsto da semana para apontar</caption>
+        <thead>
+          <tr>
+            <th scope="col">Item</th>
+            <th scope="col" class="td-num">Previsto na semana</th>
+            <th scope="col" class="td-num">Realizado</th>
+            <th scope="col" class="td-num">HH apropriadas</th>
+            <th scope="col" class="td-num">Acumulado / LB</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in formulario.rows %}
+          <tr>
+            <th scope="row">
+              <span class="fw-600">{{ linha.item.code }}</span>
+              <span class="produtividade__celula-nota">{{ linha.item.kind }} ({{ linha.item.unit }})</span>
+            </th>
+            <td class="td-num num">{{ quantidade(linha.planned_week, linha.item.places) }}</td>
+            <td class="td-num">
+              <input class="input input--grade" type="number" min="0" step="{{ '0.1' if linha.item.places else '1' }}"
+                name="realizado_{{ linha.item.id }}" value="{{ linha.realized | float if linha.realized is not none else '' }}"
+                aria-label="Realizado de {{ linha.item.code }}" />
+              {% if formulario.errors.get('realizado_' ~ linha.item.id) %}
+              <span class="field__erro" role="alert">{{ formulario.errors.get('realizado_' ~ linha.item.id) }}</span>
+              {% endif %}
+            </td>
+            <td class="td-num">
+              <input class="input input--grade" type="number" min="0" step="1"
+                name="hh_{{ linha.item.id }}" value="{{ linha.hh | int if linha.hh is not none else '' }}"
+                aria-label="HH apropriadas de {{ linha.item.code }}" />
+              {% if formulario.errors.get('hh_' ~ linha.item.id) %}
+              <span class="field__erro" role="alert">{{ formulario.errors.get('hh_' ~ linha.item.id) }}</span>
+              {% endif %}
+            </td>
+            <td class="td-num num">{{ quantidade(linha.item.figures.real_acum, linha.item.places) }} / {{ quantidade(linha.item.total, linha.item.places) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Deixe em branco o item sem apontamento. Acumulado acima do total da LB exige SM (08) e revisão da linha de base.</p>
+    {% else %}
+    <p class="muted">Nenhum item com linha de base aprovada e saldo nesta semana.</p>
+    {% endif %}
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.rows }}>Apontar semana</button>
+    </div>
+  </form>
+</div>

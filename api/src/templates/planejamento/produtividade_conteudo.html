@@ -1,0 +1,208 @@
+{#
+  Aba Quantidades da Produtividade (ISSUE-046): o aviso da LB em elaboração, os indicadores, as
+  quantidades por grupo, os dois gráficos (produção semanal e avanço acumulado, D11) e o plano x
+  realizado por item. Raiz fixa `produtividade-conteudo`; `data-resultado` diz à tela qual dos
+  estados mostrar (vazio-origem, vazio-filtro ou conteudo). O corte manda em tudo: os indicadores
+  são calculados no servidor e a tela não calcula (D6).
+  Espera: visao, filtro, api, rotulo_semana, quantidade, indice, percentual, faixa_*, tom, corte.
+#}
+{% set indicadores = visao.indicators %}
+{% if not visao.group_options %}{% set resultado = 'vazio-origem' %}
+{% elif not visao.items %}{% set resultado = 'vazio-filtro' %}
+{% else %}{% set resultado = 'conteudo' %}{% endif %}
+<div id="produtividade-conteudo" data-resultado="{{ resultado }}">
+{% if resultado == 'conteudo' %}
+  {% if visao.draft_count %}
+  <div class="aviso aviso--warn" role="note">
+    <span>{{ visao.draft_count }} {{ 'item' if visao.draft_count == 1 else 'itens' }} com linha de base em elaboração: não entram nos indicadores até a aprovação.</span>
+  </div>
+  {% endif %}
+
+  <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores das quantidades">
+    <div class="kpi kpi--{{ tom(faixa_spi(indicadores.spi)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('layers', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Avanço por quantidades
+        <span class="produtividade__nota">Previsto: {{ percentual(indicadores.pct_prev) }}</span>
+        <span class="produtividade__nota">SPI de quantidades: {{ indice(indicadores.spi) }}</span>
+      </span>
+      <span class="kpi__value">{{ percentual(indicadores.pct_real) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_aderencia(indicadores.week_adherence)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Aderência da semana
+        <span class="produtividade__nota">Meta: ≥ {{ percentual(visao.parameters.adherence_bands[1], 0) }}</span>
+        <span class="produtividade__nota">Média de {{ visao.parameters.window_weeks }} semanas: {{ percentual(indicadores.window_adherence, 0) }}</span>
+      </span>
+      <span class="kpi__value">{{ percentual(indicadores.week_adherence, 0) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_pf(indicadores.pf_window)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Fator de produtividade
+        <span class="produtividade__nota">Meta: ≤ {{ indice(visao.parameters.pf_bands[0]) }}</span>
+        <span class="produtividade__nota">Acumulado: {{ indice(indicadores.pf) }}</span>
+      </span>
+      <span class="kpi__value">{{ indice(indicadores.pf_window) }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--warn' if indicadores.pending else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Apontamentos pendentes
+        <span class="produtividade__nota">Esperado: 0</span>
+        <span class="produtividade__nota">Itens ativos sem apontamento em {{ corte }}</span>
+      </span>
+      <span class="kpi__value">{{ indicadores.pending }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--erro' if indicadores.late_trend else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Tendência de atraso
+        <span class="produtividade__nota">Esperado: 0</span>
+        <span class="produtividade__nota">Itens com término previsto depois da LB</span>
+      </span>
+      <span class="kpi__value">{{ indicadores.late_trend }}</span>
+    </div>
+  </div>
+
+  <h2 class="produtividade__secao">Quantidades por grupo</h2>
+  {% if visao.groups %}
+  <div class="kpis produtividade__grupos" role="group" aria-label="Quantidades por grupo">
+    {% for grupo in visao.groups %}
+    {% set desvio = (grupo.pct_real | float) - (grupo.pct_prev | float) if grupo.pct_real is not none and grupo.pct_prev is not none else none %}
+    <div class="kpi kpi--{{ tom(faixa_spi(grupo.pct_real / grupo.pct_prev if grupo.pct_prev else none)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">{{ grupo.grupo }} ({{ grupo.unit }})
+        <span class="produtividade__nota">Previsto: {{ quantidade(grupo.prev_acum, grupo.places) }} {{ grupo.unit }} de {{ quantidade(grupo.total, grupo.places) }}</span>
+        <span class="produtividade__nota">Real {{ percentual(grupo.pct_real) }} x previsto {{ percentual(grupo.pct_prev) }}{% if desvio is not none %} · {{ '%+.1f' | format(desvio) }} p.p.{% endif %}</span>
+        <span class="produtividade__nota">{{ corte }}: previsto {{ quantidade(grupo.prev_week, grupo.places) }} · realizado {{ quantidade(grupo.real_week, grupo.places) }}</span>
+      </span>
+      <span class="kpi__value">{{ quantidade(grupo.real_acum, grupo.places) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Nenhum item com linha de base aprovada no filtro.</p>
+  {% endif %}
+
+  <div class="produtividade__graficos">
+    <section class="card" aria-labelledby="prod-t-semanal">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="prod-t-semanal">Produção semanal</h2>
+          <span class="hint">{{ 'Horas ganhas (HH): quantidade x índice orçado, para somar unidades diferentes' if visao.unit_series == 'HH' else 'Quantidade em ' ~ visao.unit_series }} · semanas do filtro</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="produtividade__grafico" data-grafico="curva-s-barra-linha" data-dados='{{ visao.weekly | tojson }}'></div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="prod-t-acum">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="prod-t-acum">Avanço acumulado</h2>
+          <span class="hint">% acumulado {{ 'em horas ganhas' if visao.unit_series == 'HH' else 'em ' ~ visao.unit_series }} · linha de base x realizado</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="produtividade__grafico" data-grafico="curva-s-linha" data-dados='{{ visao.accumulated | tojson }}'></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card produtividade__plano" aria-labelledby="prod-t-itens">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="prod-t-itens">Plano x realizado por item</h2>
+        <span class="hint">{{ visao.items | length }} {{ 'item' if visao.items | length == 1 else 'itens' }} · corte {{ corte }} · FP = fator de produtividade acumulado</span>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Plano de quantidades da linha de base por item, com o realizado no corte</caption>
+        <thead>
+          <tr>
+            {% if visao.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Item</th>
+            <th scope="col">Empresa</th>
+            <th scope="col">Grupo</th>
+            <th scope="col" class="td-num">Realizado / LB</th>
+            <th scope="col" class="td-num">Previsto acum.</th>
+            <th scope="col" class="td-num">% real (prev.)</th>
+            <th scope="col" class="td-num">Semana prev. / real.</th>
+            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col" class="td-num">FP</th>
+            <th scope="col">Término LB / tendência</th>
+            <th scope="col">LB</th>
+            <th scope="col"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in visao.items %}
+          {% set figuras = item.figures %}
+          <tr{% if figuras.pending %} class="produtividade__linha--alerta"{% endif %}>
+            {% if visao.is_portfolio %}
+            <td><span class="pill pill--neutral">{{ item.project_code }}</span> <span class="body-txt">{{ item.project_name }}</span></td>
+            {% endif %}
+            <td>
+              <div class="produtividade__celula">
+                <span class="fw-600">{{ item.code }}{% if not item.approved %} <span class="pill pill--warn">LB em elaboração</span>{% endif %}</span>
+                <span class="produtividade__celula-nota">{{ item.kind }}</span>
+              </div>
+            </td>
+            <td>{{ item.company_name }}</td>
+            <td>{{ item.group }}</td>
+            <td class="td-num num">
+              <strong>{{ quantidade(figuras.real_acum, item.places) }} {{ item.unit }}</strong><br />
+              <span class="produtividade__celula-nota">de {{ quantidade(item.total, item.places) }} {{ item.unit }}</span>
+            </td>
+            <td class="td-num num">{{ quantidade(figuras.prev_acum, item.places) }}</td>
+            <td class="td-num num">
+              <strong>{{ percentual(figuras.pct_real) }}</strong><br />
+              <span class="produtividade__celula-nota">{{ percentual(figuras.pct_prev) }}{% if figuras.deviation_pp %} · {{ '%+.1f' | format(figuras.deviation_pp | float) }} p.p.{% endif %}</span>
+            </td>
+            <td class="td-num num">
+              {% if not figuras.approved %}·
+              {% elif figuras.pending %}{{ quantidade(figuras.prev_week, item.places) }} / <span class="pill pill--warn">Pendente</span>
+              {% else %}{{ quantidade(figuras.prev_week, item.places) }} / {{ quantidade(figuras.real_week, item.places) }}{% endif %}
+            </td>
+            <td class="td-num">
+              {% if figuras.week_adherence is not none %}
+              {% set faixa_ader = tom(faixa_aderencia(figuras.week_adherence)) %}
+              <span class="pill pill--{{ 'neutral' if faixa_ader == 'info' else faixa_ader }}">{{ percentual(figuras.week_adherence, 0) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num">
+              {% if figuras.pf is not none %}
+              {% set faixa_pf_item = tom(faixa_pf(figuras.pf)) %}
+              <span class="pill pill--{{ 'neutral' if faixa_pf_item == 'info' else faixa_pf_item }}">{{ indice(figuras.pf) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td>
+              <div class="produtividade__celula">
+                <span class="num">{{ item.finish_week }} → {{ figuras.trend_week if figuras.trend_week else '·' }}</span>
+                <span class="produtividade__celula-nota">
+                  {% if figuras.deviation_weeks is none %}{{ 'LB não aprovada' if not figuras.approved else 'sem realizado' }}
+                  {% elif figuras.deviation_weeks > 0 %}+{{ figuras.deviation_weeks }} {{ 'semana' if figuras.deviation_weeks == 1 else 'semanas' }}
+                  {% elif figuras.deviation_weeks < 0 %}{{ -figuras.deviation_weeks }} {{ 'semana' if figuras.deviation_weeks == -1 else 'semanas' }} antes
+                  {% else %}no prazo{% endif %}
+                </span>
+              </div>
+            </td>
+            <td>
+              {% if item.approved %}
+              <span class="pill pill--ok">Aprovada rev {{ item.revision }}</span>
+              {% else %}
+              <span class="pill pill--warn">Em elaboração</span>
+              {% endif %}
+            </td>
+            <td>
+              <button type="button" class="iconbtn" aria-label="Ver as semanas e a linha de base de {{ item.code }}"
+                data-prod-acao="ver" data-prod-id="{{ item.id }}" data-prod-titulo="{{ item.code }} · {{ item.kind }}"
+                data-prod-subtitulo="{{ item.project_label }}"
+                x-init="$el.innerHTML = window.icon('eye', 18)"></button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+</div>

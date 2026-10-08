@@ -66,6 +66,25 @@ The planning KPIs (ISSUE-040), prefix ``/api/planejamento/kpis``:
   the forecast x actual charts (D11) and the advance per area — per project in the Portfólio,
   with the ``Projeto`` column — with the weighted closing row;
 * ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the charts.
+
+The productivity (ISSUE-046, HU-065), prefix ``/api/planejamento/produtividade``:
+
+* ``GET  /``  the screen: the global filters (``empresa``, ``corte``, ``grupo``) and the
+  Quantidades tab — indicators, groups, the two charts of the DS library and the plan table;
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the filter;
+* ``GET  /itens/novo``, ``/itens/{item_id}``, ``/itens/{item_id}/editar``,
+  ``/itens/{item_id}/revisao`` and ``/apontamento``  the modals: the item form, the sheet, the
+  revision form and the weekly report; the Portfólio asks for the project first;
+* ``POST /itens`` and ``POST /itens/{item_id}``  create the item in elaboration or save the
+  edit (an approved baseline only takes notes); the answer carries the modal, the filters and
+  the content in one multi-target reply (422 per field, 409 for a stale version);
+* ``POST /itens/formulario`` and ``POST /itens/{item_id}/revisao/formulario``  draw the form
+  again with the distribution grid the server recalculated;
+* ``POST /itens/{item_id}/aprovacao``  freezes the baseline (Gestor; whoever elaborated it
+  receives 403), ``/exclusao`` removes a draft without entries and ``/revisoes`` revises the
+  approved baseline with an approved change request and a justification;
+* ``POST /apontamento``  registers or updates the week of the contractor (``?acao=recarregar``
+  draws the grid again). The import goes through the generic flow (ISSUE-018).
 """
 
 from __future__ import annotations
@@ -2701,3 +2720,912 @@ def _planning_footer_line(visao: service.PlanningKpisOverview) -> PlanningFooter
         desvio=export.signed_decimal_text(visao.indicators.deviation_pp),
         tom_desvio=deviation_tone.value if deviation_tone is not None else "neutro",
     )
+
+
+# ── Produtividade: quantidades, LB e apontamento (ISSUE-046) ──────────────
+
+
+PRODUTIVIDADE_BASE = "planejamento/produtividade"
+
+
+PRODUTIVIDADE_API = f"/api/{PRODUTIVIDADE_BASE}"
+
+
+PROD_SCREEN = "planejamento/produtividade.html"
+
+
+FILTERS_TEMPLATE = "planejamento/produtividade_filtros.html"
+
+
+CONTENT_TEMPLATE = "planejamento/produtividade_conteudo.html"
+
+
+PROD_ANSWER = "planejamento/produtividade_resposta.html"
+
+
+MODAL_TEMPLATE = "planejamento/produtividade_modal.html"
+
+
+ITEM_FORM_TEMPLATE = "planejamento/produtividade_item_form.html"
+
+
+ITEM_FORM_INNER = "planejamento/_prod_item_form.html"
+
+
+ITEM_DETAIL_TEMPLATE = "planejamento/produtividade_item_detalhe.html"
+
+
+ITEM_DETAIL_INNER = "planejamento/_prod_item_detalhe.html"
+
+
+REVISION_FORM_TEMPLATE = "planejamento/produtividade_revisao_form.html"
+
+
+REVISION_FORM_INNER = "planejamento/_prod_revision_form.html"
+
+
+ENTRY_FORM_TEMPLATE = "planejamento/produtividade_apontamento_form.html"
+
+
+ENTRY_FORM_INNER = "planejamento/_prod_entry_form.html"
+
+
+SAVED_INNER = "planejamento/_prod_salvo.html"
+
+
+PROD_MODAL_TARGET = "produtividade-modal"
+
+
+PROD_PAGE_CLASS = "pagina--planejamento-produtividade"
+
+
+PLANNED_FIELD = re.compile(r"^previsto_(\d{4}-S\d{2})$")
+
+
+ENTRY_REALIZED_FIELD = re.compile(r"^realizado_(\d+)$")
+
+
+TONE_CLASSES = {"success": "ok", "warning": "warn", "danger": "erro", None: "info"}
+
+
+ITEM_CREATED_MESSAGE = "{code} criado em elaboração: aprove a LB para entrar nos indicadores."
+
+
+ITEM_UPDATED_MESSAGE = "{code} atualizado."
+
+
+ITEM_APPROVED_MESSAGE = "Linha de base de {code} aprovada."
+
+
+ITEM_DELETED_MESSAGE = "Item {code} excluído."
+
+
+ITEM_REVISED_MESSAGE = "Linha de base de {code} revisada (rev {revision})."
+
+
+ENTRIES_SAVED_MESSAGE = "{count} em {week}."
+
+
+def _tone_class(band: str | None) -> str:
+    return TONE_CLASSES.get(band, "info")
+
+
+def _filter_values(values: Mapping[str, str]) -> dict[str, str]:
+    """O filtro da tela como os formulários o devolvem: campos ocultos ``f_*``."""
+    return {
+        "corte": (values.get("corte") or "").strip(),
+        "empresa": (values.get("empresa") or "").strip(),
+        "grupo": (values.get("grupo") or "").strip(),
+    }
+
+
+def _posted_filter(values: Mapping[str, str]) -> service.QuantityFilter:
+    """O filtro que o formulário do modal carregou nos campos ocultos."""
+    return service.QuantityFilter(
+        company_id=_integer(values.get("f_empresa")),
+        group=(values.get("f_grupo") or "").strip(),
+        cut_week=(values.get("f_corte") or "").strip(),
+    )
+
+
+def _quantities_context(
+    session: Session,
+    context: RequestContext,
+    *,
+    quantity_filter: service.QuantityFilter,
+) -> dict[str, Any]:
+    """O contexto da aba Quantidades: a visão do escopo e os auxiliares de escrita."""
+    visao = service.quantities_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        quantity_filter=quantity_filter,
+        reference_date=calendario.today(),
+    )
+    return {
+        "visao": visao,
+        "filtro": _filter_values(
+            {
+                "corte": visao.filter.cut_week,
+                "empresa": "" if visao.filter.company_id is None else str(visao.filter.company_id),
+                "grupo": visao.filter.group,
+            }
+        ),
+        "api": PRODUTIVIDADE_API,
+        "rotulo_semana": export.productivity_week_caption,
+        "semana_curta": export.productivity_week_short,
+        "quantidade": export.quantity_text,
+        "indice": export.index_text,
+        "percentual": export.percent_text,
+        "faixa_aderencia": lambda value: calculations.indicator_band(
+            value, visao.parameters.adherence_bands, higher_is_better=True
+        ),
+        "faixa_pf": lambda value: calculations.indicator_band(
+            value, visao.parameters.pf_bands, higher_is_better=False
+        ),
+        "faixa_spi": lambda value: calculations.indicator_band(
+            value, visao.parameters.spi_bands, higher_is_better=True
+        ),
+        "tom": _tone_class,
+        "corte": export.productivity_week_caption(visao.cut_week),
+        "semana_atual": export.productivity_week_caption(visao.current_week),
+    }
+
+
+def _prod_form_context(session: Session, context: RequestContext, **valores: Any) -> dict[str, Any]:
+    """O contexto de um formulário de modal: os auxiliares e nada da aba carregada."""
+    del session
+    return {
+        "api": PRODUTIVIDADE_API,
+        "rotulo_semana": export.productivity_week_caption,
+        "semana_curta": export.productivity_week_short,
+        "quantidade": export.quantity_text,
+        "indice": export.index_text,
+        "percentual": export.percent_text,
+        "tom": _tone_class,
+        "pode_gerir": rbac.can(context.user, Permission.MANAGE),
+        "semana_corte": calendario.iso_week(calendario.today()),
+        **valores,
+    }
+
+
+def _modal(
+    req: func.HttpRequest, template: str, context: Mapping[str, Any], *, status_code: int = 200
+) -> func.HttpResponse:
+    """Um modal sozinho, para o pedido que o abre (alvo: ``produtividade-modal``)."""
+    return AlpineAjaxResponse(
+        template_name=template,
+        context=dict(context),
+        request=req,
+        target_id=PROD_MODAL_TARGET,
+        root_class=PROD_PAGE_CLASS,
+        status_code=status_code,
+    )
+
+
+def _modal_answer(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    modal_template: str,
+    filtro: service.QuantityFilter,
+    valores: Mapping[str, Any],
+    status_code: int = 200,
+    toast: str | None = None,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A resposta com o modal, os filtros e o conteúdo: o que a gravação precisa atualizar.
+
+    O modal carrega o formulário com as mensagens (422/409) ou o aviso de sucesso; a lista
+    vem junto para a tela não precisar de uma segunda requisição.
+    """
+    page = _quantities_context(session, context, quantity_filter=filtro)
+    page.update(valores)
+    page["modal_template"] = modal_template
+    return AlpineAjaxResponse(
+        template_name=PROD_ANSWER,
+        context=page,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo=toast_tipo,
+    )
+
+
+# ── A tela e as duas exportações ──────────────────────────────────────────
+
+
+@bp.route(route=PRODUTIVIDADE_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Os filtros e a aba Quantidades do escopo, no corte pedido."""
+    filtro = service.QuantityFilter(
+        company_id=_integer(req.params.get("empresa")),
+        group=(req.params.get("grupo") or "").strip(),
+        cut_week=(req.params.get("corte") or "").strip(),
+    )
+    return AlpineAjaxResponse(
+        template_name=PROD_SCREEN,
+        context=_quantities_context(session, context, quantity_filter=filtro),
+        request=req,
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def productivity_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba Quantidades, com o filtro de agora."""
+    return excel_response(_quantities_document(req, session, context))
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba Quantidades: o que o botão PDF monta e imprime."""
+    return printable_response(_quantities_document(req, session, context), req)
+
+
+def _quantities_document(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    visao = service.quantities_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        quantity_filter=service.QuantityFilter(
+            company_id=_integer(req.params.get("empresa")),
+            group=(req.params.get("grupo") or "").strip(),
+            cut_week=(req.params.get("corte") or "").strip(),
+        ),
+        reference_date=calendario.today(),
+    )
+    return export.productivity_document(
+        visao,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+# ── O modal do item: ficha, formulário, revisão e apontamento ─────────────
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/novo", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_new_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O item em branco; no Portfólio o shell pede o projeto antes."""
+    context.scope.require_project()
+    formulario = service.item_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=None,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ITEM_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            item_id=None,
+            formulario=formulario,
+            filtro=_filter_values(req.params),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_item_detail(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A ficha do item: indicadores no corte, semanas e histórico de revisões."""
+    detalhe = service.item_detail(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=_route_id(req, "item_id"),
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ITEM_DETAIL_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            detalhe=detalhe,
+            filtro=_filter_values(req.params),
+            pode_gravar=rbac.can(context.user, Permission.WRITE),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/editar", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_edit_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do item em elaboração, ou só as observações do aprovado."""
+    item_id = _route_id(req, "item_id")
+    formulario = service.item_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ITEM_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            item_id=item_id,
+            formulario=formulario,
+            filtro=_filter_values(req.params),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/revisao", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_revision_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da revisão da linha de base, com as SM aprovadas do projeto."""
+    item_id = _route_id(req, "item_id")
+    formulario = service.revision_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        REVISION_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            item_id=item_id,
+            formulario=formulario,
+            filtro=_filter_values(req.params),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/apontamento", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_entry_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O apontamento da semana: os itens aprovados da empresa com o realizado de cada um."""
+    company_id = _integer(req.params.get("empresa"))
+    formulario = service.entry_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        company_id=company_id,
+        week=req.params.get("semana") or "",
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ENTRY_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            formulario=formulario,
+            filtro=_filter_values(req.params),
+        ),
+    )
+
+
+# ── As gravações ──────────────────────────────────────────────────────────
+
+
+def _item_form_of(req: func.HttpRequest) -> validation.ItemForm:
+    """O formulário do item como a validação o lê: os campos e o previsto de cada semana."""
+    fields = _posted_values(req)
+    planned = {
+        found[1]: value
+        for key, value in fields.items()
+        if (found := PLANNED_FIELD.fullmatch(key)) is not None
+    }
+    return validation.ItemForm(fields=fields, planned=planned)
+
+
+def _revision_form_of(req: func.HttpRequest) -> validation.RevisionForm:
+    """O formulário da revisão como a validação o lê."""
+    fields = _posted_values(req)
+    planned = {
+        found[1]: value
+        for key, value in fields.items()
+        if (found := PLANNED_FIELD.fullmatch(key)) is not None
+    }
+    return validation.RevisionForm(fields=fields, planned=planned)
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/formulario", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_item_form_reload(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário de novo com a grade recalculada (total, semanas, perfil ou unidade mudaram)."""
+    form = _item_form_of(req)
+    item_id = _integer(req.form.get("id"))
+    formulario = service.item_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=form,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ITEM_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            item_id=item_id,
+            formulario=formulario,
+            filtro=_posted_filter(req.form),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/revisao/formulario", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_revision_form_reload(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário da revisão com a grade livre recalculada (total, semana final ou perfil)."""
+    item_id = _route_id(req, "item_id")
+    formulario = service.revision_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=_revision_form_of(req),
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        REVISION_FORM_TEMPLATE,
+        _prod_form_context(
+            session,
+            context,
+            item_id=item_id,
+            formulario=formulario,
+            filtro=_posted_filter(req.form),
+        ),
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_create_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cria o item em elaboração, com a distribuição calculada pelo servidor."""
+    return _save_item(req, session, context, item_id=None)
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_update_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava a edição do item (ou só as observações, quando a LB está aprovada)."""
+    return _save_item(req, session, context, item_id=_route_id(req, "item_id"))
+
+
+def _save_item(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    item_id: int | None,
+) -> func.HttpResponse:
+    form = _item_form_of(req)
+    filtro = _posted_filter(req.form)
+    try:
+        record = service.save_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _item_form_error(
+            req,
+            session,
+            context,
+            item_id=item_id,
+            form=form,
+            error=error,
+            status_code=422,
+            filtro=filtro,
+        )
+    except VersionConflictError as error:
+        return _item_form_error(
+            req,
+            session,
+            context,
+            item_id=item_id,
+            form=form,
+            error=InvalidDataError(str(error)),
+            status_code=409,
+            filtro=filtro,
+        )
+    mensagem = (
+        ITEM_UPDATED_MESSAGE.format(code=record.code)
+        if item_id is not None
+        else ITEM_CREATED_MESSAGE.format(code=record.code)
+    )
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        filtro=filtro,
+        valores={"mensagem": mensagem, "atualiza_conteudo": True},
+        toast=mensagem,
+    )
+
+
+def _item_form_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    item_id: int | None,
+    form: validation.ItemForm,
+    error: InvalidDataError,
+    status_code: int,
+    filtro: service.QuantityFilter,
+) -> func.HttpResponse:
+    errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+    formulario = service.item_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        item_id=item_id,
+        form=form,
+        reference_date=calendario.today(),
+        errors=errors,
+    )
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=ITEM_FORM_INNER,
+        filtro=filtro,
+        valores={"formulario": formulario, "item_id": item_id},
+        status_code=status_code,
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/aprovacao", methods=["POST"])
+@fragment_route(access=MANAGE_ACCESS)
+def productivity_approve_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Aprova a linha de base; quem elaborou recebe a recusa da segregação de funções."""
+    item_id = _route_id(req, "item_id")
+    filtro = _posted_filter(req.form)
+    try:
+        record = service.approve_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            version=req.form.get("versao"),
+            reference_date=calendario.today(),
+        )
+    except (InvalidDataError, AccessDeniedError) as error:
+        if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
+            detail = dict(error.detail)
+        else:
+            detail = {"geral": str(error)}
+        detalhe = service.item_detail(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            reference_date=calendario.today(),
+        )
+        return _modal_answer(
+            req,
+            session,
+            context,
+            modal_template=ITEM_DETAIL_INNER,
+            filtro=filtro,
+            valores={
+                "detalhe": detalhe,
+                "erro": detail.get("geral", str(error)),
+                "pode_gravar": True,
+            },
+            status_code=403 if isinstance(error, AccessDeniedError) else 422,
+        )
+    mensagem = ITEM_APPROVED_MESSAGE.format(code=record.code)
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        filtro=filtro,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/exclusao", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_delete_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Exclui o item em elaboração sem apontamento."""
+    item_id = _route_id(req, "item_id")
+    filtro = _posted_filter(req.form)
+    try:
+        record = service.delete_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            version=req.form.get("versao"),
+        )
+    except (InvalidDataError, VersionConflictError) as error:
+        return _modal_answer(
+            req,
+            session,
+            context,
+            modal_template=SAVED_INNER,
+            filtro=filtro,
+            valores={"mensagem": str(error), "erro": True},
+            status_code=422,
+            toast=str(error),
+            toast_tipo="erro",
+        )
+    mensagem = ITEM_DELETED_MESSAGE.format(code=record.code)
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        filtro=filtro,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/itens/{{item_id}}/revisoes", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_revise_item(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Revisa a LB com a SM aprovada: congela as semanas passadas e redistribui o saldo."""
+    item_id = _route_id(req, "item_id")
+    filtro = _posted_filter(req.form)
+    form = _revision_form_of(req)
+    try:
+        record = service.revise_item(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+        formulario = service.revision_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            reference_date=calendario.today(),
+            errors=errors,
+        )
+        return _modal_answer(
+            req,
+            session,
+            context,
+            modal_template=REVISION_FORM_INNER,
+            filtro=filtro,
+            valores={"formulario": formulario, "item_id": item_id},
+            status_code=422,
+        )
+    except VersionConflictError as error:
+        formulario = service.revision_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            item_id=item_id,
+            form=form,
+            reference_date=calendario.today(),
+            errors={"geral": str(error)},
+        )
+        return _modal_answer(
+            req,
+            session,
+            context,
+            modal_template=REVISION_FORM_INNER,
+            filtro=filtro,
+            valores={"formulario": formulario, "item_id": item_id},
+            status_code=409,
+        )
+    mensagem = ITEM_REVISED_MESSAGE.format(code=record.code, revision=record.revision)
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        filtro=filtro,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+@bp.route(route=f"{PRODUTIVIDADE_BASE}/apontamento", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_register_entries(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava o apontamento da semana (upsert por item e semana)."""
+    filtro = _posted_filter(req.form)
+    company_id = _integer(req.form.get("empresa"))
+    if req.params.get("acao") == "recarregar":
+        return _entry_form_modal(req, session, context, company_id=company_id, filtro=filtro)
+    form = _entry_form_of(req)
+    if company_id is None:
+        formulario = service.entry_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            company_id=None,
+            week=form.week,
+            reference_date=calendario.today(),
+        )
+        return _entry_form_error(
+            req,
+            session,
+            context,
+            replace(formulario, errors={"empresa": "Escolha a empresa."}),
+            filtro,
+        )
+    try:
+        count = service.register_entries(
+            session,
+            user=context.user,
+            scope=context.scope,
+            company_id=company_id,
+            form=form,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+        formulario = service.entry_form(
+            session,
+            user=context.user,
+            scope=context.scope,
+            company_id=company_id,
+            week=form.week,
+            reference_date=calendario.today(),
+        )
+        formulario = replace(formulario, errors=errors)
+        formulario = _entry_values(formulario, form)
+        return _entry_form_error(req, session, context, formulario, filtro)
+    mensagem = ENTRIES_SAVED_MESSAGE.format(
+        count=calculations.plural(count, "item apontado", "itens apontados"),
+        week=export.productivity_week_caption(form.week),
+    )
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        filtro=filtro,
+        valores={"mensagem": mensagem},
+        toast=mensagem,
+    )
+
+
+def _entry_form_modal(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    company_id: int | None,
+    filtro: service.QuantityFilter,
+) -> func.HttpResponse:
+    formulario = service.entry_form(
+        session,
+        user=context.user,
+        scope=context.scope,
+        company_id=company_id,
+        week=req.form.get("semana") or "",
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        ENTRY_FORM_TEMPLATE,
+        _prod_form_context(session, context, formulario=formulario, filtro=filtro),
+    )
+
+
+def _entry_values(
+    formulario: service.EntryFormView, form: validation.EntryForm
+) -> service.EntryFormView:
+    """As linhas digitadas de volta na grade, para o 422 não perder o que a pessoa escreveu."""
+    rows = []
+    for row in formulario.rows:
+        realized, hh = form.lines.get(row.item.id, ("", ""))
+        rows.append(
+            replace(
+                row,
+                realized=_decimal_or_none(realized),
+                hh=_decimal_or_none(hh),
+            )
+        )
+    return replace(formulario, rows=tuple(rows))
+
+
+def _decimal_or_none(text: str) -> Decimal | None:
+    try:
+        value = Decimal(text)
+    except ArithmeticError:
+        return None
+    return value if value.is_finite() else None
+
+
+def _entry_form_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    formulario: service.EntryFormView,
+    filtro: service.QuantityFilter,
+) -> func.HttpResponse:
+    return _modal_answer(
+        req,
+        session,
+        context,
+        modal_template=ENTRY_FORM_INNER,
+        filtro=filtro,
+        valores={"formulario": formulario},
+        status_code=422,
+    )
+
+
+def _entry_form_of(req: func.HttpRequest) -> validation.EntryForm:
+    """O apontamento como a validação o lê: a semana e o realizado/HH de cada item."""
+    lines: dict[int, tuple[str, str]] = {}
+    for key, value in req.form.items():
+        found = ENTRY_REALIZED_FIELD.fullmatch(key)
+        if found is None:
+            continue
+        item_id = int(found[1])
+        lines[item_id] = (value, req.form.get(f"hh_{item_id}", ""))
+    return validation.EntryForm(week=req.form.get("semana", ""), lines=lines)
+
+
+def _posted_values(req: func.HttpRequest) -> dict[str, str]:
+    """Os campos de texto que o formulário mandou, como foram digitados."""
+    return {key: value for key, value in req.form.items() if isinstance(value, str)}

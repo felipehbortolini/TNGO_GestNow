@@ -1,0 +1,183 @@
+{#
+  Formulário do item da LB (ISSUE-046): novo, em edição ou só observações quando a LB está
+  aprovada. O servidor desenha a grade da distribuição e a recalcula a cada mudança de total,
+  semanas, perfil ou unidade (o botão oculto `recarregar`); a tela não calcula (D6). Os campos
+  ocultos `f_*` levam o filtro de agora de volta na resposta multi-alvo.
+  Espera: formulario (ItemFormView), item_id, filtro, api, quantidade, indice, percentual,
+  rotulo_semana, semana_curta.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="prod-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+<div class="produtividade__form">
+  <form method="post" x-data x-target="produtividade-modal produtividade-filtros produtividade-conteudo"
+    action="{% if item_id %}{{ api }}/itens/{{ item_id }}{% else %}{{ api }}/itens{% endif %}" novalidate>
+    <input type="hidden" name="id" value="{{ item_id if item_id else '' }}" />
+    <input type="hidden" name="versao" value="{{ formulario.fields.get('versao', '') }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro.corte }}" />
+    <input type="hidden" name="f_empresa" value="{{ filtro.empresa }}" />
+    <input type="hidden" name="f_grupo" value="{{ filtro.grupo }}" />
+    <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
+      formaction="{{ api }}/itens/formulario"></button>
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    {% if formulario.item %}
+    <p class="produtividade__identificacao">
+      <span class="pill {{ 'pill--ok' if formulario.item.approved else 'pill--warn' }}">{{ 'Aprovada rev ' ~ formulario.item.revision if formulario.item.approved else 'Em elaboração' }}</span>
+      <span class="fw-600">{{ formulario.item.code }} · {{ formulario.item.kind }}</span>
+      <span class="hint">{{ formulario.item.project_label }}</span>
+    </p>
+    {% else %}
+    <p class="produtividade__identificacao">
+      <span class="pill pill--neutral">Novo item</span>
+      <span class="hint">A quantidade total da LB é distribuída por semana pelo perfil; os valores podem ser ajustados</span>
+    </p>
+    {% endif %}
+
+    {% if formulario.locked %}
+    <div class="aviso aviso--info" role="note">
+      <span>A linha de base aprovada só muda por revisão com SM aprovada; aqui só as observações.</span>
+    </div>
+    <div class="field">
+      <label for="prod-observacoes">Observações</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('observacoes') }}" id="prod-observacoes"
+        name="observacoes" rows="3" maxlength="300"{{ marcas('observacoes') }}>{{ formulario.fields.get('observacoes', '') }}</textarea>
+      {{ erro('observacoes') }}
+    </div>
+    {% else %}
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="prod-item-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="prod-item-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for opcao in formulario.options.companies %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-grupo">Grupo</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('grupo') }}" id="prod-item-grupo" name="grupo"{{ marcas('grupo') }}>
+          <option value="">Escolha o grupo</option>
+          {% for grupo in formulario.options.groups %}
+          <option value="{{ grupo }}"{% if formulario.fields.get('grupo') == grupo %} selected{% endif %}>{{ grupo }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('grupo') }}
+      </div>
+      <div class="field produtividade__campo--largo">
+        <label for="prod-item-tipo">Tipo</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('tipo') }}" id="prod-item-tipo" name="tipo"
+          type="text" maxlength="80" value="{{ formulario.fields.get('tipo', '') }}"
+          placeholder="Ex.: Cabo de controle"{{ marcas('tipo') }} />
+        {{ erro('tipo') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-disciplina">Disciplina</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('disciplina') }}" id="prod-item-disciplina" name="disciplina"{{ marcas('disciplina') }}>
+          <option value="">Sem disciplina</option>
+          {% for disciplina in formulario.options.disciplines %}
+          <option value="{{ disciplina }}"{% if formulario.fields.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('disciplina') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-unidade">Unidade</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('unidade') }}" id="prod-item-unidade" name="unidade"{{ marcas('unidade') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          <option value="">Escolha a unidade</option>
+          {% for unidade in formulario.options.units %}
+          <option value="{{ unidade.code }}"{% if formulario.fields.get('unidade') == unidade.code %} selected{% endif %}>{{ unidade.code }} · {{ unidade.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('unidade') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-total">Quantidade total da LB</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('total') }}" id="prod-item-total" name="total"
+          type="number" min="0" step="any" value="{{ formulario.fields.get('total', '') }}"
+          @change="$el.form.requestSubmit($refs.recarregar)"{{ marcas('total') }} />
+        {{ erro('total') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-indice">Índice orçado (HH por unidade)</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('indiceHH') }}" id="prod-item-indice" name="indiceHH"
+          type="number" min="0" step="any" value="{{ formulario.fields.get('indiceHH', '') }}"{{ marcas('indiceHH') }} />
+        <span class="hint">Produtividade da proposta; base das horas ganhas e do fator de produtividade.</span>
+        {{ erro('indiceHH') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-inicio">Semana inicial</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('inicio') }}" id="prod-item-inicio" name="inicio"{{ marcas('inicio') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for semana in formulario.options.week_options %}
+          <option value="{{ semana }}"{% if formulario.fields.get('inicio') == semana %} selected{% endif %}>{{ rotulo_semana(semana) }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('inicio') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-fim">Semana final</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('fim') }}" id="prod-item-fim" name="fim"{{ marcas('fim') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for semana in formulario.options.week_options %}
+          <option value="{{ semana }}"{% if formulario.fields.get('fim') == semana %} selected{% endif %}>{{ rotulo_semana(semana) }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('fim') }}
+      </div>
+      <div class="field">
+        <label for="prod-item-perfil">Perfil de distribuição</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('perfil') }}" id="prod-item-perfil" name="perfil"{{ marcas('perfil') }}
+          @change="$el.form.requestSubmit($refs.recarregar)">
+          {% for perfil in formulario.options.profiles %}
+          <option value="{{ perfil.value }}"{% if formulario.fields.get('perfil') == perfil.value %} selected{% endif %}>{{ perfil.label }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('perfil') }}
+      </div>
+    </div>
+
+    <fieldset class="produtividade__grade-caixa">
+      <legend class="produtividade__legenda">Previsto por semana (LB)</legend>
+      {% if formulario.planned %}
+      {% set casas = 1 if formulario.fields.get('unidade') == 't' else 0 %}
+      <div class="produtividade__grade">
+        {% for linha in formulario.planned %}
+        <label class="produtividade__celula-grade">
+          <span>{{ semana_curta(linha.week) }}</span>
+          <input class="input input--grade" type="number" min="0" step="{{ '0.1' if casas else '1' }}"
+            name="previsto_{{ linha.week }}" value="{{ linha.planned | float if casas else linha.planned | int }}"
+            aria-label="Previsto de {{ rotulo_semana(linha.week) }}" />
+        </label>
+        {% endfor %}
+      </div>
+      <p class="hint">{{ formulario.planned | length }} semanas · a soma precisa fechar com o total da LB.</p>
+      {% else %}
+      <p class="muted">Informe a quantidade total e as semanas para o servidor distribuir.</p>
+      {% endif %}
+      {{ erro('distribuicao') }}
+    </fieldset>
+
+    <div class="field">
+      <label for="prod-item-obs">Observações</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('observacoes') }}" id="prod-item-obs"
+        name="observacoes" rows="2" maxlength="300"{{ marcas('observacoes') }}>{{ formulario.fields.get('observacoes', '') }}</textarea>
+      {{ erro('observacoes') }}
+    </div>
+    {% endif %}
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">{{ 'Salvar observações' if formulario.locked else ('Salvar alterações' if item_id else 'Criar item em elaboração') }}</button>
+    </div>
+  </form>
+</div>

@@ -80,6 +80,10 @@ from src.modulos.planejamento.models import (
     Lookahead,
     LookaheadConstraint,
     LookaheadWeek,
+    ProductivityDistribution,
+    ProductivityEntry,
+    ProductivityItem,
+    ProductivityRevision,
     Report,
     ReportActivity,
     ReportPoint,
@@ -90,6 +94,1603 @@ if TYPE_CHECKING:
     from src.modulos.governanca.service import ChangeEapSource
 
 MODULE = "planejamento"
+
+
+# ── Produtividade: quantidades, LB e apontamento (ISSUE-046) ──────────────
+
+
+PRODUCTIVITY_GROUP = "produtividade"
+
+
+# First key of the advisory lock that serializes the code of a new item of a project.
+ITEM_CODE_LOCK = 4601
+
+
+ITEM_NOT_FOUND_MESSAGE = "O item da linha de base não foi encontrado."
+
+
+ITEM_PROJECT_MESSAGE = "O item pertence a outro projeto: abra a tela no projeto dele."
+
+
+ITEM_DELETE_MESSAGE = "Só item em elaboração e sem apontamento pode ser excluído."
+
+
+ITEM_APPROVED_EDIT_MESSAGE = (
+    "A linha de base aprovada só muda por revisão com SM aprovada; salve aqui só as observações."
+)
+
+
+ITEM_ALREADY_APPROVED_MESSAGE = "O item já está aprovado."
+
+
+ITEM_ONLY_MANAGER_MESSAGE = "Só o papel Gestor aprova a linha de base."
+
+
+ITEM_SELF_APPROVAL_MESSAGE = (
+    "Quem elaborou a distribuição não pode aprová-la (segregação de funções)."
+)
+
+
+ITEM_DRAFT_REVISION_MESSAGE = "Item em elaboração não precisa de revisão: edite a distribuição."
+
+
+PROFILE_LABELS: Mapping[str, str] = {
+    "curvaS": "Curva S (rampa, pico e desmobilização)",
+    "linear": "Linear (uniforme)",
+    "inicio": "Concentrado no início",
+    "fim": "Concentrado no fim",
+}
+
+
+DEFAULT_WINDOW_WEEKS = 4
+
+
+DEFAULT_ADHERENCE_BANDS = (Decimal("75"), Decimal("90"))
+
+
+DEFAULT_PF_BANDS = (Decimal("1"), Decimal("1.1"))
+
+
+DEFAULT_SPI_BANDS = (Decimal("0.85"), Decimal("0.95"))
+
+
+DEFAULT_DAILY_HOURS = Decimal("8.8")
+
+
+DEFAULT_WORKING_PCT = Decimal("60")
+
+
+DEFAULT_UTILIZATION_PCT = Decimal("75")
+
+
+# The window of weeks the form offers around the reference week: one year back, 18 months ahead.
+FORM_WEEKS_BACK = 52
+
+
+FORM_WEEKS_AHEAD = 78
+
+
+@dataclass(frozen=True)
+class ProductivityParameters:
+    """O grupo ``produtividade`` dos parâmetros vigentes, com os valores iniciais de reserva."""
+
+    window_weeks: int
+    adherence_bands: tuple[Decimal, Decimal]
+    pf_bands: tuple[Decimal, Decimal]
+    spi_bands: tuple[Decimal, Decimal]
+    daily_hours: Decimal
+    working_pct: Decimal
+    utilization_pct: Decimal
+
+
+@dataclass(frozen=True)
+class QuantityFilter:
+    """O filtro da aba Quantidades: empresa, grupo e semana de corte (vazio é o padrão)."""
+
+    company_id: int | None = None
+    group: str = ""
+    cut_week: str = ""
+
+
+@dataclass(frozen=True)
+class QuantityItemView:
+    """Um item do plano como a tela o lê, com os indicadores calculados no corte (D5b)."""
+
+    id: int
+    project_id: int
+    project_code: str
+    project_name: str
+    code: str
+    company_id: int
+    company_name: str
+    group: str
+    kind: str
+    discipline: str
+    unit: str
+    places: int
+    total: Decimal
+    index_hh: Decimal
+    profile: str
+    profile_name: str
+    situation: str
+    revision: int
+    start_week: str
+    finish_week: str
+    approved_by: str
+    approved_on: date | None
+    notes: str
+    version: int
+    figures: calculations.ItemFigures
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Nome do projeto``: como o Portfólio nomeia o projeto de uma linha."""
+        return f"{self.project_code} · {self.project_name}"
+
+    @property
+    def approved(self) -> bool:
+        """Se a linha de base do item está aprovada (fora daqui ele não entra nos indicadores)."""
+        return self.situation == calculations.ITEM_APPROVED
+
+
+@dataclass(frozen=True)
+class ItemRevisionView:
+    """Uma revisão da linha de base como a ficha do item a lê."""
+
+    revision: int
+    revision_date: date
+    author: str
+    total: Decimal
+    previous_total: Decimal | None
+    change_code: str
+    since: str
+    justification: str
+
+
+@dataclass(frozen=True)
+class ItemDetailView:
+    """A ficha do item: os indicadores, as semanas e o histórico de revisões."""
+
+    item: QuantityItemView
+    weeks: tuple[calculations.ItemWeek, ...]
+    revisions: tuple[ItemRevisionView, ...]
+
+
+@dataclass(frozen=True)
+class QuantityOption:
+    """Uma opção de filtro ou de formulário: o valor que viaja e o texto que se lê."""
+
+    value: str
+    label: str
+
+
+@dataclass(frozen=True)
+class QuantitiesOverview:
+    """A aba Quantidades: filtros, indicadores, grupos, série e o plano de itens."""
+
+    reference_date: date
+    current_week: str
+    cut_week: str
+    cut_options: tuple[str, ...]
+    company_options: tuple[QuantityOption, ...]
+    group_options: tuple[str, ...]
+    filter: QuantityFilter
+    items: tuple[QuantityItemView, ...]
+    groups: tuple[calculations.GroupSummary, ...]
+    indicators: calculations.QuantityIndicators
+    weekly: dict[str, Any]
+    accumulated: dict[str, Any]
+    unit_series: str
+    draft_count: int
+    parameters: ProductivityParameters
+    is_portfolio: bool
+    can_write: bool
+    can_manage: bool
+
+
+@dataclass(frozen=True)
+class ItemFormOptions:
+    """O que o formulário do item oferece: os cadastros, os grupos e as semanas da janela."""
+
+    companies: tuple[configuracoes.RegisterOption, ...]
+    units: tuple[configuracoes.MeasureUnitSummary, ...]
+    disciplines: tuple[str, ...]
+    groups: tuple[str, ...]
+    profiles: tuple[QuantityOption, ...]
+    week_options: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ItemFormView:
+    """O formulário do item pronto para o template: valores, grade, erros e o estado."""
+
+    item: QuantityItemView | None
+    fields: Mapping[str, str]
+    planned: tuple[calculations.PlannedWeek, ...]
+    weeks: tuple[str, ...]
+    options: ItemFormOptions
+    errors: Mapping[str, str]
+    locked: bool
+    default_total: Decimal | None
+
+
+@dataclass(frozen=True)
+class RevisionOption:
+    """Uma SM aprovada do projeto que o formulário da revisão oferece."""
+
+    code: str
+    title: str
+
+
+@dataclass(frozen=True)
+class RevisionFormView:
+    """O formulário da revisão pronto para o template: SM, grade livre e o congelado."""
+
+    item: QuantityItemView
+    fields: Mapping[str, str]
+    frozen: tuple[calculations.PlannedWeek, ...]
+    frozen_total: Decimal
+    planned: tuple[calculations.PlannedWeek, ...]
+    free_weeks: tuple[str, ...]
+    first_free_week: str
+    realized: Decimal
+    options: ItemFormOptions
+    changes: tuple[RevisionOption, ...]
+    errors: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class EntryRow:
+    """A linha do apontamento: o item, o previsto da semana e o apontamento que já existe."""
+
+    item: QuantityItemView
+    planned_week: Decimal
+    realized: Decimal | None
+    hh: Decimal | None
+
+
+@dataclass(frozen=True)
+class EntryFormView:
+    """O formulário da semana pronta para o template: a grade dos itens da empresa."""
+
+    week: str
+    cut_week: str
+    company_id: int | None
+    company_options: tuple[QuantityOption, ...]
+    week_options: tuple[str, ...]
+    rows: tuple[EntryRow, ...]
+    errors: Mapping[str, str]
+
+
+def productivity_parameters(session: Session, *, reference_date: date) -> ProductivityParameters:
+    """O grupo ``produtividade`` dos parâmetros vigentes, com os valores iniciais de reserva."""
+    values = (
+        configuracoes.current_group(
+            session, group=PRODUCTIVITY_GROUP, reference_date=reference_date
+        )
+        or configuracoes.INITIAL_PARAMETERS[PRODUCTIVITY_GROUP]
+    )
+    return ProductivityParameters(
+        window_weeks=_integer_value(values.get("semanasMedia"), DEFAULT_WINDOW_WEEKS),
+        adherence_bands=_bands(values.get("aderenciaFaixas"), DEFAULT_ADHERENCE_BANDS),
+        pf_bands=_bands(values.get("pfFaixas"), DEFAULT_PF_BANDS),
+        spi_bands=_bands(values.get("spiFaixas"), DEFAULT_SPI_BANDS),
+        daily_hours=_decimal_value(values.get("jornadaDiariaHoras"), DEFAULT_DAILY_HOURS),
+        working_pct=_decimal_value(values.get("metaTrabalhandoPct"), DEFAULT_WORKING_PCT),
+        utilization_pct=_decimal_value(values.get("metaUtilizacaoPct"), DEFAULT_UTILIZATION_PCT),
+    )
+
+
+def _bands(value: Any, default: tuple[Decimal, Decimal]) -> tuple[Decimal, Decimal]:
+    if not isinstance(value, Sequence) or isinstance(value, str) or len(value) != 2:
+        return default
+    return (_decimal_value(value[0], default[0]), _decimal_value(value[1], default[1]))
+
+
+def _integer_value(value: Any, default: int) -> int:
+    try:
+        found = int(value)
+    except (TypeError, ValueError):
+        return default
+    return found if found > 0 else default
+
+
+def quantities_overview(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    quantity_filter: QuantityFilter | None = None,
+    reference_date: date,
+) -> QuantitiesOverview:
+    """A aba Quantidades do escopo: os filtros, o plano e os indicadores do corte.
+
+    O corte vem do filtro, limitado à semana corrente; fora dele vale a semana corrente. Os
+    indicadores e a série só contam os itens aprovados (D5b); os itens em elaboração aparecem
+    na lista e no aviso, fora dos indicadores.
+    """
+    rbac.require_module(user, MODULE)
+    chosen = quantity_filter or QuantityFilter()
+    reference_week = calendario.iso_week(reference_date)
+    cut_week = _cut_week(chosen.cut_week, reference_week)
+    records = _items_in(session, scope)
+    lookups = _item_lookups(session, records)
+    reads = [
+        _item_read(record, lookups=lookups, cut_week=cut_week, current_week=reference_week)
+        for record in records
+    ]
+    kept = [item for item in reads if _passes_quantity_filter(item.view, chosen)]
+    approved = [item for item in kept if item.view.approved]
+    indicators = calculations.quantities_indicators([item.view.figures for item in approved])
+    in_hours, unit_series = _series_mode(approved, chosen)
+    series = calculations.quantities_series(
+        [
+            calculations.SeriesItem(
+                total=item.view.total,
+                index_hh=item.view.index_hh,
+                planned=item.planned,
+                reported=item.reported,
+            )
+            for item in approved
+        ],
+        current_week=reference_week,
+        in_hours=in_hours,
+        unit=unit_series,
+    )
+    return QuantitiesOverview(
+        reference_date=reference_date,
+        current_week=reference_week,
+        cut_week=cut_week,
+        cut_options=_cut_options(records, reference_week),
+        company_options=_company_options(records, lookups),
+        group_options=tuple(sorted({record.group for record in records})),
+        filter=QuantityFilter(company_id=chosen.company_id, group=chosen.group, cut_week=cut_week),
+        items=tuple(item.view for item in kept),
+        groups=calculations.group_summaries(
+            [
+                calculations.GroupedItem(
+                    group=item.view.group,
+                    unit=item.view.unit,
+                    places=item.view.places,
+                    total=item.view.total,
+                    figures=item.view.figures,
+                )
+                for item in approved
+            ]
+        ),
+        indicators=indicators,
+        weekly=calculations.weekly_chart(series),
+        accumulated=calculations.accumulated_chart(series),
+        unit_series=unit_series,
+        draft_count=sum(1 for item in kept if not item.view.approved),
+        parameters=productivity_parameters(session, reference_date=reference_date),
+        is_portfolio=scope.is_portfolio,
+        can_write=rbac.can(user, Permission.WRITE),
+        can_manage=rbac.can(user, Permission.MANAGE),
+    )
+
+
+def _cut_week(requested: str, reference_week: str) -> str:
+    """A semana de corte: a pedida quando válida e não futura; senão a semana corrente."""
+    if not requested or calculations.week_start(requested) is None:
+        return reference_week
+    return requested if requested <= reference_week else reference_week
+
+
+def _items_in(session: Session, scope: Scope) -> list[ProductivityItem]:
+    statement = (
+        select(ProductivityItem)
+        .options(
+            selectinload(ProductivityItem.revisions).selectinload(
+                ProductivityRevision.distributions
+            ),
+            selectinload(ProductivityItem.entries),
+        )
+        .execution_options(populate_existing=True)
+    )
+    if scope.project_id is not None:
+        statement = statement.where(ProductivityItem.project_id == scope.project_id)
+    return list(session.scalars(statement.order_by(ProductivityItem.code, ProductivityItem.id)))
+
+
+@dataclass(frozen=True)
+class _ItemLookups:
+    """Os nomes que a linha do plano e a ficha leem, carregados uma vez por consulta."""
+
+    projects: Mapping[int, configuracoes.ProjectSummary]
+    companies: Mapping[int, str]
+    units: Mapping[int, str]
+    disciplines: Mapping[int, str]
+    people: Mapping[int, str]
+
+
+def _item_lookups(session: Session, records: Sequence[ProductivityItem]) -> _ItemLookups:
+    project_ids = {record.project_id for record in records}
+    projects = {
+        project.id: project
+        for project in configuracoes.list_projects(session)
+        if project.id in project_ids
+    }
+    return _ItemLookups(
+        projects=projects,
+        companies=configuracoes.list_company_names(session),
+        units={unit.id: unit.code for unit in configuracoes.list_measure_units(session)},
+        disciplines=configuracoes.discipline_names_by_id(session),
+        people=configuracoes.person_names(
+            session,
+            {record.approved_by_id for record in records if record.approved_by_id is not None}
+            | {revision.by_id for record in records for revision in record.revisions},
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class _ItemRead:
+    """Um item lido: o registro, a visão da tela e os fatos que a série semanal consome."""
+
+    record: ProductivityItem
+    view: QuantityItemView
+    planned: tuple[calculations.PlannedWeek, ...]
+    reported: tuple[calculations.ReportedWeek, ...]
+
+
+def _item_read(
+    record: ProductivityItem, *, lookups: _ItemLookups, cut_week: str, current_week: str
+) -> _ItemRead:
+    planned = _planned_of(record)
+    reported = _reported_of(record)
+    return _ItemRead(
+        record=record,
+        view=_item_view(
+            record,
+            lookups=lookups,
+            planned=planned,
+            reported=reported,
+            cut_week=cut_week,
+            current_week=current_week,
+        ),
+        planned=planned,
+        reported=reported,
+    )
+
+
+def _item_view(
+    record: ProductivityItem,
+    *,
+    lookups: _ItemLookups,
+    planned: Sequence[calculations.PlannedWeek],
+    reported: Sequence[calculations.ReportedWeek],
+    cut_week: str,
+    current_week: str,
+) -> QuantityItemView:
+    project = lookups.projects[record.project_id]
+    start_week = calendario.iso_week(record.start)
+    finish_week = calendario.iso_week(record.finish)
+    unit = lookups.units.get(record.unit_id, "")
+    places = record.places
+    figures = calculations.item_figures(
+        start_week=start_week,
+        finish_week=finish_week,
+        total=record.total,
+        index_hh=record.index_hh,
+        places=places,
+        situation=record.situation,
+        planned=planned,
+        reported=reported,
+        cut_week=cut_week,
+        current_week=current_week,
+        window_weeks=DEFAULT_WINDOW_WEEKS,
+    )
+    return QuantityItemView(
+        id=record.id,
+        project_id=record.project_id,
+        project_code=project.code,
+        project_name=project.name,
+        code=record.code,
+        company_id=record.company_id,
+        company_name=lookups.companies.get(record.company_id, ""),
+        group=record.group,
+        kind=record.kind,
+        discipline=(
+            lookups.disciplines.get(record.discipline_id, "")
+            if record.discipline_id is not None
+            else ""
+        ),
+        unit=unit,
+        places=places,
+        total=record.total,
+        index_hh=record.index_hh,
+        profile=record.profile,
+        profile_name=PROFILE_LABELS.get(record.profile, record.profile),
+        situation=record.situation,
+        revision=record.revision,
+        start_week=start_week,
+        finish_week=finish_week,
+        approved_by=(
+            lookups.people.get(record.approved_by_id, "")
+            if record.approved_by_id is not None
+            else ""
+        ),
+        approved_on=record.approved_on,
+        notes=record.notes or "",
+        version=record.version,
+        figures=figures,
+    )
+
+
+def _planned_of(record: ProductivityItem) -> tuple[calculations.PlannedWeek, ...]:
+    revision = _baseline_revision(record)
+    if revision is None:
+        return ()
+    return tuple(
+        calculations.PlannedWeek(week=line.week, planned=line.planned)
+        for line in revision.distributions
+    )
+
+
+def _reported_of(record: ProductivityItem) -> tuple[calculations.ReportedWeek, ...]:
+    return tuple(
+        calculations.ReportedWeek(week=entry.week, realized=entry.realized, hh=entry.hh)
+        for entry in record.entries
+    )
+
+
+def _baseline_revision(record: ProductivityItem) -> ProductivityRevision | None:
+    if not record.revisions:
+        return None
+    return max(record.revisions, key=lambda item: item.revision)
+
+
+def _passes_quantity_filter(view: QuantityItemView, chosen: QuantityFilter) -> bool:
+    if chosen.company_id is not None and view.company_id != chosen.company_id:
+        return False
+    return not (chosen.group and view.group != chosen.group)
+
+
+def _series_mode(approved: Sequence[_ItemRead], chosen: QuantityFilter) -> tuple[bool, str]:
+    """A série sai em horas ganhas quando o filtro mistura unidades; senão, na unidade do grupo."""
+    units = {item.view.unit for item in approved}
+    in_hours = not chosen.group or len(units) > 1
+    if in_hours:
+        return True, "HH"
+    return False, next(iter(units), "")
+
+
+def _cut_options(records: Sequence[ProductivityItem], reference_week: str) -> tuple[str, ...]:
+    starts = {
+        calendario.iso_week(record.start)
+        for record in records
+        if calendario.iso_week(record.start) <= reference_week
+    }
+    first = min(starts, default=reference_week)
+    return tuple(calculations.list_weeks(first, reference_week))
+
+
+def _company_options(
+    records: Sequence[ProductivityItem], lookups: _ItemLookups
+) -> tuple[QuantityOption, ...]:
+    ids = sorted({record.company_id for record in records})
+    return tuple(
+        QuantityOption(value=str(company_id), label=lookups.companies.get(company_id, ""))
+        for company_id in ids
+        if lookups.companies.get(company_id)
+    )
+
+
+def item_detail(
+    session: Session, *, user: User, scope: Scope, item_id: int, reference_date: date
+) -> ItemDetailView:
+    """A ficha do item: a visão no corte, as semanas e o histórico de revisões."""
+    rbac.require_module(user, MODULE)
+    record = _scoped_item(session, scope, item_id)
+    reference_week = calendario.iso_week(reference_date)
+    lookups = _item_lookups(session, [record])
+    read = _item_read(record, lookups=lookups, cut_week=reference_week, current_week=reference_week)
+    changes = _revision_change_codes(session, project_id=record.project_id)
+    names = configuracoes.person_names(session, {revision.by_id for revision in record.revisions})
+    return ItemDetailView(
+        item=read.view,
+        weeks=calculations.item_weeks(
+            start_week=read.view.start_week,
+            total=record.total,
+            index_hh=record.index_hh,
+            places=record.places,
+            situation=record.situation,
+            planned=read.planned,
+            reported=read.reported,
+            current_week=reference_week,
+        ),
+        revisions=tuple(
+            ItemRevisionView(
+                revision=revision.revision,
+                revision_date=revision.revision_date,
+                author=names.get(revision.by_id, ""),
+                total=revision.total,
+                previous_total=revision.previous_total,
+                change_code=(
+                    changes.get(revision.change_id, "") if revision.change_id is not None else ""
+                ),
+                since=revision.since or "",
+                justification=revision.justification,
+            )
+            for revision in sorted(record.revisions, key=lambda item: item.revision, reverse=True)
+        ),
+    )
+
+
+def _revision_change_codes(session: Session, *, project_id: int) -> dict[int, str]:
+    from src.modulos.governanca import service as governanca
+
+    revision = session.scalars(
+        select(ProductivityRevision.change_id)
+        .join(ProductivityItem, ProductivityItem.id == ProductivityRevision.item_id)
+        .where(ProductivityItem.project_id == project_id)
+    ).all()
+    return governanca.change_codes(
+        session, change_ids=[found for found in revision if found is not None]
+    )
+
+
+# ── Formulários ───────────────────────────────────────────────────────────
+
+
+def item_form_options(session: Session, *, reference_date: date) -> ItemFormOptions:
+    """O que o formulário do item oferece: cadastros, grupos, perfis e a janela de semanas."""
+    first = calculations.shift_week(calendario.iso_week(reference_date), -FORM_WEEKS_BACK)
+    last = calculations.shift_week(calendario.iso_week(reference_date), FORM_WEEKS_AHEAD)
+    return ItemFormOptions(
+        companies=tuple(configuracoes.list_company_options(session)),
+        units=tuple(configuracoes.list_measure_units(session)),
+        disciplines=tuple(configuracoes.list_discipline_names(session)),
+        groups=validation.QUANTITY_GROUPS,
+        profiles=tuple(
+            QuantityOption(value=profile, label=PROFILE_LABELS[profile])
+            for profile in calculations.PROFILES
+        ),
+        week_options=(
+            calculations.list_weeks(first, last) if first is not None and last is not None else ()
+        ),
+    )
+
+
+def item_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int | None,
+    form: validation.ItemForm | None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> ItemFormView:
+    """O formulário do item: em branco, reaberto com o que foi digitado, ou o item em edição."""
+    rbac.require_module(user, MODULE)
+    options = item_form_options(session, reference_date=reference_date)
+    record = _scoped_item(session, scope, item_id) if item_id is not None else None
+    view = _single_view(session, record, reference_date) if record is not None else None
+    if form is not None:
+        fields = dict(form.fields)
+        planned = computed_planned(fields)
+        return ItemFormView(
+            item=view,
+            fields=fields,
+            planned=planned,
+            weeks=tuple(line.week for line in planned),
+            options=options,
+            errors=errors or {},
+            locked=False,
+            default_total=None,
+        )
+    if view is not None and record is not None:
+        fields = item_fields(view)
+        planned = (
+            ()
+            if view.approved
+            else tuple(
+                calculations.PlannedWeek(week=line.week, planned=line.planned)
+                for line in _planned_of(record)
+            )
+        )
+        return ItemFormView(
+            item=view,
+            fields=fields,
+            planned=planned,
+            weeks=tuple(line.week for line in planned),
+            options=options,
+            errors=errors or {},
+            locked=view.approved,
+            default_total=view.total,
+        )
+    fields = _new_item_fields(reference_date)
+    planned = computed_planned(fields)
+    return ItemFormView(
+        item=None,
+        fields=fields,
+        planned=planned,
+        weeks=tuple(line.week for line in planned),
+        options=options,
+        errors=errors or {},
+        locked=False,
+        default_total=None,
+    )
+
+
+def _new_item_fields(reference_date: date) -> dict[str, str]:
+    start = calculations.shift_week(calendario.iso_week(reference_date), 1) or ""
+    finish = calculations.shift_week(calendario.iso_week(reference_date), 12) or ""
+    return {
+        "unidade": "m",
+        "inicio": start,
+        "fim": finish,
+        "perfil": calculations.PROFILE_S_CURVE,
+    }
+
+
+def computed_planned(fields: Mapping[str, str]) -> tuple[calculations.PlannedWeek, ...]:
+    """A grade do formulário calculada dos campos digitados: total, semanas, perfil e unidade."""
+    total = _decimal_or_zero(fields.get("total"))
+    unit = (fields.get("unidade") or "").strip()
+    start_week = (fields.get("inicio") or "").strip()
+    finish_week = (fields.get("fim") or "").strip()
+    profile = (fields.get("perfil") or "").strip()
+    if calculations.week_start(start_week) is None or calculations.week_start(finish_week) is None:
+        return ()
+    if finish_week < start_week:
+        return ()
+    weeks = calculations.list_weeks(start_week, finish_week)
+    if not weeks or len(weeks) > validation.ITEM_MAX_WEEKS:
+        return ()
+    if profile not in calculations.PROFILES:
+        profile = calculations.PROFILE_LINEAR
+    places = calculations.places_for_unit(unit)
+    values = calculations.distribute_total(total, len(weeks), profile, places)
+    return tuple(
+        calculations.PlannedWeek(week=week, planned=value)
+        for week, value in zip(weeks, values, strict=True)
+    )
+
+
+def _decimal_or_zero(text: str | None) -> Decimal:
+    try:
+        value = Decimal((text or "").strip())
+    except ArithmeticError:
+        return Decimal(0)
+    return value if value.is_finite() and value > 0 else Decimal(0)
+
+
+def revision_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.RevisionForm | None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> RevisionFormView:
+    """O formulário da revisão: o congelado, a grade livre e as SM aprovadas do projeto."""
+    rbac.require_module(user, MODULE)
+    record = _scoped_item(session, scope, item_id)
+    if record.situation != calculations.ITEM_APPROVED:
+        raise InvalidDataError(ITEM_DRAFT_REVISION_MESSAGE)
+    options = item_form_options(session, reference_date=reference_date)
+    reference_week = calendario.iso_week(reference_date)
+    planned = _planned_of(record)
+    frozen = calculations.frozen_planned(planned, reference_week)
+    frozen_total = sum((line.planned for line in frozen), Decimal(0))
+    first_free = calculations.first_free_week(calendario.iso_week(record.start), reference_week)
+    view = _single_view(session, record, reference_date)
+    changes = revision_change_options(session, project_id=record.project_id)
+    fields = {
+        "total": _plain_decimal(record.total),
+        "fim": max(view.finish_week, first_free),
+        "perfil": calculations.PROFILE_LINEAR,
+    }
+    if form is not None:
+        fields = dict(form.fields)
+    free_weeks = _free_weeks(fields, first_free)
+    planned_free = frozen_revision_planned(
+        fields, frozen_total=frozen_total, free_weeks=free_weeks, places=record.places
+    )
+    return RevisionFormView(
+        item=view,
+        fields=fields,
+        frozen=frozen,
+        frozen_total=frozen_total,
+        planned=planned_free,
+        free_weeks=free_weeks,
+        first_free_week=first_free,
+        realized=sum(
+            (entry.realized for entry in record.entries if entry.week <= reference_week),
+            Decimal(0),
+        ),
+        options=options,
+        changes=changes,
+        errors=errors or {},
+    )
+
+
+def _free_weeks(fields: Mapping[str, str], first_free: str) -> tuple[str, ...]:
+    finish = (fields.get("fim") or "").strip()
+    if calculations.week_start(finish) is None or finish < first_free:
+        return ()
+    weeks = calculations.list_weeks(first_free, finish)
+    return weeks if len(weeks) <= validation.ITEM_MAX_WEEKS else ()
+
+
+def frozen_revision_planned(
+    fields: Mapping[str, str],
+    *,
+    frozen_total: Decimal,
+    free_weeks: Sequence[str],
+    places: int,
+) -> tuple[calculations.PlannedWeek, ...]:
+    """A grade livre do formulário da revisão: o saldo (novo total menos o congelado) no perfil."""
+    total = _decimal_or_zero(fields.get("total"))
+    profile = (fields.get("perfil") or "").strip()
+    if profile not in calculations.PROFILES:
+        profile = calculations.PROFILE_LINEAR
+    balance = max(Decimal(0), total - frozen_total)
+    values = calculations.distribute_total(balance, len(free_weeks), profile, places)
+    return tuple(
+        calculations.PlannedWeek(week=week, planned=value)
+        for week, value in zip(free_weeks, values, strict=True)
+    )
+
+
+def revision_change_options(session: Session, *, project_id: int) -> tuple[RevisionOption, ...]:
+    """As SM aprovadas do projeto, que a revisão da linha de base exige (D9)."""
+    from src.modulos.governanca import service as governanca
+
+    return tuple(
+        RevisionOption(code=change.code, title=change.title)
+        for change in governanca.approved_changes(session, project_id=project_id)
+    )
+
+
+def entry_form(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    company_id: int | None,
+    week: str,
+    reference_date: date,
+) -> EntryFormView:
+    """O formulário do apontamento: os itens aprovados da empresa na semana, com o que já existe."""
+    rbac.require_module(user, MODULE)
+    reference_week = calendario.iso_week(reference_date)
+    cut_week = _cut_week(week, reference_week)
+    records = [
+        record
+        for record in _items_in(session, scope)
+        if company_id is None or record.company_id == company_id
+    ]
+    lookups = _item_lookups(session, records)
+    rows: list[EntryRow] = []
+    for record in records:
+        read = _item_read(record, lookups=lookups, cut_week=cut_week, current_week=reference_week)
+        if not read.view.approved or read.view.start_week > cut_week:
+            continue
+        entry = next((line for line in read.reported if line.week == cut_week), None)
+        if read.view.figures.balance <= 0 and entry is None:
+            continue
+        planned_week = next(
+            (line.planned for line in read.planned if line.week == cut_week), Decimal(0)
+        )
+        rows.append(
+            EntryRow(
+                item=read.view,
+                planned_week=planned_week,
+                realized=None if entry is None else entry.realized,
+                hh=None if entry is None else entry.hh,
+            )
+        )
+    return EntryFormView(
+        week=cut_week,
+        cut_week=cut_week,
+        company_id=company_id,
+        company_options=_company_options(records, lookups),
+        week_options=tuple(reversed(_cut_options(records, reference_week)[-13:]))
+        if records
+        else (),
+        rows=tuple(rows),
+        errors={},
+    )
+
+
+def item_fields(view: QuantityItemView) -> dict[str, str]:
+    """Os valores do formulário do item para a edição: os mesmos nomes que o formulário manda."""
+    return {
+        "empresa": str(view.company_id),
+        "grupo": view.group,
+        "tipo": view.kind,
+        "disciplina": view.discipline,
+        "unidade": view.unit,
+        "total": _plain_decimal(view.total),
+        "indiceHH": _plain_decimal(view.index_hh),
+        "inicio": view.start_week,
+        "fim": view.finish_week,
+        "perfil": view.profile,
+        "observacoes": view.notes,
+        "versao": str(view.version),
+    }
+
+
+def _plain_decimal(value: Decimal) -> str:
+    return format(value.normalize(), "f")
+
+
+def _single_view(
+    session: Session,
+    record: ProductivityItem | None,
+    reference_date: date,
+) -> QuantityItemView:
+    if record is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    lookups = _item_lookups(session, [record])
+    reference_week = calendario.iso_week(reference_date)
+    return _item_read(
+        record, lookups=lookups, cut_week=reference_week, current_week=reference_week
+    ).view
+
+
+# ── Escrita ───────────────────────────────────────────────────────────────
+
+
+def save_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int | None,
+    form: validation.ItemForm,
+    reference_date: date,
+) -> ProductivityItem:
+    """Cria o item em elaboração ou grava a edição; item aprovado só aceita observações.
+
+    A segregação de funções da aprovação se apoia na revisão 0, que nasce com o item e
+    guarda quem elaborou a distribuição (``por_id``).
+    """
+    rbac.require(user, Permission.WRITE)
+    record = _scoped_item(session, scope, item_id) if item_id is not None else None
+    if record is not None and record.situation == calculations.ITEM_APPROVED:
+        notes = validation.parse_notes(form.fields)
+        _update_item(
+            session,
+            user=user,
+            record=record,
+            changes={"notes": notes},
+            version=form.fields.get("versao"),
+        )
+        return record
+    data = validation.parse_item(form, item_choices(session))
+    planned = tuple(
+        calculations.PlannedWeek(week=week, planned=value) for week, value in data.planned
+    )
+    if record is not None:
+        _update_item(
+            session,
+            user=user,
+            record=record,
+            changes=_item_changes(session, data),
+            version=form.fields.get("versao"),
+        )
+        _replace_baseline(
+            session,
+            record=record,
+            data=data,
+            planned=planned,
+            author_id=user.person_id,
+            reference_date=reference_date,
+        )
+        return record
+    project_id = scope.require_project()
+    session.execute(select(func.pg_advisory_xact_lock(ITEM_CODE_LOCK, cast(project_id, Integer))))
+    codes = list(
+        session.scalars(
+            select(ProductivityItem.code)
+            .where(ProductivityItem.project_id == project_id)
+            .order_by(ProductivityItem.id)
+        )
+    )
+    record = ProductivityItem(
+        project_id=project_id,
+        company_id=data.company_id,
+        unit_id=_unit_id_for(session, data.unit),
+        discipline_id=_discipline_id_for(session, data.discipline),
+        approved_by_id=None,
+        code=calculations.next_item_code(codes),
+        group=data.group,
+        kind=data.kind,
+        places=data.places,
+        total=data.total,
+        index_hh=data.index_hh,
+        profile=data.profile,
+        situation=calculations.ITEM_DRAFT,
+        revision=0,
+        start=_week_date(data.start_week),
+        finish=_week_date(data.finish_week),
+        approved_on=None,
+        notes=data.notes,
+    )
+    session.add(record)
+    session.flush()
+    revision = ProductivityRevision(
+        item_id=record.id,
+        by_id=user.person_id,
+        change_id=None,
+        revision=0,
+        revision_date=reference_date,
+        total=data.total,
+        previous_total=None,
+        since=data.start_week,
+        justification="Linha de base original do cronograma.",
+    )
+    session.add(revision)
+    session.flush()
+    revision.distributions = [
+        ProductivityDistribution(week=line.week, planned=line.planned) for line in planned
+    ]
+    session.flush()
+    record.revisions.append(revision)
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=ProductivityItem.__tablename__,
+            record_id=record.id,
+            action=audit.CREATED,
+            after=_item_aggregate(record),
+            project_id=project_id,
+        ),
+    )
+    return record
+
+
+def item_choices(session: Session) -> validation.ItemChoices:
+    """As escolhas do formulário do item: ids de empresa, códigos de unidade e disciplinas."""
+    return validation.ItemChoices(
+        company_ids=frozenset(option.id for option in configuracoes.list_company_options(session)),
+        units=frozenset(unit.code for unit in configuracoes.list_measure_units(session)),
+        disciplines=frozenset(configuracoes.list_discipline_names(session)),
+    )
+
+
+def _item_changes(session: Session, data: validation.ItemData) -> dict[str, Any]:
+    return {
+        "company_id": data.company_id,
+        "unit_id": _unit_id_for(session, data.unit),
+        "discipline_id": _discipline_id_for(session, data.discipline),
+        "group": data.group,
+        "kind": data.kind,
+        "places": data.places,
+        "total": data.total,
+        "index_hh": data.index_hh,
+        "profile": data.profile,
+        "start": _week_date(data.start_week),
+        "finish": _week_date(data.finish_week),
+        "notes": data.notes,
+    }
+
+
+def _replace_baseline(
+    session: Session,
+    *,
+    record: ProductivityItem,
+    data: validation.ItemData,
+    planned: Sequence[calculations.PlannedWeek],
+    author_id: int,
+    reference_date: date,
+) -> None:
+    """Atualiza a revisão 0, que segue o item enquanto ele está em elaboração."""
+    revision = _baseline_revision(record)
+    if revision is None:
+        revision = ProductivityRevision(
+            item_id=record.id,
+            by_id=author_id,
+            change_id=None,
+            revision=0,
+            revision_date=reference_date,
+            total=data.total,
+            previous_total=None,
+            since=data.start_week,
+            justification="Linha de base original do cronograma.",
+        )
+        session.add(revision)
+        session.flush()
+    revision.total = data.total
+    revision.since = data.start_week
+    revision.revision_date = reference_date
+    revision.distributions = [
+        ProductivityDistribution(week=line.week, planned=line.planned) for line in planned
+    ]
+    session.flush()
+
+
+def _update_item(
+    session: Session,
+    *,
+    user: User,
+    record: ProductivityItem,
+    changes: Mapping[str, Any],
+    version: str | None,
+) -> None:
+    """Aplica a mudança depois da conferência de versão, deixando a trilha do agregado."""
+    before = _item_aggregate(record)
+    versioning.require(session, record, version)
+    for attribute, value in changes.items():
+        setattr(record, attribute, value)
+    versioning.advance(record)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=ProductivityItem.__tablename__,
+            record_id=record.id,
+            action=audit.UPDATED,
+            before=before,
+            after=_item_aggregate(record),
+            project_id=record.project_id,
+        ),
+    )
+
+
+def _item_aggregate(record: ProductivityItem) -> dict[str, Any]:
+    """O item e os filhos congelados como a trilha os guarda, nos nomes em português."""
+    return {
+        **audit.snapshot(record),
+        "revisoes": [
+            {
+                "revisao": revision.revision,
+                "data": revision.revision_date.isoformat(),
+                "por_id": revision.by_id,
+                "mudanca_id": revision.change_id,
+                "total": str(revision.total),
+                "total_anterior": (
+                    None if revision.previous_total is None else str(revision.previous_total)
+                ),
+                "desde": revision.since,
+                "justificativa": revision.justification,
+                "distribuicao": [
+                    {"semana": line.week, "previsto": str(line.planned)}
+                    for line in revision.distributions
+                ],
+            }
+            for revision in record.revisions
+        ],
+    }
+
+
+def approve_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    version: str | None,
+    reference_date: date,
+) -> ProductivityItem:
+    """Aprova a linha de base (Gestor); quem elaborou não aprova (segregação de funções)."""
+    rbac.require(user, Permission.MANAGE)
+    record = _scoped_item(session, scope, item_id)
+    if record.situation != calculations.ITEM_DRAFT:
+        raise InvalidDataError(ITEM_ALREADY_APPROVED_MESSAGE)
+    author = _baseline_author(record)
+    if author == user.person_id:
+        raise AccessDeniedError(ITEM_SELF_APPROVAL_MESSAGE)
+    _update_item(
+        session,
+        user=user,
+        record=record,
+        changes={
+            "situation": calculations.ITEM_APPROVED,
+            "approved_by_id": user.person_id,
+            "approved_on": reference_date,
+        },
+        version=version,
+    )
+    return record
+
+
+def _baseline_author(record: ProductivityItem) -> int | None:
+    revision = next((item for item in record.revisions if item.revision == 0), None)
+    return revision.by_id if revision is not None else None
+
+
+def delete_item(
+    session: Session, *, user: User, scope: Scope, item_id: int, version: str | None
+) -> ProductivityItem:
+    """Exclui um item em elaboração sem apontamento; um item aprovado nunca é excluído."""
+    rbac.require(user, Permission.WRITE)
+    record = _scoped_item(session, scope, item_id)
+    if record.situation != calculations.ITEM_DRAFT or record.entries:
+        raise InvalidDataError(ITEM_DELETE_MESSAGE)
+    before = _item_aggregate(record)
+    versioning.require(session, record, version)
+    project_id = record.project_id
+    session.delete(record)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=ProductivityItem.__tablename__,
+            record_id=item_id,
+            action=audit.DELETED,
+            before=before,
+            project_id=project_id,
+        ),
+    )
+    return record
+
+
+def revise_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    item_id: int,
+    form: validation.RevisionForm,
+    reference_date: date,
+) -> ProductivityItem:
+    """Revisa a LB aprovada com SM aprovada: congela as semanas até a atual e redistribui o saldo."""
+    rbac.require(user, Permission.WRITE)
+    record = _scoped_item(session, scope, item_id)
+    if record.situation != calculations.ITEM_APPROVED:
+        raise InvalidDataError(ITEM_DRAFT_REVISION_MESSAGE)
+    reference_week = calendario.iso_week(reference_date)
+    planned = _planned_of(record)
+    frozen = calculations.frozen_planned(planned, reference_week)
+    frozen_total = sum((line.planned for line in frozen), Decimal(0))
+    realized = sum(
+        (entry.realized for entry in record.entries if entry.week <= reference_week),
+        Decimal(0),
+    )
+    first_free = calculations.first_free_week(calendario.iso_week(record.start), reference_week)
+    changes = revision_change_options(session, project_id=record.project_id)
+    data = validation.parse_revision(
+        form,
+        validation.RevisionChoices(change_codes=frozenset(item.code for item in changes)),
+        context=validation.RevisionContext(
+            unit=_record_unit(session, record),
+            places=record.places,
+            realized=realized,
+            frozen=frozen_total,
+            first_free_week=first_free,
+        ),
+    )
+    from src.modulos.governanca import service as governanca
+
+    change_ids = governanca.change_ids_by_code(session, codes=[data.change_code])
+    new_revision = ProductivityRevision(
+        item_id=record.id,
+        by_id=user.person_id,
+        change_id=change_ids.get(data.change_code),
+        revision=record.revision + 1,
+        revision_date=reference_date,
+        total=data.total,
+        previous_total=record.total,
+        since=data.planned[0][0] if data.planned else first_free,
+        justification=data.justification,
+    )
+    before = _item_aggregate(record)
+    versioning.require(session, record, form.fields.get("versao"))
+    record.total = data.total
+    record.finish = _week_date(data.finish_week)
+    record.profile = data.profile
+    record.revision = record.revision + 1
+    session.add(new_revision)
+    session.flush()
+    new_revision.distributions = [
+        ProductivityDistribution(week=line.week, planned=line.planned) for line in frozen
+    ] + [ProductivityDistribution(week=week, planned=value) for week, value in data.planned]
+    record.revisions.append(new_revision)
+    versioning.advance(record)
+    session.flush()
+    audit.append(
+        session,
+        TrailLine(
+            user_id=user.id,
+            entity=ProductivityItem.__tablename__,
+            record_id=record.id,
+            action=audit.UPDATED,
+            before=before,
+            after=_item_aggregate(record),
+            project_id=record.project_id,
+        ),
+    )
+    return record
+
+
+def register_entries(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    company_id: int,
+    form: validation.EntryForm,
+    reference_date: date,
+) -> int:
+    """Grava o apontamento da semana, atualizando o que já existir (upsert por item e semana)."""
+    rbac.require(user, Permission.WRITE)
+    targets = _entry_targets(session, scope, company_id=company_id, form=form)
+    data = validation.parse_entries(
+        form, current_week=calendario.iso_week(reference_date), targets=targets
+    )
+    for line in data:
+        record = _scoped_entry_item(session, scope, line.item_id)
+        existing = session.scalars(
+            select(ProductivityEntry).where(
+                ProductivityEntry.item_id == record.id, ProductivityEntry.week == form.week
+            )
+        ).one_or_none()
+        if existing is None:
+            recording.create(
+                session,
+                user_id=user.id,
+                record=ProductivityEntry(
+                    item_id=record.id,
+                    week=form.week,
+                    realized=line.realized or Decimal(0),
+                    hh=line.hh or Decimal(0),
+                    informed_on=reference_date,
+                ),
+            )
+            continue
+        before = audit.snapshot(existing)
+        existing.realized = line.realized or Decimal(0)
+        existing.hh = line.hh or Decimal(0)
+        existing.informed_on = reference_date
+        session.flush()
+        audit.changed(
+            session,
+            user_id=user.id,
+            entity=existing.__tablename__,
+            record=existing,
+            before=before,
+        )
+    return len(data)
+
+
+def _entry_targets(
+    session: Session,
+    scope: Scope,
+    *,
+    company_id: int,
+    form: validation.EntryForm,
+) -> dict[int, validation.EntryTarget]:
+    """O item de cada linha do apontamento, com o acumulado das outras semanas."""
+    targets: dict[int, validation.EntryTarget] = {}
+    for item_id in form.lines:
+        record = session.scalars(
+            select(ProductivityItem).where(ProductivityItem.id == item_id)
+        ).one_or_none()
+        if record is None or record.company_id != company_id:
+            continue
+        if scope.project_id is not None and record.project_id != scope.project_id:
+            continue
+        others = session.scalar(
+            select(func.coalesce(func.sum(ProductivityEntry.realized), 0)).where(
+                ProductivityEntry.item_id == record.id, ProductivityEntry.week != form.week
+            )
+        )
+        targets[item_id] = validation.EntryTarget(
+            code=record.code,
+            places=record.places,
+            unit=_record_unit(session, record),
+            approved=record.situation == calculations.ITEM_APPROVED,
+            total=record.total,
+            others=Decimal(others or 0),
+        )
+    return targets
+
+
+def _scoped_entry_item(session: Session, scope: Scope, item_id: int) -> ProductivityItem:
+    record = session.scalars(
+        select(ProductivityItem)
+        .execution_options(populate_existing=True)
+        .where(ProductivityItem.id == item_id)
+    ).one_or_none()
+    if record is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    if scope.project_id is not None and record.project_id != scope.project_id:
+        raise InvalidDataError(ITEM_PROJECT_MESSAGE)
+    return record
+
+
+def import_item(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    form: validation.ItemForm,
+    reference_date: date,
+) -> str:
+    """Importa uma linha da planilha: item novo em elaboração, distribuído pelo perfil."""
+    record = save_item(
+        session,
+        user=user,
+        scope=scope,
+        item_id=None,
+        form=form,
+        reference_date=reference_date,
+    )
+    return record.code
+
+
+def _scoped_item(session: Session, scope: Scope, item_id: int) -> ProductivityItem:
+    record = session.scalars(
+        select(ProductivityItem)
+        .options(
+            selectinload(ProductivityItem.revisions).selectinload(
+                ProductivityRevision.distributions
+            ),
+            selectinload(ProductivityItem.entries),
+        )
+        .execution_options(populate_existing=True)
+        .where(ProductivityItem.id == item_id)
+    ).one_or_none()
+    if record is None:
+        raise InvalidDataError(ITEM_NOT_FOUND_MESSAGE)
+    if scope.project_id is not None and record.project_id != scope.project_id:
+        raise InvalidDataError(ITEM_PROJECT_MESSAGE)
+    return record
+
+
+def _unit_id_for(session: Session, unit_code: str) -> int | None:
+    return next(
+        (unit.id for unit in configuracoes.list_measure_units(session) if unit.code == unit_code),
+        None,
+    )
+
+
+def _record_unit(session: Session, record: ProductivityItem) -> str:
+    if record.unit_id is None:
+        return ""
+    return next(
+        (
+            unit.code
+            for unit in configuracoes.list_measure_units(session)
+            if unit.id == record.unit_id
+        ),
+        "",
+    )
+
+
+def _discipline_id_for(session: Session, discipline: str) -> int | None:
+    if not discipline:
+        return None
+    for discipline_id, name in configuracoes.discipline_names_by_id(session).items():
+        if name == discipline:
+            return discipline_id
+    return None
+
+
+def _week_date(label: str) -> date:
+    found = calculations.week_start(label)
+    if found is None:
+        raise InvalidDataError(validation.ITEM_WEEK_MESSAGE)
+    return found
+
+
+# ── Carga de demonstração ─────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LoadedRevision:
+    """Uma revisão do item na carga de demonstração, com a distribuição da revisão corrente."""
+
+    revision: int
+    revision_date: date
+    by_id: int
+    total: Decimal
+    previous_total: Decimal | None
+    change_id: int | None
+    since: str | None
+    justification: str
+    planned: tuple[calculations.PlannedWeek, ...] = ()
+
+
+@dataclass(frozen=True)
+class LoadedEntry:
+    """Um apontamento da carga de demonstração."""
+
+    week: str
+    realized: Decimal
+    hh: Decimal
+    informed_on: date | None
+
+
+@dataclass(frozen=True)
+class LoadedItem:
+    """Um item do plano da carga de demonstração: ids do banco e datas já deslocadas."""
+
+    project_id: int
+    company_id: int
+    unit_id: int | None
+    discipline_id: int | None
+    approved_by_id: int | None
+    code: str
+    group: str
+    kind: str
+    places: int
+    total: Decimal
+    index_hh: Decimal
+    profile: str
+    situation: str
+    revision: int
+    start: date
+    finish: date
+    approved_on: date | None
+    notes: str | None
+    revisions: tuple[LoadedRevision, ...]
+    entries: tuple[LoadedEntry, ...]
+
+
+def load_item(session: Session, *, author_id: int, data: LoadedItem) -> ProductivityItem:
+    """Grava um item da demonstração com as revisões, a distribuição e os apontamentos."""
+    record = recording.create(
+        session,
+        user_id=author_id,
+        record=ProductivityItem(
+            project_id=data.project_id,
+            company_id=data.company_id,
+            unit_id=data.unit_id,
+            discipline_id=data.discipline_id,
+            approved_by_id=data.approved_by_id,
+            code=data.code,
+            group=data.group,
+            kind=data.kind,
+            places=data.places,
+            total=data.total,
+            index_hh=data.index_hh,
+            profile=data.profile,
+            situation=data.situation,
+            revision=data.revision,
+            start=data.start,
+            finish=data.finish,
+            approved_on=data.approved_on,
+            notes=data.notes,
+        ),
+    )
+    for source in data.revisions:
+        revision = recording.create(
+            session,
+            user_id=author_id,
+            record=ProductivityRevision(
+                item_id=record.id,
+                by_id=source.by_id,
+                change_id=source.change_id,
+                revision=source.revision,
+                revision_date=source.revision_date,
+                total=source.total,
+                previous_total=source.previous_total,
+                since=source.since,
+                justification=source.justification,
+            ),
+        )
+        for line in source.planned:
+            session.add(
+                ProductivityDistribution(
+                    revision_id=revision.id, week=line.week, planned=line.planned
+                )
+            )
+    for entry in data.entries:
+        recording.create(
+            session,
+            user_id=author_id,
+            record=ProductivityEntry(
+                item_id=record.id,
+                week=entry.week,
+                realized=entry.realized,
+                hh=entry.hh,
+                informed_on=entry.informed_on,
+            ),
+        )
+    session.flush()
+    return record
 
 
 # The group of an activity: what was done in the period or what comes in the next one.

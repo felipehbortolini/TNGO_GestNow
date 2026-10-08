@@ -66,6 +66,10 @@ from src.modulos.planejamento.models import (
     EapMeasurement,
     EapRevision,
     EapRevisionItem,
+    ProductivityDistribution,
+    ProductivityEntry,
+    ProductivityItem,
+    ProductivityRevision,
 )
 from src.modulos.riscos.models import Risk
 
@@ -86,6 +90,7 @@ PARTS = [
     "planejamento",
     "planejamento-eap",
     "planejamento-curva",
+    "planejamento-produtividade",
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
@@ -637,6 +642,107 @@ def test_oraculo_do_cronograma_de_desembolso(db_session: Session) -> None:
     assert carteira.totals == tuple(
         sum(row.amounts[index] for row in carteira.items if row.level == 1)
         for index in range(len(carteira.future_months))
+    )
+
+
+def test_oraculo_da_produtividade_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-046: o plano de quantidades do protótipo, com a data deslocada.
+
+    O mock traz 14 itens dos três projetos, 170 apontamentos e a distribuição da revisão
+    vigente de cada item (328 semanas). No projeto 1, no corte de S39 e sem deslocamento, o
+    avanço por quantidades fecha em 59,2% contra 67,5% previstos, SPI 0,88, FP 1,08 (janela
+    1,12) e aderência da semana 80,7%; o atraso aparece em 8 itens ativos.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, ProductivityItem) == 14
+    assert _count(db_session, ProductivityRevision) == 15
+    assert _count(db_session, ProductivityDistribution) == 328
+    assert _count(db_session, ProductivityEntry) == 170
+
+    totals = {
+        project.code: db_session.scalar(
+            select(func.sum(ProductivityItem.total)).where(
+                ProductivityItem.project_id == project.id
+            )
+        )
+        for project in db_session.scalars(select(Project)).all()
+    }
+    assert totals == {
+        "TN-2026-014": Decimal("173214"),
+        "TN-2026-021": Decimal("2002"),
+        "TN-2026-027": Decimal("1108"),
+    }
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    scope = Scope(project_id=project.id, source="url")
+    visao = planejamento.quantities_overview(
+        db_session, user=user, scope=scope, reference_date=DEMO_ANCHOR
+    )
+    assert visao.cut_week == "2026-S39"
+    assert visao.current_week == "2026-S39"
+    assert len(visao.items) == 9
+    assert visao.draft_count == 1, "o QTD-06 está em elaboração"
+    indicators = visao.indicators
+    assert (
+        indicators.pct_prev,
+        indicators.pct_real,
+        indicators.spi,
+        indicators.pf,
+        indicators.pf_window,
+    ) == (Decimal("67.5"), Decimal("59.2"), Decimal("0.88"), Decimal("1.08"), Decimal("1.12"))
+    assert (indicators.week_adherence, indicators.window_adherence) == (
+        Decimal("80.7"),
+        Decimal("79.7"),
+    )
+    assert (indicators.pending, indicators.late_trend) == (2, 8)
+    assert len(visao.weekly["periodos"]) == 51
+    assert [(row.group, row.total, row.real_acum) for row in visao.groups] == [
+        ("Aço", Decimal("3030"), Decimal("1987.2")),
+        ("Cabo elétrico", Decimal("146000"), Decimal("21509")),
+        ("Concreto", Decimal("14200"), Decimal("11797")),
+        ("Painel elétrico", Decimal("64"), Decimal("14")),
+        ("Tubulação", Decimal("420"), Decimal("137.3")),
+    ]
+
+    qtd01 = next(item for item in visao.items if item.code == "QTD-01")
+    detalhe = planejamento.item_detail(
+        db_session, user=user, scope=scope, item_id=qtd01.id, reference_date=DEMO_ANCHOR
+    )
+    assert (len(detalhe.weeks), detalhe.weeks[0].week, detalhe.weeks[-1].week) == (
+        25,
+        "2026-S24",
+        "2026-S48",
+    )
+    assert [(row.revision, row.total, row.change_code) for row in detalhe.revisions] == [
+        (0, Decimal("1850"), "")
+    ]
+
+    qtd08 = next(item for item in visao.items if item.code == "QTD-08")
+    assert (qtd08.revision, qtd08.total, qtd08.figures.real_acum) == (
+        1,
+        Decimal("14200"),
+        Decimal("11797"),
+    )
+
+    carteira = planejamento.quantities_overview(
+        db_session,
+        user=user,
+        scope=Scope(project_id=None, source="padrao"),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert carteira.is_portfolio
+    assert len(carteira.items) == 14
+    assert carteira.unit_series == "HH", "a carteira mistura unidades"
+    assert (carteira.indicators.pct_real, carteira.indicators.spi) == (
+        Decimal("55.9"),
+        Decimal("0.87"),
     )
 
 

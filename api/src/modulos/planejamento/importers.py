@@ -34,6 +34,7 @@ from src.core.errors import InvalidDataError
 from src.core.export_document import ValueKind, format_value
 from src.core.import_values import normalize_text
 from src.core.importing import CheckedRow, ImportColumn, ImportContext, Importer, RowCheck
+from src.modulos.configuracoes import service as configuracoes
 from src.modulos.planejamento import calculations, service, validation
 
 PROGRESS_KEY = "eap-avanco"
@@ -558,6 +559,247 @@ def _plain(value: object) -> str:
 
 def register_importers() -> None:
     """Registra os importadores do módulo uma vez; chamar de novo mantém o que já está registrado."""
-    for importer in (progress_importer(), packages_importer()):
+    for importer in (progress_importer(), packages_importer(), quantity_importer()):
         if importing.find(importer.key) is None:
             importing.register(importer)
+
+
+# ── Importação do plano de quantidades (ISSUE-046) ────────────────────────
+
+
+QUANTITY_KEY = "produtividade-itens"
+
+
+QUANTITY_COMPANY_FIELD = "empresa"
+
+
+QUANTITY_GROUP_FIELD = "grupo"
+
+
+QUANTITY_KIND_FIELD = "tipo"
+
+
+QUANTITY_DISCIPLINE_FIELD = "disciplina"
+
+
+QUANTITY_UNIT_FIELD = "unidade"
+
+
+QUANTITY_TOTAL_FIELD = "total"
+
+
+QUANTITY_INDEX_FIELD = "indiceHH"
+
+
+QUANTITY_START_FIELD = "inicio"
+
+
+QUANTITY_FINISH_FIELD = "fim"
+
+
+QUANTITY_PROFILE_FIELD = "perfil"
+
+
+QUANTITY_COMPANY_HEADER = "Empresa"
+
+
+QUANTITY_GROUP_HEADER = "Grupo"
+
+
+QUANTITY_KIND_HEADER = "Tipo"
+
+
+QUANTITY_DISCIPLINE_HEADER = "Disciplina"
+
+
+QUANTITY_UNIT_HEADER = "Unidade"
+
+
+QUANTITY_TOTAL_HEADER = "Quantidade total"
+
+
+QUANTITY_INDEX_HEADER = "Índice HH por unidade"
+
+
+QUANTITY_START_HEADER = "Semana inicial"
+
+
+QUANTITY_FINISH_HEADER = "Semana final"
+
+
+QUANTITY_PROFILE_HEADER = "Perfil"
+
+
+QUANTITY_PROFILE_OPTIONS = (
+    "Curva S",
+    "Linear",
+    "Concentrado no início",
+    "Concentrado no fim",
+)
+
+
+QUANTITY_IMPORT_NOTE = "Importado do Excel"
+
+
+QUANTITY_COMPANY_MESSAGE = "a empresa {name} não está no cadastro"
+
+
+QUANTITY_UNIT_MESSAGE = "a unidade {name} não está no cadastro"
+
+
+QUANTITY_DISCIPLINE_MESSAGE = "a disciplina {name} não está no cadastro"
+
+
+def quantity_importer() -> Importer:
+    """O importador do plano de quantidades: itens entram em elaboração, distribuídos pelo perfil."""
+    return Importer(
+        key=QUANTITY_KEY,
+        title="Plano de quantidades da LB",
+        module=MODULE,
+        columns=(
+            ImportColumn(
+                QUANTITY_COMPANY_FIELD,
+                QUANTITY_COMPANY_HEADER,
+                required=True,
+                example="Alfa Montagens",
+            ),
+            ImportColumn(
+                QUANTITY_GROUP_FIELD,
+                QUANTITY_GROUP_HEADER,
+                options=validation.QUANTITY_GROUPS,
+                required=True,
+                example="Cabo elétrico",
+            ),
+            ImportColumn(
+                QUANTITY_KIND_FIELD,
+                QUANTITY_KIND_HEADER,
+                required=True,
+                example="Cabo de iluminação",
+            ),
+            ImportColumn(QUANTITY_DISCIPLINE_FIELD, QUANTITY_DISCIPLINE_HEADER, example="Elétrica"),
+            ImportColumn(
+                QUANTITY_UNIT_FIELD,
+                QUANTITY_UNIT_HEADER,
+                options=validation.QUANTITY_UNITS,
+                required=True,
+                example="m",
+            ),
+            ImportColumn(
+                QUANTITY_TOTAL_FIELD,
+                QUANTITY_TOTAL_HEADER,
+                ValueKind.DECIMAL,
+                required=True,
+                example="12000",
+            ),
+            ImportColumn(
+                QUANTITY_INDEX_FIELD,
+                QUANTITY_INDEX_HEADER,
+                ValueKind.DECIMAL,
+                required=True,
+                example="0,08",
+            ),
+            ImportColumn(
+                QUANTITY_START_FIELD, QUANTITY_START_HEADER, required=True, example="2026-S41"
+            ),
+            ImportColumn(
+                QUANTITY_FINISH_FIELD, QUANTITY_FINISH_HEADER, required=True, example="2027-S01"
+            ),
+            ImportColumn(
+                QUANTITY_PROFILE_FIELD,
+                QUANTITY_PROFILE_HEADER,
+                options=QUANTITY_PROFILE_OPTIONS,
+                example="Curva S",
+            ),
+        ),
+        validate=_validate_quantity,
+        save=_save_quantity,
+    )
+
+
+def _quantity_fields(
+    session: Session, values: Mapping[str, Any]
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Os campos do formulário do item a partir da linha da planilha, com os vínculos resolvidos."""
+    problems: list[str] = []
+    company_name = str(values.get(QUANTITY_COMPANY_FIELD) or "")
+    company_id = next(
+        (
+            option.id
+            for option in configuracoes.list_company_options(session)
+            if normalize_text(option.name) == normalize_text(company_name)
+        ),
+        None,
+    )
+    if company_id is None:
+        problems.append(QUANTITY_COMPANY_MESSAGE.format(name=company_name))
+    unit = str(values.get(QUANTITY_UNIT_FIELD) or "").strip()
+    if not any(unit_row.code == unit for unit_row in configuracoes.list_measure_units(session)):
+        problems.append(QUANTITY_UNIT_MESSAGE.format(name=unit))
+    discipline = str(values.get(QUANTITY_DISCIPLINE_FIELD) or "").strip()
+    if discipline and discipline not in configuracoes.list_discipline_names(session):
+        problems.append(QUANTITY_DISCIPLINE_MESSAGE.format(name=discipline))
+    fields = {
+        validation.FIELD_ITEM_COMPANY: "" if company_id is None else str(company_id),
+        validation.FIELD_ITEM_GROUP: str(values.get(QUANTITY_GROUP_FIELD) or ""),
+        validation.FIELD_ITEM_KIND: str(values.get(QUANTITY_KIND_FIELD) or ""),
+        validation.FIELD_ITEM_DISCIPLINE: discipline,
+        validation.FIELD_ITEM_UNIT: unit,
+        validation.FIELD_ITEM_TOTAL: _plain(values.get(QUANTITY_TOTAL_FIELD)),
+        validation.FIELD_ITEM_INDEX: _plain(values.get(QUANTITY_INDEX_FIELD)),
+        validation.FIELD_ITEM_START: str(values.get(QUANTITY_START_FIELD) or "").strip(),
+        validation.FIELD_ITEM_FINISH: str(values.get(QUANTITY_FINISH_FIELD) or "").strip(),
+        validation.FIELD_ITEM_PROFILE: _quantity_profile(
+            str(values.get(QUANTITY_PROFILE_FIELD) or "")
+        ),
+        validation.FIELD_ITEM_NOTES: QUANTITY_IMPORT_NOTE,
+    }
+    return fields, tuple(problems)
+
+
+def _quantity_profile(value: str) -> str:
+    """O perfil do item a partir do rótulo da planilha (``Curva S``, ``Linear``, início ou fim)."""
+    wanted = normalize_text(value)
+    if wanted.startswith("inicio"):
+        return calculations.PROFILE_START
+    if wanted.startswith("fim"):
+        return calculations.PROFILE_END
+    if wanted.startswith("linear"):
+        return calculations.PROFILE_LINEAR
+    return calculations.PROFILE_S_CURVE
+
+
+def _quantity_planned(fields: Mapping[str, str]) -> dict[str, str]:
+    """O previsto de cada semana calculado pelo servidor, como o formulário o manda."""
+    return {line.week: str(line.planned) for line in service.computed_planned(fields)}
+
+
+def _validate_quantity(
+    session: Session, *, values: Mapping[str, Any], context: ImportContext
+) -> RowCheck:
+    """Confere uma linha como o formulário do item, sem gravar."""
+    del context
+    fields, problems = _quantity_fields(session, values)
+    if problems:
+        return RowCheck(errors=problems)
+    try:
+        validation.parse_item(
+            validation.ItemForm(fields=fields, planned=_quantity_planned(fields)),
+            service.item_choices(session),
+        )
+    except InvalidDataError as error:
+        return RowCheck(errors=tuple(error.messages()))
+    return RowCheck()
+
+
+def _save_quantity(session: Session, *, values: Mapping[str, Any], context: ImportContext) -> None:
+    """Grava uma linha pela fachada: item novo em elaboração, distribuído pelo perfil."""
+    fields, problems = _quantity_fields(session, values)
+    if problems:
+        raise InvalidDataError(problems[0])
+    service.import_item(
+        session,
+        user=context.user,
+        scope=context.scope,
+        form=validation.ItemForm(fields=fields, planned=_quantity_planned(fields)),
+        reference_date=context.reference_date,
+    )
