@@ -43,6 +43,7 @@ APPROVE_DENIED = "Seu perfil não aprova o realizado."
 REOPEN_DENIED = "Seu perfil não reabre o realizado."
 PUBLISH_DENIED = "Seu perfil não publica programação."
 PUBLISHED_LOCKED = "Programação publicada não pode ser editada."
+IMPORT_DENIED = "Só o Planejador deste projeto ou o Admin importam a planilha da semana."
 DECIDE_DENIED = "Seu perfil não decide pedidos de alteração."
 TRAIL_DENIED = "Seu perfil não vê a trilha de auditoria da programação."
 DELETE_DENIED = "Somente o Administrador exclui atividades."
@@ -116,6 +117,16 @@ def can_decide_requests(user: User, project_id: int) -> bool:
 
 def can_manage_settings(user: User, project_id: int) -> bool:
     """Whether the user edits the project's configuration: the Planner or the Admin (D10)."""
+    return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
+
+
+def can_import(user: User, project_id: int) -> bool:
+    """Whether the user imports the week's spreadsheet: the Planner or the Admin, as the app.
+
+    The app gave ``importar`` to the Planejador and the Admin only; the supplier and the
+    viewer never import. The role is per project (D7), so the Planner of another project
+    does not import here.
+    """
     return is_admin(user) or rbac.has_schedule_role(user, project_id, ScheduleRole.PLANNER)
 
 

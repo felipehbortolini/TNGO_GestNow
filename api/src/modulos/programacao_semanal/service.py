@@ -35,7 +35,7 @@ version the screen opened.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any
@@ -419,6 +419,29 @@ def week_summary(views: list[ActivityView]) -> WeekSummary:
     )
 
 
+# The horizon of the physical S-curve, as the app exported it: the week and the
+# twelve before it. The scope of an activity is the sum of its planned over the
+# horizon, and without the earlier weeks the curve of the plan would be a line.
+CURVE_BACK_WEEKS = 12
+
+
+def week_curve(session: Session, *, caller: Caller, week: str) -> list[calculations.CurvePoint]:
+    """The S-curve of the week, over the horizon the app exported (the week and twelve before)."""
+    items: list[calculations.CurveActivity] = []
+    for step in range(CURVE_BACK_WEEKS, -1, -1):
+        reference = weeks.shift(week, -step)
+        for view in list_activities(session, caller=caller, week=reference):
+            items.append(
+                calculations.CurveActivity(
+                    week=view.week,
+                    identity=view.unique_id,
+                    planned_total=view.figures.planned_total,
+                    done_total=view.figures.done_total,
+                )
+            )
+    return calculations.curve_points(items)
+
+
 def get_activity(session: Session, *, caller: Caller, activity_id: int) -> ActivityView:
     """One activity for the form, or 403 when it belongs to another company (D7)."""
     activity = _activity_of(session, caller=caller, activity_id=activity_id)
@@ -776,6 +799,36 @@ def store_activity(session: Session, *, author_id: int, new: NewActivity) -> Act
         session.flush()
         audit.append(session, _day_line(author_id, new.project_id, day, audit.CREATED, before=None))
     return activity
+
+
+def import_done_days(
+    session: Session,
+    *,
+    user: User,
+    activity: Activity,
+    day_shift: Sequence[object],
+    at: datetime,
+) -> None:
+    """Write the done of a ``Real.`` line of the spreadsheet import, with the trail.
+
+    The app's model had one line per shift state: the ``Real.`` line sets the day
+    shift of the activity (the model never carried the night shift). The write goes
+    through ``recording``, and each day that changed leaves its trail line.
+    """
+    recording.update(
+        session,
+        user_id=user.id,
+        record=activity,
+        changes={"updated_by_id": user.person_id, "updated_at": at},
+        version=str(activity.version),
+    )
+    _change_done_days(
+        session,
+        user_id=user.id,
+        activity=activity,
+        day_shift=tuple(calculations.seven_days(day_shift)),
+        night_shift=(0.0,) * calculations.DAYS,
+    )
 
 
 def store_settings(

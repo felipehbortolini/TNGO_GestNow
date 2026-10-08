@@ -23,6 +23,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
+from src.modulos.programacao_semanal import weeks
+
 DAYS = 7
 DAY_LABELS = ("2ª", "3ª", "4ª", "5ª", "6ª", "Sáb", "Dom")
 DAY_NAMES = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
@@ -181,3 +183,95 @@ def mean_ppc(activities: Iterable[ActivityFigures]) -> float:
 
 def _total(values: Sequence[object]) -> float:
     return round(sum(to_number(value) for value in values), 2)
+
+
+# ── The physical S-curve of the week (ISSUE-055) ─────────────────────────
+#
+# Ported from the app's ``indicadores.curva_s``: the units of the activities are
+# not comparable (kg of rebar with m³ of soil), so the curve is built on the
+# completion share of each activity, with equal weight per activity, and the
+# denominator of an activity is its scope over the whole horizon. The app's
+# legend says it: the curve is not volume.
+
+
+@dataclass(frozen=True)
+class CurveActivity:
+    """One activity inside the curve horizon: its week, its identity and its totals.
+
+    ``identity`` is the exclusive ID, the same activity followed across weeks; the
+    ``planned_total`` accumulates the scope of that ID over the horizon.
+    """
+
+    week: str
+    identity: str
+    planned_total: float
+    done_total: float
+
+
+@dataclass(frozen=True)
+class CurvePoint:
+    """One week of the curve: the share of the period and the running totals."""
+
+    week: str
+    period: str
+    base: float
+    planned: float
+    done: float
+    base_accumulated: float
+    planned_accumulated: float
+    done_accumulated: float
+
+
+def curve_points(activities: Iterable[CurveActivity]) -> list[CurvePoint]:
+    """The S-curve, one point per week, over the horizon the caller collected.
+
+    Three series, as the app draws them: the **base** spreads the scope evenly over
+    the weeks (the reference pace), the **planned** is what the programming delivers
+    and the **done** is what the week actually delivered. Nothing here reads the
+    clock: the weeks come in the activities, in the order the caller read them.
+    """
+    items = list(activities)
+    by_week: dict[str, list[CurveActivity]] = {}
+    for item in items:
+        if item.week:
+            by_week.setdefault(item.week, []).append(item)
+    if not by_week:
+        return []
+
+    scope: dict[str, float] = {}
+    for item in items:
+        scope[item.identity] = scope.get(item.identity, 0.0) + item.planned_total
+    weighted = {identity for identity, total in scope.items() if total > 0}
+    weight = 100.0 / len(weighted) if weighted else 0.0
+
+    ordered = sorted(by_week, key=weeks.sort_key)
+    step = 100.0 / len(ordered)
+    points: list[CurvePoint] = []
+    base_accumulated = 0.0
+    planned_accumulated = 0.0
+    done_accumulated = 0.0
+    for index, week in enumerate(ordered):
+        planned = 0.0
+        done = 0.0
+        for item in by_week[week]:
+            total = scope.get(item.identity, 0.0)
+            if total <= 0:
+                continue
+            planned += weight * (item.planned_total / total)
+            done += weight * (item.done_total / total)
+        base_accumulated = round(step * (index + 1), 2)
+        planned_accumulated = round(planned_accumulated + planned, 2)
+        done_accumulated = round(done_accumulated + done, 2)
+        points.append(
+            CurvePoint(
+                week=week,
+                period=weeks.period_label(week),
+                base=round(step, 2),
+                planned=round(planned, 2),
+                done=round(done, 2),
+                base_accumulated=base_accumulated,
+                planned_accumulated=planned_accumulated,
+                done_accumulated=min(done_accumulated, 999.0),
+            )
+        )
+    return points

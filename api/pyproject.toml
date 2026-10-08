@@ -181,6 +181,14 @@ max-complexity = 10
 # O mesmo falso positivo estrutural que o ARG001 dos blueprints registra.
 "src/modulos/programacao_semanal/routes.py" = ["PLR0913", "ARG001"]
 
+# `week_document` tem 8 parâmetros, e é assim de propósito: os dados da semana (a
+# referência, as atividades, o resumo, a curva e os parâmetros) e a identificação do
+# documento (o escopo, os projetos e a data), depois do `*` todos KEYWORD-ONLY — o
+# contrato da planilha e do relatório da semana (ISSUE-055) que as rotas chamam. A
+# regra existe para argumento posicional, onde a ordem se erra na chamada; reduzir
+# significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/programacao_semanal/export.py" = ["PLR0913"]
+
 # `_modal_answer` e `_item_form_error` têm 8 parâmetros, e é assim de propósito: depois do `*`
 # são todos KEYWORD-ONLY (modal_template, filtro, valores, status_code, toast; e item_id, form,
 # error, status_code, filtro), o contrato da resposta com modal, filtros e conteúdo da
@@ -205,6 +213,16 @@ max-complexity = 10
 # da governança: cada caso informa só o estado que importa, tudo KEYWORD-ONLY depois do `*`.
 "tests/programacao_semanal/test_programacao_fluxo.py" = ["PLR0913"]
 "tests/programacao_semanal/test_programacao_governanca*.py" = ["PLR0913"]
+
+# `prev_row` monta uma linha "Prev." da planilha da semana com os campos opcionais
+# (semana, descrição, cadastros, produção e dias); `_request` monta a requisição da
+# importação com o método, o usuário, o alvo, os parâmetros, os campos e o arquivo; e
+# `_store` monta a atividade da exportação com a semana, o previsto e o realizado.
+# É assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste informa só
+# o que importa para o caso (ISSUE-055).
+"tests/programacao_semanal/test_programacao_importacao.py" = ["PLR0913"]
+"tests/programacao_semanal/test_programacao_importacao_rotas.py" = ["PLR0913"]
+"tests/programacao_semanal/test_programacao_exportacao.py" = ["PLR0913"]
 
 # assert em teste é o ponto do teste; S101 aqui seria ruído.
 "**/test_*.py" = ["S101"]
