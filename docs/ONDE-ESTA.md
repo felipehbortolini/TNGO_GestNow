@@ -37,6 +37,7 @@ Mapa de manutenção do produto. Para a resposta direta a “quero mudar X, abro
 | Rotas de plataforma | `api/src/blueprints/` | Saúde e navegação global |
 | Rotas e fachada de um módulo | `api/src/modulos/<modulo>/routes.py` e `service.py` | HTTP no blueprint; fluxo, permissões e integrações na fachada |
 | Fórmulas, validação e exportação | `api/src/modulos/<modulo>/calculations.py`, `validation.py`, `export.py` | Regra pura, entrada e saídas do módulo |
+| Importador de um módulo | `api/src/modulos/<modulo>/importers.py` e `api/src/core/importing.py` | Colunas, regras de linha e gravação do importador registrado (ISSUE-018); a conferência não grava e a confirmação é tudo ou nada |
 | Modelos do módulo | `api/src/modulos/<modulo>/models.py` | Dono das entidades; as tabelas de plataforma e dos cadastros nasceram na ISSUE-005, as de domínio em cada fatia de módulo |
 | LEIA-ME do módulo | `api/src/modulos/<modulo>/LEIA-ME.md` | Referência de manutenção sem depender do código ou de IA |
 | Sessão, base dos modelos e relatório do banco | `api/src/core/database.py` | `GESTNOW_DATABASE_URL`, engine SQLAlchemy, `Base` dos modelos, revisão da migração e a unidade de trabalho (`unidade_de_trabalho`) |

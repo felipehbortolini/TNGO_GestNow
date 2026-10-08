@@ -26,7 +26,7 @@ Use este mapa para localizar a alteração sem conhecer o código. Abra primeiro
 | O que o fornecedor, o cliente ou cada perfil vê na barra lateral | `api/src/core/navigation_view.py` (recorte pelo mesmo `rbac` das rotas); Configurações só para Gestor e Admin e Colaboradores só para o Admin em `MODULE_PERMISSION` e `SCREEN_PERMISSION` de `api/src/core/rbac.py` |
 | Parâmetro | `api/src/modulos/configuracoes/` e a validação/consumo em `api/src/modulos/<modulo>/validation.py`; Configurações versiona o valor, o módulo consumidor valida seu domínio |
 | Exportação | `api/src/modulos/<modulo>/export.py`; exportador comum e impressão são introduzidos na ISSUE-017 |
-| Importação | `api/src/modulos/<modulo>/validation.py` para regras de linha e o fluxo comum descrito na ISSUE-018; nada grava antes da confirmação |
+| Importação | `api/src/modulos/<modulo>/importers.py` (o importador registrado, com as colunas e as regras de linha) e `api/src/core/importing.py` (o fluxo comum em passos da ISSUE-018); nada grava antes da confirmação |
 | Integração entre módulos | `service.py` de quem inicia e fachada do módulo dono em `api/src/modulos/<modulo-dono>/service.py`; veja também a issue de integração ligada por último conforme D9 |
 | Envio de e-mail ou o aviso "simulado" | `api/src/core/notification.py` (porta e envio simulado) e `api/src/core/graph_mail.py` (Microsoft Graph); as variáveis `GESTNOW_ENVIO_EMAIL` e `GESTNOW_GRAPH_*` estão em `api/README.md` |
 | Tradução PT/EN | Catálogo futuro `api/src/core/translations.py` (ISSUE-087/088) e texto-fonte nos fragmentos `api/src/templates/<modulo>/`; não coloque tradução de interface em JavaScript de página |
