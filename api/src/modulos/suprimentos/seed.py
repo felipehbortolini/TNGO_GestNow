@@ -1,4 +1,4 @@
-"""Part of the supplier register in the demonstration load (ISSUE-057, D6/Q15).
+"""Parts of the Procurement module in the demonstration load (ISSUE-057/058, D6/Q15).
 
 The 17 qualifications of the prototype (``fornecedores``), with their categories, documents and
 the situation history, enter through the facade (``core.recording``, inside the caller's
@@ -6,6 +6,14 @@ transaction), with the companies of the platform part and the people of the mock
 shifted by ``shift_date``; on 25/09/2026 (the oracle) nothing moves and the dates of the mock
 come out whole. The companies of the Weekly Scheduling (the demonstration adds three) stay
 without qualification and show up as "Sem qualificação", as any company of the register does.
+
+The 28 packages of the plan (``pacotes``) enter with the seven acquisition milestones of the
+prototype, each with its plan and the forecast and real layers the mock carries; the
+``plano.entrega`` of the mock has no place in the model and is left out (DECISION, ISSUE-058).
+The EAC item of each package is resolved by the code of the mock through the Financeiro facade;
+the codes the mock linked to level-2 items are loaded as they are, since only a new package is
+required to be tied to a level-3 item. The gate LLI rides in the package; the codes come from
+the project sequence of the mock.
 
 The file of a document is an ``anexo`` (D5a): the load keeps the metadata of the document only,
 as the prototype kept the name, because the demonstration has no files.
@@ -25,7 +33,11 @@ from src.carga.plataforma import ADMIN_EMAIL
 from src.core import recording
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.financeiro import service as financeiro
+from src.modulos.suprimentos import calculations
 from src.modulos.suprimentos.models import (
+    PackageMilestone,
+    PurchasePackage,
     Supplier,
     SupplierCategory,
     SupplierDocument,
@@ -33,6 +45,7 @@ from src.modulos.suprimentos.models import (
 )
 
 PART_NAME = "suprimentos-fornecedores"
+PACKAGES_PART_NAME = "suprimentos-pacotes"
 
 
 @dataclass(frozen=True)
@@ -139,3 +152,145 @@ def _record(session: Session, lookups: _Lookups, source: Mapping[str, Any]) -> N
 
 
 register(PART_NAME, load)
+
+
+# ── The purchase plan (ISSUE-058) ────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _PackageLookups:
+    """What the plan load needs to turn ids of the prototype into ids of the database."""
+
+    user: User
+    reference_date: date
+    projects: Mapping[int, int]
+    people: Mapping[int, int]
+    disciplines: Mapping[str, int]
+    eac_items: Mapping[tuple[int, str], int]
+
+    def shifted(self, value: str | None) -> date | None:
+        """A date of the prototype moved to the reference date of the run."""
+        return shift_date(date.fromisoformat(value), self.reference_date) if value else None
+
+    def required(self, value: str | None) -> date:
+        """A date the mock always carries; without it the load fails loud."""
+        shifted = self.shifted(value)
+        if shifted is None:
+            message = "Data obrigatória ausente no mock dos pacotes."
+            raise LookupError(message)
+        return shifted
+
+
+def load_packages(session: Session, reference_date: date) -> None:
+    """Write the 28 packages of the prototype with the seven milestones of each."""
+    lookups = _package_lookups(session, reference_date)
+    for source in prototype_collection("pacotes"):
+        _record_package(session, lookups, source)
+
+
+def _package_lookups(session: Session, reference_date: date) -> _PackageLookups:
+    access = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if access is None:
+        message = f"O Admin da demonstração ({ADMIN_EMAIL}) não está no cadastro."
+        raise LookupError(message)
+    user = User(
+        id=access.id,
+        person_id=access.person_id,
+        name=access.name,
+        email=access.email,
+        general_profile=GeneralProfile(access.general_profile),
+        bond=Bond(access.bond),
+        company_id=access.company_id,
+    )
+    real_projects = {project.code: project.id for project in configuracoes.list_projects(session)}
+    projects = {
+        source["id"]: real_projects[source["codigo"]] for source in prototype_collection("projetos")
+    }
+    people = {
+        source["id"]: person_id
+        for source in prototype_collection("pessoas")
+        if (person_id := configuracoes.find_person_id_by_email(session, source["email"]))
+    }
+    disciplines = {
+        name: discipline_id
+        for discipline_id, name in configuracoes.discipline_names_by_id(session).items()
+    }
+    eac_items = _eac_items(session, projects)
+    return _PackageLookups(
+        user=user,
+        reference_date=reference_date,
+        projects=projects,
+        people=people,
+        disciplines=disciplines,
+        eac_items=eac_items,
+    )
+
+
+def _eac_items(session: Session, projects: Mapping[int, int]) -> dict[tuple[int, str], int]:
+    """The id of every EAC item the mock names, by project of the mock and code."""
+    items: dict[tuple[int, str], int] = {}
+    for mock_project_id, project_id in projects.items():
+        codes = [
+            source["codigo"]
+            for source in prototype_collection("eac")
+            if source["projetoId"] == mock_project_id
+        ]
+        found = financeiro.eac_item_ids_by_code(session, project_id=project_id, codes=codes)
+        items.update({(mock_project_id, code): item_id for code, item_id in found.items()})
+    return items
+
+
+def _record_package(session: Session, lookups: _PackageLookups, source: Mapping[str, Any]) -> None:
+    gate = source.get("gateLli") or {}
+    package = recording.create(
+        session,
+        user_id=lookups.user.id,
+        record=PurchasePackage(
+            project_id=lookups.projects[source["projetoId"]],
+            eac_item_id=lookups.eac_items[(source["projetoId"], source["eacCodigo"])],
+            buyer_id=lookups.people[source["compradorId"]],
+            discipline_id=lookups.disciplines.get(source["disciplina"]),
+            code=source["codigo"],
+            scope=source["escopo"],
+            kind=source["tipo"],
+            modality=source["modalidade"],
+            lli=source["lli"],
+            estimate_cents=source["estimativaCentavos"],
+            ros=lookups.required(source["ros"]),
+            emergency=source.get("emergencial", False),
+            gate_lli_date=lookups.shifted(gate.get("data")),
+            gate_lli_reference=gate.get("referencia"),
+        ),
+    )
+    _record_milestones(session, lookups, package=package, source=source)
+
+
+def _record_milestones(
+    session: Session,
+    lookups: _PackageLookups,
+    *,
+    package: PurchasePackage,
+    source: Mapping[str, Any],
+) -> None:
+    """The seven acquisition milestones: the plan, the forecast and the real of the mock.
+
+    The ``plano.entrega`` of the prototype is not a milestone of the model and stays out.
+    """
+    plan = source.get("plano") or {}
+    forecast = source.get("previsao") or {}
+    real = source.get("real") or {}
+    for key in calculations.MILESTONE_KEYS:
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=PackageMilestone(
+                package_id=package.id,
+                milestone=key,
+                plan_date=lookups.shifted(plan.get(key)),
+                forecast_date=lookups.shifted(forecast.get(key)),
+                real_date=lookups.shifted(real.get(key)),
+            ),
+        )
+
+
+register(PACKAGES_PART_NAME, load_packages)
