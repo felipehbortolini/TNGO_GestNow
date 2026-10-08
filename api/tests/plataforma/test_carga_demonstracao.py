@@ -83,6 +83,14 @@ from src.modulos.programacao_semanal import service as programacao_semanal
 from src.modulos.programacao_semanal.models import Activity
 from src.modulos.programacao_semanal.views import ActivityView
 from src.modulos.riscos.models import Risk
+from src.modulos.suprimentos import service as suprimentos
+from src.modulos.suprimentos import validation as suprimentos_validation
+from src.modulos.suprimentos.models import (
+    Supplier,
+    SupplierCategory,
+    SupplierDocument,
+    SupplierHistory,
+)
 
 # A demonstração inteira: a plataforma e a parte de cada módulo, na ordem em que entram.
 PARTS = [
@@ -107,6 +115,7 @@ PARTS = [
     "programacao_semanal",
     "riscos",
     "financeiro-contratos-fluxos",
+    "suprimentos-fornecedores",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -1363,6 +1372,102 @@ def test_oraculo_do_dashboard_da_programacao_semanal(db_session: Session) -> Non
     )
     assert supplier_data.summary.total == 5
     assert supplier_data.evolution.series == ("M. Roscoe",)
+
+
+def test_oraculo_do_cadastro_de_fornecedores_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-057: as 17 qualificações do mock, com a data deslocada.
+
+    Na âncora, as 17 qualificações do protótipo entram com as 22 categorias e os 62 documentos
+    convertidos: 14 Qualificado, 1 Em qualificação, 1 Restrito e 1 "Qualificado com restrição"
+    (a quinta situação do mock, que o protótipo exibe crua). Só a certidão trabalhista da Zeta
+    Civil (15/09/2026) está vencida e só a validade da Zeta Civil vence em até 90 dias; o
+    histórico é um: a Gama Válvulas passou de Qualificado a Restrito em 12/09/2026, por Paulo
+    Serra. A Gerenciadora não é fornecedor e fica fora do cadastro; as três empresas da
+    Programação Semanal ficam "Sem qualificação", como qualquer empresa do cadastro. O desempenho
+    é do escopo (os contratos do Financeiro): a Alfa Montagens tem o CT-2026-014, R$ 4,8 milhões
+    contratados e a avaliação de set/26 valendo 63, classe C; a Tau Construções só tem contratos
+    dos projetos 2 e 3 e, no projeto 1, o valor contratado é zero — o cadastro é global, mas o
+    desempenho segue o projeto aberto.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, Supplier) == 17, "as qualificações do mock"
+    assert _count(db_session, SupplierCategory) == 22
+    assert _count(db_session, SupplierDocument) == 62
+    assert _count(db_session, SupplierHistory) == 1
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    listagem = suprimentos.list_suppliers(
+        db_session,
+        user=user,
+        scope=Scope(project_id=None, source="padrao"),
+        filters=suprimentos_validation.SupplierFilters(),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    resumo = listagem.summary
+    assert (resumo.companies, resumo.registered, resumo.unregistered) == (20, 17, 3), (
+        "as 21 empresas menos a Gerenciadora; as três da Programação Semanal sem qualificação"
+    )
+    assert (
+        resumo.qualified,
+        resumo.in_qualification,
+        resumo.restricted_or_blocked,
+        resumo.blocked,
+    ) == (14, 1, 1, 0)
+    assert (resumo.expired_documents, resumo.validity_due) == (1, 1)
+
+    por_nome = {linha.name: linha for linha in listagem.lines}
+    assert "Timenow Gerenciadora" not in por_nome, "a Gerenciadora não é fornecedor"
+    assert sorted(linha.name for linha in listagem.lines if not linha.registered) == [
+        "Bremmer",
+        "Elmec Montagens",
+        "M. Roscoe",
+    ]
+    assert all(
+        linha.situation == "Sem qualificação" for linha in listagem.lines if not linha.registered
+    )
+
+    gama = por_nome["Gama Válvulas"]
+    assert gama.situation == "Restrito"
+    assert gama.categories == ("Válvulas",)
+    historico = [
+        (row.date, row.from_situation, row.to_situation, row.author) for row in gama.history
+    ]
+    assert historico == [(date(2026, 9, 12), "Qualificado", "Restrito", "Paulo Serra")]
+
+    zeta = por_nome["Zeta Civil"]
+    assert not zeta.documents_up_to_date
+    assert [document.name for document in zeta.expired_documents] == [
+        "Certidão negativa de débitos trabalhistas"
+    ]
+    assert zeta.qualification_expiring and not zeta.qualification_expired
+
+    tau = por_nome["Tau Construções"]
+    assert tau.situation == "Qualificado com restrição", "a quinta situação do mock, crua"
+    assert tau.contracted_cents == 275_000_000, "CT-2026-022 + CT-2026-027 na carteira"
+
+    alfa = por_nome["Alfa Montagens"]
+    assert alfa.contracted_cents == 480_000_000, "o CT-2026-014"
+    assert alfa.last_evaluation is not None
+    assert (alfa.last_evaluation.score, alfa.last_evaluation.score_class) == (63, "C")
+    assert alfa.mean_score == Decimal("67.0")
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    tau_no_projeto = suprimentos.find_supplier(
+        db_session,
+        user=user,
+        scope=Scope(project_id=project.id, source="url"),
+        company_id=tau.company_id,
+        reference_date=DEMO_ANCHOR,
+    )
+    assert tau_no_projeto is not None
+    assert tau_no_projeto.contracted_cents == 0, "o desempenho segue o projeto aberto"
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
