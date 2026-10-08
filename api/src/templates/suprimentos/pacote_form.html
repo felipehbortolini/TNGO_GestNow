@@ -1,0 +1,276 @@
+{% extends "base_fragment.html" %}
+{#
+  Novo/Editar pacote (ISSUE-058): o escopo, o tipo, a modalidade, a disciplina, o comprador, o
+  item da EAC (com o saldo a comprometer calculado na hora), a estimativa, as quatro datas da
+  linha de base, o ROS (com a folga planejada calculada na hora), o LLI com o gate e a compra
+  emergencial com a justificativa. Antes da requisição o formulário é completo; depois dela o
+  servidor o desenha congelado — só escopo, comprador, estimativa e ROS, com justificativa, e
+  qualquer campo da linha de base no POST é recusado. O 422 devolve este formulário preenchido
+  com a mensagem sob cada campo; o sucesso atualiza a tela atrás do modal.
+
+  A conta do saldo e da folga na tela é só a prévia (plano_compras.js); o servidor revalida tudo.
+  O prazo de entrega do protótipo não entra: o modelo não tem a coluna e a folga usa o pedido
+  (DECISION, ISSUE-058).
+
+  Espera: valores, erros, pacote, congelado, compradores, disciplinas, itens_eac, tipos,
+  modalidades, referencia, formatar_data, formatar_moeda e rotulo_salvar.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro opcoes_registro(registros, escolhido, vazio) %}
+<option value="">{{ vazio }}</option>
+{% for registro in registros %}
+<option value="{{ registro.id }}"{% if escolhido == registro.id|string %} selected{% endif %}>{{ registro.name }}</option>
+{% endfor %}
+{% endmacro %}
+
+{% block fragment %}
+{% set acao = '/api/suprimentos/plano-de-compras/novo' if not pacote else ('/api/suprimentos/plano-de-compras/' ~ pacote.id ~ '/editar') %}
+<form id="pacote-form" method="post" action="{{ acao }}"
+  x-target="plano-compras-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  x-data="{ lli: {{ 'true' if valores.get('lli') else 'false' }}, antecipado: {{ 'true' if valores.get('antecipado') else 'false' }}, emergencial: {{ 'true' if valores.get('emergencial') else 'false' }} }"
+  x-init="TN.paginas['suprimentos/plano_compras'].preparar($el)"
+  data-tn-loading="Salvando o pacote...">
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  {% if congelado %}
+  <div class="aviso aviso--warn mb-16">
+    <span x-init="$el.innerHTML = window.icon('lock', 16)" aria-hidden="true"></span>
+    <span>A linha de base deste pacote está congelada desde a requisição ({{ formatar_data(pacote.requisition_real) }}).
+      Datas do plano não mudam; ajuste escopo, comprador, estimativa ou ROS com justificativa.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="pacote-escopo">Escopo de fornecimento</label>
+      <input id="pacote-escopo" name="escopo" class="input{% if erros.get('escopo') %} input--erro{% endif %}"
+        maxlength="120" required value="{{ valores.get('escopo') or '' }}"
+        {% if erros.get('escopo') %}aria-invalid="true" aria-describedby="erro-escopo"{% endif %} />
+      {{ campo_erro(erros, 'escopo') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-comprador">Comprador</label>
+      <select id="pacote-comprador" name="comprador" class="input{% if erros.get('comprador') %} input--erro{% endif %}" required
+        {% if erros.get('comprador') %}aria-invalid="true" aria-describedby="erro-comprador"{% endif %}>
+        {{ opcoes_registro(compradores, valores.get('comprador'), 'Escolha o comprador') }}
+      </select>
+      {{ campo_erro(erros, 'comprador') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-estimativa">Estimativa</label>
+      <input id="pacote-estimativa" name="estimativa" class="input{% if erros.get('estimativa') %} input--erro{% endif %}"
+        inputmode="decimal" placeholder="0,00" required value="{{ valores.get('estimativa') or '' }}"
+        {% if erros.get('estimativa') %}aria-invalid="true" aria-describedby="erro-estimativa"{% endif %} />
+      {{ campo_erro(erros, 'estimativa') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-ros">Data necessária na obra (ROS)</label>
+      <input id="pacote-ros" name="ros" type="date" class="input{% if erros.get('ros') %} input--erro{% endif %}"
+        required value="{{ valores.get('ros') or '' }}"
+        {% if erros.get('ros') %}aria-invalid="true" aria-describedby="erro-ros"{% endif %} />
+      <span class="hint">Vem do cronograma do projeto (02).</span>
+      {{ campo_erro(erros, 'ros') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="pacote-justificativa">Justificativa da alteração</label>
+      <textarea id="pacote-justificativa" name="justificativa" rows="3" maxlength="300" required
+        class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">Obrigatória quando algo muda (mínimo de 10 caracteres).</span>
+      {{ campo_erro(erros, 'justificativa') }}
+    </div>
+  </div>
+  {% else %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="pacote-escopo">Escopo de fornecimento</label>
+      <input id="pacote-escopo" name="escopo" class="input{% if erros.get('escopo') %} input--erro{% endif %}"
+        maxlength="120" required value="{{ valores.get('escopo') or '' }}"
+        {% if erros.get('escopo') %}aria-invalid="true" aria-describedby="erro-escopo"{% endif %} />
+      {{ campo_erro(erros, 'escopo') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-tipo">Tipo</label>
+      <select id="pacote-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required
+        {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
+        <option value="">Escolha o tipo</option>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if valores.get('tipo') == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'tipo') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-modalidade">Modalidade contratual</label>
+      <select id="pacote-modalidade" name="modalidade" class="input{% if erros.get('modalidade') %} input--erro{% endif %}" required
+        {% if erros.get('modalidade') %}aria-invalid="true" aria-describedby="erro-modalidade"{% endif %}>
+        <option value="">Escolha a modalidade</option>
+        {% for modalidade in modalidades %}
+        <option value="{{ modalidade }}"{% if valores.get('modalidade') == modalidade %} selected{% endif %}>{{ modalidade }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'modalidade') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-disciplina">Disciplina</label>
+      <select id="pacote-disciplina" name="disciplina" class="input{% if erros.get('disciplina') %} input--erro{% endif %}" required
+        {% if erros.get('disciplina') %}aria-invalid="true" aria-describedby="erro-disciplina"{% endif %}>
+        {{ opcoes_registro(disciplinas, valores.get('disciplina'), 'Escolha a disciplina') }}
+      </select>
+      {{ campo_erro(erros, 'disciplina') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-comprador">Comprador</label>
+      <select id="pacote-comprador" name="comprador" class="input{% if erros.get('comprador') %} input--erro{% endif %}" required
+        {% if erros.get('comprador') %}aria-invalid="true" aria-describedby="erro-comprador"{% endif %}>
+        {{ opcoes_registro(compradores, valores.get('comprador'), 'Escolha o comprador') }}
+      </select>
+      {{ campo_erro(erros, 'comprador') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="pacote-eac">Item da EAC</label>
+      <select id="pacote-eac" name="eac" class="input{% if erros.get('eac') %} input--erro{% endif %}" required
+        {% if erros.get('eac') %}aria-invalid="true" aria-describedby="erro-eac"{% endif %}>
+        <option value="">Escolha o item de custo (nível 3)</option>
+        {% for item in itens_eac %}
+        <option value="{{ item.code }}" data-saldo="{{ formatar_moeda(item.saldo_cents) }}" data-saldo-centavos="{{ item.saldo_cents }}"
+          {% if valores.get('eac') == item.code %} selected{% endif %}>{{ item.code }} {{ item.description }}</option>
+        {% endfor %}
+      </select>
+      {% if not itens_eac %}
+      <span class="hint">Cadastre a EAC do projeto antes de incluir pacotes.</span>
+      {% endif %}
+      {{ campo_erro(erros, 'eac') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-estimativa">Estimativa</label>
+      <input id="pacote-estimativa" name="estimativa" class="input{% if erros.get('estimativa') %} input--erro{% endif %}"
+        inputmode="decimal" placeholder="0,00" required value="{{ valores.get('estimativa') or '' }}"
+        {% if erros.get('estimativa') %}aria-invalid="true" aria-describedby="erro-estimativa"{% endif %} />
+      {{ campo_erro(erros, 'estimativa') }}
+    </div>
+
+    <div class="field">
+      <span class="plano__rotulo">Saldo a comprometer do item</span>
+      <p id="pacote-saldo" class="hint" aria-live="polite">Escolha o item da EAC.</p>
+    </div>
+
+    <div class="field">
+      <label for="pacote-requisicao">Requisição (LB)</label>
+      <input id="pacote-requisicao" name="requisicao" type="date" class="input{% if erros.get('requisicao') %} input--erro{% endif %}"
+        required value="{{ valores.get('requisicao') or '' }}"
+        {% if erros.get('requisicao') %}aria-invalid="true" aria-describedby="erro-requisicao"{% endif %} />
+      {{ campo_erro(erros, 'requisicao') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-rfx">Emissão da RFx (LB)</label>
+      <input id="pacote-rfx" name="rfx" type="date" class="input{% if erros.get('rfx') %} input--erro{% endif %}"
+        required value="{{ valores.get('rfx') or '' }}"
+        {% if erros.get('rfx') %}aria-invalid="true" aria-describedby="erro-rfx"{% endif %} />
+      {{ campo_erro(erros, 'rfx') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-adjudicacao">Adjudicação (LB)</label>
+      <input id="pacote-adjudicacao" name="adjudicacao" type="date" class="input{% if erros.get('adjudicacao') %} input--erro{% endif %}"
+        required value="{{ valores.get('adjudicacao') or '' }}"
+        {% if erros.get('adjudicacao') %}aria-invalid="true" aria-describedby="erro-adjudicacao"{% endif %} />
+      {{ campo_erro(erros, 'adjudicacao') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-pedido">Pedido ou contrato (LB)</label>
+      <input id="pacote-pedido" name="pedido" type="date" class="input{% if erros.get('pedido') %} input--erro{% endif %}"
+        required value="{{ valores.get('pedido') or '' }}"
+        {% if erros.get('pedido') %}aria-invalid="true" aria-describedby="erro-pedido"{% endif %} />
+      {{ campo_erro(erros, 'pedido') }}
+    </div>
+
+    <div class="field">
+      <label for="pacote-ros">Data necessária na obra (ROS)</label>
+      <input id="pacote-ros" name="ros" type="date" class="input{% if erros.get('ros') %} input--erro{% endif %}"
+        required value="{{ valores.get('ros') or '' }}"
+        {% if erros.get('ros') %}aria-invalid="true" aria-describedby="erro-ros"{% endif %} />
+      <span class="hint">Vem do cronograma do projeto (02).</span>
+      {{ campo_erro(erros, 'ros') }}
+    </div>
+
+    <div class="field">
+      <span class="plano__rotulo">Folga planejada</span>
+      <p id="pacote-folga" class="hint" aria-live="polite">Informe as datas do pedido e o ROS.</p>
+    </div>
+
+    <div class="field field--full">
+      <label class="check" for="pacote-lli">
+        <input id="pacote-lli" type="checkbox" name="lli" value="1" x-model="lli"
+          {% if valores.get('lli') %}checked{% endif %} />
+        Item de longo prazo de entrega (LLI)
+      </label>
+    </div>
+
+    <div class="field field--full" x-show="lli">
+      <label class="check" for="pacote-antecipado">
+        <input id="pacote-antecipado" type="checkbox" name="antecipado" value="1" x-model="antecipado"
+          {% if valores.get('antecipado') %}checked{% endif %} />
+        Contratação antes do gate de investimento (FID)
+      </label>
+    </div>
+
+    <div class="field field--full" x-show="lli && antecipado">
+      <label for="pacote-gate">Aprovação específica do gate LLI</label>
+      <input id="pacote-gate" name="gate" class="input{% if erros.get('gate') %} input--erro{% endif %}"
+        maxlength="160" placeholder="Ex.: ata do comitê de investimentos e análise de risco do pacote"
+        value="{{ valores.get('gate') or '' }}"
+        {% if erros.get('gate') %}aria-invalid="true" aria-describedby="erro-gate"{% endif %} />
+      {{ campo_erro(erros, 'gate') }}
+    </div>
+
+    <div class="field field--full">
+      <label class="check" for="pacote-emergencial">
+        <input id="pacote-emergencial" type="checkbox" name="emergencial" value="1" x-model="emergencial"
+          {% if valores.get('emergencial') %}checked{% endif %} />
+        Compra emergencial (fora do plano original)
+      </label>
+    </div>
+
+    <div class="field field--full" x-show="emergencial">
+      <label for="pacote-just-emergencial">Justificativa da compra emergencial</label>
+      <textarea id="pacote-just-emergencial" name="justEmergencial" rows="3" maxlength="300"
+        class="input{% if erros.get('justEmergencial') %} input--erro{% endif %}"
+        {% if erros.get('justEmergencial') %}aria-invalid="true" aria-describedby="erro-justEmergencial"{% endif %}>{{ valores.get('justEmergencial') or '' }}</textarea>
+      <span class="hint">Mínimo de 20 caracteres; fica na trilha do pacote.</span>
+      {{ campo_erro(erros, 'justEmergencial') }}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-pacote-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      {{ rotulo_salvar }}
+    </button>
+  </div>
+</form>
+{% endblock %}

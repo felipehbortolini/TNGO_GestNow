@@ -1,16 +1,77 @@
 /* ============================================================
    plano_compras.css — Estilo da tela Plano de compras (suprimentos/plano_compras)
 
-   Pacotes de compra com datas da linha de base, ROS e vínculo à EAC.
+   Escopo: tudo que mora aqui começa por .pagina--suprimentos-plano_compras, a classe da raiz da
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento,
+   raio ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Escopo: tudo que morar aqui começa por .pagina--suprimentos-plano_compras, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-058.
+   O que a tela acrescenta ao Design System (ISSUE-058): o texto de duas linhas do indicador, a
+   barra de ações, a contagem, as linhas em alerta, as ações da linha, a paginação, o rótulo dos
+   campos calculados e o destaque de valor negativo. O fragmento é desenhado pelo servidor
+   (api/src/templates/suprimentos/).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--suprimentos-plano_compras .plano__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--suprimentos-plano_compras .plano__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--suprimentos-plano_compras .plano__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-plano_compras .plano__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--suprimentos-plano_compras .plano__linha--alerta td {
+  background: var(--warn-50);
+}
+
+.pagina--suprimentos-plano_compras .plano__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--suprimentos-plano_compras .plano__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-plano_compras .plano__rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.pagina--suprimentos-plano_compras .valor--negativo {
+  color: var(--erro-700);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .pagina--suprimentos-plano_compras .plano__paginas {
+    justify-content: stretch;
+  }
+  .pagina--suprimentos-plano_compras .plano__acoes {
+    text-align: left;
+  }
+}

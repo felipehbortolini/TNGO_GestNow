@@ -1,0 +1,192 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Plano de compras (ISSUE-058): os cinco KPIs, a barra de busca e filtros, a tabela dos
+  pacotes e a paginação. O fragmento é um só e se pede de novo, com os filtros na consulta, a
+  cada clique: KPI, página, busca ou filtro são links ou um formulário GET com x-target no
+  próprio fragmento. Os modais (Novo pacote, Editar pacote e a importação genérica de Excel)
+  abrem por JavaScript (plano_compras.js); os formulários o servidor entrega por GET no alvo do
+  modal. No Portfólio a tabela abre com a coluna Projeto e os botões de inclusão pedem o projeto
+  antes (data-tn-incluir, TN.escopo).
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, tipos, link_anterior, link_proximo, link_limpar, url_excel,
+  url_pdf, consulta, parametro_consulta, pode_gravar, portfolio, pill_da_etapa, pill_da_folga,
+  formatar_data, formatar_moeda, resumo, pagina_inicial e pagina_final.
+#}
+
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+  x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="plano__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, texto, icone) %}
+<button type="button" class="iconbtn" data-pacote-modal-url="{{ url }}"
+  data-pacote-modal-titulo="{{ titulo }}" data-pacote-modal-subtitulo="{{ subtitulo }}"
+  aria-label="{{ rotulo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+  {% if texto %}<span>{{ texto }}</span>{% endif %}
+</button>
+{% endmacro %}
+
+{% macro dias_com_sinal(dias) %}{% if dias > 0 %}+{% endif %}{{ dias }} d{% endmacro %}
+
+{% block fragment %}
+<div class="kpis plano__kpis" style="--kpis-colunas: 5">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/suprimentos/plano-de-compras" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar pacotes</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar código, escopo ou item da EAC" />
+        <label class="sr-only" for="{{ target_id }}-tipo">Tipo</label>
+        <select id="{{ target_id }}-tipo" class="input" name="tipo" @change="$el.form.requestSubmit()">
+          <option value="">Todos os tipos</option>
+          {% for tipo in tipos %}
+          <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ tipo }}</option>
+          {% endfor %}
+        </select>
+        <label class="check" for="{{ target_id }}-lli">
+          <input id="{{ target_id }}-lli" type="checkbox" name="lli" value="1"
+            {% if filtros.lli_only %}checked{% endif %} @change="$el.form.requestSubmit()" />
+          Só itens de longo prazo (LLI)
+        </label>
+      </form>
+      <div class="plano__barra">
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-pacote-acao="importar"
+          data-pacote-url="/api/importacao/plano-de-compras">
+          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+          Importar Excel
+        </button>
+        <button type="button" class="btn btn--primary" data-tn-incluir="novo" data-pacote-acao="novo"
+          data-pacote-url="/api/suprimentos/plano-de-compras/novo{% if consulta %}?{{ consulta }}{% endif %}">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
+          Novo pacote
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="hint plano__contagem" role="status">
+      {{ listagem.total }} {{ 'pacote' if listagem.total == 1 else 'pacotes' }} no filtro atual ·
+      LB = linha de base do plano; a LB fica congelada a partir da requisição
+    </p>
+
+    {% if resumo.packages == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há pacotes no plano de compras</h2>
+      <p>Inclua o primeiro pacote: todo pacote nasce vinculado a um item de custo (nível 3) da EAC do projeto.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum pacote encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver o plano.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl plano__tabela">
+        <caption class="sr-only">Pacotes do plano de compras</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Pacote</th>
+            <th scope="col">Escopo</th>
+            <th scope="col">Item da EAC</th>
+            <th scope="col">Comprador</th>
+            <th scope="col" class="td-num">Estimativa</th>
+            <th scope="col">Adjudicação</th>
+            <th scope="col">ROS</th>
+            <th scope="col">Etapa</th>
+            <th scope="col" class="td-num">Folga</th>
+            <th scope="col" class="td-num">Adjudicado</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_lines %}
+          {% set adj = linha.milestone('adjudicacao') %}
+          <tr class="{% if linha.slack_days is not none and linha.slack_days < 0 %}plano__linha--alerta{% endif %}">
+            {% if portfolio %}<td>{{ linha.project_label }}</td>{% endif %}
+            <td>
+              <span class="fw-600">{{ linha.code }}</span>
+              {% if linha.lli %}<br /><span class="pill pill--fix">LLI</span>{% endif %}
+              {% if linha.emergency %}<br /><span class="pill pill--warn">Emergencial</span>{% endif %}
+            </td>
+            <td>
+              <span class="fw-600">{{ linha.scope }}</span><br />
+              <span class="hint">{{ linha.kind }} · {{ linha.modality }}{% if linha.discipline %} · {{ linha.discipline }}{% endif %}</span>
+            </td>
+            <td>
+              {% if linha.eac_code %}
+              <span class="fw-600">{{ linha.eac_code }}</span><br /><span class="hint">{{ linha.eac_description }}</span>
+              {% else %}<span class="muted">sem EAC</span>{% endif %}
+            </td>
+            <td>{{ linha.buyer or '—' }}</td>
+            <td class="td-num num">{{ formatar_moeda(linha.estimate_cents) }}</td>
+            <td class="num">
+              {% if adj and adj.plan %}
+              <span class="hint">LB</span> {{ formatar_data(adj.plan) }}
+              {% if adj.real %}<br /><span class="hint">real {{ formatar_data(adj.real) }}</span>
+              {% elif adj.forecast %}<br /><span class="hint">prev. {{ formatar_data(adj.forecast) }}</span>{% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="num">{{ formatar_data(linha.ros) }}</td>
+            <td><span class="pill {{ pill_da_etapa(linha.stage) }}">{{ linha.stage }}</span></td>
+            <td class="td-num num">
+              {% if linha.slack_days is none %}<span class="muted">—</span>
+              {% else %}
+              <span class="pill {{ pill_da_folga(linha.slack_days) }}">{{ dias_com_sinal(linha.slack_days) }}</span>
+              {% endif %}
+            </td>
+            <td class="td-num num">
+              {% if linha.adjudicated_cents is not none %}
+              {{ formatar_moeda(linha.adjudicated_cents) }}
+              {% if linha.supplier %}<br /><span class="hint">{{ linha.supplier }}</span>{% endif %}
+              {% else %}<span class="muted" title="Depende do processo de compra (ISSUE-059) e do pedido (ISSUE-061)">—</span>{% endif %}
+            </td>
+            <td class="plano__acoes">
+              {% if pode_gravar %}
+              {{ botao_do_modal('/api/suprimentos/plano-de-compras/' ~ linha.id ~ '/editar?' ~ parametro_consulta, 'Editar pacote ' ~ linha.code, linha.scope, 'Editar pacote ' ~ linha.code, '', 'edit') }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="plano__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
