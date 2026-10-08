@@ -2591,3 +2591,109 @@ def parse_stoppage(
         responsibility=responsibility,
         description=description or None,
     )
+
+
+# ── KPIs de performance: o plano de ação na Central (ISSUE-048) ────────────
+
+
+PLAN_SUBJECT_MIN = 10
+
+
+PLAN_SUBJECT_MAX = 150
+
+
+PLAN_DESCRIPTION_MAX = 600
+
+
+FIELD_PLAN_COMPANY = "empresa"
+
+
+FIELD_PLAN_SUBJECT = "assunto"
+
+
+FIELD_PLAN_DESCRIPTION = "descricao"
+
+
+FIELD_PLAN_RESPONSIBLE = "responsavel"
+
+
+FIELD_PLAN_DATE = "prevista"
+
+
+PLAN_SUBJECT_MESSAGE = f"Descreva a ação (mínimo de {PLAN_SUBJECT_MIN} caracteres)."
+
+
+PLAN_DATE_MESSAGE = "A data prevista não pode ser anterior à data de referência."
+
+
+@dataclass(frozen=True)
+class ActionPlanChoices:
+    """O que o cadastro oferece ao plano de ação: as empresas e as pessoas."""
+
+    company_ids: frozenset[int]
+    person_ids: frozenset[int]
+
+
+@dataclass(frozen=True)
+class ActionPlanForm:
+    """O que o formulário do plano de ação mandou: os campos."""
+
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class ActionPlanData:
+    """Um plano de ação válido, pronto para a fachada."""
+
+    company_id: int
+    subject: str
+    description: str | None
+    responsible_id: int
+    planned_date: date
+
+
+def parse_action_plan(
+    form: ActionPlanForm,
+    choices: ActionPlanChoices,
+    *,
+    reference_date: date,
+) -> ActionPlanData:
+    """O plano de ação do formulário, ou ``InvalidDataError`` com a mensagem de cada campo."""
+    raw = form.fields
+    errors: dict[str, str] = {}
+    company_id = _choice_id(
+        raw,
+        FIELD_PLAN_COMPANY,
+        label="a empresa",
+        allowed=choices.company_ids,
+        errors=errors,
+    )
+    subject = _text(raw, FIELD_PLAN_SUBJECT)
+    if len(subject) < PLAN_SUBJECT_MIN:
+        errors[FIELD_PLAN_SUBJECT] = PLAN_SUBJECT_MESSAGE
+    elif len(subject) > PLAN_SUBJECT_MAX:
+        errors[FIELD_PLAN_SUBJECT] = TOO_LONG_MESSAGE.format(label="A ação", limit=PLAN_SUBJECT_MAX)
+    responsible_id = _choice_id(
+        raw,
+        FIELD_PLAN_RESPONSIBLE,
+        label="o responsável",
+        allowed=choices.person_ids,
+        errors=errors,
+    )
+    planned_date = _required_date(raw, FIELD_PLAN_DATE, label="a data prevista", errors=errors)
+    if FIELD_PLAN_DATE not in errors and planned_date < reference_date:
+        errors[FIELD_PLAN_DATE] = PLAN_DATE_MESSAGE
+    description = _text(raw, FIELD_PLAN_DESCRIPTION)
+    if len(description) > PLAN_DESCRIPTION_MAX:
+        errors[FIELD_PLAN_DESCRIPTION] = TOO_LONG_MESSAGE.format(
+            label="A descrição", limit=PLAN_DESCRIPTION_MAX
+        )
+    if errors:
+        raise InvalidDataError(errors)
+    return ActionPlanData(
+        company_id=company_id,
+        subject=subject,
+        description=description or None,
+        responsible_id=responsible_id,
+        planned_date=planned_date,
+    )

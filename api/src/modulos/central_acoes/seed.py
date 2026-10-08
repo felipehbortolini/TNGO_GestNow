@@ -15,10 +15,16 @@ the prototype reads it from the minutes, so the reference here is the number of 
 The Punch list actions are created here, not by the module of the Punch list: the prototype
 derived them in the Central (``acaoDoPunch``), one for one, with the status in step. The Punch
 list slice must keep them in step (``service.close_from_origin``) and never create them again.
+
+The reference of an action of the Productivity (ISSUE-048, ``PRD-2026-S38-01``) carries the id
+of the company of the prototype; the load rewrites it with the id the database gave the company,
+like every other id of the mock, so the KPIs tab finds the open action of the company and the
+link of the Central comes back with the right company.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -40,6 +46,8 @@ PUNCH_ORIGIN = "Punch list"
 PUNCH_CANCELLED = "Cancelado"
 PUNCH_CLOSED = "Fechado"
 ATA_ORIGIN = "Ata"
+PRODUCTIVITY_ORIGIN = "Produtividade"
+PRODUCTIVITY_REFERENCE = re.compile(r"^PRD-(\d{4}-S\d{2})-(\d+)$")
 
 
 @dataclass(frozen=True)
@@ -177,11 +185,24 @@ def _minutes_of(lookups: _Lookups, source: Mapping[str, Any]) -> NewMinutes:
     )
 
 
+def _origin_ref_of(lookups: _Lookups, source: Mapping[str, Any]) -> str:
+    """The reference of the record of origin, with the ids of the mock turned into real ones."""
+    ata_id = source.get("ataId")
+    reference = source.get("origemRef") or (lookups.atas[ata_id] if ata_id else "")
+    if source["origem"] == PRODUCTIVITY_ORIGIN:
+        found = PRODUCTIVITY_REFERENCE.fullmatch(reference.strip())
+        if found is not None:
+            company = lookups.companies.get(int(found[2]))
+            if company is not None:
+                return f"PRD-{found[1]}-{company:02d}"
+    return reference
+
+
 def _action_of(lookups: _Lookups, source: Mapping[str, Any]) -> NewAction:
     """One action of the mock as the seam receives it, with its replans and its completion."""
     contribution = source.get("contribuicao") or {}
     ata_id = source.get("ataId")
-    origin_ref = source.get("origemRef") or (lookups.atas[ata_id] if ata_id else "")
+    origin_ref = _origin_ref_of(lookups, source)
     return NewAction(
         project_id=lookups.projects[source["projetoId"]],
         origin=source["origem"],

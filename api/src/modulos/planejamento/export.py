@@ -76,6 +76,8 @@ from src.modulos.planejamento.service import (
     FieldDayView,
     HoursOverview,
     LookaheadBoard,
+    PerformanceBlock,
+    PerformanceOverview,
     PeriodCoverage,
     PlanningKpiLine,
     PlanningKpisOverview,
@@ -1916,3 +1918,252 @@ def _stoppage_totals_table(title: str, visao: HoursOverview, *, attribute: str) 
         ),
         rows=tuple(row(item.key, item.total, item.events) for item in totals),
     )
+
+
+# ── KPIs de performance (ISSUE-048) ────────────────────────────────────────
+
+
+PERFORMANCE_TITLE = "Produtividade: KPIs de performance"
+
+
+PERFORMANCE_COMPANIES_TITLE = "Performance por empresa"
+
+
+PERFORMANCE_TREND_TITLE = "Tendência semanal por empresa"
+
+
+PERFORMANCE_ADHERENCE_TITLE = "Aderência semanal por empresa"
+
+
+PERFORMANCE_WORKING_TITLE = "% trabalhando por empresa"
+
+
+PERFORMANCE_SITUATION_ALERT = "Alerta"
+
+
+PERFORMANCE_SITUATION_ATTENTION = "Atenção"
+
+
+PERFORMANCE_SITUATION_OK = "No plano"
+
+
+def performance_document(
+    visao: PerformanceOverview, *, scope_label: str, generated_on: date
+) -> Document:
+    """O documento da aba KPIs de performance: indicadores, gráficos e as duas tabelas."""
+    return Document(
+        title=PERFORMANCE_TITLE,
+        scope_label=scope_label,
+        generated_on=generated_on,
+        portfolio=visao.is_portfolio,
+        context=_performance_context(visao),
+        kpis=performance_kpis(visao),
+        charts=(
+            Chart(PERFORMANCE_ADHERENCE_TITLE, "curva-s-linha", visao.adherence_chart),
+            Chart(PERFORMANCE_WORKING_TITLE, "curva-s-linha", visao.working_chart),
+        ),
+        tables=(_performance_companies_table(visao), _performance_trend_table(visao)),
+        paper=Paper.A4,
+    )
+
+
+def _performance_context(visao: PerformanceOverview) -> tuple[tuple[str, str], ...]:
+    return (
+        ("Semana de corte", productivity_week_caption(visao.cut_week)),
+        ("Empresa", visao.selected.company_name or "Todas as empresas"),
+        (
+            "Janela de avaliação",
+            (
+                f"{productivity_week_caption(visao.window_weeks[0])} a "
+                f"{productivity_week_caption(visao.window_weeks[-1])}"
+            ),
+        ),
+    )
+
+
+def performance_kpis(visao: PerformanceOverview) -> tuple[Kpi, ...]:
+    """Os indicadores da faixa da aba, os mesmos do bloco selecionado."""
+    block = visao.selected
+    parameters = visao.parameters
+    quantities = block.quantities
+    schedule = block.schedule
+    return (
+        Kpi(
+            "Avanço por quantidades",
+            quantities.pct_real,
+            f"Previsto: {percent_text(quantities.pct_prev)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_band_tone(block.bands.spi),
+            status="em horas ganhas",
+        ),
+        Kpi(
+            "SPI de quantidades",
+            quantities.spi,
+            f"Meta: ≥ {index_text(parameters.spi_bands[1])}",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=_band_tone(block.bands.spi),
+            status="horas ganhas ÷ previstas na LB",
+        ),
+        Kpi(
+            f"Aderência ({parameters.window_weeks} semanas)",
+            quantities.window_adherence,
+            f"Meta: ≥ {percent_text(parameters.adherence_bands[1], 0)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_band_tone(block.bands.adherence),
+            status=f"semana de corte: {percent_text(quantities.week_adherence, 0)}",
+        ),
+        Kpi(
+            "Fator de produtividade",
+            quantities.pf_window,
+            f"Meta: ≤ {index_text(parameters.pf_bands[0])}",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=_band_tone(block.bands.pf),
+            status=f"acumulado {index_text(quantities.pf)} · 1,00 = orçado",
+        ),
+        Kpi(
+            "Tendência de atraso",
+            schedule.slip_weeks,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if schedule.slip_weeks else Tone.OK,
+            status=(
+                f"SPI(t) {index_text(schedule.spi_t)} · "
+                f"{quantities.pending} apontamento(s) pendente(s)"
+            ),
+        ),
+        Kpi(
+            "Capacidade produtiva (CP)",
+            block.capacity.capacity,
+            f"Meta: ≥ {hours_text(parameters.daily_hours * parameters.utilization_pct / 100, 2)} h",
+            ValueKind.DECIMAL,
+            digits=2,
+            tone=_band_tone(block.bands.utilization),
+            status=f"utilização {percent_text(block.capacity.utilization)}",
+        ),
+        Kpi(
+            "Pessoas trabalhando",
+            block.sample.working_pct,
+            f"Meta: ≥ {percent_text(parameters.working_pct, 0)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=_band_tone(block.bands.working),
+            status=f"parado {percent_text(block.sample.stopped_pct)}",
+        ),
+        Kpi(
+            "Efetivo paralisado",
+            block.stoppages.crew_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.WARN if block.stoppages.crew_hours else Tone.OK,
+            status=(
+                f"{percent_text(block.stoppage_share, 2)} das HH disponíveis · "
+                f"cliente {hours_text(block.stoppages.client_hours, 1)}"
+            ),
+        ),
+        Kpi(
+            "Máquinas e equipamentos parados",
+            block.stoppages.machine_hours,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.WARN if block.stoppages.machine_hours else Tone.OK,
+            status=f"{block.stoppages.events} evento(s) de paralisação",
+        ),
+        Kpi(
+            "HH improdutivas na frente",
+            block.capacity.idle_hh,
+            "Esperado: 0",
+            ValueKind.DECIMAL,
+            digits=0,
+            tone=Tone.WARN if block.capacity.idle_hh else Tone.OK,
+            status="(jornada - CP) x efetivo",
+        ),
+    )
+
+
+def _performance_companies_table(visao: PerformanceOverview) -> Table:
+    return Table(
+        title=PERFORMANCE_COMPANIES_TITLE,
+        columns=(
+            Column("Empresa"),
+            Column("Avanço real x prev."),
+            Column("SPI", ValueKind.DECIMAL, digits=2),
+            Column("Aderência", ValueKind.PERCENT, digits=1),
+            Column("FP", ValueKind.DECIMAL, digits=2),
+            Column("CP (h/dia)", ValueKind.DECIMAL, digits=2),
+            Column("% trabalhando", ValueKind.PERCENT, digits=1),
+            Column("Hhora parada", ValueKind.DECIMAL, digits=1),
+            Column("Mhora parada", ValueKind.DECIMAL, digits=1),
+            Column("Situação"),
+        ),
+        rows=tuple(_performance_company_row(block) for block in visao.companies),
+    )
+
+
+def _performance_company_row(block: PerformanceBlock) -> Row:
+    quantities = block.quantities
+    return row(
+        block.company_name,
+        f"{percent_text(quantities.pct_real, 1)} / {percent_text(quantities.pct_prev, 1)}",
+        Cell(quantities.spi, tone=_band_tone(block.bands.spi)),
+        Cell(quantities.window_adherence, tone=_band_tone(block.bands.adherence)),
+        Cell(quantities.pf_window, tone=_band_tone(block.bands.pf)),
+        Cell(block.capacity.capacity, tone=_band_tone(block.bands.utilization)),
+        Cell(block.sample.working_pct, tone=_band_tone(block.bands.working)),
+        block.stoppages.crew_hours,
+        block.stoppages.machine_hours,
+        _performance_situation(block),
+        project=block.project_label,
+    )
+
+
+def _performance_situation(block: PerformanceBlock) -> Cell:
+    if block.alerts:
+        return Cell(PERFORMANCE_SITUATION_ALERT, tone=Tone.ERROR)
+    if block.attentions:
+        return Cell(PERFORMANCE_SITUATION_ATTENTION, tone=Tone.WARN)
+    return Cell(PERFORMANCE_SITUATION_OK, tone=Tone.OK)
+
+
+def _performance_trend_table(visao: PerformanceOverview) -> Table:
+    return Table(
+        title=PERFORMANCE_TREND_TITLE,
+        columns=(
+            Column("Semana"),
+            Column("Empresa"),
+            Column("FP", ValueKind.DECIMAL, digits=2),
+            Column("Aderência", ValueKind.PERCENT, digits=1),
+            Column("% trabalhando", ValueKind.PERCENT, digits=1),
+            Column("CP (h/dia)", ValueKind.DECIMAL, digits=2),
+        ),
+        rows=tuple(_performance_trend_rows(visao)),
+    )
+
+
+def _performance_trend_rows(visao: PerformanceOverview) -> list[Row]:
+    rows: list[Row] = []
+    for week in reversed(visao.trend_weeks):
+        for block in visao.companies:
+            data = next((item for item in block.trend if item.week == week), None)
+            if data is None or not any(
+                value is not None
+                for value in (data.pf, data.adherence, data.working_pct, data.capacity)
+            ):
+                continue
+            rows.append(
+                row(
+                    productivity_week_short(week),
+                    block.company_name,
+                    data.pf,
+                    data.adherence,
+                    data.working_pct,
+                    data.capacity,
+                    project=block.project_label,
+                )
+            )
+    return rows

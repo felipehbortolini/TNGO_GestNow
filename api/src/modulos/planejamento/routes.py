@@ -98,6 +98,18 @@ The field hours (ISSUE-047), prefix ``/api/planejamento/produtividade/horas-efet
 * ``POST /jornadas`` and ``POST /jornadas/{registro_id}`` (and the pairs for samples and
   stoppages)  write the record; the answer carries the modal and the tab in one multi-target
   reply (422 per field, 409 for a stale version); the second day of the same front receives 422.
+
+The performance KPIs (ISSUE-048), prefix ``/api/planejamento/produtividade/kpis``:
+
+* ``GET  /``  the KPIs tab: the filters (``empresa`` and ``corte``), the indicators of the
+  general block or of the chosen company, the table per company, the weekly trend and the two
+  charts of the DS library (D11);
+* ``GET  /excel`` and ``GET /imprimivel``  the two exports of the same content, with the filter;
+* ``GET  /acoes/nova``  the form of the plan of action of the chosen company, with the texts
+  suggested by its indicators; the Portfólio asks for the project first;
+* ``POST /acoes``  opens the plan in the Central (one open action per company and week); the
+  second attempt receives 422; the answer carries the modal and the tab in one multi-target
+  reply, and the Central links back to this tab with the company and the week.
 """
 
 from __future__ import annotations
@@ -2962,6 +2974,9 @@ def productivity_screen(
     )
     page = _quantities_context(session, context, quantity_filter=filtro)
     page.update(_hours_context(session, context, hours_filter=_hours_params(req.params)))
+    page.update(
+        _performance_context(session, context, performance_filter=_performance_params(req.params))
+    )
     return AlpineAjaxResponse(
         template_name=PROD_SCREEN,
         context=page,
@@ -4310,5 +4325,290 @@ def _stoppage_error(
         modal_template=STOPPAGE_FORM_INNER,
         hours_filter=filtro,
         valores={"formulario": formulario, "registro_id": stoppage_id},
+        status_code=status_code,
+    )
+
+
+# ── KPIs de performance da Produtividade (ISSUE-048) ──────────────────────
+
+
+PERFORMANCE_BASE = f"{PRODUTIVIDADE_BASE}/kpis"
+
+
+PERFORMANCE_API = f"/api/{PERFORMANCE_BASE}"
+
+
+PERFORMANCE_TEMPLATE = "planejamento/produtividade_kpis.html"
+
+
+PERFORMANCE_ANSWER = "planejamento/produtividade_kpis_resposta.html"
+
+
+PLAN_FORM_TEMPLATE = "planejamento/produtividade_plano_form.html"
+
+
+PLAN_FORM_INNER = "planejamento/_prod_plano_form.html"
+
+
+PERFORMANCE_TARGET = "produtividade-kpis"
+
+
+PLAN_CREATED_MESSAGE = "Ação criada na Central ({reference})."
+
+
+def _performance_params(params: Mapping[str, str]) -> service.PerformanceFilter:
+    """O filtro da aba KPIs como a URL o traz."""
+    return service.PerformanceFilter(
+        company_id=_integer(params.get("empresa")),
+        cut_week=(params.get("corte") or "").strip(),
+    )
+
+
+def _posted_performance_filter(values: Mapping[str, str]) -> service.PerformanceFilter:
+    """O filtro que o formulário do modal carregou nos campos ocultos ``f_*``."""
+    return service.PerformanceFilter(
+        company_id=_integer(values.get("f_empresa")),
+        cut_week=(values.get("f_corte") or "").strip(),
+    )
+
+
+def _performance_filter_values(chosen: service.PerformanceFilter) -> dict[str, str]:
+    return {
+        "empresa": "" if chosen.company_id is None else str(chosen.company_id),
+        "corte": chosen.cut_week,
+    }
+
+
+def _performance_context(
+    session: Session, context: RequestContext, *, performance_filter: service.PerformanceFilter
+) -> dict[str, Any]:
+    """O contexto da aba KPIs: a visão do escopo e os auxiliares de formatação."""
+    visao = service.performance_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        performance_filter=performance_filter,
+        reference_date=calendario.today(),
+    )
+    parameters = visao.parameters
+    return {
+        "performance": visao,
+        "filtro_performance": _performance_filter_values(visao.filter),
+        "api_performance": PERFORMANCE_API,
+        "rotulo_semana": export.productivity_week_caption,
+        "semana_curta": export.productivity_week_short,
+        "indice": export.index_text,
+        "percentual": export.percent_text,
+        "horas_num": export.hours_text,
+        "tom": _tone_class,
+        "rotulo_indicador": lambda key: service.INDICATOR_LABELS.get(key, key),
+        "faixa_aderencia": lambda value: calculations.indicator_band(
+            value, parameters.adherence_bands, higher_is_better=True
+        ),
+        "faixa_pf": lambda value: calculations.indicator_band(
+            value, parameters.pf_bands, higher_is_better=False
+        ),
+        "faixa_spi": lambda value: calculations.indicator_band(
+            value, parameters.spi_bands, higher_is_better=True
+        ),
+        "faixa_trabalho": lambda value: calculations.working_band(
+            value, target=parameters.working_pct
+        ),
+        "faixa_utilizacao": lambda value: calculations.utilization_band(
+            value, target=parameters.utilization_pct
+        ),
+    }
+
+
+def _performance_form_context(
+    context: RequestContext, performance_filter: service.PerformanceFilter, **valores: Any
+) -> dict[str, Any]:
+    """O contexto de um formulário do plano: os auxiliares e nada da aba carregada."""
+    return {
+        "api_performance": PERFORMANCE_API,
+        "filtro_performance": _performance_filter_values(performance_filter),
+        "rotulo_semana": export.productivity_week_caption,
+        "semana_curta": export.productivity_week_short,
+        "hoje": calendario.today().isoformat(),
+        "tom": _tone_class,
+        "pode_gerir": rbac.can(context.user, Permission.MANAGE),
+        **valores,
+    }
+
+
+def _performance_answer(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    modal_template: str,
+    performance_filter: service.PerformanceFilter,
+    valores: Mapping[str, Any],
+    status_code: int = 200,
+    toast: str | None = None,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A resposta com o modal e a aba KPIs: o que a gravação do plano precisa atualizar."""
+    page = _performance_context(session, context, performance_filter=performance_filter)
+    page.update(_performance_form_context(context, performance_filter, **valores))
+    page["modal_template"] = modal_template
+    return AlpineAjaxResponse(
+        template_name=PERFORMANCE_ANSWER,
+        context=page,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo=toast_tipo,
+    )
+
+
+@bp.route(route=PERFORMANCE_BASE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_performance(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A aba KPIs de performance do escopo, na empresa e no corte pedidos."""
+    return AlpineAjaxResponse(
+        template_name=PERFORMANCE_TEMPLATE,
+        context=_performance_context(
+            session, context, performance_filter=_performance_params(req.params)
+        ),
+        request=req,
+    )
+
+
+@bp.route(route=f"{PERFORMANCE_BASE}/excel", methods=["GET"])
+@file_route(access=READ_ACCESS)
+def productivity_performance_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da aba KPIs, com o filtro de agora."""
+    return excel_response(_performance_document(req, session, context))
+
+
+@bp.route(route=f"{PERFORMANCE_BASE}/imprimivel", methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def productivity_performance_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível da aba KPIs: o que o botão PDF monta e imprime."""
+    return printable_response(_performance_document(req, session, context), req)
+
+
+def _performance_document(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> Document:
+    visao = service.performance_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        performance_filter=_performance_params(req.params),
+        reference_date=calendario.today(),
+    )
+    return export.performance_document(
+        visao,
+        scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
+        generated_on=calendario.today(),
+    )
+
+
+@bp.route(route=f"{PERFORMANCE_BASE}/acoes/nova", methods=["GET"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_new_performance_action(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O plano de ação em branco da empresa pedida; no Portfólio o shell pede o projeto antes."""
+    context.scope.require_project()
+    visao = service.performance_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        performance_filter=_performance_params(req.params),
+        reference_date=calendario.today(),
+    )
+    formulario = service.performance_action_form(
+        session,
+        user=context.user,
+        block=visao.selected,
+        cut_week=visao.cut_week,
+        window_weeks=visao.parameters.window_weeks,
+        form=None,
+        reference_date=calendario.today(),
+    )
+    return _modal(
+        req,
+        PLAN_FORM_TEMPLATE,
+        _performance_form_context(context, visao.filter, formulario=formulario),
+    )
+
+
+@bp.route(route=f"{PERFORMANCE_BASE}/acoes", methods=["POST"])
+@fragment_route(access=WRITE_ACCESS)
+def productivity_create_performance_action(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cria o plano de ação na Central; a segunda da mesma empresa e semana recebe 422."""
+    form = validation.ActionPlanForm(fields=_posted_values(req))
+    filtro = _posted_performance_filter(req.form)
+    try:
+        criada = service.create_performance_action(
+            session,
+            user=context.user,
+            scope=context.scope,
+            form=form,
+            cut_week=filtro.cut_week,
+            reference_date=calendario.today(),
+        )
+    except InvalidDataError as error:
+        return _performance_action_error(
+            req, session, context, form=form, error=error, filtro=filtro
+        )
+    mensagem = PLAN_CREATED_MESSAGE.format(reference=criada.reference)
+    return _performance_answer(
+        req,
+        session,
+        context,
+        modal_template=SAVED_INNER,
+        performance_filter=filtro,
+        valores={"mensagem": mensagem, "atualiza_conteudo": True},
+        toast=mensagem,
+    )
+
+
+def _performance_action_error(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    form: validation.ActionPlanForm,
+    error: InvalidDataError,
+    filtro: service.PerformanceFilter,
+    status_code: int = 422,
+) -> func.HttpResponse:
+    errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
+    visao = service.performance_overview(
+        session,
+        user=context.user,
+        scope=context.scope,
+        performance_filter=filtro,
+        reference_date=calendario.today(),
+    )
+    formulario = service.performance_action_form(
+        session,
+        user=context.user,
+        block=visao.selected,
+        cut_week=visao.cut_week,
+        window_weeks=visao.parameters.window_weeks,
+        form=form,
+        reference_date=calendario.today(),
+        errors=errors,
+    )
+    return _performance_answer(
+        req,
+        session,
+        context,
+        modal_template=PLAN_FORM_INNER,
+        performance_filter=visao.filter,
+        valores={"formulario": formulario},
         status_code=status_code,
     )

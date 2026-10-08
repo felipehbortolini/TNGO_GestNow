@@ -1,0 +1,81 @@
+{#
+  Formulário do plano de ação de produtividade (ISSUE-048): a empresa, a ação sugerida, a
+  descrição, o responsável e a data prevista. O servidor valida e cria a ação na Central
+  (origem Produtividade, referência semana e empresa); os campos ocultos `f_*` levam o filtro
+  da aba de volta na resposta multi-alvo. Os textos nascem sugeridos pelos indicadores da
+  empresa; viram dado do usuário ao salvar.
+  Espera: formulario (PerformanceFormView), filtro_performance, api_performance, hoje.
+#}
+{% macro erro(nome) %}
+{% if formulario.errors.get(nome) %}<span class="field__erro" role="alert">{{ formulario.errors[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro marcas(nome) %}{% if formulario.errors.get(nome) %} aria-invalid="true" aria-describedby="perf-erro-{{ nome }}"{% endif %}{% endmacro %}
+
+<div class="produtividade__form">
+  <form method="post" x-data x-target="produtividade-modal produtividade-kpis"
+    action="{{ api_performance }}/acoes" novalidate>
+    <input type="hidden" name="f_empresa" value="{{ filtro_performance.empresa }}" />
+    <input type="hidden" name="f_corte" value="{{ filtro_performance.corte }}" />
+
+    {% if formulario.errors.get('geral') %}
+    <div class="aviso aviso--erro" role="alert">{{ formulario.errors.get('geral') }}</div>
+    {% endif %}
+
+    <p class="produtividade__identificacao">
+      <span class="pill pill--neutral">Plano de ação de produtividade</span>
+      {% if formulario.block.company_id %}
+      <span class="fw-600">{{ formulario.block.company_name }}</span>
+      {% endif %}
+      <span class="hint">Vai para a Central de Ações (origem Produtividade); uma ação aberta por empresa e semana</span>
+    </p>
+
+    <div class="produtividade__campos">
+      <div class="field">
+        <label for="perf-plano-empresa">Empresa</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="perf-plano-empresa" name="empresa"{{ marcas('empresa') }}>
+          <option value="">Escolha a empresa</option>
+          {% for opcao in formulario.options.companies %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('empresa') }}
+      </div>
+      <div class="field">
+        <label for="perf-plano-responsavel">Responsável</label>
+        <select class="input{{ ' input--erro' if formulario.errors.get('responsavel') }}" id="perf-plano-responsavel" name="responsavel"{{ marcas('responsavel') }}>
+          <option value="">Escolha o responsável</option>
+          {% for opcao in formulario.options.people %}
+          <option value="{{ opcao.id }}"{% if formulario.fields.get('responsavel') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
+          {% endfor %}
+        </select>
+        {{ erro('responsavel') }}
+      </div>
+      <div class="field">
+        <label for="perf-plano-prevista">Data prevista</label>
+        <input class="input{{ ' input--erro' if formulario.errors.get('prevista') }}" id="perf-plano-prevista"
+          name="prevista" type="date" min="{{ hoje }}" value="{{ formulario.fields.get('prevista', '') }}"{{ marcas('prevista') }} />
+        {{ erro('prevista') }}
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="perf-plano-assunto">Ação</label>
+      <input class="input{{ ' input--erro' if formulario.errors.get('assunto') }}" id="perf-plano-assunto"
+        name="assunto" type="text" maxlength="150" value="{{ formulario.fields.get('assunto', '') }}"{{ marcas('assunto') }} />
+      {{ erro('assunto') }}
+    </div>
+
+    <div class="field">
+      <label for="perf-plano-descricao">Descrição</label>
+      <textarea class="input{{ ' input--erro' if formulario.errors.get('descricao') }}" id="perf-plano-descricao"
+        name="descricao" rows="3" maxlength="600"{{ marcas('descricao') }}>{{ formulario.fields.get('descricao', '') }}</textarea>
+      {{ erro('descricao') }}
+    </div>
+
+    <div class="modal__actions">
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
+      <button type="submit" class="btn btn--primary">Gerar plano de ação</button>
+    </div>
+  </form>
+</div>

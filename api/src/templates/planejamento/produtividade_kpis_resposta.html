@@ -1,0 +1,8 @@
+{#
+  Resposta da gravação do plano de ação (ISSUE-048): o modal e a aba KPIs de uma vez. O
+  formulário declara os dois alvos e o Alpine AJAX esvazia o alvo declarado que não volta; por
+  isso as duas raízes vêm sempre, inclusive no 422 (o modal volta com as mensagens). Com o
+  modal vazio, fechou.
+#}
+{% include "planejamento/produtividade_modal.html" %}
+{% include "planejamento/produtividade_kpis.html" %}

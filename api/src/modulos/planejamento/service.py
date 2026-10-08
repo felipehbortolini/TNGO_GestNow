@@ -56,6 +56,15 @@ and the version; the second day of the same front is refused. The foreman is
 text typed by the inspector, as in the prototype, not a person register; the
 observer and the recorder of the record are people. Nothing here reads the clock
 (D6).
+
+The performance KPIs (ISSUE-048): ``performance_overview`` serves the KPIs tab —
+the general block and one per company (per project and company in the Portfólio)
+with the quantities of the window of N weeks until the cut, the field summaries
+of the same window, the schedule trend, the weekly trend of twelve weeks and the
+bands of the five indicators. ``create_performance_action`` opens the plan of
+action in the Central through the single seam (D9), one open action per company
+and week, referenced as ``PRD-2026-S39-01``; the Central links back to this tab
+with the company and the week. Nothing here reads the clock (D6).
 """
 
 from __future__ import annotations
@@ -70,7 +79,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from src.core import audit, calendario, rbac, recording, versioning
+from src.core import audit, calendario, origin_links, rbac, recording, versioning
 from src.core.audit import TrailLine
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.import_values import normalize_text
@@ -551,7 +560,12 @@ class _ItemRead:
 
 
 def _item_read(
-    record: ProductivityItem, *, lookups: _ItemLookups, cut_week: str, current_week: str
+    record: ProductivityItem,
+    *,
+    lookups: _ItemLookups,
+    cut_week: str,
+    current_week: str,
+    window_weeks: int = DEFAULT_WINDOW_WEEKS,
 ) -> _ItemRead:
     planned = _planned_of(record)
     reported = _reported_of(record)
@@ -564,6 +578,7 @@ def _item_read(
             reported=reported,
             cut_week=cut_week,
             current_week=current_week,
+            window_weeks=window_weeks,
         ),
         planned=planned,
         reported=reported,
@@ -578,6 +593,7 @@ def _item_view(
     reported: Sequence[calculations.ReportedWeek],
     cut_week: str,
     current_week: str,
+    window_weeks: int = DEFAULT_WINDOW_WEEKS,
 ) -> QuantityItemView:
     project = lookups.projects[record.project_id]
     start_week = calendario.iso_week(record.start)
@@ -595,7 +611,7 @@ def _item_view(
         reported=reported,
         cut_week=cut_week,
         current_week=current_week,
-        window_weeks=DEFAULT_WINDOW_WEEKS,
+        window_weeks=window_weeks,
     )
     return QuantityItemView(
         id=record.id,
@@ -7423,3 +7439,789 @@ def _stoppage_fields(
 
 def _clock(value: time) -> str:
     return value.strftime("%H:%M")
+
+
+# ── KPIs de performance da Produtividade (ISSUE-048) ──────────────────────
+
+
+PERFORMANCE_ACTION_GROUP = "Produtividade"
+
+
+PERFORMANCE_ACTION_DAYS = 14
+
+
+ACTION_ALREADY_OPEN_MESSAGE = "Já existe ação aberta na Central para esta empresa e semana."
+
+
+INDICATOR_LABELS: Mapping[str, str] = {
+    "adherence": "aderência",
+    "pf": "fator de produtividade",
+    "spi": "SPI de quantidades",
+    "working": "pessoas trabalhando",
+    "utilization": "utilização da jornada",
+}
+
+
+@dataclass(frozen=True)
+class PerformanceFilter:
+    """O filtro da aba KPIs: a empresa e a semana de corte (vazio é o padrão)."""
+
+    company_id: int | None = None
+    cut_week: str = ""
+
+
+@dataclass(frozen=True)
+class PerformanceActionRef:
+    """A ação aberta de uma empresa e semana: a referência e o endereço da lista da Central."""
+
+    reference: str
+    url: str | None
+
+
+@dataclass(frozen=True)
+class PerformanceBlock:
+    """Um bloco da performance: as quantidades, o campo, a tendência e os alertas do recorte."""
+
+    project_id: int | None
+    project_code: str
+    project_name: str
+    company_id: int | None
+    company_name: str
+    quantities: calculations.QuantityIndicators
+    capacity: calculations.CapacitySummary
+    sample: calculations.SampleShare
+    stoppages: calculations.StoppageSummary
+    schedule: calculations.ScheduleTrend
+    available_hh: Decimal
+    stoppage_share: Decimal | None
+    bands: calculations.PerformanceBands
+    alerts: tuple[str, ...]
+    attentions: tuple[str, ...]
+    trend: tuple[calculations.TrendWeek, ...]
+    action: PerformanceActionRef | None
+
+    @property
+    def project_label(self) -> str:
+        """``TN-2026-014 · Nome do projeto``: como o Portfólio nomeia o projeto de uma linha."""
+        return f"{self.project_code} · {self.project_name}"
+
+    @property
+    def label(self) -> str:
+        """O nome da série: a empresa, com o projeto antes dela no Portfólio."""
+        if not self.project_code:
+            return self.company_name
+        return f"{self.project_code} · {self.company_name}"
+
+    @property
+    def attention_keys(self) -> tuple[str, ...]:
+        """Os indicadores fora da faixa, os alertas antes dos pontos de atenção."""
+        return (*self.alerts, *self.attentions)
+
+    @property
+    def has_attention(self) -> bool:
+        """Se a empresa tem indicador fora da faixa: é o que oferece o plano de ação."""
+        return bool(self.attention_keys)
+
+
+@dataclass(frozen=True)
+class PerformanceOverview:
+    """A aba KPIs de performance: filtros, blocos, tendência semanal e os gráficos (D11)."""
+
+    reference_date: date
+    current_week: str
+    cut_week: str
+    cut_options: tuple[str, ...]
+    company_options: tuple[QuantityOption, ...]
+    filter: PerformanceFilter
+    window_weeks: tuple[str, ...]
+    trend_weeks: tuple[str, ...]
+    general: PerformanceBlock
+    selected: PerformanceBlock
+    companies: tuple[PerformanceBlock, ...]
+    adherence_chart: dict[str, Any]
+    working_chart: dict[str, Any]
+    parameters: ProductivityParameters
+    is_portfolio: bool
+    can_write: bool
+
+
+@dataclass(frozen=True)
+class PerformanceFormOptions:
+    """O que o formulário do plano oferece: as empresas e as pessoas do cadastro."""
+
+    companies: tuple[configuracoes.RegisterOption, ...]
+    people: tuple[configuracoes.RegisterOption, ...]
+
+
+@dataclass(frozen=True)
+class PerformanceFormView:
+    """O formulário do plano de ação pronto para o template: valores, opções e erros."""
+
+    fields: Mapping[str, str]
+    options: PerformanceFormOptions
+    errors: Mapping[str, str]
+    block: PerformanceBlock
+
+
+@dataclass(frozen=True)
+class _PerformanceContext:
+    """O que todos os blocos da aba leem: os fatos do escopo e o corte, carregados uma vez."""
+
+    session: Session
+    user: User
+    scope: Scope
+    lookups: _ItemLookups
+    reads: Sequence[_ItemRead]
+    hours_records: _HoursRecords
+    hours_lookups: _HoursLookups
+    parameters: ProductivityParameters
+    cut_week: str
+    reference_date: date
+    window_start: date | None
+    window_end: date
+    trend_weeks: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _PerformanceField:
+    """Os registros do campo de um recorte, já como a tela os lê."""
+
+    field_days: tuple[FieldDayView, ...]
+    samples: tuple[WorkSampleView, ...]
+    stoppages: tuple[StoppageView, ...]
+
+
+def performance_overview(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    performance_filter: PerformanceFilter | None = None,
+    reference_date: date,
+) -> PerformanceOverview:
+    """A aba KPIs de performance do escopo, na janela de N semanas até a semana de corte.
+
+    O bloco geral soma o escopo e cada empresa tem o seu (no Portfólio, por projeto e
+    empresa, para a coluna Projeto). Os indicadores de quantidades vêm da janela do
+    parâmetro; o campo, da mesma janela de datas, limitada à data de referência (D6).
+    """
+    rbac.require_module(user, MODULE)
+    chosen = performance_filter or PerformanceFilter()
+    parameters = productivity_parameters(session, reference_date=reference_date)
+    reference_week = calendario.iso_week(reference_date)
+    cut_week = _cut_week(chosen.cut_week, reference_week)
+    records = _items_in(session, scope)
+    lookups = _item_lookups(session, records)
+    reads = [
+        _item_read(
+            record,
+            lookups=lookups,
+            cut_week=cut_week,
+            current_week=reference_week,
+            window_weeks=parameters.window_weeks,
+        )
+        for record in records
+    ]
+    hours_records = _hours_records(session, scope)
+    hours_lookups = _hours_lookups(session, hours_records)
+    window_start, window_end = calculations.hours_window(
+        calculations.PERIOD_WINDOW,
+        cut_week=cut_week,
+        window_weeks=parameters.window_weeks,
+        reference_date=reference_date,
+    )
+    context = _PerformanceContext(
+        session=session,
+        user=user,
+        scope=scope,
+        lookups=lookups,
+        reads=reads,
+        hours_records=hours_records,
+        hours_lookups=hours_lookups,
+        parameters=parameters,
+        cut_week=cut_week,
+        reference_date=reference_date,
+        window_start=window_start,
+        window_end=window_end,
+        trend_weeks=_performance_trend_weeks(cut_week),
+    )
+    general = _performance_block(
+        context, project_id=_performance_project_id(scope), company_id=None
+    )
+    companies = tuple(
+        _performance_block(context, project_id=project_id, company_id=company_id)
+        for project_id, company_id in _performance_groups(context)
+    )
+    adherence_chart, working_chart = _performance_charts(context, companies=companies)
+    return PerformanceOverview(
+        reference_date=reference_date,
+        current_week=reference_week,
+        cut_week=cut_week,
+        cut_options=_cut_options(records, reference_week),
+        company_options=_performance_company_options(context),
+        filter=PerformanceFilter(company_id=chosen.company_id, cut_week=cut_week),
+        window_weeks=_performance_window_weeks(cut_week, parameters.window_weeks),
+        trend_weeks=context.trend_weeks,
+        general=general,
+        selected=_performance_selected(
+            context, chosen=chosen, general=general, companies=companies
+        ),
+        companies=companies,
+        adherence_chart=adherence_chart,
+        working_chart=working_chart,
+        parameters=parameters,
+        is_portfolio=scope.is_portfolio,
+        can_write=rbac.can(user, Permission.WRITE),
+    )
+
+
+def _performance_project_id(scope: Scope) -> int | None:
+    return None if scope.is_portfolio else scope.project_id
+
+
+def _performance_trend_weeks(cut_week: str) -> tuple[str, ...]:
+    first = calculations.shift_week(cut_week, -(calculations.TREND_WEEKS - 1)) or cut_week
+    return calculations.list_weeks(first, cut_week)
+
+
+def _performance_window_weeks(cut_week: str, window_weeks: int) -> tuple[str, ...]:
+    first = calculations.shift_week(cut_week, -(window_weeks - 1)) or cut_week
+    return calculations.list_weeks(first, cut_week)
+
+
+def _performance_groups(context: _PerformanceContext) -> tuple[tuple[int | None, int], ...]:
+    """Os recortes por empresa (por projeto e empresa no Portfólio), na ordem da tela."""
+    portfolio = context.scope.is_portfolio
+    project_id = _performance_project_id(context.scope)
+    keys = {
+        (read.record.project_id if portfolio else project_id, read.view.company_id)
+        for read in context.reads
+    }
+    for records in context.hours_records:
+        for record in records:
+            keys.add((record.project_id if portfolio else project_id, record.company_id))
+
+    def order(key: tuple[int | None, int]) -> tuple[str, str, int]:
+        project = context.lookups.projects.get(key[0]) if key[0] is not None else None
+        return (
+            project.code if project is not None else "",
+            context.lookups.companies.get(key[1], ""),
+            key[1],
+        )
+
+    return tuple(sorted(keys, key=order))
+
+
+def _performance_company_options(context: _PerformanceContext) -> tuple[QuantityOption, ...]:
+    ids = {read.view.company_id for read in context.reads}
+    for records in context.hours_records:
+        for record in records:
+            ids.add(record.company_id)
+    return tuple(
+        QuantityOption(value=str(company_id), label=name)
+        for company_id in sorted(ids)
+        if (name := context.lookups.companies.get(company_id, ""))
+    )
+
+
+def _performance_selected(
+    context: _PerformanceContext,
+    *,
+    chosen: PerformanceFilter,
+    general: PerformanceBlock,
+    companies: Sequence[PerformanceBlock],
+) -> PerformanceBlock:
+    """O bloco que a faixa de indicadores mostra: o geral ou o da empresa filtrada."""
+    if chosen.company_id is None:
+        return general
+    if context.scope.is_portfolio:
+        return _performance_block(context, project_id=None, company_id=chosen.company_id)
+    return next((block for block in companies if block.company_id == chosen.company_id), general)
+
+
+def _performance_block(
+    context: _PerformanceContext,
+    *,
+    project_id: int | None,
+    company_id: int | None,
+) -> PerformanceBlock:
+    """Um recorte da performance: quantidades, campo, tendência, faixas e ação aberta."""
+    approved = [
+        read
+        for read in context.reads
+        if read.view.approved
+        and (project_id is None or read.record.project_id == project_id)
+        and (company_id is None or read.view.company_id == company_id)
+    ]
+    window = _performance_field(
+        context,
+        project_id=project_id,
+        company_id=company_id,
+        start=context.window_start,
+        end=context.window_end,
+    )
+    quantities = calculations.quantities_indicators([read.view.figures for read in approved])
+    capacity = calculations.capacity_summary(
+        [view.figures for view in window.field_days],
+        daily_hours=context.parameters.daily_hours,
+    )
+    sample = calculations.sample_share(
+        [
+            calculations.SampleCounts(
+                working=view.working, transit=view.transit, stopped=view.stopped
+            )
+            for view in window.samples
+        ]
+    )
+    stoppages = calculations.stoppage_summary([view.figures for view in window.stoppages])
+    available_exact = sum(
+        (Decimal(view.crew) * context.parameters.daily_hours for view in window.field_days),
+        Decimal(0),
+    )
+    available = calculations.round_quantity(available_exact, 0)
+    bands = _performance_bands(
+        quantities, sample=sample, capacity=capacity, parameters=context.parameters
+    )
+    alerts, attentions = calculations.performance_alerts(bands)
+    earned = sum((read.view.figures.earned_hours for read in approved), Decimal(0))
+    project = context.lookups.projects.get(project_id) if project_id is not None else None
+    return PerformanceBlock(
+        project_id=project_id,
+        project_code=project.code if project is not None else "",
+        project_name=project.name if project is not None else "",
+        company_id=company_id,
+        company_name=(
+            context.lookups.companies.get(company_id, "") if company_id is not None else ""
+        ),
+        quantities=quantities,
+        capacity=capacity,
+        sample=sample,
+        stoppages=stoppages,
+        schedule=calculations.schedule_trend(
+            _performance_planned_hours(approved), earned, cut_week=context.cut_week
+        ),
+        available_hh=available,
+        stoppage_share=calculations.stoppage_share(stoppages.crew_hours, available_exact),
+        bands=bands,
+        alerts=alerts,
+        attentions=attentions,
+        trend=_performance_trend(
+            context, approved=approved, project_id=project_id, company_id=company_id
+        ),
+        action=_open_performance_action(
+            context.session,
+            user=context.user,
+            project_id=project_id,
+            company_id=company_id,
+            cut_week=context.cut_week,
+            reference_date=context.reference_date,
+        ),
+    )
+
+
+def _performance_bands(
+    quantities: calculations.QuantityIndicators,
+    *,
+    sample: calculations.SampleShare,
+    capacity: calculations.CapacitySummary,
+    parameters: ProductivityParameters,
+) -> calculations.PerformanceBands:
+    return calculations.PerformanceBands(
+        adherence=calculations.indicator_band(
+            quantities.window_adherence, parameters.adherence_bands, higher_is_better=True
+        ),
+        pf=calculations.indicator_band(
+            quantities.pf_window, parameters.pf_bands, higher_is_better=False
+        ),
+        spi=calculations.indicator_band(
+            quantities.spi, parameters.spi_bands, higher_is_better=True
+        ),
+        working=calculations.working_band(sample.working_pct, target=parameters.working_pct),
+        utilization=calculations.utilization_band(
+            capacity.utilization, target=parameters.utilization_pct
+        ),
+    )
+
+
+def _performance_planned_hours(
+    approved: Sequence[_ItemRead],
+) -> tuple[calculations.PlannedHours, ...]:
+    """O previsto da LB somado por semana, em horas ganhas: a base do SPI(t) agregado."""
+    hours: dict[str, Decimal] = {}
+    for read in approved:
+        for line in read.planned:
+            hours[line.week] = hours.get(line.week, Decimal(0)) + line.planned * read.view.index_hh
+    return tuple(calculations.PlannedHours(week=week, hours=hours[week]) for week in sorted(hours))
+
+
+def _performance_field_records(
+    context: _PerformanceContext,
+    *,
+    project_id: int | None,
+    company_id: int | None,
+    start: date | None,
+    end: date | None,
+    week: str | None,
+) -> _HoursRecords:
+    def keep(record: FieldDay | WorkSample | Stoppage) -> bool:
+        if project_id is not None and record.project_id != project_id:
+            return False
+        if company_id is not None and record.company_id != company_id:
+            return False
+        if start is not None and record.day < start:
+            return False
+        if end is not None and record.day > end:
+            return False
+        return week is None or calendario.iso_week(record.day) == week
+
+    records = context.hours_records
+    return (
+        [record for record in records[0] if keep(record)],
+        [record for record in records[1] if keep(record)],
+        [record for record in records[2] if keep(record)],
+    )
+
+
+def _performance_field(
+    context: _PerformanceContext,
+    *,
+    project_id: int | None,
+    company_id: int | None,
+    start: date | None = None,
+    end: date | None = None,
+    week: str | None = None,
+) -> _PerformanceField:
+    records = _performance_field_records(
+        context,
+        project_id=project_id,
+        company_id=company_id,
+        start=start,
+        end=end,
+        week=week,
+    )
+    return _PerformanceField(
+        field_days=tuple(
+            _field_day_views(records[0], context.hours_lookups, parameters=context.parameters)
+        ),
+        samples=tuple(_sample_views(records[1], context.hours_lookups)),
+        stoppages=tuple(_stoppage_views(records[2], context.hours_lookups)),
+    )
+
+
+def _performance_trend(
+    context: _PerformanceContext,
+    *,
+    approved: Sequence[_ItemRead],
+    project_id: int | None,
+    company_id: int | None,
+) -> tuple[calculations.TrendWeek, ...]:
+    """A tendência semanal por empresa: FP, aderência, % trabalhando e CP de cada semana."""
+    rows: dict[str, calculations.TrendInput] = {}
+    for week in context.trend_weeks:
+        data = _performance_trend_input(
+            context, week=week, approved=approved, project_id=project_id, company_id=company_id
+        )
+        if data is not None:
+            rows[week] = data
+    return calculations.weekly_trend(context.trend_weeks, rows)
+
+
+def _performance_trend_input(
+    context: _PerformanceContext,
+    *,
+    week: str,
+    approved: Sequence[_ItemRead],
+    project_id: int | None,
+    company_id: int | None,
+) -> calculations.TrendInput | None:
+    appropriated = Decimal(0)
+    earned = Decimal(0)
+    planned = Decimal(0)
+    capped = Decimal(0)
+    has_entry = False
+    for read in approved:
+        entry = next((line for line in read.reported if line.week == week), None)
+        if entry is None:
+            continue
+        has_entry = True
+        planned_week = next(
+            (line.planned for line in read.planned if line.week == week), Decimal(0)
+        )
+        appropriated += entry.hh
+        earned += entry.realized * read.view.index_hh
+        planned += planned_week * read.view.index_hh
+        capped += min(entry.realized, planned_week) * read.view.index_hh
+    field = _performance_field(context, project_id=project_id, company_id=company_id, week=week)
+    share = calculations.sample_share(
+        [
+            calculations.SampleCounts(
+                working=view.working, transit=view.transit, stopped=view.stopped
+            )
+            for view in field.samples
+        ]
+    )
+    if not has_entry and not field.field_days and not field.samples:
+        return None
+    return calculations.TrendInput(
+        appropriated=appropriated,
+        earned=earned,
+        planned=planned,
+        capped=capped,
+        working=share.working,
+        transit=share.transit,
+        stopped=share.stopped,
+        capacities=tuple(view.figures.capacity for view in field.field_days),
+    )
+
+
+def _performance_charts(
+    context: _PerformanceContext, *, companies: Sequence[PerformanceBlock]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    adherence = [
+        calculations.TrendSeries(
+            label=block.label, ratios=tuple(row.adherence_ratio for row in block.trend)
+        )
+        for block in companies
+    ]
+    working = [
+        calculations.TrendSeries(
+            label=block.label, ratios=tuple(row.working_ratio for row in block.trend)
+        )
+        for block in companies
+    ]
+    return (
+        calculations.ratio_chart(
+            "Aderência semanal por empresa",
+            weeks=context.trend_weeks,
+            series=adherence,
+            target=context.parameters.adherence_bands[1],
+            target_label="Meta",
+        ),
+        calculations.ratio_chart(
+            "% trabalhando por empresa",
+            weeks=context.trend_weeks,
+            series=working,
+            target=context.parameters.working_pct,
+            target_label="Meta",
+        ),
+    )
+
+
+def _open_performance_action(
+    session: Session,
+    *,
+    user: User,
+    project_id: int | None,
+    company_id: int | None,
+    cut_week: str,
+    reference_date: date,
+) -> PerformanceActionRef | None:
+    """A ação aberta da empresa na semana do corte, se houver (uma por empresa e semana)."""
+    if project_id is None or company_id is None:
+        return None
+    from src.modulos.central_acoes import calculations as central_calculations
+    from src.modulos.central_acoes import service as central_service
+    from src.modulos.central_acoes.validation import ActionFilters
+
+    reference = calculations.performance_action_reference(company_id, cut_week)
+    listing = central_service.list_actions(
+        session,
+        user=user,
+        scope=Scope(project_id=project_id, source="url"),
+        filters=ActionFilters(
+            search=reference,
+            origin=calculations.PERFORMANCE_ORIGIN,
+            status=central_calculations.StatusFilter.ALL,
+        ),
+        reference_date=reference_date,
+    )
+    found = next(
+        (
+            row.record
+            for row in listing.rows
+            if row.record.origin_ref == reference
+            and row.record.status is not central_calculations.ActionStatus.COMPLETED
+        ),
+        None,
+    )
+    if found is None:
+        return None
+    return PerformanceActionRef(
+        reference=reference,
+        url=origin_links.link_to_screen("central_acoes/acoes", busca=reference),
+    )
+
+
+def performance_action_form(
+    session: Session,
+    *,
+    user: User,
+    block: PerformanceBlock,
+    cut_week: str,
+    window_weeks: int,
+    form: validation.ActionPlanForm | None = None,
+    reference_date: date,
+    errors: Mapping[str, str] | None = None,
+) -> PerformanceFormView:
+    """O formulário do plano de ação: sugerido pelos indicadores da empresa, ou com o digitado."""
+    rbac.require_module(user, MODULE)
+    return PerformanceFormView(
+        fields=_action_plan_fields(
+            block,
+            cut_week=cut_week,
+            window_weeks=window_weeks,
+            form=form,
+            reference_date=reference_date,
+        ),
+        options=PerformanceFormOptions(
+            companies=tuple(configuracoes.list_company_options(session)),
+            people=tuple(configuracoes.list_person_options(session)),
+        ),
+        errors=errors or {},
+        block=block,
+    )
+
+
+def _action_plan_fields(
+    block: PerformanceBlock,
+    *,
+    cut_week: str,
+    window_weeks: int,
+    form: validation.ActionPlanForm | None,
+    reference_date: date,
+) -> dict[str, str]:
+    if form is not None:
+        return dict(form.fields)
+    points = "; ".join(_indicator_suggestion(key, block) for key in block.attention_keys)
+    subject = (
+        f"Recuperar a produtividade: {block.company_name} ({_short_week(cut_week, reference_date)})"
+    )
+    description = (
+        f"Indicadores fora da faixa na janela de avaliação ({window_weeks} semanas): {points}. "
+        "Causas principais e contramedidas a definir com a contratada."
+    )
+    return {
+        validation.FIELD_PLAN_COMPANY: ("" if block.company_id is None else str(block.company_id)),
+        validation.FIELD_PLAN_SUBJECT: subject,
+        validation.FIELD_PLAN_DESCRIPTION: description,
+        validation.FIELD_PLAN_RESPONSIBLE: "",
+        validation.FIELD_PLAN_DATE: calendario.add_days(
+            reference_date, PERFORMANCE_ACTION_DAYS
+        ).isoformat(),
+    }
+
+
+def _indicator_suggestion(key: str, block: PerformanceBlock) -> str:
+    """O indicador fora da faixa como o texto sugerido do plano o escreve."""
+    if key == "adherence":
+        value = f"{_plain_number(block.quantities.window_adherence, 0)}%"
+    elif key == "pf":
+        value = _plain_number(block.quantities.pf_window, 2)
+    elif key == "spi":
+        value = _plain_number(block.quantities.spi, 2)
+    elif key == "working":
+        value = f"{_plain_number(block.sample.working_pct, 1)}%"
+    else:
+        value = f"{_plain_number(block.capacity.utilization, 1)}%"
+    return f"{INDICATOR_LABELS[key]} {value}"
+
+
+def _plain_number(value: Decimal | None, places: int) -> str:
+    if value is None:
+        return "·"
+    return f"{value:.{places}f}".replace(".", ",")
+
+
+def _short_week(week: str, reference_date: date) -> str:
+    """A semana curta como a tela a lê: ``S39``, com o sufixo do ano quando muda."""
+    year, _, number = week.partition("-S")
+    short = f"S{number}"
+    return short if year == str(reference_date.year) else f"{short}/{year[2:]}"
+
+
+def _action_plan_choices(session: Session) -> validation.ActionPlanChoices:
+    """As escolhas do plano: as empresas e as pessoas do cadastro."""
+    return validation.ActionPlanChoices(
+        company_ids=frozenset(option.id for option in configuracoes.list_company_options(session)),
+        person_ids=frozenset(option.id for option in configuracoes.list_person_options(session)),
+    )
+
+
+def create_performance_action(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    form: validation.ActionPlanForm,
+    cut_week: str,
+    reference_date: date,
+) -> PerformanceActionRef:
+    """Cria o plano de ação na Central, pela costura única (D9), uma ação aberta por semana.
+
+    A referência é a semana e a empresa (``PRD-2026-S39-01``); a segunda tentativa da mesma
+    empresa e semana é recusada com 422. A ação nasce no projeto do escopo, no grupo
+    Produtividade, com o item seguinte da referência.
+    """
+    rbac.require(user, Permission.WRITE)
+    from src.modulos.central_acoes import service as central_service
+    from src.modulos.central_acoes.validation import NewAction
+
+    data = validation.parse_action_plan(
+        form, _action_plan_choices(session), reference_date=reference_date
+    )
+    project_id = scope.require_project()
+    resolved = _cut_week(cut_week, calendario.iso_week(reference_date))
+    if (
+        _open_performance_action(
+            session,
+            user=user,
+            project_id=project_id,
+            company_id=data.company_id,
+            cut_week=resolved,
+            reference_date=reference_date,
+        )
+        is not None
+    ):
+        raise InvalidDataError(ACTION_ALREADY_OPEN_MESSAGE)
+    reference = calculations.performance_action_reference(data.company_id, resolved)
+    central_service.create_action(
+        session,
+        user=user,
+        new=NewAction(
+            project_id=project_id,
+            origin=calculations.PERFORMANCE_ORIGIN,
+            origin_ref=reference,
+            subject=data.subject,
+            description=data.description,
+            requester_id=user.person_id,
+            responsible_id=data.responsible_id,
+            planned_date=data.planned_date,
+            group=PERFORMANCE_ACTION_GROUP,
+            item=central_service.next_origin_item(
+                session, origin_kind=calculations.PERFORMANCE_ORIGIN, reference=reference
+            ),
+        ),
+        reference_date=reference_date,
+    )
+    return PerformanceActionRef(
+        reference=reference,
+        url=origin_links.link_to_screen("central_acoes/acoes", busca=reference),
+    )
+
+
+def _performance_action_link(reference: origin_links.OriginRef) -> str | None:
+    """O endereço de volta da ação da Central: a aba KPIs com a empresa e a semana."""
+    parts = calculations.performance_action_parts(reference.reference)
+    if parts is None:
+        return None
+    cut_week, company_id = parts
+    return origin_links.link_to_screen(
+        "planejamento/produtividade", aba="kpis", empresa=company_id, corte=cut_week
+    )
+
+
+origin_links.register(
+    origin_links.OriginLinkType(
+        kind=calculations.PERFORMANCE_ORIGIN, build=_performance_action_link
+    )
+)

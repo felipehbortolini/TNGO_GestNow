@@ -1,10 +1,11 @@
 {#
-  Produtividade (ISSUE-046/047): os blocos que a tela pede ao abrir — filtros, conteúdo da aba
-  Quantidades e a aba Horas efetivas. A resposta traz as raízes irmãs (ids fixos, de propósito:
-  a view declara `x-target="produtividade-filtros produtividade-conteudo produtividade-horas"`).
-  As abas moram na view; cada painel pede o seu conteúdo quando o filtro dele muda.
-  Espera: o contexto das quantidades e o das horas (ver routes.py).
+  Produtividade (ISSUE-046/047/048): os blocos que a tela pede ao abrir — filtros, conteúdo da
+  aba Quantidades, a aba Horas efetivas e a aba KPIs de performance. A resposta traz as raízes
+  irmãs (ids fixos, de propósito: a view declara os quatro alvos). As abas moram na view; cada
+  painel pede o seu conteúdo quando o filtro dele muda.
+  Espera: o contexto das quantidades, o das horas e o dos KPIs (ver routes.py).
 #}
 {% include "planejamento/produtividade_filtros.html" %}
 {% include "planejamento/produtividade_conteudo.html" %}
 {% include "planejamento/produtividade_horas.html" %}
+{% include "planejamento/produtividade_kpis.html" %}

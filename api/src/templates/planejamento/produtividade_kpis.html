@@ -1,0 +1,323 @@
+{#
+  Aba KPIs de performance da Produtividade (ISSUE-048): os filtros da aba (Empresa e Semana de
+  corte), a faixa de indicadores do bloco selecionado, a tabela por empresa com a situação e o
+  plano de ação na Central, a tendência semanal por empresa e os dois gráficos da biblioteca
+  (D11). O servidor calcula tudo (D6); o fragmento não traz <script>. Raiz fixa
+  `produtividade-kpis`.
+  Espera: performance, filtro_performance, api_performance, rotulo_semana, semana_curta, indice,
+  percentual, horas_num, tom, rotulo_indicador, faixa_*.
+#}
+{% set bloco = performance.selected %}
+{% set parametros = performance.parameters %}
+{% set consulta = '?empresa=' ~ filtro_performance.empresa ~ '&corte=' ~ filtro_performance.corte %}
+<div id="produtividade-kpis">
+  <form class="toolbar produtividade__filtros" method="get" action="{{ api_performance }}"
+    x-target="produtividade-kpis" role="search" aria-label="Filtros dos KPIs de performance" x-data
+    @change="$el.requestSubmit()">
+    <div class="field">
+      <label class="sr-only" for="perf-empresa">Empresa</label>
+      <select id="perf-empresa" name="empresa" class="input">
+        <option value="">Todas as empresas</option>
+        {% for opcao in performance.company_options %}
+        <option value="{{ opcao.value }}"{% if opcao.value == filtro_performance.empresa %} selected{% endif %}>{{ opcao.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label class="sr-only" for="perf-corte">Semana de corte</label>
+      <select id="perf-corte" name="corte" class="input">
+        {% for semana in performance.cut_options | reverse %}
+        <option value="{{ semana }}"{% if semana == performance.cut_week %} selected{% endif %}>Corte {{ rotulo_semana(semana) }}{% if semana == performance.current_week %} (atual){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn--secondary">Filtrar</button>
+  </form>
+
+  <div class="produtividade__barra">
+    <p class="hint produtividade__contexto">
+      Janela de avaliação: {{ semana_curta(performance.window_weeks[0]) }} a {{ semana_curta(performance.window_weeks[-1]) }}
+      ({{ performance.window_weeks | length }} semanas) · quantidades acumuladas até o corte {{ semana_curta(performance.cut_week) }}
+      · tendência das últimas {{ performance.trend_weeks | length }} semanas
+    </p>
+    <div class="produtividade__inclusao">
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_performance }}/excel{{ consulta }}">Excel</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_performance }}/imprimivel{{ consulta }}">PDF</button>
+    </div>
+  </div>
+
+  <h2 class="produtividade__secao">
+    {% if bloco.company_id %}Performance: {{ bloco.company_name }}{% else %}Performance geral{% endif %}
+  </h2>
+  <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores de performance">
+    <div class="kpi kpi--{{ tom(faixa_spi(bloco.quantities.spi)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('trendingUp', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Avanço por quantidades
+        <span class="produtividade__nota">Previsto: {{ percentual(bloco.quantities.pct_prev) }}</span>
+        <span class="produtividade__nota">em horas ganhas</span>
+      </span>
+      <span class="kpi__value">{{ percentual(bloco.quantities.pct_real) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_spi(bloco.quantities.spi)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('curve', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">SPI de quantidades
+        <span class="produtividade__nota">Meta: ≥ {{ indice(parametros.spi_bands[1]) }}</span>
+        <span class="produtividade__nota">horas ganhas ÷ previstas na LB</span>
+      </span>
+      <span class="kpi__value">{{ indice(bloco.quantities.spi) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_aderencia(bloco.quantities.window_adherence)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('target', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Aderência ({{ parametros.window_weeks }} semanas)
+        <span class="produtividade__nota">Meta: ≥ {{ percentual(parametros.adherence_bands[1], 0) }}</span>
+        <span class="produtividade__nota">semana de corte: {{ percentual(bloco.quantities.week_adherence, 0) }}</span>
+      </span>
+      <span class="kpi__value">{{ percentual(bloco.quantities.window_adherence) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_pf(bloco.quantities.pf_window)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('gauge', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Fator de produtividade
+        <span class="produtividade__nota">Meta: ≤ {{ indice(parametros.pf_bands[0]) }}</span>
+        <span class="produtividade__nota">acumulado {{ indice(bloco.quantities.pf) }} · 1,00 = orçado</span>
+      </span>
+      <span class="kpi__value">{{ indice(bloco.quantities.pf_window) }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--erro' if bloco.schedule.slip_weeks and bloco.schedule.slip_weeks > 0 else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Tendência de atraso
+        <span class="produtividade__nota">Esperado: 0 semanas</span>
+        <span class="produtividade__nota">SPI(t) {{ indice(bloco.schedule.spi_t) }} · {{ bloco.quantities.pending }} apontamento(s) pendente(s)</span>
+      </span>
+      <span class="kpi__value">{{ bloco.schedule.slip_weeks if bloco.schedule.slip_weeks is not none else '·' }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_utilizacao(bloco.capacity.utilization)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Capacidade produtiva
+        <span class="produtividade__nota">Meta: ≥ {{ horas_num(parametros.daily_hours * parametros.utilization_pct / 100, 2) }} h/dia</span>
+        <span class="produtividade__nota">utilização {{ percentual(bloco.capacity.utilization) }}</span>
+      </span>
+      <span class="kpi__value">{{ horas_num(bloco.capacity.capacity, 2) }}</span>
+    </div>
+    <div class="kpi kpi--{{ tom(faixa_trabalho(bloco.sample.working_pct)) }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('hardHat', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Pessoas trabalhando
+        <span class="produtividade__nota">Meta: ≥ {{ percentual(parametros.working_pct, 0) }}</span>
+        <span class="produtividade__nota">parado {{ percentual(bloco.sample.stopped_pct) }}</span>
+      </span>
+      <span class="kpi__value">{{ percentual(bloco.sample.working_pct) }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--warn' if bloco.stoppages.crew_hours else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Efetivo paralisado
+        <span class="produtividade__nota">Esperado: 0</span>
+        <span class="produtividade__nota">{{ percentual(bloco.stoppage_share, 2) }} das HH disponíveis · cliente {{ horas_num(bloco.stoppages.client_hours, 1) }}</span>
+      </span>
+      <span class="kpi__value">{{ horas_num(bloco.stoppages.crew_hours, 1) }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--warn' if bloco.stoppages.machine_hours else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">Máquinas e equipamentos parados
+        <span class="produtividade__nota">Esperado: 0</span>
+        <span class="produtividade__nota">{{ bloco.stoppages.events }} evento(s) de paralisação</span>
+      </span>
+      <span class="kpi__value">{{ horas_num(bloco.stoppages.machine_hours, 1) }}</span>
+    </div>
+    <div class="kpi {{ 'kpi--warn' if bloco.capacity.idle_hh else 'kpi--ok' }} kpi--estatico">
+      <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
+      <span class="kpi__label">HH improdutivas na frente
+        <span class="produtividade__nota">Esperado: 0</span>
+        <span class="produtividade__nota">(jornada − CP) x efetivo</span>
+      </span>
+      <span class="kpi__value">{{ horas_num(bloco.capacity.idle_hh, 0) }}</span>
+    </div>
+  </div>
+
+  <section class="card produtividade__plano" aria-labelledby="perf-t-empresas">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="perf-t-empresas">Performance por empresa</h2>
+        <span class="hint">Situação pela faixa dos parâmetros; a empresa com indicador fora da faixa pode gerar o plano de ação na Central</span>
+      </div>
+    </div>
+    {% if not performance.companies %}
+    <div class="card__body"><p class="muted">Nenhuma empresa com dados de produtividade no filtro.</p></div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Indicadores de performance por empresa</caption>
+        <thead>
+          <tr>
+            {% if performance.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Empresa</th>
+            <th scope="col" class="td-num">Avanço real x prev.</th>
+            <th scope="col" class="td-num">SPI</th>
+            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col" class="td-num">FP</th>
+            <th scope="col" class="td-num">CP (h/dia)</th>
+            <th scope="col" class="td-num">% trabalhando</th>
+            <th scope="col" class="td-num">Hhora parada</th>
+            <th scope="col" class="td-num">Mhora parada</th>
+            <th scope="col">Situação</th>
+            <th scope="col"><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in performance.companies %}
+          <tr>
+            {% if performance.is_portfolio %}
+            <td><span class="pill pill--neutral">{{ linha.project_code }}</span> <span class="body-txt">{{ linha.project_name }}</span></td>
+            {% endif %}
+            <td class="fw-600">{{ linha.company_name }}</td>
+            <td class="td-num num">{{ percentual(linha.quantities.pct_real) }} / {{ percentual(linha.quantities.pct_prev) }}</td>
+            <td class="td-num">
+              {% if linha.quantities.spi is not none %}
+              <span class="pill pill--{{ tom(faixa_spi(linha.quantities.spi)) | replace('info', 'neutral') }}">{{ indice(linha.quantities.spi) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num">
+              {% if linha.quantities.window_adherence is not none %}
+              <span class="pill pill--{{ tom(faixa_aderencia(linha.quantities.window_adherence)) | replace('info', 'neutral') }}">{{ percentual(linha.quantities.window_adherence, 0) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num">
+              {% if linha.quantities.pf_window is not none %}
+              <span class="pill pill--{{ tom(faixa_pf(linha.quantities.pf_window)) | replace('info', 'neutral') }}">{{ indice(linha.quantities.pf_window) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num">
+              {% if linha.capacity.capacity is not none %}
+              <span class="pill pill--{{ tom(faixa_utilizacao(linha.capacity.utilization)) | replace('info', 'neutral') }}">{{ horas_num(linha.capacity.capacity, 2) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num">
+              {% if linha.sample.working_pct is not none %}
+              <span class="pill pill--{{ tom(faixa_trabalho(linha.sample.working_pct)) | replace('info', 'neutral') }}">{{ percentual(linha.sample.working_pct) }}</span>
+              {% else %}·{% endif %}
+            </td>
+            <td class="td-num num">{{ horas_num(linha.stoppages.crew_hours, 1) }}</td>
+            <td class="td-num num">{{ horas_num(linha.stoppages.machine_hours, 1) }}</td>
+            <td>
+              {% if linha.alerts %}
+              <span class="pill pill--erro">{{ linha.alerts | length }} alerta(s)</span>
+              {% elif linha.attentions %}
+              <span class="pill pill--warn">{{ linha.attentions | length }} ponto(s) de atenção</span>
+              {% else %}
+              <span class="pill pill--ok">No plano</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if linha.action %}
+              <a class="btn btn--ghost btn--icon btn--sm" href="{{ linha.action.url }}" data-tn-tela
+                aria-label="Ver a ação {{ linha.action.reference }} na Central" title="Ver ação na Central ({{ linha.action.reference }})"
+                x-init="$el.innerHTML = window.icon('actions', 18)"></a>
+              {% elif performance.can_write and linha.has_attention and linha.company_id %}
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" data-tn-incluir="plano"
+                data-prod-acao="plano" data-prod-empresa="{{ linha.company_id }}" data-prod-corte="{{ performance.cut_week }}"
+                aria-label="Gerar plano de ação de {{ linha.company_name }}" title="Gerar plano de ação"
+                x-init="$el.innerHTML = window.icon('add', 18)"></button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card produtividade__lista" aria-labelledby="perf-t-tendencia">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="perf-t-tendencia">Tendência semanal por empresa</h2>
+        <span class="hint">Últimas {{ performance.trend_weeks | length }} semanas até o corte: FP, aderência, % trabalhando e CP</span>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Tendência semanal por empresa</caption>
+        <thead>
+          <tr>
+            <th scope="col">Semana</th>
+            {% if performance.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Empresa</th>
+            <th scope="col" class="td-num">FP</th>
+            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col" class="td-num">% trabalhando</th>
+            <th scope="col" class="td-num">CP (h/dia)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for semana in performance.trend_weeks | reverse %}
+          {% for linha in performance.companies %}
+          {% set dados = linha.trend | selectattr('week', 'equalto', semana) | first %}
+          {% if dados and (dados.pf is not none or dados.adherence is not none or dados.working_pct is not none or dados.capacity is not none) %}
+          <tr>
+            <td>{{ semana_curta(semana) }}</td>
+            {% if performance.is_portfolio %}
+            <td><span class="pill pill--neutral">{{ linha.project_code }}</span> <span class="body-txt">{{ linha.project_name }}</span></td>
+            {% endif %}
+            <td>{{ linha.company_name }}</td>
+            <td class="td-num num">{{ indice(dados.pf) }}</td>
+            <td class="td-num num">{{ percentual(dados.adherence) }}</td>
+            <td class="td-num num">{{ percentual(dados.working_pct) }}</td>
+            <td class="td-num num">{{ horas_num(dados.capacity, 2) }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="produtividade__graficos">
+    <section class="card" aria-labelledby="perf-t-ader">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="perf-t-ader">Aderência semanal por empresa</h2>
+          <span class="hint">Realizado limitado ao previsto, ponderado pelas HH orçadas; a meta em tracejado</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="produtividade__grafico" data-grafico="curva-s-linha" data-dados='{{ performance.adherence_chart | tojson }}'></div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="perf-t-trab">
+      <div class="card__head">
+        <div>
+          <h2 class="h-card4" id="perf-t-trab">% trabalhando por empresa</h2>
+          <span class="hint">Pessoas trabalhando nas rodadas de observação; a meta em tracejado</span>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="produtividade__grafico" data-grafico="curva-s-linha" data-dados='{{ performance.working_chart | tojson }}'></div>
+      </div>
+    </section>
+  </div>
+
+  <details class="produtividade__definicoes">
+    <summary class="h-card5">Como os indicadores são calculados</summary>
+    <dl class="produtividade__dl">
+      <dt>Horas ganhas (HG)</dt>
+      <dd>Quantidade realizada x índice orçado (HH por unidade): soma cabos, concreto, aço, tubulação e painéis na mesma base.</dd>
+      <dt>Avanço por quantidades</dt>
+      <dd>HG acumuladas ÷ HH orçadas do total da LB; o previsto é a quantidade prevista acumulada x índice ÷ HH orçadas.</dd>
+      <dt>SPI de quantidades</dt>
+      <dd>HG ÷ horas previstas na LB até a semana de corte (1,00 = no plano; abaixo = atrasado).</dd>
+      <dt>Aderência semanal</dt>
+      <dd>Realizado ÷ previsto da semana, limitado a 100% por item e ponderado pelas HH orçadas; faixas {{ percentual(parametros.adherence_bands[0], 0) }} e {{ percentual(parametros.adherence_bands[1], 0) }}.</dd>
+      <dt>Fator de produtividade (FP)</dt>
+      <dd>HH apropriadas pela contratada ÷ horas ganhas; 1,00 = índice da proposta; alerta acima de {{ indice(parametros.pf_bands[0]) }}.</dd>
+      <dt>Tendência de atraso</dt>
+      <dd>Prazo agregado (earned schedule): semanas da LB equivalentes ao realizado ÷ semanas decorridas = SPI(t); o atraso compara o término projetado com o fim da LB.</dd>
+      <dt>Capacidade produtiva (CP)</dt>
+      <dd>Execução da manhã + da tarde por jornada; utilização = CP ÷ jornada de {{ horas_num(parametros.daily_hours, 1) }} h.</dd>
+      <dt>% trabalhando</dt>
+      <dd>Pessoas trabalhando sobre as observadas nas rodadas da amostragem; meta de {{ percentual(parametros.working_pct, 0) }}.</dd>
+      <dt>Hhora e Mhora</dt>
+      <dd>Efetivo paralisado (pessoas x horas) e máquinas ou equipamentos parados (unidades x horas), com o percentual das HH disponíveis.</dd>
+      <dt>Plano de ação</dt>
+      <dd>Empresa com indicador fora da faixa gera uma ação na Central (origem Produtividade, referência semana e empresa); uma ação aberta por empresa e semana.</dd>
+    </dl>
+  </details>
+</div>

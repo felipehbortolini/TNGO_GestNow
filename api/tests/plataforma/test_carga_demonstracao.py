@@ -854,6 +854,75 @@ def test_oraculo_das_horas_efetivas_com_a_data_deslocada(db_session: Session) ->
     assert len(carteira.stoppages) == 31
 
 
+def test_oraculo_dos_kpis_de_produtividade_com_a_data_deslocada(db_session: Session) -> None:
+    """O oráculo da ISSUE-048: os KPIs de performance do protótipo, na janela do corte.
+
+    No projeto 1 (TN-2026-014), no corte S39 e sem deslocamento, a janela de 4 semanas até o
+    corte fecha o avanço de 59,2% x 67,5% previstos (SPI de quantidades 0,88), o FP de 1,12 nas
+    últimas 4 semanas, a CP de 6,81 h/dia e 55,26% trabalhando; a Alfa Montagens, com indicador
+    fora da faixa, tem o plano de ação aberto na Central desde S38 (PRD-2026-S38-01).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    scope = Scope(project_id=project.id, source="url")
+    visao = planejamento.performance_overview(
+        db_session, user=user, scope=scope, reference_date=DEMO_ANCHOR
+    )
+
+    assert visao.cut_week == "2026-S39"
+    assert (visao.window_weeks[0], visao.window_weeks[-1]) == ("2026-S36", "2026-S39")
+    geral = visao.general
+    assert (geral.quantities.pct_real, geral.quantities.pct_prev, geral.quantities.spi) == (
+        Decimal("59.2"),
+        Decimal("67.5"),
+        Decimal("0.88"),
+    )
+    assert geral.quantities.pf_window == Decimal("1.12")
+    assert geral.capacity.capacity == Decimal("6.81")
+    assert geral.capacity.utilization == Decimal("77.4")
+    assert geral.sample.working_pct == Decimal("55.26")
+    assert (geral.stoppages.crew_hours, geral.stoppages.machine_hours) == (
+        Decimal("638.7"),
+        Decimal("39.5"),
+    )
+    assert (geral.schedule.spi_t, geral.schedule.slip_weeks) == (Decimal("0.94"), 4)
+
+    alfa = next(bloco for bloco in visao.companies if bloco.company_name == "Alfa Montagens")
+    assert (alfa.quantities.pct_real, alfa.quantities.spi) == (Decimal("43.5"), Decimal("0.83"))
+    assert alfa.quantities.pf_window == Decimal("1.15")
+    assert alfa.quantities.window_adherence == Decimal("78.8")
+    assert alfa.capacity.capacity == Decimal("6.60")
+    assert alfa.sample.working_pct == Decimal("50.90")
+    assert alfa.alerts == ("pf", "spi")
+    assert alfa.attentions == ("adherence", "working")
+    assert alfa.schedule.spi_t == Decimal("0.89")
+
+    zeta = next(bloco for bloco in visao.companies if bloco.company_name == "Zeta Civil")
+    assert (zeta.quantities.pct_real, zeta.quantities.spi) == (Decimal("80.7"), Decimal("0.92"))
+    assert zeta.quantities.pf_window == Decimal("1.06")
+
+    anterior = planejamento.performance_overview(
+        db_session,
+        user=user,
+        scope=scope,
+        performance_filter=planejamento.PerformanceFilter(cut_week="2026-S38"),
+        reference_date=DEMO_ANCHOR,
+    )
+    alfa_anterior = next(
+        bloco for bloco in anterior.companies if bloco.company_name == "Alfa Montagens"
+    )
+    assert alfa_anterior.action is not None
+    assert alfa_anterior.action.reference == f"PRD-2026-S38-{alfa.company_id:02d}"
+    assert alfa.action is None
+
+
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 
