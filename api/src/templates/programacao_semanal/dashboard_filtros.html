@@ -1,0 +1,59 @@
+{% extends "base_fragment.html" %}
+{#
+  Barra de ferramentas do dashboard (#dash-filtros): a semana e os cortes do app
+  (contratada, frente e encarregado). O formulário tem x-target="dash-painel":
+  mudar qualquer campo redesenha só o painel, e a barra fica onde está, para quem
+  compara contratadas não perder o seletor a cada troca. O botão Limpar recarrega a
+  barra e o painel com a semana escolhida, sem os cortes — os dois alvos, porque o
+  seletor da barra precisa voltar para "todas" junto com o painel.
+
+  Espera: o contexto de screen.dashboard_filters_context.
+#}
+{% block root %}
+<div id="dash-filtros">
+  <div class="card mb-16">
+    <div class="card__body">
+      <form method="get" action="{{ painel_url }}" x-target="dash-painel" class="toolbar">
+        <input type="hidden" name="projeto" value="{{ escopo }}" />
+        <div class="period">
+          <label class="sr-only" for="dash-semana">Semana</label>
+          <select id="dash-semana" name="semana" class="input dash-filtro__semana"
+            @change="$el.form.requestSubmit()">
+            {% for s in semanas %}
+            <option value="{{ s.id }}" {% if s.id == semana %}selected{% endif %}>{{ s.id }} · {{ s.period }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if not fornecedor %}
+        <div class="field dash-filtro">
+          <label class="sr-only" for="dash-empresa">Contratada</label>
+          <select id="dash-empresa" name="empresa" class="input" @change="$el.form.requestSubmit()">
+            <option value="">Todas as contratadas</option>
+            {% for o in opcoes.companies %}<option value="{{ o.id }}" {% if filtros.company_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="field dash-filtro">
+          <label class="sr-only" for="dash-local">Frente</label>
+          <select id="dash-local" name="local" class="input" @change="$el.form.requestSubmit()">
+            <option value="">Todas as frentes</option>
+            {% for o in opcoes.locations %}<option value="{{ o.id }}" {% if filtros.location_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field dash-filtro">
+          <label class="sr-only" for="dash-encarregado">Encarregado</label>
+          <select id="dash-encarregado" name="encarregado" class="input" @change="$el.form.requestSubmit()">
+            <option value="">Todos os encarregados</option>
+            {% for o in opcoes.foremen %}<option value="{{ o.id }}" {% if filtros.foreman_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="button" class="btn btn--ghost"
+          @click="$ajax('{{ filtros_url }}?{{ limpar_query }}', { target: 'dash-filtros' });
+                  $ajax('{{ painel_url }}?{{ limpar_query }}', { target: 'dash-painel' })">
+          Limpar
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

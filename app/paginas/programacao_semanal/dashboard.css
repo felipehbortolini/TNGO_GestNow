@@ -3,14 +3,65 @@
 
    Aderência, ranking, mapa de calor, turnos e gargalos da programação semanal.
 
-   Escopo: tudo que morar aqui começa por .pagina--programacao_semanal-dashboard, a classe da raiz da
+   Escopo: tudo que mora aqui começa por .pagina--programacao_semanal-dashboard, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-056.
+   O que a tela acrescenta ao Design System: a cabeça do painel com as exportações,
+   os quatro indicadores do app, a barra de filtros do dashboard e as grades dos
+   painéis e dos gráficos da biblioteca. Os fragmentos são desenhados pelo servidor
+   (api/src/templates/programacao_semanal/_dashboard_painel.html); os gráficos o
+   motor de app/ds/graficos monta sozinho.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--programacao_semanal-dashboard [x-cloak] { display: none; }
+
+/* Quatro indicadores, como o painel do app: aderência, PPC médio, atividades e contratadas. */
+.pagina--programacao_semanal-dashboard .dash-kpis { --kpis-colunas: 4; }
+
+.pagina--programacao_semanal-dashboard .dash-cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.pagina--programacao_semanal-dashboard .dash-exportar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* A semana é o campo largo da barra; os cortes cabem em selects estreitos. */
+.pagina--programacao_semanal-dashboard .dash-filtro__semana {
+  min-width: 190px;
+  font-weight: 600;
+}
+
+.pagina--programacao_semanal-dashboard .dash-filtro .input {
+  width: auto;
+  min-width: 170px;
+}
+
+/* Os três painéis de situação, lado a lado, e as três quebras do ranking. */
+.pagina--programacao_semanal-dashboard .dash-status,
+.pagina--programacao_semanal-dashboard .dash-quebras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+}
+
+@media (max-width: 1100px) {
+  .pagina--programacao_semanal-dashboard .dash-kpis { --kpis-colunas: 2; }
+}
+
+@media (max-width: 640px) {
+  .pagina--programacao_semanal-dashboard .dash-kpis { --kpis-colunas: 1; }
+}

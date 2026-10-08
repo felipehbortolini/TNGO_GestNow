@@ -24,6 +24,7 @@ from src.modulos.configuracoes import registers
 from src.modulos.configuracoes.registers import Option
 from src.modulos.programacao_semanal import (
     calculations,
+    export,
     permissions,
     presentation,
     service,
@@ -78,6 +79,10 @@ IMPORT_MODEL_URL = f"{IMPORT_URL}/modelo"
 IMPORT_CHECK_URL = f"{IMPORT_URL}/conferir"
 WEEK_EXCEL_URL = f"{BASE_URL}/semana/excel"
 WEEK_PRINTABLE_URL = f"{BASE_URL}/semana/imprimivel"
+DASHBOARD_URL = f"{BASE_URL}/dashboard"
+DASHBOARD_FILTERS_URL = f"{DASHBOARD_URL}/filtros"
+DASHBOARD_EXCEL_URL = f"{DASHBOARD_URL}/excel"
+DASHBOARD_PRINTABLE_URL = f"{DASHBOARD_URL}/imprimivel"
 
 # The app's week selector: the current year and the next two, one pill per ISO week.
 SELECTOR_YEARS = 3
@@ -640,6 +645,178 @@ def import_context(
         "excel_url": f"{WEEK_EXCEL_URL}?{urlencode({'semana': week})}",
         "pdf_url": f"{WEEK_PRINTABLE_URL}?{urlencode({'semana': week})}",
     }
+
+
+# ── The dashboard (ISSUE-056) ────────────────────────────────────────────
+
+
+def dashboard_context(
+    session: Session, *, caller: Caller, params: Mapping[str, str | None]
+) -> dict[str, Any]:
+    """The dashboard panel: the indicators, the charts and the tables of the week.
+
+    The empty of origin (nothing programmed in the week) and the empty of filter
+    (there is programming, none of it matches the refinement) are decided here, so
+    the panel says which one it is. The exports carry the same week and filters.
+    """
+    week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
+    filters = service.parse_filters(params)
+    data = service.dashboard_data(session, caller=caller, week=week, filters=filters)
+    query = _dashboard_query(data, caller)
+    return {
+        "semana": data.week,
+        "periodo": data.period,
+        "situacao": _dashboard_situation(data),
+        "kpis": _dashboard_kpis(data),
+        "grafico_evolucao": export.adherence_chart(data),
+        "grafico_curva": export.curve_chart(data),
+        "grafico_semanal": export.weekly_chart(data),
+        "status": [export.status_chart(block) for block in data.status],
+        "ranking_empresa": _ranking_rows(data.by_company),
+        "ranking_frente": _ranking_rows(data.by_location),
+        "ranking_encarregado": _ranking_rows(data.by_foreman),
+        "grafico_heatmap": export.heatmap_chart(data),
+        "grafico_dia": export.daily_chart(data),
+        "turnos": _shift_rows(data),
+        "gargalos": _bottleneck_rows(data),
+        "portfolio": caller.scope.is_portfolio,
+        "fornecedor": permissions.is_supplier(caller.user),
+        "meta_aderencia": presentation.format_percent(data.parameters.adherence_target, 0),
+        "limite_gargalo": f"{calculations.MEDIUM_BAND:g}",
+        "limite_alto": f"{calculations.HIGH_BAND:g}",
+        "excel_url": f"{DASHBOARD_EXCEL_URL}?{query}",
+        "pdf_url": f"{DASHBOARD_PRINTABLE_URL}?{query}",
+    }
+
+
+def dashboard_filters_context(
+    session: Session, *, caller: Caller, params: Mapping[str, str | None]
+) -> dict[str, Any]:
+    """The dashboard toolbar: the week and the cuts of the app (company, front, foreman)."""
+    week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
+    return {
+        "semana": week,
+        "semanas": service.horizon_weeks(session, caller=caller),
+        "filtros": service.parse_filters(params),
+        "opcoes": _options(session, caller),
+        "fornecedor": permissions.is_supplier(caller.user),
+        "escopo": caller.scope.parameter,
+        "painel_url": DASHBOARD_URL,
+        "filtros_url": DASHBOARD_FILTERS_URL,
+        "limpar_query": urlencode({"semana": week, "projeto": caller.scope.parameter}),
+    }
+
+
+def _dashboard_query(data: service.DashboardData, caller: Caller) -> str:
+    """The query string of the dashboard exports: the week, the scope and the filters."""
+    pairs: list[tuple[str, str]] = [
+        ("semana", data.week),
+        ("projeto", caller.scope.parameter),
+    ]
+    fields = (
+        ("local", data.filters.location_id),
+        ("empresa", data.filters.company_id),
+        ("encarregado", data.filters.foreman_id),
+    )
+    pairs += [(name, str(value)) for name, value in fields if value]
+    return urlencode(pairs)
+
+
+def _dashboard_situation(data: service.DashboardData) -> str:
+    """Which empty the panel is in, or ``conteudo``: the week first, the filters second."""
+    if data.week_total == 0:
+        return "vazio-origem"
+    return "vazio-filtro" if data.summary.total == 0 else "conteudo"
+
+
+def _dashboard_kpis(data: service.DashboardData) -> list[dict[str, Any]]:
+    """The strip of the app: adherence, mean PPC, activities and contractors, with the meta."""
+    parameters = data.parameters
+    summary = data.summary
+    return [
+        {
+            "label": "Aderência",
+            "value": presentation.format_percent(summary.adherence, 0),
+            "reference": f"meta {presentation.format_percent(parameters.adherence_target, 0)}",
+            "tone": "ok" if summary.adherence >= parameters.adherence_target else "erro",
+            "icone": "sparkle",
+        },
+        {
+            "label": "PPC médio",
+            "value": presentation.format_percent(summary.mean_ppc, 0),
+            "reference": f"meta {presentation.format_percent(parameters.ppc_target, 0)}",
+            "tone": "ok" if summary.mean_ppc >= parameters.ppc_target else "warn",
+            "icone": "checkCircle",
+        },
+        {
+            "label": "Atividades",
+            "value": summary.total,
+            "reference": "na semana",
+            "tone": "neutro",
+            "icone": "taskList",
+        },
+        {
+            "label": "Contratadas",
+            "value": data.companies,
+            "reference": "com programação",
+            "tone": "info",
+            "icone": "building",
+        },
+    ]
+
+
+def _ranking_rows(lines: list[calculations.RankingLine]) -> list[dict[str, Any]]:
+    """One ranking of the dashboard, with the adherence already coloured by its band."""
+    return [
+        {
+            "label": line.label,
+            "activities": line.activities,
+            "planned_text": presentation.format_quantity(line.planned),
+            "done_text": presentation.format_quantity(line.done),
+            "adherence_text": presentation.format_percent(line.adherence, 0),
+            "tone": TONE_OF_BAND[calculations.performance_band(line.adherence)],
+            "pending": line.pending,
+        }
+        for line in lines
+    ]
+
+
+def _shift_rows(data: service.DashboardData) -> list[dict[str, Any]]:
+    """The shifts of the week, day by day, with the plan already worded."""
+    return [
+        {
+            "label": shift.label,
+            "name": shift.name,
+            "planned_text": presentation.format_quantity(shift.planned),
+            "day_text": presentation.format_quantity(shift.day_shift),
+            "night_text": presentation.format_quantity(shift.night_shift),
+            "done_text": presentation.format_quantity(shift.done),
+            "adherence_text": presentation.format_percent(
+                round(shift.done / shift.planned * 100, 1) if shift.planned else 0.0, 0
+            ),
+        }
+        for shift in data.shifts
+    ]
+
+
+def _bottleneck_rows(data: service.DashboardData) -> list[dict[str, Any]]:
+    """The action list: the activities below the medium band, worst PPC first."""
+    return [
+        {
+            "identity": item.identity,
+            "description": item.description,
+            "project_label": item.project_label,
+            "company": item.company,
+            "location": item.location or NO_LABEL,
+            "foreman": item.foreman or NO_LABEL,
+            "planned_text": presentation.format_quantity(item.planned, item.unit),
+            "done_text": presentation.format_quantity(item.done, item.unit),
+            "unit": item.unit,
+            "ppc_text": presentation.format_percent(item.ppc, 0),
+            "idle_days": item.idle_days,
+        }
+        for item in data.bottlenecks
+    ]
 
 
 # ── The configuration of the schedule (ISSUE-054) ────────────────────────

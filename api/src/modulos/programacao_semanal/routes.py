@@ -13,7 +13,10 @@ left without content; the publication answers with the strip and the matrix. The
 governance screen (ISSUE-053) adds ``gov-painel``, ``gov-pedidos`` and ``gov-trilha``:
 the panel, the queue of change requests and the module's audit trail. The configuration
 screen (ISSUE-054) adds ``config-painel`` (the whole panel), ``config-parametros`` and
-``config-janelas``: each block saves and re-renders on its own target.
+``config-janelas``: each block saves and re-renders on its own target. The dashboard
+(ISSUE-056) uses ``dash-filtros`` (the toolbar, which stays where it is) and
+``dash-painel`` (the whole panel of indicators, charts and tables); its exports leave
+by the generic document (``excel_response`` and ``printable_response``).
 """
 
 from __future__ import annotations
@@ -1106,3 +1109,76 @@ def week_printable(
         today=calendario.today(),
     )
     return printable_response(document, req)
+
+
+# ── The dashboard (ISSUE-056) ────────────────────────────────────────────
+#
+# The panel and its toolbar answer on fixed targets (``dash-painel`` and
+# ``dash-filtros``); the exports leave by the generic document, with the same week
+# and filters the screen is showing. The charts are the library's: the server sends
+# the quantities in ``data-dados`` and the visual aggregates by period.
+
+DASHBOARD_BASE = "programacao-semanal/dashboard"
+DASHBOARD_EXCEL_ROUTE = f"{DASHBOARD_BASE}/excel"
+DASHBOARD_PRINTABLE_ROUTE = f"{DASHBOARD_BASE}/imprimivel"
+
+
+@bp.route(route=DASHBOARD_BASE, methods=["GET"])
+@fragment_route(access=ACCESS)
+def dashboard(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The dashboard panel: the indicators, the charts and the tables of the week."""
+    data = screen.dashboard_context(session, caller=_caller(context), params=req.params)
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/dashboard.html", context=data, request=req
+    )
+
+
+@bp.route(route=f"{DASHBOARD_BASE}/filtros", methods=["GET"])
+@fragment_route(access=ACCESS)
+def dashboard_filters(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The toolbar of the dashboard: the week and the cuts of the app."""
+    data = screen.dashboard_filters_context(session, caller=_caller(context), params=req.params)
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/dashboard_filtros.html", context=data, request=req
+    )
+
+
+def _dashboard_document(
+    session: Session, context: RequestContext, params: Mapping[str, str | None]
+) -> Document:
+    caller = _caller(context)
+    week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
+    data = service.dashboard_data(
+        session,
+        caller=caller,
+        week=week,
+        filters=service.parse_filters(params),
+    )
+    return export.dashboard_document(
+        data,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=calendario.today(),
+    )
+
+
+@bp.route(route=DASHBOARD_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=ACCESS)
+def dashboard_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the dashboard: the indicators and the numbers behind each chart."""
+    return excel_response(_dashboard_document(session, context, req.params))
+
+
+@bp.route(route=DASHBOARD_PRINTABLE_ROUTE, methods=["GET"])
+@fragment_route(access=ACCESS)
+def dashboard_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable dashboard: the same panel on the sheet of the Design System."""
+    return printable_response(_dashboard_document(session, context, req.params), req)

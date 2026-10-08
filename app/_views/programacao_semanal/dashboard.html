@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--programacao_semanal-dashboard"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando', recusado: false }"
   x-init="TN.paginas['programacao_semanal/dashboard'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -9,7 +9,15 @@
       </div>
     </div>
 
-    <div class="card">
+    <!-- A barra de filtros fica fora do painel: trocar um corte redesenha só #dash-painel
+         e o seletor não se perde. Os estados vazio de origem e vazio por filtro vêm do
+         servidor, dentro do fragmento do painel; carregando, erro e sem permissão são daqui. -->
+    <div id="dash-filtros" x-show="estado === 'pronto' || estado === 'carregando'" x-cloak
+      x-init="$ajax('/api/programacao-semanal/dashboard/filtros' + window.location.search, { target: 'dash-filtros' })"></div>
+
+    <div id="dash-painel" x-show="estado === 'pronto'" x-cloak></div>
+
+    <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>

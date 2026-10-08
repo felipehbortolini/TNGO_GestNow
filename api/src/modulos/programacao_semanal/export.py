@@ -1,4 +1,4 @@
-"""Exports of the Weekly scheduling: the governance, the week and the change requests (D12).
+"""Exports of the Weekly scheduling: the governance, the week, the dashboard (D12).
 
 One ``Document`` feeds both outputs (``core.excel`` and ``core.printable``): the four
 indicators of the panel, the control list by company and week and the queue of change
@@ -11,6 +11,13 @@ its sheets — Resumo, Programação, Por contratada, Por frente, Por encarregad
 dia and Curva S —, and ``week_report_document`` is the app's printed sheet, with the
 indicators, the matrix and the breakdowns of the paper. The two share the matrix, the
 breakdowns and the day by day: neither is a raw dump.
+
+The dashboard (ISSUE-056) has one document for both outputs: ``dashboard_document``
+carries the indicators, the charts of the Design System library (the printable draws
+them from ``data-grafico``/``data-dados``; the Excel has the numbers behind each one
+as a table) and the tables of the rankings, the heatmap, the shifts and the
+bottlenecks. ``dashboard_charts`` is the same tuple the screen mounts, so paper and
+screen never drift apart.
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ from datetime import date
 
 from src.core.export_document import (
     Cell,
+    Chart,
     Column,
     Document,
     Kpi,
@@ -34,7 +42,11 @@ from src.core.export_document import (
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.programacao_semanal import calculations, weeks
-from src.modulos.programacao_semanal.service import ScheduleParameters, WeekSummary
+from src.modulos.programacao_semanal.service import (
+    DashboardData,
+    ScheduleParameters,
+    WeekSummary,
+)
 from src.modulos.programacao_semanal.views import (
     ActivityView,
     ChangeRequestView,
@@ -51,6 +63,21 @@ SCHEDULE_TITLE = "Programação"
 DAILY_TITLE = "Dia a dia"
 CURVE_TITLE = "Curva S"
 DASH = "—"
+
+DASHBOARD_TITLE = "Dashboard da programação"
+DASHBOARD_CURVE_TITLE = "Curva S do avanço"
+DASHBOARD_WEEKLY_TITLE = "Previsto contra realizado"
+DASHBOARD_ADHERENCE_TITLE = "Evolução da aderência por contratada"
+DASHBOARD_HEATMAP_TITLE = "Mapa de calor — dia por frente"
+DASHBOARD_DAILY_TITLE = "Produção por dia"
+DASHBOARD_BOTTLENECK_TITLE = "O que travou a semana"
+
+# (título da tabela, cabeçalho da coluna) de cada ranking do dashboard.
+DASHBOARD_RANKINGS = {
+    "company": ("Ranking por contratada", "Contratada"),
+    "location": ("Ranking por frente", "Frente"),
+    "foreman": ("Ranking por encarregado", "Encarregado"),
+}
 
 # (título da aba, cabeçalho da coluna) de cada quebra do app.
 BREAKDOWNS = {
@@ -528,3 +555,452 @@ def _curve_table(curve: list[calculations.CurvePoint]) -> Table:
         ),
         per_project=False,
     )
+
+
+# ── The dashboard: the charts and the document (ISSUE-056) ───────────────
+#
+# The same builders feed the screen and the printable, so the numbers on paper are
+# the ones of the screen. The curve and the weekly chart send the quantity of each
+# week; the evolution sends the pair (num, den) of the adherence, because the rate
+# of a month is the sum of the done over the sum of the planned of its weeks and
+# never the mean of the weekly rates (D11).
+
+
+def _chart_period(week: str, values: dict[str, object]) -> dict[str, object] | None:
+    """One week of a chart: the calendar decided here and the values by series id."""
+    info = weeks.describe(week)
+    if info.first_day is None:
+        return None
+    return {
+        "ano": info.year,
+        "mes": info.first_day.month,
+        "semana": info.number,
+        "valores": values,
+    }
+
+
+def _periods(
+    points: list[dict[str, object] | None],
+) -> list[dict[str, object]]:
+    return [point for point in points if point is not None]
+
+
+def curve_chart(data: DashboardData) -> Chart:
+    """The S-curve of the advancement: base, planned and done accumulated, in percent."""
+    return Chart(
+        DASHBOARD_CURVE_TITLE,
+        "curva-s-linha",
+        {
+            "titulo": DASHBOARD_CURVE_TITLE,
+            "modo": "acumulado",
+            "formato": "pct",
+            "unidade": "%",
+            "casas": 1,
+            "eixo_max": 100,
+            "series": [
+                {"id": "base", "rotulo": "Base", "papel": "linha-base", "tipo": "valor"},
+                {"id": "previsto", "rotulo": "Previsto", "papel": "previsto", "tipo": "valor"},
+                {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
+            ],
+            "periodos": _periods(
+                [
+                    _chart_period(
+                        point.week,
+                        {
+                            "base": point.base_accumulated,
+                            "previsto": point.planned_accumulated,
+                            "realizado": point.done_accumulated,
+                        },
+                    )
+                    for point in data.curve
+                ]
+            ),
+        },
+    )
+
+
+def weekly_chart(data: DashboardData) -> Chart:
+    """Planned against done of each week, in percentage points of the horizon scope."""
+    return Chart(
+        DASHBOARD_WEEKLY_TITLE,
+        "curva-s-barra-linha",
+        {
+            "titulo": DASHBOARD_WEEKLY_TITLE,
+            "modo": "periodo",
+            "formato": "pct",
+            "unidade": "%",
+            "casas": 1,
+            "eixo_max": 100,
+            "series": [
+                {"id": "previsto", "rotulo": "Previsto", "papel": "previsto", "tipo": "valor"},
+                {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
+            ],
+            "periodos": _periods(
+                [
+                    _chart_period(
+                        point.week,
+                        {"previsto": point.planned, "realizado": point.done},
+                    )
+                    for point in data.curve
+                ]
+            ),
+        },
+    )
+
+
+def adherence_chart(data: DashboardData) -> Chart:
+    """Adherence by contractor, week by week: a line per company and the target dashed.
+
+    Each week carries the pair of the company — the done and the planned — and the
+    target rides as a pair too, so the visual divides the sums at any grouping level.
+    """
+    identifiers = {
+        company: f"serie-{index + 1}" for index, company in enumerate(data.evolution.series)
+    }
+    series: list[dict[str, object]] = [
+        {"id": identifiers[company], "rotulo": company, "tipo": "razao"}
+        for company in data.evolution.series
+    ]
+    series.append({"id": "meta", "rotulo": "Meta", "papel": "linha-base", "tipo": "razao"})
+    target = data.parameters.adherence_target
+    return Chart(
+        DASHBOARD_ADHERENCE_TITLE,
+        "curva-s-linha",
+        {
+            "titulo": DASHBOARD_ADHERENCE_TITLE,
+            "modo": "periodo",
+            "formato": "pct",
+            "unidade": "%",
+            "casas": 1,
+            "casas_dica": 1,
+            "eixo_max": 100,
+            "series": series,
+            "periodos": _periods(
+                [
+                    _chart_period(
+                        point.week,
+                        {
+                            **{
+                                identifiers[company]: {
+                                    "num": total.done,
+                                    "den": total.planned,
+                                }
+                                for company, total in point.totals.items()
+                            },
+                            "meta": {"num": target, "den": 100.0},
+                        },
+                    )
+                    for point in data.evolution.points
+                ]
+            ),
+        },
+    )
+
+
+def status_chart(block: calculations.StatusBlock) -> Chart:
+    """One reading of the week as a strip of KPIs with state (HTML KPI Status)."""
+    return Chart(
+        block.title,
+        "kpi-status",
+        {
+            "titulo": block.title,
+            "itens": [
+                {
+                    "id": segment.key,
+                    "rotulo": segment.label,
+                    "valor": segment.value,
+                    "tom": segment.tone,
+                }
+                for segment in block.segments
+            ],
+        },
+    )
+
+
+def heatmap_chart(data: DashboardData) -> Chart:
+    """The day-by-front heatmap: the delivered share of each day, painted by the bands."""
+    return Chart(
+        DASHBOARD_HEATMAP_TITLE,
+        "tabela-heatmap",
+        {
+            "titulo": DASHBOARD_HEATMAP_TITLE,
+            "rotulo_linhas": "Frente",
+            "casas": 1,
+            "unidade": "%",
+            "colunas": [
+                {"id": f"dia-{index}", "rotulo": label}
+                for index, label in enumerate(data.heatmap.columns)
+            ],
+            "linhas": [
+                {
+                    "id": f"frente-{index}",
+                    "rotulo": row.label,
+                    "valores": {f"dia-{day}": cell.percent for day, cell in enumerate(row.cells)},
+                }
+                for index, row in enumerate(data.heatmap.rows)
+            ],
+            "faixas": list(calculations.heat_faixas()),
+        },
+    )
+
+
+def daily_chart(data: DashboardData) -> Chart:
+    """The plan against the delivery of each weekday, in quantities of the week."""
+    categories = [
+        {
+            "id": f"dia-{index}",
+            "rotulo": shift.label,
+            "papel": "neutro",
+            "favoravel": "sobe",
+        }
+        for index, shift in enumerate(data.shifts)
+    ]
+    return Chart(
+        DASHBOARD_DAILY_TITLE,
+        "comparativo-barras",
+        {
+            "titulo": DASHBOARD_DAILY_TITLE,
+            "paineis": [
+                {
+                    "titulo": "Previsto contra realizado por dia",
+                    "categorias": categories,
+                    "linhas": [
+                        {
+                            "rotulo": "Previsto",
+                            "valores": {
+                                f"dia-{index}": shift.planned
+                                for index, shift in enumerate(data.shifts)
+                            },
+                        },
+                        {
+                            "rotulo": "Realizado",
+                            "valores": {
+                                f"dia-{index}": shift.done
+                                for index, shift in enumerate(data.shifts)
+                            },
+                        },
+                    ],
+                }
+            ],
+        },
+    )
+
+
+def dashboard_charts(data: DashboardData) -> tuple[Chart, ...]:
+    """The charts of the dashboard in the order of the screen: the same ones on paper."""
+    return (
+        adherence_chart(data),
+        curve_chart(data),
+        weekly_chart(data),
+        *(status_chart(block) for block in data.status),
+        heatmap_chart(data),
+        daily_chart(data),
+    )
+
+
+def dashboard_document(
+    data: DashboardData,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The dashboard as a document: the indicators, the charts and the numbers behind them."""
+    return Document(
+        title=DASHBOARD_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(("Semana", data.week), ("Período", data.period)),
+        kpis=_dashboard_kpis(data),
+        charts=dashboard_charts(data),
+        tables=(
+            _ranking_table(*DASHBOARD_RANKINGS["company"], data.by_company),
+            _ranking_table(*DASHBOARD_RANKINGS["location"], data.by_location),
+            _ranking_table(*DASHBOARD_RANKINGS["foreman"], data.by_foreman),
+            _bottleneck_table(data.bottlenecks),
+            _heatmap_table(data.heatmap),
+            _shift_table(data.shifts),
+            _curve_table(data.curve),
+            _weekly_table(data.curve),
+            _evolution_table(data.evolution),
+        ),
+        paper=Paper.A4,
+    )
+
+
+def _dashboard_kpis(data: DashboardData) -> tuple[Kpi, ...]:
+    """The strip of the app: adherence, mean PPC, activities and contractors."""
+    parameters = data.parameters
+    summary = data.summary
+    return (
+        Kpi(
+            "Aderência",
+            summary.adherence,
+            f"meta {parameters.adherence_target:g}%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=_meets(summary.adherence, parameters.adherence_target, Tone.OK, Tone.ERROR),
+        ),
+        Kpi(
+            "PPC médio",
+            summary.mean_ppc,
+            f"meta {parameters.ppc_target:g}%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=_meets(summary.mean_ppc, parameters.ppc_target, Tone.OK, Tone.WARN),
+        ),
+        Kpi("Atividades", summary.total, "na semana", kind=ValueKind.INTEGER),
+        Kpi("Contratadas", data.companies, "com programação", kind=ValueKind.INTEGER),
+    )
+
+
+def _ranking_table(title: str, header: str, lines: list[calculations.RankingLine]) -> Table:
+    """One ranking of the dashboard: the group, its activities, the totals and the rates."""
+    return Table(
+        title=title,
+        columns=(
+            Column(header, width=30),
+            Column("Atividades", ValueKind.INTEGER),
+            Column("Previsto", ValueKind.DECIMAL),
+            Column("Realizado", ValueKind.DECIMAL),
+            Column("Aderência %", ValueKind.PERCENT, digits=1),
+            Column("PPC médio %", ValueKind.PERCENT, digits=1),
+            Column("Pendências", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(
+                line.label,
+                line.activities,
+                line.planned,
+                line.done,
+                line.adherence,
+                line.mean_ppc,
+                line.pending,
+            )
+            for line in lines
+        ),
+        per_project=False,
+    )
+
+
+def _bottleneck_table(bottlenecks: list[calculations.Bottleneck]) -> Table:
+    """The action list: the activities below the medium band, worst PPC first."""
+    return Table(
+        title=DASHBOARD_BOTTLENECK_TITLE,
+        columns=(
+            Column("ID exclusiva", width=16),
+            Column("Atividade", width=40),
+            Column("Contratada", width=20),
+            Column("Frente", width=18),
+            Column("Encarregado", width=20),
+            Column("Previsto", ValueKind.DECIMAL),
+            Column("Realizado", ValueKind.DECIMAL),
+            Column("PPC %", ValueKind.PERCENT, digits=1),
+            Column("Dias parados", ValueKind.INTEGER),
+        ),
+        rows=tuple(
+            row(
+                item.identity,
+                item.description,
+                item.company,
+                item.location or DASH,
+                item.foreman or DASH,
+                item.planned,
+                item.done,
+                item.ppc,
+                item.idle_days,
+                project=item.project_label,
+            )
+            for item in bottlenecks
+        ),
+    )
+
+
+def _heatmap_table(heatmap: calculations.Heatmap) -> Table:
+    """The numbers behind the heatmap: the delivered share of each day in each front."""
+    return Table(
+        title=DASHBOARD_HEATMAP_TITLE,
+        columns=(
+            Column("Frente", width=24),
+            *(Column(label, ValueKind.PERCENT, digits=1) for label in heatmap.columns),
+        ),
+        rows=tuple(
+            row(row_.label, *(cell.percent for cell in row_.cells)) for row_ in heatmap.rows
+        ),
+        per_project=False,
+    )
+
+
+def _shift_table(shifts: list[calculations.ShiftDay]) -> Table:
+    """The shifts of the week, day by day: the plan, the day shift and the night shift."""
+    return Table(
+        title=DASHBOARD_DAILY_TITLE,
+        columns=(
+            Column("Dia", width=14),
+            Column("Previsto", ValueKind.DECIMAL),
+            Column("Turno dia", ValueKind.DECIMAL),
+            Column("Turno noite", ValueKind.DECIMAL),
+            Column("Realizado", ValueKind.DECIMAL),
+            Column("Aderência %", ValueKind.PERCENT, digits=1),
+        ),
+        rows=tuple(
+            row(
+                shift.name,
+                shift.planned,
+                shift.day_shift,
+                shift.night_shift,
+                shift.done,
+                _ratio(shift.done, shift.planned),
+            )
+            for shift in shifts
+        ),
+        per_project=False,
+    )
+
+
+def _weekly_table(curve: list[calculations.CurvePoint]) -> Table:
+    """The numbers behind the weekly chart: the planned and the done of each week."""
+    return Table(
+        title=DASHBOARD_WEEKLY_TITLE,
+        columns=(
+            Column("Semana", width=14),
+            Column("Período", width=24),
+            Column("Previsto %", ValueKind.PERCENT, digits=2),
+            Column("Realizado %", ValueKind.PERCENT, digits=2),
+        ),
+        rows=tuple(row(point.week, point.period, point.planned, point.done) for point in curve),
+        per_project=False,
+    )
+
+
+def _evolution_table(evolution: calculations.Evolution) -> Table:
+    """The numbers behind the evolution: the adherence of each contractor in each week."""
+    return Table(
+        title=DASHBOARD_ADHERENCE_TITLE,
+        columns=(
+            Column("Semana", width=14),
+            *(Column(company, ValueKind.PERCENT, digits=1) for company in evolution.series),
+        ),
+        rows=tuple(
+            row(
+                point.week,
+                *(_ratio_of(point.totals.get(company)) for company in evolution.series),
+            )
+            for point in evolution.points
+        ),
+        per_project=False,
+    )
+
+
+def _ratio(done: float, planned: float) -> float | None:
+    """The adherence of a pair, in percent; no plan means no rate."""
+    if not planned:
+        return None
+    return round(done / planned * 100, 1)
+
+
+def _ratio_of(total: calculations.CompanyWeek | None) -> float | None:
+    if total is None:
+        return None
+    return _ratio(total.done, total.planned)

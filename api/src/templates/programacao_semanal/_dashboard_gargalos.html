@@ -1,0 +1,55 @@
+{#
+  Partial — a lista de gargalos: as atividades abaixo da faixa de atenção.
+
+  É a lista de ação do dashboard: PPC abaixo de 60%, pior primeiro, com os dias
+  programados que não produziram. No Portfólio a lista abre a coluna Projeto.
+
+  Espera: gargalos (screen._bottleneck_rows) e portfolio.
+#}
+{% if gargalos %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Atividades com PPC abaixo da faixa de atenção</caption>
+    <thead>
+      <tr>
+        {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+        <th scope="col">Atividade</th>
+        <th scope="col">Contratada</th>
+        <th scope="col">Frente</th>
+        <th scope="col">Encarregado</th>
+        <th scope="col" class="td-num">Previsto</th>
+        <th scope="col" class="td-num">Realizado</th>
+        <th scope="col" class="td-num">PPC</th>
+        <th scope="col" class="td-center">Dias parados</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in gargalos %}
+      <tr>
+        {% if portfolio %}<td class="muted">{{ g.project_label }}</td>{% endif %}
+        <td>
+          <span class="linha__id">{{ g.identity }}</span>
+          <span class="linha__titulo">{{ g.description }}</span>
+        </td>
+        <td>{{ g.company }}</td>
+        <td>{{ g.location }}</td>
+        <td>{{ g.foreman }}</td>
+        <td class="td-num">{{ g.planned_text }} {{ g.unit }}</td>
+        <td class="td-num">{{ g.done_text }}</td>
+        <td class="td-num"><span class="pill pill--erro">{{ g.ppc_text }}</span></td>
+        <td class="td-center">
+          {% if g.idle_days %}<span class="pill pill--erro">{{ g.idle_days }}</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">
+  <img src="/ds/assets/ilustra-sucesso.png" alt="" />
+  <h3 class="h-card4">Nenhum gargalo na semana</h3>
+  <p>Todas as atividades estão em {{ limite_gargalo }}% de PPC ou acima.</p>
+</div>
+{% endif %}

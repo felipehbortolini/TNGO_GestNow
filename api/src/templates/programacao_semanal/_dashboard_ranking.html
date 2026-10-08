@@ -1,0 +1,41 @@
+{#
+  Partial — ranking do dashboard com a aderência em pastilha.
+
+  Tabela e não gráfico de barras: os rótulos são nomes de contratada, frente e
+  encarregado, que quebram linha, e a comparação aqui é de valor exato contra a
+  meta, não de proporção.
+
+  Espera: itens (screen._ranking_rows) e rotulo_coluna.
+#}
+{% if itens %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Aderência por {{ rotulo_coluna | lower }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">{{ rotulo_coluna }}</th>
+        <th scope="col" class="td-num">Atividades</th>
+        <th scope="col" class="td-num">Realizado / previsto</th>
+        <th scope="col" class="td-num">Aderência</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in itens %}
+      <tr>
+        <td class="fw-600">
+          {{ item.label }}
+          {% if item.pending %}
+          <span class="chip chip--warn" title="Aprovações pendentes">{{ item.pending }} pendente(s)</span>
+          {% endif %}
+        </td>
+        <td class="td-num">{{ item.activities }}</td>
+        <td class="td-num">{{ item.done_text }} / {{ item.planned_text }}</td>
+        <td class="td-num"><span class="pill pill--{{ item.tone }}">{{ item.adherence_text }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty"><p>Sem dados para este corte.</p></div>
+{% endif %}

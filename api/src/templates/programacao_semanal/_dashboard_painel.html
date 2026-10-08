@@ -1,0 +1,202 @@
+{#
+  Partial — o painel do dashboard: os indicadores do app, os gráficos da
+  biblioteca do Design System (D11) e as tabelas de ranking, turnos e gargalos.
+
+  A ordem das perguntas, de cima para baixo, como no app:
+    1. Quem está no ritmo?        → indicadores e evolução da aderência
+    2. Onde o avanço está?        → curva S e previsto contra realizado
+    3. Em que pé está a semana?   → situação, aprovação e faixa de PPC
+    4. Quem está atrás?           → rankings por contratada, frente e encarregado
+    5. Onde e quando parou?       → mapa de calor dia x frente
+    6. O que fazer amanhã?        → turnos por dia e a lista de gargalos
+
+  Os gráficos nascem do elemento com data-grafico e data-dados (JSON escapado
+  pelo Jinja); nenhum fragmento traz script. O servidor manda quantidade e o
+  visual agrega por período quando o resumo não é soma (D11).
+
+  Espera: o contexto de screen.dashboard_context.
+#}
+{% if situacao == 'vazio-origem' %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+  <h2 class="h-card4">Ainda não há programação nesta semana</h2>
+  <p>Assim que a semana {{ semana }} tiver atividades, os indicadores aparecem aqui. Escolha outra semana ou importe a programação.</p>
+</div>
+{% elif situacao == 'vazio-filtro' %}
+<div class="empty" data-estado="vazio-filtro">
+  <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+  <p>A semana {{ semana }} tem programação, mas nada do corte escolhido. Ajuste ou limpe os filtros para ver os indicadores.</p>
+</div>
+{% else %}
+<div class="dash-cabeca">
+  <p class="body-txt">
+    Semana {{ semana }} · {{ periodo }}
+    <span class="hint">· {{ kpis[2].value }} atividades e {{ kpis[3].value }} contratadas</span>
+  </p>
+  <span class="dash-exportar">
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">Excel</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">PDF</button>
+  </span>
+</div>
+
+<div class="kpis dash-kpis" role="group" aria-label="Indicadores da programação">
+  {% for kpi in kpis %}
+  <div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+    <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
+    <span class="kpi__label">{{ kpi.label }} <small class="hint">{{ kpi.reference }}</small></span>
+    <span class="kpi__value">{{ kpi.value }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="card mb-16" aria-labelledby="dash-aderencia-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-aderencia-titulo">Evolução da aderência por contratada</h2>
+      <span class="hint">A linha de cada contratada é a aderência do período; clique no nome do mês para abrir as semanas dele. A tracejada é a meta de {{ meta_aderencia }}.</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="{{ grafico_evolucao.kind }}" data-dados='{{ grafico_evolucao.data | tojson }}'></div>
+    {#
+      Um bloco com o número puro, para quem lê por leitor de tela e para o papel:
+      o SVG conta a história pela forma, e a forma não é lida. A conta é a do
+      gráfico: o realizado da semana dividido pelo previsto dela.
+    #}
+    <table class="sr-only">
+      <caption>Aderência por contratada em cada semana do horizonte</caption>
+      <thead>
+        <tr>
+          <th scope="col">Semana</th>
+          {% for serie in grafico_evolucao.data.series if serie.tipo == 'razao' and serie.id != 'meta' %}
+          <th scope="col">{{ serie.rotulo }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ponto in grafico_evolucao.data.periodos %}
+        <tr>
+          <th scope="row">S{{ ponto.semana }}/{{ ponto.ano }}</th>
+          {% for serie in grafico_evolucao.data.series if serie.tipo == 'razao' and serie.id != 'meta' %}
+          {% set v = ponto.valores.get(serie.id) %}
+          <td>{% if v and v.den %}{{ (100 * v.num / v.den) | round(1) }}%{% else %}—{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint mt-8">
+      Aderência de um período é o realizado dividido pelo previsto <i>daquele</i>
+      período — nunca a média das aderências semanais, que daria outro número sempre
+      que as semanas tiverem tamanhos diferentes. O mês fechado soma o numerador e o
+      denominador das suas semanas e divide uma vez só.
+    </p>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="dash-curva-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-curva-titulo">Curva S do avanço</h2>
+      <span class="hint">Peso igual por atividade; o escopo da atividade é a soma do previsto dela no horizonte de treze semanas. A curva não é volume: as unidades das atividades não se somam.</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="{{ grafico_curva.kind }}" data-dados='{{ grafico_curva.data | tojson }}'></div>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="dash-semanal-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-semanal-titulo">Previsto contra realizado</h2>
+      <span class="hint">Avanço de cada semana em pontos percentuais do escopo do horizonte; clique no nome do mês para abrir as semanas dele.</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="{{ grafico_semanal.kind }}" data-dados='{{ grafico_semanal.data | tojson }}'></div>
+  </div>
+</section>
+
+<div class="dash-status">
+  {% for bloco in status %}
+  <section class="card" aria-label="{{ bloco.title }}">
+    <div class="card__body">
+      <div data-grafico="{{ bloco.kind }}" data-dados='{{ bloco.data | tojson }}'></div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+<div class="dash-quebras mt-24">
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Ranking por contratada</h2>
+      <span class="hint">pior primeiro</span>
+    </div>
+    <div class="card__body">
+      {% set itens, rotulo_coluna = ranking_empresa, 'Contratada' %}
+      {% include "programacao_semanal/_dashboard_ranking.html" %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Ranking por frente</h2>
+      <span class="hint">pior primeiro</span>
+    </div>
+    <div class="card__body">
+      {% set itens, rotulo_coluna = ranking_frente, 'Frente' %}
+      {% include "programacao_semanal/_dashboard_ranking.html" %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__head">
+      <h2 class="h-card4">Ranking por encarregado</h2>
+      <span class="hint">pior primeiro</span>
+    </div>
+    <div class="card__body">
+      {% set itens, rotulo_coluna = ranking_encarregado, 'Encarregado' %}
+      {% include "programacao_semanal/_dashboard_ranking.html" %}
+    </div>
+  </section>
+</div>
+
+<section class="card mt-24" aria-labelledby="dash-heatmap-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-heatmap-titulo">Mapa de calor — dia por frente</h2>
+      <span class="hint">percentual do previsto entregue em cada dia, na escala do módulo ({{ limite_alto }}% e {{ limite_gargalo }}%); o dia sem previsão não é 0%, é ausência de plano</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="{{ grafico_heatmap.kind }}" data-dados='{{ grafico_heatmap.data | tojson }}'></div>
+  </div>
+</section>
+
+<section class="card mt-24" aria-labelledby="dash-dia-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-dia-titulo">Produção por dia</h2>
+      <span class="hint">previsto contra realizado de cada dia da semana; a variação é o desvio do dia</span>
+    </div>
+  </div>
+  <div class="card__body">
+    <div data-grafico="{{ grafico_dia.kind }}" data-dados='{{ grafico_dia.data | tojson }}'></div>
+    {% include "programacao_semanal/_dashboard_turnos.html" %}
+  </div>
+</section>
+
+<section class="card mt-24" aria-labelledby="dash-gargalos-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="dash-gargalos-titulo">O que travou a semana</h2>
+      <span class="hint">atividades abaixo de {{ limite_gargalo }}% de PPC, pior primeiro</span>
+    </div>
+  </div>
+  <div class="card__body">
+    {% include "programacao_semanal/_dashboard_gargalos.html" %}
+  </div>
+</section>
+{% endif %}

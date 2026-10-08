@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  O painel do dashboard (#dash-painel): resposta de /api/programacao-semanal/dashboard.
+  O alvo manda no id da raiz, então o fragmento usa o bloco padrão e inclui o partial.
+
+  Espera: o contexto de screen.dashboard_context.
+#}
+{% block fragment %}
+{% include "programacao_semanal/_dashboard_painel.html" %}
+{% endblock %}

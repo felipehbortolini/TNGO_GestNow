@@ -1,0 +1,36 @@
+{#
+  Partial — os turnos da semana, dia a dia.
+
+  O gráfico acima dá a leitura visual do previsto contra o realizado; esta tabela
+  abre o que o gráfico não separa: quanto do dia e quanto da noite. A aderência do
+  dia é o realizado dividido pelo previsto daquele dia.
+
+  Espera: turnos (screen._shift_rows).
+#}
+<div class="tbl-wrap mt-16">
+  <table class="tbl">
+    <caption class="sr-only">Previsto e realizado de cada dia, com os turnos separados</caption>
+    <thead>
+      <tr>
+        <th scope="col">Dia</th>
+        <th scope="col" class="td-num">Previsto</th>
+        <th scope="col" class="td-num">Turno dia</th>
+        <th scope="col" class="td-num">Turno noite</th>
+        <th scope="col" class="td-num">Realizado</th>
+        <th scope="col" class="td-num">Aderência</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dia in turnos %}
+      <tr>
+        <td class="fw-600">{{ dia.name }}</td>
+        <td class="td-num">{{ dia.planned_text }}</td>
+        <td class="td-num">{{ dia.day_text }}</td>
+        <td class="td-num">{{ dia.night_text }}</td>
+        <td class="td-num">{{ dia.done_text }}</td>
+        <td class="td-num">{{ dia.adherence_text }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
