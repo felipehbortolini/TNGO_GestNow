@@ -22,6 +22,7 @@ from src.modulos.configuracoes.models import (
     Location,
     Person,
     Project,
+    System,
     Unit,
 )
 
@@ -34,6 +35,21 @@ class Option:
 
     id: int
     label: str
+
+
+@dataclass(frozen=True)
+class SystemOption:
+    """A system of a project: the id, the code and the name the punch list reads."""
+
+    id: int
+    code: str
+    name: str
+    area: str
+
+    @property
+    def label(self) -> str:
+        """``310 Flotação``: como os selects e a ação da Central nomeiam o sistema."""
+        return f"{self.code} {self.name}"
 
 
 def list_companies(session: Session, *, only: int | None = None) -> list[Option]:
@@ -62,6 +78,30 @@ def list_measure_units(session: Session) -> list[Option]:
         .order_by(Unit.code, Unit.id)
     )
     return [Option(id=row.id, label=row.code) for row in session.execute(statement)]
+
+
+def list_systems(session: Session, *, project_id: int | None = None) -> list[SystemOption]:
+    """The systems of the projects, by code; ``project_id`` cuts the list to one project."""
+    statement = select(System.id, System.code, System.name, System.area).order_by(
+        System.code, System.id
+    )
+    if project_id is not None:
+        statement = statement.where(System.project_id == project_id)
+    return [
+        SystemOption(id=row.id, code=row.code, name=row.name, area=row.area or "")
+        for row in session.execute(statement)
+    ]
+
+
+def system_options_by_id(session: Session, ids: Collection[int]) -> dict[int, SystemOption]:
+    """The system of each id; ids of systems that do not exist are absent."""
+    if not ids:
+        return {}
+    statement = select(System.id, System.code, System.name, System.area).where(System.id.in_(ids))
+    return {
+        row.id: SystemOption(id=row.id, code=row.code, name=row.name, area=row.area or "")
+        for row in session.execute(statement)
+    }
 
 
 def list_people_with_role(

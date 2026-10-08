@@ -40,6 +40,13 @@ inspector types, as in the prototype (``encarregado``), not a person register.
 The capacity, the percentages, the Pareto, the Hhora and the Mhora are all
 calculated; the reasons of a round enter and leave with it and have no
 ``versao`` of their own.
+
+The punch list (ISSUE-049): the item of the completion work (``punch_item``),
+grouped by the support register of systems (``sistema``, owned by Configurações),
+with the category A, B or C, the milestone tied to it, the situation of the flow
+and the verification by a person other than the executant (D7). The evidence of
+the closing is an ``anexo`` (D5a) and the blocking of a system by an open A item
+is calculated; neither is a column.
 """
 
 from __future__ import annotations
@@ -547,4 +554,37 @@ class Stoppage(Base):
     reason: Mapped[str] = mapped_column("motivo", Text)
     responsibility: Mapped[str] = mapped_column("responsabilidade", Text)
     description: Mapped[str | None] = mapped_column("descricao", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class PunchItem(Base):
+    """Item da punch list: o sistema, a categoria, o marco e o fluxo até a verificação (ISSUE-049).
+
+    O sistema é o cadastro de apoio ``sistema`` (Configurações); a evidência do fechamento é um
+    ``anexo`` e o bloqueio do sistema por item A aberto é calculado (``calculations``). UK:
+    projeto + código, com o código vindo da numeração do projeto (tipo ``punch``).
+    """
+
+    __tablename__ = "punch_item"
+    __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    system_id: Mapped[int] = mapped_column("sistema_id", ForeignKey("sistema.id"))
+    company_id: Mapped[int | None] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    owner_id: Mapped[int] = mapped_column("responsavel_id", ForeignKey("pessoa.id"))
+    identified_by_id: Mapped[int] = mapped_column("identificado_por_id", ForeignKey("pessoa.id"))
+    verified_by_id: Mapped[int | None] = mapped_column("verificado_por_id", ForeignKey("pessoa.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    subsystem: Mapped[str] = mapped_column("subsistema", Text)
+    tag: Mapped[str] = mapped_column("tag", Text)
+    discipline: Mapped[str] = mapped_column("disciplina", Text)
+    category: Mapped[str] = mapped_column("categoria", Text)
+    milestone: Mapped[str] = mapped_column("marco", Text)
+    origin: Mapped[str] = mapped_column("origem", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    opened_on: Mapped[date] = mapped_column("abertura", Date)
+    due_date: Mapped[date] = mapped_column("prazo", Date)
+    closed_on: Mapped[date | None] = mapped_column("fechamento", Date)
+    situation: Mapped[str] = mapped_column("situacao", Text)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)

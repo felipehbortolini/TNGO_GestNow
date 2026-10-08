@@ -73,7 +73,18 @@ from math import ceil
 from typing import Any
 
 from src.core import calendario
-from src.modulos.planejamento.validation import MONTHLY, OPPORTUNITY, THREAT, WEEKLY
+from src.modulos.planejamento.validation import (
+    MONTHLY,
+    OPPORTUNITY,
+    PUNCH_CANCELLED,
+    PUNCH_CLOSED,
+    PUNCH_MILESTONES,
+    PUNCH_OPEN,
+    PUNCH_TREATMENT,
+    PUNCH_VERIFYING,
+    THREAT,
+    WEEKLY,
+)
 
 MONTH_NAMES = (
     "Janeiro",
@@ -2759,3 +2770,111 @@ def ratio_chart(
         "series": chart_series,
         "periodos": periods,
     }
+
+
+# ── Punch list: situação, atraso e bloqueio (ISSUE-049) ───────────────────
+
+
+PUNCH_OPEN_SITUATIONS = frozenset({PUNCH_OPEN, PUNCH_TREATMENT, PUNCH_VERIFYING})
+
+
+PUNCH_FINAL_SITUATIONS = frozenset({PUNCH_CLOSED, PUNCH_CANCELLED})
+
+
+PUNCH_BLOCKING_CATEGORY = "A"
+
+
+PUNCH_MILESTONE_INDEX = {milestone: index for index, milestone in enumerate(PUNCH_MILESTONES)}
+
+
+@dataclass(frozen=True)
+class PunchState:
+    """O que as contas da punch list leem de um item: situação, categoria, marco e prazo."""
+
+    situation: str
+    category: str
+    milestone: str
+    system_id: int
+    due_date: date
+
+
+@dataclass(frozen=True)
+class PunchKpis:
+    """Os indicadores da lista: abertos, A abertos, aguardando verificação, vencidos e fechados."""
+
+    opened: int
+    open_a: int
+    verifying: int
+    overdue: int
+    closed: int
+    valid: int
+
+    @property
+    def closed_pct(self) -> Decimal | None:
+        """Os fechados sobre os itens válidos (cancelado fora), em pontos percentuais."""
+        if self.valid == 0:
+            return None
+        return round_percent(Decimal(self.closed) / Decimal(self.valid) * PERCENT, 0)
+
+
+def punch_is_open(situation: str) -> bool:
+    """Um item aberto é o que ainda não fechou nem foi cancelado."""
+    return situation in PUNCH_OPEN_SITUATIONS
+
+
+def punch_age_days(opened_on: date, reference_date: date) -> int:
+    """Os dias desde a abertura; nunca negativo, para uma data futura não mentir."""
+    return max(0, (reference_date - opened_on).days)
+
+
+def punch_is_overdue(state: PunchState, reference_date: date) -> bool:
+    """Vencido: o prazo passou e o item segue aberto."""
+    return punch_is_open(state.situation) and state.due_date < reference_date
+
+
+def punch_kpis(states: Sequence[PunchState], reference_date: date) -> PunchKpis:
+    """Os cinco indicadores da lista, calculados do conjunto que o filtro deixou passar."""
+    opened = sum(1 for state in states if punch_is_open(state.situation))
+    return PunchKpis(
+        opened=opened,
+        open_a=sum(
+            1
+            for state in states
+            if punch_is_open(state.situation) and state.category == PUNCH_BLOCKING_CATEGORY
+        ),
+        verifying=sum(1 for state in states if state.situation == PUNCH_VERIFYING),
+        overdue=sum(1 for state in states if punch_is_overdue(state, reference_date)),
+        closed=sum(1 for state in states if state.situation == PUNCH_CLOSED),
+        valid=sum(1 for state in states if state.situation != PUNCH_CANCELLED),
+    )
+
+
+def punch_system_block_count(
+    states: Sequence[PunchState], *, system_id: int, milestone: str
+) -> int:
+    """Quantos itens bloqueiam o sistema no marco: a regra do protótipo (``bloqueio``).
+
+    A categoria A impede o marco seguinte quando o marco do item é anterior ou igual ao marco
+    pedido; o aceite definitivo é bloqueado por qualquer item aberto do sistema, como o
+    protótipo mostra. Um marco fora da lista não bloqueia nada.
+    """
+    target = PUNCH_MILESTONE_INDEX.get(milestone)
+    if target is None:
+        return 0
+    count = 0
+    for state in states:
+        if state.system_id != system_id or not punch_is_open(state.situation):
+            continue
+        if milestone == PUNCH_MILESTONES[-1]:
+            count += 1
+            continue
+        index = PUNCH_MILESTONE_INDEX.get(state.milestone)
+        if state.category == PUNCH_BLOCKING_CATEGORY and index is not None and index <= target:
+            count += 1
+    return count
+
+
+def punch_action_description(system_label: str, tag: str, category: str, situation: str) -> str:
+    """A descrição que a ação da Central espelha do item (``acaoDoPunch`` do protótipo)."""
+    tagged = f" · {tag}" if tag else ""
+    return f"Sistema {system_label}{tagged} · categoria {category} · {situation}"
