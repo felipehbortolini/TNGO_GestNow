@@ -292,8 +292,9 @@ disco. **O fragmento traz só o elemento; nunca `<script>`:**
 <div data-grafico="curva-s-linha" data-dados='{{ grafico | tojson }}'></div>
 ```
 
-`data-grafico` diz o tipo (`curva-s-linha`, `curva-s-barra-linha`,
-`comparativo-barras`, `pareto`, `relogios`) e `data-dados` leva o JSON. O atributo
+`data-grafico` diz o tipo (curva, barras, Pareto, relógios, heatmap, Gantt e os
+demais — a lista completa, com o contrato de cada visual, está no styleguide) e
+`data-dados` leva o JSON. O atributo
 vai entre aspas simples (o `tojson` do Jinja não escapa aspas duplas) ou com
 `| tojson | forceescape`. O motor desenha quando o elemento chega e redesenha se o
 `data-dados` mudar ou a tela mudar de tamanho; do JavaScript da tela:

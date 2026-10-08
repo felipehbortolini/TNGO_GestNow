@@ -20,6 +20,28 @@ itens. Neste produto a sigla nunca significa Estimate at Completion.
 **Projeção no término** — estimativa do custo total do projeto ao término.
 Substitui o uso ambíguo da sigla inglesa EAC para Estimate at Completion.
 
+**Medição** — registro datado do avanço de um pacote da EAP, pelo critério do
+pacote; o estorno é uma medição com justificativa que reduz o avanço.
+
+**Curva S física** — linha de base do avanço físico por período, congelada da
+revisão vigente da EAP; o real vem das medições e a tendência segue o ritmo da
+linha de base a partir do real da data de corte.
+
+**Curva S financeira** — linha de base do custo por período, congelada da
+revisão vigente da EAC; o realizado vem dos fatos do ERP e a tendência projeta
+o restante pelo desempenho de custo.
+
+**Reserva** — saldo do projeto movimentado só por SM aprovada: a constituição
+soma, o consumo e a liberação subtraem. A reserva de contingência cobre riscos;
+a gerencial é da administração.
+
+**Comprometido** — custo já comprometido por pedidos e contratos, comparado ao
+orçamento no término; não é custo realizado.
+
+**Cronograma de desembolso** — saldo a pagar do item (projeção no término menos
+realizado) distribuído nos meses futuros pelos marcos de pagamento ou pelo
+perfil da projeção.
+
 **SM** — Solicitação de Mudança. Registro formal para analisar, decidir e
 incorporar uma mudança de escopo, prazo, custo ou contrato; linha de base só
 muda pela SM aprovada.
