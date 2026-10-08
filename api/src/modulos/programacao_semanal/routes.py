@@ -11,7 +11,9 @@ window), ``prog-filtros`` (toolbar), ``prog-resumo`` (strip) and ``prog-tabela``
 approval) answer with the drawer plus the matrix on an error, so no declared target is
 left without content; the publication answers with the strip and the matrix. The
 governance screen (ISSUE-053) adds ``gov-painel``, ``gov-pedidos`` and ``gov-trilha``:
-the panel, the queue of change requests and the module's audit trail.
+the panel, the queue of change requests and the module's audit trail. The configuration
+screen (ISSUE-054) adds ``config-painel`` (the whole panel), ``config-parametros`` and
+``config-janelas``: each block saves and re-renders on its own target.
 """
 
 from __future__ import annotations
@@ -29,8 +31,10 @@ from src.core.export_document import Document
 from src.core.printable import printable_response
 from src.core.responses import AlpineAjaxResponse
 from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.modulos.configuracoes import registers
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.programacao_semanal import export, screen, service, validation
+from src.modulos.programacao_semanal.screen import SettingsSubmission, WindowSubmission
 from src.modulos.programacao_semanal.service import Caller
 from src.modulos.programacao_semanal.validation import ActivityForm
 
@@ -760,3 +764,120 @@ def decide_request(
         else service.REQUEST_REJECT_TOAST.format(unique_id=decided.unique_id)
     )
     return _queue_answer(req, session, context, toast=toast)
+
+
+# ── The configuration of the schedule (ISSUE-054) ────────────────────────
+
+CONFIGURATION_TEMPLATE = "configuracao.html"
+SETTINGS_TEMPLATE = "parametros.html"
+WINDOWS_TEMPLATE = "janelas.html"
+
+
+@bp.route(route="programacao-semanal/configuracao", methods=["GET"])
+@fragment_route(access=ACCESS)
+def configuration(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The configuration of the project: the parameters and the windows by company."""
+    data = screen.configuration_context(session, caller=_caller(context))
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/{CONFIGURATION_TEMPLATE}", context=data, request=req
+    )
+
+
+def _settings_answer(
+    req: func.HttpRequest,
+    context: RequestContext,
+    session: Session,
+    *,
+    submission: SettingsSubmission | None = None,
+    status_code: int = 200,
+    toast: str | None = None,
+) -> func.HttpResponse:
+    """The parameters block again, with the error messages next to the fields when refused."""
+    data = screen.configuration_context(session, caller=_caller(context), settings=submission)
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/{SETTINGS_TEMPLATE}",
+        context=data,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo="erro" if status_code >= 400 else "ok",
+    )
+
+
+@bp.route(route="programacao-semanal/configuracao/parametros", methods=["POST"])
+@fragment_route(access=ACCESS)
+def save_settings(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the parameters of the schedule (Planner or Admin); 422/409 give the form back."""
+    caller = _caller(context)
+    values = _body(req)
+    form = validation.parse_settings(values)
+    version = values.get("versao") or ""
+    try:
+        service.save_parameters(session, caller=caller, form=form, version=version)
+    except (InvalidDataError, VersionConflictError) as error:
+        errors = _errors_of(error)
+        return _settings_answer(
+            req,
+            context,
+            session,
+            submission=SettingsSubmission(errors=errors, values=form, version=version),
+            status_code=409 if isinstance(error, VersionConflictError) else 422,
+            toast=next(iter(errors.values()), None),
+        )
+    return _settings_answer(req, context, session, toast=service.SETTINGS_SAVED)
+
+
+def _windows_answer(
+    req: func.HttpRequest,
+    context: RequestContext,
+    session: Session,
+    *,
+    submission: WindowSubmission | None = None,
+    status_code: int = 200,
+    toast: str | None = None,
+) -> func.HttpResponse:
+    """The windows block again: all the cards, the refused one with its messages."""
+    data = screen.configuration_context(session, caller=_caller(context), windows=submission)
+    return AlpineAjaxResponse(
+        template_name=f"{TEMPLATE_DIR}/{WINDOWS_TEMPLATE}",
+        context=data,
+        request=req,
+        status_code=status_code,
+        toast=toast,
+        toast_tipo="erro" if status_code >= 400 else "ok",
+    )
+
+
+@bp.route(route="programacao-semanal/configuracao/janela", methods=["POST"])
+@fragment_route(access=ACCESS)
+def save_window(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the window of a company (Planner or Admin); 422/409 give the card back filled."""
+    caller = _caller(context)
+    values = _body(req)
+    form = validation.parse_window(values, selected_weeks=req.form.getlist("semanas"))
+    version = values.get("versao") or ""
+    try:
+        service.save_window(session, caller=caller, form=form, version=version)
+    except (InvalidDataError, VersionConflictError) as error:
+        errors = _errors_of(error)
+        return _windows_answer(
+            req,
+            context,
+            session,
+            submission=WindowSubmission(
+                errors=errors, values=form, company_id=form.company_id, version=version
+            ),
+            status_code=409 if isinstance(error, VersionConflictError) else 422,
+            toast=next(iter(errors.values()), None),
+        )
+    company_id = form.company_id or 0
+    company = registers.company_names(session, {company_id}).get(company_id, "")
+    return _windows_answer(
+        req, context, session, toast=service.WINDOW_SAVED.format(company=company)
+    )

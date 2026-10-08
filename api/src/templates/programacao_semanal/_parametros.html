@@ -1,0 +1,127 @@
+{#
+  Partial — os parâmetros da programação do projeto: as metas de aderência e de PPC,
+  a semana de referência e a regra de justificativa de desvio. É o "Geral" do app,
+  sem os cadastros e sem a identificação do ambiente (o projeto é o do escopo).
+
+  As metas definem a cor da faixa e a marca dos indicadores; por isso mudam de
+  contrato para contrato. A alteração vale na próxima requisição e a trilha guarda
+  o antes e o depois.
+
+  Espera: parametros, referencia_semanas, versao_parametros, erros_parametros,
+  pode_editar, usa_padroes, semana_atual, salvar_parametros_url.
+#}
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Parâmetros</h2>
+      <p class="hint">valem para todo o projeto; a mudança vale na hora e fica na trilha</p>
+    </div>
+    {% if usa_padroes %}
+    <span class="chip chip--info">Ainda com os padrões do app</span>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    {% if pode_editar %}
+    <form method="post" action="{{ salvar_parametros_url }}" x-target="config-parametros"
+      data-tn-loading="Salvando parâmetros...">
+      <input type="hidden" name="versao" value="{{ versao_parametros }}" />
+      {% if erros_parametros._ %}
+      <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros_parametros._ }}</span></div>
+      {% endif %}
+
+      <div class="fgrid">
+        <div class="field">
+          <label for="cfg-meta-aderencia">Meta de aderência (%)</label>
+          <input id="cfg-meta-aderencia"
+            class="input{{ ' input--erro' if erros_parametros.meta_aderencia }}"
+            type="number" step="1" min="0" max="100" name="meta_aderencia"
+            value="{{ parametros.meta_aderencia }}"
+            {% if erros_parametros.meta_aderencia %}aria-invalid="true" aria-describedby="cfg-erro-meta-aderencia"{% endif %} />
+          {% if erros_parametros.meta_aderencia %}
+          <span id="cfg-erro-meta-aderencia" class="field__erro">{{ erros_parametros.meta_aderencia }}</span>
+          {% else %}
+          <span class="hint">Total realizado sobre o total previsto do conjunto.</span>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="cfg-meta-ppc">Meta de PPC médio (%)</label>
+          <input id="cfg-meta-ppc" class="input{{ ' input--erro' if erros_parametros.meta_ppc }}"
+            type="number" step="1" min="0" max="100" name="meta_ppc"
+            value="{{ parametros.meta_ppc }}"
+            {% if erros_parametros.meta_ppc %}aria-invalid="true" aria-describedby="cfg-erro-meta-ppc"{% endif %} />
+          {% if erros_parametros.meta_ppc %}
+          <span id="cfg-erro-meta-ppc" class="field__erro">{{ erros_parametros.meta_ppc }}</span>
+          {% else %}
+          <span class="hint">Média do PPC das atividades programadas.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="field mt-16">
+        <label for="cfg-semana">Abrir a programação em</label>
+        <select id="cfg-semana" class="input{{ ' input--erro' if erros_parametros.semana_referencia }}"
+          name="semana_referencia"
+          {% if erros_parametros.semana_referencia %}aria-invalid="true" aria-describedby="cfg-erro-semana"{% endif %}>
+          <option value="">Semana corrente ({{ semana_atual }})</option>
+          {% for s in referencia_semanas %}
+          <option value="{{ s.id }}" {% if parametros.semana_referencia == s.id %}selected{% endif %}>{{ s.id }} · {{ s.periodo }}</option>
+          {% endfor %}
+        </select>
+        {% if erros_parametros.semana_referencia %}
+        <span id="cfg-erro-semana" class="field__erro">{{ erros_parametros.semana_referencia }}</span>
+        {% else %}
+        <span class="hint">A semana que a matriz e o dashboard abrem por padrão.</span>
+        {% endif %}
+      </div>
+
+      <div class="field mt-16" x-data="{ exige: {{ 'true' if parametros.exige_justificativa_desvio else 'false' }} }">
+        <label class="toggle" :class="exige ? 'toggle is-active' : 'toggle'">
+          <input type="checkbox" class="sr-only" x-model="exige"
+            aria-label="Exigir justificativa quando o desvio passar do limite" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          Exigir justificativa acima do limite
+        </label>
+        <input type="hidden" name="exige_justificativa_desvio" :value="exige ? 'sim' : 'nao'" />
+        <div class="mt-16" x-show="exige">
+          <label for="cfg-limite">Limite de desvio sem justificativa (%)</label>
+          <input id="cfg-limite" class="input{{ ' input--erro' if erros_parametros.limite_desvio_justificativa }}"
+            type="number" step="1" min="0" max="100" name="limite_desvio_justificativa"
+            value="{{ parametros.limite_desvio_justificativa }}"
+            {% if erros_parametros.limite_desvio_justificativa %}aria-invalid="true" aria-describedby="cfg-erro-limite"{% endif %} />
+          {% if erros_parametros.limite_desvio_justificativa %}
+          <span id="cfg-erro-limite" class="field__erro">{{ erros_parametros.limite_desvio_justificativa }}</span>
+          {% else %}
+          <span class="hint">Quando o realizado se afasta mais que isto do previsto, o lançamento pede explicação.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="cfg-acoes">
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Salvar parâmetros
+        </button>
+      </div>
+    </form>
+    {% else %}
+    <dl class="cfg-detalhe">
+      <div class="cfg-detalhe__linha">
+        <dt>Meta de aderência</dt>
+        <dd>{{ parametros.meta_aderencia }}%</dd>
+      </div>
+      <div class="cfg-detalhe__linha">
+        <dt>Meta de PPC médio</dt>
+        <dd>{{ parametros.meta_ppc }}%</dd>
+      </div>
+      <div class="cfg-detalhe__linha">
+        <dt>Abrir a programação em</dt>
+        <dd>{{ parametros.semana_referencia or 'Semana corrente (' ~ semana_atual ~ ')' }}</dd>
+      </div>
+      <div class="cfg-detalhe__linha">
+        <dt>Justificativa de desvio</dt>
+        <dd>{{ ('Exigida acima de ' ~ parametros.limite_desvio_justificativa ~ '%') if parametros.exige_justificativa_desvio else 'Não exigida' }}</dd>
+      </div>
+    </dl>
+    {% endif %}
+  </div>
+</section>

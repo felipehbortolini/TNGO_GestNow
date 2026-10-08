@@ -1,0 +1,11 @@
+{% extends "base_fragment.html" %}
+{#
+  O bloco dos parâmetros (#config-parametros): resposta de
+  /api/programacao-semanal/configuracao/parametros. O alvo manda no id da raiz, então o
+  fragmento usa o bloco padrão e inclui o partial; no 422/409 ele volta com o digitado.
+
+  Espera: o contexto de screen.configuration_context com a submissão dos parâmetros.
+#}
+{% block fragment %}
+{% include "programacao_semanal/_parametros.html" %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base_fragment.html" %}
+{#
+  O painel da configuração da programação (#config-painel): resposta de
+  /api/programacao-semanal/configuracao. No projeto, os parâmetros (#config-parametros)
+  e as janelas (#config-janelas) ficam em blocos com alvo próprio, para cada gravação
+  trocar só o seu; no Portfólio, só o aviso de escolher um projeto (D8).
+
+  Espera: o contexto de screen.configuration_context.
+#}
+{% block fragment %}
+{% if portfolio %}
+<div class="aviso aviso--info">
+  <strong>Escolha um projeto</strong>
+  <span>
+    No Portfólio a configuração da programação é só de leitura. Escolha um projeto na
+    barra lateral para ver e editar os parâmetros e as janelas.
+  </span>
+</div>
+{% else %}
+<div id="config-parametros">{% include "programacao_semanal/_parametros.html" %}</div>
+<div id="config-janelas">{% include "programacao_semanal/_janelas.html" %}</div>
+{% endif %}
+{% endblock %}

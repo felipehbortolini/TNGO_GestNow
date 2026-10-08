@@ -11,12 +11,13 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
-from src.core import rbac
+from src.core import calendario, rbac
 from src.modulos.configuracoes import registers
 from src.modulos.configuracoes.registers import Option
 from src.modulos.programacao_semanal import (
@@ -26,12 +27,15 @@ from src.modulos.programacao_semanal import (
     service,
     weeks,
 )
+from src.modulos.programacao_semanal import window as window_rules
 from src.modulos.programacao_semanal.service import Caller, Filters, FlowScreen, FormOptions
 from src.modulos.programacao_semanal.validation import (
     ActivityForm,
     ApprovalForm,
     DoneForm,
+    ScheduleSettingsForm,
     ValidationForm,
+    WindowForm,
 )
 from src.modulos.programacao_semanal.views import (
     ActivityView,
@@ -64,6 +68,13 @@ GOVERNANCE_EXCEL_URL = f"{GOVERNANCE_URL}/excel"
 GOVERNANCE_PRINTABLE_URL = f"{GOVERNANCE_URL}/imprimivel"
 QUEUE_URL = f"{BASE_URL}/pedidos"
 REQUEST_FORM_URL = f"{QUEUE_URL}/formulario"
+CONFIGURATION_URL = f"{BASE_URL}/configuracao"
+SETTINGS_SAVE_URL = f"{CONFIGURATION_URL}/parametros"
+WINDOW_SAVE_URL = f"{CONFIGURATION_URL}/janela"
+
+# The app's week selector: the current year and the next two, one pill per ISO week.
+SELECTOR_YEARS = 3
+SELECTOR_QUARTERS = (1, 2, 3, 4)
 
 # Where the button of the next action of each step opens its panel.
 ACTION_URLS = {
@@ -584,6 +595,193 @@ def request_context(
         "motivo_fechado": _closed_reason(view),
         "salvar_url": QUEUE_URL,
     }
+
+
+# ── The configuration of the schedule (ISSUE-054) ────────────────────────
+
+
+@dataclass(frozen=True)
+class SettingsSubmission:
+    """The typed parameters when the save was refused: the form shows them again."""
+
+    errors: Mapping[str, str]
+    values: ScheduleSettingsForm
+    version: str
+
+
+@dataclass(frozen=True)
+class WindowSubmission:
+    """The typed window when the save was refused: the errors, the values and the company."""
+
+    errors: Mapping[str, str]
+    values: WindowForm
+    company_id: int | None
+    version: str
+
+
+def configuration_context(
+    session: Session,
+    *,
+    caller: Caller,
+    settings: SettingsSubmission | None = None,
+    windows: WindowSubmission | None = None,
+) -> dict[str, Any]:
+    """The whole configuration of the project: the parameters and the windows by company.
+
+    In the Portfólio the screen only says to choose a project (D8): the blocks of the
+    forms are not built at all. A supplier sees only its own company's window (D7).
+    """
+    configuration = service.configuration_of(session, caller=caller)
+    data: dict[str, Any] = {
+        "portfolio": configuration.is_portfolio,
+        "pode_editar": configuration.can_edit,
+        "projeto_rotulo": configuration.project_label,
+        "usa_padroes": configuration.project_id is not None and not configuration.has_row,
+        "salvar_parametros_url": SETTINGS_SAVE_URL,
+        "salvar_janela_url": WINDOW_SAVE_URL,
+    }
+    if not configuration.is_portfolio:
+        data.update(_settings_block(session, caller, configuration, settings))
+        data.update(_windows_block(session, caller, configuration, windows))
+    return data
+
+
+def _settings_block(
+    session: Session,
+    caller: Caller,
+    configuration: service.ScheduleConfiguration,
+    submission: SettingsSubmission | None,
+) -> dict[str, Any]:
+    """The parameters block: the current values (or the typed ones) and the reference weeks."""
+    parameters = configuration.parameters
+    typed = submission.values if submission is not None else None
+    return {
+        "parametros": {
+            "meta_aderencia": _number_text(
+                typed.adherence_target if typed else parameters.adherence_target
+            ),
+            "meta_ppc": _number_text(typed.ppc_target if typed else parameters.ppc_target),
+            "semana_referencia": typed.reference_week if typed else parameters.reference_week,
+            "exige_justificativa_desvio": (
+                typed.requires_deviation_note if typed else parameters.requires_deviation_note
+            ),
+            "limite_desvio_justificativa": _number_text(
+                typed.deviation_limit if typed else parameters.deviation_limit
+            ),
+        },
+        "referencia_semanas": _reference_weeks(session, caller, parameters.reference_week),
+        "versao_parametros": (
+            submission.version if submission is not None else (configuration.settings_version or "")
+        ),
+        "erros_parametros": dict(submission.errors) if submission is not None else {},
+    }
+
+
+def _reference_weeks(session: Session, caller: Caller, reference: str) -> list[weeks.WeekInfo]:
+    """The weeks the reference select offers: the horizon of the screen plus a distant reference."""
+    options = service.horizon_weeks(session, caller=caller)
+    if (
+        reference
+        and weeks.is_valid(reference)
+        and all(option.id != reference for option in options)
+    ):
+        options.append(weeks.describe(reference))
+        options.sort(key=lambda option: weeks.sort_key(option.id))
+    return options
+
+
+def _windows_block(
+    session: Session,
+    caller: Caller,
+    configuration: service.ScheduleConfiguration,
+    submission: WindowSubmission | None,
+) -> dict[str, Any]:
+    """The windows block: one card per company, the day selector and the week pills."""
+    week = service.default_week(session, caller=caller)
+    today = service.today_of(caller.now)
+    return {
+        "janelas": [_window_values(window, submission) for window in configuration.windows],
+        "dias_semana": [
+            {"valor": number, "nome": name} for number, name in window_rules.WEEKDAY_NAMES.items()
+        ],
+        "anos": _selector_years(week, today),
+        "trimestres": SELECTOR_QUARTERS,
+        "semana_atual": week,
+        "periodo_atual": weeks.period_label(week),
+        "erros_janela": dict(submission.errors) if submission is not None else {},
+        "editando_janela": submission.company_id if submission is not None else None,
+    }
+
+
+def _window_values(
+    window: service.SettingsWindow, submission: WindowSubmission | None
+) -> dict[str, Any]:
+    """One company's window as its card prints it, with the typed values when refused."""
+    typed = (
+        submission.values
+        if submission is not None and submission.company_id == window.company_id
+        else None
+    )
+    submitted_version = submission.version if submission is not None else ""
+    day = window.days[0] if window.days else None
+    return {
+        "company_id": window.company_id,
+        "empresa": window.company,
+        "aberta": window.is_open,
+        "motivo": window.reason,
+        "versao": submitted_version if typed else (window.version or ""),
+        "dia": (typed.weekday if typed else (str(day.weekday) if day else "")),
+        "abre": (typed.opens if typed else (window_rules.hours_text(day.opens) if day else "")),
+        "fecha": (typed.closes if typed else (window_rules.hours_text(day.closes) if day else "")),
+        "semanas": list(typed.weeks) if typed else list(window.weeks),
+        "quantidade_semanas": len(typed.weeks) if typed else len(window.weeks),
+        "extra_semana": typed.extra_week if typed else "",
+        "extra_abre": typed.extra_opens if typed else "",
+        "extra_fecha": typed.extra_closes if typed else "",
+        "extras": [
+            {
+                "semana": extra.week,
+                "abre": _moment_text(extra.opens),
+                "fecha": _moment_text(extra.closes),
+            }
+            for extra in window.extras
+        ],
+    }
+
+
+def _selector_years(reference: str, today: date) -> list[dict[str, Any]]:
+    """The ISO weeks of the selector, grouped by year, as the pills print them (the app's 3)."""
+    start_year, _number = weeks.parts(reference)
+    return [
+        {
+            "ano": year,
+            "semanas": [_pill(week, today) for week in _year_weeks(year)],
+        }
+        for year in range(start_year, start_year + SELECTOR_YEARS)
+    ]
+
+
+def _year_weeks(year: int) -> list[str]:
+    return [weeks.reference(year, number) for number in range(1, weeks.weeks_in_year(year) + 1)]
+
+
+def _pill(week: str, today: date) -> dict[str, Any]:
+    """One week of the pill grid: its number, the period of the title and its quarter."""
+    info = weeks.describe(week)
+    first = info.first_day
+    last = info.last_day
+    return {
+        "id": week,
+        "numero": f"{info.number:02d}",
+        "periodo": info.period,
+        "tri": ((first.month - 1) // 3) + 1 if first else 1,
+        "passada": bool(last and last < today),
+    }
+
+
+def _moment_text(moment: datetime) -> str:
+    """An instant of an extraordinary release as it prints on the chip."""
+    return calendario.in_product_timezone(moment).strftime("%d/%m/%Y %H:%M")
 
 
 def _form_days(view: ActivityView, dates: list[Any]) -> list[dict[str, Any]]:

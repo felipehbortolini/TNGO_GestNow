@@ -1,16 +1,154 @@
 /* ============================================================
    configuracao.css — Estilo da tela Configuração da programação (programacao_semanal/configuracao)
 
-   Janelas e parâmetros da programação semanal, uma configuração por projeto.
+   Parâmetros e janelas da programação semanal, uma configuração por projeto.
 
    Escopo: tudo que morar aqui começa por .pagina--programacao_semanal-configuracao, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-054.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+.pagina--programacao_semanal-configuracao [x-cloak] { display: none; }
+
+/* O formulário do dia e da hora, e o da liberação extraordinária: três colunas. */
+.pagina--programacao_semanal-configuracao .cfg-janela-campos {
+  grid-template-columns: 1.4fr 1fr 1fr;
+}
+
+.pagina--programacao_semanal-configuracao .cfg-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-lg);
+}
+
+/* A leitura de quem só consulta (o fornecedor vê a própria empresa). */
+.pagina--programacao_semanal-configuracao .cfg-detalhe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+}
+.pagina--programacao_semanal-configuracao .cfg-detalhe__linha {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr;
+  gap: var(--space-sm);
+}
+.pagina--programacao_semanal-configuracao .cfg-detalhe dt {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.pagina--programacao_semanal-configuracao .cfg-detalhe dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* O seletor de semanas: uma grade de pastilhas por ano, como no app. */
+.pagina--programacao_semanal-configuracao .cfg-semanas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+.pagina--programacao_semanal-configuracao .cfg-semanas__ano {
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  padding: var(--space-sm);
+}
+.pagina--programacao_semanal-configuracao .cfg-semanas__topo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.pagina--programacao_semanal-configuracao .cfg-semanas__rotulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-title);
+}
+.pagina--programacao_semanal-configuracao .cfg-atalhos {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+.pagina--programacao_semanal-configuracao .cfg-semanas__grade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.pagina--programacao_semanal-configuracao .cfg-pastilha {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 4px 6px;
+  border: 1px solid var(--borda);
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.pagina--programacao_semanal-configuracao .cfg-pastilha input {
+  position: absolute;
+  opacity: 0;
+}
+.pagina--programacao_semanal-configuracao .cfg-pastilha:has(input:checked) {
+  background: var(--verde-50);
+  border-color: var(--verde-500);
+  color: var(--verde-700);
+}
+.pagina--programacao_semanal-configuracao .cfg-pastilha:has(input:focus-visible) {
+  outline: 2px solid var(--verde-500);
+  outline-offset: 2px;
+}
+.pagina--programacao_semanal-configuracao .cfg-pastilha.is-passada {
+  color: var(--text-secondary);
+}
+
+/* As liberações extraordinárias já gravadas, cada uma removível pelo ×. */
+.pagina--programacao_semanal-configuracao .cfg-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.pagina--programacao_semanal-configuracao .cfg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 4px 8px;
+  border: 1px solid var(--warn-500);
+  border-radius: var(--r-sm);
+  background: var(--warn-50);
+  color: var(--warn-800);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pagina--programacao_semanal-configuracao .cfg-chip__x {
+  border: 0;
+  background: transparent;
+  color: var(--warn-800);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pagina--programacao_semanal-configuracao .cfg-chip__x:focus-visible {
+  outline: 2px solid var(--warn-500);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1100px) {
+  .pagina--programacao_semanal-configuracao .cfg-janela-campos,
+  .pagina--programacao_semanal-configuracao .cfg-detalhe__linha {
+    grid-template-columns: 1fr;
+  }
+}

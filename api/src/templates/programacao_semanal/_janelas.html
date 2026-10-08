@@ -1,0 +1,205 @@
+{#
+  Partial — as janelas de programação por empresa: dia e horário, semanas liberadas e
+  liberações extraordinárias, com o estado de agora no topo do cartão. É o "Janelas" do
+  app; as empresas vêm do cadastro do GestNow, não de um cadastro paralelo.
+
+  A semana vira pastilha numa grade, com os atalhos de trimestre e de ano do app. A
+  liberação extraordinária vence a regra nos dois sentidos: dentro do intervalo abre
+  mesmo no dia errado; fora dele fecha mesmo que a semana esteja liberada.
+
+  Espera: janelas, dias_semana, anos, trimestres, semana_atual, periodo_atual,
+  erros_janela, editando_janela, pode_editar, salvar_janela_url.
+#}
+<div class="aviso aviso--info mb-16">
+  <strong>Como a janela funciona</strong>
+  <span>
+    A regra vale para a <b>empresa</b>, não para a pessoa. São três camadas, nesta ordem:
+    a liberação extraordinária vence tudo; depois, a semana precisa estar liberada;
+    por último, o dia e o horário precisam ser os de hoje. Fora disso a contratada
+    consulta, mas não edita.
+  </span>
+</div>
+
+{% for j in janelas %}
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">{{ j.empresa }}</h2>
+      <p class="hint">
+        {% if j.aberta %}
+        <span class="pill pill--ok">Aberta agora</span>
+        {% else %}
+        <span class="pill pill--warn">Fechada agora</span>
+        {% endif %}
+        {{ j.motivo }} · semana {{ semana_atual }} ({{ periodo_atual }})
+      </p>
+    </div>
+    <span class="chip chip--info">{{ j.quantidade_semanas }} semana(s) liberada(s)</span>
+  </div>
+  <div class="card__body">
+    {% if pode_editar %}
+    <form method="post" action="{{ salvar_janela_url }}" x-target="config-janelas"
+      data-tn-loading="Salvando a janela...">
+      <input type="hidden" name="empresa" value="{{ j.company_id }}" />
+      <input type="hidden" name="versao" value="{{ j.versao }}" />
+      {% if editando_janela == j.company_id and erros_janela._ %}
+      <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros_janela._ }}</span></div>
+      {% endif %}
+
+      <h3 class="h-card5">Dia e horário</h3>
+      <div class="fgrid cfg-janela-campos">
+        <div class="field">
+          <label for="cfg-dia-{{ j.company_id }}">Dia da semana</label>
+          <select id="cfg-dia-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.dia }}"
+            name="dia"
+            {% if editando_janela == j.company_id and erros_janela.dia %}aria-invalid="true" aria-describedby="cfg-erro-dia-{{ j.company_id }}"{% endif %}>
+            <option value="">Qualquer dia</option>
+            {% for d in dias_semana %}
+            <option value="{{ d.valor }}" {% if j.dia == d.valor|string %}selected{% endif %}>{{ d.nome }}</option>
+            {% endfor %}
+          </select>
+          {% if editando_janela == j.company_id and erros_janela.dia %}
+          <span id="cfg-erro-dia-{{ j.company_id }}" class="field__erro">{{ erros_janela.dia }}</span>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="cfg-abre-{{ j.company_id }}">Abre às</label>
+          <input id="cfg-abre-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.abre }}"
+            type="time" name="abre" value="{{ j.abre or '00:01' }}"
+            {% if editando_janela == j.company_id and erros_janela.abre %}aria-invalid="true" aria-describedby="cfg-erro-abre-{{ j.company_id }}"{% endif %} />
+          {% if editando_janela == j.company_id and erros_janela.abre %}
+          <span id="cfg-erro-abre-{{ j.company_id }}" class="field__erro">{{ erros_janela.abre }}</span>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="cfg-fecha-{{ j.company_id }}">Fecha às</label>
+          <input id="cfg-fecha-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.fecha }}"
+            type="time" name="fecha" value="{{ j.fecha or '23:59' }}"
+            {% if editando_janela == j.company_id and erros_janela.fecha %}aria-invalid="true" aria-describedby="cfg-erro-fecha-{{ j.company_id }}"{% endif %} />
+          {% if editando_janela == j.company_id and erros_janela.fecha %}
+          <span id="cfg-erro-fecha-{{ j.company_id }}" class="field__erro">{{ erros_janela.fecha }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <h3 class="h-card5 mt-16">Semanas liberadas</h3>
+      <p class="hint">Clique nas pastilhas para marcar; os atalhos de trimestre e de ano marcam e limpam de uma vez.</p>
+      <div class="cfg-semanas">
+        {% for bloco in anos %}
+        <div class="cfg-semanas__ano">
+          <div class="cfg-semanas__topo">
+            <span class="cfg-semanas__rotulo">{{ bloco.ano }}</span>
+            <span class="cfg-atalhos">
+              {% for tri in trimestres %}
+              <button type="button" class="btn btn--ghost btn--sm"
+                data-marcar-ano="{{ bloco.ano }}" data-marcar-tri="{{ tri }}" data-marcar-valor="sim"
+                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">T{{ tri }}</button>
+              {% endfor %}
+              <button type="button" class="btn btn--ghost btn--sm"
+                data-marcar-ano="{{ bloco.ano }}" data-marcar-valor="sim"
+                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">Ano inteiro</button>
+              <button type="button" class="btn btn--ghost btn--sm"
+                data-marcar-ano="{{ bloco.ano }}" data-marcar-valor="nao"
+                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">Limpar</button>
+            </span>
+          </div>
+          <div class="cfg-semanas__grade">
+            {% for s in bloco.semanas %}
+            <label class="cfg-pastilha{{ ' is-passada' if s.passada }}" title="{{ s.id }} · {{ s.periodo }}">
+              <input type="checkbox" name="semanas" value="{{ s.id }}"
+                data-ano="{{ bloco.ano }}" data-tri="{{ s.tri }}"
+                {% if s.id in j.semanas %}checked{% endif %} />
+              {{ s.numero }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if editando_janela == j.company_id and erros_janela.semanas %}
+      <span class="field__erro">{{ erros_janela.semanas }}</span>
+      {% endif %}
+
+      <h3 class="h-card5 mt-16">Liberação extraordinária</h3>
+      <p class="hint">Abre uma semana específica por um período absoluto, ignorando dia e horário.</p>
+      {% if j.extras %}
+      <div class="cfg-extras">
+        {% for e in j.extras %}
+        <span class="cfg-chip">
+          {{ e.semana }} · {{ e.abre }} até {{ e.fecha }}
+          <button type="submit" class="cfg-chip__x" name="remover_extra" value="{{ e.semana }}"
+            aria-label="Remover a liberação extraordinária de {{ e.semana }}">&times;</button>
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="fgrid cfg-janela-campos">
+        <div class="field">
+          <label for="cfg-extra-semana-{{ j.company_id }}">Semana</label>
+          <input id="cfg-extra-semana-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_semana }}"
+            type="text" name="extra_semana" value="{{ j.extra_semana }}"
+            placeholder="{{ semana_atual }}" autocomplete="off"
+            {% if editando_janela == j.company_id and erros_janela.extra_semana %}aria-invalid="true" aria-describedby="cfg-erro-extra-semana-{{ j.company_id }}"{% endif %} />
+          {% if editando_janela == j.company_id and erros_janela.extra_semana %}
+          <span id="cfg-erro-extra-semana-{{ j.company_id }}" class="field__erro">{{ erros_janela.extra_semana }}</span>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="cfg-extra-abre-{{ j.company_id }}">Abre em</label>
+          <input id="cfg-extra-abre-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_abre }}"
+            type="datetime-local" name="extra_abre" value="{{ j.extra_abre }}"
+            {% if editando_janela == j.company_id and erros_janela.extra_abre %}aria-invalid="true" aria-describedby="cfg-erro-extra-abre-{{ j.company_id }}"{% endif %} />
+          {% if editando_janela == j.company_id and erros_janela.extra_abre %}
+          <span id="cfg-erro-extra-abre-{{ j.company_id }}" class="field__erro">{{ erros_janela.extra_abre }}</span>
+          {% endif %}
+        </div>
+        <div class="field">
+          <label for="cfg-extra-fecha-{{ j.company_id }}">Fecha em</label>
+          <input id="cfg-extra-fecha-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_fecha }}"
+            type="datetime-local" name="extra_fecha" value="{{ j.extra_fecha }}"
+            {% if editando_janela == j.company_id and erros_janela.extra_fecha %}aria-invalid="true" aria-describedby="cfg-erro-extra-fecha-{{ j.company_id }}"{% endif %} />
+          {% if editando_janela == j.company_id and erros_janela.extra_fecha %}
+          <span id="cfg-erro-extra-fecha-{{ j.company_id }}" class="field__erro">{{ erros_janela.extra_fecha }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="cfg-acoes">
+        <button type="submit" class="btn btn--primary">
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+          Salvar a janela de {{ j.empresa }}
+        </button>
+      </div>
+    </form>
+    {% else %}
+    <dl class="cfg-detalhe">
+      <div class="cfg-detalhe__linha">
+        <dt>Dia e horário</dt>
+        <dd>
+          {% if j.dia %}
+          {% for d in dias_semana %}{% if j.dia == d.valor|string %}{{ d.nome }}{% endif %}{% endfor %}
+          · {{ j.abre or '00:01' }}–{{ j.fecha or '23:59' }}
+          {% else %}
+          Qualquer dia das semanas liberadas
+          {% endif %}
+        </dd>
+      </div>
+      <div class="cfg-detalhe__linha">
+        <dt>Semanas liberadas</dt>
+        <dd>{{ j.semanas|join(', ') or 'Nenhuma' }}</dd>
+      </div>
+      <div class="cfg-detalhe__linha">
+        <dt>Liberações extraordinárias</dt>
+        <dd>
+          {% if j.extras %}
+          {% for e in j.extras %}{{ e.semana }} ({{ e.abre }} a {{ e.fecha }}){% if not loop.last %}; {% endif %}{% endfor %}
+          {% else %}
+          Nenhuma
+          {% endif %}
+        </dd>
+      </div>
+    </dl>
+    {% endif %}
+  </div>
+</section>
+{% endfor %}
