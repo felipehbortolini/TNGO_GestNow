@@ -7,7 +7,8 @@ perfis, papéis e vínculos, e o preparo de produção com o primeiro Admin.
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from collections import Counter
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -24,7 +25,7 @@ from src.carga import (
 from src.carga.plataforma import DATA_PATH
 from src.core import calendario, config
 from src.core.auth import _user_of
-from src.core.errors import InvalidDataError
+from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry, Client, SeedRun
 from src.core.scope import Scope
 from src.modulos.central_acoes.models import Action
@@ -1116,11 +1117,13 @@ def test_oraculo_do_painel_da_punch_list(db_session: Session) -> None:
 def test_oraculo_do_fluxo_da_programacao_semanal(db_session: Session) -> None:
     """O oráculo da ISSUE-052: os estados do fluxo e a fila da próxima ação, com a carga.
 
-    Na âncora, o projeto 1 (TN-2026-014) tem as 92 atividades do app: 48 publicadas com o
-    realizado aprovado, 8 validadas com o realizado aprovado, 11 validadas aguardando o
-    fiscal e 25 em elaboração. Na semana S.34/2026, a aderência fecha em 66,19% (PPC médio
-    de 65,86%, 4 aguardando o fiscal e 2 na faixa baixa); a próxima ação de cada perfil
-    segue a fila do app (validar → lançar → aprovar → publicar → ver).
+    Na âncora, o projeto 1 (TN-2026-014) tem as 92 atividades do app: 47 publicadas com o
+    realizado aprovado, 1 publicada com o realizado pendente (o pedido de alteração
+    aplicado pela ISSUE-053 reabre o item, como o app faria), 8 validadas com o realizado
+    aprovado, 11 validadas aguardando o fiscal e 25 em elaboração. Na semana S.34/2026, a
+    aderência fecha em 66,19% (PPC médio de 65,86%, 4 aguardando o fiscal e 2 na faixa
+    baixa); a próxima ação de cada perfil segue a fila do app (validar → lançar → aprovar
+    → publicar → ver).
     """
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 
@@ -1134,7 +1137,8 @@ def test_oraculo_do_fluxo_da_programacao_semanal(db_session: Session) -> None:
         )
     }
     assert states == {
-        ("publicada", "aprovado"): 48,
+        ("publicada", "aprovado"): 47,
+        ("publicada", "pendente"): 1,
         ("validada", "aprovado"): 8,
         ("validada", "pendente"): 11,
         ("em_elaboracao", "pendente"): 25,
@@ -1173,6 +1177,119 @@ def test_oraculo_do_fluxo_da_programacao_semanal(db_session: Session) -> None:
     assert action(week_34["PS1-CON-021"], supplier) == "lancar"
     assert action(views_of("S.35/2026")["SUB-TRF-010"], planner) == "validar"
     assert action(views_of("S.30/2026")["PRD-ELT-015"], planner) == "ver"
+
+
+def test_oraculo_da_governanca_da_programacao_semanal(db_session: Session) -> None:
+    """O oráculo da ISSUE-053: o painel por empresa/semana, a fila e a trilha, com a carga.
+
+    Numa sexta da semana S.35/2026 (28/08/2026, 10:00 de São Paulo), com a janela de
+    M. Roscoe aberta, o projeto TN-2026-014 tem 26 linhas de controle (92 atividades
+    em 3 contratadas), 1 janela aberta e 17 pendências de aprovação com realizado. A
+    fila tem os três pedidos da carga: PS2-PIN-011 pendente, CAL-TUB-012 aplicado
+    (o realizado aprovado volta a pendente) e SUB-TRF-010 recusado. A trilha é a
+    auditoria única filtrada pelas entidades do módulo, sem as linhas de dia.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+    accesses = {access.email: access for access in configuracoes.list_active_access(db_session)}
+    planner = _user_of(accesses["planejador@timenow.com.br"])
+    supplier = _user_of(accesses["programacao@mroscoe.com.br"])
+    scope = Scope(project_id=project.id, source="url")
+    friday = datetime(2026, 8, 28, 13, 0, tzinfo=UTC)
+    caller = programacao_semanal.Caller(user=planner, scope=scope, now=friday)
+
+    panel = programacao_semanal.governance_panel(db_session, caller=caller)
+    assert (panel.reference_week, panel.reference_period) == ("S.35/2026", "24/08 a 30/08/2026")
+    assert (len(panel.lines), panel.active_companies, panel.open_windows) == (26, 3, 1)
+    counts = panel.situations
+    assert (
+        counts.total,
+        counts.draft,
+        counts.validated,
+        counts.published,
+        counts.approved,
+        counts.pending,
+        counts.no_done,
+    ) == (92, 25, 19, 48, 55, 17, 20)
+
+    lines = {(line.company, line.week): line for line in panel.lines}
+    assert (panel.lines[0].company, panel.lines[0].week) == ("M. Roscoe", "S.39/2026")
+    roscoe_34 = lines[("M. Roscoe", "S.34/2026")]
+    assert (
+        roscoe_34.total,
+        roscoe_34.validated,
+        roscoe_34.published,
+        roscoe_34.pending,
+        roscoe_34.adherence,
+        roscoe_34.inspector,
+    ) == (5, 5, 0, 1, 72.79, "Marcos Duarte")
+    elmec_31 = lines[("Elmec Montagens", "S.31/2026")]
+    assert (
+        elmec_31.total,
+        elmec_31.published,
+        elmec_31.pending,
+        elmec_31.adherence,
+        elmec_31.updated_at_text,
+    ) == (3, 3, 1, 41.88, "17/08/2026 08:30")
+    assert lines[("Bremmer", "S.32/2026")].updated_at_text == "08/08/2026 07:15"
+
+    windows = {window.company: window for window in panel.windows}
+    assert windows["M. Roscoe"].is_open
+    assert (
+        windows["M. Roscoe"].released_count,
+        windows["M. Roscoe"].weekday_label,
+        windows["M. Roscoe"].opens,
+        windows["M. Roscoe"].closes,
+    ) == (3, "Sexta-feira", "00:01", "23:59")
+    assert not windows["Bremmer"].is_open
+    assert not windows["Elmec Montagens"].is_open
+
+    queue = programacao_semanal.request_queue(db_session, caller=caller)
+    assert queue.total_pending == 1
+    assert [view.unique_id for view in queue.pending] == ["PS2-PIN-011"]
+    assert [(view.unique_id, view.situation) for view in queue.resolved] == [
+        ("CAL-TUB-012", "aplicado"),
+        ("SUB-TRF-010", "rejeitado"),
+    ]
+    assert queue.resolved[0].answer == "Liberado: ajuste o previsto e lance o realizado corrigido."
+
+    supplier_caller = programacao_semanal.Caller(user=supplier, scope=scope, now=friday)
+    supplier_queue = programacao_semanal.request_queue(db_session, caller=supplier_caller)
+    assert [view.unique_id for view in supplier_queue.pending] == ["PS2-PIN-011"]
+    assert supplier_queue.resolved == []
+    supplier_panel = programacao_semanal.governance_panel(db_session, caller=supplier_caller)
+    assert {line.company for line in supplier_panel.lines} == {"M. Roscoe"}
+    assert supplier_panel.situations.total == 37
+    assert not supplier_panel.can_view_trail
+
+    applied = db_session.scalars(
+        select(Activity)
+        .where(Activity.unique_id == "CAL-TUB-012")
+        .where(Activity.week == "S.31/2026")
+    ).one()
+    assert applied.approval == "pendente"
+    assert "Pedido de alteração liberado para alteração" in (applied.timenow_comments or "")
+
+    pedido_entries = db_session.scalar(
+        select(func.count())
+        .select_from(AuditEntry)
+        .where(AuditEntry.entity == "programacao_pedido_alteracao")
+    )
+    assert pedido_entries == 5
+    trail = programacao_semanal.governance_trail(db_session, caller=caller, limit=200)
+    labels = Counter(event.label for event in trail)
+    assert labels == {
+        "Atividade criada": 92,
+        "Realizado reaberto": 1,
+        "Pedido de alteração aberto": 3,
+        "Pedido de alteração aplicado": 1,
+        "Pedido de alteração recusado": 2,
+        "Janela de programação criada": 3,
+        "Configuração da programação gravada": 1,
+    }
+    with pytest.raises(AccessDeniedError):
+        programacao_semanal.governance_trail(db_session, caller=supplier_caller)
 
 
 def test_carga_cobre_perfis_papeis_e_vinculos(db_session: Session) -> None:

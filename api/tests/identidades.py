@@ -114,11 +114,13 @@ def requisicao(
     alvo: str = "main-nav module-tabs",
     params: Mapping[str, str] | None = None,
     corpo: Mapping[str, str] | None = None,
+    rota: Mapping[str, str] | None = None,
 ) -> func.HttpRequest:
     """A request as the shell sends it, with the principal of ``email`` when informed.
 
     ``cabecalho_bruto`` replaces the principal header with any text, to test
-    what a malformed header does.
+    what a malformed header does. ``rota`` are the route parameters of an
+    address with ``{}`` placeholders (``{"id": "7"}``).
     """
     headers = {"X-Alpine-Request": "true", "X-Alpine-Target": alvo}
     if cabecalho_bruto is not None:
@@ -134,7 +136,7 @@ def requisicao(
         url=caminho,
         headers=headers,
         params=dict(params or {}),
-        route_params={},
+        route_params=dict(rota or {}),
         body=urlencode(corpo).encode() if corpo is not None else b"",
     )
 

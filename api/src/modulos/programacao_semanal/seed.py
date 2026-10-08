@@ -9,7 +9,10 @@ reference. Every date, and every week reference, is shifted by the same number o
 
 Companies, locations, units and people belong to Configurações: they are asked of its
 facade (``ensure_*``). The activities, the window of each company and the parameters
-go through the facade of this module, with the trail.
+go through the facade of this module, with the trail. The app's own demonstration has
+no change requests, so the converted copy brings a small set of them — written through
+the same facade that serves the screen, with the dates shifted, so the governance
+panel and the queue are not empty in the demonstration.
 """
 
 from __future__ import annotations
@@ -24,10 +27,13 @@ from sqlalchemy.orm import Session
 
 from src.carga import register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
+from src.core.rbac import Bond, GeneralProfile, ScheduleRole, User
+from src.core.scope import Scope
 from src.modulos.configuracoes import service as registers_facade
-from src.modulos.programacao_semanal import service, weeks
+from src.modulos.programacao_semanal import repository, service, weeks
 from src.modulos.programacao_semanal import window as window_rules
 from src.modulos.programacao_semanal.service import NewActivity, ScheduleParameters
+from src.modulos.programacao_semanal.validation import DecisionForm
 
 PART_NAME = "programacao_semanal"
 DATA_PATH = Path(__file__).resolve().parent / "demonstracao.json"
@@ -87,6 +93,7 @@ def load(session: Session, reference_date: date) -> None:
             author_id=registers.author_id,
             new=_new_activity(source, registers, reference_date),
         )
+    _load_requests(session, data.get("solicitacoes", []), registers, reference_date)
 
 
 def _load_registers(session: Session, data: dict[str, Any]) -> Registers:
@@ -243,6 +250,73 @@ def _shift_moment(text: str, reference_date: date) -> datetime:
     """An instant of the app moved by the shift, keeping the time of day and the zone."""
     moment = datetime.fromisoformat(text)
     return datetime.combine(shift_date(moment.date(), reference_date), moment.timetz())
+
+
+def _load_requests(
+    session: Session,
+    sources: list[dict[str, Any]],
+    known: Registers,
+    reference_date: date,
+) -> None:
+    """Write the change requests of the demonstration through the facade, with the trail."""
+    for source in sources:
+        week = _shift_week(source["semana"], reference_date)
+        activity = repository.find_activity_of_week(
+            session, project_id=known.project_id, week=week, unique_id=source["id_exclusiva"]
+        )
+        if activity is None:
+            message = f"A solicitação {source['id_exclusiva']} de {week} não achou a atividade."
+            raise RuntimeError(message)
+        requester = _request_caller(
+            session,
+            email=source["solicitado_por"],
+            project_id=known.project_id,
+            at=_shift_moment(source["solicitado_em"], reference_date),
+        )
+        request = service.request_change(
+            session, caller=requester, activity_id=activity.id, reason=source["motivo"]
+        )
+        if source["situacao"] == service.REQUEST_PENDING:
+            continue
+        decider = _request_caller(
+            session,
+            email=source["decidido_por"],
+            project_id=known.project_id,
+            at=_shift_moment(source["decidido_em"], reference_date),
+        )
+        service.decide_request(
+            session,
+            caller=decider,
+            request_id=request.id,
+            form=DecisionForm(
+                apply=source["situacao"] == service.REQUEST_APPLIED,
+                answer=source["resposta"],
+                version=str(request.version),
+            ),
+        )
+
+
+def _request_caller(
+    session: Session, *, email: str, project_id: int, at: datetime
+) -> service.Caller:
+    """The ``Caller`` of a person of the demonstration, at a shifted instant."""
+    access = registers_facade.find_access_by_email(session, email)
+    if access is None:
+        message = f"O colaborador {email} da carga da programação não foi encontrado."
+        raise RuntimeError(message)
+    user = User(
+        id=access.id,
+        person_id=access.person_id,
+        name=access.name,
+        email=access.email,
+        general_profile=GeneralProfile(access.general_profile),
+        bond=Bond(access.bond),
+        company_id=access.company_id,
+        schedule_roles=frozenset(
+            (project_id, ScheduleRole(role)) for project_id, role in access.schedule_roles
+        ),
+    )
+    return service.Caller(user=user, scope=Scope(project_id=project_id, source="padrao"), now=at)
 
 
 register(PART_NAME, load)

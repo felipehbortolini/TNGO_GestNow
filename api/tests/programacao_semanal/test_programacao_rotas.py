@@ -244,6 +244,14 @@ def test_every_route_of_the_module_declares_its_access() -> None:
         routes.publish,
         routes.publish_week,
         routes.activity_detail,
+        routes.governance_panel,
+        routes.governance_trail,
+        routes.governance_excel,
+        routes.governance_printable,
+        routes.request_queue,
+        routes.request_form,
+        routes.open_request,
+        routes.decide_request,
     ):
         # `bp.route` embala a função do `fragment_route`; o `Access` mora na função de dentro.
         funcao = handler.build().get_user_function()

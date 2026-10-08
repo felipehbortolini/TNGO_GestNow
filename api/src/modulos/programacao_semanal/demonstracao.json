@@ -4398,6 +4398,41 @@
    "cargo": "Encarregado de frente"
   }
  ],
+ "solicitacoes": [
+  {
+   "semana": "S.34/2026",
+   "id_exclusiva": "PS2-PIN-011",
+   "motivo": "A medição de quarta saiu trocada com a de quinta na conferência de campo.",
+   "situacao": "pendente",
+   "solicitado_por": "programacao@mroscoe.com.br",
+   "solicitado_em": "2026-08-24T16:00:00+00:00",
+   "decidido_por": "",
+   "decidido_em": null,
+   "resposta": ""
+  },
+  {
+   "semana": "S.31/2026",
+   "id_exclusiva": "CAL-TUB-012",
+   "motivo": "O diâmetro da linha mudou; preciso ajustar o previsto da semana antes de reprogramar.",
+   "situacao": "aplicado",
+   "solicitado_por": "programacao@elmec.com.br",
+   "solicitado_em": "2026-08-16T17:00:00+00:00",
+   "decidido_por": "planejador@timenow.com.br",
+   "decidido_em": "2026-08-17T11:30:00+00:00",
+   "resposta": "Liberado: ajuste o previsto e lance o realizado corrigido."
+  },
+  {
+   "semana": "S.32/2026",
+   "id_exclusiva": "SUB-TRF-010",
+   "motivo": "A montagem vai atrasar duas semanas; quero mudar o item publicado da semana.",
+   "situacao": "rejeitado",
+   "solicitado_por": "programacao@bremmer.com.br",
+   "solicitado_em": "2026-08-07T19:00:00+00:00",
+   "decidido_por": "planejador@timenow.com.br",
+   "decidido_em": "2026-08-08T10:15:00+00:00",
+   "resposta": "O item está publicado e medido; o atraso entra no reporte da semana seguinte."
+  }
+ ],
  "cadastros": {
   "locais": [
    "Potato Storage 1",

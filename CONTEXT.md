@@ -114,6 +114,12 @@ acima do limite de desvio do projeto exige observação.
 resolvido pelo servidor por papel no projeto e estado: validar, lançar, aprovar,
 publicar ou ver. É ordenação da tela, não autorização.
 
+**Pedido de alteração** — registro do fornecedor para mudar uma atividade fora da
+edição (publicada ou com o realizado aprovado), com o motivo. O Planejador aplica
+— o que reabre a atividade: se o realizado estava aprovado, volta a pendente — ou
+recusa, com resposta obrigatória; o fornecedor só vê os pedidos da própria
+empresa. O pedido e o seu efeito ficam na trilha, com antes e depois.
+
 **FP** — Fator de Produtividade: horas-homem apropriadas divididas pelas horas
 ganhas; 1,00 corresponde ao índice da proposta.
 
