@@ -238,3 +238,32 @@ Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-036 a IS
 **Fluxos.** Novo: o tipo escolhe as opções de período; gravar valida tudo e devolve 422 por campo. Copiar traz o próximo período do relato anterior como atividades do período e os pontos para revisão, sem gravar. Excluir devolve o período a pendente. Toda gravação passa por `service.py`, com trilha e versão. O risco do ponto de atenção é leitura do planejamento, sem vínculo com o registro de Riscos (05).
 
 **Carga:** `seed_relato.py` grava os 9 relatos dos mocks pela fachada (`service.insert_report`), com os períodos deslocados em períodos inteiros e só no modo demonstração. **Migração:** `m044_relato_do_periodo` (`relato`, `relato_atividade`, `relato_ponto`). **Testes:** `api/tests/planejamento/test_relato_*.py` (cálculos, fachada, rotas e oráculo).
+
+## Produtividade: quantidades, LB e apontamento (ISSUE-046, HU-065)
+
+**Tela** `produtividade` (trio `produtividade.html`, `produtividade.css`, `produtividade.js`): filtros globais Empresa, Semana de corte e Grupo na toolbar, com os botões Apontar semana, Novo item da LB e Importar Excel; a aba **Quantidades** traz o aviso dos itens com LB em elaboração, os indicadores (avanço por quantidades com SPI, aderência da semana, fator de produtividade, apontamentos pendentes e tendência de atraso), as quantidades por grupo, os gráficos Produção semanal e Avanço acumulado (D11, com drill por período) e a tabela Plano x realizado por item. As abas Horas efetivas e KPIs de performance chegam nas ISSUE-047 e ISSUE-048. No Portfólio a tabela e as exportações trazem a coluna Projeto e a inclusão pede o projeto antes (`data-tn-incluir`). Fragmentos em `api/src/templates/planejamento/produtividade_*.html` e os parciais `_prod_*.html`; os modais (ficha, formulário, revisão e apontamento) usam o alvo `produtividade-modal`.
+
+**Rotas** (prefixo `/api/planejamento/produtividade`, em `routes.py`): `GET` tela (`empresa`, `corte`, `grupo`); `GET /excel` e `GET /imprimivel` (indicadores, gráficos e as duas tabelas, com o filtro de agora); `GET /itens/novo`, `GET /itens/{id}`, `GET /itens/{id}/editar`, `GET /itens/{id}/revisao`, `GET /apontamento` (modais); `POST /itens` e `POST /itens/{id}` (criar/editar; resposta multi-alvo com modal, filtros e conteúdo; 422 por campo, 409 de versão vencida); `POST /itens/formulario` e `POST /itens/{id}/revisao/formulario` (recalculam a grade da distribuição); `POST /itens/{id}/aprovacao` (Gestor; quem elaborou recebe 403); `POST /itens/{id}/exclusao`; `POST /itens/{id}/revisoes` (SM aprovada obrigatória); `POST /apontamento` (upsert por item e semana; `?acao=recarregar` redesenha a grade). A importação usa o fluxo genérico (ISSUE-018) com a chave `produtividade-itens`.
+
+**Regras e nomes no código**
+
+| Termo de negócio | Definição | Nome no código |
+|---|---|---|
+| Distribuição pelo perfil | O total vira previsto semanal pelo perfil (Curva S 20/60/20, linear, início, fim) | `calculations.profile_weights`, `s_curve_20_60_20`, `distribute_total` |
+| Maior resto | A soma das semanas fecha com o total na menor unidade inteira (as casas da unidade) | `calculations.distribute_total`, `round_quantity`, `item_tolerance` |
+| Casas da unidade | Tonelada guarda uma casa; as demais, nenhuma | `calculations.places_for_unit` |
+| Código do item | Próximo `QTD-NN` do projeto (o prefixo vem do primeiro item) | `calculations.next_item_code` |
+| Indicadores do item | Previsto e realizado acumulados, aderência da semana, FP, saldo e tendência de término (earned schedule) | `calculations.item_figures` |
+| Ficha por semana | Previsto, realizado, HH, aderência, FP e acumulados de cada semana | `calculations.item_weeks` |
+| Indicadores da aba | Avanço, SPI de quantidades, FP, aderências, pendentes e atraso, somando horas ganhas | `calculations.quantities_indicators` |
+| Resumo por grupo | Cada grupo aprovado somado na sua unidade | `calculations.group_summaries` |
+| Série semanal | Previsto e realizado por semana em quantidade ou horas ganhas; futura é nula | `calculations.quantities_series`, `weekly_chart`, `accumulated_chart` |
+| Revisão da LB | As semanas até a corrente ficam congeladas; o saldo (novo total menos o congelado) é redistribuído pelo perfil | `calculations.revision_distribution`, `frozen_planned`, `first_free_week` |
+| Faixa do indicador | `success`, `warning` ou `danger` pelas faixas dos parâmetros, no sentido bom de cada um | `calculations.indicator_band` |
+| Limites do apontamento | Semana futura recusada; HH obrigatórias quando há realizado; acumulado acima da LB recusado | `validation.parse_entries`, `calculations.entry_over_limit` |
+| Ciclo da LB | Em elaboração (fora dos indicadores) → Aprovada (congelada, D5b); revisão só com SM aprovada | `service.save_item`, `approve_item`, `revise_item` |
+| Segregação de funções | Quem elaborou a distribuição (a revisão 0, `por_id`) não aprova | `service._baseline_author`, `approve_item` |
+
+**Fluxos.** O item nasce em elaboração com a revisão 0 (quem elaborou) e a distribuição calculada; a edição recalcula a grade; gravar de novo fecha a soma com o total. A aprovação congela a distribuição e sai dos indicadores (o aviso conta os itens em elaboração). A LB aprovada só aceita observações; mudar total, semanas ou perfil exige **SM aprovada e justificativa**, congela as semanas até a corrente e redistribui o saldo, gravando a revisão e o histórico na ficha. O apontamento semanal atualiza o que já existe e recusa os três limites. Toda gravação passa por `service.py`, com trilha e versão; os filhos congelados (revisões e distribuição) entram na trilha do agregado.
+
+**Carga:** a parte `planejamento-produtividade` de `seed.py` grava os 14 itens do mock por `seed_produtividade.load_items`, com a distribuição da revisão vigente, os apontamentos e as revisões; as semanas andam em semanas inteiras e as datas em dias (`shift_date`), só no modo demonstração. **Migração:** `m040_produtividade` (`produtividade_item`, `produtividade_revisao`, `produtividade_distribuicao`, `produtividade_apontamento`; as três últimas são a exceção da D5b, sem `versao`). **Oráculo:** `api/tests/plataforma/test_carga_demonstracao.py` (14 itens, 170 apontamentos, 328 semanas; avanço 59,2% x 67,5%, SPI 0,88, FP 1,08 no projeto 1). **Testes:** `api/tests/planejamento/test_produtividade_calculos.py`, `test_produtividade_servico.py` e `test_produtividade_rotas.py`, com o apoio em `api/tests/apoio_produtividade.py`.
