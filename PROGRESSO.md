@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 67 de 93 -->
+<!-- Progresso da migração: 68 de 93 -->
 
 # Progresso da migração
 
-**67 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 20:34 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**68 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 21:52 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 67 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 072 |
-| na fila | 26 | 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 68 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 072 |
+| na fila | 25 | 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -79,13 +79,13 @@
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-065 | Ficha do risco: plano de resposta, revisões, encerramento e reabertura | `39fdd05` |
 | ISSUE-066 | Matriz P x I e painel de riscos | `4946f12` |
+| ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | `df6c9e1` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | na fila | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 |
 | ISSUE-068 | Não conformidades (RNC) | na fila | ISSUE-019, ISSUE-027 |
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | na fila | ISSUE-068, ISSUE-061 |
 | ISSUE-070 | Auditorias | na fila | ISSUE-068 |
