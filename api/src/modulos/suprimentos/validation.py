@@ -306,6 +306,73 @@ CHOOSE_FISCAL = "Escolha o fiscal do contrato."
 FISCAL_UNKNOWN = "O fiscal informado não está no cadastro."
 RETENTION_RANGE = f"A retenção contratual deve ficar entre 0% e {MAX_RETENTION_PCT}%."
 
+# ── Diligenciamento e recebimento (ISSUE-061) ────────────────────────────────────────────────
+
+MAX_ORDER_COMMENT = 300
+MAX_RECEIPT_PENDING = 300
+MIN_DAMAGE_DESCRIPTION = 10
+
+MILESTONE_DONE = "realizado"
+MILESTONE_FORECAST = "previsao"
+MILESTONE_KINDS: tuple[str, ...] = (MILESTONE_DONE, MILESTONE_FORECAST)
+
+ORDER_SITUATION_OPEN = "abertos"
+ORDER_SITUATION_ALL = "todos"
+ORDER_BANDS: tuple[str, ...] = ("critico", "atencao", "vencidos")
+ORDER_PAGE_SIZE = 20
+
+ORDER_NOT_FOUND = "Pedido não encontrado."
+MILESTONE_REQUIRED = "Escolha o marco."
+MILESTONE_ALREADY_DONE = "Este marco já foi realizado."
+DELIVERY_BY_RECEIPT = "A entrega é registrada em Registrar recebimento (conferência na obra)."
+REALIZED_IN_FUTURE = "A data realizada não pode ser posterior à data de referência."
+PREVIOUS_MILESTONE_REQUIRED = "Registre antes o marco anterior ({name})."
+REALIZED_BEFORE_PREVIOUS = "A data não pode ser anterior à do marco anterior."
+FORECAST_IN_PAST = "A previsão não pode ser anterior à data de referência."
+RECEIPT_DUPLICATED = "Pedido já recebido."
+SHIPMENT_REQUIRED = "Registre o embarque antes do recebimento na obra."
+RECEIPT_DATE_REQUIRED = "Informe a data do recebimento (até a data de referência)."
+RECEIPT_BEFORE_SHIPMENT = "O recebimento não pode ser anterior ao embarque."
+DAMAGE_DESCRIPTION_REQUIRED = (
+    f"Descreva as avarias (mínimo de {MIN_DAMAGE_DESCRIPTION} caracteres)."
+)
+DILIGENCE_ACTION_EXISTS = "Já existe ação aberta na Central para {number}."
+COMMENT_TOO_LONG = f"O comentário comporta no máximo {MAX_ORDER_COMMENT} caracteres."
+PENDING_TOO_LONG = f"As pendências comportam no máximo {MAX_RECEIPT_PENDING} caracteres."
+
+
+@dataclass(frozen=True)
+class OrderFilters:
+    """The filters of the order list: the search, whether delivered orders show and the band."""
+
+    search: str = ""
+    situation: str = ORDER_SITUATION_OPEN
+    band: str = ""
+    page: int = 1
+
+
+@dataclass(frozen=True)
+class MilestoneInput:
+    """What the form of Atualizar marco sends: the milestone, the kind and its dates."""
+
+    index: int | None
+    kind: str
+    realized: date | None = None
+    forecast: date | None = None
+    cascade: bool = True
+    comment: str = ""
+
+
+@dataclass(frozen=True)
+class ReceiptInput:
+    """What the form of Registrar recebimento sends; the evidence arrives apart, as attachments."""
+
+    date: date | None
+    checked: bool
+    damaged: bool
+    damage_description: str = ""
+    pending: str = ""
+
 
 @dataclass(frozen=True)
 class RequisitionInput:
@@ -992,3 +1059,105 @@ def parse_money(text: str) -> int | None:
 def parse_flag(raw: str | None) -> bool:
     """A checkbox value of the form: ``1``, ``true``, ``on`` or ``sim`` mean yes."""
     return (raw or "").strip().lower() in ("1", "true", "on", "sim")
+
+
+# ── Diligenciamento e recebimento: the checks (ISSUE-061) ────────────────────────────────────
+
+
+def parse_order_filters(params: Mapping[str, str]) -> OrderFilters:
+    """Read the filters of the order list; the default is the open orders."""
+    raw = (params.get("situacao") or "").strip()
+    band = (params.get("faixa") or "").strip()
+    page = parse_id(params.get("pagina")) or 1
+    return OrderFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        situation=ORDER_SITUATION_ALL if raw == "todos" else ORDER_SITUATION_OPEN,
+        band=band if band in ORDER_BANDS else "",
+        page=min(page, MAX_PAGE),
+    )
+
+
+@dataclass(frozen=True)
+class MilestoneContext:
+    """O estado do marco que a validação lê: a referência, o já realizado e o marco anterior."""
+
+    reference_date: date
+    already_done: bool
+    is_delivery: bool
+    previous_name: str
+    previous_real: date | None
+
+
+def milestone_problems(data: MilestoneInput, context: MilestoneContext) -> dict[str, str]:
+    """One message per field of the milestone update that does not hold up.
+
+    The check of the stage and of the previous milestone, of the date against the reference and
+    of the forecast that may not fall in the past, as the prototype refused them; the delivery
+    milestone only completes through the receipt.
+    """
+    if data.index is None:
+        return {"marco": MILESTONE_REQUIRED}
+    if context.already_done:
+        return {"marco": MILESTONE_ALREADY_DONE}
+    problems = (
+        _realization_problems(data, context)
+        if data.kind == MILESTONE_DONE
+        else _forecast_problems(data, context)
+    )
+    if len(data.comment.strip()) > MAX_ORDER_COMMENT:
+        problems["comentario"] = COMMENT_TOO_LONG
+    return problems
+
+
+def _realization_problems(data: MilestoneInput, context: MilestoneContext) -> dict[str, str]:
+    """The realization: the delivery is the receipt, and the date respects the previous one."""
+    if context.is_delivery:
+        return {"realizada": DELIVERY_BY_RECEIPT}
+    if data.realized is None:
+        return {"realizada": PLAN_DATE_REQUIRED}
+    if data.realized > context.reference_date:
+        return {"realizada": REALIZED_IN_FUTURE}
+    if context.previous_name and context.previous_real is None:
+        return {"realizada": PREVIOUS_MILESTONE_REQUIRED.format(name=context.previous_name)}
+    if context.previous_real is not None and data.realized < context.previous_real:
+        return {"realizada": REALIZED_BEFORE_PREVIOUS}
+    return {}
+
+
+def _forecast_problems(data: MilestoneInput, context: MilestoneContext) -> dict[str, str]:
+    """The reprogramming: the forecast never falls in the past."""
+    if data.kind != MILESTONE_FORECAST:
+        return {"tipo": PLAN_DATE_REQUIRED}
+    if data.forecast is None:
+        return {"previsao": PLAN_DATE_REQUIRED}
+    if data.forecast < context.reference_date:
+        return {"previsao": FORECAST_IN_PAST}
+    return {}
+
+
+def receipt_problems(
+    data: ReceiptInput,
+    *,
+    reference_date: date,
+    already_received: bool,
+    shipment_real: date | None,
+) -> dict[str, str]:
+    """One message per field of the receipt that does not hold up.
+
+    The receipt demands the shipment done and a date up to the reference and never before the
+    shipment; damages demand their description (10 characters and up), as the prototype.
+    """
+    if already_received:
+        return {"geral": RECEIPT_DUPLICATED}
+    if shipment_real is None:
+        return {"geral": SHIPMENT_REQUIRED}
+    problems: dict[str, str] = {}
+    if data.date is None or data.date > reference_date:
+        problems["data"] = RECEIPT_DATE_REQUIRED
+    elif data.date < shipment_real:
+        problems["data"] = RECEIPT_BEFORE_SHIPMENT
+    if data.damaged and len(data.damage_description.strip()) < MIN_DAMAGE_DESCRIPTION:
+        problems["descricaoAvarias"] = DAMAGE_DESCRIPTION_REQUIRED
+    if len(data.pending.strip()) > MAX_RECEIPT_PENDING:
+        problems["pendencias"] = PENDING_TOO_LONG
+    return problems

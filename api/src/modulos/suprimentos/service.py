@@ -42,14 +42,26 @@ contract through the Financeiro facade (service/EPC), commits the value in ``cus
 opens the diligence action in the Central when the order is born with negative slack, everything
 in the caller's transaction.
 
+The expediting and the receipt (ISSUE-061): ``list_orders``/``find_order`` read each order with
+its six manufacturing milestones, the receipt and the feed, and calculate the situation, the
+slack against the ROS and the OTD on every query; ``update_order_milestone`` realizes a milestone
+or reprograms a forecast (with the cascade), ``register_receipt`` records the delivery at the
+site with its evidence (a real attachment, D5a), ``open_diligence_action`` opens the action of a
+critical order by hand and the ERP import (``apply_order_import_row``) writes one milestone per
+line. Every path that meets a critical order calls ``_open_diligence_action``, which never opens
+a second action for the same order. The OTD of the orders feeds the performance of the supplier
+(ISSUE-057), read by ``_universe`` from the orders of the scope.
+
 Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``find_supplier``,
 ``create_supplier``, ``save_qualification``, ``apply_final_evaluation``, ``list_packages``,
 ``find_package``, ``package_options``, ``create_package``, ``update_package``,
 ``change_package``, ``list_processes``, ``find_process``, ``process_options``,
 ``planned_packages``, ``start_requisition``, ``issue_rfx``, ``register_proposal``,
 ``close_receipt``, ``equalize_technically``, ``equalize_commercially``,
-``register_negotiation``, ``recommend_award``, ``return_recommendation``, ``approve_award`` and
-``emit_order_or_contract``.
+``register_negotiation``, ``recommend_award``, ``return_recommendation``, ``approve_award``,
+``emit_order_or_contract``, ``list_orders``, ``find_order``, ``update_order_milestone``,
+``register_receipt``, ``open_diligence_action``, ``order_import_problems`` and
+``apply_order_import_row``.
 """
 
 from __future__ import annotations
@@ -74,6 +86,7 @@ from src.modulos.configuracoes.models import Company
 from src.modulos.financeiro import service as financeiro
 from src.modulos.suprimentos import calculations, validation
 from src.modulos.suprimentos.models import (
+    DeliveryReceipt,
     PackageMilestone,
     ProcessInvitee,
     ProcessNegotiation,
@@ -93,12 +106,15 @@ from src.modulos.suprimentos.validation import (
     CommercialInput,
     DocumentInput,
     EmissionInput,
+    MilestoneInput,
     NegotiationInput,
+    OrderFilters,
     PackageChangeInput,
     PackageFilters,
     PackageInput,
     ProposalInput,
     QualificationInput,
+    ReceiptInput,
     RecommendationInput,
     RequisitionInput,
     ReturnInput,
@@ -156,6 +172,17 @@ class ContractLine:
 
 
 @dataclass(frozen=True)
+class SupplierOrderLine:
+    """One order of the company in the scope, with the dates the OTD reads (ISSUE-061)."""
+
+    number: str
+    description: str
+    value_cents: int
+    delivery: date | None
+    contractual_date: date
+
+
+@dataclass(frozen=True)
 class HistoryLine:
     """One change of situation of the qualification, with its author."""
 
@@ -182,6 +209,7 @@ class SupplierLine:
     documents: tuple[DocumentLine, ...]
     evaluations: tuple[EvaluationLine, ...]
     contracts: tuple[ContractLine, ...]
+    orders: tuple[SupplierOrderLine, ...]
     history: tuple[HistoryLine, ...]
     contracted_cents: int
     reference_date: date
@@ -218,6 +246,27 @@ class SupplierLine:
         """The mean of the evaluation scores, one decimal, or ``None`` without evaluations."""
         return calculations.average_score(
             evaluation.score for evaluation in self.evaluations if evaluation.score is not None
+        )
+
+    @property
+    def otd(self) -> Decimal | None:
+        """The OTD of the orders of the company: deliveries up to the contractual date (ISSUE-061)."""
+        return calculations.on_time_delivery(
+            (order.delivery, order.contractual_date) for order in self.orders
+        )
+
+    @property
+    def delivered_orders(self) -> tuple[SupplierOrderLine, ...]:
+        """The orders already delivered, the base of the OTD."""
+        return tuple(order for order in self.orders if order.delivery is not None)
+
+    @property
+    def orders_on_time(self) -> int:
+        """How many deliveries happened up to the contractual date."""
+        return sum(
+            1
+            for order in self.delivered_orders
+            if order.delivery is not None and order.delivery <= order.contractual_date
         )
 
 
@@ -331,6 +380,7 @@ def _universe(
     performance = financeiro.company_performance(
         session, user=user, scope=scope, reference_date=reference_date
     )
+    orders = _orders_by_company(session, user=user, scope=scope)
     return tuple(
         _line_of(
             company_id=company.id,
@@ -342,10 +392,41 @@ def _universe(
             history=history.get(_supplier_id(suppliers.get(company.id)), ()),
             authors=authors,
             performance=performance.get(company.id),
+            orders=orders.get(company.id, ()),
             reference_date=reference_date,
         )
         for company in companies
     )
+
+
+def _orders_by_company(
+    session: Session, *, user: User, scope: Scope
+) -> dict[int, tuple[SupplierOrderLine, ...]]:
+    """The orders of the scope, by company: what the OTD of the supplier reads (ISSUE-061)."""
+    rbac.require_module(user, MODULE)
+    projects = configuracoes.list_projects(session)
+    wanted = [
+        project.id for project in projects if scope.is_portfolio or project.id == scope.project_id
+    ]
+    if not wanted:
+        return {}
+    statement = (
+        select(PurchaseOrder)
+        .where(PurchaseOrder.project_id.in_(wanted))
+        .order_by(PurchaseOrder.number)
+    )
+    grouped: dict[int, list[SupplierOrderLine]] = {}
+    for order in session.scalars(statement):
+        grouped.setdefault(order.company_id, []).append(
+            SupplierOrderLine(
+                number=order.number,
+                description=order.description,
+                value_cents=order.value_cents,
+                delivery=order.delivery,
+                contractual_date=order.contractual_date,
+            )
+        )
+    return {company_id: tuple(rows) for company_id, rows in grouped.items()}
 
 
 def _supplier_id(supplier: Supplier | None) -> int:
@@ -363,6 +444,7 @@ def _line_of(
     history: Sequence[SupplierHistory],
     authors: Mapping[int, str],
     performance: financeiro.CompanyPerformance | None,
+    orders: Sequence[SupplierOrderLine],
     reference_date: date,
 ) -> SupplierLine:
     evaluations = tuple(
@@ -403,6 +485,7 @@ def _line_of(
         ),
         evaluations=evaluations,
         contracts=contracts,
+        orders=tuple(orders),
         history=tuple(
             HistoryLine(
                 date=row.on,
@@ -3116,11 +3199,26 @@ def _open_diligence_action(
     buyer_id: int,
     slack_days: int,
     reference_date: date,
-) -> None:
-    """The diligence action of an order born with negative slack, in the Central (D9)."""
+) -> bool:
+    """The diligence action of a critical order, in the Central, never a second open one.
+
+    The guard reads the open actions of the order from the Central
+    (``count_actions_of_origin``): the milestone update, the ERP import and the manual button may
+    all meet the same critical order, and only the first opens the action (ISSUE-061).
+    """
     from src.modulos.central_acoes import service as central_acoes
+    from src.modulos.central_acoes.service import OriginActionCount
     from src.modulos.central_acoes.validation import NewAction
 
+    counts = central_acoes.count_actions_of_origin(
+        session,
+        user=user,
+        origin_kind=DILIGENCE_ORIGIN,
+        references=[order.number],
+        reference_date=reference_date,
+    )
+    if counts.get(order.number, OriginActionCount()).open:
+        return False
     central_acoes.create_action(
         session,
         user=user,
@@ -3140,10 +3238,946 @@ def _open_diligence_action(
         ),
         reference_date=reference_date,
     )
+    return True
 
 
 def _brazilian_date(value: date) -> str:
     return value.strftime("%d/%m/%Y")
+
+
+# ── The expediting and receiving (ISSUE-061) ─────────────────────────────────────────────────
+
+# The history of the order travels in the audit trail, as the process history does: the entity
+# the ficha reads the last updates from. The receipt's evidence is a real attachment (D5a).
+ORDER_HISTORY_ENTITY = "pedido.historico"
+RECEIPT_ATTACHMENT_TABLE = "recebimento"
+
+# The names of the six manufacturing milestones, as the ERP import names them (position + 1).
+DILIGENCE_MILESTONES: tuple[str, ...] = tuple(
+    name for name, _ in calculations.MANUFACTURING_MILESTONES
+)
+
+RECEIPT_NOTE = "Recebimento na obra registrado."
+RECEIPT_DAMAGE_NOTE = " Com avarias."
+IMPORT_ORDER_NOTE = "Atualizado pela importação do ERP ({milestone})."
+ORDER_NOT_FOUND_MESSAGE = validation.ORDER_NOT_FOUND
+IMPORT_ORDER_MISSING = "pedido {number} não encontrado."
+IMPORT_MILESTONE_INVALID = "marco inválido."
+IMPORT_REALIZED_IN_FUTURE = "data realizada futura."
+IMPORT_FORECAST_IN_PAST = "previsão anterior à data de referência."
+IMPORT_RECEIPT_PENDING = "Conferência pendente (importado do ERP)."
+
+# The columns of the order history line in the trail, the same shape of the process history.
+ORDER_HISTORY_AUTHOR = "por_id"
+ORDER_HISTORY_TEXT = "texto"
+ORDER_HISTORY_DATE = "data"
+
+
+@dataclass(frozen=True)
+class OrderMilestoneLine:
+    """One manufacturing milestone of an order, already read against the reference date."""
+
+    position: int
+    name: str
+    baseline: date | None
+    forecast: date | None
+    real: date | None
+    situation: str
+    deviation_days: int | None
+    days_overdue: int
+
+    @property
+    def done(self) -> bool:
+        """Whether the milestone has a real date."""
+        return self.real is not None
+
+
+@dataclass(frozen=True)
+class ReceiptLine:
+    """The receipt of an order: the date, the check, the damages and the pending items."""
+
+    id: int
+    date: date
+    checked: bool
+    damaged: bool
+    damage_description: str
+    pending: str
+
+
+@dataclass(frozen=True)
+class OrderHistoryLine:
+    """One line of the order feed, read from the audit trail."""
+
+    date: date
+    author: str
+    text: str
+
+
+@dataclass(frozen=True)
+class OrderActionLine:
+    """The open diligence action of the order, as the Central reports it."""
+
+    subject: str
+    due_date: date | None
+
+
+@dataclass(frozen=True)
+class OrderLine:
+    """One order of the scope: the list, the ficha and the exports read this line."""
+
+    id: int
+    project_id: int
+    project_label: str
+    number: str
+    package_id: int
+    package_code: str
+    company_id: int
+    supplier: str
+    description: str
+    value_cents: int
+    lli: bool
+    emission: date
+    contractual_date: date
+    forecast: date
+    ros: date
+    delivery: date | None
+    buyer_id: int | None
+    buyer: str
+    milestones: tuple[OrderMilestoneLine, ...]
+    receipt: ReceiptLine | None
+    action: OrderActionLine | None
+    history: tuple[OrderHistoryLine, ...]
+    slack_days: int | None
+    band: str
+    situation: str
+    critical: bool
+    overdue_milestones: int
+    version: int
+
+    @property
+    def delivered(self) -> bool:
+        """Whether the order was received."""
+        return self.delivery is not None
+
+    @property
+    def prediction(self) -> date:
+        """The delivery forecast in force: the real one when delivered, else the forecast."""
+        return self.delivery or self.forecast
+
+    @property
+    def contractual_delay_days(self) -> int | None:
+        """The delay against the contractual date: positive is late."""
+        return calculations.contractual_delay_days(self.contractual_date, self.prediction)
+
+    @property
+    def next_milestone(self) -> OrderMilestoneLine | None:
+        """The first milestone without a real date, or ``None`` when all are done."""
+        return next((row for row in self.milestones if not row.done), None)
+
+
+@dataclass(frozen=True)
+class OrderSummary:
+    """The five KPIs of the screen, counted on the whole universe (the filters cut the table)."""
+
+    open_orders: int
+    open_cents: int
+    expected_open: int
+    critical: int
+    lli_critical: int
+    warning: int
+    overdue_milestones: int
+    delivered: int
+    delivered_on_time: int
+    otd: Decimal | None
+
+
+@dataclass(frozen=True)
+class OrderListing:
+    """What the screen shows for a filter: the lines, the KPIs, the pending block and the page."""
+
+    lines: tuple[OrderLine, ...]
+    summary: OrderSummary
+    pending: tuple[OrderLine, ...]
+    filters: OrderFilters
+    page: int
+
+    @property
+    def total(self) -> int:
+        """How many orders the filter holds, whatever the page."""
+        return len(self.lines)
+
+    @property
+    def page_count(self) -> int:
+        """How many pages the list has; an empty list still has one."""
+        return max(1, -(-len(self.lines) // validation.ORDER_PAGE_SIZE))
+
+    @property
+    def page_lines(self) -> tuple[OrderLine, ...]:
+        """The lines of the current page."""
+        start = (self.page - 1) * validation.ORDER_PAGE_SIZE
+        return self.lines[start : start + validation.ORDER_PAGE_SIZE]
+
+
+@dataclass(frozen=True)
+class OrderSave:
+    """What saving a milestone or a receipt answers: the order and whether an action was opened."""
+
+    order_id: int
+    number: str
+    action_created: bool = False
+
+
+# ── Reading the orders ───────────────────────────────────────────────────────────────────────
+
+
+def list_orders(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: OrderFilters,
+    reference_date: date,
+) -> OrderListing:
+    """The orders of the scope for the filters: the lines, the KPIs of the universe and the page."""
+    universe = _order_universe(session, user=user, scope=scope, reference_date=reference_date)
+    shown = tuple(line for line in universe if _matches_order(line, filters))
+    page = min(max(filters.page, 1), max(1, -(-len(shown) // validation.ORDER_PAGE_SIZE)))
+    return OrderListing(
+        lines=shown,
+        summary=_order_summary(universe, reference_date=reference_date),
+        pending=tuple(line for line in universe if line.critical and line.action is None),
+        filters=filters,
+        page=page,
+    )
+
+
+def find_order(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    reference_date: date,
+    order_id: int | None = None,
+    number: str | None = None,
+) -> OrderLine | None:
+    """The line of one order by id or by number, or ``None`` when it is not in the scope."""
+    for line in _order_universe(session, user=user, scope=scope, reference_date=reference_date):
+        if order_id is not None and line.id == order_id:
+            return line
+        if number is not None and line.number == number:
+            return line
+    return None
+
+
+def _order_universe(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> tuple[OrderLine, ...]:
+    """Every order of the scope, by number, with its milestones, receipt, action and history."""
+    rbac.require_module(user, MODULE)
+    projects = configuracoes.list_projects(session)
+    wanted = [
+        project for project in projects if scope.is_portfolio or project.id == scope.project_id
+    ]
+    if not wanted:
+        return ()
+    statement = (
+        select(PurchaseOrder)
+        .where(PurchaseOrder.project_id.in_([project.id for project in wanted]))
+        .order_by(PurchaseOrder.number)
+    )
+    orders = list(session.scalars(statement))
+    if not orders:
+        return ()
+    package_ids = {order.package_id for order in orders}
+    packages = {
+        package.id: package
+        for package in session.scalars(
+            select(PurchasePackage).where(PurchasePackage.id.in_(package_ids))
+        )
+    }
+    milestones = _order_milestones_by_order(session, [order.id for order in orders])
+    receipts = _receipts_by_order(session, [order.id for order in orders])
+    history = _order_history_by_order(session, [order.id for order in orders])
+    actions = _order_actions(session, user=user, orders=orders, reference_date=reference_date)
+    labels = {project.id: project_label(project) for project in projects}
+    companies = configuracoes.list_company_names(session)
+    buyers = configuracoes.person_names(
+        session, {package.buyer_id for package in packages.values()}
+    )
+    authors = configuracoes.person_names(
+        session,
+        {
+            author
+            for rows in history.values()
+            for line in rows
+            if isinstance(line.after, Mapping)
+            and isinstance(author := line.after.get(ORDER_HISTORY_AUTHOR), int)
+        },
+    )
+    return tuple(
+        _order_line(
+            order,
+            project=labels.get(order.project_id, ""),
+            package=packages.get(order.package_id),
+            supplier=companies.get(order.company_id, ""),
+            buyers=buyers,
+            milestones=milestones.get(order.id, ()),
+            receipt=receipts.get(order.id),
+            action=actions.get(order.number),
+            history=history.get(order.id, ()),
+            authors=authors,
+            reference_date=reference_date,
+        )
+        for order in orders
+    )
+
+
+def _order_milestones_by_order(
+    session: Session, order_ids: Collection[int]
+) -> dict[int, tuple[PurchaseOrderMilestone, ...]]:
+    if not order_ids:
+        return {}
+    statement = (
+        select(PurchaseOrderMilestone)
+        .where(PurchaseOrderMilestone.order_id.in_(order_ids))
+        .order_by(PurchaseOrderMilestone.order_id, PurchaseOrderMilestone.position)
+    )
+    grouped: dict[int, list[PurchaseOrderMilestone]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.order_id, []).append(row)
+    return {order_id: tuple(rows) for order_id, rows in grouped.items()}
+
+
+def _receipts_by_order(session: Session, order_ids: Collection[int]) -> dict[int, DeliveryReceipt]:
+    if not order_ids:
+        return {}
+    statement = select(DeliveryReceipt).where(DeliveryReceipt.order_id.in_(order_ids))
+    return {row.order_id: row for row in session.scalars(statement)}
+
+
+def _order_history_by_order(session: Session, order_ids: Collection[int]) -> dict[int, list[Any]]:
+    if not order_ids:
+        return {}
+    statement = (
+        select(audit.AuditEntry)
+        .where(
+            audit.AuditEntry.entity == ORDER_HISTORY_ENTITY,
+            audit.AuditEntry.record_id.in_(order_ids),
+        )
+        .order_by(audit.AuditEntry.occurred_at, audit.AuditEntry.id)
+    )
+    grouped: dict[int, list[Any]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.record_id, []).append(row)
+    return grouped
+
+
+def _order_actions(
+    session: Session,
+    *,
+    user: User,
+    orders: Sequence[PurchaseOrder],
+    reference_date: date,
+) -> dict[str, OrderActionLine]:
+    """The open diligence action of each order, read from the Central (never from ``acao``)."""
+    from src.modulos.central_acoes import service as central_acoes
+
+    counts = central_acoes.count_actions_of_origin(
+        session,
+        user=user,
+        origin_kind=DILIGENCE_ORIGIN,
+        references=[order.number for order in orders],
+        reference_date=reference_date,
+    )
+    return {
+        number: OrderActionLine(subject=count.open_subject, due_date=count.open_due)
+        for number, count in counts.items()
+        if count.open and count.open_subject
+    }
+
+
+def _order_line(
+    order: PurchaseOrder,
+    *,
+    project: str,
+    package: PurchasePackage | None,
+    supplier: str,
+    buyers: Mapping[int, str],
+    milestones: Sequence[PurchaseOrderMilestone],
+    receipt: DeliveryReceipt | None,
+    action: OrderActionLine | None,
+    history: Sequence[Any],
+    authors: Mapping[int, str],
+    reference_date: date,
+) -> OrderLine:
+    rows = tuple(_milestone_line(row, reference_date=reference_date) for row in milestones)
+    delivered = order.delivery is not None
+    slack = calculations.required_on_site_slack(order.ros, order.delivery or order.forecast)
+    band = calculations.slack_band(slack)
+    overdue = sum(1 for row in rows if row.situation == calculations.MILESTONE_OVERDUE)
+    situation = calculations.order_situation(
+        delivered=delivered, band=band, has_overdue=overdue > 0
+    )
+    return OrderLine(
+        id=order.id,
+        project_id=order.project_id,
+        project_label=project,
+        number=order.number,
+        package_id=order.package_id,
+        package_code=package.code if package is not None else "",
+        company_id=order.company_id,
+        supplier=supplier,
+        description=order.description,
+        value_cents=order.value_cents,
+        lli=order.lli,
+        emission=order.emission,
+        contractual_date=order.contractual_date,
+        forecast=order.forecast,
+        ros=order.ros,
+        delivery=order.delivery,
+        buyer_id=package.buyer_id if package is not None else None,
+        buyer=buyers.get(package.buyer_id, "") if package is not None else "",
+        milestones=rows,
+        receipt=(
+            ReceiptLine(
+                id=receipt.id,
+                date=receipt.on,
+                checked=receipt.checked,
+                damaged=receipt.damaged,
+                damage_description=receipt.damage_description or "",
+                pending=receipt.pending or "",
+            )
+            if receipt is not None
+            else None
+        ),
+        action=action,
+        history=tuple(
+            OrderHistoryLine(
+                date=line.occurred_at.date(),
+                author=authors.get(_after_int(line.after, ORDER_HISTORY_AUTHOR), ""),
+                text=str(_after(line.after, ORDER_HISTORY_TEXT)),
+            )
+            for line in history
+        ),
+        slack_days=slack,
+        band=band,
+        situation=situation,
+        critical=not delivered and slack is not None and slack < 0,
+        overdue_milestones=overdue,
+        version=order.version,
+    )
+
+
+def _milestone_line(row: PurchaseOrderMilestone, *, reference_date: date) -> OrderMilestoneLine:
+    read = calculations.milestone_situation(
+        baseline=row.baseline_date,
+        forecast=row.forecast_date,
+        real=row.real_date,
+        reference_date=reference_date,
+    )
+    return OrderMilestoneLine(
+        position=row.position,
+        name=row.name,
+        baseline=row.baseline_date,
+        forecast=row.forecast_date,
+        real=row.real_date,
+        situation=read.situation,
+        deviation_days=read.deviation_days,
+        days_overdue=read.days_overdue,
+    )
+
+
+def _after(after: Mapping[str, Any] | None, key: str) -> Any:
+    return (after or {}).get(key)
+
+
+def _after_int(after: Mapping[str, Any] | None, key: str) -> int:
+    value = _after(after, key)
+    return value if isinstance(value, int) else 0
+
+
+def _matches_order(line: OrderLine, filters: OrderFilters) -> bool:
+    if filters.situation == validation.ORDER_SITUATION_OPEN and line.delivered:
+        return False
+    if filters.band == "critico" and not line.critical:
+        return False
+    if filters.band == "atencao" and line.situation != calculations.ORDER_WARNING:
+        return False
+    if filters.band == "vencidos" and not line.overdue_milestones:
+        return False
+    if filters.search:
+        searched = " ".join((line.number, line.description, line.supplier, line.package_code))
+        if _normalize(filters.search) not in _normalize(searched):
+            return False
+    return True
+
+
+def _order_summary(universe: Sequence[OrderLine], *, reference_date: date) -> OrderSummary:
+    opened = [line for line in universe if not line.delivered]
+    delivered = [line for line in universe if line.delivered]
+    return OrderSummary(
+        open_orders=len(opened),
+        open_cents=sum(line.value_cents for line in opened),
+        expected_open=sum(1 for line in universe if line.contractual_date > reference_date),
+        critical=sum(1 for line in universe if line.critical),
+        lli_critical=sum(1 for line in universe if line.critical and line.lli),
+        warning=sum(1 for line in universe if line.situation == calculations.ORDER_WARNING),
+        overdue_milestones=sum(line.overdue_milestones for line in universe),
+        delivered=len(delivered),
+        delivered_on_time=sum(
+            1
+            for line in delivered
+            if line.contractual_delay_days is not None and line.contractual_delay_days <= 0
+        ),
+        otd=calculations.on_time_delivery(
+            (line.delivery, line.contractual_date) for line in universe
+        ),
+    )
+
+
+# ── Writing the milestone, the receipt and the action ────────────────────────────────────────
+
+
+def update_order_milestone(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    order_id: int,
+    data: MilestoneInput,
+    reference_date: date,
+) -> OrderSave:
+    """Update one manufacturing milestone of an order: realize it or reprogram its forecast.
+
+    The realization demands the previous milestone done and a date up to the reference; the
+    forecast may not fall in the past and may drag the following milestones by the same amount
+    of days (the cascade of the prototype). A negative slack opens the diligence action in the
+    Central, once (the guard is in ``_open_diligence_action``).
+    """
+    rbac.require(user, Permission.WRITE)
+    order = _order_or_refuse(session, scope=scope, order_id=order_id)
+    rows = list(_order_milestones_by_order(session, [order.id]).get(order.id, ()))
+    problems = _milestone_problems(rows, data, reference_date=reference_date)
+    if problems:
+        raise InvalidDataError(problems)
+    text = _apply_milestone(session, user=user, rows=rows, data=data)
+    _write_order_forecast(session, user=user, order=order, value=rows[-1].forecast_date)
+    comment = data.comment.strip()
+    _append_order_history(
+        session,
+        user=user,
+        order=order,
+        text=f"{text} {comment}".strip(),
+        reference_date=reference_date,
+    )
+    created = _open_diligence_action_if_critical(
+        session, user=user, order=order, reference_date=reference_date
+    )
+    return OrderSave(order_id=order.id, number=order.number, action_created=created)
+
+
+def _milestone_problems(
+    rows: Sequence[PurchaseOrderMilestone], data: MilestoneInput, *, reference_date: date
+) -> dict[str, str]:
+    if data.index is None or not 1 <= data.index <= len(rows):
+        return {"marco": validation.MILESTONE_REQUIRED}
+    row = rows[data.index - 1]
+    previous = rows[data.index - 2] if data.index > 1 else None
+    return validation.milestone_problems(
+        data,
+        validation.MilestoneContext(
+            reference_date=reference_date,
+            already_done=row.real_date is not None,
+            is_delivery=data.index == len(rows),
+            previous_name=previous.name if previous is not None else "",
+            previous_real=previous.real_date if previous is not None else None,
+        ),
+    )
+
+
+def _apply_milestone(
+    session: Session,
+    *,
+    user: User,
+    rows: Sequence[PurchaseOrderMilestone],
+    data: MilestoneInput,
+) -> str:
+    """Write the milestone and, in a reprogramming, drag the following ones; the feed text."""
+    index = data.index
+    if index is None or not 1 <= index <= len(rows):
+        raise InvalidDataError({"marco": validation.MILESTONE_REQUIRED})
+    row = rows[index - 1]
+    if data.kind == validation.MILESTONE_DONE:
+        realized = data.realized
+        if realized is None:
+            raise InvalidDataError({"realizada": validation.PLAN_DATE_REQUIRED})
+        recording.update(
+            session,
+            user_id=user.id,
+            record=row,
+            changes={"real_date": realized, "forecast_date": realized},
+            version=row.version,
+        )
+        return f"{row.name} realizado. "
+    forecast = data.forecast
+    if forecast is None:
+        raise InvalidDataError({"previsao": validation.PLAN_DATE_REQUIRED})
+    delta = (forecast - row.forecast_date).days if row.forecast_date else 0
+    recording.update(
+        session,
+        user_id=user.id,
+        record=row,
+        changes={"forecast_date": forecast},
+        version=row.version,
+    )
+    if data.cascade and delta:
+        for following in rows[index:]:
+            if following.real_date is None and following.forecast_date is not None:
+                recording.update(
+                    session,
+                    user_id=user.id,
+                    record=following,
+                    changes={"forecast_date": following.forecast_date + timedelta(days=delta)},
+                    version=following.version,
+                )
+    _straighten_forecasts(session, user=user, rows=rows, start=index)
+    return f"Previsão de {row.name} para {_brazilian_date(forecast)}. "
+
+
+def _straighten_forecasts(
+    session: Session, *, user: User, rows: Sequence[PurchaseOrderMilestone], start: int
+) -> None:
+    """The following forecasts never fall before the previous one, as the prototype kept them."""
+    for index in range(start, len(rows)):
+        following, previous = rows[index], rows[index - 1]
+        if (
+            following.real_date is None
+            and following.forecast_date is not None
+            and previous.forecast_date is not None
+            and following.forecast_date < previous.forecast_date
+        ):
+            recording.update(
+                session,
+                user_id=user.id,
+                record=following,
+                changes={"forecast_date": previous.forecast_date},
+                version=following.version,
+            )
+
+
+def _write_order_forecast(
+    session: Session, *, user: User, order: PurchaseOrder, value: date | None
+) -> None:
+    if value is None or order.forecast == value:
+        return
+    recording.update(
+        session,
+        user_id=user.id,
+        record=order,
+        changes={"forecast": value},
+        version=order.version,
+    )
+
+
+def register_receipt(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    order_id: int,
+    data: ReceiptInput,
+    reference_date: date,
+    file_name: str | None = None,
+    content: bytes = b"",
+    storage: Any | None = None,
+) -> OrderSave:
+    """Register the receipt of an order at the site, with its evidence (D5a).
+
+    The shipment must be done; the date is up to the reference and never before the shipment;
+    damages demand their description. The delivery is written on the order and on the last
+    milestone, and the receipt row keeps the check, the damages and the pending items.
+    """
+    rbac.require(user, Permission.WRITE)
+    order = _order_or_refuse(session, scope=scope, order_id=order_id)
+    rows = list(_order_milestones_by_order(session, [order.id]).get(order.id, ()))
+    shipment = rows[4] if len(rows) >= 5 else None
+    already = session.scalars(
+        select(DeliveryReceipt).where(DeliveryReceipt.order_id == order.id)
+    ).first()
+    problems = validation.receipt_problems(
+        data,
+        reference_date=reference_date,
+        already_received=order.delivery is not None or already is not None,
+        shipment_real=shipment.real_date if shipment is not None else None,
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    if file_name:
+        problems = _file_problems(file_name, len(content), session, reference_date)
+        if problems:
+            raise InvalidDataError(problems)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=order,
+        changes={"delivery": data.date, "forecast": data.date},
+        version=order.version,
+    )
+    if rows:
+        delivery_row = rows[-1]
+        recording.update(
+            session,
+            user_id=user.id,
+            record=delivery_row,
+            changes={"real_date": data.date, "forecast_date": data.date},
+            version=delivery_row.version,
+        )
+    receipt = recording.create(
+        session,
+        user_id=user.id,
+        record=DeliveryReceipt(
+            order_id=order.id,
+            on=data.date,  # type: ignore[arg-type]
+            checked=data.checked,
+            damaged=data.damaged,
+            damage_description=data.damage_description.strip() or None,
+            pending=data.pending.strip() or None,
+        ),
+    )
+    if file_name:
+        attachments.upload(
+            session,
+            user=user,
+            new=attachments.NewAttachment(
+                origin_table=RECEIPT_ATTACHMENT_TABLE,
+                origin_record_id=receipt.id,
+                file_name=file_name,
+                content=content,
+            ),
+            reference_date=reference_date,
+            storage=storage,
+        )
+    note = RECEIPT_NOTE + (RECEIPT_DAMAGE_NOTE if data.damaged else "")
+    _append_order_history(session, user=user, order=order, text=note, reference_date=reference_date)
+    return OrderSave(order_id=order.id, number=order.number)
+
+
+def open_diligence_action(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    order_id: int,
+    reference_date: date,
+) -> OrderSave:
+    """Open the diligence action of an order by hand, once (the button of the pending list)."""
+    rbac.require(user, Permission.WRITE)
+    order = _order_or_refuse(session, scope=scope, order_id=order_id)
+    created = _open_diligence_action_if_critical(
+        session, user=user, order=order, reference_date=reference_date, force=True
+    )
+    if not created:
+        raise InvalidDataError(validation.DILIGENCE_ACTION_EXISTS.format(number=order.number))
+    return OrderSave(order_id=order.id, number=order.number, action_created=True)
+
+
+def _open_diligence_action_if_critical(
+    session: Session,
+    *,
+    user: User,
+    order: PurchaseOrder,
+    reference_date: date,
+    force: bool = False,
+) -> bool:
+    """Open the action when the order is critical (or by hand); never a second open one."""
+    slack = calculations.required_on_site_slack(order.ros, order.delivery or order.forecast)
+    if not force and (slack is None or slack >= 0):
+        return False
+    package = session.get(PurchasePackage, order.package_id)
+    buyer_id = package.buyer_id if package is not None else user.person_id
+    return _open_diligence_action(
+        session,
+        user=user,
+        order=order,
+        buyer_id=buyer_id,
+        slack_days=slack if slack is not None else 0,
+        reference_date=reference_date,
+    )
+
+
+def _append_order_history(
+    session: Session, *, user: User, order: PurchaseOrder, text: str, reference_date: date
+) -> None:
+    """One line of the order feed, in the audit trail, as the process history does."""
+    if not text:
+        return
+    _append_trail(
+        session,
+        user=user,
+        entity=ORDER_HISTORY_ENTITY,
+        record_id=order.id,
+        project_id=order.project_id,
+        after={
+            ORDER_HISTORY_DATE: reference_date.isoformat(),
+            ORDER_HISTORY_AUTHOR: user.person_id,
+            ORDER_HISTORY_TEXT: text,
+        },
+    )
+
+
+def _order_or_refuse(session: Session, *, scope: Scope, order_id: int) -> PurchaseOrder:
+    order = session.get(PurchaseOrder, order_id)
+    if order is None or not _order_in_scope(scope, order):
+        raise InvalidDataError(ORDER_NOT_FOUND_MESSAGE)
+    return order
+
+
+def _order_in_scope(scope: Scope, order: PurchaseOrder) -> bool:
+    return scope.is_portfolio or order.project_id == scope.project_id
+
+
+# ── The ERP import of the order milestones ───────────────────────────────────────────────────
+
+
+def order_import_problems(
+    session: Session,
+    *,
+    scope: Scope,
+    number: str,
+    milestone: str,
+    forecast: date | None,
+    realized: date | None,
+    reference_date: date,
+) -> dict[str, str]:
+    """One message per problem of an imported line: the order, the milestone and the dates."""
+    if not number.strip():
+        return {"pedido": IMPORT_ORDER_MISSING.format(number=number.strip())}
+    order = _order_by_number(session, scope=scope, number=number.strip())
+    if order is None:
+        return {"pedido": IMPORT_ORDER_MISSING.format(number=number.strip())}
+    if milestone.strip() not in DILIGENCE_MILESTONES:
+        return {"marco": IMPORT_MILESTONE_INVALID}
+    if realized is not None and realized > reference_date:
+        return {"realizada": IMPORT_REALIZED_IN_FUTURE}
+    if realized is None and forecast is not None and forecast < reference_date:
+        return {"previsao": IMPORT_FORECAST_IN_PAST}
+    return {}
+
+
+def apply_order_import_row(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    number: str,
+    milestone: str,
+    forecast: date | None,
+    realized: date | None,
+    reference_date: date,
+) -> None:
+    """Write one imported line of the ERP: the forecast or the realization of one milestone.
+
+    As the prototype's import did: a realized line writes the milestone and, on the delivery,
+    the order and a receipt stub with the check pending; a forecast line only moves the forecast.
+    A negative slack opens the diligence action, once.
+    """
+    rbac.require(user, Permission.WRITE)
+    order = _order_by_number(session, scope=scope, number=number.strip())
+    if order is None:
+        raise InvalidDataError(IMPORT_ORDER_MISSING.format(number=number.strip()))
+    rows = list(_order_milestones_by_order(session, [order.id]).get(order.id, ()))
+    position = DILIGENCE_MILESTONES.index(milestone.strip()) + 1
+    row = next((item for item in rows if item.position == position), None)
+    if row is None:
+        raise InvalidDataError(IMPORT_MILESTONE_INVALID)
+    if realized is not None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=row,
+            changes={"real_date": realized, "forecast_date": realized},
+            version=row.version,
+        )
+        if position == len(DILIGENCE_MILESTONES):
+            _write_order_delivery(session, user=user, order=order, value=realized)
+    elif forecast is not None and row.real_date is None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=row,
+            changes={"forecast_date": forecast},
+            version=row.version,
+        )
+    if rows and rows[-1].forecast_date is not None:
+        _write_order_forecast(session, user=user, order=order, value=rows[-1].forecast_date)
+    _append_order_history(
+        session,
+        user=user,
+        order=order,
+        text=IMPORT_ORDER_NOTE.format(milestone=milestone.strip()),
+        reference_date=reference_date,
+    )
+    _open_diligence_action_if_critical(
+        session, user=user, order=order, reference_date=reference_date
+    )
+
+
+def _write_order_delivery(
+    session: Session, *, user: User, order: PurchaseOrder, value: date
+) -> None:
+    """The delivery imported from the ERP: the order, the milestone and a receipt stub."""
+    recording.update(
+        session,
+        user_id=user.id,
+        record=order,
+        changes={"delivery": value, "forecast": value},
+        version=order.version,
+    )
+    already = session.scalars(
+        select(DeliveryReceipt).where(DeliveryReceipt.order_id == order.id)
+    ).first()
+    if already is None:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=DeliveryReceipt(
+                order_id=order.id,
+                on=value,
+                checked=False,
+                damaged=False,
+                pending=IMPORT_RECEIPT_PENDING,
+            ),
+        )
+
+
+def _order_by_number(session: Session, *, scope: Scope, number: str) -> PurchaseOrder | None:
+    order = session.scalars(
+        select(PurchaseOrder).where(PurchaseOrder.number == number)
+    ).one_or_none()
+    if order is None or not _order_in_scope(scope, order):
+        return None
+    return order
+
+
+def read_receipt_origin(
+    session: Session, *, user: User, record_id: int
+) -> attachment_origins.OriginRecord | None:
+    """Quem lê as evidências de um recebimento: quem alcança o módulo (D5a)."""
+    rbac.require_module(user, MODULE)
+    receipt = session.get(DeliveryReceipt, record_id)
+    if receipt is None:
+        return None
+    order = session.get(PurchaseOrder, receipt.order_id)
+    if order is None:
+        return None
+    return attachment_origins.OriginRecord(project_id=order.project_id)
+
+
+attachment_origins.register(
+    attachment_origins.OriginType(
+        table=RECEIPT_ATTACHMENT_TABLE, module=MODULE, read=read_receipt_origin
+    )
+)
 
 
 # ── Process internals ────────────────────────────────────────────────────────────────────────

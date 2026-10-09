@@ -17,11 +17,16 @@ The emission (ISSUE-060): the standard manufacturing schedule of an order, its d
 the justification the recommendation demands and the LLI gate are pure functions too; the
 numbers of the order and of the contract follow the prototype's global series
 (``core.numbering.next_series_number``).
+
+The expediting and the receipt (ISSUE-061): the situation of a manufacturing milestone against
+the reference date, the slack against the ROS, the contractual delay and the on-time delivery
+(OTD) of a set of orders are pure functions, so the screen, the import and the exports share them.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from itertools import pairwise
@@ -531,3 +536,118 @@ def next_package_code(codes: Sequence[str]) -> str:
         if code.startswith(prefix) and code[len(prefix) :].isdigit()
     ]
     return f"{prefix}{max(numbers, default=0) + 1:02d}"
+
+
+# ── The expediting and receiving (ISSUE-061) ─────────────────────────────────────────────────
+
+# The situations of a manufacturing milestone (``regras.situacaoMarco`` of the prototype): done
+# up to the baseline, done late, overdue without a real date, forecast late, due soon and without
+# a baseline or a forecast at all.
+MILESTONE_ON_TIME = "prazo"
+MILESTONE_LATE = "atraso"
+MILESTONE_OVERDUE = "vencido"
+MILESTONE_FORECAST_LATE = "previsto-atraso"
+MILESTONE_DUE_SOON = "a-vencer"
+MILESTONE_WITHOUT_DATE = "sem-data"
+
+# How an order reads in the list (``sit`` of the prototype).
+ORDER_DELIVERED = "Entregue"
+ORDER_CRITICAL = "Crítico"
+ORDER_WARNING = "Atenção"
+ORDER_ON_TIME = "No prazo"
+
+
+@dataclass(frozen=True)
+class MilestoneSituation:
+    """How one manufacturing milestone reads: its situation, the deviation and the days overdue."""
+
+    situation: str
+    deviation_days: int | None
+    days_overdue: int
+
+
+def milestone_situation(
+    *,
+    baseline: date | None,
+    forecast: date | None,
+    real: date | None,
+    reference_date: date,
+) -> MilestoneSituation:
+    """The situation of a milestone against the reference date, as the prototype reads it.
+
+    With a real date the deviation is the real date minus the baseline (positive is late) and the
+    situation is ``prazo`` or ``atraso``. Without it the target is the forecast, else the
+    baseline: a target before the reference date is ``vencido`` (with the days overdue), a target
+    after it is ``previsto-atraso`` when it passes the baseline or ``a-vencer`` otherwise; with no
+    target at all, ``sem-data``.
+    """
+    if real is not None:
+        deviation = (real - baseline).days if baseline is not None else 0
+        return MilestoneSituation(
+            situation=MILESTONE_LATE if deviation > 0 else MILESTONE_ON_TIME,
+            deviation_days=deviation,
+            days_overdue=0,
+        )
+    target = forecast or baseline
+    if target is None:
+        return MilestoneSituation(MILESTONE_WITHOUT_DATE, None, 0)
+    deviation = (target - baseline).days if baseline is not None else 0
+    if target < reference_date:
+        return MilestoneSituation(MILESTONE_OVERDUE, deviation, (reference_date - target).days)
+    return MilestoneSituation(
+        MILESTONE_FORECAST_LATE if deviation > 0 else MILESTONE_DUE_SOON, deviation, 0
+    )
+
+
+def required_on_site_slack(ros: date | None, forecast: date | None) -> int | None:
+    """Folga ROS: the days between the required on site date and the delivery forecast.
+
+    The same formula the prototype used for the order (``regras.folga``): positive is slack,
+    negative is critical. ``delivery_slack_days`` is the name the emission (ISSUE-060) gave it;
+    this is the business name the expediting reads (ISSUE-061).
+    """
+    return delivery_slack_days(ros, forecast)
+
+
+def contractual_delay_days(contractual: date | None, delivered_on: date | None) -> int | None:
+    """The delay against the contractual date: the delivery (or forecast) minus the contract.
+
+    Positive is late, as ``R.diasEntre(dataContratual, entrega || previsao)`` of the prototype;
+    without one of the dates there is no delay.
+    """
+    if contractual is None or delivered_on is None:
+        return None
+    return (delivered_on - contractual).days
+
+
+def order_situation(*, delivered: bool, band: str, has_overdue: bool) -> str:
+    """How the order reads in the list: delivered, critical, warning or on time.
+
+    The prototype's ``sit``: an order with negative slack is critical, an order within the alert
+    window or with an overdue milestone is a warning and the rest is on time.
+    """
+    if delivered:
+        return ORDER_DELIVERED
+    if band == SLACK_CRITICAL:
+        return ORDER_CRITICAL
+    if band == SLACK_WARNING or has_overdue:
+        return ORDER_WARNING
+    return ORDER_ON_TIME
+
+
+def on_time_delivery(deliveries: Iterable[tuple[date | None, date | None]]) -> Decimal | None:
+    """The OTD of a set of orders: the deliveries up to the contractual date over the deliveries.
+
+    ``deliveries`` are ``(entrega, data contratual)`` pairs; the orders not yet delivered stay
+    out of both the numerator and the denominator, and without any delivery the OTD is ``None``.
+    One decimal, half up, as the prototype printed it (``noPrazo / ent.length * 100``).
+    """
+    realized = [(delivered, contractual) for delivered, contractual in deliveries if delivered]
+    if not realized:
+        return None
+    on_time = sum(
+        1 for delivered, contractual in realized if contractual is None or delivered <= contractual
+    )
+    return (Decimal(on_time) / Decimal(len(realized)) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )

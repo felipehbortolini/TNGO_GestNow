@@ -463,11 +463,18 @@ def read_action_origin(session: Session, *, user: User, record_id: int) -> Origi
 
 @dataclass(frozen=True)
 class OriginActionCount:
-    """How many actions of one record of origin exist, how many are open and how many overdue."""
+    """How many actions of one record of origin exist, how many are open and how many overdue.
+
+    ``open_subject`` and ``open_due`` describe the open action closest to its deadline, so the
+    module of the origin can show it without reading ``acao`` (the receipt of an order,
+    ISSUE-061); with no open action they stay empty.
+    """
 
     total: int = 0
     open: int = 0
     overdue: int = 0
+    open_subject: str = ""
+    open_due: date | None = None
 
 
 def count_actions_of_origin(
@@ -496,10 +503,20 @@ def count_actions_of_origin(
     for action in session.scalars(statement):
         status = calculations.action_status(_action_dates(action), reference_date)
         known = counts.get(action.origin_ref or "", OriginActionCount())
+        opened = status is not ActionStatus.COMPLETED
+        due = calculations.effective_due_date(action.planned_date, action.replanned_date)
+        keep_subject = known.open_subject
+        keep_due = known.open_due
+        if opened and (
+            not keep_subject or (due is not None and (keep_due is None or due < keep_due))
+        ):
+            keep_subject, keep_due = action.subject, due
         counts[action.origin_ref or ""] = OriginActionCount(
             total=known.total + 1,
-            open=known.open + (status is not ActionStatus.COMPLETED),
-            overdue=known.overdue + (status is ActionStatus.OVERDUE),
+            open=known.open + (1 if opened else 0),
+            overdue=known.overdue + (1 if status is ActionStatus.OVERDUE else 0),
+            open_subject=keep_subject,
+            open_due=keep_due,
         )
     return counts
 

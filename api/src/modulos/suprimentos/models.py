@@ -28,6 +28,10 @@ manufacturing milestones (``pedido_marco``) carry the contractual baseline, the 
 real date in the same row (ISSUE-004 decision), exactly as the acquisition milestones of the
 package do; slack, situation and OTD are never columns (ISSUE-061). The contract of a service/EPC
 process is born in the Financeiro (``contrato.pacote_compra_id``, D9).
+
+The receipt of an order (``recebimento``, ISSUE-061) records the delivery at the site: the date,
+the check of quantity and documents, the damages with their description and the pending items;
+the evidence of the receipt is a real attachment (D5a), with the order as its origin type.
 """
 
 from __future__ import annotations
@@ -264,3 +268,22 @@ class PurchaseOrderMilestone(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
     __table_args__ = (UniqueConstraint("pedido_id", "ordem"),)
+
+
+class DeliveryReceipt(Base):
+    """Recebimento do pedido na obra (ISSUE-061): conferência, avarias e pendências.
+
+    A entrega realizada vive no ``pedido.entrega`` e no marco ``Entrega``; as evidências são
+    anexos do registro (tipo de origem ``recebimento``, D5a). Um pedido tem um só recebimento.
+    """
+
+    __tablename__ = "recebimento"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column("pedido_id", ForeignKey("pedido.id"))
+    on: Mapped[date] = mapped_column("data", Date)
+    checked: Mapped[bool] = mapped_column("conferido", Boolean)
+    damaged: Mapped[bool] = mapped_column("avarias", Boolean)
+    damage_description: Mapped[str | None] = mapped_column("descricao_avarias", Text)
+    pending: Mapped[str | None] = mapped_column("pendencias", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
