@@ -1,18 +1,23 @@
-"""The export of the register, of the plan, of the process, of the expediting and of the map: one ``Document``, the Excel and the print (D12).
+"""The export of the register, of the plan, of the process, of the expediting, of the map and of the panel: one ``Document``, the Excel and the print (D12).
 
 What the screen shows is what leaves: the six KPIs of the register (or the five of the plan, of
-the process and of the expediting, or the six of the map), the line of active filters and the
-table, with the same content the prototype exported. The register is global, so its table
-declares itself not per project; the plan, the process, the expediting and the map tables are per
-project and in the Portfólio open with ``Projeto`` (HU-016). The expediting document also carries
-the manufacturing milestones of the order the request names, as the prototype's export did. The
-adjudicated and saving columns of the plan travel empty while the process (ISSUE-059) and the
-order (ISSUE-061) do not exist (DECISION, ISSUE-058); the process document carries the
-equalization map when the request names a package, as the prototype's export did.
+the process and of the expediting, or the six of the map, or the nine of the panel), the line of
+active filters and the table, with the same content the prototype exported. The register is
+global, so its table declares itself not per project; the plan, the process, the expediting, the
+map and the panel tables are per project and in the Portfólio open with ``Projeto`` (HU-016). The
+expediting document also carries the manufacturing milestones of the order the request names, as
+the prototype's export did. The adjudicated and saving columns of the plan travel empty while the
+process (ISSUE-059) and the order (ISSUE-061) do not exist (DECISION, ISSUE-058); the process
+document carries the equalization map when the request names a package, as the prototype's export
+did.
 
 The map of purchases (ISSUE-062) travels in A3 landscape (``Paper.A3``): the baseline, the
 forecast-or-real date and the situation of each of the twelve milestones, the sides of the line
 and the situation, with the tone of each situation cell, as the prototype's PDF and Excel did.
+
+The panel (ISSUE-063) travels in A4 landscape (``Paper.A4``): the nine indicators, the four
+visuals of the library (the contracting curve, the advancement of the map, the saving curve and
+the packages by stage) and the orders by slack.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from datetime import date
 
 from src.core.export_document import (
     Cell,
+    Chart,
     Column,
     Document,
     Kpi,
@@ -982,3 +988,313 @@ def mas_situation_text(milestone: service.MasMilestoneLine) -> str:
     deviation = milestone.deviation_days
     days = f"+{deviation} d" if deviation > 0 else f"{deviation} d"
     return f"{text} {days}"
+
+
+# ── The panel (ISSUE-063) ────────────────────────────────────────────────────────────────────
+#
+# The same builders feed the screen and the printable, so the numbers on paper are the ones of
+# the screen: the nine indicators, the four visuals (the contracting curve, the advancement of
+# the map, the saving curve and the packages by stage) and the orders by slack. The saving curve
+# travels in R$ mil, as the other financial curves of the platform (D12).
+
+PANEL_TITLE = "Painel de suprimentos"
+PANEL_CONTRACTING_TITLE = "Curva de contratação"
+PANEL_PROGRESS_TITLE = "Avanço físico de suprimentos"
+PANEL_SAVING_TITLE = "Saving acumulado"
+PANEL_STAGES_TITLE = "Pacotes por etapa"
+PANEL_SLACK_TABLE_TITLE = "Pedidos por folga"
+PANEL_SAVING_MIL = 100_000
+
+
+def build_panel_document(
+    *,
+    listing: service.PanelListing,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The document of the panel: the nine indicators, the four visuals and the orders by slack."""
+    return Document(
+        title=PANEL_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(("Referência", format_value(ValueKind.DATE, listing.reference_date)),),
+        kpis=_panel_kpis(listing),
+        charts=panel_charts(listing),
+        tables=(_panel_slack_table(listing),),
+        paper=Paper.A4,
+    )
+
+
+def panel_charts(listing: service.PanelListing) -> tuple[Chart, ...]:
+    """The four visuals of the panel, in the order of the screen."""
+    return (
+        Chart(PANEL_CONTRACTING_TITLE, "curva-s-linha", panel_contracting_chart(listing)),
+        Chart(PANEL_PROGRESS_TITLE, "curva-s-linha", panel_progress_chart(listing)),
+        Chart(PANEL_SAVING_TITLE, "linhas-multiplas", panel_saving_chart(listing)),
+        Chart(PANEL_STAGES_TITLE, "kpi-status", panel_stages_chart(listing)),
+    )
+
+
+def panel_contracting_chart(listing: service.PanelListing) -> dict[str, object]:
+    """The ``data-dados`` of the contracting curve: the adjudicated packages accumulated."""
+    curve = listing.contracting
+    return {
+        "titulo": PANEL_CONTRACTING_TITLE,
+        "modo": "acumulado",
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "planejado", "rotulo": "Plano de compras", "papel": "linha-base"},
+            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado"},
+        ],
+        "periodos": [
+            {
+                "ano": month.year,
+                "mes": month.month,
+                "valores": {"planejado": planned, "realizado": realized},
+            }
+            for month, planned, realized in zip(
+                curve.months, curve.planned, curve.realized, strict=True
+            )
+        ],
+    }
+
+
+def panel_progress_chart(listing: service.PanelListing) -> dict[str, object]:
+    """The ``data-dados`` of the advancement curve: baseline, real and trend, in percent."""
+    curve = listing.progress_curve
+    periods = (
+        []
+        if curve is None
+        else [
+            {
+                "ano": month.year,
+                "mes": month.month,
+                "valores": {
+                    "linha-base": float(baseline),
+                    "real": None if real is None else float(real),
+                    "tendencia": None if trend is None else float(trend),
+                },
+            }
+            for month, baseline, real, trend in zip(
+                curve.months, curve.baseline, curve.real, curve.trend, strict=True
+            )
+        ]
+    )
+    return {
+        "titulo": PANEL_PROGRESS_TITLE,
+        "modo": "acumulado",
+        "formato": "pct",
+        "unidade": "%",
+        "casas": 1,
+        "eixo_max": 100,
+        "series": [
+            {"id": "linha-base", "rotulo": "Linha de base", "papel": "linha-base"},
+            {"id": "real", "rotulo": "Real", "papel": "realizado"},
+            {"id": "tendencia", "rotulo": "Tendência", "papel": "tendencia"},
+        ],
+        "periodos": periods,
+    }
+
+
+def panel_saving_chart(listing: service.PanelListing) -> dict[str, object]:
+    """The ``data-dados`` of the saving curve, in R$ mil, by adjudication month."""
+    curve = listing.saving
+    return {
+        "titulo": PANEL_SAVING_TITLE,
+        "casas": 0,
+        "unidade": "",
+        "base_zero": False,
+        "series": [
+            {"id": "estimativa", "rotulo": "Sobre a estimativa", "papel": "realizado"},
+            {"id": "negociacao", "rotulo": "Na negociação", "papel": "comprometido"},
+        ],
+        "periodos": [
+            {
+                "ano": month.year,
+                "mes": month.month,
+                "valores": {
+                    "estimativa": None if estimated is None else estimated / PANEL_SAVING_MIL,
+                    "negociacao": None if negotiation is None else negotiation / PANEL_SAVING_MIL,
+                },
+            }
+            for month, estimated, negotiation in zip(
+                curve.months, curve.estimated, curve.negotiation, strict=True
+            )
+        ],
+    }
+
+
+def panel_stages_chart(listing: service.PanelListing) -> dict[str, object]:
+    """The ``data-dados`` of the packages by stage: the count of each stage of the plan."""
+    return {
+        "titulo": PANEL_STAGES_TITLE,
+        "itens": [
+            {"id": f"etapa-{index}", "rotulo": item.stage, "valor": item.total, "tom": "neutro"}
+            for index, item in enumerate(listing.stages)
+        ],
+        "total": listing.summary.packages,
+    }
+
+
+def _panel_kpis(listing: service.PanelListing) -> tuple[Kpi, ...]:
+    summary = listing.summary
+    orders = summary.orders
+    adherence = summary.adherence_pct
+    saving = summary.saving_pct
+    negotiation = summary.negotiation_saving_pct
+    offers = summary.average_offers
+    otd = orders.otd
+    emergency = summary.emergency_pct
+    committed = summary.committed_pct
+    return (
+        Kpi(
+            "Aderência ao plano de compras",
+            adherence if adherence is not None else "—",
+            f"Meta: ≥ {summary.adherence_target}%",
+            ValueKind.PERCENT if adherence is not None else ValueKind.TEXT,
+            digits=1,
+            tone=(
+                Tone.OK
+                if adherence is not None and adherence >= summary.adherence_target
+                else Tone.WARN
+                if adherence is not None
+                else Tone.NEUTRAL
+            ),
+            status=(
+                f"{summary.adjudicated_until_reference} de "
+                f"{summary.planned_until_reference} pacotes planejados até a data"
+            ),
+        ),
+        Kpi(
+            "Ciclo de compra",
+            summary.cycle_days if summary.cycle_days is not None else "—",
+            f"Linha de base: {format_value(ValueKind.INTEGER, summary.cycle_baseline_days)}"
+            if summary.cycle_baseline_days is not None
+            else "Linha de base: —",
+            ValueKind.INTEGER if summary.cycle_days is not None else ValueKind.TEXT,
+            tone=Tone.INFO,
+            status="média entre requisição e pedido emitido",
+        ),
+        Kpi(
+            "Saving sobre estimativa",
+            summary.saving_cents,
+            f"Meta: ≥ {format_value(ValueKind.MONEY, 0)}",
+            ValueKind.MONEY,
+            tone=Tone.OK if summary.saving_cents >= 0 else Tone.ERROR,
+            status=(
+                f"{format_value(ValueKind.PERCENT, saving, 1)} da estimativa dos pacotes adjudicados"
+                if saving is not None
+                else "sem pacotes adjudicados"
+            ),
+        ),
+        Kpi(
+            "Saving de negociação",
+            summary.negotiation_saving_cents,
+            f"Meta: ≥ {format_value(ValueKind.MONEY, 0)}",
+            ValueKind.MONEY,
+            tone=Tone.OK if summary.negotiation_saving_cents >= 0 else Tone.ERROR,
+            status=(
+                f"{format_value(ValueKind.PERCENT, negotiation, 1)} sobre a primeira proposta"
+                if negotiation is not None
+                else "sem primeira proposta registrada"
+            ),
+        ),
+        Kpi(
+            "Competitividade",
+            offers if offers is not None else "—",
+            f"Meta: ≥ {summary.minimum_proposals}",
+            ValueKind.DECIMAL if offers is not None else ValueKind.TEXT,
+            digits=1,
+            tone=(
+                Tone.OK if offers is not None and offers >= summary.minimum_proposals else Tone.WARN
+            ),
+            status=(
+                f"válidas por processo · fornecedor único "
+                f"{format_value(ValueKind.PERCENT, summary.single_supplier_pct, 1)}"
+                if summary.single_supplier_pct is not None
+                else "válidas por processo"
+            ),
+        ),
+        Kpi(
+            "Entrega no prazo (OTD)",
+            otd if otd is not None else "—",
+            f"Meta: ≥ {summary.otd_target}%",
+            ValueKind.PERCENT if otd is not None else ValueKind.TEXT,
+            digits=1,
+            tone=(
+                Tone.OK
+                if otd is not None and otd >= summary.otd_target
+                else Tone.WARN
+                if otd is not None
+                else Tone.NEUTRAL
+            ),
+            status=f"{orders.delivered_on_time} de {orders.delivered} entregas até a data contratual",
+        ),
+        Kpi(
+            "Pedidos críticos",
+            orders.critical,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if orders.critical else Tone.OK,
+            status=f"folga negativa em relação ao ROS · {orders.lli_critical} de longo prazo",
+        ),
+        Kpi(
+            "Compras emergenciais",
+            emergency if emergency is not None else "—",
+            "Esperado: 0%",
+            ValueKind.PERCENT if emergency is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.WARN if emergency else Tone.OK,
+            status=f"{format_value(ValueKind.MONEY, summary.emergency_cents)} do valor contratado",
+        ),
+        Kpi(
+            "Comprometido x orçado",
+            committed if committed is not None else "—",
+            f"Limite: 100% · Orçado: {format_value(ValueKind.MONEY, summary.budget_cents)}",
+            ValueKind.PERCENT if committed is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.ERROR if committed is not None and committed > 100 else Tone.NEUTRAL,
+            status=(
+                f"{format_value(ValueKind.MONEY, summary.adjudicated_cents)} adjudicado "
+                "nos itens da EAC"
+            ),
+        ),
+    )
+
+
+def _panel_slack_table(listing: service.PanelListing) -> Table:
+    return Table(
+        title=PANEL_SLACK_TABLE_TITLE,
+        columns=(
+            Column("Pacote", width=12),
+            Column("Escopo", width=30),
+            Column("Fornecedor", width=22),
+            Column("LLI", width=6),
+            Column("Próximo marco", width=20),
+            Column("Previsão de entrega", width=12, kind=ValueKind.DATE),
+            Column("ROS", width=10, kind=ValueKind.DATE),
+            Column("Folga (dias)", width=8, kind=ValueKind.INTEGER),
+            Column("Situação", width=12),
+        ),
+        rows=tuple(_panel_slack_row(line) for line in listing.slack_lines),
+    )
+
+
+def _panel_slack_row(line: service.MasLine) -> Row:
+    next_milestone = line.next_milestone
+    return row(
+        line.code,
+        line.scope,
+        line.supplier,
+        "Sim" if line.lli else "Não",
+        next_milestone.label if next_milestone is not None else line.current_stage,
+        line.delivery_forecast,
+        line.ros,
+        Cell(line.slack_days, SLACK_TONES.get(line.band, Tone.NEUTRAL)),
+        Cell(line.situation, MAS_LINE_TONES.get(line.situation, Tone.NEUTRAL)),
+        project=line.project_label,
+    )

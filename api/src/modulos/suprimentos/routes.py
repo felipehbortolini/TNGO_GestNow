@@ -49,6 +49,15 @@ plan, the processes and the expediting.
 
 * ``GET  mas`` and ``mas/excel``/``mas/imprimivel``   the map (filters by query);
 * ``GET  mas/pacote/{pacote_id}``               the detail of a package (the modal body).
+
+The panel (ISSUE-063) is one fragment, ``painel-conteudo``: the nine KPIs of the prototype, the
+four visuals of the library (the contracting curve, the advancement of the map, the saving curve
+and the packages by stage), the orders by slack and the two exports. The panel has no filters and
+no form: it is a calculated view of the plan, the processes, the orders and the contracts. The
+three KPIs that point at other screens are plain links; the button Análise do período arrives
+with ISSUE-081.
+
+* ``GET  painel`` and ``painel/excel``/``painel/imprimivel``   the panel and its exports.
 """
 
 from __future__ import annotations
@@ -3384,3 +3393,251 @@ def _format_date_short(value: date | None) -> str:
 def _format_signed_days(days: int) -> str:
     """``+12 d`` or ``-5 d``: how the deviation and the overdue days read."""
     return f"+{days} d" if days > 0 else f"{days} d"
+
+
+# ── The panel (ISSUE-063) ────────────────────────────────────────────────────────────────────
+
+PANEL_ROUTE = "/api/suprimentos/painel"
+PANEL_TARGET = "painel-conteudo"
+
+PANEL_TEMPLATE = "suprimentos/painel.html"
+
+PLAN_ROUTE = "/suprimentos/plano-de-compras"
+PROCESSES_ROUTE = "/suprimentos/processos"
+DILIGENCE_ROUTE = "/suprimentos/diligenciamento"
+
+
+@bp.route(route="suprimentos/painel", methods=["GET"])
+@fragment_route(access=READ)
+def supply_panel_view(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The panel: the nine KPIs, the four visuals and the orders by slack, all calculated."""
+    listing = service.list_panel(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=calendario.today(),
+    )
+    return AlpineAjaxResponse(
+        template_name=PANEL_TEMPLATE,
+        context=_panel_context(listing, context),
+        request=req,
+        target_id=PANEL_TARGET,
+    )
+
+
+@bp.route(route="suprimentos/painel/excel", methods=["GET"])
+@file_route(access=READ)
+def supply_panel_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the panel: the KPIs, the four visuals and the orders by slack."""
+    return excel_response(_panel_document(req, session, context))
+
+
+@bp.route(route="suprimentos/painel/imprimivel", methods=["GET"])
+@fragment_route(access=READ)
+def supply_panel_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable version of the same document: the PDF button mounts and prints it."""
+    return printable_response(_panel_document(req, session, context), req)
+
+
+def _panel_context(listing: service.PanelListing, context: RequestContext) -> dict[str, object]:
+    """Everything the panel prints: the KPIs, the charts, the table and the export addresses."""
+    return {
+        "listagem": listing,
+        "kpis": _panel_kpi_cards(listing),
+        "graficos": {
+            "contratacao": export.panel_contracting_chart(listing),
+            "avanco": export.panel_progress_chart(listing),
+            "saving": export.panel_saving_chart(listing),
+            "etapas": export.panel_stages_chart(listing),
+        },
+        "portfolio": context.scope.is_portfolio,
+        "url_excel": f"{PANEL_ROUTE}/excel",
+        "url_pdf": f"{PANEL_ROUTE}/imprimivel",
+        "pill_da_folga": lambda band: FOLGA_TONES.get(band, "pill--ok"),
+        "pill_da_situacao": lambda situation: MAS_LINE_PILL.get(situation, "pill--neutral"),
+        "formatar_data": _format_date,
+        "formatar_moeda": _format_money,
+        "formatar_percentual": lambda value: _format_decimal(value, 1),
+        "formatar_indice": lambda value: _format_decimal(value, 2),
+        "formatar_desvio": _format_signed_days,
+    }
+
+
+def _panel_kpi_cards(listing: service.PanelListing) -> list[KpiCard]:
+    """The nine indicators of the prototype, each with its management reference and its link."""
+    summary = listing.summary
+    orders = summary.orders
+    return [
+        KpiCard(
+            label="Aderência ao plano de compras",
+            icon="layers",
+            tone=(
+                "ok"
+                if summary.adherence_pct is not None
+                and summary.adherence_pct >= summary.adherence_target
+                else "warn"
+                if summary.adherence_pct is not None
+                else "neutro"
+            ),
+            value=(
+                f"{_format_decimal(summary.adherence_pct, 1)}%"
+                if summary.adherence_pct is not None
+                else "—"
+            ),
+            reference=f"Meta: ≥ {summary.adherence_target}%",
+            footer=(
+                f"{summary.adjudicated_until_reference} de "
+                f"{summary.planned_until_reference} pacotes planejados até a data"
+            ),
+            url=PLAN_ROUTE,
+            active=False,
+        ),
+        KpiCard(
+            label="Ciclo de compra",
+            icon="clock",
+            tone="info",
+            value=summary.cycle_days if summary.cycle_days is not None else "—",
+            reference=(
+                f"Linha de base: {summary.cycle_baseline_days} dias"
+                if summary.cycle_baseline_days is not None
+                else "Linha de base: —"
+            ),
+            footer="média entre requisição e pedido emitido",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Saving sobre estimativa",
+            icon="money",
+            tone="ok" if summary.saving_cents >= 0 else "erro",
+            value=_format_money(summary.saving_cents),
+            reference=f"Meta: ≥ {_format_money(0)}",
+            footer=(
+                f"{_format_decimal(summary.saving_pct, 1)}% da estimativa dos pacotes adjudicados"
+                if summary.saving_pct is not None
+                else "sem pacotes adjudicados"
+            ),
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Saving de negociação",
+            icon="sparkle",
+            tone="ok" if summary.negotiation_saving_cents >= 0 else "erro",
+            value=_format_money(summary.negotiation_saving_cents),
+            reference=f"Meta: ≥ {_format_money(0)}",
+            footer=(
+                f"{_format_decimal(summary.negotiation_saving_pct, 1)}% sobre a primeira proposta"
+                if summary.negotiation_saving_pct is not None
+                else "sem primeira proposta registrada"
+            ),
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Competitividade",
+            icon="person",
+            tone=(
+                "ok"
+                if summary.average_offers is not None
+                and summary.average_offers >= summary.minimum_proposals
+                else "warn"
+            ),
+            value=(
+                f"{_format_decimal(summary.average_offers, 1)} propostas"
+                if summary.average_offers is not None
+                else "—"
+            ),
+            reference=f"Meta: ≥ {summary.minimum_proposals}",
+            footer=(
+                f"válidas por processo · fornecedor único "
+                f"{_format_decimal(summary.single_supplier_pct, 1)}%"
+                if summary.single_supplier_pct is not None
+                else "válidas por processo"
+            ),
+            url=PROCESSES_ROUTE,
+            active=False,
+        ),
+        KpiCard(
+            label="Entrega no prazo (OTD)",
+            icon="cart",
+            tone=(
+                "ok"
+                if orders.otd is not None and orders.otd >= summary.otd_target
+                else "warn"
+                if orders.otd is not None
+                else "neutro"
+            ),
+            value=f"{_format_decimal(orders.otd, 1)}%" if orders.otd is not None else "—",
+            reference=f"Meta: ≥ {summary.otd_target}%",
+            footer=f"{orders.delivered_on_time} de {orders.delivered} entregas até a data contratual",
+            url=DILIGENCE_ROUTE,
+            active=False,
+        ),
+        KpiCard(
+            label="Pedidos críticos",
+            icon="warning",
+            tone="erro" if orders.critical else "ok",
+            value=orders.critical,
+            reference="Esperado: 0",
+            footer=f"folga negativa em relação ao ROS · {orders.lli_critical} de longo prazo",
+            url=DILIGENCE_ROUTE,
+            active=False,
+        ),
+        KpiCard(
+            label="Compras emergenciais",
+            icon="errorCircle",
+            tone="warn" if summary.emergency_pct else "ok",
+            value=(
+                f"{_format_decimal(summary.emergency_pct, 1)}%"
+                if summary.emergency_pct is not None
+                else "—"
+            ),
+            reference="Esperado: 0%",
+            footer=f"{_format_money(summary.emergency_cents)} do valor contratado",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Comprometido x orçado",
+            icon="landmark",
+            tone=(
+                "erro"
+                if summary.committed_pct is not None and summary.committed_pct > 100
+                else "neutro"
+            ),
+            value=(
+                f"{_format_decimal(summary.committed_pct, 1)}%"
+                if summary.committed_pct is not None
+                else "—"
+            ),
+            reference=f"Limite: 100% · Orçado: {_format_money(summary.budget_cents)}",
+            footer=f"{_format_money(summary.adjudicated_cents)} adjudicado nos itens da EAC",
+            url="",
+            active=False,
+        ),
+    ]
+
+
+def _panel_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    """The document of the panel for the scope of the request; the only place with the clock."""
+    del req
+    today = calendario.today()
+    listing = service.list_panel(
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=today,
+    )
+    return export.build_panel_document(
+        listing=listing,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=today,
+    )

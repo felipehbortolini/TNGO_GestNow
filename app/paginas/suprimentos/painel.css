@@ -1,16 +1,84 @@
 /* ============================================================
    painel.css — Estilo da tela Painel de suprimentos (suprimentos/painel)
 
-   Indicadores, curva de contratação, avanço do MAS e pedidos críticos.
+   Indicadores, curva de contratação, avanço do MAS e pedidos críticos (ISSUE-063).
 
-   Escopo: tudo que morar aqui começa por .pagina--suprimentos-painel, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
+   Escopo: tudo que morar aqui começa por .pagina--suprimentos-painel, a classe da raiz da view,
+   para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento, raio
+   ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-063.
+   O que a tela acrescenta ao Design System: o texto de duas linhas do indicador, a barra das
+   exportações, a grade 2x2 dos visuais (com a altura menor das curvas do painel), a tabela dos
+   pedidos por folga e a linha em alerta. O fragmento é desenhado pelo servidor
+   (api/src/templates/suprimentos/painel.html).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--suprimentos-painel .painel__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--suprimentos-painel .painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--suprimentos-painel .painel__barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--suprimentos-painel .painel__barra .hint {
+  margin: 0;
+}
+
+.pagina--suprimentos-painel .painel__exportacoes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-painel .painel__graficos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--suprimentos-painel .painel__grafico {
+  --graf-altura: 380px;
+}
+
+.pagina--suprimentos-painel .painel__folga {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--suprimentos-painel .painel__tabela {
+  white-space: nowrap;
+}
+
+.pagina--suprimentos-painel .painel__pacote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  white-space: normal;
+}
+
+.pagina--suprimentos-painel .painel__linha--alerta td,
+.pagina--suprimentos-painel .painel__linha--alerta th {
+  background: var(--erro-50);
+}
+
+@media (max-width: 1100px) {
+  .pagina--suprimentos-painel .painel__graficos {
+    grid-template-columns: 1fr;
+  }
+}
