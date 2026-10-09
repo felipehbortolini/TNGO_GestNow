@@ -83,3 +83,14 @@ Nenhuma.
 ## Notas
 
 Fonte: `ficha.html`, modais 12 a 16 em `js/pages/riscos/riscos.js`, `GI.api.riscos.plano`, `aprovarPlano`, `novaAcao`, `revisar`, `encerrar` e `reabrir`; README, regras e o ajuste ao mockup 15.
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: a fachada da ficha (`ficha_service`: a folha com a faixa, os alertas, a pauta e as abas; a linha do tempo e o histórico reconstruído da trilha; as escritas do plano, da aprovação, da revisão, do encerramento, da reabertura e da ação), as rotas e os fragmentos (`ficha_routes`, `riscos/ficha.html` e os modais), o trio da tela, o Excel e o PDF pelos mecanismos genéricos, a migração `m065` (as quatro FKs que o MODELO já desenhava), a parte da carga (ata de origem, SM do Evitar, lição e SM do encerramento materializado pelos ids das fachadas donas) e os testes (fachada e rotas, incluindo os 403 da segregação). As integrações que chegam de fora ficam na ISSUE-067.
+
+- DECISAO: fachada e rotas separadas | a ficha vive em `ficha_service.py` e `ficha_routes.py`, no padrão de `minutes_routes`/`lessons_routes`; a fatia da 064 fica intacta exceto os ganchos de destino dos modais | ISSUE-065
+- DECISAO: editar e avaliar na ficha | a edição e a avaliação abertas da ficha respondem à própria ficha (`ficha/editar` e `ficha/avaliar`), com o destino no estado | ISSUE-065
+- DECISAO: origem da SM do materializado | a SM nasce com origem Interna (o "Risco materializado" não existe no vocabulário do 08); a rastreabilidade fica em `risco.encerramento_mudanca_id` | D9, ISSUE-065
+- DECISAO: histórico e encerramentos anteriores | reconstruídos da trilha de auditoria (`risco`, `risco_avaliacao`, `risco_revisao`, `risco_plano_aprovacao` e `risco.historico`), sem texto gravado em coluna | D5b, ISSUE-065
+- DECISAO: notificação da revisão | a revisão vencida avisa dono e gestor pela porta de notificação (tipo `revisao_risco`); sem e-mail cadastrado a ficha avisa que nada saiu, sem bloquear | ISSUE-013, ISSUE-065
+- DECISAO: situação "Não exigida" | quando o plano deixa de exigir a gerência, a aprovação ganha a linha "Não exigida" em vez de sumir da linha do tempo | ISSUE-065

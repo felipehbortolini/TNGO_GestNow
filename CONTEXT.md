@@ -62,6 +62,36 @@ sua contenção, causa, disposição, ação corretiva e verificação de eficá
 pontos de espera (H), testemunho (W) e revisão documental (R) antes da
 execução/aceitação.
 
+## Riscos
+
+**Risco** — ameaça ou oportunidade do projeto, com causa, evento e consequência;
+a natureza define as estratégias do plano. O score e a severidade são
+calculados da avaliação vigente, nunca gravados.
+
+**Avaliação inerente** — o risco sem tratamento, o primeiro fato de P e I.
+**Avaliação residual** — o risco com o plano de resposta; só existe depois do
+plano e, para ameaça, não supera a inerente.
+
+**Plano de resposta** — estratégia, texto, alvo de severidade, prazo,
+responsável e aprovação da gerência do projeto; a execução vive nas ações da
+Central (origem `Risco`). A inerente na faixa mais alta exige aprovação, e o
+responsável pelo plano não a concede (segregação de funções).
+
+**Revisão periódica** — registro datado que atualiza P e I da avaliação vigente
+e a linha do tempo, com a situação apurada (reduzido, agravado ou sem mudança).
+A cadência vem da severidade; o gestor antecipa, nunca posterga. Gatilho
+ocorrido força a reavaliação.
+
+**Pauta de escalonamento** — os motivos calculados que levam o risco à gerência:
+sem avaliação, topo sem plano, acima do alvo perto do prazo, sem redução após o
+plano, plano aguardando aprovação, revisão vencida e gatilho ocorrido.
+
+**Encerramento** — ato de Gestor que tira o risco da carteira ativa; exige lição
+aprendida em Rascunho no acervo, bloqueia com ação aberta salvo Materializado e,
+materializado, cria o problema na Central e a SM quando altera escopo, prazo ou
+custo. Para oportunidade, o motivo materializado aparece como "Capturada".
+**Reabertura** devolve o risco à situação anterior, com justificativa.
+
 ## Programação Semanal
 
 **Programação Semanal** — compromisso de uma contratada para uma semana ISO,
