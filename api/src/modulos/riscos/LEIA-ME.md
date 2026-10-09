@@ -2,16 +2,17 @@
 
 Módulo `riscos`. Mantém ameaças e oportunidades, avaliações, respostas, revisões e encerramentos.
 Score e severidade são calculados no servidor a partir da escala vigente (ISSUE-064, D6); o plano
-de resposta, as revisões, o encerramento e a reabertura vivem na ficha (ISSUE-065).
+de resposta, as revisões, o encerramento e a reabertura vivem na ficha (ISSUE-065); a matriz P x I
+e o painel de exposição, evolução e pauta de escalonamento vivem na ISSUE-066.
 
 ## Telas
 
 | Tela | Conteúdo | Issue | Situação |
 |---|---|---|---|
 | Registro de riscos | Contexto, KPIs, alternador Inerente/Residual, filtros, tabela, avaliação e exclusão lógica | ISSUE-064 | pronta |
-| Matriz P x I | Contagem e navegação por probabilidade e impacto | ISSUE-066 | prevista |
+| Matriz P x I | Mapa 5x5 inerente e residual, legenda pelas faixas e movimentação inerente-residual | ISSUE-066 | pronta |
 | Ficha do risco | Alertas, faixa com inerente e residual, plano de resposta, revisões, encerramento, reabertura e histórico | ISSUE-065 | pronta |
-| Painel de riscos | Exposição, tendência residual e pauta de escalonamento | ISSUE-066 | prevista |
+| Painel de riscos | KPIs, exposição por categoria da RBS, evolução mensal do score residual e pauta de escalonamento com envio ao gerente | ISSUE-066 | pronta |
 
 As integrações que chegam de Suprimentos, Contratos e Financeiro são ligadas na ISSUE-067.
 
@@ -60,6 +61,9 @@ Na ficha, a tela é `ficha-conteudo` e cada modal é um formulário do servidor 
 | `GET/POST {codigo}/revisoes` | Revisão periódica |
 | `GET/POST {codigo}/encerramento` | Encerramento (Gestor) |
 | `GET/POST {codigo}/reabertura` | Reabertura (Gestor) |
+| `GET matriz` e `matriz/excel`/`matriz/imprimivel` | A matriz P x I e as duas exportações (ISSUE-066) |
+| `GET painel` e `painel/excel`/`painel/imprimivel` | O painel e as duas exportações (ISSUE-066) |
+| `GET/POST painel/pauta` | O modal do envio da pauta ao gerente e o envio (ISSUE-066) |
 
 Os formulários abrem em modal; uma recusa (403, 409, 422) volta no próprio modal com a mensagem ao
 lado do campo, e o sucesso atualiza a ficha atrás dele. O fragmento do registro traz um `<template>`
@@ -84,6 +88,11 @@ ou a próxima ação de "Salvar e nova".
 | Aprovação obrigatória | Plano de inerente na faixa mais alta (ou marcado) aguarda a gerência | `calculations.is_top_band` |
 | Pauta de escalonamento | Motivos calculados do risco (sem avaliação, topo sem plano, alvo a menos de 30 dias, sem redução, aprovação pendente, revisão vencida, gatilho) | `calculations.pauta_reasons` |
 | Alvo acima da inerente | Proibido para ameaça | `calculations.is_target_above` |
+| Teto da faixa | Maior score da faixa: o piso da seguinte menos um; 25 na mais pesada | `calculations.band_ceiling` |
+| Célula da matriz | O risco entra pela avaliação escolhida: a residual ou, sem ela, a inerente; sem inherent fica fora e conta na nota | `panel_service.risk_matrix` (com `calculations.risk_score` e `risk_severity`) |
+| Evolução mensal do score residual | Para cada mês, a soma do evento mais recente (avaliação ou revisão) de cada ameaça ativa ao fim do mês; sem série gravada (D6) | `calculations.monthly_residual_scores` |
+| Redução média | Média de (inerente − residual) ÷ inerente das ameaças com residual; a meta é a média da redução que leva cada ameaça ao teto da faixa-alvo | `panel_service._reduction_average` e `_reduction_target` |
+| Exposição por categoria (RBS) | Score residual somado das ameaças ativas por grupo, a mais pesada primeiro | `panel_service._categories` |
 | Numeração | Próximo sufixo numérico do projeto: ``RSK-0001``; sufixos não numéricos não movem a série | `calculations.next_code_number` e `service.reserve_code` |
 | Histórico da ficha | Linhas da trilha de auditoria (`risco`, `risco_avaliacao`, `risco_revisao`, `risco_plano_aprovacao`, `risco.historico`), com o antes e o depois lidos por coluna | `ficha_service._history_of` |
 
@@ -127,6 +136,24 @@ acervo. A justificativa entra no histórico pela entidade `risco.historico`.
 origem `Risco`, item sequencial dentro do risco, grupo `Plano de resposta`; o risco Monitorado com
 estratégia volta a Em tratamento. "Salvar e nova" reabre o formulário.
 
+**Matriz P x I** (`panel_service.risk_matrix`): só riscos ativos entram, como no protótipo; a
+avaliação exibida é a inerente ou a residual (que cai para a inerente quando não existe); o risco
+sem avaliação inerente fica fora e a nota o conta. A cor da célula é da posição (probabilidade x
+impacto) e a oportunidade inverte a escala (frio e verde); a célula com risco leva ao Registro
+filtrado pelo parâmetro `celula` (`p3|i4`, que o registro traduz em probabilidade e impacto) e a
+vazia fica esmaecida. A movimentação mostra o score inerente e o residual sobrepostos, ordenados
+pelo inerente, e destaca quem não reduziu — esse risco é o que entra na pauta.
+
+**Painel de riscos** (`panel_service.risk_panel`): os indicadores saem do resumo do registro
+(faixas com a meta, exposição, revisão vencida) mais a redução média e a meta de redução; a
+exposição por categoria (RBS) soma o score residual das ameaças ativas por grupo; a evolução
+mensal é reconstruída do histórico de avaliações e revisões (D6, `monthly_residual_scores`), com
+a ameaça ativa ao fim de cada mês entrando pelo evento mais recente até a data; a pauta é a lista
+dos riscos ativos com motivo (`pauta_reasons`), o mais pesado primeiro. O envio da pauta
+(`send_risk_agenda`) pertence a um projeto, vai para o gerente do cadastro pela porta de
+notificação (tipo `pauta_riscos`) e fica na trilha como `simulado` enquanto o envio real está
+desligado.
+
 ## Integrações (D9)
 
 - **Central de Ações** (`central_acoes.service`): a ação nasce por `create_action` (a costura
@@ -140,7 +167,8 @@ estratégia volta a Em tratamento. "Salvar e nova" reabre o formulário.
   `lesson_options`. O módulo registra `register_origin("Risco", ...)` para a fachada de Lições
   conferir o número.
 - **Notificação** (`core.notification`): a revisão com "notificar" envia pela porta (tipo
-  `revisao_risco`) ao dono e ao gestor do projeto; sem o envio real, fica simulada na trilha.
+  `revisao_risco`) ao dono e ao gestor do projeto; a pauta do painel envia ao gerente do projeto
+  (tipo `pauta_riscos`); sem o envio real, as duas ficam simuladas na trilha.
 - **Configurações**: projetos, pessoas, RBS e o grupo Riscos dos parâmetros; a ficha usa
   `pautaDiasAntesDoPrazo` (30) na pauta e `revisaoAlertaDias` no registro.
 
@@ -167,14 +195,17 @@ data do run, idempotente pela tabela `carga_demonstracao`.
 |---|---|
 | Rotas e templates do registro | `routes.py`; `api/src/templates/riscos/` |
 | Rotas da ficha (plano, aprovação, ação, revisão, encerramento, reabertura) | `ficha_routes.py` |
+| Rotas da matriz e do painel (e o modal do envio da pauta) | `panel_routes.py`; `api/src/templates/riscos/` |
 | Fluxo do registro, exclusão e numeração | `service.py` |
 | Ficha: plano, revisões, encerramento, reabertura e histórico | `ficha_service.py` |
-| Score, severidade, VME, cadência, pauta e transições | `calculations.py` |
-| Validação de identificação, avaliação, plano, revisão, encerramento e reabertura | `validation.py` |
-| Exportação (Excel e imprimível do registro e da ficha) | `export.py` |
+| Matriz, painel, evolução do score e envio da pauta | `panel_service.py` |
+| Score, severidade, VME, cadência, pauta, teto de faixa e evolução | `calculations.py` |
+| Validação de identificação, avaliação, plano, revisão, encerramento, reabertura e filtros (inclusive `celula`) | `validation.py` |
+| Exportação (Excel e imprimível do registro, da ficha, da matriz e do painel) | `export.py` |
 | Persistência | `models.py`; entidades em `docs/MODELO-DE-DADOS.md` |
 | Carga de demonstração | `seed.py` |
 | Tela, estilo e comportamento | `app/_views/riscos/` e `app/paginas/riscos/` |
 | Testes | `api/tests/riscos/` e `api/tests/oraculo/test_oraculo_riscos.py` |
 
-A ISSUE-066 completa matriz e painel; a ISSUE-067 liga as integrações de chegada.
+A ISSUE-067 liga as integrações de chegada (sugestões do diligenciamento, claims, lições
+aplicadas e dados de exposição).

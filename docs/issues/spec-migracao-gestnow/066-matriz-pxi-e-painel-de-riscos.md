@@ -70,3 +70,13 @@ Nenhuma.
 ## Notas
 
 Fonte: `matriz.html` e `painel.html` de Riscos, `GI.api.riscos.matriz` e `painel`. A série mensal gravada no mock deixa de ser fonte (D6).
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: a fachada da matriz e do painel (`panel_service`: as células 5×5 com a legenda das faixas e a movimentação inerente→residual; os cinco KPIs, a exposição por categoria da RBS, a evolução mensal reconstruída do histórico e a pauta com o envio pela porta de notificação), as rotas e os fragmentos (`panel_routes`, `riscos/matriz.html`, `riscos/painel.html` e o modal do envio), os trios das duas telas com os visuais da biblioteca (matriz-formatada grade e linhas-múltiplas), o Excel e o PDF pelos mecanismos genéricos, e os testes (cálculos com a data injetada, fachada com o envio simulado, rotas e o oráculo da evolução). Sem migração: matriz e painel são leitura calculada e o gatilho já vive na `risco_revisao`. As integrações que chegam de fora ficam na ISSUE-067.
+
+- DECISAO: filtro da célula | a célula usa `celula=p3|i4` (o parâmetro do exemplo do styleguide), que `parse_filters` traduz para probabilidade, impacto e tipo de avaliação; o link leva ao Registro filtrado | D11, ISSUE-066
+- DECISAO: evolução mensal | reconstruída das avaliações e revisões (D6): por mês, a soma do evento mais recente de cada ameaça ativa ao fim do mês, com o corte na data de referência | D6, ISSUE-066
+- DECISAO: visual da evolução | Linhas Múltiplas com `suavizar: false`, porque não há barras de uma série só por mês na biblioteca | D11, ISSUE-066
+- DECISAO: envio da pauta | pela porta de notificação (tipo `pauta_riscos`), destinatário o gerente do projeto no cadastro; no Portfólio a tela pede o projeto antes do modal; simulado na trilha enquanto o envio real está desligado | ISSUE-013, D8/D12, ISSUE-066
+- DECISAO: KPI de exposição | sem o "Limite" do protótipo, que vinha da cobertura da contingência e chega com a integração da ISSUE-067; no lugar entra "Ameaças ativas" | ISSUE-067, ISSUE-066
