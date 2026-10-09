@@ -1,20 +1,27 @@
-"""Input validation of the supplier register and of the purchase plan (ISSUE-057/058).
+"""Input validation of the supplier register, of the purchase plan and of the process (ISSUE-057/058/059).
 
-The shapes the facade receives (new supplier, qualification, filters, documents, packages) and
-the checks of what a person types. The checks are pure and return one message per field, in a
-dict that is empty when everything holds up; the facade turns it into one ``InvalidDataError``
-(422), so the rule holds for the route and for any module that calls the facade.
+The shapes the facade receives (new supplier, qualification, filters, documents, packages,
+process actions) and the checks of what a person types. The checks are pure and return one
+message per field, in a dict that is empty when everything holds up; the facade turns it into one
+``InvalidDataError`` (422), so the rule holds for the route and for any module that calls the
+facade.
 
 The package of the plan is always tied to a cost item (level 3) of the EAC, the plan dates grow
 and the plan may not be born with negative slack; the emergency purchase demands its
 justification and the LLI contracted before the investment gate demands the specific approval.
 After the requisition the baseline is frozen: only scope, buyer, estimate and ROS change, with a
 justification.
+
+The process of purchase: the RFx demands the minimum of invitees of the parameter (or a single
+supplier with justification), the technical and commercial weights sum 100 and a blocked
+supplier is refused; below the minimum of proposals or of approvals the flow only goes on with a
+justification; the technical equalization gives a score to every proposal and needs at least one
+approval before the commercial one.
 """
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -222,6 +229,305 @@ class PackageFilters:
     kind: str = ""
     lli_only: bool = False
     page: int = 1
+
+
+# ── Purchase process (ISSUE-059) ─────────────────────────────────────────────────────────────
+
+MIN_PROCESS_JUSTIFICATION = 20
+MAX_PROCESS_OBSERVATION = 300
+MAX_PROCESS_DOCUMENT = 40
+MAX_PROCESS_OPINION = 400
+MAX_PROPOSAL_DEVIATIONS = 160
+MAX_OTHER_INVITEES = 200
+MAX_POINTS = 100
+MAX_DEADLINE_DAYS = 900
+
+DATE_IN_THE_FUTURE = "A data não pode ser posterior à data de referência."
+ACTION_NOT_IN_STAGE = "Ação não disponível na etapa {stage}."
+INVITEES_MINIMUM = (
+    "Convide ao menos {minimum} fornecedores (ou registre fornecedor único com justificativa)."
+)
+INVITEE_UNKNOWN = "O fornecedor informado não está no cadastro."
+INVITEE_BLOCKED = "Fornecedor bloqueado não pode ser convidado: {names}."
+SINGLE_JUSTIFICATION = "Fornecedor único exige justificativa (mínimo de 20 caracteres)."
+DEADLINE_ORDER = "O prazo das propostas deve ser igual ou posterior à emissão da RFx."
+WEIGHTS_TOTAL = "Os pesos técnico e comercial devem somar 100."
+PROPOSAL_SUPPLIER_REQUIRED = "Informe o fornecedor da proposta."
+PROPOSAL_DUPLICATE = "Este fornecedor já tem proposta registrada."
+PROPOSAL_BLOCKED = "Fornecedor bloqueado: a proposta não pode ser aceita."
+PROPOSAL_VALUE_REQUIRED = "Informe o valor da proposta."
+PROPOSAL_DEADLINE_REQUIRED = "Informe o prazo de entrega em dias."
+MINIMUM_EXCEPTION = (
+    "Só {count} proposta(s); o mínimo é {minimum}. Justifique para seguir "
+    "(mínimo de 20 caracteres) ou aguarde novas propostas."
+)
+TECHNICAL_MISSING = "Dê a nota técnica de todas as propostas (faltam {names})."
+TECHNICAL_NONE_APPROVED = "Nenhuma proposta aprovada tecnicamente: revise a especificação."
+TECHNICAL_MINIMUM = (
+    "Só {count} proposta(s) aprovada(s) tecnicamente; o mínimo é {minimum}. Justifique para "
+    "seguir (mínimo de 20 caracteres)."
+)
+NEGOTIATION_APPROVED_ONLY = "Negocie só com propostas aprovadas tecnicamente."
+NEGOTIATION_VALUE_REQUIRED = "Informe o valor negociado."
+NEGOTIATION_ABOVE_PROPOSAL = "O valor negociado não pode superar a proposta original."
+PROCESS_NOT_FOUND = "Processo não encontrado."
+
+
+@dataclass(frozen=True)
+class RequisitionInput:
+    """What the form of Nova requisição sends: the date and the reference of the request."""
+
+    date: date | None
+    document: str = ""
+    observation: str = ""
+
+
+@dataclass(frozen=True)
+class RfxInput:
+    """What the form of Emitir RFx sends: the emission, the weights and the invitees."""
+
+    date: date | None
+    deadline: date | None
+    weight_technical: int | None
+    weight_commercial: int | None
+    invitees: tuple[int, ...] = ()
+    other_invitees: tuple[str, ...] = ()
+    single_supplier: bool = False
+    single_justification: str = ""
+
+
+@dataclass(frozen=True)
+class ProposalInput:
+    """What the form of Registrar proposta sends; the PDF arrives apart, as an attachment."""
+
+    company_id: int | None
+    name: str
+    received: date | None
+    value_cents: int | None
+    deadline_days: int | None
+    validity: date | None = None
+
+
+@dataclass(frozen=True)
+class ClosingInput:
+    """What the form of Encerrar recebimento sends."""
+
+    date: date | None
+    justification: str = ""
+
+
+@dataclass(frozen=True)
+class TechnicalEvaluation:
+    """The score and the approval of one proposal, with the version the form opened."""
+
+    proposal_id: int
+    score: int | None
+    approved: bool
+    deviations: str = ""
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class TechnicalInput:
+    """What the form of Equalização técnica sends: one evaluation per proposal."""
+
+    date: date | None
+    evaluations: tuple[TechnicalEvaluation, ...]
+    responsible_id: int | None = None
+    opinion: str = ""
+    justification: str = ""
+
+
+@dataclass(frozen=True)
+class CommercialInput:
+    """What the form of Equalização comercial sends: the weights and the date of the map."""
+
+    date: date | None
+    weight_technical: int | None
+    weight_commercial: int | None
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class NegotiationInput:
+    """What the form of Registrar negociação sends: the approved proposal and the value."""
+
+    proposal_id: int | None
+    value_cents: int | None
+    date: date | None
+    observation: str = ""
+
+
+@dataclass(frozen=True)
+class ProcessFilters:
+    """The filters of the list: the search and whether the concluded processes show."""
+
+    search: str = ""
+    situation: str = "andamento"
+
+
+def date_problem(
+    value: date | None, *, reference_date: date, field: str = "data"
+) -> dict[str, str]:
+    """The date of an action: required and never after the reference date."""
+    if value is None:
+        return {field: PLAN_DATE_REQUIRED}
+    if value > reference_date:
+        return {field: DATE_IN_THE_FUTURE}
+    return {}
+
+
+def rfx_problems(
+    data: RfxInput,
+    *,
+    reference_date: date,
+    minimum: int,
+    blocked: Sequence[str] = (),
+    unknown: Sequence[str] = (),
+) -> dict[str, str]:
+    """One message per field of the RFx that does not hold up.
+
+    ``blocked`` and ``unknown`` are the invitees the facade resolved as blocked suppliers or as
+    companies outside the register; the minimum of the parameter applies only without the single
+    supplier, which demands its justification.
+    """
+    problems = date_problem(data.date, reference_date=reference_date)
+    if data.deadline is None:
+        problems["dataLimite"] = PLAN_DATE_REQUIRED
+    elif data.date is not None and data.deadline < data.date:
+        problems["dataLimite"] = DEADLINE_ORDER
+    problems.update(_weight_problems(data.weight_technical, data.weight_commercial))
+    invitees = len(data.invitees) + len(data.other_invitees)
+    if data.single_supplier:
+        if len(data.single_justification.strip()) < MIN_PROCESS_JUSTIFICATION:
+            problems["justUnico"] = SINGLE_JUSTIFICATION
+    elif invitees < minimum:
+        problems["convidados"] = INVITEES_MINIMUM.format(minimum=minimum)
+    if unknown:
+        problems["convidados"] = INVITEE_UNKNOWN
+    if blocked:
+        problems["convidados"] = INVITEE_BLOCKED.format(names=", ".join(blocked))
+    return problems
+
+
+def proposal_problems(
+    data: ProposalInput,
+    *,
+    reference_date: date,
+    blocked: bool = False,
+    duplicated: bool = False,
+) -> dict[str, str]:
+    """One message per field of the proposal that does not hold up."""
+    problems: dict[str, str] = {}
+    if data.company_id is None and not data.name.strip():
+        problems["fornecedor"] = PROPOSAL_SUPPLIER_REQUIRED
+    if blocked:
+        problems["fornecedor"] = PROPOSAL_BLOCKED
+    if duplicated:
+        problems["fornecedor"] = PROPOSAL_DUPLICATE
+    problems.update(date_problem(data.received, reference_date=reference_date, field="recebida"))
+    if data.value_cents is None or data.value_cents <= 0:
+        problems["valor"] = PROPOSAL_VALUE_REQUIRED
+    if data.deadline_days is None or data.deadline_days <= 0:
+        problems["prazo"] = PROPOSAL_DEADLINE_REQUIRED
+    return problems
+
+
+def closing_problems(
+    data: ClosingInput, *, reference_date: date, count: int, minimum: int, exception: bool
+) -> dict[str, str]:
+    """The closing date, and the justification the flow demands below the minimum.
+
+    ``exception`` is the single supplier of the RFx, whose justification already covers the
+    exception to the minimum.
+    """
+    problems = date_problem(data.date, reference_date=reference_date)
+    below = count < minimum and not exception
+    if below and len(data.justification.strip()) < MIN_PROCESS_JUSTIFICATION:
+        problems["justificativa"] = MINIMUM_EXCEPTION.format(count=count, minimum=minimum)
+    return problems
+
+
+def technical_score_problems(
+    data: TechnicalInput, *, reference_date: date, missing: Sequence[str] = ()
+) -> dict[str, str]:
+    """The date and the scores of the technical equalization: every proposal gets a score."""
+    problems = date_problem(data.date, reference_date=reference_date)
+    if missing:
+        problems["avaliacoes"] = TECHNICAL_MISSING.format(names=", ".join(missing))
+    return problems
+
+
+def technical_approval_problems(
+    data: TechnicalInput, *, approved_count: int, minimum: int, single_supplier: bool
+) -> dict[str, str]:
+    """At least one approval, and below the minimum a justification (single supplier excepted)."""
+    if not approved_count:
+        return {"avaliacoes": TECHNICAL_NONE_APPROVED}
+    below = approved_count < minimum and not single_supplier
+    if below and len(data.justification.strip()) < MIN_PROCESS_JUSTIFICATION:
+        return {"justificativa": TECHNICAL_MINIMUM.format(count=approved_count, minimum=minimum)}
+    return {}
+
+
+def commercial_problems(data: CommercialInput, *, reference_date: date) -> dict[str, str]:
+    """The date of the map and the weights of the commercial equalization."""
+    problems = date_problem(data.date, reference_date=reference_date)
+    problems.update(_weight_problems(data.weight_technical, data.weight_commercial))
+    return problems
+
+
+def negotiation_problems(
+    data: NegotiationInput, *, reference_date: date, above_proposal: bool
+) -> dict[str, str]:
+    """The date, the value and the ceiling of the negotiation (the original proposal)."""
+    problems = date_problem(data.date, reference_date=reference_date)
+    if data.value_cents is None or data.value_cents <= 0:
+        problems["valor"] = NEGOTIATION_VALUE_REQUIRED
+    elif above_proposal:
+        problems["valor"] = NEGOTIATION_ABOVE_PROPOSAL
+    return problems
+
+
+def _weight_problems(weight_technical: int | None, weight_commercial: int | None) -> dict[str, str]:
+    if weight_technical is None or weight_commercial is None:
+        return {"pesoTecnico": PLAN_DATE_REQUIRED, "pesoComercial": PLAN_DATE_REQUIRED}
+    if weight_technical + weight_commercial != 100:
+        return {"pesoTecnico": WEIGHTS_TOTAL}
+    return {}
+
+
+def names_of(raw: str) -> tuple[str, ...]:
+    """The names typed as a comma-separated list: trimmed, without blanks and without repeats."""
+    cleaned = (item.strip() for item in (raw or "").split(","))
+    return tuple(dict.fromkeys(item for item in cleaned if item))
+
+
+def parse_points(raw: str | None) -> int | None:
+    """A whole number from 0 to 100 (a score or a weight), or ``None`` when it is not one."""
+    text = (raw or "").strip()
+    if not text.isdigit():
+        return None
+    value = int(text)
+    return value if value <= MAX_POINTS else None
+
+
+def parse_positive_int(raw: str | None, *, maximum: int = MAX_DEADLINE_DAYS) -> int | None:
+    """A whole number from 1 to ``maximum``, or ``None`` when it is not one."""
+    text = (raw or "").strip()
+    if not text.isdigit():
+        return None
+    value = int(text)
+    return value if 1 <= value <= maximum else None
+
+
+def parse_process_filters(params: Mapping[str, str]) -> ProcessFilters:
+    """Read the filters of the process list; the default is the in-progress processes."""
+    raw = (params.get("situacao") or "").strip()
+    return ProcessFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        situation="" if raw == "todos" else "andamento",
+    )
 
 
 def creation_problems(data: SupplierInput) -> dict[str, str]:

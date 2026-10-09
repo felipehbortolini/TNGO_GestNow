@@ -1238,11 +1238,11 @@ erDiagram
     pacote_compra ||--o{ pacote_compra_marco : "marcos"
     pacote_compra ||--o{ processo_compra : "conduz"
     processo_compra ||--o{ processo_convidado : "convida"
-    empresa ||--o{ processo_convidado : "convidada"
+    empresa |o--o{ processo_convidado : "convidada"
     processo_compra ||--o{ processo_proposta : "recebe"
-    empresa ||--o{ processo_proposta : "propõe"
+    empresa |o--o{ processo_proposta : "propõe"
     processo_compra ||--o{ processo_negociacao : "negocia"
-    empresa ||--o{ processo_negociacao : "negociada"
+    empresa |o--o{ processo_negociacao : "negociada"
     pacote_compra ||--o{ pedido : "origina"
     empresa ||--o{ pedido : "fornece"
     pedido ||--o{ pedido_marco : "marcos"
@@ -1301,11 +1301,13 @@ erDiagram
         bigint id PK
         bigint processo_id FK
         bigint empresa_id FK
+        text nome
     }
     processo_proposta {
         bigint id PK
         bigint processo_id FK
         bigint empresa_id FK
+        text nome
         date recebida
         bigint valor_centavos
         integer prazo_dias
@@ -1319,6 +1321,7 @@ erDiagram
         bigint id PK
         bigint processo_id FK
         bigint empresa_id FK
+        text nome
         date data
         bigint valor_centavos
         text observacao
@@ -1395,7 +1398,10 @@ duas metades do MAS (12 marcos); a folga (ROS − previsão), a situação do ma
 o avanço, a aderência, o saving e o OTD são calculados. As referências de
 contrato e pedido do pacote (`contratoRef`, `pedidoRef`) vêm de
 `contrato.pacote_compra_id` e `pedido.pacote_id`. O `historico` do processo é
-lido da `auditoria`.
+lido da `auditoria`. O convidado, a proposta e a negociação guardam `nome`
+quando o fornecedor não está no cadastro (o protótipo aceitava nomes livres,
+inclusive nas propostas); com empresa, `empresa_id` vale e o nome é o dela,
+calculado na leitura.
 
 ### 10. 05 Riscos
 
@@ -2034,9 +2040,9 @@ fachada, não por coluna.
 | `fornecedor_documento` | Documento com validade (nome e validade); o arquivo é `anexo` e o vencimento é calculado pela data de hoje. | suprimentos |
 | `fornecedor_historico` | Mudança de situação da qualificação (de, para, autor e justificativa). Fato imutável, sem `versao`. | suprimentos |
 | `processo_compra` | Processo de compra (RFx) do pacote: pesos técnico e comercial, data-limite, recomendação, aprovação por alçada e parecer. Notas comercial e final, ranking e saving são calculados. UK: número. | suprimentos |
-| `processo_convidado` | Fornecedor convidado (fornecedor Bloqueado não entra). Sem `versao` própria. | suprimentos |
-| `processo_proposta` | Proposta recebida (fornecedor, valor, prazo, validade, nota técnica, aprovação técnica e desvios); o PDF da proposta é `anexo`. | suprimentos |
-| `processo_negociacao` | Rodada de negociação (data, fornecedor, valor e observação). Fato imutável, sem `versao`. | suprimentos |
+| `processo_convidado` | Fornecedor convidado (fornecedor Bloqueado não entra); sem cadastro, o `nome` fica no lugar da empresa. Sem `versao` própria. | suprimentos |
+| `processo_proposta` | Proposta recebida (fornecedor do cadastro ou `nome`, valor, prazo, validade, nota técnica, aprovação técnica e desvios); o PDF da proposta é `anexo`. | suprimentos |
+| `processo_negociacao` | Rodada de negociação (data, fornecedor do cadastro ou `nome`, valor e observação). Fato imutável, sem `versao`. | suprimentos |
 
 ### 05 Riscos (dono: `riscos`)
 

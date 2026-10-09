@@ -1,4 +1,4 @@
-"""Pure calculations of the supplier register and of the purchase plan (ISSUE-057/058, D6).
+"""Pure calculations of the supplier register, of the purchase plan and of the process (ISSUE-057/058/059, D6).
 
 Every rule is one function with its business name (``LEIA-ME.md``) and the reference date is
 always an argument: nothing here reads the clock. "Documents in day", "qualification due" and
@@ -8,6 +8,10 @@ on every query from the documents and the evaluations of the Financeiro.
 The purchase plan: the plan dates of the seven acquisition milestones, the stage that the real
 dates lead to, the planned slack against the ROS and the derivation of the three intermediate
 milestone dates are pure functions too, so the screen and the import share the same rules.
+
+The purchase process: the ten stages of the flow, the situation of each of the nine steps of the
+bar, the required approval band, the process number, the commercial and final scores and the
+ranking of the proposals are pure functions, so the screen, the seed and the exports share them.
 """
 
 from __future__ import annotations
@@ -266,6 +270,184 @@ def adjudication_overdue(
         return False
     deviation = adjudication_deviation_days(plan, real, forecast, reference_date)
     return deviation is not None and deviation > 0
+
+
+# ── The purchase process (ISSUE-059) ─────────────────────────────────────────────────────────
+
+# The ten stages of the prototype (``ETAPAS_SUP``); the bar of the process shows the nine from
+# "Requisição" on, as the stepper of the prototype did.
+PROCESS_STAGES: tuple[str, ...] = (
+    STAGE_PLANNED,
+    "Requisição",
+    "RFx emitida",
+    "Propostas recebidas",
+    "Equalização técnica",
+    "Equalização comercial",
+    "Negociação",
+    "Recomendação de adjudicação",
+    "Aprovada",
+    "Pedido/contrato emitido",
+)
+
+# The nine steps of the process bar, in order: the key of the acquisition milestone and the
+# stage it reaches (the label the bar prints).
+PROCESS_STEPS: tuple[tuple[str, str], ...] = (
+    ("requisicao", "Requisição"),
+    ("rfx", "RFx emitida"),
+    ("propostas", "Propostas recebidas"),
+    ("eqTecnica", "Equalização técnica"),
+    ("eqComercial", "Equalização comercial"),
+    ("negociacao", "Negociação"),
+    ("recomendacao", "Recomendação de adjudicação"),
+    ("adjudicacao", "Aprovada"),
+    ("pedido", "Pedido/contrato emitido"),
+)
+
+STEP_DONE = "concluido"
+STEP_CURRENT = "andamento"
+STEP_FUTURE = "futuro"
+
+RFQ_PREFIX = "RFQ"
+RFP_PREFIX = "RFP"
+SERVICE_KINDS: tuple[str, ...] = ("Serviço", "EPC")
+
+ONE_TENTH = Decimal("0.1")
+HUNDRED = Decimal(100)
+
+
+def stage_index(stage: str) -> int:
+    """The position of the stage in the flow; an unknown stage reads as ``Planejado``."""
+    try:
+        return PROCESS_STAGES.index(stage)
+    except ValueError:
+        return 0
+
+
+def process_stage(history_stages: Sequence[str], fallback: str) -> str:
+    """The stage the process is in: the one the last recorded action led to.
+
+    The prototype kept the stage in the package; here it is the ``etapa`` of the last history
+    line (the action that moved the process), and the stage calculated from the real dates of
+    the package is the fallback of a process the load brought without history.
+    """
+    recorded = [stage for stage in history_stages if stage]
+    return recorded[-1] if recorded else fallback
+
+
+def step_situation(position: int, *, current: int, done: bool) -> str:
+    """How one of the nine steps of the bar reads: done, current or future.
+
+    The step of the current stage is ``andamento`` (the stage only moves when its action runs),
+    the ones before it are done and the ones after are future; a fact ahead of the recorded stage
+    counts as done, and a process at the last stage has all nine done.
+    """
+    if current >= len(PROCESS_STEPS):
+        return STEP_DONE
+    if position < current or (position > current and done):
+        return STEP_DONE
+    return STEP_CURRENT if position == current else STEP_FUTURE
+
+
+def single_supplier(invitee_count: int, minimum: int) -> bool:
+    """Whether the process ran with a single supplier: fewer invitees than the minimum.
+
+    The rule of the emission guarantees it: below the minimum of the parameter the RFx is only
+    accepted as a single supplier with justification, so at reading it means exactly that.
+    """
+    return invitee_count < minimum
+
+
+def is_service(kind: str) -> bool:
+    """Whether the package of the kind generates a contract (``RFP``): service and EPC."""
+    return kind in SERVICE_KINDS
+
+
+def next_process_number(numbers: Sequence[str], *, service: bool, year: int) -> str:
+    """The next RFx number of the type: the highest number of the year plus one, three digits.
+
+    The prototype numbered globally by type and year (``RFQ-2026-014``), not per project; from
+    the 1000th process the three-digit field simply grows, as the prototype's did.
+    """
+    prefix = f"{RFP_PREFIX if service else RFQ_PREFIX}-{year}-"
+    counters = [
+        int(number[len(prefix) :])
+        for number in numbers
+        if number.startswith(prefix) and number[len(prefix) :].isdigit()
+    ]
+    return f"{prefix}{max(counters, default=0) + 1:03d}"
+
+
+def approval_band_for(value_cents: int, bands: Sequence[tuple[int | None, str]]) -> str | None:
+    """The band of approval of a value: the first ceiling that covers it, the last as fallback.
+
+    The prototype's ``regras.alcada``: a band with no ceiling covers everything and the value
+    exactly on the ceiling belongs to the band it closes. Without bands there is no required
+    approval.
+    """
+    if not bands:
+        return None
+    for ceiling, name in bands:
+        if ceiling is None or value_cents <= ceiling:
+            return name
+    return bands[-1][1]
+
+
+def commercial_score(price_cents: int | None, lowest_cents: int | None) -> Decimal | None:
+    """The commercial score: the lowest approved price divided by the price, in percent.
+
+    One decimal, half up, exactly as the prototype (``menor preço ÷ preço x 100``); without a
+    price or a lowest price there is no score.
+    """
+    if lowest_cents is None or price_cents is None or price_cents <= 0:
+        return None
+    value = Decimal(lowest_cents) / Decimal(price_cents) * HUNDRED
+    return value.quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+
+
+def final_score(
+    technical: Decimal | int | None,
+    commercial: Decimal | int | None,
+    weight_technical: int,
+    weight_commercial: int,
+) -> Decimal | None:
+    """The weighted final score: ``(técnica x peso + comercial x peso) ÷ soma dos pesos``.
+
+    One decimal, half up; without a score or without weight there is no final score (the
+    prototype divides by the sum of the weights, not by 100).
+    """
+    if technical is None or commercial is None:
+        return None
+    total = weight_technical + weight_commercial
+    if total <= 0:
+        return None
+    value = (
+        Decimal(technical) * weight_technical + Decimal(commercial) * weight_commercial
+    ) / total
+    return value.quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+
+
+def proposal_ranking(
+    entries: Sequence[tuple[int, Decimal | None, int]],
+) -> list[tuple[int, int]]:
+    """The ranking of the proposals: final score descending, price ascending (prototype).
+
+    ``entries`` are ``(id, final score, value in cents)``; only the proposals with a final score
+    enter, ties on both keep the order they were read in (a stable sort, as the prototype's).
+    """
+    ranked = [(item_id, score, value) for item_id, score, value in entries if score is not None]
+    ordered = sorted(ranked, key=lambda entry: (-entry[1], entry[2]))
+    return [(entry[0], position) for position, entry in enumerate(ordered, start=1)]
+
+
+def cycle_days(requisition: date | None, order: date | None, reference_date: date) -> int | None:
+    """The purchase cycle: the days from the requisition to the order, or to the reference.
+
+    The prototype's ``cicloDias``: without a real requisition there is no cycle; without the
+    order the cycle runs up to the reference date.
+    """
+    if requisition is None:
+        return None
+    return ((order or reference_date) - requisition).days
 
 
 def next_package_code(codes: Sequence[str]) -> str:
