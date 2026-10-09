@@ -7,10 +7,11 @@ timeline of reviews and the approval of the response plan. Every date is shifted
 ``shift_date``; on 25/09/2026 (the oracle) nothing moves and the numbers of the prototype come
 out whole.
 
-Not loaded here, because the owners of the tables arrive later: the link to the minutes
-(``ata_id`` keeps the id the prototype gave the minutes, as the actions do), to the change
-request (``smRef``) and to the lesson (``licaoRef``), and the actions, which the Central
-de Ações seeds with origin ``Risco``.
+The links the risk already had in the mock enter here too (ISSUE-065): the minutes of the origin
+(``ataId``), the change request of the strategy Evitar (``smRef``), the lesson of the closing
+(``licaoRef``) and the change request of the materialized closing (``encerramento.smRef``). The
+owners of the tables (Central de Ações and Governança) load before this part and their facades
+answer the ids by number or code; the actions with origin ``Risco`` are seeded by the Central.
 
 The ``financeiro-contratos-fluxos`` part (ISSUE-033) is registered here, after the risks: the
 claims of the prototype point at their risk by code (``riscoRef``) and the link only exists after
@@ -30,8 +31,11 @@ from sqlalchemy.orm import Session
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
 from src.core.rbac import Bond, GeneralProfile, User
+from src.modulos.central_acoes import minutes_service
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import seed as financeiro_seed
+from src.modulos.governanca import lessons_service
+from src.modulos.governanca import service as governanca
 from src.modulos.riscos import service
 from src.modulos.riscos.models import (
     Risk,
@@ -62,6 +66,9 @@ class _Lookups:
     people: Mapping[int, int]
     projects: Mapping[int, int]
     categories: Mapping[tuple[str, str], int]
+    atas: Mapping[int, int]
+    changes: Mapping[str, int]
+    lessons: Mapping[str, int]
 
     def shifted(self, value: str | None) -> date | None:
         """A date of the prototype moved to the reference date of the run."""
@@ -80,7 +87,7 @@ class _Lookups:
 
 
 def load(session: Session, reference_date: date) -> None:
-    """Write the catalogue and the risks of the prototype, with their history."""
+    """Write the catalogue and the risks of the prototype, with their history and links."""
     lookups = _lookups(session, reference_date)
     for source in prototype_collection("riscos"):
         _record(session, lookups, source)
@@ -110,6 +117,10 @@ def _lookups(session: Session, reference_date: date) -> _Lookups:
         person.email.lower(): person.id for person in configuracoes.list_people(session)
     }
     ids_by_code = {project.code: project.id for project in configuracoes.list_projects(session)}
+    projects = {
+        project["id"]: ids_by_code[project["codigo"]]
+        for project in prototype_collection("projetos")
+    }
     return _Lookups(
         user=user,
         reference_date=reference_date,
@@ -117,12 +128,63 @@ def _lookups(session: Session, reference_date: date) -> _Lookups:
             person["id"]: ids_by_email[person["email"].lower()]
             for person in prototype_collection("pessoas")
         },
-        projects={
-            project["id"]: ids_by_code[project["codigo"]]
-            for project in prototype_collection("projetos")
-        },
+        projects=projects,
         categories=categories,
+        atas=_ata_ids(session, projects),
+        changes=_change_ids(session),
+        lessons=_lesson_ids(session),
     )
+
+
+def _ata_ids(session: Session, projects: Mapping[int, int]) -> dict[int, int]:
+    """The id the database gave each minutes of the mock, by number of its project."""
+    ids_by_project = {
+        project_id: minutes_service.minutes_ids_by_number(session, project_id=project_id)
+        for project_id in set(projects.values())
+    }
+    atas: dict[int, int] = {}
+    for ata in prototype_collection("atas"):
+        project_id = projects[ata["projetoId"]]
+        found = ids_by_project.get(project_id, {}).get(ata["numero"])
+        if found is None:
+            message = f"A ata {ata['numero']} do projeto {ata['projetoId']} não foi carregada."
+            raise LookupError(message)
+        atas[ata["id"]] = found
+    return atas
+
+
+def _change_ids(session: Session) -> dict[str, int]:
+    """The id of each change request the risks point at, by its code."""
+    codes = {
+        code
+        for source in prototype_collection("riscos")
+        for code in (source.get("smRef"), (source.get("encerramento") or {}).get("smRef"))
+        if code
+    }
+    found = governanca.change_ids_by_code(session, codes=sorted(codes))
+    missing = codes - set(found)
+    if missing:
+        message = f"SM do protótipo não carregada: {', '.join(sorted(missing))}."
+        raise LookupError(message)
+    return found
+
+
+def _lesson_ids(session: Session) -> dict[str, int]:
+    """The id of each lesson the closed risks point at, by its code."""
+    codes = {
+        code
+        for source in prototype_collection("riscos")
+        for code in [(source.get("encerramento") or {}).get("licaoRef")]
+        if code
+    }
+    lessons: dict[str, int] = {}
+    for code in sorted(codes):
+        found = lessons_service.lesson_id_by_code(session, code)
+        if found is None:
+            message = f"Lição do protótipo não carregada: {code}."
+            raise LookupError(message)
+        lessons[code] = found
+    return lessons
 
 
 def _record(session: Session, lookups: _Lookups, source: Mapping[str, Any]) -> None:
@@ -144,7 +206,11 @@ def _risk_of(lookups: _Lookups, source: Mapping[str, Any]) -> Risk:
         category_id=category,
         owner_id=lookups.person(source["donoId"]),
         identified_by_id=lookups.person(source["identificadoPorId"]),
-        ata_id=source.get("ataId"),
+        ata_id=lookups.atas.get(source.get("ataId")) if source.get("ataId") else None,
+        change_id=lookups.changes.get(source.get("smRef")) if source.get("smRef") else None,
+        lesson_id=(
+            lookups.lessons.get(closing.get("licaoRef")) if closing.get("licaoRef") else None
+        ),
         plan_responsible_id=lookups.person(source.get("responsavelPlanoId")),
         closed_by_id=lookups.person(closing.get("porId")),
         code=source["codigo"],
@@ -174,6 +240,9 @@ def _risk_of(lookups: _Lookups, source: Mapping[str, Any]) -> Risk:
         closing_date=lookups.shifted(closing.get("data")),
         closing_schedule_impact_days=closing.get("impactoRealPrazoDias"),
         closing_cost_impact_cents=closing.get("impactoRealCustoCentavos"),
+        closing_change_id=(
+            lookups.changes.get(closing.get("smRef")) if closing.get("smRef") else None
+        ),
         identified_on=lookups.shifted(source["identificadoEm"]),
     )
 
