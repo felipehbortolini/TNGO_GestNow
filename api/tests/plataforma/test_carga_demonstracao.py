@@ -1843,6 +1843,47 @@ def _pacotes_no(db_session: Session, project_id: int) -> int:
     )
 
 
+def test_oraculo_do_mas_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-062: o mapa lê o plano, os processos e os pedidos já semeados.
+
+    Na âncora, o projeto 1 tem 14 pacotes no mapa, cada um com os doze marcos nos dois grupos de
+    aquisição e fabricação; os três pedidos críticos do diligenciamento (PED-2026-0001, 0002 e
+    0004) deixam três linhas críticas, e o PC-14, ainda sem pedido, mostra a LB de fabricação
+    estimada entre o pedido planejado (18/09/2026) e o ROS (10/01/2027); o avanço de suprimentos
+    e o índice saem dos pesos dos marcos do parâmetro, ponderados pelo valor do pacote.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    projeto = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+
+    listing = suprimentos.list_mas(
+        db_session,
+        user=user,
+        scope=Scope(project_id=projeto.id, source="url"),
+        filters=suprimentos_validation.MasFilters(),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    assert listing.total == 14, "os pacotes do projeto no mapa"
+    assert len(listing.columns) == 12, "os doze marcos do mapa"
+    assert len(listing.totals) == 12
+    assert listing.summary.critical == 3, "os três pedidos críticos do diligenciamento"
+    assert listing.summary.realized_pct > 0
+    assert listing.summary.index is not None
+
+    pc14 = next(line for line in listing.lines if line.code == "PC-14")
+    documentos = pc14.milestone("documentos")
+    assert documentos is not None
+    assert documentos.estimated is True, "o PC-14 ainda não tem pedido"
+    assert documentos.baseline == date(2026, 10, 5), "15% entre o pedido planejado e o ROS"
+
+
 def _count_where(db_session: Session, *conditions: Any) -> int:
     return (
         db_session.scalar(select(func.count()).select_from(PurchasePackage).where(*conditions)) or 0
