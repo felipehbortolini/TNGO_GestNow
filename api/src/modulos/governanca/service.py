@@ -1705,6 +1705,29 @@ def change_codes(session: Session, *, change_ids: Sequence[int]) -> dict[int, st
     return {row.id: row.code for row in session.execute(statement)}
 
 
+@dataclass(frozen=True)
+class ChangeOption:
+    """Uma SM como outro módulo a lê para escolher ou mostrar um vínculo (D9)."""
+
+    id: int
+    code: str
+    title: str
+    situation: str
+
+
+def change_options(session: Session, *, project_id: int) -> tuple[ChangeOption, ...]:
+    """As SMs do projeto, por código, para o plano de resposta do risco escolher a que vincula."""
+    statement = (
+        select(ChangeRequest)
+        .where(ChangeRequest.project_id == project_id)
+        .order_by(ChangeRequest.code)
+    )
+    return tuple(
+        ChangeOption(id=change.id, code=change.code, title=change.title, situation=change.situation)
+        for change in session.scalars(statement)
+    )
+
+
 def change_ids_by_code(session: Session, *, codes: Sequence[str]) -> dict[str, int]:
     """O id de cada SM pelo seu código; um código ausente fica de fora."""
     wanted = {code.strip() for code in codes if code and code.strip()}

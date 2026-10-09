@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -70,6 +70,7 @@ class RiskParameters:
     probabilities: tuple[ProbabilityBand, ...]
     impacts: tuple[str, ...]
     review_alert_days: int
+    pauta_days_before_deadline: int
 
 
 def parameters_from_values(values: Mapping[str, Any]) -> RiskParameters:
@@ -91,6 +92,7 @@ def parameters_from_values(values: Mapping[str, Any]) -> RiskParameters:
         ),
         impacts=tuple(values["impactos"]),
         review_alert_days=int(values["revisaoAlertaDias"]),
+        pauta_days_before_deadline=int(values["pautaDiasAntesDoPrazo"]),
     )
 
 
@@ -210,3 +212,135 @@ def next_code_number(existing_codes: Iterable[str], prefix: str) -> int:
 def format_code(prefix: str, number: int) -> str:
     """The code as the register prints it: ``RSK-TN-2026-0010``."""
     return f"{prefix}-{number:04d}"
+
+
+# ── Ficha: plano de resposta, revisão e pauta (ISSUE-065) ────────────────────────────────────
+
+
+def find_band(scale: Scale, band_id: str | None) -> Band | None:
+    """The band of the scale with the id, or ``None`` when the id is empty or unknown."""
+    return next((band for band in scale.bands if band.id == band_id), None)
+
+
+def is_top_band(band_id: str | None, scale: Scale) -> bool:
+    """Whether the band is the heaviest of the scale (the plan needs the manager's approval)."""
+    return band_id is not None and severity_rank(band_id, scale) == len(scale.bands) - 1
+
+
+def is_high_or_above(band_id: str | None, scale: Scale) -> bool:
+    """Whether the band is Alto or heavier: the plan needs at least one linked action."""
+    return band_id is not None and severity_rank(band_id, scale) >= severity_rank("alto", scale)
+
+
+def requires_response_action(
+    nature: str, inherent_band_id: str | None, strategy: str, scale: Scale
+) -> bool:
+    """A threat rated Alto or heavier needs an action, unless the strategy is Aceitar."""
+    return nature == THREAT and strategy != "Aceitar" and is_high_or_above(inherent_band_id, scale)
+
+
+def is_target_above(nature: str, current_band_id: str, target_band_id: str, scale: Scale) -> bool:
+    """Whether the target is worse than the current band: forbidden for a threat."""
+    return nature == THREAT and severity_rank(target_band_id, scale) > severity_rank(
+        current_band_id, scale
+    )
+
+
+def has_no_reduction(nature: str, residual_score: int | None, inherent_score: int | None) -> bool:
+    """A threat whose residual did not drop below the inherent: the response is not working."""
+    return (
+        nature == THREAT
+        and residual_score is not None
+        and inherent_score is not None
+        and residual_score >= inherent_score
+    )
+
+
+def assessed_situation(previous_score: int | None, score: int) -> str:
+    """What a review found: the first assessment, a reduction, an increase or no change."""
+    if previous_score is None:
+        return "Avaliação inicial"
+    if score < previous_score:
+        return "Risco reduzido"
+    return "Risco agravado" if score > previous_score else "Sem mudança"
+
+
+def next_review_limit(reviewed_on: date, cadence_days: int) -> date:
+    """The latest date the next review may fall on: the manager anticipates, never postpones."""
+    return reviewed_on + timedelta(days=cadence_days)
+
+
+@dataclass(frozen=True)
+class PautaFacts:
+    """What the escalation agenda reads from the risk, the current assessment and the plan."""
+
+    active: bool
+    situation: str
+    nature: str
+    inherent_band_id: str | None
+    current_band_id: str | None
+    inherent_score: int | None
+    residual_score: int | None
+    has_plan: bool
+    plan_pending: bool
+    target_band_id: str | None
+    days_to_target: int | None
+    review_overdue: bool
+    trigger_on: date | None
+
+
+def pauta_reasons(facts: PautaFacts, parameters: RiskParameters) -> tuple[str, ...]:
+    """The reasons a risk sits on the escalation agenda, in the order the prototype listed them."""
+    if not facts.active:
+        return ()
+    reasons = [
+        reason
+        for reason in (
+            _identified_reason(facts),
+            _top_without_plan_reason(facts, parameters),
+            _target_reason(facts, parameters),
+            "Sem redução após o plano" if _no_reduction(facts) else "",
+            "Plano aguardando aprovação" if facts.plan_pending else "",
+            "Revisão vencida" if facts.review_overdue else "",
+            f"Gatilho ocorrido em {facts.trigger_on:%d/%m/%Y}" if facts.trigger_on else "",
+        )
+        if reason
+    ]
+    return tuple(reasons)
+
+
+def _identified_reason(facts: PautaFacts) -> str:
+    return "Identificado sem avaliação" if facts.situation == "Identificado" else ""
+
+
+def _top_without_plan_reason(facts: PautaFacts, parameters: RiskParameters) -> str:
+    top = parameters.scale.bands[-1]
+    if facts.nature == THREAT and not facts.has_plan and facts.current_band_id == top.id:
+        return f"{top.name} sem plano de resposta"
+    return ""
+
+
+def _no_reduction(facts: PautaFacts) -> bool:
+    return facts.has_plan and has_no_reduction(
+        facts.nature, facts.residual_score, facts.inherent_score
+    )
+
+
+def _target_reason(facts: PautaFacts, parameters: RiskParameters) -> str:
+    """Above the target within the parameter window (or past its deadline), with the distance."""
+    if not facts.has_plan or facts.target_band_id is None or facts.current_band_id is None:
+        return ""
+    if facts.days_to_target is None or facts.days_to_target > parameters.pauta_days_before_deadline:
+        return ""
+    if not is_target_above(
+        facts.nature, facts.current_band_id, facts.target_band_id, parameters.scale
+    ):
+        return ""
+    target = find_band(parameters.scale, facts.target_band_id)
+    name = target.name if target else facts.target_band_id
+    direction = "Abaixo" if facts.nature != THREAT else "Acima"
+    if facts.days_to_target >= 0:
+        distance = f"a {facts.days_to_target} dias do prazo"
+    else:
+        distance = f"com prazo vencido há {-facts.days_to_target} dias"
+    return f"{direction} da severidade-alvo ({name}) {distance}"

@@ -4,11 +4,15 @@ The shapes the facade receives (identification, assessment, deletion, filters) a
 what a person types. The checks are pure and return one message per field, in a dict that is
 empty when everything holds up; the facade turns it into one ``InvalidDataError`` (422), so the
 rule holds for the route and for any module that calls the facade.
+
+The response plan, the periodic review, the closing and the reopening (ISSUE-065) follow the
+same shape: an input dataclass, a pure check that returns one message per field, and the
+constants of the vocabulary the screen and the facade share.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -336,3 +340,431 @@ def parse_filters(params: Mapping[str, str]) -> RiskFilters:
         assessment=INHERENT if params.get("aval") == INHERENT else RESIDUAL,
         page=parse_id(params.get("pagina")) or 1,
     )
+
+
+# ── Plano de resposta, revisão, encerramento e reabertura (ISSUE-065) ─────────────────────────
+
+PLAN_STRATEGIES: Mapping[str, tuple[str, ...]] = {
+    THREAT: ("Mitigar", "Transferir", "Evitar", "Aceitar"),
+    OPPORTUNITY: ("Explorar", "Melhorar", "Compartilhar", "Aceitar"),
+}
+INSTRUMENTS = ("Seguro", "Cláusula contratual", "Subcontratação", "Hedge financeiro")
+NEW_CHANGE = "nova"
+PLAN_MIN_TEXT = 20
+PLAN_AVOID_MIN = 80
+PLAN_ACCEPT_MIN = 30
+MAX_PLAN = 1000
+MIN_APPROVAL_COMMENT = 10
+MAX_APPROVAL_COMMENT = 500
+APPROVAL_DECISIONS = ("Aprovado", "Devolvido")
+APPROVAL_PENDING = "Pendente"
+APPROVAL_APPROVED = "Aprovado"
+APPROVAL_RETURNED = "Devolvido"
+APPROVAL_NOT_REQUIRED = "Não exigida"
+CLOSING_REASONS = ("Não se materializou", "Materializado", "Superado", "Transferido", "Duplicado")
+MATERIALIZED = "Materializado"
+DUPLICATED = "Duplicado"
+MIN_REAL_DAYS = 0
+MIN_LESSON = 20
+MAX_LESSON = 1000
+MIN_REOPEN = 10
+MAX_REOPEN = 500
+MIN_REVIEW_COMMENT = 10
+MAX_REVIEW_COMMENT = 1000
+MIN_ACTION_SUBJECT = 5
+MAX_ACTION_SUBJECT = 255
+MAX_ACTION_DESCRIPTION = 500
+APURACOES = (
+    "Sem mudança",
+    "Risco reduzido",
+    "Risco agravado",
+    "Risco materializado",
+    "Risco superado",
+)
+COMPARABLE_APURACOES = ("Sem mudança", "Risco reduzido", "Risco agravado")
+
+CHOOSE_STRATEGY = "Escolha a estratégia."
+PLAN_REQUIRED = "Descreva o plano de resposta."
+PLAN_AVOID_SHORT = (
+    "Estratégia Evitar: descreva a mudança de escopo ou de solução (mínimo de 80 caracteres)."
+)
+PLAN_ACCEPT_SHORT = "Estratégia Aceitar: justifique a aceitação no plano (mínimo de 30 caracteres)."
+PLAN_DETAIL = "Detalhe o plano (mínimo de 20 caracteres)."
+INSTRUMENT_REQUIRED = "Indique o instrumento da transferência."
+SM_REQUIRED = "Evitar exige registro da mudança de escopo ou de solução (SM)."
+SM_NOT_FOUND = "SM não encontrada no projeto."
+CHOOSE_TARGET = "Escolha a severidade-alvo."
+TARGET_ABOVE = "A severidade-alvo não pode ser maior que a inerente ({band})."
+TARGET_DATE_REQUIRED = "Informe o prazo para atingir o alvo."
+TARGET_DATE_FUTURE = "O prazo para o alvo deve ser uma data futura."
+CHOOSE_PLAN_RESPONSIBLE = "Escolha o responsável pelo plano."
+PLAN_NEEDS_ASSESSMENT = "Avalie o risco (inerente) antes de definir o plano de resposta."
+ACTION_REQUIRED = (
+    "Risco {band} exige pelo menos uma ação vinculada. Registre a primeira em Nova ação."
+)
+NO_PENDING_APPROVAL = "Não há plano aguardando aprovação."
+CHOOSE_DECISION = "Escolha a decisão."
+RETURN_COMMENT_REQUIRED = "Explique o que precisa ser revisto (mínimo de 10 caracteres)."
+REVIEW_NEEDS_ASSESSMENT = "Avalie o risco antes de registrar a primeira revisão."
+REVIEW_DATE_REQUIRED = "Informe a data da revisão."
+REVIEW_DATE_FUTURE = "A data da revisão não pode ser futura."
+REVIEW_DATE_BEFORE_LAST = "A data não pode ser anterior à última revisão ({date})."
+CHOOSE_ASSESSED_SITUATION = "Escolha a situação apurada."
+TRIGGER_REQUIRED = "Informe se o gatilho ocorreu."
+NEXT_REVIEW_REQUIRED = "Informe a próxima revisão."
+NEXT_REVIEW_AFTER = "A próxima revisão deve ser posterior à data desta revisão."
+NEXT_REVIEW_LIMIT = (
+    "Pela cadência da faixa {band} ({days} dias), a próxima revisão deve ser até {date}. "
+    "Pode antecipar, nunca postergar."
+)
+ASSESSED_MISMATCH = "Score de {previous} para {score}: a situação apurada deve ser “{expected}”."
+CHOOSE_CLOSING_REASON = "Escolha o motivo do encerramento."
+CLOSING_DATE_REQUIRED = "Informe a data do encerramento."
+CLOSING_DATE_FUTURE = "A data do encerramento não pode ser futura."
+CLOSING_DATE_BEFORE = "A data não pode ser anterior à identificação ({date})."
+CHOOSE_DUPLICATE = "Escolha o risco original (mesmo projeto)."
+REAL_TERM_INVALID = "Informe o impacto real em prazo (zero ou mais)."
+REAL_COST_INVALID = "Informe o impacto real em custo (zero ou mais)."
+LESSON_REQUIRED = "Lição aprendida é obrigatória."
+LESSON_SHORT = "Lição aprendida: mínimo de 20 caracteres."
+LESSON_LONG = "Lição aprendida: máximo de 1000 caracteres."
+REOPEN_JUSTIFICATION_REQUIRED = "Justifique a reabertura (mínimo de 10 caracteres)."
+REOPEN_JUSTIFICATION_LONG = "Justificativa: máximo de 500 caracteres."
+ACTION_SUBJECT_SHORT = "Assunto: mínimo de 5 caracteres."
+ACTION_SUBJECT_LONG = "Assunto: máximo de 255 caracteres."
+CHOOSE_REQUESTER = "Escolha o solicitante."
+CHOOSE_RESPONSIBLE = "Escolha o responsável."
+ACTION_DESCRIPTION_LONG = "Descrição: máximo de 500 caracteres."
+PLANNED_DATE_REQUIRED = "Informe a data prevista."
+PLANNED_DATE_PAST = "A data prevista não pode ser anterior à data de referência."
+
+
+@dataclass(frozen=True)
+class PlanInput:
+    """What the response plan form sends: the strategy, the text and the target."""
+
+    strategy: str
+    plan: str
+    instrument: str = ""
+    change_code: str = ""
+    target_severity: str = ""
+    target_date: date | None = None
+    response_cost_cents: int | None = None
+    plan_responsible_id: int | None = None
+    require_approval: bool = False
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class PlanRules:
+    """What the plan check reads from the risk and the parameters."""
+
+    nature: str
+    inherent_band: calculations.Band
+    scale: calculations.Scale
+    reference_date: date
+    current_target: date | None
+
+
+@dataclass(frozen=True)
+class ApprovalInput:
+    """What the plan approval form sends: the decision and the comment."""
+
+    decision: str
+    comment: str = ""
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewInput:
+    """What the periodic review form sends: the date, the apurada, P and I, and the next review."""
+
+    reviewed_on: date | None
+    assessed_situation: str
+    probability: int | None
+    impact: int | None
+    comment: str
+    trigger: bool
+    next_review: date | None
+    notify: bool = False
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class ReviewRules:
+    """What the review check reads from the current assessment and the parameters."""
+
+    reference_date: date
+    last_review: date | None
+    current_score: int
+    current_band: calculations.Band
+    cadence_days: int
+
+
+@dataclass(frozen=True)
+class ClosingInput:
+    """What the closing form sends: the reason, the real impact, the generated records."""
+
+    reason: str
+    closed_on: date | None
+    duplicated_code: str = ""
+    real_schedule_days: int | None = None
+    real_cost_cents: int | None = None
+    generate_action: bool = False
+    action_subject: str = ""
+    action_responsible_id: int | None = None
+    action_planned_date: date | None = None
+    open_change: bool = False
+    lesson: str = ""
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class ClosingRules:
+    """What the closing check reads from the risk and its actions."""
+
+    reference_date: date
+    identified_on: date
+    open_items: tuple[str, ...]
+    is_opportunity: bool
+
+
+@dataclass(frozen=True)
+class ReopenInput:
+    """What the reopening form sends: the justification."""
+
+    justification: str
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class ActionInput:
+    """What the action form of the risk sends: the fields of the Central de Ações."""
+
+    subject: str
+    description: str = ""
+    requester_id: int | None = None
+    responsible_id: int | None = None
+    planned_date: date | None = None
+    contributes_probability: bool = False
+    contributes_impact: bool = False
+
+
+def plan_problems(data: PlanInput, rules: PlanRules) -> dict[str, str]:
+    """One message per field of the response plan that does not hold up."""
+    problems: dict[str, str] = {}
+    if data.strategy not in PLAN_STRATEGIES.get(rules.nature, ()):
+        problems["estrategia"] = CHOOSE_STRATEGY
+    plan_problem = _plan_text_problem(data)
+    if plan_problem:
+        problems["plano"] = plan_problem
+    if data.strategy == "Transferir" and data.instrument not in INSTRUMENTS:
+        problems["instrumento"] = INSTRUMENT_REQUIRED
+    if data.strategy == "Evitar" and not (data.change_code or "").strip():
+        problems["smRef"] = SM_REQUIRED
+    problems.update(_target_problems(data, rules))
+    if data.response_cost_cents is not None and data.response_cost_cents < 0:
+        problems["custoRespostaCentavos"] = INVALID_MONEY
+    if not data.plan_responsible_id:
+        problems["responsavelPlanoId"] = CHOOSE_PLAN_RESPONSIBLE
+    return problems
+
+
+def _plan_text_problem(data: PlanInput) -> str | None:
+    text = (data.plan or "").strip()
+    if not text:
+        return PLAN_REQUIRED
+    if len(text) > MAX_PLAN:
+        return TEXT_TOO_LONG.format(label="Plano de resposta", maximum=MAX_PLAN)
+    if data.strategy == "Evitar" and len(text) < PLAN_AVOID_MIN:
+        return PLAN_AVOID_SHORT
+    if data.strategy == "Aceitar" and len(text) < PLAN_ACCEPT_MIN:
+        return PLAN_ACCEPT_SHORT
+    if len(text) < PLAN_MIN_TEXT:
+        return PLAN_DETAIL
+    return None
+
+
+def _target_problems(data: PlanInput, rules: PlanRules) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    if calculations.find_band(rules.scale, data.target_severity) is None:
+        problems["severidadeAlvo"] = CHOOSE_TARGET
+    elif calculations.is_target_above(
+        rules.nature, rules.inherent_band.id, data.target_severity, rules.scale
+    ):
+        problems["severidadeAlvo"] = TARGET_ABOVE.format(band=rules.inherent_band.name)
+    if data.target_date is None:
+        problems["prazoAlvo"] = TARGET_DATE_REQUIRED
+    elif data.target_date <= rules.reference_date and data.target_date != rules.current_target:
+        problems["prazoAlvo"] = TARGET_DATE_FUTURE
+    return problems
+
+
+def approval_problems(data: ApprovalInput) -> dict[str, str]:
+    """One message per field of the approval decision that does not hold up."""
+    if data.decision not in APPROVAL_DECISIONS:
+        return {"decisao": CHOOSE_DECISION}
+    if (
+        data.decision == APPROVAL_RETURNED
+        and len((data.comment or "").strip()) < MIN_APPROVAL_COMMENT
+    ):
+        return {"comentario": RETURN_COMMENT_REQUIRED}
+    if len((data.comment or "").strip()) > MAX_APPROVAL_COMMENT:
+        return {
+            "comentario": TEXT_TOO_LONG.format(label="Comentário", maximum=MAX_APPROVAL_COMMENT)
+        }
+    return {}
+
+
+def review_problems(data: ReviewInput, rules: ReviewRules) -> dict[str, str]:
+    """One message per field of the periodic review that does not hold up."""
+    problems: dict[str, str] = {}
+    problems.update(_review_date_problems(data.reviewed_on, rules))
+    if data.assessed_situation not in APURACOES:
+        problems["situacaoApurada"] = CHOOSE_ASSESSED_SITUATION
+    if data.probability is None or not MIN_LEVEL <= data.probability <= MAX_LEVEL:
+        problems["p"] = CHOOSE_PROBABILITY
+    if data.impact is None or not MIN_LEVEL <= data.impact <= MAX_LEVEL:
+        problems["i"] = CHOOSE_IMPACT
+    comment = text_problem(
+        data.comment, "Comentário", minimum=MIN_REVIEW_COMMENT, maximum=MAX_REVIEW_COMMENT
+    )
+    if comment:
+        problems["comentario"] = comment
+    problems.update(_next_review_problems(data, rules))
+    mismatch = _assessed_mismatch(data, rules)
+    if mismatch:
+        problems["situacaoApurada"] = mismatch
+    return problems
+
+
+def _review_date_problems(reviewed_on: date | None, rules: ReviewRules) -> dict[str, str]:
+    if reviewed_on is None:
+        return {"data": REVIEW_DATE_REQUIRED}
+    if reviewed_on > rules.reference_date:
+        return {"data": REVIEW_DATE_FUTURE}
+    if rules.last_review is not None and reviewed_on < rules.last_review:
+        return {"data": REVIEW_DATE_BEFORE_LAST.format(date=_br(rules.last_review))}
+    return {}
+
+
+def _next_review_problems(data: ReviewInput, rules: ReviewRules) -> dict[str, str]:
+    if data.next_review is None:
+        return {"proximaRevisao": NEXT_REVIEW_REQUIRED}
+    if data.reviewed_on is None:
+        return {}
+    if data.next_review <= data.reviewed_on:
+        return {"proximaRevisao": NEXT_REVIEW_AFTER}
+    limit = calculations.next_review_limit(data.reviewed_on, rules.cadence_days)
+    if data.next_review > limit:
+        return {
+            "proximaRevisao": NEXT_REVIEW_LIMIT.format(
+                band=rules.current_band.name, days=rules.cadence_days, date=_br(limit)
+            )
+        }
+    return {}
+
+
+def _assessed_mismatch(data: ReviewInput, rules: ReviewRules) -> str | None:
+    if data.assessed_situation not in COMPARABLE_APURACOES:
+        return None
+    if data.probability is None or data.impact is None:
+        return None
+    score = data.probability * data.impact
+    expected = calculations.assessed_situation(rules.current_score, score)
+    if expected == data.assessed_situation:
+        return None
+    return ASSESSED_MISMATCH.format(previous=rules.current_score, score=score, expected=expected)
+
+
+def closing_problems(data: ClosingInput, rules: ClosingRules) -> dict[str, str]:
+    """One message per field of the closing that does not hold up."""
+    problems: dict[str, str] = {}
+    if data.reason not in CLOSING_REASONS:
+        problems["motivo"] = CHOOSE_CLOSING_REASON
+    problems.update(_closing_date_problems(data.closed_on, rules))
+    if data.reason != MATERIALIZED and rules.open_items:
+        problems["acoes"] = open_actions_message(rules.open_items)
+    if data.reason == MATERIALIZED:
+        problems.update(_real_impact_problems(data))
+    lesson_problem = _lesson_problem(data.lesson)
+    if lesson_problem:
+        problems["licao"] = lesson_problem
+    return problems
+
+
+def _lesson_problem(lesson: str) -> str | None:
+    text = (lesson or "").strip()
+    if not text:
+        return LESSON_REQUIRED
+    if len(text) < MIN_LESSON:
+        return LESSON_SHORT
+    if len(text) > MAX_LESSON:
+        return LESSON_LONG
+    return None
+
+
+def _closing_date_problems(closed_on: date | None, rules: ClosingRules) -> dict[str, str]:
+    if closed_on is None:
+        return {"data": CLOSING_DATE_REQUIRED}
+    if closed_on > rules.reference_date:
+        return {"data": CLOSING_DATE_FUTURE}
+    if closed_on < rules.identified_on:
+        return {"data": CLOSING_DATE_BEFORE.format(date=_br(rules.identified_on))}
+    return {}
+
+
+def _real_impact_problems(data: ClosingInput) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    if data.real_schedule_days is None or data.real_schedule_days < MIN_REAL_DAYS:
+        problems["impactoRealPrazoDias"] = REAL_TERM_INVALID
+    if data.real_cost_cents is None or data.real_cost_cents < MIN_REAL_DAYS:
+        problems["impactoRealCustoCentavos"] = REAL_COST_INVALID
+    return problems
+
+
+def open_actions_message(items: Sequence[str]) -> str:
+    """The refusal of a closing with open actions, naming the items as the prototype did."""
+    count = len(items)
+    noun = "ação" if count == 1 else "ações"
+    linked = "vinculada" if count == 1 else "vinculadas"
+    listed = ", ".join(f"item {item}" for item in items)
+    return (
+        f"Existe{'m' if count > 1 else ''} {count} {noun} em aberto {linked} a este risco "
+        f"({listed}). Conclua ou cancele antes de encerrar, salvo se o motivo for Materializado."
+    )
+
+
+def reopen_problems(data: ReopenInput) -> dict[str, str]:
+    """One message for the reopening justification that does not hold up."""
+    text = (data.justification or "").strip()
+    if len(text) < MIN_REOPEN:
+        return {"justificativa": REOPEN_JUSTIFICATION_REQUIRED}
+    if len(text) > MAX_REOPEN:
+        return {"justificativa": REOPEN_JUSTIFICATION_LONG}
+    return {}
+
+
+def action_problems(data: ActionInput, *, reference_date: date) -> dict[str, str]:
+    """One message per field of the action of the risk that does not hold up."""
+    problems: dict[str, str] = {}
+    subject = (data.subject or "").strip()
+    if len(subject) < MIN_ACTION_SUBJECT:
+        problems["assunto"] = ACTION_SUBJECT_SHORT
+    elif len(subject) > MAX_ACTION_SUBJECT:
+        problems["assunto"] = ACTION_SUBJECT_LONG
+    if len((data.description or "").strip()) > MAX_ACTION_DESCRIPTION:
+        problems["descricao"] = ACTION_DESCRIPTION_LONG
+    if not data.requester_id:
+        problems["solicitanteId"] = CHOOSE_REQUESTER
+    if not data.responsible_id:
+        problems["responsavelId"] = CHOOSE_RESPONSIBLE
+    if data.planned_date is None:
+        problems["prevista"] = PLANNED_DATE_REQUIRED
+    elif data.planned_date < reference_date:
+        problems["prevista"] = PLANNED_DATE_PAST
+    return problems
+
+
+def _br(value: date) -> str:
+    return value.strftime("%d/%m/%Y")

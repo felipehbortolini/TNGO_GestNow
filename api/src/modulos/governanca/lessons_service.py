@@ -20,7 +20,7 @@ Points where other modules enter (D9):
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
@@ -404,6 +404,34 @@ def form_options(session: Session, *, user: User) -> FormOptions:
     rbac.require_module(user, MODULE)
     disciplines = configuracoes.discipline_names_by_id(session)
     return FormOptions(disciplines=tuple(sorted(disciplines.values())), origins=available_origins())
+
+
+@dataclass(frozen=True)
+class LessonOption:
+    """Uma lição como outro módulo a lê para mostrar o vínculo (D9)."""
+
+    id: int
+    code: str
+    title: str
+    situation: str
+
+
+def lesson_options(session: Session, *, lesson_ids: Sequence[int]) -> tuple[LessonOption, ...]:
+    """As lições dos ids, para a ficha do risco mostrar a lição do encerramento."""
+    wanted = {lesson_id for lesson_id in lesson_ids if lesson_id}
+    if not wanted:
+        return ()
+    statement = select(Lesson).where(Lesson.id.in_(wanted)).order_by(Lesson.code)
+    return tuple(
+        LessonOption(id=lesson.id, code=lesson.code, title=lesson.title, situation=lesson.situation)
+        for lesson in session.scalars(statement)
+    )
+
+
+def lesson_id_by_code(session: Session, code: str) -> int | None:
+    """O id da lição pelo código, para a carga de demonstração ligar o vínculo (D9)."""
+    lesson = _by_code(session, code)
+    return None if lesson is None else lesson.id
 
 
 def edit_form(session: Session, *, user: User, code: str) -> LessonForm:

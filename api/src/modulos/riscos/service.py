@@ -85,9 +85,11 @@ SITUATION_ANALYSIS = "Em análise"
 SITUATION_TREATMENT = "Em tratamento"
 SITUATION_MONITORED = "Monitorado"
 APPROVAL_PENDING = "Pendente"
-OPPORTUNITY_REDUCED = {
-    "Risco reduzido": "Benefício reduzido",
-    "Risco agravado": "Benefício ampliado",
+OPPORTUNITY_APURADA = {
+    "Risco reduzido": "Oportunidade reduzida",
+    "Risco agravado": "Oportunidade ampliada",
+    "Risco materializado": "Oportunidade capturada",
+    "Risco superado": "Oportunidade superada",
 }
 
 
@@ -126,17 +128,26 @@ class RiskLine:
     description: str | None
     trigger: str | None
     life_risk: bool
+    dimension: str | None
     cost_impact_cents: int
     schedule_impact_days: int
     strategy: str | None
     plan: str | None
     target_severity: str | None
+    target_date: date | None
+    instrument: str | None
+    response_cost_cents: int | None
+    plan_responsible_id: int | None
     situation: str
     hidden: bool
     deletion_reason: str | None
     version: int
     cadence_days: int | None
     next_review: date | None
+    closing_reason: str | None
+    closing_date: date | None
+    closing_schedule_impact_days: int | None
+    closing_cost_impact_cents: int | None
     inherent: AssessmentView | None
     residual: AssessmentView | None
     current: AssessmentView | None
@@ -800,7 +811,7 @@ def _write_assessment(ctx: _Ctx, risk: Risk, data: AssessmentInput, before: int 
         author_id=ctx.user.person_id,
         reviewed_on=ctx.reference_date,
         kind=data.kind,
-        assessed_situation=_assessed_situation(before, score),
+        assessed_situation=calculations.assessed_situation(before, score),
         score_from=before,
         score_to=score,
         probability=data.probability,
@@ -812,14 +823,6 @@ def _write_assessment(ctx: _Ctx, risk: Risk, data: AssessmentInput, before: int 
     ctx.session.add(review)
     ctx.session.flush()
     audit.created(ctx.session, user_id=ctx.user.id, entity=review.__tablename__, record=review)
-
-
-def _assessed_situation(before: int | None, score: int) -> str:
-    if before is None:
-        return "Avaliação inicial"
-    if score < before:
-        return "Risco reduzido"
-    return "Risco agravado" if score > before else "Sem mudança"
 
 
 def _update_after_assessment(
@@ -1013,17 +1016,26 @@ def _line_of(
         description=risk.description,
         trigger=risk.trigger,
         life_risk=risk.life_risk,
+        dimension=risk.dimension,
         cost_impact_cents=risk.cost_impact_cents,
         schedule_impact_days=risk.schedule_impact_days,
         strategy=risk.strategy,
         plan=risk.plan,
         target_severity=risk.target_severity,
+        target_date=risk.target_date,
+        instrument=risk.instrument,
+        response_cost_cents=risk.response_cost_cents,
+        plan_responsible_id=risk.plan_responsible_id,
         situation=risk.situation,
         hidden=risk.hidden,
         deletion_reason=risk.deletion_reason,
         version=risk.version,
         cadence_days=risk.cadence_days,
         next_review=risk.next_review,
+        closing_reason=risk.closing_reason,
+        closing_date=risk.closing_date,
+        closing_schedule_impact_days=risk.closing_schedule_impact_days,
+        closing_cost_impact_cents=risk.closing_cost_impact_cents,
         inherent=inherent,
         residual=residual,
         current=current,

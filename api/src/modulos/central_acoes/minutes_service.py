@@ -187,6 +187,23 @@ class MinutesSheet:
 # ── Writing ──────────────────────────────────────────────────────────────────────────────────
 
 
+def minutes_ids_by_number(session: Session, *, project_id: int) -> dict[str, int]:
+    """O id da ata mais antiga de cada número do projeto, para um módulo ligar a origem (D9).
+
+    A fachada do dono responde: o Risco guarda a ata de origem e a carga de demonstração precisa
+    do id que o banco deu à ata que o protótipo criou (o mock usa ids próprios).
+    """
+    statement = (
+        select(Minutes.number, Minutes.id)
+        .where(Minutes.project_id == project_id)
+        .order_by(Minutes.revision, Minutes.id)
+    )
+    ids: dict[str, int] = {}
+    for number, minutes_id in session.execute(statement):
+        ids.setdefault(number, minutes_id)
+    return ids
+
+
 def create_minutes(
     session: Session, *, user: User, new: NewMinutes, reference_date: date
 ) -> MinutesRecord:

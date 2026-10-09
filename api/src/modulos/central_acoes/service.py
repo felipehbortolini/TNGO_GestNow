@@ -521,6 +521,21 @@ def count_actions_of_origin(
     return counts
 
 
+def actions_of_origin(
+    session: Session, *, user: User, origin_kind: str, reference: str, reference_date: date
+) -> tuple[ActionRecord, ...]:
+    """The actions of one record of origin, in the order of the items (the ficha of the owner).
+
+    The module that owns the record of origin asks here instead of reading ``acao`` (D9): the
+    ficha do risco shows the actions of the response plan with their status on the reference date.
+    """
+    rbac.require_module(user, MODULE)
+    origin = origin_links.OriginRef(kind=origin_kind, reference=reference)
+    return tuple(
+        _record_of(action, reference_date) for action in _actions_of_origin(session, origin)
+    )
+
+
 def next_origin_item(session: Session, *, origin_kind: str, reference: str) -> str:
     """The next item number of the actions of one record of origin: the highest numeric plus one.
 

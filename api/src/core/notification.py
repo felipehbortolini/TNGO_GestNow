@@ -57,11 +57,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# What a notification is about: the three sends of the prototype (D12).
+# What a notification is about: the three sends of the prototype (D12) and the review of a risk.
 FOLLOW_UP = "follow_up"
 RISK_AGENDA = "pauta_riscos"
 TREASURY = "tesouraria"
-KINDS = frozenset({FOLLOW_UP, RISK_AGENDA, TREASURY})
+RISK_REVIEW = "revisao_risco"
+KINDS = frozenset({FOLLOW_UP, RISK_AGENDA, TREASURY, RISK_REVIEW})
 
 # The medium. Whether the e-mail really left is the situation's job, below.
 CHANNEL_EMAIL = "email"
