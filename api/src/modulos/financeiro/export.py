@@ -734,6 +734,7 @@ def _claims_table(view: ContractView) -> Table:
         Column("Dias reconhecidos", ValueKind.INTEGER),
         Column("Situação", width=16),
         Column("SM", width=20),
+        Column("Risco", width=20),
         Column("Encerrado em", ValueKind.DATE),
     )
     return Table(
@@ -762,6 +763,7 @@ def _claim_row(line: ClaimView) -> Row:
         line.recognized_days,
         Cell(line.situation, _CLAIM_TONES.get(line.situation)),
         line.change_code,
+        line.risk_code,
         line.closed_on,
     )
 
@@ -1210,10 +1212,12 @@ CONTINGENCY_BURN_TITLE = "Saldo real x previsto"
 CONTINGENCY_COMPOSITION_TITLE = "Linha de base de custo e reservas"
 CONTINGENCY_MOVEMENTS_TITLE = "Extrato de movimentos"
 CONTINGENCY_PROJECTS_TITLE = "Reservas por projeto"
+CONTINGENCY_THREATS_TITLE = "Ameaças ativas e cobertura"
 
 CONTINGENCY_KPI_SALDO = "Saldo da contingência"
 CONTINGENCY_KPI_CONSUMPTION = "Consumo da contingência"
 CONTINGENCY_KPI_ANALYSIS = "Pedido em SMs em análise"
+CONTINGENCY_KPI_COVERAGE = "Cobertura da exposição a riscos"
 CONTINGENCY_KPI_MANAGEMENT = "Reserva gerencial"
 
 CONTINGENCY_MANAGEMENT_STATUS = "fora da linha de base · só o Comitê libera"
@@ -1259,7 +1263,7 @@ def contingencia_document(
 
 
 def contingencia_kpis(view: ContingencyOverview) -> tuple[Kpi, ...]:
-    """Os quatro indicadores da tela, com a referência de gestão e a situação em palavras."""
+    """Os cinco indicadores da tela, com a referência de gestão e a situação em palavras."""
     contingency = view.contingency
     management = view.management
     consumption_high = _contingency_consumption_high(view)
@@ -1295,6 +1299,18 @@ def contingencia_kpis(view: ContingencyOverview) -> tuple[Kpi, ...]:
             ValueKind.MONEY,
             tone=_contingency_analysis_tone(contingency),
             status=_contingency_analysis_status(view.analysis_count),
+        ),
+        Kpi(
+            CONTINGENCY_KPI_COVERAGE,
+            view.coverage_pct,
+            f"Meta: ≥ {format_value(ValueKind.PERCENT, view.coverage_minimum_pct, 0)}",
+            ValueKind.PERCENT,
+            digits=0,
+            tone=_contingency_coverage_tone(view),
+            status=(
+                "saldo sobre a exposição de "
+                f"{_contingency_money(view.exposure_cents)} (VME das ameaças ativas)"
+            ),
         ),
         Kpi(
             CONTINGENCY_KPI_MANAGEMENT,
@@ -1349,6 +1365,8 @@ def _contingencia_tables(view: ContingencyOverview) -> tuple[Table, ...]:
         _contingencia_burn_table(view),
         _contingencia_movements_table(view),
     ]
+    if view.threats:
+        tables.append(_contingencia_threats_table(view))
     if view.is_portfolio:
         tables.insert(0, _contingencia_projects_table(view))
     return tuple(tables)
@@ -1413,6 +1431,33 @@ def _contingencia_movements_table(view: ContingencyOverview) -> Table:
                 project=line.project_label,
             )
             for line in view.movements
+        ),
+    )
+
+
+def _contingencia_threats_table(view: ContingencyOverview) -> Table:
+    """A exposição das ameaças ativas (VME) e as SMs que citam cada risco (protótipo)."""
+    return Table(
+        title=CONTINGENCY_THREATS_TITLE,
+        columns=(
+            Column("Risco", width=20),
+            Column("Ameaça", width=48),
+            Column("Severidade", width=16),
+            Column("Situação", width=16),
+            Column("VME", ValueKind.MONEY),
+            Column("SMs vinculadas", width=28),
+        ),
+        rows=tuple(
+            row(
+                threat.code,
+                threat.title,
+                threat.severity,
+                threat.situation,
+                threat.vme_cents,
+                ", ".join(threat.change_codes),
+                project=threat.project_code,
+            )
+            for threat in view.threats
         ),
     )
 
@@ -1499,6 +1544,12 @@ def _contingency_analysis_tone(contingency: ReserveLine | None) -> Tone:
     if contingency.in_analysis_cents > contingency.balance_cents:
         return Tone.ERROR
     return Tone.WARN if contingency.in_analysis_cents else Tone.OK
+
+
+def _contingency_coverage_tone(view: ContingencyOverview) -> Tone:
+    if view.coverage_pct is None:
+        return Tone.NEUTRAL
+    return Tone.WARN if view.coverage_pct < view.coverage_minimum_pct else Tone.OK
 
 
 def _contingency_balance_status(contingency: ReserveLine | None) -> str:

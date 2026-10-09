@@ -62,7 +62,9 @@
       <li>
         <span x-init="$el.innerHTML = window.icon('truck', 16)" aria-hidden="true"></span>
         <span><b>{{ pendente.number }}</b> {{ pendente.description }} · folga {{ dias_com_sinal(pendente.slack_days) }}
-          {% if pode_gravar %}
+          {% if pendente.action %}
+          <span class="pill pill--ok">ação na Central</span>
+          {% elif pode_gravar %}
           <form method="post" action="/api/suprimentos/diligenciamento/{{ pendente.id }}/acao"
             x-target="{{ target_id }}" x-target.403="{{ target_id }}" x-target.422="{{ target_id }}"
             class="dilig__pendente-acao">
@@ -72,6 +74,17 @@
               Gerar ação
             </button>
           </form>
+          {% endif %}
+          {% if pendente.risk %}
+          <a href="/riscos/ficha?codigo={{ pendente.risk.code | urlencode }}" data-tn-tela class="pill pill--ok">{{ pendente.risk.code }}</a>
+          {% elif pode_gravar %}
+          <button type="button" class="btn btn--secondary btn--sm"
+            data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ pendente.id }}/risco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
+            data-diligencia-modal-titulo="Registrar risco sugerido"
+            data-diligencia-modal-subtitulo="{{ pendente.number }} · folga {{ dias_com_sinal(pendente.slack_days) }} em relação ao ROS">
+            <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
+            Registrar risco sugerido
+          </button>
           {% endif %}
         </span>
       </li>

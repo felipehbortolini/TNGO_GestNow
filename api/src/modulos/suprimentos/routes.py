@@ -104,6 +104,7 @@ from src.modulos.suprimentos.validation import (
     RequisitionInput,
     ReturnInput,
     RfxInput,
+    SuggestedRiskInput,
     SupplierFilters,
     SupplierInput,
     TechnicalEvaluation,
@@ -2426,11 +2427,13 @@ DILIGENCE_MODAL_TARGET = "diligenciamento-modal-corpo"
 DILIGENCE_TEMPLATE = "suprimentos/diligenciamento.html"
 ORDER_MILESTONE_TEMPLATE = "suprimentos/pedido_marco.html"
 ORDER_RECEIPT_TEMPLATE = "suprimentos/pedido_recebimento.html"
+ORDER_RISK_TEMPLATE = "suprimentos/pedido_risco.html"
 
 ORDER_UPDATED_NOTICE = "Marco do pedido {number} atualizado."
 ORDER_ACTION_NOTICE = "Folga negativa: ação criada na Central."
 RECEIPT_SAVED_NOTICE = "Recebimento de {number} registrado; entrega realizada no MAS."
 ACTION_OPENED_NOTICE = "Ação criada na Central: {subject}."
+RISK_CREATED_NOTICE = "Risco {code} registrado em 05 Gestão de Riscos."
 
 MILESTONE_PILL = {
     calculations.MILESTONE_ON_TIME: "pill--ok",
@@ -2644,6 +2647,59 @@ def order_action_save(
             error=error,
         )
     notice = ACTION_OPENED_NOTICE.format(subject=f"Recuperar a folga do pedido {saved[0].number}")
+    return _diligence_screen(
+        req,
+        session,
+        context,
+        filters=_diligence_filters_of(form.get("consulta", "")),
+        pedido=saved[0].number,
+        after=_After(notice, {}),
+    )
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/risco", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_risk_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O formulário do risco sugerido, com o título, o P, o I, o dono e a causa de partida."""
+    line = _order_line_or_refuse(session, context, req)
+    return _risk_form(req, session, context, line=line, values={}, errors={})
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/risco", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_risk_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Grava o risco sugerido pela fachada da Riscos; o pedido passa a mostrar a ficha dele."""
+    line = _order_line_or_refuse(session, context, req)
+    form = req.form
+    saved: list[service.OrderSave] = []
+    error = _attempt(
+        session,
+        lambda: saved.append(
+            service.register_suggested_risk(
+                session,
+                user=context.user,
+                scope=context.scope,
+                order_id=line.id,
+                data=_risk_input(form),
+                reference_date=calendario.today(),
+            )
+        ),
+    )
+    if error is not None or not saved:
+        return _risk_form(
+            req,
+            session,
+            context,
+            line=line,
+            values=dict(form),
+            errors=_field_errors(error),
+            status_code=_form_status(error),
+        )
+    notice = RISK_CREATED_NOTICE.format(code=saved[0].risk_code)
     return _diligence_screen(
         req,
         session,
@@ -2999,6 +3055,36 @@ def _receipt_form(
     )
 
 
+def _risk_form(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    line: service.OrderLine,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    status_code: int = 200,
+) -> func.HttpResponse:
+    """The modal body of Registrar risco sugerido, filled in, for the GET and for a refusal."""
+    defaults = service.suggested_risk_defaults(session, scope=context.scope, order_id=line.id)
+    consulta = (values.get("consulta") or req.params.get("consulta") or "").strip()
+    return AlpineAjaxResponse(
+        template_name=ORDER_RISK_TEMPLATE,
+        context={
+            "valores": dict(values),
+            "erros": dict(errors),
+            "linha": line,
+            "padroes": defaults,
+            "pessoas": configuracoes.list_person_options(session),
+            "consulta": consulta,
+            "formatar_data": _format_date,
+        },
+        request=req,
+        target_id=DILIGENCE_MODAL_TARGET,
+        status_code=status_code,
+    )
+
+
 def _milestone_input(form: Mapping[str, str]) -> MilestoneInput:
     return MilestoneInput(
         index=validation.parse_id(form.get("marco")),
@@ -3017,6 +3103,22 @@ def _receipt_input(form: Mapping[str, str]) -> ReceiptInput:
         damaged=validation.parse_flag(form.get("avarias")),
         damage_description=form.get("descricaoAvarias", ""),
         pending=form.get("pendencias", ""),
+    )
+
+
+def _risk_input(form: Mapping[str, str]) -> SuggestedRiskInput:
+    return SuggestedRiskInput(
+        title=form.get("titulo", ""),
+        owner_id=validation.parse_id(form.get("dono")),
+        probability=validation.parse_positive_int(
+            form.get("probabilidade"), maximum=validation.RISK_LEVEL_MAX
+        ),
+        impact=validation.parse_positive_int(
+            form.get("impacto"), maximum=validation.RISK_LEVEL_MAX
+        ),
+        cost_cents=validation.parse_money(form.get("custo", "")),
+        cause=form.get("causa", ""),
+        consequence=form.get("consequencia", ""),
     )
 
 

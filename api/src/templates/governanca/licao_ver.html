@@ -61,6 +61,7 @@
         <td>{{ aplicacao.registered_by or '·' }}</td>
         <td>
           {% if aplicacao.action_id %}<a href="/central-acoes/acoes?busca={{ linha.code | urlencode }}" data-tn-tela>Ação na Central</a>
+          {% elif aplicacao.risk_code %}<a href="/riscos/ficha?codigo={{ aplicacao.risk_code | urlencode }}" data-tn-tela>{{ aplicacao.risk_code }}</a>
           {% else %}<span class="muted">·</span>{% endif %}
         </td>
       </tr>

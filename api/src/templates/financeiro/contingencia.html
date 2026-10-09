@@ -1,18 +1,20 @@
 {% extends "base_fragment.html" %}
 {#
-  Conteúdo da tela Contingência (ISSUE-041, HU-094): os quatro indicadores com a referência de
-  gestão, os alertas do consumo e do pedido em análise, o gráfico do saldo real x previsto no
-  visual Linhas Múltiplas (D11), a composição do orçamento, a tabela por projeto no Portfólio e o
-  extrato de movimentos. A raiz leva o id que a tela pediu ({{ target_id }}); o marcador
-  data-situacao diz à tela qual estado mostrar (conteudo ou vazio-origem). Sem <link>, <style> nem
-  <script>: o gráfico nasce do elemento com data-grafico e data-dados.
+  Conteúdo da tela Contingência (ISSUE-041, HU-094): os cinco indicadores com a referência de
+  gestão (o quarto é a cobertura da exposição a riscos, ISSUE-067), os alertas do consumo, do
+  pedido em análise e da cobertura, o gráfico do saldo real x previsto no visual Linhas Múltiplas
+  (D11), a composição do orçamento, a tabela por projeto no Portfólio, o extrato de movimentos e a
+  tabela das ameaças ativas e da cobertura. A raiz leva o id que a tela pediu ({{ target_id }}); o
+  marcador data-situacao diz à tela qual estado mostrar (conteudo ou vazio-origem). Sem <link>,
+  <style> nem <script>: o gráfico nasce do elemento com data-grafico e data-dados.
 
   O extrato mostra a constituição, os consumos das SMs aprovadas e os pedidos em análise (sem
   efeito no saldo): a SM linkada abre a ficha em Governança e a situação acompanha a linha "Em
-  análise". O valor é assinado e o saldo é o acumulado depois do efetivado.
+  análise". O valor é assinado e o saldo é o acumulado depois do efetivado. A tabela de ameaças
+  traz o risco com o link da ficha e as SMs que citam o risco na análise de impacto.
 
-  Espera: visao, carteira, situacao, kpis, grafico, composicao, movimentos, projetos, totais,
-  subtitulo e alvo_conteudo.
+  Espera: visao, carteira, situacao, kpis, grafico, composicao, movimentos, projetos, ameacas,
+  totais, subtitulo, subtitulo_ameacas, pauta_url e alvo_conteudo.
 #}
 {% block fragment %}
 <span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
@@ -185,6 +187,58 @@
           </tr>
           {% else %}
           <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">Nenhum movimento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="card mb-16" aria-labelledby="contingencia-ameacas-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="contingencia-ameacas-titulo">Ameaças ativas e cobertura</h2>
+      <span class="hint">{{ subtitulo_ameacas }}</span>
+    </div>
+    <div>
+      <a class="btn btn--secondary btn--sm" href="{{ pauta_url }}" data-tn-tela>
+        <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
+        Painel de riscos
+      </a>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl" data-ameacas>
+        <caption class="sr-only">Ameaças ativas e cobertura</caption>
+        <thead>
+          <tr>
+            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Risco</th>
+            <th scope="col">Ameaça</th>
+            <th scope="col">Severidade</th>
+            <th scope="col">Situação</th>
+            <th scope="col" class="td-num">VME</th>
+            <th scope="col">SMs vinculadas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in ameacas %}
+          <tr>
+            {% if carteira %}<td>{{ linha.projeto }}</td>{% endif %}
+            <td class="nowrap"><a href="/riscos/ficha?codigo={{ linha.risco | urlencode }}" data-tn-tela><b>{{ linha.risco }}</b></a></td>
+            <td>{{ linha.ameaca.title }}</td>
+            <td>{{ linha.severidade or '·' }}</td>
+            <td><span class="pill pill--neutral">{{ linha.situacao }}</span></td>
+            <td class="td-num">{{ linha.vme }}</td>
+            <td>
+              {% if linha.sms %}
+              {% for codigo, url in linha.sms %}<a href="{{ url }}" data-tn-tela>{{ codigo }}</a>{% if not loop.last %}<br>{% endif %}{% endfor %}
+              {% else %}<span class="muted">·</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">Nenhuma ameaça ativa.</td></tr>
           {% endfor %}
         </tbody>
       </table>

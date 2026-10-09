@@ -55,6 +55,7 @@ const ICONS = {
   cart: '<path d="M2.8 3.8h2.2l1.7 8.5h7.9l1.6-6H5.4"/><circle cx="8" cy="15.7" r="1.1"/><circle cx="14" cy="15.7" r="1.1"/>',
   hardHat: '<path d="M3 13.4h14"/><path d="M4.8 13.4a5.2 5.2 0 0 1 10.4 0"/><path d="M8.6 8.6V6h2.8v2.6"/>',
   landmark: '<path d="M3 16.5h14M10 3.6 3.6 7.2h12.8L10 3.6ZM5.6 8.6v6.2M10 8.6v6.2M14.4 8.6v6.2"/>',
+  target: '<circle cx="10" cy="10" r="6.8"/><circle cx="10" cy="10" r="3.4"/><circle cx="10" cy="10" r=".7" fill="currentColor" stroke="none"/>',
 };
 
 function icon(name, size = 18, cls = "") {

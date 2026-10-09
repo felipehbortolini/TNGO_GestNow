@@ -1,0 +1,111 @@
+{% extends "base_fragment.html" %}
+{#
+  Registrar risco sugerido (ISSUE-067): o risco que o diligenciamento propõe ao registro do 05. O
+  modal abre com o título, o P, o I, o custo, o dono (o comprador do pacote) e a causa sugeridos;
+  a gravação chama a fachada da Riscos e o pedido passa a mostrar a ficha do risco, resolvida pela
+  origem "Diligenciamento PED-...". O 422 devolve este formulário preenchido com a mensagem sob
+  cada campo; o sucesso fecha o modal e atualiza a tela atrás dele.
+
+  Espera: valores, erros, linha, padroes, pessoas, consulta e formatar_data.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<form id="pedido-risco-form" method="post" action="/api/suprimentos/diligenciamento/{{ linha.id }}/risco"
+  x-target="diligenciamento-conteudo" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando o risco...">
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="status">
+    <span x-init="$el.innerHTML = window.icon('info', 16)" aria-hidden="true"></span>
+    <span>O risco entra no registro (05) em análise, com origem no diligenciamento. O dono define o plano de resposta na ficha do risco; o VME usa a probabilidade média da faixa.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="risco-titulo">Risco</label>
+      <input id="risco-titulo" name="titulo" maxlength="140" required
+        class="input{% if erros.get('titulo') %} input--erro{% endif %}"
+        value="{{ valores.get('titulo') or padroes.title }}"
+        {% if erros.get('titulo') %}aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
+      {{ campo_erro(erros, 'titulo') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-probabilidade">Probabilidade (1 a 5)</label>
+      <input id="risco-probabilidade" name="probabilidade" type="number" min="1" max="5" step="1" required
+        class="input{% if erros.get('probabilidade') %} input--erro{% endif %}"
+        value="{{ valores.get('probabilidade') or padroes.probability }}"
+        {% if erros.get('probabilidade') %}aria-invalid="true" aria-describedby="erro-probabilidade"{% endif %} />
+      {{ campo_erro(erros, 'probabilidade') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-impacto">Impacto (1 a 5)</label>
+      <input id="risco-impacto" name="impacto" type="number" min="1" max="5" step="1" required
+        class="input{% if erros.get('impacto') %} input--erro{% endif %}"
+        value="{{ valores.get('impacto') or padroes.impact }}"
+        {% if erros.get('impacto') %}aria-invalid="true" aria-describedby="erro-impacto"{% endif %} />
+      {{ campo_erro(erros, 'impacto') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-custo">Impacto em custo se ocorrer</label>
+      <input id="risco-custo" name="custo" inputmode="decimal"
+        class="input{% if erros.get('custo') %} input--erro{% endif %}"
+        value="{{ valores.get('custo') or '' }}"
+        {% if erros.get('custo') %}aria-invalid="true" aria-describedby="erro-custo"{% endif %} />
+      {{ campo_erro(erros, 'custo') }}
+    </div>
+
+    <div class="field">
+      <label for="risco-dono">Dono do risco</label>
+      <select id="risco-dono" name="dono" required
+        class="input{% if erros.get('dono') %} input--erro{% endif %}"
+        {% if erros.get('dono') %}aria-invalid="true" aria-describedby="erro-dono"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"
+          {% if (valores.get('dono') or padroes.owner_id | string) == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'dono') }}
+      <span class="hint">De partida, o comprador do pacote.</span>
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-causa">Causa</label>
+      <input id="risco-causa" name="causa" maxlength="160"
+        class="input{% if erros.get('causa') %} input--erro{% endif %}"
+        value="{{ valores.get('causa') or padroes.cause }}"
+        {% if erros.get('causa') %}aria-invalid="true" aria-describedby="erro-causa"{% endif %} />
+      {{ campo_erro(erros, 'causa') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="risco-consequencia">Consequência</label>
+      <input id="risco-consequencia" name="consequencia" maxlength="160"
+        class="input{% if erros.get('consequencia') %} input--erro{% endif %}"
+        value="{{ valores.get('consequencia') or padroes.consequence }}"
+        {% if erros.get('consequencia') %}aria-invalid="true" aria-describedby="erro-consequencia"{% endif %} />
+      {{ campo_erro(erros, 'consequencia') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
+      Registrar risco
+    </button>
+  </div>
+</form>
+{% endblock %}

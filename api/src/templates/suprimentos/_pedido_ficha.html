@@ -46,6 +46,15 @@
         </button>
       </form>
       {% endif %}
+      {% if ficha.pode_gravar and p.critical and not p.risk %}
+      <button type="button" class="btn btn--secondary btn--sm"
+        data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/risco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
+        data-diligencia-modal-titulo="Registrar risco sugerido"
+        data-diligencia-modal-subtitulo="{{ p.number }} · folga {{ dias_com_sinal(p.slack_days) }} em relação ao ROS">
+        <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
+        Registrar risco sugerido
+      </button>
+      {% endif %}
       <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
@@ -122,7 +131,12 @@
           </tr>
           <tr>
             <th scope="row">Risco</th>
-            <td><span class="muted">sem risco registrado (ISSUE-067)</span></td>
+            <td>
+              {% if p.risk %}
+              <a href="/riscos/ficha?codigo={{ p.risk.code | urlencode }}" data-tn-tela>{{ p.risk.code }} {{ p.risk.title }}</a>
+              <span class="pill pill--neutral">{{ p.risk.situation }}</span>
+              {% else %}<span class="muted">sem risco registrado</span>{% endif %}
+            </td>
           </tr>
           {% if p.receipt %}
           <tr>

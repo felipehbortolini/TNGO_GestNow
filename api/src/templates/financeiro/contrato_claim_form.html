@@ -1,12 +1,12 @@
 {% extends "base_fragment.html" %}
 {#
   Formulário do claim novo (ISSUE-033): direção, tipo, causa, cláusula, descrição, datas do evento
-  e da notificação, valor e dias pleiteados, com o prazo contratual de notificação em destaque. O
-  tipo decide o que é obrigatório: Prazo pede dias, Custo pede valor e Prazo e custo pede os
-  dois. A gravação devolve os painéis atualizados; o 422 volta aqui, com o que a pessoa digitou e
-  a mensagem no campo.
+  e da notificação, valor e dias pleiteados, com o prazo contratual de notificação em destaque e o
+  risco do projeto que o claim trata (ISSUE-067, opcional). O tipo decide o que é obrigatório:
+  Prazo pede dias, Custo pede valor e Prazo e custo pede os dois. A gravação devolve os painéis
+  atualizados; o 422 volta aqui, com o que a pessoa digitou e a mensagem no campo.
 
-  Espera: ficha (ContractView), valores, erros, direcoes, tipos, causas e os alvos.
+  Espera: ficha (ContractView), valores, erros, direcoes, tipos, causas, riscos e os alvos.
 #}
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
@@ -101,6 +101,19 @@
             {% if erros.dias %}aria-invalid="true" aria-describedby="contrato-claim-dias-erro"{% endif %} />
           {% if erros.dias %}<span class="field__erro" id="contrato-claim-dias-erro">{{ erros.dias }}</span>{% endif %}
           <span class="hint">Obrigatório para Prazo e Prazo e custo.</span>
+        </div>
+        <div class="field">
+          <label for="contrato-claim-risco">Risco (05)</label>
+          <select id="contrato-claim-risco" name="risco"
+            class="input{{ ' input--erro' if erros.risco else '' }}"
+            {% if erros.risco %}aria-invalid="true" aria-describedby="contrato-claim-risco-erro"{% endif %}>
+            <option value="">Sem risco vinculado</option>
+            {% for risco in riscos %}
+            <option value="{{ risco.code }}"{% if valores.risco == risco.code %} selected{% endif %}>{{ risco.code }} · {{ risco.title }} ({{ risco.situation }})</option>
+            {% endfor %}
+          </select>
+          {% if erros.risco %}<span class="field__erro" id="contrato-claim-risco-erro">{{ erros.risco }}</span>{% endif %}
+          <span class="hint">O risco do projeto que o claim trata; a ficha do risco passa a mostrar o claim.</span>
         </div>
       </div>
       <div class="acoes-rodape mt-24">

@@ -43,6 +43,7 @@
             <th scope="col" class="td-num">Pleiteado</th>
             <th scope="col" class="td-num">Reconhecido</th>
             <th scope="col">Situação</th>
+            <th scope="col">Risco</th>
             {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
           </tr>
         </thead>
@@ -89,6 +90,11 @@
               <br /><a href="/governanca/mudanca?codigo={{ linha.claim.change_code }}" data-tn-tela>{{ linha.claim.change_code }}</a>
               {% endif %}
             </td>
+            <td>
+              {% if linha.claim.risk_code %}
+              <a href="/riscos/ficha?codigo={{ linha.claim.risk_code | urlencode }}" data-tn-tela>{{ linha.claim.risk_code }}</a>
+              {% else %}<span class="muted">·</span>{% endif %}
+            </td>
             {% if pode_gerir %}
             <td class="td-center">
               <div class="contrato-acoes">
@@ -107,7 +113,7 @@
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">Nenhum claim registrado.</td></tr>
+          <tr><td colspan="{{ 9 if pode_gerir else 8 }}" class="muted">Nenhum claim registrado.</td></tr>
           {% endfor %}
         </tbody>
       </table>

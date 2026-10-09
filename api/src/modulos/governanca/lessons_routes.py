@@ -114,6 +114,8 @@ APPLICATION_FORM_FIELDS = (
     validation.FIELD_GENERATE,
     validation.FIELD_RESPONSIBLE,
     validation.FIELD_PLANNED,
+    validation.FIELD_CATEGORY,
+    validation.FIELD_OWNER,
 )
 
 
@@ -510,6 +512,8 @@ def lesson_publish(
 def _application_response(
     req: func.HttpRequest, session: Session, context: RequestContext, state: FormState
 ) -> func.HttpResponse:
+    from src.modulos.riscos import service as riscos
+
     code, values = state.code, state.values
     return AlpineAjaxResponse(
         template_name=APPLY_TEMPLATE,
@@ -519,6 +523,8 @@ def _application_response(
             "erros": state.errors,
             "projetos": service.reachable_projects(session, user=context.user, code=code),
             "pessoas": service.person_options(session),
+            "categorias": riscos.list_categories(session),
+            "tipo_licao": service.lesson_kind(session, user=context.user, code=code),
             "hoje": calendario.today().isoformat(),
             "action": f"/api/{APPLY_ROUTE}",
         },

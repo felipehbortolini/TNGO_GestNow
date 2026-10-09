@@ -2446,7 +2446,7 @@ def contrato_claim_form(
     view = _contract_of(req, session, context)
     return AlpineAjaxResponse(
         template_name=CONTRACT_CLAIM_FORM_TEMPLATE,
-        context=_contrato_claim_form_context(view, FormState.empty()),
+        context=_contrato_claim_form_context(session, view, FormState.empty()),
         request=req,
     )
 
@@ -2455,29 +2455,30 @@ def _render_claim_form_error(req: func.HttpRequest, error: DomainError) -> func.
     """O formulário do claim de volta, com o que a pessoa digitou, no 422."""
     if not isinstance(error, InvalidDataError):
         return None
+    problems = error.detail if isinstance(error.detail, Mapping) else {}
     try:
         with database.unidade_de_trabalho() as session:
             context = authorize(session, req, WRITE_ACCESS)
             view = _contract_of(req, session, context)
+            return AlpineAjaxResponse(
+                template_name=CONTRACT_CLAIM_FORM_TEMPLATE,
+                context=_contrato_claim_form_context(
+                    session,
+                    view,
+                    FormState(
+                        values=_posted_claim(req.form),
+                        problems=problems,
+                        message="" if problems else str(error),
+                    ),
+                ),
+                request=req,
+                target_id=CONTRACT_FORM_TARGET,
+                status_code=422,
+                toast=str(error),
+                toast_tipo="erro",
+            )
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
-    return AlpineAjaxResponse(
-        template_name=CONTRACT_CLAIM_FORM_TEMPLATE,
-        context=_contrato_claim_form_context(
-            view,
-            FormState(
-                values=_posted_claim(req.form),
-                problems=problems,
-                message="" if problems else str(error),
-            ),
-        ),
-        request=req,
-        target_id=CONTRACT_FORM_TARGET,
-        status_code=422,
-        toast=str(error),
-        toast_tipo="erro",
-    )
 
 
 @bp.route(route=CONTRACT_CLAIM_CREATE_ROUTE, methods=["POST"])
@@ -2932,7 +2933,12 @@ def _contrato_evidencia_context(
     }
 
 
-def _contrato_claim_form_context(view: service.ContractView, state: FormState) -> dict[str, object]:
+def _contrato_claim_form_context(
+    session: Session, view: service.ContractView, state: FormState
+) -> dict[str, object]:
+    """O formulário do claim novo: as listas do contrato e os riscos do projeto (ISSUE-067)."""
+    from src.modulos.riscos import service as riscos
+
     return {
         "ficha": view,
         "valores": state.values,
@@ -2941,6 +2947,7 @@ def _contrato_claim_form_context(view: service.ContractView, state: FormState) -
         "direcoes": validation.CLAIM_DIRECTIONS,
         "tipos": validation.CLAIM_KINDS,
         "causas": validation.CLAIM_CAUSES,
+        "riscos": riscos.risk_options(session, project_id=view.project_id),
         **_fluxos_targets(),
     }
 
@@ -3150,6 +3157,7 @@ def _posted_claim(form: Mapping[str, str | None]) -> dict[str, str | None]:
         validation.FIELD_CLAIM_NOTIFICATION,
         validation.FIELD_CLAIM_VALUE,
         validation.FIELD_CLAIM_DAYS,
+        validation.FIELD_CLAIM_RISK,
         validation.FIELD_VERSION,
     )
     return {name: form.get(name) for name in names}
@@ -4027,6 +4035,19 @@ class ContingenciaProjetoLinha:
     consumo_alto: bool
 
 
+@dataclass(frozen=True)
+class ContingenciaAmeacaLinha:
+    """Uma linha de Ameaças ativas e cobertura: o risco, o VME e as SMs que o citam."""
+
+    ameaca: service.ContingencyThreatView
+    projeto: str
+    risco: str
+    severidade: str
+    situacao: str
+    vme: str
+    sms: tuple[tuple[str, str], ...]
+
+
 CONTINGENCY_ROUTE = "financeiro/contingencia"
 CONTINGENCY_EXCEL_ROUTE = f"{CONTINGENCY_ROUTE}/excel"
 CONTINGENCY_PRINTABLE_ROUTE = f"{CONTINGENCY_ROUTE}/imprimivel"
@@ -4036,7 +4057,7 @@ CONTINGENCY_TARGET = "contingencia-conteudo"
 
 CONTINGENCY_CHANGES_SCREEN = "/governanca/mudancas"
 
-CONTINGENCY_KPI_ICONS = ("shield", "warning", "file", "lock")
+CONTINGENCY_KPI_ICONS = ("shield", "warning", "file", "target", "lock")
 CONTINGENCY_MOVEMENT_PILLS = {
     calculations.MOVEMENT_CONSTITUTION: "fix",
     calculations.MOVEMENT_CONSUMPTION: "warn",
@@ -4047,6 +4068,7 @@ CONTINGENCY_SUBTITLE = (
     "Saldo real e saldo previsto pelo avanço físico planejado "
     "(consumo proporcional à linha de base)"
 )
+CONTINGENCY_THREATS_SCREEN = "/riscos/painel"
 CONTINGENCY_NO_VALUE = "·"
 
 
@@ -4086,7 +4108,7 @@ def contingencia_printable(
 def _contingencia_view(session: Session, context: RequestContext) -> service.ContingencyOverview:
     """A leitura do escopo do pedido; a única da rota que vê o relógio."""
     return service.contingency_overview(
-        session, scope=context.scope, reference_date=calendario.today()
+        session, user=context.user, scope=context.scope, reference_date=calendario.today()
     )
 
 
@@ -4112,8 +4134,11 @@ def _contingencia_context(
         "composicao": _contingencia_composicao(view),
         "movimentos": _contingencia_movimentos(view),
         "projetos": _contingencia_projetos(view),
+        "ameacas": _contingencia_ameacas(view),
         "totais": _contingencia_total(view),
         "subtitulo": _contingencia_subtitulo(view),
+        "subtitulo_ameacas": _contingencia_subtitulo_ameacas(view),
+        "pauta_url": _contingencia_pauta_url(view, context.scope.parameter),
         "alvo_conteudo": CONTINGENCY_TARGET,
     }
 
@@ -4121,8 +4146,9 @@ def _contingencia_context(
 def _contingencia_kpis(
     view: service.ContingencyOverview, *, projeto: str
 ) -> tuple[ContingenciaKpi, ...]:
-    """Os quatro indicadores do serviço como a faixa os imprime; o pedido leva o link das SMs."""
+    """Os cinco indicadores do serviço como a faixa os imprime; dois levam link."""
     changes_url = f"{CONTINGENCY_CHANGES_SCREEN}?projeto={projeto}"
+    pauta_url = _contingencia_pauta_url(view, projeto)
     return tuple(
         ContingenciaKpi(
             rotulo=kpi.label,
@@ -4135,10 +4161,23 @@ def _contingencia_kpis(
             rodape=kpi.status,
             tom=kpi.tone.value if kpi.tone is not None else "neutro",
             icone=icone,
-            href=changes_url if kpi.label == export.CONTINGENCY_KPI_ANALYSIS else "",
+            href=(
+                changes_url
+                if kpi.label == export.CONTINGENCY_KPI_ANALYSIS
+                else pauta_url
+                if kpi.label == export.CONTINGENCY_KPI_COVERAGE
+                else ""
+            ),
         )
         for kpi, icone in zip(export.contingencia_kpis(view), CONTINGENCY_KPI_ICONS, strict=True)
     )
+
+
+def _contingencia_pauta_url(view: service.ContingencyOverview, projeto: str) -> str:
+    """O link do indicador da cobertura para o painel de riscos do escopo (protótipo)."""
+    if view.is_portfolio:
+        return CONTINGENCY_THREATS_SCREEN
+    return f"{CONTINGENCY_THREATS_SCREEN}?projeto={projeto}"
 
 
 def _contingencia_subtitulo(view: service.ContingencyOverview) -> str:
@@ -4197,6 +4236,33 @@ def _contingencia_projetos(
             _contingencia_linha(projeto_id=item.project_id, codigo=codigo, nome=nome, reservas=item)
         )
     return tuple(linhas)
+
+
+def _contingencia_ameacas(
+    view: service.ContingencyOverview,
+) -> tuple[ContingenciaAmeacaLinha, ...]:
+    """As ameaças ativas e a cobertura, como a tabela da tela as imprime."""
+    return tuple(
+        ContingenciaAmeacaLinha(
+            ameaca=threat,
+            projeto=threat.project_code,
+            risco=threat.code,
+            severidade=threat.severity,
+            situacao=threat.situation,
+            vme=_money(threat.vme_cents),
+            sms=tuple((code, f"/governanca/mudanca?codigo={code}") for code in threat.change_codes),
+        )
+        for threat in view.threats
+    )
+
+
+def _contingencia_subtitulo_ameacas(view: service.ContingencyOverview) -> str:
+    """A linha do protótipo: a exposição contra o saldo e as SMs que citam o risco."""
+    balance = view.contingency.balance_cents if view.contingency is not None else 0
+    return (
+        f"Exposição (VME) de {_money(view.exposure_cents)} contra saldo de {_money(balance)} "
+        "· SMs que citam o risco na análise de impacto"
+    )
 
 
 def _contingencia_total(view: service.ContingencyOverview) -> ContingenciaProjetoLinha:
