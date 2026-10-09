@@ -23,9 +23,14 @@ PDF of a proposal is not loaded: the demonstration has no files (DIVERGENCIAS, a
 
 The 14 orders of the mock (``pedidos``, from the suprimentos and the portfolio mocks) enter with
 their six manufacturing milestones, tied to the real package and company; the ``recebimento`` of
-the mock is not loaded (the table is ISSUE-061) and neither are new diligence actions: the ones
-the mock carries already come in the ``central_acoes`` part. The orders continue the numbering
-series on emission (ISSUE-060).
+the mock is loaded by its own part (``suprimentos-diligenciamento``, ISSUE-061) and no new
+diligence action is created by the load: the ones the mock carries already come in the
+``central_acoes`` part. The orders continue the numbering series on emission (ISSUE-060).
+
+The receipts of the orders the mock already delivered (PED-2026-0003, 0006 and 0008) enter with
+their date, check, damages and pending items (``suprimentos-diligenciamento``); the evidence is
+not loaded: the demonstration has no files (DIVERGENCIAS, anexo). The OTD and the slack are
+calculated on reading from the delivery already loaded with the orders.
 """
 
 from __future__ import annotations
@@ -46,6 +51,7 @@ from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service as financeiro
 from src.modulos.suprimentos import calculations, service
 from src.modulos.suprimentos.models import (
+    DeliveryReceipt,
     PackageMilestone,
     ProcessInvitee,
     ProcessNegotiation,
@@ -64,6 +70,7 @@ PART_NAME = "suprimentos-fornecedores"
 PACKAGES_PART_NAME = "suprimentos-pacotes"
 PROCESSES_PART_NAME = "suprimentos-processos"
 ORDERS_PART_NAME = "suprimentos-pedidos"
+DILIGENCE_PART_NAME = "suprimentos-diligenciamento"
 
 
 @dataclass(frozen=True)
@@ -611,3 +618,41 @@ def _record_order(session: Session, lookups: _OrderLookups, source: Mapping[str,
 
 
 register(ORDERS_PART_NAME, load_orders)
+
+
+# ── The receipts of the delivered orders (ISSUE-061) ─────────────────────────────────────────
+
+
+def load_receipts(session: Session, reference_date: date) -> None:
+    """Write the receipt of every order the mock already delivered, with its pending items."""
+    lookups = _order_lookups(session, reference_date)
+    for source in prototype_collection("pedidos"):
+        receipt = source.get("recebimento")
+        if receipt:
+            _record_receipt(session, lookups, source, receipt)
+
+
+def _record_receipt(
+    session: Session,
+    lookups: _OrderLookups,
+    source: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+) -> None:
+    order = session.scalars(
+        select(PurchaseOrder).where(PurchaseOrder.number == source["numero"])
+    ).one()
+    recording.create(
+        session,
+        user_id=lookups.user.id,
+        record=DeliveryReceipt(
+            order_id=order.id,
+            on=lookups.required(receipt["data"]),
+            checked=bool(receipt.get("conferido")),
+            damaged=bool(receipt.get("avarias")),
+            damage_description=receipt.get("descricaoAvarias") or None,
+            pending=receipt.get("pendencias") or None,
+        ),
+    )
+
+
+register(DILIGENCE_PART_NAME, load_receipts)
