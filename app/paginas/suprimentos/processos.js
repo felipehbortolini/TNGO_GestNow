@@ -1,8 +1,8 @@
 /* ============================================================
    processos.js — Comportamento da tela Processos de compra (suprimentos/processos)
 
-   Da requisição ao pedido ou contrato: RFx, equalização, ranking e aprovação por alçada
-   (ISSUE-059).
+   Da requisição ao pedido ou contrato: RFx, equalização, ranking, recomendação, aprovação por
+   alçada e emissão (ISSUE-059/060).
 
    Registra um único objeto em TN.paginas["suprimentos/processos"]. A view o aciona por x-init
    com iniciar(raiz), e raiz é o <main> da tela. O estado da tela (carregando, conteudo, erro ou
@@ -13,10 +13,10 @@
    da régua é um $ajax do próprio fragmento, que carrega a ficha no alvo processo-ficha.
 
    Aqui moram os modais que o Design System abre por JavaScript — Nova requisição e as ações do
-   fluxo (RFx, proposta, encerramento, equalizações e negociação) —, cujo corpo o servidor
-   entrega por GET no alvo do modal, a conta de prévia do ranking comercial (o servidor
-   revalida) e a ação pendente do mecanismo de inclusão do Portfólio (?acao=requisicao,
-   TN.escopo).
+   fluxo (RFx, proposta, encerramento, equalizações, negociação, recomendação, devolução,
+   aprovação e emissão) —, cujo corpo o servidor entrega por GET no alvo do modal, a conta de
+   prévia do ranking comercial (o servidor revalida) e a ação pendente do mecanismo de inclusão do
+   Portfólio (?acao=requisicao, TN.escopo).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.

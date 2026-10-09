@@ -22,6 +22,9 @@
         data-processo-modal-subtitulo="{{ linha.code }} · {{ linha.scope }}">{{ acao.label }}</button>
       {% endfor %}
       {% endif %}
+      {% if ficha.documento %}
+      <a class="btn btn--secondary btn--sm" href="{{ ficha.documento.url }}" data-tn-tela>{{ ficha.documento.tipo }} {{ ficha.documento.numero }}</a>
+      {% endif %}
       <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
@@ -97,6 +100,31 @@
               <span class="hint">· valor de referência {{ ficha.formatar_moeda(linha.reference_value_cents) }}</span>
             </td>
           </tr>
+          {% if linha.recommendation %}
+          <tr>
+            <th scope="row">Recomendação</th>
+            <td>
+              {{ linha.recommendation.name }} · {{ ficha.formatar_moeda(linha.recommendation.value_cents) }} ·
+              {{ ficha.formatar_data(linha.recommendation.date) }}
+              <span class="hint">· por {{ linha.recommendation.author or '—' }}</span>
+              {% if linha.recommendation.justification %}
+              <br /><span class="hint">{{ linha.recommendation.justification }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% if linha.approval %}
+          <tr>
+            <th scope="row">Aprovação</th>
+            <td>
+              {{ linha.approval.approver or '—' }} · {{ linha.approval.band or '·' }} ·
+              {{ ficha.formatar_data(linha.approval.date) }}
+              {% if linha.approval.opinion %}
+              <br /><span class="hint">{{ linha.approval.opinion }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>

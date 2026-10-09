@@ -24,13 +24,14 @@ according to the real date of the requisition. Excel import runs by the generic 
 * ``GET/POST plano-de-compras/novo``            Novo pacote;
 * ``GET/POST plano-de-compras/{pacote_id}/editar``   Editar pacote (full or frozen).
 
-The process screen (ISSUE-059) is one fragment, ``processos-conteudo``: the five KPIs, the
+The process screen (ISSUE-059/060) is one fragment, ``processos-conteudo``: the five KPIs, the
 toolbar, the Etapas chart with the nine steps of each process and the ficha of the selected one.
 The ficha also answers alone (``processo-ficha``) for the click on a chart line; the actions open
 in a modal (``processo-modal-corpo``) drawn by GET and saved by POST, and a refusal answers the
-form again, filled in. The actions of this issue are the requisition, the RFx, the proposal (its
-PDF is a real attachment), the closing of the receipt and the three equalization/negotiation
-steps; the recommendation and the approval arrive with ISSUE-060.
+form again, filled in. The actions are the requisition, the RFx, the proposal (its PDF is a real
+attachment), the closing of the receipt, the three equalization/negotiation steps, the
+recommendation of the award, the return, the approval by band and the emission of the order or
+of the contract (ISSUE-060).
 
 * ``GET  processos`` and ``processos/excel``/``imprimivel``   the list (and the map, with ``pacote``);
 * ``GET  processos/ficha``                      the ficha of one process (``pacote``);
@@ -66,16 +67,20 @@ from src.core.routing import Access, RequestContext, file_route, fragment_route
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.suprimentos import calculations, export, importers, service, validation
 from src.modulos.suprimentos.validation import (
+    ApprovalInput,
     ClosingInput,
     CommercialInput,
     DocumentInput,
+    EmissionInput,
     NegotiationInput,
     PackageChangeInput,
     PackageFilters,
     PackageInput,
     ProposalInput,
     QualificationInput,
+    RecommendationInput,
     RequisitionInput,
+    ReturnInput,
     RfxInput,
     SupplierFilters,
     SupplierInput,
@@ -1221,6 +1226,10 @@ ACTION_TEMPLATES: Mapping[str, str] = {
     "equalizacao-tecnica": "suprimentos/processo_eq_tecnica.html",
     "equalizacao-comercial": "suprimentos/processo_eq_comercial.html",
     "negociacao": "suprimentos/processo_negociacao.html",
+    "recomendacao": "suprimentos/processo_recomendacao.html",
+    "devolver": "suprimentos/processo_devolver.html",
+    "aprovar": "suprimentos/processo_aprovar.html",
+    "emitir": "suprimentos/processo_emitir.html",
 }
 
 PROCESS_NOT_FOUND_MESSAGE = validation.PROCESS_NOT_FOUND
@@ -1233,8 +1242,13 @@ CLOSING_NOTICE = "Recebimento encerrado; equalização técnica liberada."
 TECHNICAL_NOTICE = "Equalização técnica concluída; mapa comercial liberado."
 COMMERCIAL_NOTICE = "Mapa comercial concluído; processo em negociação."
 NEGOTIATION_NOTICE = "Negociação registrada."
+RECOMMENDATION_NOTICE = "Recomendação enviada para aprovação na alçada."
+RETURN_NOTICE = "Recomendação devolvida para negociação."
+APPROVAL_NOTICE = "Adjudicação aprovada; marco realizado no MAS."
+ORDER_NOTICE = "Pedido {document} emitido; valor comprometido na EAC."
+CONTRACT_NOTICE = "Contrato {document} emitido; valor comprometido na EAC."
 
-# The actions each stage of the process offers (ISSUE-059): name, label, icon and tone.
+# The actions each stage of the process offers (ISSUE-059/060): name, label, icon and tone.
 STAGE_ACTIONS: Mapping[str, tuple[tuple[str, str, str, str], ...]] = {
     calculations.STAGE_PLANNED: (("requisicao", "Registrar requisição", "fileAdd", "primary"),),
     "Requisição": (("rfx", "Emitir RFx", "send", "primary"),),
@@ -1249,7 +1263,15 @@ STAGE_ACTIONS: Mapping[str, tuple[tuple[str, str, str, str], ...]] = {
     "Equalização comercial": (
         ("equalizacao-comercial", "Concluir equalização comercial", "money", "primary"),
     ),
-    "Negociação": (("negociacao", "Registrar negociação", "send", "secondary"),),
+    "Negociação": (
+        ("negociacao", "Registrar negociação", "send", "secondary"),
+        ("recomendacao", "Recomendar adjudicação", "checkCircle", "primary"),
+    ),
+    "Recomendação de adjudicação": (
+        ("devolver", "Devolver", "chevronLeft", "secondary"),
+        ("aprovar", "Aprovar adjudicação", "check", "primary"),
+    ),
+    "Aprovada": (("emitir", "Emitir pedido ou contrato", "file", "primary"),),
 }
 
 # The vocabulary of the Etapas chart: the states of the steps and of the line.
@@ -1422,6 +1444,7 @@ def _ficha_context(
         "linha": line,
         "acoes": _stage_actions(line, consulta=consulta),
         "anexos": _proposal_attachments(session, context, line, today=today),
+        "documento": _emitted_document(line),
         "consulta": consulta,
         "pode_gravar": rbac.can(context.user, Permission.WRITE),
         "url_excel": f"{PROCESS_ROUTE}/excel?pacote={line.package_id}",
@@ -1431,6 +1454,23 @@ def _ficha_context(
         "formatar_moeda": _format_money,
         "formatar_numero": _format_decimal,
     }
+
+
+def _emitted_document(line: service.ProcessLine) -> dict[str, str] | None:
+    """The order or contract the emission created, as the ficha links to it."""
+    if line.order_number:
+        return {
+            "tipo": "Pedido",
+            "numero": line.order_number,
+            "url": f"/suprimentos/diligenciamento?{urlencode({'pedido': line.order_number})}",
+        }
+    if line.contract_number:
+        return {
+            "tipo": "Contrato",
+            "numero": line.contract_number,
+            "url": f"/financeiro/contrato?{urlencode({'numero': line.contract_number})}",
+        }
+    return None
 
 
 def _proposal_attachments(
@@ -1458,6 +1498,8 @@ def _stage_actions(line: service.ProcessLine, *, consulta: str) -> tuple[ActionB
             url = f"{PROCESS_ROUTE}/requisicao?pacote={line.package_id}"
         else:
             url = f"{PROCESS_ROUTE}/{line.package_id}/acao/{name}"
+        if name == "emitir":
+            label = "Emitir contrato" if calculations.is_service(line.kind) else "Emitir pedido"
         separator = "&" if "?" in url else "?"
         buttons.append(
             ActionButton(
@@ -1806,6 +1848,22 @@ def process_action_save(
     )
 
 
+@dataclass(frozen=True)
+class _ActionCall:
+    """One action of the flow being run: what its runner needs to parse the form and call."""
+
+    session: Session
+    context: RequestContext
+    line: service.ProcessLine
+    form: Mapping[str, str]
+    today: date
+    file_name: str | None = None
+    content: bytes = b""
+
+
+ActionRunner = Callable[[_ActionCall], service.ProcessSave]
+
+
 def _run_action(
     req: func.HttpRequest,
     session: Session,
@@ -1817,103 +1875,154 @@ def _run_action(
     today: date,
 ) -> tuple[DomainError | None, service.ProcessSave | None]:
     """Parse the form of the action, call the facade inside a savepoint and answer what happened."""
-    saved: list[service.ProcessSave] = []
-    if name == "rfx":
-        rfx = _rfx_input(form)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.issue_rfx(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=rfx,
-                    reference_date=today,
-                )
-            ),
-        )
-    elif name == "proposta":
-        sent = req.files.get(attachments.FILE_FIELD)
-        proposta = _proposal_input(form)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.register_proposal(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=proposta,
-                    reference_date=today,
-                    file_name=sent.filename if sent is not None else None,
-                    content=sent.stream.read() if sent is not None else b"",
-                )
-            ),
-        )
-    elif name == "encerrar-recebimento":
-        encerramento = _closing_input(form)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.close_receipt(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=encerramento,
-                    reference_date=today,
-                )
-            ),
-        )
-    elif name == "equalizacao-tecnica":
-        tecnica = _technical_input(form, line)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.equalize_technically(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=tecnica,
-                    reference_date=today,
-                )
-            ),
-        )
-    elif name == "equalizacao-comercial":
-        comercial = _commercial_input(form)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.equalize_commercially(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=comercial,
-                    reference_date=today,
-                )
-            ),
-        )
-    elif name == "negociacao":
-        negociacao = _negotiation_input(form)
-        error = _attempt(
-            session,
-            lambda: saved.append(
-                service.register_negotiation(
-                    session,
-                    user=context.user,
-                    scope=context.scope,
-                    package_id=line.package_id,
-                    data=negociacao,
-                    reference_date=today,
-                )
-            ),
-        )
-    else:
+    runner = ACTION_RUNNERS.get(name)
+    if runner is None:
         raise InvalidDataError({"geral": UNKNOWN_ACTION_MESSAGE})
+    file_name: str | None = None
+    content = b""
+    if name == "proposta":
+        sent = req.files.get(attachments.FILE_FIELD)
+        if sent is not None:
+            file_name = sent.filename
+            content = sent.stream.read()
+    call = _ActionCall(
+        session=session,
+        context=context,
+        line=line,
+        form=form,
+        today=today,
+        file_name=file_name,
+        content=content,
+    )
+    saved: list[service.ProcessSave] = []
+    error = _attempt(session, lambda: saved.append(runner(call)))
     return error, (saved[0] if saved else None)
+
+
+def _run_rfx(call: _ActionCall) -> service.ProcessSave:
+    return service.issue_rfx(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_rfx_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_proposal(call: _ActionCall) -> service.ProcessSave:
+    return service.register_proposal(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_proposal_input(call.form),
+        reference_date=call.today,
+        file_name=call.file_name,
+        content=call.content,
+    )
+
+
+def _run_closing(call: _ActionCall) -> service.ProcessSave:
+    return service.close_receipt(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_closing_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_technical(call: _ActionCall) -> service.ProcessSave:
+    return service.equalize_technically(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_technical_input(call.form, call.line),
+        reference_date=call.today,
+    )
+
+
+def _run_commercial(call: _ActionCall) -> service.ProcessSave:
+    return service.equalize_commercially(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_commercial_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_negotiation(call: _ActionCall) -> service.ProcessSave:
+    return service.register_negotiation(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_negotiation_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_recommendation(call: _ActionCall) -> service.ProcessSave:
+    return service.recommend_award(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_recommendation_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_return(call: _ActionCall) -> service.ProcessSave:
+    return service.return_recommendation(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_return_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_approval(call: _ActionCall) -> service.ProcessSave:
+    return service.approve_award(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_approval_input(call.form),
+        reference_date=call.today,
+    )
+
+
+def _run_emission(call: _ActionCall) -> service.ProcessSave:
+    return service.emit_order_or_contract(
+        call.session,
+        user=call.context.user,
+        scope=call.context.scope,
+        package_id=call.line.package_id,
+        data=_emission_input(call.form),
+        reference_date=call.today,
+    )
+
+
+ACTION_RUNNERS: Mapping[str, ActionRunner] = {
+    "rfx": _run_rfx,
+    "proposta": _run_proposal,
+    "encerrar-recebimento": _run_closing,
+    "equalizacao-tecnica": _run_technical,
+    "equalizacao-comercial": _run_commercial,
+    "negociacao": _run_negotiation,
+    "recomendacao": _run_recommendation,
+    "devolver": _run_return,
+    "aprovar": _run_approval,
+    "emitir": _run_emission,
+}
 
 
 def _action_notice(name: str, saved: service.ProcessSave) -> str:
@@ -1921,11 +2030,17 @@ def _action_notice(name: str, saved: service.ProcessSave) -> str:
         return RFX_NOTICE.format(number=saved.number)
     if name == "proposta":
         return PROPOSAL_NOTICE.format(number=saved.number)
+    if name == "emitir":
+        notice = CONTRACT_NOTICE if (saved.document or "").startswith("CT-") else ORDER_NOTICE
+        return notice.format(document=saved.document)
     notices = {
         "encerrar-recebimento": CLOSING_NOTICE,
         "equalizacao-tecnica": TECHNICAL_NOTICE,
         "equalizacao-comercial": COMMERCIAL_NOTICE,
         "negociacao": NEGOTIATION_NOTICE,
+        "recomendacao": RECOMMENDATION_NOTICE,
+        "devolver": RETURN_NOTICE,
+        "aprovar": APPROVAL_NOTICE,
     }
     return notices.get(name, "")
 
@@ -1982,6 +2097,7 @@ def _action_form(
             "referencia": today.isoformat(),
             "formatar_data": _format_date,
             "formatar_moeda": _format_money,
+            "formatar_numero": _format_decimal,
             **extra,
         },
         request=req,
@@ -2006,6 +2122,10 @@ def _action_context(
         "equalizacao-tecnica": _technical_context,
         "equalizacao-comercial": _commercial_context,
         "negociacao": _negotiation_context,
+        "recomendacao": _recommendation_context,
+        "devolver": _return_context,
+        "aprovar": _approval_context,
+        "emitir": _emission_context,
     }
     builder = builders.get(name)
     return builder(session, context, line, today) if builder is not None else {}
@@ -2089,6 +2209,69 @@ def _negotiation_context(
     }
 
 
+def _recommendation_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    """The approved proposals of the ranking and the saldo a comprometer of the EAC item."""
+    del session, context, today
+    best = line.best
+    suggested = (
+        format_value(ValueKind.MONEY, best.negotiated_cents or best.value_cents)
+        if best is not None
+        else ""
+    )
+    return {
+        "aprovadas": tuple(
+            proposal for proposal in line.proposals if proposal.technically_approved
+        ),
+        "melhor": best,
+        "alcada": line.approval_band,
+        "saldo": line.eac_balance_cents,
+        "valor_sugerido": suggested,
+    }
+
+
+def _return_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    del session, context, line, today
+    return {}
+
+
+def _approval_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    """The people of the register for the approver select, with the recommendation in the line."""
+    del line
+    options = service.process_options(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    return {"pessoas": options.people}
+
+
+def _emission_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    """What the emission form needs: the people for the fiscal and the deadline of the proposal."""
+    options = service.process_options(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    original = next(
+        (
+            proposal
+            for proposal in line.proposals
+            if line.recommendation is not None
+            and proposal.company_id == line.recommendation.company_id
+        ),
+        None,
+    )
+    return {
+        "pessoas": options.people,
+        "servico": calculations.is_service(line.kind),
+        "proposta": original,
+    }
+
+
 # ── Reading the forms of the actions ─────────────────────────────────────────────────────────
 
 
@@ -2166,6 +2349,38 @@ def _negotiation_input(form: Mapping[str, str]) -> NegotiationInput:
         value_cents=validation.parse_money(form.get("valor", "")),
         date=validation.parse_date(form.get("data")),
         observation=form.get("observacao", ""),
+    )
+
+
+def _recommendation_input(form: Mapping[str, str]) -> RecommendationInput:
+    return RecommendationInput(
+        proposal_id=validation.parse_id(form.get("proposta")),
+        value_cents=validation.parse_money(form.get("valor", "")),
+        date=validation.parse_date(form.get("data")),
+        justification=form.get("justificativa", ""),
+    )
+
+
+def _return_input(form: Mapping[str, str]) -> ReturnInput:
+    return ReturnInput(reason=form.get("motivo", ""))
+
+
+def _approval_input(form: Mapping[str, str]) -> ApprovalInput:
+    return ApprovalInput(
+        approver_id=validation.parse_id(form.get("aprovador")),
+        date=validation.parse_date(form.get("data")),
+        opinion=form.get("parecer", ""),
+    )
+
+
+def _emission_input(form: Mapping[str, str]) -> EmissionInput:
+    return EmissionInput(
+        date=validation.parse_date(form.get("data")),
+        deadline_days=validation.parse_positive_int(form.get("prazo")),
+        start=validation.parse_date(form.get("inicio")),
+        end=validation.parse_date(form.get("termino")),
+        fiscal_id=validation.parse_id(form.get("fiscal")),
+        retention_pct=validation.parse_points(form.get("retencao")),
     )
 
 

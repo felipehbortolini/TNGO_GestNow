@@ -1,0 +1,75 @@
+{% extends "base_fragment.html" %}
+{#
+  Aprovar adjudicação (ISSUE-060): o aprovador, a data e o parecer. A alçada é recalculada pelo
+  servidor a partir do valor recomendado; quem aprova não pode ser o comprador nem quem
+  recomendou (403) e o valor não pode superar o saldo a comprometer do item da EAC.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, formatar_moeda e pessoas.
+#}
+{% set recomendacao = linha.recommendation %}
+{% block fragment %}
+<form id="processo-aprovar-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/aprovar"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Aprovando a adjudicação...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  {% if recomendacao %}
+  <div class="tbl-wrap mb-16">
+    <table class="tbl">
+      <caption class="sr-only">Recomendação da adjudicação</caption>
+      <tbody>
+        <tr><th scope="row">Recomendado</th><td>{{ recomendacao.name }}</td></tr>
+        <tr><th scope="row">Valor</th><td class="td-num num">{{ formatar_moeda(recomendacao.value_cents) }}</td></tr>
+        <tr><th scope="row">Alçada exigida</th><td><b>{{ linha.approval_band or '·' }}</b></td></tr>
+        {% if linha.eac_balance_cents is not none %}
+        <tr><th scope="row">Saldo a comprometer (EAC {{ linha.eac_code }})</th><td class="td-num num">{{ formatar_moeda(linha.eac_balance_cents) }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hint mb-16">Segregação de funções: o aprovador não pode ser o comprador nem quem recomendou.</p>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="aprovar-aprovador">Aprovador</label>
+      <select id="aprovar-aprovador" name="aprovador" class="input{% if erros.get('aprovador') %} input--erro{% endif %}" required
+        {% if erros.get('aprovador') %}aria-invalid="true" aria-describedby="erro-aprovador"{% endif %}>
+        <option value="">Escolha o aprovador</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('aprovador') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {% if erros.get('aprovador') %}<span id="erro-aprovador" class="field__erro">{{ erros.get('aprovador') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="aprovar-data">Data da aprovação</label>
+      <input id="aprovar-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      <span class="hint">A data realizada do marco de adjudicação no MAS.</span>
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="aprovar-parecer">Parecer</label>
+      <textarea id="aprovar-parecer" name="parecer" rows="3" maxlength="300"
+        class="input">{{ valores.get('parecer') or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Aprovar adjudicação
+    </button>
+  </div>
+</form>
+{% endblock %}

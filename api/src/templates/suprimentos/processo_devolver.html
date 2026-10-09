@@ -1,0 +1,38 @@
+{% extends "base_fragment.html" %}
+{#
+  Devolver recomendação (ISSUE-060): o motivo (mínimo de 10 caracteres) volta o processo para a
+  negociação; a recomendação é limpa e o motivo fica na trilha do processo.
+
+  Espera: valores, erros, linha, consulta e referencia.
+#}
+{% block fragment %}
+<form id="processo-devolver-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/devolver"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Devolvendo a recomendação...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="devolver-motivo">Motivo</label>
+      <textarea id="devolver-motivo" name="motivo" rows="3" maxlength="300" required
+        class="input{% if erros.get('motivo') %} input--erro{% endif %}"
+        {% if erros.get('motivo') %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>{{ valores.get('motivo') or '' }}</textarea>
+      <span class="hint">Mínimo de 10 caracteres; o processo volta para a negociação.</span>
+      {% if erros.get('motivo') %}<span id="erro-motivo" class="field__erro">{{ erros.get('motivo') }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
+      Devolver recomendação
+    </button>
+  </div>
+</form>
+{% endblock %}

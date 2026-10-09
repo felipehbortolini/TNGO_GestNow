@@ -1,0 +1,98 @@
+{% extends "base_fragment.html" %}
+{#
+  Emitir pedido ou contrato (ISSUE-060): o pedido de um equipamento/material nasce com o
+  cronograma de fabricação padrão a partir do prazo da proposta; o contrato de um serviço/EPC
+  nasce no Financeiro com início, término, fiscal e retenção. O valor fica comprometido no item
+  da EAC; o pedido que nasce com folga negativa abre a ação de diligenciamento na Central.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, formatar_moeda, pessoas,
+  servico e proposta.
+#}
+{% set recomendacao = linha.recommendation %}
+{% block fragment %}
+<form id="processo-emitir-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/emitir"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Emitindo o documento...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  {% if recomendacao %}
+  <p class="hint mb-16">
+    {{ recomendacao.name }} · {{ formatar_moeda(recomendacao.value_cents) }} ·
+    {% if servico %}o contrato nasce no módulo 03 (administração contratual){% else %}o pedido entra no diligenciamento com o cronograma de fabricação padrão{% endif %}
+    e o valor fica comprometido no item {{ linha.eac_code or '—' }} da EAC.
+  </p>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="emitir-data">{% if servico %}Emissão do contrato{% else %}Emissão do pedido{% endif %}</label>
+      <input id="emitir-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+
+    {% if servico %}
+    <div class="field">
+      <label for="emitir-inicio">Início (mobilização)</label>
+      <input id="emitir-inicio" name="inicio" type="date" class="input{% if erros.get('inicio') %} input--erro{% endif %}"
+        required value="{{ valores.get('inicio') or (linha.ros.isoformat() if linha.ros else referencia) }}"
+        {% if erros.get('inicio') %}aria-invalid="true" aria-describedby="erro-inicio"{% endif %} />
+      {% if erros.get('inicio') %}<span id="erro-inicio" class="field__erro">{{ erros.get('inicio') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="emitir-termino">Término contratual</label>
+      <input id="emitir-termino" name="termino" type="date" class="input{% if erros.get('termino') %} input--erro{% endif %}"
+        required value="{{ valores.get('termino') or '' }}"
+        {% if erros.get('termino') %}aria-invalid="true" aria-describedby="erro-termino"{% endif %} />
+      <span class="hint">Posterior à emissão.</span>
+      {% if erros.get('termino') %}<span id="erro-termino" class="field__erro">{{ erros.get('termino') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="emitir-fiscal">Fiscal do contrato</label>
+      <select id="emitir-fiscal" name="fiscal" class="input{% if erros.get('fiscal') %} input--erro{% endif %}" required
+        {% if erros.get('fiscal') %}aria-invalid="true" aria-describedby="erro-fiscal"{% endif %}>
+        <option value="">Escolha o fiscal</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('fiscal') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {% if erros.get('fiscal') %}<span id="erro-fiscal" class="field__erro">{{ erros.get('fiscal') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="emitir-retencao">Retenção contratual (%)</label>
+      <input id="emitir-retencao" name="retencao" class="input{% if erros.get('retencao') %} input--erro{% endif %}"
+        inputmode="numeric" value="{{ valores.get('retencao') or 5 }}"
+        {% if erros.get('retencao') %}aria-invalid="true" aria-describedby="erro-retencao"{% endif %} />
+      <span class="hint">Entre 0% e 20%.</span>
+      {% if erros.get('retencao') %}<span id="erro-retencao" class="field__erro">{{ erros.get('retencao') }}</span>{% endif %}
+    </div>
+    {% else %}
+    <div class="field">
+      <label for="emitir-prazo">Prazo de entrega (dias)</label>
+      <input id="emitir-prazo" name="prazo" class="input{% if erros.get('prazo') %} input--erro{% endif %}"
+        inputmode="numeric" required value="{{ valores.get('prazo') or (proposta.deadline_days if proposta else '') }}"
+        {% if erros.get('prazo') %}aria-invalid="true" aria-describedby="erro-prazo"{% endif %} />
+      <span class="hint">Contado da emissão até a data contratual; os seis marcos de fabricação são distribuídos nessa janela.</span>
+      {% if erros.get('prazo') %}<span id="erro-prazo" class="field__erro">{{ erros.get('prazo') }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
+      {% if servico %}Emitir contrato{% else %}Emitir pedido{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}
