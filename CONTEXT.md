@@ -92,6 +92,19 @@ materializado, cria o problema na Central e a SM quando altera escopo, prazo ou
 custo. Para oportunidade, o motivo materializado aparece como "Capturada".
 **Reabertura** devolve o risco à situação anterior, com justificativa.
 
+**Risco sugerido** — risco que outro módulo propõe ao registro, na mesma
+transação: o diligenciamento sugere pela folga negativa (entra Em análise, com
+avaliação inerente e sem plano) e a lição aplicada cria pela recomendação (entra
+Identificado, sem avaliação). A categoria RBS, a origem e o histórico acompanham
+o protótipo; o mesmo pedido não sugere duas vezes. O claim e a lição aplicada
+guardam o vínculo por chave estrangeira; o pedido de compra o resolve pela
+origem, sem coluna.
+
+**Cobertura da exposição a riscos** — saldo da reserva de contingência sobre a
+exposição (soma do VME das ameaças ativas), comparado à meta
+`coberturaMinimaPct` do grupo financeiro; abaixo da meta, alerta. As SMs
+vinculadas são as que citam o risco na análise de impacto.
+
 ## Programação Semanal
 
 **Programação Semanal** — compromisso de uma contratada para uma semana ISO,

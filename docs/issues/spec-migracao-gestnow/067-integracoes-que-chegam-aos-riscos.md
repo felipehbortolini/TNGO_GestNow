@@ -66,3 +66,14 @@ Nenhuma.
 ## Notas
 
 Fonte: `GI.api.suprimentos.registrarRisco`, vínculo de claim a risco, `GI.api.governanca.aplicarLicao`; README, tabela "Integração entre módulos".
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: as cinco integrações de chegada ligadas pela fachada do dono, na mesma transação (D9): o risco sugerido do diligenciamento (modal e rota no pedido; risco Em análise com a avaliação inerente, sem duplicar; o vínculo é lido pela origem, sem coluna no pedido), o claim vinculado ao risco nos dois sentidos, a lição aplicada que gera o risco Identificado e grava `licao_aplicacao.risco_id`, a cobertura da contingência (KPI, alerta e a tabela "Ameaças ativas e cobertura" com as SMs que citam o risco, na tela e nas exportações) e a conferência dos links de origem da Central e das lições (já ligados desde 064/065). A migração `m067` fecha a FK `licao_aplicacao.risco_id` que o MODELO desenhava. A carga não mudou; o oráculo do diligenciamento passou a afirmar o bloco de pendências novo (o 0002 tem a ação, mas ainda não o risco).
+
+- DECISAO: risco sugerido sem coluna no pedido | o vínculo é resolvido pela origem "Diligenciamento PED-..." (`riscos.diligence_risks`), como o MODELO desenha; o mesmo pedido não sugere duas vezes | D9, ISSUE-067
+- DECISAO: pendências do diligenciamento | o crítico entra na pendência quando falta a ação ou o risco (o protótipo: `critico && (!acaoAberta || !risco)`), com o botão do que falta | ISSUE-067
+- DECISAO: cobertura da contingência | exposição = soma do VME das ameaças ativas (`riscos.active_threats`); cobertura = saldo ÷ exposição, comparada à meta `coberturaMinimaPct` do grupo financeiro; as SMs vêm da análise de impacto da Governança (`change_codes_citing_risks`) | D9, ISSUE-067
+- DECISAO: natureza do risco da lição | ameaça para "A evitar" e oportunidade para "A repetir", com a categoria da RBS escolhida no aplicar; entra Identificado, sem avaliação | D9, ISSUE-067
+- DECISAO: categoria do risco sugerido | "Suprimentos > Fornecedores" da RBS, criada pela fachada da Riscos se o catálogo não a tiver (produção pode nascer sem RBS) | ISSUE-067
+- DECISAO: leitura do risco pela origem | igualdade exata do número ("Diligenciamento PED-..."), não o `contains` do protótipo — o número do pedido é único | ISSUE-067

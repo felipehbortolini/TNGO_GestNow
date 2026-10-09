@@ -3,7 +3,9 @@
 Módulo `riscos`. Mantém ameaças e oportunidades, avaliações, respostas, revisões e encerramentos.
 Score e severidade são calculados no servidor a partir da escala vigente (ISSUE-064, D6); o plano
 de resposta, as revisões, o encerramento e a reabertura vivem na ficha (ISSUE-065); a matriz P x I
-e o painel de exposição, evolução e pauta de escalonamento vivem na ISSUE-066.
+e o painel de exposição, evolução e pauta de escalonamento vivem na ISSUE-066; as integrações que
+chegam dos outros módulos (diligenciamento, claim, lição aplicada e cobertura da contingência)
+foram ligadas na ISSUE-067.
 
 ## Telas
 
@@ -11,10 +13,8 @@ e o painel de exposição, evolução e pauta de escalonamento vivem na ISSUE-06
 |---|---|---|---|
 | Registro de riscos | Contexto, KPIs, alternador Inerente/Residual, filtros, tabela, avaliação e exclusão lógica | ISSUE-064 | pronta |
 | Matriz P x I | Mapa 5x5 inerente e residual, legenda pelas faixas e movimentação inerente-residual | ISSUE-066 | pronta |
-| Ficha do risco | Alertas, faixa com inerente e residual, plano de resposta, revisões, encerramento, reabertura e histórico | ISSUE-065 | pronta |
+| Ficha do risco | Alertas, faixa com inerente e residual, plano de resposta, ações, claims vinculados, revisões, encerramento, reabertura e histórico | ISSUE-065 | pronta |
 | Painel de riscos | KPIs, exposição por categoria da RBS, evolução mensal do score residual e pauta de escalonamento com envio ao gerente | ISSUE-066 | pronta |
-
-As integrações que chegam de Suprimentos, Contratos e Financeiro são ligadas na ISSUE-067.
 
 ## Trios das telas
 
@@ -159,21 +159,34 @@ desligado.
 - **Central de Ações** (`central_acoes.service`): a ação nasce por `create_action` (a costura
   única); a ficha lê as ações por `actions_of_origin` e conta por `count_actions_of_origin`. A
   origem `Risco` aponta de volta para `riscos/ficha?codigo=...` (`origin_links`).
+- **Suprimentos** (`suprimentos.service`): o pedido crítico registra o risco sugerido pela fachada
+  `create_suggested_risk` — Em análise, categoria Suprimentos > Fornecedores (criada quando o
+  catálogo não a tem), origem `Diligenciamento PED-...`, gatilho "Previsão de entrega depois do
+  ROS.", dimensão Prazo, impacto em prazo `max(0, -folga)` e avaliação inerente do formulário; o
+  mesmo pedido não sugere duas vezes e a ficha do pedido resolve o risco por `diligence_risks`
+  (pela origem, sem coluna no pedido).
 - **Governança** (`governanca.service`): as SMs do projeto para o plano vêm de `change_options`;
   o encerramento materializado cria a SM por `create_change` (situação Registrada) e o vínculo
   fica em `risco.encerramento_mudanca_id`; a estratégia Evitar guarda a SM em `risco.mudanca_id`.
 - **Lições** (`lessons_service`): o encerramento sempre abre a lição em Rascunho por
   `create_draft_lesson`, com origem `Risco` e o número do risco; a ficha lê a lição por
-  `lesson_options`. O módulo registra `register_origin("Risco", ...)` para a fachada de Lições
-  conferir o número.
+  `lesson_options`. "Aplicar em projeto" com "gerar risco" cria o risco Identificado por
+  `save_risk` (ameaça para "A evitar", oportunidade para "A repetir", origem `Lições aprendidas`/
+  `Lição LA-...`, impactos da lição, sem avaliação) e o reuso guarda o id em
+  `licao_aplicacao.risco_id`; o módulo registra `register_origin("Risco", ...)` para a fachada de
+  Lições conferir o número.
+- **Financeiro** (`financeiro.service`): a ficha do risco lista os claims do contrato por
+  `claims_of_risk` (leitura pela fachada, nunca da tabela); o Financeiro lê a exposição por
+  `active_threats` (só as ameaças ativas, por VME) para a cobertura da Contingência e resolve os
+  rótulos dos vínculos por `risk_labels`/`risk_by_code`/`risk_options`.
 - **Notificação** (`core.notification`): a revisão com "notificar" envia pela porta (tipo
   `revisao_risco`) ao dono e ao gestor do projeto; a pauta do painel envia ao gerente do projeto
   (tipo `pauta_riscos`); sem o envio real, as duas ficam simuladas na trilha.
 - **Configurações**: projetos, pessoas, RBS e o grupo Riscos dos parâmetros; a ficha usa
   `pautaDiasAntesDoPrazo` (30) na pauta e `revisaoAlertaDias` no registro.
 
-Recebe sugestões do diligenciamento, claims, lições aplicadas e dados de exposição na ISSUE-067;
-somente a fachada dona grava em cada módulo.
+Somente a fachada dona grava em cada módulo; a integração que chega aos Riscos é uma chamada de
+serviço na transação do chamador (ISSUE-067).
 
 ## Parâmetros
 
@@ -196,7 +209,7 @@ data do run, idempotente pela tabela `carga_demonstracao`.
 | Rotas e templates do registro | `routes.py`; `api/src/templates/riscos/` |
 | Rotas da ficha (plano, aprovação, ação, revisão, encerramento, reabertura) | `ficha_routes.py` |
 | Rotas da matriz e do painel (e o modal do envio da pauta) | `panel_routes.py`; `api/src/templates/riscos/` |
-| Fluxo do registro, exclusão e numeração | `service.py` |
+| Fluxo do registro, exclusão, numeração e as fachadas das integrações (`create_suggested_risk`, `diligence_risks`, `risk_options`, `risk_labels`, `risk_by_code`, `active_threats`) | `service.py` |
 | Ficha: plano, revisões, encerramento, reabertura e histórico | `ficha_service.py` |
 | Matriz, painel, evolução do score e envio da pauta | `panel_service.py` |
 | Score, severidade, VME, cadência, pauta, teto de faixa e evolução | `calculations.py` |
@@ -207,5 +220,7 @@ data do run, idempotente pela tabela `carga_demonstracao`.
 | Tela, estilo e comportamento | `app/_views/riscos/` e `app/paginas/riscos/` |
 | Testes | `api/tests/riscos/` e `api/tests/oraculo/test_oraculo_riscos.py` |
 
-A ISSUE-067 liga as integrações de chegada (sugestões do diligenciamento, claims, lições
-aplicadas e dados de exposição).
+A ISSUE-067 ligou as integrações de chegada: o risco sugerido do diligenciamento
+(`service.create_suggested_risk`), o vínculo do claim (FK `contrato_claim.risco_id`, lida pela
+fachada do Financeiro), a lição aplicada (`save_risk` + FK `licao_aplicacao.risco_id`, migração
+`m067`) e a exposição para a cobertura da Contingência (`service.active_threats`).
