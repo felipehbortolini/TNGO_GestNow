@@ -55,3 +55,14 @@ Nenhuma.
 ## Notas
 
 Fonte: `painel.html` de Suprimentos, `GI.api.suprimentos.indicadores`; README, indicadores de Suprimentos. O botão Análise do período chega na ISSUE-081.
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: a fachada do painel (`list_panel`: os nove indicadores, as três curvas acumuladas, a distribuição por etapa e a tabela dos pedidos por folga, sobre o plano, o mapa, os processos, os pedidos e os contratos), as rotas (`painel`, `painel/excel` e `painel/imprimivel`), a tela (trio preenchido com o DS: KPIs, os quatro visuais da biblioteca, a tabela e as exportações), o Excel e o PDF A4 pelos mecanismos genéricos, a migração `m050` (os agregados comerciais do processo no pacote, para a carga histórica), a parte `suprimentos-painel` da carga (fecha o vínculo dos contratos com os pacotes e carrega os agregados) e os testes (cálculos, fachada, rotas e o oráculo da carga com 92,9% de aderência, 5,2% e 4,7% de saving e 90,9% x 97,3%, índice 0,93). O oráculo do Financeiro da carga passou a afirmar o vínculo do contrato CT-2026-011 com o PC-01, que a parte nova fecha.
+
+- DECISAO: agregados comerciais do pacote | a primeira proposta vencedora, as propostas válidas e o fornecedor único ganham as colunas `primeira_proposta_centavos`, `propostas_validas` e `fornecedor_unico` (m050) para a carga histórica; o painel prefere o processo vivo quando existe | D5b, ISSUE-063
+- DECISAO: valor adjudicado do serviço | o MAS e o painel leem o contrato nascido do pacote (`financeiro.purchase_contracts_by_package`, D9) depois do pedido e da recomendação; a parte do painel liga os contratos do mock ao pacote | D9, ISSUE-063
+- DECISAO: curva do avanço | a curva do painel usa a mesma regra do avanço do MAS (o peso dos marcos não aplicáveis fica fora do total), o que difere do protótipo nos serviços | D6, ISSUE-063
+- DECISAO: pacotes por etapa | o visual é a faixa `kpi-status` da biblioteca (D11); a etapa de um pacote com processo é a da última ação registrada, como na tela de processos | D11, ISSUE-063
+- DECISAO: metas do painel | as metas de aderência e de OTD são parâmetros do grupo `suprimentos` (`metaAderenciaPct` e `metaOtdPct`, 90 e 90 nos iniciais), validados de 0 a 100%, nunca no código | D6, ISSUE-063
+- DECISAO: exportações | Excel com as abas Resumo (KPIs) e Pedidos por folga; PDF A4 paisagem com os KPIs, os quatro gráficos e a tabela, pelos mecanismos genéricos | D12, ISSUE-063
