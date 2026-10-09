@@ -1,0 +1,82 @@
+{% extends "base_fragment.html" %}
+{#
+  O detalhe de um pacote do MAS (ISSUE-062), como o corpo do modal que o clique numa célula abre:
+  a identificação e os números do pacote (item da EAC, fornecedor, valor, comprador, ROS e folga,
+  avanço) e a tabela dos doze marcos com a LB, a previsão, o realizado, o desvio e a situação. A
+  LB de um marco de fabricação de um pacote sem pedido é estimada e leva o aviso "(LB estimada)".
+  No fim, os atalhos para o processo, o diligenciamento, o contrato e o plano de compras.
+
+  Espera: linha, url_processo, url_diligenciamento, url_contrato, url_plano, pill_do_marco,
+  pill_da_folga, rotulo_da_situacao, formatar_data, formatar_moeda, formatar_percentual e
+  formatar_desvio.
+#}
+
+{% block fragment %}
+<dl class="det mas__detalhe">
+  <div class="det__row">
+    <dt class="det__label">Item da EAC</dt>
+    <dd class="det__valor">{% if linha.eac_code %}{{ linha.eac_code }} {{ linha.eac_description }}{% else %}<span class="muted">sem EAC</span>{% endif %}</dd>
+  </div>
+  <div class="det__row">
+    <dt class="det__label">Fornecedor</dt>
+    <dd class="det__valor">{{ linha.supplier or 'em contratação' }}</dd>
+  </div>
+  <div class="det__row">
+    <dt class="det__label">Valor</dt>
+    <dd class="det__valor">{{ formatar_moeda(linha.value_cents) }}{% if linha.adjudicated_cents is none %} <span class="hint">(estimado)</span>{% endif %}</dd>
+  </div>
+  <div class="det__row">
+    <dt class="det__label">Comprador</dt>
+    <dd class="det__valor">{{ linha.buyer }}</dd>
+  </div>
+  <div class="det__row">
+    <dt class="det__label">ROS e folga</dt>
+    <dd class="det__valor">
+      {{ formatar_data(linha.ros) }}
+      {% if linha.slack_days is none %}<span class="muted">·</span>
+      {% else %}<span class="pill {{ pill_da_folga(linha.band) }}">{{ formatar_desvio(linha.slack_days) }}</span>{% endif %}
+    </dd>
+  </div>
+  <div class="det__row">
+    <dt class="det__label">Avanço</dt>
+    <dd class="det__valor">real {{ formatar_percentual(linha.realized_pct) }}% · previsto na LB {{ formatar_percentual(linha.planned_pct) }}%</dd>
+  </div>
+</dl>
+
+<div class="tbl-wrap mt-16">
+  <table class="tbl mas__detalhe-tabela">
+    <caption class="sr-only">Marcos do pacote {{ linha.code }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Marco</th>
+        <th scope="col" class="td-num">Peso</th>
+        <th scope="col">LB</th>
+        <th scope="col">Previsão</th>
+        <th scope="col">Realizado</th>
+        <th scope="col" class="td-num">Desvio</th>
+        <th scope="col">Situação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for marco in linha.milestones %}
+      <tr>
+        <td>{{ marco.label }}{% if marco.estimated %} <span class="hint">(LB estimada)</span>{% endif %}</td>
+        <td class="td-num num">{{ marco.weight }}%</td>
+        <td class="num">{{ formatar_data(marco.baseline) }}</td>
+        <td class="num">{{ formatar_data(marco.forecast) if not marco.done else '' }}</td>
+        <td class="num">{{ formatar_data(marco.real) }}</td>
+        <td class="td-num num">{% if marco.situation == 'na' %}{% elif marco.deviation_days %}{{ formatar_desvio(marco.deviation_days) }}{% else %}0 d{% endif %}</td>
+        <td><span class="pill {{ pill_do_marco(marco.situation) }}">{{ rotulo_da_situacao(marco.situation) }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="mas__detalhe-links mt-16">
+  {% if url_processo %}<a class="btn btn--secondary btn--sm" href="{{ url_processo }}">Processo {{ linha.process_number }}</a>{% endif %}
+  {% if url_diligenciamento %}<a class="btn btn--secondary btn--sm" href="{{ url_diligenciamento }}">Diligenciamento {{ linha.order_number }}</a>{% endif %}
+  {% if url_contrato %}<a class="btn btn--secondary btn--sm" href="{{ url_contrato }}">Contrato {{ linha.contract_number }}</a>{% endif %}
+  <a class="btn btn--ghost btn--sm" href="{{ url_plano }}">Plano de compras</a>
+</div>
+{% endblock %}

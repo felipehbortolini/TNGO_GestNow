@@ -39,6 +39,16 @@ of the contract (ISSUE-060).
 * ``GET/POST processos/{pacote_id}/acao/{nome}``  the other actions of the flow.
 
 The rules are in ``service``; the routes only read the request, call it and draw the answer.
+
+The map of purchases (ISSUE-062) is one fragment, ``mas-conteudo``: the six KPIs, the toolbar with
+the filters and the segments of the cell content (Datas or Desvio em dias) and of the phase
+(Todos, Aquisição, Fabricação), the legend, the table of the twelve milestones per package with
+its footer and the two exports. The click on a cell opens the detail of the package in a modal
+(``mas-modal-corpo``), which the server draws by GET. The map has no form: it is a view of the
+plan, the processes and the expediting.
+
+* ``GET  mas`` and ``mas/excel``/``mas/imprimivel``   the map (filters by query);
+* ``GET  mas/pacote/{pacote_id}``               the detail of a package (the modal body).
 """
 
 from __future__ import annotations
@@ -2999,3 +3009,378 @@ def _receipt_input(form: Mapping[str, str]) -> ReceiptInput:
         damage_description=form.get("descricaoAvarias", ""),
         pending=form.get("pendencias", ""),
     )
+
+
+# ── The map of purchases (ISSUE-062) ─────────────────────────────────────────────────────────
+
+MAS_ROUTE = "/api/suprimentos/mas"
+MAS_TARGET = "mas-conteudo"
+MAS_MODAL_TARGET = "mas-modal-corpo"
+
+MAS_TEMPLATE = "suprimentos/mas.html"
+MAS_PACKAGE_TEMPLATE = "suprimentos/mas_pacote.html"
+
+MAS_LINE_PILL = {
+    calculations.MAS_CRITICAL: "pill--erro",
+    calculations.MAS_WARNING: "pill--warn",
+    calculations.MAS_ON_TIME: "pill--ok",
+    calculations.MAS_DELIVERED: "pill--ok",
+    calculations.MAS_CONTRACTED: "pill--ok",
+}
+
+MAS_PROGRESS_TONES = {
+    calculations.PROGRESS_ON_PACE: "ok",
+    calculations.PROGRESS_NEAR: "warn",
+    calculations.PROGRESS_BELOW: "erro",
+}
+
+# The tone of each situation in the cells; a-vencer and sem-data read neutral, as the prototype.
+MAS_CELL_TONES = {
+    calculations.MILESTONE_ON_TIME: "ok",
+    calculations.MILESTONE_LATE: "erro",
+    calculations.MILESTONE_OVERDUE: "erro",
+    calculations.MILESTONE_FORECAST_LATE: "warn",
+    calculations.MILESTONE_NOT_APPLICABLE: "neutro",
+}
+
+MAS_SITUATION_LABELS = {
+    calculations.MILESTONE_ON_TIME: "Realizado no prazo",
+    calculations.MILESTONE_LATE: "Realizado com atraso",
+    calculations.MILESTONE_OVERDUE: "Vencido sem realização",
+    calculations.MILESTONE_FORECAST_LATE: "Previsão após a LB",
+    calculations.MILESTONE_DUE_SOON: "A vencer",
+    calculations.MILESTONE_WITHOUT_DATE: "Sem data",
+    calculations.MILESTONE_NOT_APPLICABLE: "Não se aplica",
+}
+
+MAS_SITUATION_ICONS = {
+    calculations.MILESTONE_ON_TIME: "check",
+    calculations.MILESTONE_LATE: "check",
+    calculations.MILESTONE_OVERDUE: "warning",
+    calculations.MILESTONE_FORECAST_LATE: "clock",
+}
+
+MAS_LEGEND = (
+    (calculations.MILESTONE_ON_TIME, "Realizado no prazo"),
+    (calculations.MILESTONE_LATE, "Realizado com atraso"),
+    (calculations.MILESTONE_OVERDUE, "Vencido sem realização"),
+    (calculations.MILESTONE_FORECAST_LATE, "Previsão após a LB"),
+    (calculations.MILESTONE_DUE_SOON, "A vencer"),
+    (calculations.MILESTONE_NOT_APPLICABLE, "Não se aplica"),
+)
+
+
+@bp.route(route="suprimentos/mas", methods=["GET"])
+@fragment_route(access=READ)
+def mas_list(req: func.HttpRequest, session: Session, context: RequestContext) -> func.HttpResponse:
+    """The map: KPIs, toolbar, legend and the table, for the filters of the query string."""
+    return _mas_screen(req, session, context, filters=validation.parse_mas_filters(req.params))
+
+
+@bp.route(route="suprimentos/mas/excel", methods=["GET"])
+@file_route(access=READ)
+def mas_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the map: the baseline, the forecast-or-real and the situation of each marco."""
+    return excel_response(_mas_document(req, session, context))
+
+
+@bp.route(route="suprimentos/mas/imprimivel", methods=["GET"])
+@fragment_route(access=READ)
+def mas_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable version of the same document: A3 landscape with the colored cells."""
+    return printable_response(_mas_document(req, session, context), req)
+
+
+@bp.route(route="suprimentos/mas/pacote/{pacote_id}", methods=["GET"])
+@fragment_route(access=READ)
+def mas_package_detail(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The detail of one package, as the modal body the click on a cell opens."""
+    line = _mas_line_or_refuse(session, context, req)
+    return AlpineAjaxResponse(
+        template_name=MAS_PACKAGE_TEMPLATE,
+        context=_mas_package_context(line),
+        request=req,
+        target_id=MAS_MODAL_TARGET,
+    )
+
+
+def _mas_screen(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    filters: validation.MasFilters,
+) -> func.HttpResponse:
+    """The map fragment for the filters: the KPIs, the toolbar, the table and the legend."""
+    listing = service.list_mas(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=calendario.today(),
+    )
+    return AlpineAjaxResponse(
+        template_name=MAS_TEMPLATE,
+        context=_mas_context(listing, context),
+        request=req,
+        target_id=MAS_TARGET,
+    )
+
+
+def _mas_context(listing: service.MasListing, context: RequestContext) -> dict[str, object]:
+    filters = listing.filters
+    return {
+        "listagem": listing,
+        "filtros": filters,
+        "kpis": _mas_kpi_cards(listing),
+        "tipos": validation.PACKAGE_TYPES,
+        "lli_escolhas": validation.MAS_LLI_CHOICES,
+        "situacoes_da_linha": validation.MAS_LINE_SITUATIONS,
+        "ordens": (
+            ("codigo", "Código do pacote"),
+            ("folga", "Folga (menor primeiro)"),
+            ("valor", "Valor (maior primeiro)"),
+            ("avanco", "Avanço (menor primeiro)"),
+        ),
+        "links_de_modo": (
+            ("datas", "Datas", _mas_address(filters, modo="datas")),
+            ("desvio", "Desvio em dias", _mas_address(filters, modo="desvio")),
+        ),
+        "links_de_fase": (
+            ("todos", "Todos", _mas_address(filters, fase="todos")),
+            ("aquisicao", "Aquisição", _mas_address(filters, fase="aquisicao")),
+            ("fabricacao", "Fabricação", _mas_address(filters, fase="fabricacao")),
+        ),
+        "link_limpar": _mas_address(
+            filters,
+            busca="",
+            disciplina="",
+            tipo="",
+            lli="",
+            comprador="",
+            fornecedor="",
+            situacao="",
+            vencidos="",
+            ordem="codigo",
+        ),
+        "url_excel": _mas_address(filters, path=f"{MAS_ROUTE}/excel"),
+        "url_pdf": _mas_address(filters, path=f"{MAS_ROUTE}/imprimivel"),
+        "portfolio": context.scope.is_portfolio,
+        "legenda": MAS_LEGEND,
+        "fases": calculations.MAS_PHASE_LABELS,
+        "pill_da_linha": lambda situation: MAS_LINE_PILL.get(situation, "pill--neutral"),
+        "tom_da_celula": lambda situation: MAS_CELL_TONES.get(situation, "neutro"),
+        "rotulo_da_situacao": lambda situation: MAS_SITUATION_LABELS.get(situation, situation),
+        "icone_da_situacao": lambda situation: MAS_SITUATION_ICONS.get(situation, ""),
+        "titulo_do_marco": _mas_milestone_title,
+        "formatar_data": _format_date,
+        "formatar_data_curta": _format_date_short,
+        "formatar_desvio": _format_signed_days,
+        "formatar_moeda": _format_money,
+        "formatar_percentual": lambda value: _format_decimal(value, 1),
+        "url_do_pacote": lambda pacote_id: f"{MAS_ROUTE}/pacote/{pacote_id}",
+    }
+
+
+def _mas_kpi_cards(listing: service.MasListing) -> list[KpiCard]:
+    summary = listing.summary
+    filters = listing.filters
+    index = summary.index
+    late_share = summary.late_share
+    return [
+        KpiCard(
+            label="Itens no MAS",
+            icon="table",
+            tone="neutro",
+            value=summary.items,
+            reference=f"Linha de base: {summary.with_baseline}",
+            footer=f"{summary.concluded} concluídos (entregues ou contratados)",
+            url=_mas_address(filters, situacao="", vencidos=""),
+            active=not filters.situation and not filters.overdue_only,
+        ),
+        KpiCard(
+            label="Críticos",
+            icon="warning",
+            tone="erro" if summary.critical else "ok",
+            value=summary.critical,
+            reference="Esperado: 0",
+            footer="folga negativa em relação ao ROS",
+            url=_mas_address(filters, situacao=calculations.MAS_CRITICAL),
+            active=filters.situation == calculations.MAS_CRITICAL,
+        ),
+        KpiCard(
+            label="Em atenção",
+            icon="clock",
+            tone="warn" if summary.warning else "ok",
+            value=summary.warning,
+            reference="Esperado: 0",
+            footer="folga pequena ou marco vencido",
+            url=_mas_address(filters, situacao=calculations.MAS_WARNING),
+            active=filters.situation == calculations.MAS_WARNING,
+        ),
+        KpiCard(
+            label="Marcos vencidos",
+            icon="calendar",
+            tone="erro" if summary.overdue_milestones else "ok",
+            value=summary.overdue_milestones,
+            reference="Esperado: 0",
+            footer="previsão passou sem realização",
+            url=_mas_address(filters, vencidos="1"),
+            active=filters.overdue_only,
+        ),
+        KpiCard(
+            label="Realizados com atraso",
+            icon="refresh",
+            tone="warn",
+            value=f"{_format_decimal(late_share, 0)}%" if late_share is not None else "—",
+            reference="Esperado: 0%",
+            footer=f"{summary.late_milestones} de {summary.realized_milestones} marcos realizados depois da LB",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Avanço de suprimentos",
+            icon="chartLine",
+            tone=MAS_PROGRESS_TONES.get(calculations.progress_band(index), "neutro"),
+            value=f"{_format_decimal(summary.realized_pct, 1)}%",
+            reference=f"Linha de base: {_format_decimal(summary.planned_pct, 1)}%",
+            footer=(
+                f"índice {_format_decimal(index, 2)}" if index is not None else "sem linha de base"
+            ),
+            url="",
+            active=False,
+        ),
+    ]
+
+
+def _mas_address(
+    filters: validation.MasFilters, *, path: str = MAS_ROUTE, **changes: object
+) -> str:
+    """The address of the map with the current filters and the informed changes."""
+    values: dict[str, object] = {
+        "busca": filters.search,
+        "modo": filters.mode,
+        "fase": filters.phase,
+        "disciplina": filters.discipline_id,
+        "tipo": filters.kind,
+        "lli": filters.lli,
+        "comprador": filters.buyer_id,
+        "fornecedor": filters.supplier_id,
+        "situacao": filters.situation,
+        "vencidos": "1" if filters.overdue_only else "",
+        "ordem": filters.order,
+    }
+    values.update(changes)
+    defaults = {
+        "modo": validation.MAS_MODE_DATES,
+        "fase": validation.MAS_PHASE_ALL,
+        "ordem": validation.MAS_ORDER_DEFAULT,
+    }
+    clean = {
+        name: str(value)
+        for name, value in values.items()
+        if value not in ("", None) and defaults.get(name) != value
+    }
+    query = urlencode(clean)
+    return f"{path}?{query}" if query else path
+
+
+def _mas_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    """The document of the map for the filters of the request; the only place with the clock."""
+    filters = validation.parse_mas_filters(req.params)
+    today = calendario.today()
+    listing = service.list_mas(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=today,
+    )
+    return export.build_mas_document(
+        listing=listing,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=today,
+    )
+
+
+def _mas_line_or_refuse(
+    session: Session, context: RequestContext, req: func.HttpRequest
+) -> service.MasLine:
+    package_id = validation.parse_id(req.route_params.get("pacote_id"))
+    line = (
+        None
+        if package_id is None
+        else service.find_mas_package(
+            session,
+            user=context.user,
+            scope=context.scope,
+            package_id=package_id,
+            reference_date=calendario.today(),
+        )
+    )
+    if line is None:
+        raise InvalidDataError(validation.PACKAGE_NOT_FOUND)
+    return line
+
+
+def _mas_package_context(line: service.MasLine) -> dict[str, object]:
+    """Everything the package detail prints, with the links to the screens it came from."""
+    return {
+        "linha": line,
+        "url_processo": (
+            f"/suprimentos/processos?{urlencode({'pacote': line.code})}"
+            if line.process_number is not None
+            else ""
+        ),
+        "url_diligenciamento": (
+            f"/suprimentos/diligenciamento?{urlencode({'pedido': line.order_number})}"
+            if line.order_number is not None
+            else ""
+        ),
+        "url_contrato": (
+            f"/financeiro/contrato?{urlencode({'numero': line.contract_number})}"
+            if line.contract_number is not None
+            else ""
+        ),
+        "url_plano": f"/suprimentos/plano-de-compras?{urlencode({'busca': line.code})}",
+        "pill_do_marco": lambda situation: MILESTONE_PILL.get(situation, "pill--neutral"),
+        "pill_da_folga": lambda band: FOLGA_TONES.get(band, "pill--ok"),
+        "rotulo_da_situacao": lambda situation: MAS_SITUATION_LABELS.get(situation, situation),
+        "formatar_data": _format_date,
+        "formatar_moeda": _format_money,
+        "formatar_percentual": lambda value: _format_decimal(value, 1),
+        "formatar_desvio": _format_signed_days,
+    }
+
+
+def _mas_milestone_title(milestone: service.MasMilestoneLine) -> str:
+    """The cell title: the situation, the LB, the real or the forecast, the deviation and the warning."""
+    parts = [MAS_SITUATION_LABELS.get(milestone.situation, milestone.situation)]
+    if milestone.baseline is not None:
+        parts.append(f"LB {_format_date(milestone.baseline)}")
+    if milestone.real is not None:
+        parts.append(f"realizado {_format_date(milestone.real)}")
+    elif milestone.forecast is not None:
+        parts.append(f"previsão {_format_date(milestone.forecast)}")
+    if milestone.deviation_days:
+        parts.append(_format_signed_days(milestone.deviation_days))
+    if milestone.estimated:
+        parts.append("LB estimada")
+    return " · ".join(parts)
+
+
+def _format_date_short(value: date | None) -> str:
+    """``05/10/26``: how the cell of the map shows a date."""
+    return value.strftime("%d/%m/%y") if value is not None else ""
+
+
+def _format_signed_days(days: int) -> str:
+    """``+12 d`` or ``-5 d``: how the deviation and the overdue days read."""
+    return f"+{days} d" if days > 0 else f"{days} d"

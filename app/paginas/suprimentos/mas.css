@@ -1,16 +1,221 @@
 /* ============================================================
    mas.css — Estilo da tela Mapa de Suprimentos (MAS) (suprimentos/mas)
 
-   Os doze marcos de aquisição, fabricação e entrega de cada pacote.
+   Os doze marcos de aquisição, fabricação e entrega de cada pacote (ISSUE-062).
 
-   Escopo: tudo que morar aqui começa por .pagina--suprimentos-mas, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
+   Escopo: tudo que morar aqui começa por .pagina--suprimentos-mas, a classe da raiz da view,
+   para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento, raio
+   ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-062.
+   O que a tela acrescenta ao Design System: o texto de duas linhas do indicador, a barra de
+   ações e filtros, a legenda das células, a tabela matriz com a coluna do pacote fixa, as
+   células coloridas por situação, o rodapé de realizados e previstos e o detalhe do pacote. O
+   fragmento é desenhado pelo servidor (api/src/templates/suprimentos/).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--suprimentos-mas .mas__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--suprimentos-mas .mas__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--suprimentos-mas .mas__filtros {
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-mas .mas__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-mas .mas__legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--suprimentos-mas .mas__legenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--suprimentos-mas .mas__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--suprimentos-mas .mas__tabela {
+  white-space: nowrap;
+}
+
+.pagina--suprimentos-mas .mas__tabela .mas__fixa {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 190px;
+  background: var(--branco);
+  text-align: left;
+}
+
+.pagina--suprimentos-mas .mas__tabela thead .mas__fixa {
+  z-index: 3;
+}
+
+.pagina--suprimentos-mas .mas__tabela tfoot .mas__fixa {
+  background: var(--neutro-50);
+}
+
+.pagina--suprimentos-mas .mas__grupo {
+  text-align: center;
+}
+
+.pagina--suprimentos-mas .mas__grupo--aquisicao {
+  background: var(--azul-50);
+  color: var(--azul-800);
+}
+
+.pagina--suprimentos-mas .mas__grupo--fabricacao {
+  background: var(--roxo-50);
+  color: var(--roxo-700);
+}
+
+.pagina--suprimentos-mas .mas__inicio-fase {
+  border-left: 2px solid var(--borda);
+}
+
+.pagina--suprimentos-mas .mas__pacote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  white-space: normal;
+}
+
+.pagina--suprimentos-mas .mas__selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.pagina--suprimentos-mas .mas__fornecedor {
+  white-space: normal;
+}
+
+.pagina--suprimentos-mas .mas__linha--alerta td,
+.pagina--suprimentos-mas .mas__linha--alerta .mas__fornecedor {
+  background: var(--erro-50);
+}
+
+.pagina--suprimentos-mas .mas__rodape th,
+.pagina--suprimentos-mas .mas__rodape td {
+  font-size: 12px;
+  background: var(--neutro-50);
+}
+
+.pagina--suprimentos-mas .mas__celula {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  padding: var(--space-xxs) var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--neutro-50);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagina--suprimentos-mas button.mas__celula {
+  cursor: pointer;
+}
+
+.pagina--suprimentos-mas button.mas__celula:hover {
+  border-color: var(--verde-500);
+}
+
+.pagina--suprimentos-mas button.mas__celula:focus-visible {
+  outline: 2px solid var(--verde-500);
+  outline-offset: 1px;
+}
+
+.pagina--suprimentos-mas .mas__celula b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 600;
+}
+
+.pagina--suprimentos-mas .mas__celula small {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.pagina--suprimentos-mas .mas__icone {
+  display: inline-flex;
+}
+
+.pagina--suprimentos-mas .mas__celula--ok,
+.pagina--suprimentos-mas .mas__celula--ok small {
+  background: var(--ok-50);
+  color: var(--ok-800);
+}
+
+.pagina--suprimentos-mas .mas__celula--warn,
+.pagina--suprimentos-mas .mas__celula--warn small {
+  background: var(--warn-50);
+  color: var(--warn-800);
+}
+
+.pagina--suprimentos-mas .mas__celula--erro,
+.pagina--suprimentos-mas .mas__celula--erro small {
+  background: var(--erro-50);
+  color: var(--erro-700);
+}
+
+.pagina--suprimentos-mas .mas__celula--neutro,
+.pagina--suprimentos-mas .mas__celula--neutro small {
+  background: var(--frio-50);
+  color: var(--frio-700);
+}
+
+.pagina--suprimentos-mas .mas__celula--estimada {
+  font-style: italic;
+}
+
+.pagina--suprimentos-mas .valor--negativo {
+  color: var(--erro-700);
+  font-weight: 600;
+}
+
+.pagina--suprimentos-mas .mas__detalhe-tabela {
+  white-space: nowrap;
+}
+
+.pagina--suprimentos-mas .mas__detalhe-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 1100px) {
+  .pagina--suprimentos-mas .mas__barra--ferramentas {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

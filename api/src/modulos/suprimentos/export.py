@@ -1,14 +1,18 @@
-"""The export of the register, of the plan, of the process and of the expediting: one ``Document``, the Excel and the print (D12).
+"""The export of the register, of the plan, of the process, of the expediting and of the map: one ``Document``, the Excel and the print (D12).
 
 What the screen shows is what leaves: the six KPIs of the register (or the five of the plan, of
-the process and of the expediting), the line of active filters and the table, with the same
-content the prototype exported. The register is global, so its table declares itself not per
-project; the plan, the process and the expediting tables are per project and in the Portfólio
-open with ``Projeto`` (HU-016). The expediting document also carries the manufacturing milestones
-of the order the request names, as the prototype's export did. The adjudicated and saving columns
-of the plan travel empty while the process (ISSUE-059) and the order (ISSUE-061) do not exist
-(DECISION, ISSUE-058); the process document carries the equalization map when the request names a
-package, as the prototype's export did.
+the process and of the expediting, or the six of the map), the line of active filters and the
+table, with the same content the prototype exported. The register is global, so its table
+declares itself not per project; the plan, the process, the expediting and the map tables are per
+project and in the Portfólio open with ``Projeto`` (HU-016). The expediting document also carries
+the manufacturing milestones of the order the request names, as the prototype's export did. The
+adjudicated and saving columns of the plan travel empty while the process (ISSUE-059) and the
+order (ISSUE-061) do not exist (DECISION, ISSUE-058); the process document carries the
+equalization map when the request names a package, as the prototype's export did.
+
+The map of purchases (ISSUE-062) travels in A3 landscape (``Paper.A3``): the baseline, the
+forecast-or-real date and the situation of each of the twelve milestones, the sides of the line
+and the situation, with the tone of each situation cell, as the prototype's PDF and Excel did.
 """
 
 from __future__ import annotations
@@ -33,8 +37,11 @@ from src.core.export_document import (
 from src.core.money import format_brl
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
+from src.modulos.configuracoes import service as configuracoes
 from src.modulos.suprimentos import calculations, service
 from src.modulos.suprimentos.validation import (
+    MAS_MODE_DATES,
+    MAS_PHASE_ALL,
     OrderFilters,
     PackageFilters,
     ProcessFilters,
@@ -710,3 +717,268 @@ def _order_milestone_row(milestone: service.OrderMilestoneLine) -> Row:
         Cell(milestone.deviation_days, MILESTONE_TONES.get(milestone.situation, Tone.NEUTRAL)),
         Cell(milestone.situation, MILESTONE_TONES.get(milestone.situation, Tone.NEUTRAL)),
     )
+
+
+# ── The map of purchases (ISSUE-062) ─────────────────────────────────────────────────────────
+
+MAS_TITLE = "Mapa de Suprimentos (MAS)"
+MAS_TABLE_TITLE = "Mapa de Suprimentos"
+ALL_MAP_PACKAGES = "Todos os pacotes"
+
+# The situation of a milestone in words, as the prototype abreviated it (``ABREV``).
+MAS_SITUATION_TEXT: dict[str, str] = {
+    calculations.MILESTONE_ON_TIME: "no prazo",
+    calculations.MILESTONE_LATE: "com atraso",
+    calculations.MILESTONE_OVERDUE: "vencido",
+    calculations.MILESTONE_FORECAST_LATE: "previsão após LB",
+    calculations.MILESTONE_DUE_SOON: "a vencer",
+    calculations.MILESTONE_WITHOUT_DATE: "sem data",
+    calculations.MILESTONE_NOT_APPLICABLE: "N/A",
+}
+
+# The colors of the cells (``COR`` of the prototype): a-vencer and sem-data stay without tone.
+MAS_CELL_TONES: dict[str, Tone] = {
+    calculations.MILESTONE_ON_TIME: Tone.OK,
+    calculations.MILESTONE_LATE: Tone.ERROR,
+    calculations.MILESTONE_OVERDUE: Tone.ERROR,
+    calculations.MILESTONE_FORECAST_LATE: Tone.WARN,
+    calculations.MILESTONE_NOT_APPLICABLE: Tone.NEUTRAL,
+}
+
+MAS_LINE_TONES: dict[str, Tone] = {
+    calculations.MAS_CRITICAL: Tone.ERROR,
+    calculations.MAS_WARNING: Tone.WARN,
+    calculations.MAS_ON_TIME: Tone.OK,
+    calculations.MAS_DELIVERED: Tone.OK,
+    calculations.MAS_CONTRACTED: Tone.OK,
+}
+
+MAS_PROGRESS_TONES: dict[str, Tone] = {
+    calculations.PROGRESS_ON_PACE: Tone.OK,
+    calculations.PROGRESS_NEAR: Tone.WARN,
+    calculations.PROGRESS_BELOW: Tone.ERROR,
+}
+
+
+def build_mas_document(
+    *,
+    listing: service.MasListing,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The document of the map for the filters in force: KPIs, filters and the table, in A3."""
+    return Document(
+        title=MAS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(
+            ("Filtros", mas_filter_text(listing)),
+            ("Pacotes no filtro", str(listing.total)),
+        ),
+        kpis=_mas_kpis(listing),
+        tables=(_mas_table(listing),),
+        paper=Paper.A3,
+    )
+
+
+def mas_filter_text(listing: service.MasListing) -> str:
+    """The active filters as one line, or the whole map when there is none."""
+    parts = [part for part in _mas_filter_parts(listing) if part]
+    return " · ".join(parts) if parts else ALL_MAP_PACKAGES
+
+
+def _mas_filter_parts(listing: service.MasListing) -> list[str]:
+    filters = listing.filters
+    return [
+        f"Busca: {filters.search}" if filters.search else "",
+        "Células: desvio em dias" if filters.mode != MAS_MODE_DATES else "",
+        (
+            f"Marcos: {calculations.MAS_PHASE_LABELS.get(filters.phase, filters.phase)}"
+            if filters.phase != MAS_PHASE_ALL
+            else ""
+        ),
+        _option_filter("Disciplina", listing.disciplines, filters.discipline_id),
+        f"Tipo: {filters.kind}" if filters.kind else "",
+        "Só LLI" if filters.lli == "sim" else "",
+        "Sem LLI" if filters.lli == "nao" else "",
+        _option_filter("Comprador", listing.buyers, filters.buyer_id),
+        _option_filter("Fornecedor", listing.suppliers, filters.supplier_id),
+        f"Situação: {filters.situation}" if filters.situation else "",
+        "Só pacotes com marco vencido" if filters.overdue_only else "",
+    ]
+
+
+def _option_filter(
+    prefix: str, options: Sequence[configuracoes.RegisterOption], item_id: int | None
+) -> str:
+    """``Comprador: Ana`` for a chosen option, or the empty text when the filter is off."""
+    if item_id is None:
+        return ""
+    return f"{prefix}: {_option_name(options, item_id)}"
+
+
+def _option_name(options: Sequence[configuracoes.RegisterOption], item_id: int) -> str:
+    """The name of a filter choice, or the id when it is not in the list."""
+    return next((option.name for option in options if option.id == item_id), str(item_id))
+
+
+def _mas_kpis(listing: service.MasListing) -> tuple[Kpi, ...]:
+    summary = listing.summary
+    realized = summary.realized_milestones
+    late_share = summary.late_share
+    index = summary.index
+    return (
+        Kpi(
+            "Itens no MAS",
+            summary.items,
+            f"Linha de base: {summary.with_baseline}",
+            ValueKind.INTEGER,
+            tone=Tone.NEUTRAL,
+            status=f"{summary.concluded} concluídos (entregues ou contratados)",
+        ),
+        Kpi(
+            "Críticos",
+            summary.critical,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.critical else Tone.OK,
+            status="folga negativa em relação ao ROS",
+        ),
+        Kpi(
+            "Em atenção",
+            summary.warning,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.warning else Tone.OK,
+            status="folga pequena ou marco vencido",
+        ),
+        Kpi(
+            "Marcos vencidos",
+            summary.overdue_milestones,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.overdue_milestones else Tone.OK,
+            status="previsão passou sem realização",
+        ),
+        Kpi(
+            "Realizados com atraso",
+            late_share if late_share is not None else "—",
+            "Esperado: 0%",
+            ValueKind.PERCENT if late_share is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.WARN,
+            status=f"{summary.late_milestones} de {realized} marcos realizados depois da LB",
+        ),
+        Kpi(
+            "Avanço de suprimentos",
+            summary.realized_pct,
+            f"Linha de base: {format_value(ValueKind.PERCENT, summary.planned_pct, 1)}",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=MAS_PROGRESS_TONES.get(calculations.progress_band(index), Tone.NEUTRAL),
+            status=(
+                f"índice {format_value(ValueKind.DECIMAL, index, 2)}"
+                if index is not None
+                else "sem linha de base"
+            ),
+        ),
+    )
+
+
+def _mas_table(listing: service.MasListing) -> Table:
+    return Table(
+        title=MAS_TABLE_TITLE,
+        columns=_mas_columns(listing),
+        rows=tuple(_mas_row(line, listing.columns) for line in listing.lines),
+    )
+
+
+def _mas_columns(listing: service.MasListing) -> tuple[Column, ...]:
+    """The columns of the prototype's spreadsheet: the sides and three per visible milestone."""
+    milestones = tuple(
+        Column(title, kind=kind, width=width)
+        for column in listing.columns
+        for title, kind, width in (
+            (f"{column.label} LB", ValueKind.DATE, 12),
+            (f"{column.label} previsão ou real", ValueKind.DATE, 12),
+            (f"{column.label} situação", ValueKind.TEXT, 18),
+        )
+    )
+    return (
+        Column("Pacote", width=12),
+        Column("Escopo", width=30),
+        Column("Tipo", width=12),
+        Column("Disciplina", width=14),
+        Column("LLI", width=6),
+        Column("Item da EAC", width=14),
+        Column("Fornecedor", width=22),
+        Column("Comprador", width=18),
+        Column("Estimativa", width=16, kind=ValueKind.MONEY),
+        Column("Adjudicado", width=16, kind=ValueKind.MONEY),
+        *milestones,
+        Column("Processo", width=14),
+        Column("Pedido ou contrato", width=16),
+        Column("ROS", width=10, kind=ValueKind.DATE),
+        Column("Previsão de entrega", width=12, kind=ValueKind.DATE),
+        Column("Folga (dias)", width=8, kind=ValueKind.INTEGER),
+        Column("Avanço real (%)", width=10, kind=ValueKind.PERCENT, digits=1),
+        Column("Avanço LB (%)", width=10, kind=ValueKind.PERCENT, digits=1),
+        Column("Situação", width=12),
+    )
+
+
+def _mas_row(line: service.MasLine, columns: Sequence[service.MasMilestoneColumn]) -> Row:
+    milestones: list[Cell] = []
+    for column in columns:
+        milestone = line.milestone(column.key)
+        if milestone is None:
+            milestones.extend((Cell(), Cell(), Cell()))
+            continue
+        milestones.extend(
+            (
+                Cell(milestone.baseline),
+                Cell(milestone.real or milestone.forecast),
+                Cell(
+                    mas_situation_text(milestone),
+                    MAS_CELL_TONES.get(milestone.situation),
+                ),
+            )
+        )
+    return row(
+        line.code,
+        line.scope,
+        line.kind,
+        line.discipline,
+        "Sim" if line.lli else "Não",
+        f"{line.eac_code} {line.eac_description}".strip(),
+        line.supplier,
+        line.buyer,
+        line.estimate_cents,
+        line.adjudicated_cents,
+        *milestones,
+        line.process_number or "",
+        line.order_number or line.contract_number or "",
+        line.ros,
+        line.delivery_forecast,
+        Cell(line.slack_days, SLACK_TONES.get(line.band, Tone.NEUTRAL)),
+        line.realized_pct,
+        line.planned_pct,
+        Cell(line.situation, MAS_LINE_TONES.get(line.situation, Tone.NEUTRAL)),
+        project=line.project_label,
+    )
+
+
+def mas_situation_text(milestone: service.MasMilestoneLine) -> str:
+    """``com atraso +3 d``: the situation of the milestone and its deviation against the LB.
+
+    A deviation of zero travels without the days, as the prototype printed it (``m.desvio`` is
+    falsy in JavaScript for zero); ``N/A`` never carries one.
+    """
+    text = MAS_SITUATION_TEXT.get(milestone.situation, milestone.situation)
+    if not milestone.deviation_days:
+        return text
+    deviation = milestone.deviation_days
+    days = f"+{deviation} d" if deviation > 0 else f"{deviation} d"
+    return f"{text} {days}"

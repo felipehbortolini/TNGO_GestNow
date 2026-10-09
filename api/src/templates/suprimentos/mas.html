@@ -1,0 +1,268 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Mapa de Suprimentos (ISSUE-062): os seis KPIs, a barra de busca e filtros, os segmentos
+  do conteúdo das células (Datas ou Desvio em dias) e da fase (Todos, Aquisição, Fabricação), a
+  legenda, a tabela dos doze marcos por pacote com o rodapé dos realizados e previstos e as duas
+  exportações. Tudo que muda a visão é um GET da mesma rota com os filtros na consulta: KPI,
+  segmento, busca, filtro ou ordenação são links ou um formulário GET com x-target no próprio
+  fragmento. O clique numa célula abre o detalhe do pacote em modal (mas_pacote.html), que o
+  servidor entrega no alvo do modal. No Portfólio a tabela abre com a coluna Projeto.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, tipos, lli_escolhas, situacoes_da_linha, ordens, links_de_modo,
+  links_de_fase, link_limpar, url_excel, url_pdf, portfolio, legenda, fases, pill_da_linha,
+  tom_da_celula, rotulo_da_situacao, icone_da_situacao, titulo_do_marco, formatar_data,
+  formatar_data_curta, formatar_desvio e url_do_pacote.
+#}
+
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+  x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="mas__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro links_do_segmento(links, valor_ativo, rotulo) %}
+<div class="seg" role="group" aria-label="{{ rotulo }}">
+  {% for valor, texto, url in links %}
+  <a class="seg__btn{% if valor == valor_ativo %} is-active{% endif %}" href="{{ url }}"
+    x-target="{{ target_id }}"{% if valor == valor_ativo %} aria-current="true"{% endif %}>{{ texto }}</a>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro celula(linha, coluna, modo) %}
+{% set marco = linha.milestone(coluna.key) %}
+{% if marco is none %}
+<td></td>
+{% elif marco.situation == 'na' %}
+<td><span class="mas__celula mas__celula--neutro">N/A</span></td>
+{% else %}
+{% set titulo = titulo_do_marco(marco) %}
+{% set icone = icone_da_situacao(marco.situation) %}
+<td>
+  <button type="button"
+    class="mas__celula mas__celula--{{ tom_da_celula(marco.situation) }}{% if marco.estimated %} mas__celula--estimada{% endif %}"
+    data-mas-pacote-url="{{ url_do_pacote(linha.id) }}"
+    data-mas-pacote-titulo="{{ linha.code }} {{ linha.scope }}"
+    data-mas-pacote-subtitulo="{{ coluna.label }} · {{ titulo }}"
+    title="{{ titulo }}" aria-label="{{ coluna.label }}: {{ titulo }}">
+    <b>{% if icone %}<span class="mas__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 12)" aria-hidden="true"></span>{% endif %}{% if modo == 'desvio' %}{% if marco.situation == 'vencido' %}{{ formatar_desvio(marco.days_overdue) }}{% elif marco.deviation_days %}{{ formatar_desvio(marco.deviation_days) }}{% else %}0 d{% endif %}{% elif marco.situation == 'sem-data' %}·{% else %}{{ formatar_data_curta(marco.display_date) }}{% endif %}</b>
+    {% if modo == 'desvio' %}
+    <small>{% if marco.situation == 'vencido' %}vencido{% elif marco.done %}real{% else %}prev.{% endif %}</small>
+    {% else %}
+    {% set mudou = marco.baseline and (marco.real or marco.forecast) and (marco.real or marco.forecast) != marco.baseline %}
+    <small>{% if mudou %}LB {{ formatar_data_curta(marco.baseline)[:5] }}{% elif marco.done %}real{% else %}LB{% endif %}</small>
+    {% endif %}
+  </button>
+</td>
+{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis mas__kpis" style="--kpis-colunas: 6">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar mas__barra--ferramentas">
+      <form class="busca mas__filtros" method="get" action="/api/suprimentos/mas" x-target="{{ target_id }}" role="search">
+        <input type="hidden" name="modo" value="{{ filtros.mode }}" />
+        <input type="hidden" name="fase" value="{{ filtros.phase }}" />
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar pacotes</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar pacote, escopo ou fornecedor" />
+        <label class="sr-only" for="{{ target_id }}-disciplina">Disciplina</label>
+        <select id="{{ target_id }}-disciplina" class="input" name="disciplina" @change="$el.form.requestSubmit()">
+          <option value="">Todas as disciplinas</option>
+          {% for disciplina in listagem.disciplines %}
+          <option value="{{ disciplina.id }}"{% if filtros.discipline_id == disciplina.id %} selected{% endif %}>{{ disciplina.name }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-tipo">Tipo</label>
+        <select id="{{ target_id }}-tipo" class="input" name="tipo" @change="$el.form.requestSubmit()">
+          <option value="">Todos os tipos</option>
+          {% for tipo in tipos %}
+          <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ tipo }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-lli">LLI</label>
+        <select id="{{ target_id }}-lli" class="input" name="lli" @change="$el.form.requestSubmit()">
+          <option value="">Todos</option>
+          {% for escolha in lli_escolhas %}
+          <option value="{{ escolha }}"{% if filtros.lli == escolha %} selected{% endif %}>{{ 'Só LLI' if escolha == 'sim' else 'Sem LLI' }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-comprador">Comprador</label>
+        <select id="{{ target_id }}-comprador" class="input" name="comprador" @change="$el.form.requestSubmit()">
+          <option value="">Todos os compradores</option>
+          {% for comprador in listagem.buyers %}
+          <option value="{{ comprador.id }}"{% if filtros.buyer_id == comprador.id %} selected{% endif %}>{{ comprador.name }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-fornecedor">Fornecedor</label>
+        <select id="{{ target_id }}-fornecedor" class="input" name="fornecedor" @change="$el.form.requestSubmit()">
+          <option value="">Todos os fornecedores</option>
+          {% for fornecedor in listagem.suppliers %}
+          <option value="{{ fornecedor.id }}"{% if filtros.supplier_id == fornecedor.id %} selected{% endif %}>{{ fornecedor.name }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-situacao">Situação</label>
+        <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
+          <option value="">Todas as situações</option>
+          {% for situacao in situacoes_da_linha %}
+          <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
+          {% endfor %}
+        </select>
+        <label class="sr-only" for="{{ target_id }}-ordem">Ordenar por</label>
+        <select id="{{ target_id }}-ordem" class="input" name="ordem" @change="$el.form.requestSubmit()">
+          {% for valor, texto in ordens %}
+          <option value="{{ valor }}"{% if filtros.order == valor %} selected{% endif %}>{{ texto }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn--secondary btn--sm">Filtrar</button>
+      </form>
+      <div class="mas__barra">
+        {{ links_do_segmento(links_de_modo, filtros.mode, 'Conteúdo das células') }}
+        {{ links_do_segmento(links_de_fase, filtros.phase, 'Marcos exibidos') }}
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      </div>
+    </div>
+
+    <div class="mas__legenda" aria-label="Legenda do MAS">
+      {% for situation, texto in legenda %}
+      <span class="mas__legenda-item">
+        <span class="mas__celula mas__celula--{{ tom_da_celula(situation) }}" aria-hidden="true">
+          {% set icone = icone_da_situacao(situation) %}
+          {% if icone %}<span class="mas__icone" x-init="$el.innerHTML = window.icon('{{ icone }}', 12)"></span>{% else %}&nbsp;{% endif %}
+        </span>
+        {{ texto }}
+      </span>
+      {% endfor %}
+    </div>
+
+    <p class="hint mas__contagem" role="status">
+      {{ listagem.total }} {{ 'pacote' if listagem.total == 1 else 'pacotes' }} no filtro atual ·
+      data de referência {{ formatar_data(listagem.reference_date) }} ·
+      célula: {{ 'data realizada ou prevista e LB abaixo' if filtros.mode == 'datas' else 'desvio em dias em relação à LB' }} ·
+      clique na célula para o detalhe do item · LB estimada (pacote sem pedido) em itálico
+    </p>
+
+    {% if listagem.summary.items == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há pacotes no plano de compras</h2>
+      <p>Inclua os pacotes no plano de compras; o MAS é montado a partir do plano, dos processos e do diligenciamento.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum pacote encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver o mapa.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    {% set fases_das_colunas = listagem.columns | map(attribute='phase') | list %}
+    <div class="tbl-wrap">
+      <table class="tbl mas__tabela">
+        <caption class="sr-only">Mapa de Suprimentos: marcos de aquisição, fabricação e entrega por pacote</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col" rowspan="2">Projeto</th>{% endif %}
+            <th scope="col" rowspan="2" class="mas__fixa">Pacote</th>
+            <th scope="col" rowspan="2">Fornecedor e valor</th>
+            {% for fase, colunas_da_fase in listagem.columns | groupby('phase') %}
+            <th scope="colgroup" colspan="{{ colunas_da_fase | length }}" class="mas__grupo mas__grupo--{{ fase }}">{{ fases.get(fase, fase) }}</th>
+            {% endfor %}
+            <th scope="col" rowspan="2">ROS</th>
+            <th scope="col" rowspan="2">Previsão de entrega</th>
+            <th scope="col" rowspan="2">Folga</th>
+            <th scope="col" rowspan="2">Avanço</th>
+            <th scope="col" rowspan="2">Situação</th>
+          </tr>
+          <tr>
+            {% for coluna in listagem.columns %}
+            <th scope="col" class="mas__marco-th{% if loop.first or fases_das_colunas[loop.index0 - 1] != coluna.phase %} mas__inicio-fase{% endif %}">
+              {{ coluna.label }}<br /><span class="muted">{{ coluna.weight }}%</span>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.lines %}
+          <tr class="{% if linha.critical %}mas__linha--alerta{% endif %}">
+            {% if portfolio %}<td>{{ linha.project_label }}</td>{% endif %}
+            <th scope="row" class="mas__fixa">
+              <div class="mas__pacote">
+                <b>{{ linha.code }}</b>
+                <small>{{ linha.scope }}</small>
+                <span class="mas__selos">
+                  <span class="pill pill--neutral">{{ linha.kind }}</span>
+                  {% if linha.lli %}<span class="pill pill--fix">LLI</span>{% endif %}
+                </span>
+                {% if linha.process_number or linha.order_number or linha.contract_number %}
+                <small>
+                  {% if linha.process_number %}<a href="/suprimentos/processos?pacote={{ linha.code | urlencode }}">{{ linha.process_number }}</a>{% endif %}
+                  {% if linha.order_number %} · <a href="/suprimentos/diligenciamento?pedido={{ linha.order_number | urlencode }}">{{ linha.order_number }}</a>{% endif %}
+                  {% if linha.contract_number %} · <a href="/financeiro/contrato?numero={{ linha.contract_number | urlencode }}">{{ linha.contract_number }}</a>{% endif %}
+                </small>
+                {% endif %}
+              </div>
+            </th>
+            <td class="mas__fornecedor">
+              {% if linha.supplier %}<b>{{ linha.supplier }}</b>
+              {% else %}<span class="muted">em contratação</span>{% endif %}
+              <br /><span class="num">{{ formatar_moeda(linha.value_cents) }}</span>
+              {% if linha.adjudicated_cents is none %} <span class="hint">estimado</span>{% endif %}
+            </td>
+            {% for coluna in listagem.columns %}{{ celula(linha, coluna, filtros.mode) }}{% endfor %}
+            <td class="num">{{ formatar_data(linha.ros) }}</td>
+            <td class="num">{{ formatar_data(linha.delivery_forecast) }}</td>
+            <td class="td-num num">
+              {% if linha.slack_days is none %}<span class="muted">—</span>
+              {% else %}<span class="pill {{ 'pill--erro' if linha.band == 'critico' else 'pill--warn' if linha.band == 'atencao' else 'pill--ok' }}">{{ formatar_desvio(linha.slack_days) }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="num">{{ formatar_percentual(linha.realized_pct) }}%</span>
+              <br /><span class="hint">LB {{ formatar_percentual(linha.planned_pct) }}%</span>
+            </td>
+            <td>
+              <span class="pill {{ pill_da_linha(linha.situation) }}">{{ linha.situation }}</span>
+              <br /><span class="hint">{{ linha.current_stage }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="mas__rodape">
+            {% if portfolio %}<td></td>{% endif %}
+            <th scope="row" class="mas__fixa">Realizados / previstos na LB até hoje</th>
+            <td></td>
+            {% for total in listagem.totals %}
+            <td class="num{% if loop.first or fases_das_colunas[loop.index0] != fases_das_colunas[loop.index0 - 1] %} mas__inicio-fase{% endif %}">
+              <b class="{% if total.realized < total.planned %}valor--negativo{% endif %}">{{ total.realized }}</b> / {{ total.planned }}
+            </td>
+            {% endfor %}
+            <td colspan="5"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
