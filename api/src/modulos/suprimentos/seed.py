@@ -49,6 +49,7 @@ from src.core import audit, recording
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service as financeiro
+from src.modulos.financeiro.models import Contract
 from src.modulos.suprimentos import calculations, service
 from src.modulos.suprimentos.models import (
     DeliveryReceipt,
@@ -71,6 +72,7 @@ PACKAGES_PART_NAME = "suprimentos-pacotes"
 PROCESSES_PART_NAME = "suprimentos-processos"
 ORDERS_PART_NAME = "suprimentos-pedidos"
 DILIGENCE_PART_NAME = "suprimentos-diligenciamento"
+PANEL_PART_NAME = "suprimentos-painel"
 
 
 @dataclass(frozen=True)
@@ -656,3 +658,103 @@ def _record_receipt(
 
 
 register(DILIGENCE_PART_NAME, load_receipts)
+
+
+# ── The panel (ISSUE-063) ────────────────────────────────────────────────────────────────────
+
+
+def load_panel(session: Session, reference_date: date) -> None:
+    """Fecha a ligação dos contratos com o pacote e carrega o resultado comercial do protótipo.
+
+    O mock dos contratos aponta o ``pacoteCompra`` de cada contrato nascido de um pacote (PC-01,
+    PC-02 e PC-13 do projeto 1, entre outros); a parte do Financeiro deixa a ligação nula porque
+    a ``pacote_compra`` nasce depois dela, e é aqui que ela se fecha. Os agregados comerciais do
+    processo (a primeira proposta vencedora, as propostas válidas e o fornecedor único) vêm do
+    mock dos pacotes: o painel prefere o processo vivo quando existe e cai nestas colunas para os
+    pacotes que a carga trouxe (DECISION, ISSUE-063).
+    """
+    del reference_date
+    access = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if access is None:
+        message = f"O Admin da demonstração ({ADMIN_EMAIL}) não está no cadastro."
+        raise LookupError(message)
+    real_projects = {project.code: project.id for project in configuracoes.list_projects(session)}
+    projects = {
+        source["id"]: real_projects[source["codigo"]] for source in prototype_collection("projetos")
+    }
+    packages = {
+        (package.project_id, package.code): package
+        for package in session.scalars(select(PurchasePackage))
+    }
+    _link_panel_contracts(session, user_id=access.id, projects=projects, packages=packages)
+    _load_panel_outcomes(session, user_id=access.id, projects=projects, packages=packages)
+
+
+def _link_panel_contracts(
+    session: Session,
+    *,
+    user_id: int,
+    projects: Mapping[int, int],
+    packages: Mapping[tuple[int, str], PurchasePackage],
+) -> None:
+    """Aponta cada contrato do mock ao pacote que o originou (``pacoteCompra``)."""
+    contracts = {contract.number: contract for contract in session.scalars(select(Contract))}
+    for source in prototype_collection("contratos"):
+        code = source.get("pacoteCompra")
+        if not code:
+            continue
+        contract = contracts.get(source["numero"])
+        package = packages.get((projects[source["projetoId"]], code))
+        if contract is None or package is None or contract.purchase_package_id == package.id:
+            continue
+        recording.update(
+            session,
+            user_id=user_id,
+            record=contract,
+            changes={"purchase_package_id": package.id},
+            version=contract.version,
+        )
+
+
+def _load_panel_outcomes(
+    session: Session,
+    *,
+    user_id: int,
+    projects: Mapping[int, int],
+    packages: Mapping[tuple[int, str], PurchasePackage],
+) -> None:
+    """Grava a primeira proposta, as propostas válidas e o fornecedor único do mock."""
+    for source in prototype_collection("pacotes"):
+        package = packages.get((projects[source["projetoId"]], source["codigo"]))
+        if package is None:
+            continue
+        changes = _panel_outcome_changes(package, source)
+        if changes:
+            recording.update(
+                session,
+                user_id=user_id,
+                record=package,
+                changes=changes,
+                version=package.version,
+            )
+
+
+def _panel_outcome_changes(
+    package: PurchasePackage, source: Mapping[str, Any]
+) -> dict[str, object]:
+    """Os campos do resultado comercial que o mock muda no pacote, sem repetir o que já está lá."""
+    changes: dict[str, object] = {}
+    first = source.get("primeiraPropostaCentavos")
+    if first is not None and package.first_proposal_cents != int(first):
+        changes["first_proposal_cents"] = int(first)
+    if "propostasValidas" in source:
+        valid = int(source["propostasValidas"])
+        if package.valid_proposals != valid:
+            changes["valid_proposals"] = valid
+        single = bool(source.get("fornecedorUnico"))
+        if package.single_supplier != single:
+            changes["single_supplier"] = single
+    return changes
+
+
+register(PANEL_PART_NAME, load_panel)
