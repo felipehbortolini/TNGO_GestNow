@@ -87,7 +87,7 @@ vem primeiro.
 | ISSUE-058 | Plano de compras | 6 | task | done | ready-for-agent | ISSUE-031, ISSUE-057 | [ISSUE-058](./058-plano-de-compras.md) |
 | ISSUE-059 | Processo de compra: da requisição à negociação | 6 | task | done | ready-for-agent | ISSUE-058 | [ISSUE-059](./059-processo-de-compra-da-requisicao-a-negociacao.md) |
 | ISSUE-060 | Processo de compra: recomendação, aprovação por alçada e emissão de pedido ou contrato | 6 | task | done | ready-for-agent | ISSUE-059, ISSUE-032 | [ISSUE-060](./060-processo-de-compra-alcada-e-emissao.md) |
-| ISSUE-061 | Diligenciamento e recebimento | 6 | task | proposed | ready-for-agent | ISSUE-060 | [ISSUE-061](./061-diligenciamento-e-recebimento.md) |
+| ISSUE-061 | Diligenciamento e recebimento | 6 | task | done | ready-for-agent | ISSUE-060 | [ISSUE-061](./061-diligenciamento-e-recebimento.md) |
 | ISSUE-062 | MAS: Mapa de Suprimentos | 6 | task | proposed | ready-for-agent | ISSUE-061 | [ISSUE-062](./062-mas-mapa-de-suprimentos.md) |
 | ISSUE-063 | Painel de suprimentos | 6 | task | proposed | ready-for-agent | ISSUE-062 | [ISSUE-063](./063-painel-de-suprimentos.md) |
 | ISSUE-064 | Registro e avaliação de riscos | 6 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-064](./064-riscos-registro-e-avaliacao.md) |
