@@ -2,7 +2,7 @@
 
 Módulo `suprimentos`. Planeja compras, conduz concorrências e acompanha aquisição, fabricação e entrega. O Mapa de Suprimentos (MAS) é uma projeção dos registros do módulo, não um cadastro duplicado.
 
-A tela **Fornecedores** (ISSUE-057) está pronta: qualificação por empresa, documentos com validade, desempenho e a ligação com a avaliação final do Financeiro. A tela **Plano de compras** (ISSUE-058) também está pronta: pacotes vinculados à EAC, datas da linha de base, ROS, folga planejada e importação. As demais telas ainda são esqueletos até as suas issues (ISSUE-059 a ISSUE-063).
+A tela **Fornecedores** (ISSUE-057) está pronta: qualificação por empresa, documentos com validade, desempenho e a ligação com a avaliação final do Financeiro. A tela **Plano de compras** (ISSUE-058) também está pronta: pacotes vinculados à EAC, datas da linha de base, ROS, folga planejada e importação. A tela **Processos de compra** (ISSUE-059) está pronta até a negociação: RFx, propostas com PDF, encerramento, equalizações e ranking; a recomendação e a aprovação por alçada chegam com a ISSUE-060. As demais telas ainda são esqueletos até as suas issues (ISSUE-061 a ISSUE-063).
 
 ## Telas
 
@@ -11,7 +11,7 @@ A tela **Fornecedores** (ISSUE-057) está pronta: qualificação por empresa, do
 | Fornecedores | Qualificação, documentos com validade e desempenho | ISSUE-057 (pronta) |
 | Painel de suprimentos | Indicadores, curva de contratação, avanço do MAS e pedidos críticos | ISSUE-063 |
 | Plano de compras | Pacotes, datas de linha de base, ROS e vínculo à EAC | ISSUE-058 (pronta) |
-| Processos de compra | RFx, equalizações, ranking, alçada e emissão | ISSUE-059, ISSUE-060 |
+| Processos de compra | RFx, equalizações, ranking, alçada e emissão | ISSUE-059 (pronta até a negociação; recomendação e aprovação na ISSUE-060) |
 | MAS | Doze marcos de aquisição, fabricação e entrega | ISSUE-062 |
 | Diligenciamento e recebimento | Marcos, folga, riscos sugeridos, ação e recebimento | ISSUE-061 |
 
@@ -58,11 +58,23 @@ A tela inteira é um fragmento só, `plano-compras-conteudo`: os cinco KPIs, a b
 | `plano-de-compras/{pacote_id}/editar` | GET/POST | Editar pacote: completo antes da requisição; congelado depois dela |
 | `/api/importacao/plano-de-compras` | GET/POST | Importação Excel pelo importador genérico (modelo, conferência e confirmação) |
 
+### Processos de compra (ISSUE-059)
+
+A tela é um fragmento só, `processos-conteudo`: os cinco KPIs, a barra de busca e filtros, a régua de nove etapas de cada processo (biblioteca de gráficos, visual Etapas) e a ficha do processo selecionado. O clique numa linha carrega a ficha sozinha no alvo `processo-ficha`; os modais das ações abrem por JavaScript (o trio da tela) e o servidor entrega o corpo no alvo `processo-modal-corpo`. A leitura pede `Access(module="suprimentos")` e a gravação, `Permission.WRITE` — o Visualizador vê, não grava. No Portfólio a tabela da exportação ganha a coluna Projeto e o botão "Nova requisição" passa pelo mecanismo do shell (`data-tn-incluir`), que pede o projeto antes.
+
+| Rota | Método | O que devolve |
+|---|---|---|
+| `processos` | GET | A tela: KPIs, barra, régua de etapas e ficha; filtros `busca` e `situacao` (`andamento` ou `todos`) e `pacote` (a ficha aberta) |
+| `processos/excel` | GET | Excel da lista e dos KPIs; com `pacote`, o mapa de equalização do processo (download, `file_route`) |
+| `processos/imprimivel` | GET | PDF do mesmo documento (`data-tn-pdf`, imprimível genérico) |
+| `processos/ficha` | GET | A ficha de um processo (`pacote`), para o clique na régua |
+| `processos/requisicao` | GET/POST | Nova requisição: o pacote planejado e a data realizada do marco |
+| `processos/{pacote_id}/acao/{nome}` | GET/POST | As ações do fluxo: `rfx`, `proposta`, `encerrar-recebimento`, `equalizacao-tecnica`, `equalizacao-comercial` e `negociacao` |
+
 ### Demais telas (previstas)
 
 | Grupo previsto | Uso | Issue |
 |---|---|---|
-| `processos` | Etapas e decisões de compra | ISSUE-059, ISSUE-060 |
 | `pedidos` | Marcos, recebimento e diligenciamento | ISSUE-061 |
 | `mas` | Consultar mapa calculado dos doze marcos | ISSUE-062 |
 | `painel` | Consultar indicadores do módulo | ISSUE-063 |
@@ -97,6 +109,15 @@ O cadastro de fornecedores é global (a qualificação pertence à empresa do ca
 | Avanço de suprimentos | Pesos dos marcos realizados/aplicáveis, ponderados pelo valor do pacote; previsto usa a linha de base | `calculations.procurement_progress` (ISSUE-062) |
 | Folga ROS | Dias entre a data necessária no local (ROS) e a previsão de entrega | `calculations.required_on_site_slack` (ISSUE-061) |
 | OTD | Entregas até a data contratual divididas pelas entregas realizadas | `calculations.on_time_delivery` (ISSUE-061) |
+| Etapa do processo | A da última ação registrada no histórico; sem histórico, a das datas reais do pacote | `calculations.process_stage`, `ProcessLine.stage` |
+| Passo da régua | Concluído antes da etapa, em andamento na etapa e futuro depois; no fim do fluxo, todos concluídos | `calculations.step_situation` |
+| Fornecedor único | Menos convidados que o mínimo do parâmetro (a RFx só aceita assim com justificativa) | `calculations.single_supplier` |
+| Número da RFx | RFQ (material/equipamento) ou RFP (serviço/EPC) + ano + o maior número + 1, global como no protótipo | `calculations.next_process_number` |
+| Alçada exigida | Primeira faixa das `alcadas` cujo teto cobre o valor; sem teto, a última | `calculations.approval_band_for` |
+| Nota comercial | Menor preço tecnicamente aprovado ÷ preço x 100, uma casa, meio para cima | `calculations.commercial_score` |
+| Nota final | (técnica x peso técnico + comercial x peso comercial) ÷ soma dos pesos, uma casa | `calculations.final_score` |
+| Ranking das propostas | Nota final decrescente e preço crescente; reprovada fica fora | `calculations.proposal_ranking` |
+| Ciclo de compra | Dias da requisição real ao pedido real, ou à data de referência | `calculations.cycle_days` |
 
 ## Fluxo de qualificação (ISSUE-057)
 
@@ -116,29 +137,33 @@ Os seis KPIs contam o universo (os filtros cortam a tabela): cadastrados, qualif
 
 **Importar Excel** usa o importador genérico (`/api/importacao/plano-de-compras`): o modelo traz as colunas do protótipo — sem a coluna do prazo de entrega, que o modelo não tem — e a conferência valida linha a linha (item de nível 3, comprador e disciplina dos cadastros, datas crescentes e folga não negativa); a gravação passa pela mesma fachada, com a nota "Importado do plano de compras (planilha)" no histórico. O modal da importação abre pelo `data-tn-incluir="importar"` (no Portfólio o projeto é pedido antes) e a tela se refaz quando ele fecha.
 
+## Fluxo do processo de compra (ISSUE-059)
+
+O processo nasce na **Emitir RFx** (a etapa do pacote é Requisição): o número sai da série global do tipo (`RFQ-2026-014` para material e equipamento, `RFP-...` para serviço e EPC), os convidados são fornecedores do cadastro — fornecedor Bloqueado é recusado e o mínimo de convidados é `propostasMinimas`, salvo fornecedor único com justificativa (mínimo de 20 caracteres) —, os pesos somam 100 e o prazo das propostas não antecede a emissão. A emissão grava a data realizada do marco `rfx`, a previsão do marco `propostas` e a linha do histórico. **Registrar proposta** aceita o fornecedor do cadastro ou um nome sem cadastro (`nome`), recusa bloqueado e repetido, exige o PDF — anexo de verdade pelo tipo de origem `processo_proposta` (D5a) — e a primeira proposta move a etapa para Propostas recebidas. **Encerrar recebimento** grava a data realizada do marco `propostas` e, abaixo do mínimo, exige justificativa. **Equalização técnica** dá nota e aprovação a cada proposta (a reprovada fica fora do mapa comercial; sem nenhuma aprovada a fachada recusa) e grava o marco `eqTecnica`; abaixo do mínimo de aprovadas exige justificativa. **Equalização comercial** grava os pesos (com a versão da tela), o marco `eqComercial` e o ranking calculado. **Registrar negociação** grava um fato imutável com uma proposta aprovada, nunca acima do valor original. Cada ação grava a linha do histórico na auditoria, na entidade `processo_compra.historico`, com a etapa que a ação alcançou, o autor e o texto do feed; a requisição é a exceção: como o processo ainda não existe, ela grava a linha no histórico do pacote (`pacote_compra.historico`), com o documento e a observação (que não têm coluna) na mesma linha. A etapa do processo sai da última linha do histórico — o PC-14 da demonstração fica em "Equalização comercial" mesmo com as datas reais parando na técnica, como o protótipo —, e a ficha mostra a régua, o resumo, o mapa de equalização (notas, ranking, desvios e anexos) e o histórico. A recomendação, a aprovação por alçada e a emissão de pedido/contrato chegam com a ISSUE-060 (os campos `recomendacao_*` e `aprovacao_*` já existem no modelo e a carga os preenche).
+
 ## Integrações
 
-Pacotes se vinculam à EAC do Financeiro; o saldo a comprometer do item é lido na consulta pela porta `financeiro.service.cost_item_balances` e o vínculo do pacote é resolvido pelos itens de custo lidos por `financeiro.service.eac_item_labels`/`eac_item_ids_by_code` — o plano só lê a EAC, nunca a tabela (D9). Pedido ou contrato emitido cria compromisso via fachada Financeira (ISSUE-059/061). Folga negativa gera ação na Central e risco sugerido em Riscos (ISSUE-061). FAT realizado registra inspeção em Qualidade. O cadastro de empresas e pessoas é compartilhado com Configurações; o desempenho é lido do Financeiro e a avaliação final atualiza a qualificação (D9). O arquivo do documento como anexo ainda não foi ligado: nesta fatia o documento tem nome e validade, como no protótipo.
+Pacotes se vinculam à EAC do Financeiro; o saldo a comprometer do item é lido na consulta pela porta `financeiro.service.cost_item_balances` e o vínculo do pacote é resolvido pelos itens de custo lidos por `financeiro.service.eac_item_labels`/`eac_item_ids_by_code` — o plano só lê a EAC, nunca a tabela (D9). Pedido ou contrato emitido cria compromisso via fachada Financeira (ISSUE-060/061). Folga negativa gera ação na Central e risco sugerido em Riscos (ISSUE-061). FAT realizado registra inspeção em Qualidade. O cadastro de empresas e pessoas é compartilhado com Configurações; o desempenho é lido do Financeiro e a avaliação final atualiza a qualificação (D9). O arquivo do documento do fornecedor como anexo ainda não foi ligado: no cadastro o documento tem nome e validade, como no protótipo; no processo, o PDF da proposta é anexo de verdade.
 
 ## Parâmetros
 
-Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de aprovação e pesos dos marcos do MAS (soma 100). Nesta fatia os alertas do cadastro (30 dias do documento e 90 da qualificação), os três documentos iniciais e o alerta da folga (7 dias, `calculations.SLACK_ALERT_DAYS`) estão no código (`calculations.py` e `validation.py`); os parâmetros próprios de fornecedores e compras entram nas ISSUE-059 a ISSUE-063 e ISSUE-076.
+Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de aprovação e pesos dos marcos do MAS (soma 100). O grupo `suprimentos` é lido pela fachada na consulta (`configuracoes.current_group`, sem versão vigente vale o inicial): o mínimo de propostas da RFx e das equalizações e a faixa da alçada saem de `propostasMinimas` e `alcadas` (nunca no código). Os alertas do cadastro (30 dias do documento e 90 da qualificação), os três documentos iniciais e o alerta da folga (7 dias, `calculations.SLACK_ALERT_DAYS`) ainda estão no código (`calculations.py` e `validation.py`); os demais parâmetros de compras entram nas ISSUE-061 a ISSUE-063 e ISSUE-076.
 
 ## Onde mexer
 
 | Alteração | Arquivo ou pasta |
 |---|---|
 | Rotas | `routes.py` |
-| Qualificação, desempenho, plano de compras e ligações | `service.py` |
-| Fronteiras de validade, folga, etapa e datas do plano | `calculations.py` |
+| Qualificação, desempenho, plano de compras, processo e ligações | `service.py` |
+| Fronteiras de validade, folga, etapa, datas do plano, notas, ranking e alçada | `calculations.py` |
 | Formulários, filtros e recusas | `validation.py` |
 | Importação Excel | `importers.py` (registrado em `routes.py`) |
 | Excel e PDF imprimível | `export.py` |
-| Persistência | `models.py`; migrações `m043_fornecedores.py` e `m046_pacotes_de_compra.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Carga de demonstração | `seed.py` (`suprimentos-fornecedores` e `suprimentos-pacotes`) |
+| Persistência | `models.py`; migrações `m043_fornecedores.py`, `m046_pacotes_de_compra.py` e `m047_processos_de_compra.py`; entidades em `docs/MODELO-DE-DADOS.md` |
+| Carga de demonstração | `seed.py` (`suprimentos-fornecedores`, `suprimentos-pacotes` e `suprimentos-processos`) |
 | Fragmentos | `api/src/templates/suprimentos/` |
 | Tela, estilo e comportamento | `app/_views/suprimentos/` e `app/paginas/suprimentos/` |
-| Testes | `api/tests/suprimentos/` e o oráculo em `api/tests/plataforma/test_carga_demonstracao.py` |
+| Testes | `api/tests/suprimentos/`, `api/tests/apoio_processos.py` e o oráculo em `api/tests/plataforma/test_carga_demonstracao.py` |
 
 ## Testes
 
@@ -148,7 +173,10 @@ Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de 
 - `test_pacotes_fachada.py`: a leitura do plano, o saldo a comprometer lido da EAC (D9), o vínculo de nível 3, a folga negativa, o congelamento com justificativa e a trilha do histórico.
 - `test_pacotes_importacao.py`: o importador registrado, a linha válida gravando com a nota de importação e as recusas do item de nível 2, da disciplina desconhecida e da folga negativa.
 - `test_pacotes_rotas.py`: a tela, o formulário com o saldo, a recusa de 422 no modal, o campo da LB no pacote congelado e o 403 do Visualizador.
-- `api/tests/plataforma/test_carga_demonstracao.py`: o oráculo da carga na âncora — as 17 qualificações do mock, o documento vencido, o histórico, as empresas sem qualificação, o desempenho e os 28 pacotes com as camadas dos marcos.
-- `api/tests/apoio_suprimentos.py`, `api/tests/apoio_pacotes.py` e `api/tests/suprimentos/conftest.py`: os cenários e a sessão do teste.
+- `test_processos_calculos.py`: as fronteiras da nota comercial, da nota final, do ranking, da alçada, do fornecedor único, do passo da régua, do número da RFx e do ciclo.
+- `test_processos_fachada.py`: cada ação do fluxo e as recusas (mínimo, bloqueado, pesos, técnica antes da comercial, reprovada fora do ranking, teto da negociação), a trilha e a versão.
+- `test_processos_rotas.py`: a tela com a régua, a ficha com o mapa, os formulários, a recusa de 422 no modal, a proposta com PDF anexado e o 403 do Visualizador.
+- `api/tests/plataforma/test_carga_demonstracao.py`: o oráculo da carga na âncora — as 17 qualificações do mock, o documento vencido, o histórico, as empresas sem qualificação, o desempenho, os 28 pacotes com as camadas dos marcos e os 4 processos com o PC-14 em equalização comercial.
+- `api/tests/apoio_suprimentos.py`, `api/tests/apoio_pacotes.py`, `api/tests/apoio_processos.py` e `api/tests/suprimentos/conftest.py`: os cenários e a sessão do teste.
 
-As ISSUE-059 a ISSUE-063 completam este documento e acrescentam os testes de fronteira de cada tela.
+As ISSUE-060 a ISSUE-063 completam este documento e acrescentam os testes de fronteira de cada tela.
