@@ -6,15 +6,16 @@
   pelo servidor a cada mudança (alvo risco-previa). Trocar Inerente/Residual recarrega o formulário
   com os valores do outro tipo. O 422 devolve este formulário preenchido; o sucesso atualiza a tela.
 
-  Espera: risco, versao, consulta, valores, erros, parametros, dimensoes, oportunidade, previa,
-  escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia, tipo_atual e anterior.
+  Espera: risco, versao, consulta, destino, url_salvar, url_avaliar, valores, erros, parametros,
+  dimensoes, oportunidade, previa, escala, etiqueta_de_faixa, formatar_moeda, texto_da_cadencia,
+  tipo_atual e anterior.
 #}
 {% macro campo_erro(erros, nome) %}
 {% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
 {% endmacro %}
 {% block fragment %}
-<form method="post" action="/api/riscos/{{ risco.code }}/avaliar"
-  x-target="registro-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+<form method="post" action="{{ url_salvar }}"
+  x-target="{{ destino }}" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
   data-tn-loading="Salvando a avaliação..."
   x-data="{ verPrevia(formulario) { this.$ajax('/api/riscos/previa?' + new URLSearchParams(new FormData(formulario)).toString(), { target: 'risco-previa' }); } }"
@@ -37,7 +38,7 @@
     <div class="field field--full">
       <label for="risco-aval-tipo">Avaliação</label>
       <select id="risco-aval-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}"
-        data-url="/api/riscos/{{ risco.code }}/avaliar" data-consulta="{{ consulta }}"
+        data-url="{{ url_avaliar }}" data-consulta="{{ consulta }}"
         @change="$ajax($el.dataset.url + '?tipo=' + $event.target.value + '&consulta=' + encodeURIComponent($el.dataset.consulta), { target: '{{ target_id }}' })"
         {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
         <option value="inerente"{% if tipo_atual == 'inerente' %} selected{% endif %}>Inerente</option>

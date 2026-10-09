@@ -1,0 +1,102 @@
+{% extends "base_fragment.html" %}
+{#
+  Ação de mitigação do risco (ISSUE-065, HU-109): nasce na Central de Ações com origem Risco e
+  item sequencial dentro do risco; aparece na ficha e na Central. A contribuição esperada orienta
+  a reavaliação residual. "Salvar e nova" reabre este formulário depois de gravar. O 422 devolve o
+  formulário preenchido; o sucesso atualiza a ficha atrás do modal.
+
+  Espera: risco, ficha, valores, erros, item, pessoas e oportunidade.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/acoes"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Criando a ação..."
+  x-data="{ responsavel: $el.dataset.responsavel }" data-responsavel="{{ valores.get('responsavelId') or '' }}">
+  {% for chave in ['geral'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Esta ação nasce vinculada ao risco (origem Risco) e aparece na Central de Ações. Riscos não geram itens do tipo Informação.</span>
+  </div>
+
+  <div class="det mb-16">
+    <div class="det__row"><span class="det__label">Item</span><span class="det__valor">{{ item }}</span></div>
+    <div class="det__row"><span class="det__label">Origem</span><span class="det__valor">{{ risco.code }} · Ação</span></div>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="acao-assunto">Assunto</label>
+      <input id="acao-assunto" name="assunto" class="input{% if erros.get('assunto') %} input--erro{% endif %}" maxlength="255" required
+        value="{{ valores.get('assunto') or '' }}"
+        {% if erros.get('assunto') %}aria-invalid="true" aria-describedby="erro-assunto"{% endif %} />
+      {{ erro(erros, 'assunto') }}
+    </div>
+    <div class="field field--full">
+      <label for="acao-descricao">Descrição</label>
+      <textarea id="acao-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}" rows="3" maxlength="500"
+        {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
+      {{ erro(erros, 'descricao') }}
+    </div>
+    <div class="field">
+      <label for="acao-solicitante">Solicitante</label>
+      <select id="acao-solicitante" name="solicitanteId" class="input{% if erros.get('solicitanteId') %} input--erro{% endif %}" required
+        {% if erros.get('solicitanteId') %}aria-invalid="true" aria-describedby="erro-solicitanteId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('solicitanteId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'solicitanteId') }}
+    </div>
+    <div class="field">
+      <label for="acao-responsavel">Responsável</label>
+      <select id="acao-responsavel" name="responsavelId" class="input{% if erros.get('responsavelId') %} input--erro{% endif %}" required
+        @change="responsavel = $event.target.value"
+        {% if erros.get('responsavelId') %}aria-invalid="true" aria-describedby="erro-responsavelId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('responsavelId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">
+        {% for pessoa in pessoas %}{% if pessoa.id | string == responsavel and pessoa.email %}{{ pessoa.email }} · usado no follow-up da Central.{% endif %}{% endfor %}
+      </span>
+      {{ erro(erros, 'responsavelId') }}
+    </div>
+    <div class="field">
+      <label for="acao-prevista">Data prevista</label>
+      <input id="acao-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}" required
+        value="{{ valores.get('prevista') or '' }}"
+        {% if erros.get('prevista') %}aria-invalid="true" aria-describedby="erro-prevista"{% endif %} />
+      <span class="hint">Não pode ser anterior a hoje.</span>
+      {{ erro(erros, 'prevista') }}
+    </div>
+    <fieldset class="field field--full">
+      <legend>Contribuição esperada</legend>
+      <label class="registro__opcao">
+        <input type="checkbox" name="contribuicaoProbabilidade" value="1"{% if valores.get('contribuicaoProbabilidade') == '1' %} checked{% endif %} />
+        <span>{{ 'Aumenta a probabilidade' if oportunidade else 'Reduz a probabilidade' }}</span>
+      </label>
+      <label class="registro__opcao">
+        <input type="checkbox" name="contribuicaoImpacto" value="1"{% if valores.get('contribuicaoImpacto') == '1' %} checked{% endif %} />
+        <span>{{ 'Aumenta o benefício' if oportunidade else 'Reduz o impacto' }}</span>
+      </label>
+      <span class="hint">Apoio na reavaliação residual: indica qual eixo revisar.</span>
+    </fieldset>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Salvar ação</button>
+    <button type="submit" class="btn btn--secondary" name="acao" value="nova">Salvar e nova</button>
+  </div>
+</form>
+{% endblock %}

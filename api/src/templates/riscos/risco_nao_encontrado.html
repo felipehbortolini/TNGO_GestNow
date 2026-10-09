@@ -1,0 +1,14 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha pedida não existe: o código da tela não aponta para nenhum risco, ou ele está excluído
+  e quem pediu não é o Admin. A view mostra o mesmo vazio de origem; este fragmento garante que a
+  resposta nunca venha vazia.
+#}
+{% block fragment %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-aviso.png" alt="" />
+  <h2 class="h-card4">Risco não encontrado</h2>
+  <p>O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.</p>
+  <a class="btn btn--primary" href="/riscos/registro" data-tn-tela>Voltar ao registro de riscos</a>
+</div>
+{% endblock %}

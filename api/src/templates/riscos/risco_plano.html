@@ -1,0 +1,172 @@
+{% extends "base_fragment.html" %}
+{#
+  Plano de resposta do risco (ISSUE-065, HU-109): estratégia por natureza, o plano, o instrumento
+  da transferência, a SM do Evitar (existente ou nova), a severidade-alvo, o prazo, o custo da
+  resposta, o responsável e a aprovação da gerência do projeto. A avaliação residual só habilita
+  depois do plano; para ameaça o alvo não supera a inerente; Evitar exige 80 caracteres e SM;
+  Transferir exige instrumento; inerente Alto ou Crítico exige uma ação vinculada, exceto Aceitar.
+  O 422 devolve este formulário preenchido; o sucesso atualiza a ficha atrás do modal.
+
+  Espera: risco, ficha, versao, valores, erros, faixas, estrategias, instrumentos, nova_sm,
+  mudancas, pessoas, acoes, exige_acao, formatar_moeda e etiqueta_de_faixa.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/plano"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando o plano de resposta..."
+  x-data="{ estrategia: $el.dataset.estrategia }" data-estrategia="{{ valores.get('estrategia') or '' }}">
+  <input type="hidden" name="versao" value="{{ versao or '' }}" />
+  {% for chave in ['geral', 'versao', 'acoes'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>
+      {% if risco.nature == 'Ameaça' %}Ameaça: Mitigar, Transferir, Evitar ou Aceitar. O alvo não pode superar a severidade inerente.{% else %}Oportunidade: Explorar, Melhorar, Compartilhar ou Aceitar.{% endif %}
+      A avaliação residual só habilita depois do plano.
+    </span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="plano-estrategia">Estratégia</label>
+      <select id="plano-estrategia" name="estrategia" class="input{% if erros.get('estrategia') %} input--erro{% endif %}" required
+        @change="estrategia = $event.target.value"
+        {% if erros.get('estrategia') %}aria-invalid="true" aria-describedby="erro-estrategia"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for item in estrategias %}
+        <option value="{{ item }}"{% if valores.get('estrategia') == item %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'estrategia') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="plano-texto">Plano de resposta</label>
+      <textarea id="plano-texto" name="plano" class="input{% if erros.get('plano') %} input--erro{% endif %}" rows="4" maxlength="1000" required
+        {% if erros.get('plano') %}aria-invalid="true" aria-describedby="erro-plano"{% endif %}>{{ valores.get('plano') or '' }}</textarea>
+      <span class="hint">Descreve o que será feito; a execução vive nas ações. Aceitar exige justificativa (30 caracteres); Evitar, a mudança de escopo ou de solução (80 caracteres).</span>
+      {{ erro(erros, 'plano') }}
+    </div>
+
+    <div class="field" x-show="estrategia === 'Transferir'">
+      <label for="plano-instrumento">Instrumento da transferência</label>
+      <select id="plano-instrumento" name="instrumento" class="input{% if erros.get('instrumento') %} input--erro{% endif %}"
+        {% if erros.get('instrumento') %}aria-invalid="true" aria-describedby="erro-instrumento"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for item in instrumentos %}
+        <option value="{{ item }}"{% if valores.get('instrumento') == item %} selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'instrumento') }}
+    </div>
+
+    <div class="field" x-show="estrategia === 'Evitar'">
+      <label for="plano-sm">Solicitação de mudança (08)</label>
+      <select id="plano-sm" name="smRef" class="input{% if erros.get('smRef') %} input--erro{% endif %}"
+        {% if erros.get('smRef') %}aria-invalid="true" aria-describedby="erro-smRef"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for mudanca in mudancas %}
+        <option value="{{ mudanca.code }}"{% if valores.get('smRef') == mudanca.code %} selected{% endif %}>{{ mudanca.code }} · {{ mudanca.title }} ({{ mudanca.situation }})</option>
+        {% endfor %}
+        <option value="{{ nova_sm }}"{% if valores.get('smRef') == nova_sm %} selected{% endif %}>Registrar nova SM (gera ação na Central)</option>
+      </select>
+      <span class="hint">Evitar exige a mudança de escopo ou de solução registrada no módulo 08.</span>
+      {{ erro(erros, 'smRef') }}
+    </div>
+
+    <div class="field">
+      <label for="plano-alvo">Severidade-alvo</label>
+      <select id="plano-alvo" name="severidadeAlvo" class="input{% if erros.get('severidadeAlvo') %} input--erro{% endif %}" required
+        {% if erros.get('severidadeAlvo') %}aria-invalid="true" aria-describedby="erro-severidadeAlvo"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for faixa in faixas %}
+        <option value="{{ faixa.id }}"{% if valores.get('severidadeAlvo') == faixa.id %} selected{% endif %}>{{ faixa.name }} (a partir de {{ faixa.minimum }})</option>
+        {% endfor %}
+      </select>
+      <span class="hint">{% if risco.nature == 'Ameaça' %}Não pode ser maior que a inerente{% if risco.inherent %} ({{ risco.inherent.severity.name }}){% endif %}.{% else %}Nível a alcançar com a resposta.{% endif %}</span>
+      {{ erro(erros, 'severidadeAlvo') }}
+    </div>
+
+    <div class="field">
+      <label for="plano-prazo">Prazo para o alvo</label>
+      <input id="plano-prazo" name="prazoAlvo" type="date" class="input{% if erros.get('prazoAlvo') %} input--erro{% endif %}"
+        value="{{ valores.get('prazoAlvo') or '' }}" required
+        {% if erros.get('prazoAlvo') %}aria-invalid="true" aria-describedby="erro-prazoAlvo"{% endif %} />
+      <span class="hint">Data futura.</span>
+      {{ erro(erros, 'prazoAlvo') }}
+    </div>
+
+    <div class="field">
+      <label for="plano-custo">Custo da resposta (R$)</label>
+      <input id="plano-custo" name="custoRespostaCentavos" inputmode="decimal" class="input{% if erros.get('custoRespostaCentavos') %} input--erro{% endif %}"
+        value="{{ valores.get('custoRespostaCentavos') or '' }}"
+        {% if erros.get('custoRespostaCentavos') %}aria-invalid="true" aria-describedby="erro-custoRespostaCentavos"{% endif %} />
+      <span class="hint">Gravado em centavos; comparado ao VME para justificar o tratamento.</span>
+      {{ erro(erros, 'custoRespostaCentavos') }}
+    </div>
+
+    <div class="field field--full">
+      <span class="registro__rotulo">Custo x benefício</span>
+      <p class="hint">
+        VME inerente {{ formatar_moeda(ficha.vme_inherent_cents) }} · VME atual {{ formatar_moeda(risco.vme_cents) }}
+        {% if risco.nature == 'Ameaça' %} · redução da exposição {{ formatar_moeda(ficha.vme_inherent_cents - risco.vme_cents) }}{% else %} · ganho esperado (VME){% endif %}
+      </p>
+    </div>
+
+    <div class="field">
+      <label for="plano-responsavel">Responsável pelo plano</label>
+      <select id="plano-responsavel" name="responsavelPlanoId" class="input{% if erros.get('responsavelPlanoId') %} input--erro{% endif %}" required
+        {% if erros.get('responsavelPlanoId') %}aria-invalid="true" aria-describedby="erro-responsavelPlanoId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('responsavelPlanoId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Pode ser diferente do dono do risco; não pode aprovar o próprio plano.</span>
+      {{ erro(erros, 'responsavelPlanoId') }}
+    </div>
+
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="exigirAprovacao" value="1"{% if valores.get('exigirAprovacao') == '1' %} checked{% endif %} />
+        <span>Requer aprovação da gerência do projeto</span>
+      </label>
+      <span class="hint">Obrigatória quando a severidade inerente é a mais alta da escala{% if risco.inherent and risco.inherent.severity.id == faixas[0].id %} ({{ risco.inherent.severity.name }}){% endif %}.</span>
+    </div>
+
+    <div class="field field--full">
+      <span class="registro__rotulo">Ações vinculadas</span>
+      {% if acoes %}
+      <ul class="lista-simples">
+        {% for acao in acoes %}
+        <li class="lista-simples__item">
+          <span class="pill {{ 'pill--ok' if acao.status == 'concluida' else ('pill--erro' if acao.overdue else 'pill--fix') }}">{{ acao.status_label }}</span>
+          <span class="body-txt"><b>{{ acao.item or '·' }}</b> {{ acao.subject }} · {{ acao.responsible_name }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">Nenhuma ação vinculada.</p>
+      {% endif %}
+      {% if exige_acao and not acoes %}
+      <div class="aviso aviso--warn mt-8" role="alert">
+        <span>Risco {{ risco.inherent.severity.name if risco.inherent else '' }} exige pelo menos uma ação vinculada. Sem ação, o plano não pode ser salvo: registre a primeira em Nova ação, na ficha.</span>
+      </div>
+      {% endif %}
+      <span class="hint">As ações são registros da Central de Ações com origem Risco.</span>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Salvar plano</button>
+  </div>
+</form>
+{% endblock %}

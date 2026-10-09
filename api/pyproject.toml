@@ -294,6 +294,17 @@ max-complexity = 10
 # criar um objeto de opções, a mesma coisa com mais indireção.
 "tests/identidades.py" = ["PLR0913"]
 
+# `_save`, `_risk_form` e `_assess_form`, nas rotas do Registro de riscos, e os
+# `_*_again` das rotas da ficha recebem o `destino` e o alvo do modal além da
+# requisição, da sessão, do contexto e do estado, e é assim de propósito: depois
+# do `*` são todos KEYWORD-ONLY (destino, modal_target, estado, valores, erro),
+# o contrato das respostas que voltam para o registro ou para a ficha
+# (ISSUE-064/ISSUE-065). A regra existe para argumento posicional, onde a ordem
+# se erra na chamada; reduzir significaria criar um objeto de opções, a mesma
+# coisa com mais indireção.
+"src/modulos/riscos/routes.py" = ["PLR0913"]
+"src/modulos/riscos/ficha_routes.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

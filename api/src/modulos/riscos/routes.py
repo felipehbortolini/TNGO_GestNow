@@ -63,6 +63,8 @@ CONTENT_TARGET = "registro-conteudo"
 MODAL_TARGET = "registro-modal-corpo"
 PREVIEW_TARGET = "risco-previa"
 CATEGORY_TARGET = "risco-categoria-campo"
+FICHA_TARGET = "ficha-conteudo"
+DESTINO_FICHA = "ficha"
 
 SCREEN_TEMPLATE = "riscos/registro.html"
 PROJECT_TEMPLATE = "riscos/risco_projeto.html"
@@ -93,14 +95,16 @@ def _error_status(error: DomainError) -> int:
     return 409 if isinstance(error, VersionConflictError) else 422
 
 
-def _modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
+def _modal_error(
+    req: func.HttpRequest, error: DomainError, *, target: str = MODAL_TARGET
+) -> func.HttpResponse:
     """A refusal inside the modal: the message in the modal body, where the person is looking."""
     messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
     return AlpineAjaxResponse(
         template_name="comum/erro.html",
         context={"mensagens": messages},
         request=req,
-        target_id=MODAL_TARGET,
+        target_id=target,
         status_code=_error_status(error),
         toast=messages[0] if messages else "Não foi possível concluir.",
         toast_tipo="erro",
@@ -278,6 +282,18 @@ def assess_form(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """The assessment form, with the values of the chosen kind and the preview of its score."""
+    return _assess_page(req, session, context)
+
+
+def _assess_page(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    destino: str = "",
+    modal_target: str = MODAL_TARGET,
+) -> func.HttpResponse:
+    """The assessment form of the risk of the route, for the register or for the ficha."""
     risk = _risk(session, context, req)
     asked = req.params.get("tipo", "")
     kind = asked if asked in validation.ASSESSMENT_KINDS else None
@@ -290,7 +306,13 @@ def assess_form(
         req,
         session,
         context,
-        state=_AssessState(risk=risk, query=req.params.get("consulta", ""), values=values),
+        state=_AssessState(
+            risk=risk,
+            query=req.params.get("consulta", ""),
+            values=values,
+            destino=destino,
+        ),
+        modal_target=modal_target,
     )
 
 
@@ -300,6 +322,18 @@ def assess_save(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """Record the assessment and answer the refreshed screen, or the form with its messages."""
+    return _assess_submit(req, session, context)
+
+
+def _assess_submit(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    destino: str = "",
+    modal_target: str = MODAL_TARGET,
+) -> func.HttpResponse:
+    """Record the assessment for the register or for the ficha of the risk."""
     risk = _risk(session, context, req)
     data = _assessment_input(req.form)
     today = calendario.today()
@@ -317,19 +351,30 @@ def assess_save(
         query=req.form.get("consulta", ""),
         values=dict(req.form),
         version=req.form.get("versao"),
+        destino=destino,
     )
     if error is not None or result is None:
-        return _assess_form(req, session, context, state=state, error=error)
+        return _assess_form(
+            req, session, context, state=state, error=error, modal_target=modal_target
+        )
     notice = ASSESSED_NOTICE.format(kind=data.kind, score=result.score, band=result.severity.name)
+    extra = {"alerta_do_gestor": result.manager_alert, "exige_plano": result.requires_plan}
+    if destino == DESTINO_FICHA:
+        from src.modulos.riscos import ficha_routes
+
+        return ficha_routes.ficha_response(
+            req,
+            session,
+            context,
+            code=risk.code,
+            after=ficha_routes.FichaAfter(notice=notice, extra=extra),
+        )
     return _screen(
         req,
         session,
         context,
         filters=_filters_of(state.query),
-        after=_After(
-            notice,
-            {"alerta_do_gestor": result.manager_alert, "exige_plano": result.requires_plan},
-        ),
+        after=_After(notice, extra),
     )
 
 
@@ -696,6 +741,7 @@ class _FormState:
     query: str
     values: Mapping[str, str]
     version: int | str | None = None
+    destino: str = ""
 
 
 @dataclass(frozen=True)
@@ -706,6 +752,7 @@ class _AssessState:
     query: str
     values: Mapping[str, str]
     version: int | str | None = None
+    destino: str = ""
 
 
 def _risk(session: Session, context: RequestContext, req: func.HttpRequest) -> service.RiskLine:
@@ -788,6 +835,8 @@ def _save(
     *,
     project_id: int,
     code: str | None,
+    destino: str = "",
+    modal_target: str = MODAL_TARGET,
 ) -> func.HttpResponse:
     """Save the identification; ``acao=avaliar`` opens the assessment of the saved risk next."""
     form = req.form
@@ -806,12 +855,29 @@ def _save(
         query=form.get("consulta", ""),
         values=dict(form),
         version=form.get("versao"),
+        destino=destino,
     )
     if error is not None or not outcome:
-        return _risk_form(req, session, context, state=state, error=error)
+        return _risk_form(
+            req, session, context, state=state, error=error, modal_target=modal_target
+        )
     result = outcome[0]
     notice = (SAVED_NOTICE if result.created else EDITED_NOTICE).format(code=result.code)
     assess_next = result.code if form.get("acao") == "avaliar" else None
+    extra: dict[str, object] = {"avisos": result.notices}
+    if destino == DESTINO_FICHA:
+        from src.modulos.riscos import ficha_routes
+
+        if assess_next:
+            extra["abrir_url"] = f"/api/riscos/{result.code}/ficha/avaliar"
+            extra["abrir_titulo"] = f"Avaliação do risco {result.code}"
+        return ficha_routes.ficha_response(
+            req,
+            session,
+            context,
+            code=result.code,
+            after=ficha_routes.FichaAfter(notice=notice, extra=extra),
+        )
     return _screen(
         req,
         session,
@@ -821,6 +887,19 @@ def _save(
     )
 
 
+def _risk_action(state: _FormState) -> str:
+    """Where the identification form posts: the register modal or the ficha modal."""
+    if state.destino == DESTINO_FICHA:
+        return f"/api/riscos/{state.code}/ficha/editar"
+    return f"/api/riscos/{state.code}/editar" if state.code else "/api/riscos/novo"
+
+
+def _assess_action(code: str, destino: str) -> str:
+    """Where the assessment form posts and reloads itself: the register modal or the ficha."""
+    segment = "ficha/avaliar" if destino == DESTINO_FICHA else "avaliar"
+    return f"/api/riscos/{code}/{segment}"
+
+
 def _risk_form(
     req: func.HttpRequest,
     session: Session,
@@ -828,6 +907,7 @@ def _risk_form(
     *,
     state: _FormState,
     error: DomainError | None = None,
+    modal_target: str = MODAL_TARGET,
 ) -> func.HttpResponse:
     """The identification form, empty or filled in with the messages of a refusal."""
     today = calendario.today()
@@ -853,6 +933,8 @@ def _risk_form(
             "padrao": _pattern_of(session, state.project_id),
             "versao": version,
             "consulta": state.query,
+            "destino": FICHA_TARGET if state.destino == DESTINO_FICHA else CONTENT_TARGET,
+            "url_salvar": _risk_action(state),
             "valores": values,
             "erros": _field_errors(error),
             "categorias": service.list_categories(session),
@@ -867,7 +949,7 @@ def _risk_form(
             "ja_avaliado": bool(risk and risk.inherent),
         },
         request=req,
-        target_id=MODAL_TARGET,
+        target_id=modal_target,
         status_code=200 if error is None else _error_status(error),
     )
 
@@ -942,6 +1024,7 @@ def _assess_form(
     *,
     state: _AssessState,
     error: DomainError | None = None,
+    modal_target: str = MODAL_TARGET,
 ) -> func.HttpResponse:
     """The assessment form with its preview; a stale version carries the current one."""
     today = calendario.today()
@@ -958,6 +1041,9 @@ def _assess_form(
             "risco": risk,
             "versao": version,
             "consulta": state.query,
+            "destino": FICHA_TARGET if state.destino == DESTINO_FICHA else CONTENT_TARGET,
+            "url_salvar": _assess_action(risk.code, state.destino),
+            "url_avaliar": _assess_action(risk.code, state.destino),
             "valores": values,
             "erros": _field_errors(error),
             "parametros": params,
@@ -975,7 +1061,7 @@ def _assess_form(
             "alvo_previa": PREVIEW_TARGET,
         },
         request=req,
-        target_id=MODAL_TARGET,
+        target_id=modal_target,
         status_code=200 if error is None else _error_status(error),
     )
 

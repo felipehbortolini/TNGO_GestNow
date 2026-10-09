@@ -1,0 +1,436 @@
+{% extends "base_fragment.html" %}
+{#
+  Ficha do risco (ISSUE-065, HU-108 a HU-113): alertas, faixa com inerente e residual e a situação,
+  botões com o próximo passo em destaque e as abas Identificação, Avaliação, Resposta e ações,
+  Monitoramento e Histórico. A troca de aba é estado local do Alpine; os modais são formulários do
+  servidor abertos por data-ficha-modal-url (ficha.js). Um marcador oculto reabre o próximo modal
+  depois de uma gravação (avaliação, encerramento ou "Salvar e nova").
+
+  Espera: ficha (RiskSheet), linha (RiskLine), pode_gravar, pode_gerir, eh_admin, url_excel,
+  url_pdf, url_editar, url_avaliar, url_plano, url_aprovar, url_acao, url_revisar, url_encerrar,
+  url_reabrir, formatar_data, formatar_moeda, texto_da_cadencia, etiqueta_de_faixa,
+  texto_da_apurada, dimensoes, acoes_abertas, exige_acao e, depois de uma gravação, abrir_url,
+  abrir_titulo, avisos, alerta_do_gestor e exige_plano.
+#}
+{% macro linha_detalhe(rotulo, valor) %}
+<div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
+{% endmacro %}
+{% macro botao_do_modal(url, titulo, rotulo, icone, primario) %}
+<button type="button" class="btn btn--{{ 'primary' if primario else 'secondary' }}"
+  data-ficha-modal-url="{{ url }}" data-ficha-modal-titulo="{{ titulo }}"
+  data-ficha-modal-subtitulo="{{ linha.code }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+  {{ rotulo }}
+</button>
+{% endmacro %}
+{% macro pill_da_situacao(situacao) %}
+{% set tons = {'Identificado': 'pill--neutral', 'Em análise': 'pill--warn', 'Em tratamento': 'pill--fix',
+  'Monitorado': 'pill--ok', 'Materializado': 'pill--erro', 'Encerrado': 'pill--neutral'} %}
+<span class="pill {{ tons.get(situacao, 'pill--neutral') }}">{{ situacao }}</span>
+{% endmacro %}
+{% macro nota_da_avaliacao(visao) %}
+{% if visao %}
+<span class="pill {{ etiqueta_de_faixa(visao.severity) }}"><b>{{ visao.score }}</b> {{ visao.severity.name }}</span>
+<span class="hint">P{{ visao.probability }} x I{{ visao.impact }}</span>
+{% else %}
+<span class="muted">não avaliado</span>
+{% endif %}
+{% endmacro %}
+{% block fragment %}
+{% if abrir_url %}
+<span hidden data-ficha-abrir-url="{{ abrir_url }}"
+  data-ficha-abrir-titulo="{{ abrir_titulo or ('Risco ' ~ linha.code) }}"
+  x-init="TN.paginas['riscos/ficha'].abrirModal($el)"></span>
+{% endif %}
+{% for aviso in avisos or [] %}
+<div class="aviso aviso--warn mb-16" role="status"><span>{{ aviso }}</span></div>
+{% endfor %}
+{% if alerta_do_gestor %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <span>Risco na faixa mais alta: o gestor do projeto deve ser avisado.</span>
+</div>
+{% endif %}
+{% if exige_plano %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <span>Risco na faixa mais alta sem plano de resposta: registre o plano agora.</span>
+</div>
+{% endif %}
+
+{% if linha.hidden %}
+<div class="aviso aviso--erro mb-16" role="alert">
+  <strong>Risco excluído</strong>
+  <span>Motivo: {{ linha.deletion_reason or '·' }}. Só o Admin vê e restaura riscos excluídos.</span>
+</div>
+{% elif not linha.active %}
+{% set motivo = 'Capturada' if ficha.line.closing_reason == 'Materializado' and linha.nature != 'Ameaça' else ficha.line.closing_reason %}
+<div class="aviso aviso--info mb-16" role="status">
+  <strong>Risco encerrado</strong>
+  <span>
+    {% if ficha.line.closing_date %}Encerrado em {{ formatar_data(ficha.line.closing_date) }}{% if ficha.closed_by_name %} por {{ ficha.closed_by_name }}{% endif %}.{% endif %}
+    Motivo: {{ motivo or '·' }}.
+    {% if ficha.line.closing_reason == 'Materializado' and linha.nature == 'Ameaça' and ficha.line.closing_schedule_impact_days is not none %}
+    Impacto real: {{ ficha.line.closing_schedule_impact_days }} dia(s) e {{ formatar_moeda(ficha.line.closing_cost_impact_cents) }}.
+    {% endif %}
+    {% if ficha.lesson %}Lição <a href="/governanca/licoes?busca={{ ficha.lesson.code }}" data-tn-tela>{{ ficha.lesson.code }}</a> ({{ ficha.lesson.situation }}).{% endif %}
+    {% if ficha.closing_change %}Mudança <a href="/governanca/mudanca?codigo={{ ficha.closing_change.code }}" data-tn-tela>{{ ficha.closing_change.code }}</a> ({{ ficha.closing_change.situation }}).{% endif %}
+  </span>
+</div>
+{% else %}
+{% if linha.situation == 'Identificado' %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Risco sem avaliação.</strong>
+  <span>Avalie probabilidade e impacto para definir a severidade e a cadência de revisão.</span>
+</div>
+{% endif %}
+{% if ficha.approval_pending %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Plano de resposta aguardando aprovação</strong>
+  <span>da gerência do projeto{% if ficha.approval and ficha.approval.requested_at %} desde {{ ficha.approval.requested_at.strftime('%d/%m/%Y') }}{% endif %}.</span>
+</div>
+{% endif %}
+{% if ficha.approval_returned %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Plano devolvido pelo gestor.</strong>
+  <span>{% if ficha.approval and ficha.approval.justification %}{{ ficha.approval.justification }} {% endif %}Revise e salve o plano novamente.</span>
+</div>
+{% endif %}
+{% if ficha.trigger_on %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Gatilho ocorreu</strong>
+  <span>em {{ formatar_data(ficha.trigger_on) }}: reavaliação obrigatória.</span>
+</div>
+{% endif %}
+{% if linha.review_overdue %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Revisão vencida</strong>
+  <span>desde {{ formatar_data(linha.next_review) }}{% if linha.cadence_days %} (cadência {{ texto_da_cadencia(linha.cadence_days) }}){% endif %}.</span>
+</div>
+{% endif %}
+{% if exige_acao and not ficha.actions %}
+<div class="aviso aviso--warn mb-16" role="status">
+  <strong>Risco {{ linha.inherent.severity.name if linha.inherent else '' }} sem ação vinculada.</strong>
+  <span>O plano exige pelo menos uma ação.</span>
+</div>
+{% endif %}
+{% if linha.has_plan and linha.situation == 'Em tratamento' and ficha.actions and acoes_abertas == 0 %}
+<div class="aviso aviso--info mb-16" role="status">
+  <span>Todas as ações foram concluídas. Reavalie o residual: concluir as ações não fecha o risco (o encerramento é explícito).</span>
+</div>
+{% endif %}
+{% if ficha.pauta %}
+<div class="aviso aviso--info mb-16" role="status">
+  <strong>Na pauta de escalonamento:</strong>
+  <span>{{ ficha.pauta | join(' · ') }}</span>
+</div>
+{% endif %}
+{% endif %}
+
+<section class="card ficha__faixa" aria-label="Identificação do risco">
+  <div class="card__body ficha__faixa-corpo">
+    <div>
+      <p class="ficha__codigo">{{ linha.code }} · {{ linha.nature }}</p>
+      <p class="ficha__meta">
+        <span>{{ linha.category_label }}</span>
+        <span>Dono: {{ ficha.owner_name }}</span>
+        <span>Identificado em {{ formatar_data(linha.identified_on) }}</span>
+      </p>
+    </div>
+    <div class="ficha__selos">
+      <span class="hint">Inerente</span>
+      {{ nota_da_avaliacao(linha.inherent) }}
+      <span class="ficha__seta" aria-hidden="true">›</span>
+      <span class="hint">Residual</span>
+      {{ nota_da_avaliacao(linha.residual) }}
+      {{ pill_da_situacao(linha.situation) }}
+    </div>
+  </div>
+</section>
+
+<div class="mb-16 mt-16">
+  <h2 class="h-card4">{{ linha.title }}</h2>
+  <p class="muted">Projeto {{ ficha.project_label }}</p>
+</div>
+
+{% set proximo = 'avaliar' if not linha.inherent else ('plano' if not linha.has_plan else ('aprovar' if ficha.approval_pending and pode_gerir else ('avaliar' if ficha.trigger_on else ('revisar' if linha.review_overdue else '')))) %}
+{% if linha.active and not linha.hidden %}
+<div class="toolbar mb-16" role="group" aria-label="Ações do risco">
+  {% if pode_gravar %}
+  {{ botao_do_modal(url_editar, 'Editar risco ' ~ linha.code, 'Editar', 'edit', false) }}
+  {{ botao_do_modal(url_avaliar, 'Avaliação do risco ' ~ linha.code, 'Avaliar', 'chartLine', proximo == 'avaliar') }}
+  {{ botao_do_modal(url_plano, 'Plano de resposta · ' ~ linha.code, 'Plano de resposta', 'taskList', proximo == 'plano') }}
+  {{ botao_do_modal(url_acao, 'Nova ação do risco ' ~ linha.code, 'Nova ação', 'add', false) }}
+  {{ botao_do_modal(url_revisar, 'Revisão periódica · ' ~ linha.code, 'Registrar revisão', 'calendar', proximo == 'revisar') }}
+  {% endif %}
+  {% if pode_gerir and ficha.approval_pending %}
+  {{ botao_do_modal(url_aprovar, 'Aprovação do plano · ' ~ linha.code, 'Aprovar plano', 'checkCircle', proximo == 'aprovar') }}
+  {% endif %}
+  {% if pode_gerir %}
+  {{ botao_do_modal(url_encerrar, 'Encerrar risco · ' ~ linha.code, 'Encerrar', 'lock', false) }}
+  {% endif %}
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+</div>
+{% elif not linha.hidden and pode_gerir %}
+<div class="toolbar mb-16" role="group" aria-label="Ações do risco">
+  {{ botao_do_modal(url_reabrir, 'Reabrir risco ' ~ linha.code, 'Reabrir', 'refresh', true) }}
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+</div>
+{% else %}
+<div class="toolbar mb-16" role="group" aria-label="Exportações">
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+</div>
+{% endif %}
+
+<div x-data="{ aba: 'identificacao' }">
+  <div class="tabs" role="tablist" aria-label="Seções do risco">
+    {% for chave, nome, icone in [('identificacao', 'Identificação', 'file'), ('avaliacao', 'Avaliação', 'chartLine'), ('resposta', 'Resposta e ações', 'taskList'), ('monitoramento', 'Monitoramento', 'clock'), ('historico', 'Histórico', 'listaNumeros')] %}
+    <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
+      :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
+      @click="aba = '{{ chave }}'">
+      <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+      {{ nome }}
+      {% if chave == 'resposta' %}<span class="ficha__contagem">{{ ficha.actions | length }}</span>{% endif %}
+      {% if chave == 'monitoramento' %}<span class="ficha__contagem">{{ ficha.reviews | length }}</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
+
+  <section class="mt-16" role="tabpanel" id="painel-identificacao" aria-labelledby="aba-identificacao" x-show="aba === 'identificacao'">
+    <div class="card">
+      <div class="card__body det">
+        {{ linha_detalhe('Número', linha.code) }}
+        {{ linha_detalhe('Natureza', linha.nature) }}
+        {{ linha_detalhe('Categoria (RBS)', linha.category_label) }}
+        {{ linha_detalhe('Causa', linha.cause) }}
+        {{ linha_detalhe('Evento (título)', linha.title) }}
+        {{ linha_detalhe('Consequência', linha.consequence) }}
+        {{ linha_detalhe('Descrição', linha.description) }}
+        {{ linha_detalhe('Dono do risco', ficha.owner_name) }}
+        {{ linha_detalhe('Identificado por', ficha.identified_by_name) }}
+        {{ linha_detalhe('Identificado em', formatar_data(linha.identified_on)) }}
+        <div class="det__row">
+          <span class="det__label">Origem</span>
+          <span class="det__valor">
+            {% if linha.ata_id %}<a href="/central-acoes/ata?id={{ linha.ata_id }}" data-tn-tela>{{ linha.origin or 'Ata' }}</a>
+            {% else %}{{ linha.origin or linha.origin_type }}{% endif %}
+          </span>
+        </div>
+        {{ linha_detalhe('Gatilho (sinal de alerta)', linha.trigger) }}
+        {{ linha_detalhe('Projeto', ficha.project_label) }}
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-avaliacao" aria-labelledby="aba-avaliacao" x-show="aba === 'avaliacao'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">Avaliação vigente</h3>
+        <span class="hint">Somente leitura; alterar exige o modal Avaliação, que grava justificativa e histórico.</span>
+      </div>
+      <div class="card__body">
+        <div class="ficha__aval-grid">
+          <div class="aval-card">
+            <span class="aval-card__rotulo">Inerente (sem tratamento)</span>
+            {% if linha.inherent %}
+            <div class="aval-card__score"><b>{{ linha.inherent.score }}</b><span class="pill {{ etiqueta_de_faixa(linha.inherent.severity) }}">{{ linha.inherent.severity.name }}</span></div>
+            <span class="aval-card__pi">P{{ linha.inherent.probability }} x I{{ linha.inherent.impact }}</span>
+            {% else %}<span class="muted">Ainda não avaliado.</span>{% endif %}
+          </div>
+          <div class="aval-card">
+            <span class="aval-card__rotulo">Residual (com o plano)</span>
+            {% if linha.residual %}
+            <div class="aval-card__score"><b>{{ linha.residual.score }}</b><span class="pill {{ etiqueta_de_faixa(linha.residual.severity) }}">{{ linha.residual.severity.name }}</span></div>
+            <span class="aval-card__pi">P{{ linha.residual.probability }} x I{{ linha.residual.impact }}</span>
+            {% else %}<span class="muted">{{ 'Plano registrado: avalie o residual.' if linha.has_plan else 'Habilitada depois do plano de resposta.' }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="ficha__colunas mt-16">
+          <div class="det">
+            {{ linha_detalhe('Dimensão de maior impacto', linha.dimension) }}
+            {{ linha_detalhe('Impacto em prazo (dias)', linha.schedule_impact_days) }}
+            {{ linha_detalhe('Impacto em custo', formatar_moeda(linha.cost_impact_cents)) }}
+            {{ linha_detalhe('VME inerente', formatar_moeda(ficha.vme_inherent_cents)) }}
+            {{ linha_detalhe('VME atual', formatar_moeda(linha.vme_cents)) }}
+            {{ linha_detalhe('Severidade-alvo', linha.target_severity) }}
+            {{ linha_detalhe('Prazo para atingir o alvo', formatar_data(linha.target_date)) }}
+            {{ linha_detalhe('Risco à vida', 'Sim' if linha.life_risk else 'Não') }}
+          </div>
+          <div>
+            <div class="tbl-wrap">
+              <table class="tbl tbl--compact">
+                <caption class="sr-only">Impacto por dimensão</caption>
+                <thead><tr><th scope="col">Dimensão</th><th scope="col" class="td-num">Inerente</th><th scope="col" class="td-num">Residual</th></tr></thead>
+                <tbody>
+                  {% for chave, rotulo in dimensoes %}
+                  <tr>
+                    <td>{{ rotulo }}</td>
+                    <td class="td-num">{{ linha.inherent.dimensions.get(chave) if linha.inherent and linha.inherent.dimensions.get(chave) else '·' }}</td>
+                    <td class="td-num">{{ linha.residual.dimensions.get(chave) if linha.residual and linha.residual.dimensions.get(chave) else '·' }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="hint mt-8">Impacto do risco = maior valor entre as dimensões (pior caso).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-resposta" aria-labelledby="aba-resposta" x-show="aba === 'resposta'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">Plano de resposta</h3>
+        <span class="hint">{{ linha.strategy or 'sem estratégia' }}</span>
+      </div>
+      <div class="card__body">
+        {% if linha.has_plan %}
+        <p class="body-txt mb-16">{{ linha.plan }}</p>
+        <div class="det">
+          {{ linha_detalhe('Estratégia', linha.strategy) }}
+          {% if linha.instrument %}{{ linha_detalhe('Instrumento', linha.instrument) }}{% endif %}
+          {% if linha.strategy == 'Evitar' %}
+          <div class="det__row">
+            <span class="det__label">Solicitação de mudança (08)</span>
+            <span class="det__valor">
+              {% if ficha.change %}<a href="/governanca/mudanca?codigo={{ ficha.change.code }}" data-tn-tela>{{ ficha.change.code }}</a> · {{ ficha.change.title }} ({{ ficha.change.situation }})
+              {% else %}a registrar (ação na Central){% endif %}
+            </span>
+          </div>
+          {% endif %}
+          {{ linha_detalhe('Severidade-alvo', linha.target_severity) }}
+          {{ linha_detalhe('Prazo para atingir o alvo', formatar_data(linha.target_date)) }}
+          {{ linha_detalhe('Custo da resposta', formatar_moeda(linha.response_cost_cents) if linha.response_cost_cents is not none else 'não informado') }}
+          {{ linha_detalhe('Responsável pelo plano', ficha.plan_responsible_name) }}
+          {{ linha_detalhe('Aprovação da gerência do projeto', 'Aprovado' if ficha.approval_situation == 'Aprovado' else ('Pendente' if ficha.approval_pending else ('Devolvido' if ficha.approval_returned else 'Não exigida'))) }}
+        </div>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem">
+          <p>Plano de resposta ainda não definido.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card mt-16">
+      <div class="card__head">
+        <h3 class="h-card4">Ações vinculadas</h3>
+        <span class="hint">Registros da Central de Ações com origem Risco; navegam de volta para esta ficha.</span>
+      </div>
+      <div class="card__body">
+        {% if ficha.actions %}
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">Ações do risco</caption>
+            <thead><tr><th scope="col">Item</th><th scope="col">Ação</th><th scope="col">Responsável</th><th scope="col">Prevista</th><th scope="col">Contribuição</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Abrir</span></th></tr></thead>
+            <tbody>
+              {% for acao in ficha.actions %}
+              <tr{% if acao.overdue %} class="ficha__linha-alerta"{% endif %}>
+                <td class="td-num">{{ acao.item or '·' }}</td>
+                <td>
+                  <span class="fw-600">{{ acao.subject }}</span><br />
+                  <span class="hint">{{ 'Problema (risco materializado)' if acao.group == 'Problema' else (acao.group or 'Plano de resposta') }} · Origem: Risco {{ linha.code }}</span>
+                </td>
+                <td>{{ acao.responsible_name }}</td>
+                <td class="nowrap">
+                  {{ formatar_data(acao.due_date) }}
+                  {% if acao.replanned_date and acao.replanned_date != acao.planned_date %}<br /><span class="hint">original {{ formatar_data(acao.planned_date) }}</span>{% endif %}
+                </td>
+                <td>
+                  {% set contribuicoes = [] %}
+                  {% if acao.contributes_probability %}{% set _ = contribuicoes.append(('aumenta' if linha.nature != 'Ameaça' else 'reduz') ~ ' P') %}{% endif %}
+                  {% if acao.contributes_impact %}{% set _ = contribuicoes.append(('aumenta' if linha.nature != 'Ameaça' else 'reduz') ~ ' I') %}{% endif %}
+                  {{ contribuicoes | join(', ') or '·' }}
+                </td>
+                <td>
+                  <span class="pill {{ 'pill--ok' if acao.status == 'concluida' else ('pill--erro' if acao.overdue else 'pill--fix') }}">{{ acao.status_label }}</span>
+                  {% if acao.overdue %}<br /><span class="hint">há {{ acao.days_overdue }} dia(s)</span>{% endif %}
+                </td>
+                <td>
+                  <a class="iconbtn" href="{{ acao.url }}" data-tn-tela aria-label="Abrir na Central de Ações" title="Abrir na Central de Ações">
+                    <span x-init="$el.innerHTML = window.icon('arrowRight', 16)" aria-hidden="true"></span>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem"><p>Nenhuma ação vinculada.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-monitoramento" aria-labelledby="aba-monitoramento" x-show="aba === 'monitoramento'">
+    <div class="card">
+      <div class="card__head">
+        <h3 class="h-card4">Revisões</h3>
+        <span class="hint">
+          {% if linha.cadence_days %}Cadência: {{ texto_da_cadencia(linha.cadence_days) }}{% if linha.current %} ({{ linha.current.severity.name | lower }}){% endif %}
+          {% else %}Sem cadência definida (risco não avaliado){% endif %}
+        </span>
+      </div>
+      <div class="card__body">
+        {% if ficha.reviews %}
+        <ul class="ficha__feed">
+          {% for revisao in ficha.reviews %}
+          <li class="ficha__feed-item{% if revisao.trigger_occurred %} ficha__feed-item--warn{% endif %}">
+            <span class="ficha__feed-data">{{ formatar_data(revisao.reviewed_on) }}</span>
+            <span class="ficha__feed-corpo">
+              <b>
+                {% if revisao.kind == 'inerente' %}Avaliação inicial
+                {% elif revisao.kind == 'residual' %}Avaliação residual{% if revisao.score_from is not none %} (de {{ revisao.score_from }} para {{ revisao.score_to }}){% endif %}
+                {% else %}{{ texto_da_apurada(revisao.assessed_situation, linha.nature) }}{% if revisao.score_from is not none and revisao.score_from != revisao.score_to %} (de {{ revisao.score_from }} para {{ revisao.score_to }}){% endif %}{% endif %}
+              </b>
+              <span class="hint">P{{ revisao.probability }} x I{{ revisao.impact }} = {{ revisao.score_to }}{% if revisao.severity_name %} ({{ revisao.severity_name }}){% endif %}.</span>
+              {% if revisao.body %}<span class="body-txt">{{ revisao.body }}</span>{% endif %}
+              {% if revisao.trigger_occurred %}<span class="pill pill--warn">Gatilho ocorreu</span>{% endif %}
+            </span>
+            <span class="hint">{{ revisao.author_name }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem"><p>Nenhuma revisão registrada.</p></div>
+        {% endif %}
+        <p class="hint mt-16">
+          {% if linha.active %}
+          {% if linha.next_review %}Próxima revisão: <b>{{ formatar_data(linha.next_review) }}</b>. {% endif %}
+          Cadência sugerida pela severidade; o gestor pode antecipar, nunca postergar.
+          {% else %}Risco fora da carteira ativa: sem revisões programadas.{% endif %}
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-16" role="tabpanel" id="painel-historico" aria-labelledby="aba-historico" x-show="aba === 'historico'">
+    <div class="card">
+      <div class="card__body">
+        {% if ficha.history %}
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <caption class="sr-only">Histórico do risco</caption>
+            <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que mudou</th></tr></thead>
+            <tbody>
+              {% for entrada in ficha.history %}
+              <tr>
+                <td class="nowrap">{{ entrada.moment.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ entrada.author_name or '·' }}</td>
+                <td>{{ entrada.text }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty" data-estado="vazio-origem"><p>Sem histórico registrado.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

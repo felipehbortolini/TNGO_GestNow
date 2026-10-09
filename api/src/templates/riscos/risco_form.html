@@ -6,16 +6,16 @@
   do risco assim que a tela se atualiza. O 422 devolve este formulário preenchido com a mensagem sob
   cada campo; o sucesso atualiza a tela atrás do modal.
 
-  Espera: risco (vazio no novo), projeto, projeto_id, padrao, versao, consulta, valores, erros,
-  categorias, pessoas, atas (id e rótulo), origens, naturezas, ata_origem, referencia,
-  natureza_travada, origem_do_sistema e ja_avaliado.
+  Espera: risco (vazio no novo), projeto, projeto_id, padrao, versao, consulta, destino, url_salvar,
+  valores, erros, categorias, pessoas, atas (id e rótulo), origens, naturezas, ata_origem,
+  referencia, natureza_travada, origem_do_sistema e ja_avaliado.
 #}
 {% macro campo_erro(erros, nome) %}
 {% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
 {% endmacro %}
 {% block fragment %}
-<form method="post" action="{{ '/api/riscos/' ~ risco.code ~ '/editar' if risco else '/api/riscos/novo' }}"
-  x-target="registro-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+<form method="post" action="{{ url_salvar }}"
+  x-target="{{ destino }}" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
   data-tn-loading="Salvando o risco..."
   x-data="{ origem: $el.dataset.origem }" data-origem="{{ valores.get('origemTipo') or 'Manual' }}">

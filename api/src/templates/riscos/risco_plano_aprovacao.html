@@ -1,0 +1,61 @@
+{% extends "base_fragment.html" %}
+{#
+  Aprovação do plano de resposta pela gerência do projeto (ISSUE-065, D7): o gestor aprova ou
+  devolve para revisão, com comentário obrigatório ao devolver. O responsável pelo plano não pode
+  aprová-lo — o servidor recusa com 403 e a mensagem. O 422 devolve o formulário; o sucesso
+  atualiza a ficha atrás do modal.
+
+  Espera: risco, ficha, valores, erros e decisoes.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/plano/aprovacao"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a decisão..."
+  x-data="{ decisao: $el.dataset.decisao }" data-decisao="{{ valores.get('decisao') or '' }}">
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>O responsável pelo plano não pode aprová-lo (segregação de funções). Devolver exige comentário.</span>
+  </div>
+
+  <div class="det mb-16">
+    <div class="det__row"><span class="det__label">Estratégia</span><span class="det__valor">{{ risco.strategy or '·' }}</span></div>
+    <div class="det__row"><span class="det__label">Plano</span><span class="det__valor">{{ risco.plan or '·' }}</span></div>
+    <div class="det__row"><span class="det__label">Alvo</span><span class="det__valor">{{ risco.target_severity or '·' }}{% if risco.target_date %} até {{ formatar_data(risco.target_date) }}{% endif %}</span></div>
+    <div class="det__row"><span class="det__label">Responsável</span><span class="det__valor">{{ ficha.plan_responsible_name or '·' }}</span></div>
+    <div class="det__row"><span class="det__label">Ações vinculadas</span><span class="det__valor">{{ ficha.actions | length }}</span></div>
+  </div>
+
+  <div class="fgrid">
+    <fieldset class="field field--full">
+      <legend>Decisão</legend>
+      {% for item in decisoes %}
+      <label class="registro__opcao">
+        <input type="radio" name="decisao" value="{{ item }}"{% if valores.get('decisao') == item %} checked{% endif %} required
+          @change="decisao = $event.target.value" />
+        <span>{{ 'Aprovar' if item == 'Aprovado' else 'Devolver para revisão' }}</span>
+      </label>
+      {% endfor %}
+      {% if erros.get('decisao') %}<span id="erro-decisao" class="field__erro">{{ erros['decisao'] }}</span>{% endif %}
+    </fieldset>
+    <div class="field field--full">
+      <label for="aprovacao-comentario">Comentário</label>
+      <textarea id="aprovacao-comentario" name="comentario" class="input{% if erros.get('comentario') %} input--erro{% endif %}" rows="3" maxlength="500"
+        {% if erros.get('comentario') %}aria-invalid="true" aria-describedby="erro-comentario"{% endif %}>{{ valores.get('comentario') or '' }}</textarea>
+      <span class="hint">Obrigatório ao devolver (mínimo de 10 caracteres).</span>
+      {% if erros.get('comentario') %}<span id="erro-comentario" class="field__erro">{{ erros['comentario'] }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar decisão</button>
+  </div>
+</form>
+{% endblock %}

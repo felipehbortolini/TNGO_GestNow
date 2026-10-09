@@ -1,0 +1,112 @@
+{% extends "base_fragment.html" %}
+{#
+  Revisão periódica do risco (ISSUE-065, HU-110): a data, a situação apurada, P e I atuais, o
+  comentário (obrigatório), se o gatilho ocorreu e a próxima revisão. A cadência vem da severidade
+  da faixa; o gestor antecipa, nunca posterga. Gatilho ocorrido força a reavaliação e leva o risco
+  à pauta. "Risco materializado" e "Risco superado" abrem o encerramento em seguida. O 422 devolve
+  o formulário; o sucesso atualiza a ficha atrás do modal.
+
+  Espera: risco, ficha, versao, valores, erros, parametros, apuracoes, rotulo_avaliacao,
+  gatilho_texto, texto_da_apurada e texto_da_cadencia.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/revisoes"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a revisão...">
+  <input type="hidden" name="versao" value="{{ versao or '' }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>A revisão altera P e I da avaliação vigente ({{ rotulo_avaliacao }}) e grava a linha do tempo com antes e depois.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="revisao-data">Data da revisão</label>
+      <input id="revisao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or '' }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="revisao-apurada">Situação apurada</label>
+      <select id="revisao-apurada" name="situacaoApurada" class="input{% if erros.get('situacaoApurada') %} input--erro{% endif %}" required
+        {% if erros.get('situacaoApurada') %}aria-invalid="true" aria-describedby="erro-situacaoApurada"{% endif %}>
+        {% for item in apuracoes %}
+        <option value="{{ item }}"{% if valores.get('situacaoApurada') == item %} selected{% endif %}>{{ texto_da_apurada(item, risco.nature) }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'situacaoApurada') }}
+    </div>
+    <div class="field">
+      <label for="revisao-p">Probabilidade atual</label>
+      <select id="revisao-p" name="p" class="input{% if erros.get('p') %} input--erro{% endif %}" required
+        {% if erros.get('p') %}aria-invalid="true" aria-describedby="erro-p"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for faixa in parametros.probabilities %}
+        <option value="{{ faixa.level }}"{% if valores.get('p') == faixa.level | string %} selected{% endif %}>{{ faixa.level }} · {{ faixa.name }} ({{ faixa.range_text }})</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'p') }}
+    </div>
+    <div class="field">
+      <label for="revisao-i">Impacto atual</label>
+      <select id="revisao-i" name="i" class="input{% if erros.get('i') %} input--erro{% endif %}" required
+        {% if erros.get('i') %}aria-invalid="true" aria-describedby="erro-i"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for n in range(1, 6) %}
+        <option value="{{ n }}"{% if valores.get('i') == n | string %} selected{% endif %}>{{ n }} {{ parametros.impacts[n - 1] }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'i') }}
+    </div>
+    <div class="field field--full">
+      <label for="revisao-comentario">Comentário da revisão</label>
+      <textarea id="revisao-comentario" name="comentario" class="input{% if erros.get('comentario') %} input--erro{% endif %}" rows="3" maxlength="1000" required
+        {% if erros.get('comentario') %}aria-invalid="true" aria-describedby="erro-comentario"{% endif %}>{{ valores.get('comentario') or '' }}</textarea>
+      <span class="hint">Evidência da revisão; aparece na linha do tempo (mínimo de 10 caracteres).</span>
+      {{ erro(erros, 'comentario') }}
+    </div>
+    <fieldset class="field field--full">
+      <legend>Gatilho ocorreu?</legend>
+      <label class="registro__opcao">
+        <input type="radio" name="gatilho" value="sim"{% if valores.get('gatilho') == 'sim' %} checked{% endif %} required />
+        <span>Sim</span>
+      </label>
+      <label class="registro__opcao">
+        <input type="radio" name="gatilho" value="nao"{% if valores.get('gatilho') != 'sim' %} checked{% endif %} />
+        <span>Não</span>
+      </label>
+      <span class="hint">{% if gatilho_texto %}Gatilho: {{ gatilho_texto }}. {% endif %}Se sim, o sistema força a reavaliação e marca o risco na pauta de escalonamento.</span>
+      {% if erros.get('gatilho') %}<span id="erro-gatilho" class="field__erro">{{ erros['gatilho'] }}</span>{% endif %}
+    </fieldset>
+    <div class="field">
+      <label for="revisao-proxima">Próxima revisão</label>
+      <input id="revisao-proxima" name="proximaRevisao" type="date" class="input{% if erros.get('proximaRevisao') %} input--erro{% endif %}" required
+        value="{{ valores.get('proximaRevisao') or '' }}"
+        {% if erros.get('proximaRevisao') %}aria-invalid="true" aria-describedby="erro-proximaRevisao"{% endif %} />
+      <span class="hint">Sugerida pela cadência da severidade{% if ficha.cadence_days %} ({{ texto_da_cadencia(ficha.cadence_days) }}){% endif %}. Pode antecipar, nunca postergar.</span>
+      {{ erro(erros, 'proximaRevisao') }}
+    </div>
+    <div class="field field--full">
+      <label class="registro__opcao">
+        <input type="checkbox" name="notificar" value="1"{% if valores.get('notificar') == '1' %} checked{% endif %} />
+        <span>Notificar dono e gestor por e-mail</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar revisão</button>
+  </div>
+</form>
+{% endblock %}

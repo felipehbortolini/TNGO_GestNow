@@ -1,0 +1,35 @@
+{% extends "base_fragment.html" %}
+{#
+  Reabertura do risco (ISSUE-065): ato de Gestor com justificativa obrigatória. O risco volta à
+  situação em que estava antes do encerramento e a justificativa entra na linha do tempo. O 422
+  devolve o formulário; o sucesso atualiza a ficha atrás do modal.
+
+  Espera: risco, valores e erros.
+#}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/reabertura"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Reabrindo o risco...">
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Reabrir devolve o risco à carteira ativa, na situação em que estava antes do encerramento.</span>
+  </div>
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="reabrir-justificativa">Justificativa</label>
+      <textarea id="reabrir-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="3" maxlength="500" required
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">Grava linha no histórico do risco (mínimo de 10 caracteres).</span>
+      {% if erros.get('justificativa') %}<span id="erro-justificativa" class="field__erro">{{ erros['justificativa'] }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Reabrir</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--riscos-ficha"
-  x-data="{ estado: 'vazio-origem' }"
+  x-data="{ estado: 'carregando', carregar() { return this.$ajax('/api/riscos/ficha' + window.location.search, { target: 'ficha-conteudo' }) } }"
   x-init="TN.paginas['riscos/ficha'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -7,19 +7,25 @@
         <h1 class="h-dash">Ficha do risco</h1>
         <p class="page-head__sub">Identificação, avaliação, resposta, monitoramento e histórico do risco.</p>
       </div>
+      <div class="page-head__actions">
+        <a href="/riscos/registro" class="btn btn--secondary" data-tn-tela>Voltar ao registro</a>
+      </div>
     </div>
 
-    <div class="card">
+    <div id="ficha-conteudo" x-show="estado === 'pronto'"></div>
+
+    <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p>Carregando o risco...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhum risco aberto</h2>
-          <p>Abra um risco pelo Registro de riscos para ver a ficha aqui.</p>
+          <h2 class="h-card4">Risco não encontrado</h2>
+          <p>O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.</p>
+          <a href="/riscos/registro" class="btn btn--primary" data-tn-tela>Voltar ao registro de riscos</a>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
@@ -28,8 +34,11 @@
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
+          <h2 class="h-card5">Não foi possível carregar o risco</h2>
           <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <div>
+            <button type="button" class="btn btn--secondary btn--sm" data-ficha-recarregar>Tentar de novo</button>
+          </div>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">

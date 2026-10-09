@@ -1,0 +1,155 @@
+{% extends "base_fragment.html" %}
+{#
+  Encerramento do risco (ISSUE-065, HU-113): motivo, data, impacto real quando materializado, a
+  ação do problema na Central (grupo Problema, origem Risco), a solicitação de mudança do 08
+  quando altera escopo, prazo ou custo, e a lição aprendida — sempre obrigatória, criada em
+  Rascunho no acervo. O encerramento é bloqueado com ação aberta, salvo Materializado; para
+  oportunidade o motivo aparece como "Capturada" e não gera problema nem SM. O 422 devolve o
+  formulário; o sucesso atualiza a ficha atrás do modal.
+
+  Espera: risco, ficha, valores, erros, motivos, materializado, duplicado, pessoas, outros,
+  oportunidade e abertas.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/riscos/{{ risco.code }}/encerramento"
+  x-target="ficha-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Encerrando o risco..."
+  x-data="{ motivo: $el.dataset.motivo, gerarAcao: $el.dataset.gerarAcao }"
+  data-motivo="{{ valores.get('motivo') or '' }}" data-gerarAcao="{{ valores.get('gerarAcao') or '' }}">
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
+  {% for chave in ['geral', 'versao', 'acoes'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  {% if abertas %}
+  <div class="aviso aviso--warn mb-16" role="alert">
+    <span>
+      {{ 'Existe 1 ação em aberto' if abertas | length == 1 else 'Existem ' ~ (abertas | length) ~ ' ações em aberto' }} vinculada(s) a este risco
+      ({{ abertas | map(attribute='item') | join(', ') }}). Conclua ou cancele antes de encerrar, salvo se o motivo for {{ 'Capturada' if oportunidade else 'Materializado' }}.
+    </span>
+  </div>
+  {% endif %}
+  <p class="hint mb-16">Encerrar tira o risco da carteira ativa e registra a lição aprendida no acervo (08).</p>
+
+  <fieldset class="field field--full">
+    <legend>Motivo do encerramento</legend>
+    {% for item in motivos %}
+    <label class="registro__opcao">
+      <input type="radio" name="motivo" value="{{ item }}"{% if valores.get('motivo') == item %} checked{% endif %} required
+        @change="motivo = $event.target.value" />
+      <span>
+        {% if item == 'Não se materializou' %}Não se materializou (janela de exposição encerrada)
+        {% elif item == 'Materializado' %}{{ 'Capturada (benefício obtido)' if oportunidade else 'Materializado (virou problema real)' }}
+        {% elif item == 'Superado' %}Superado pelo andamento do projeto
+        {% elif item == 'Transferido' %}Transferido por contrato ou seguro
+        {% else %}Duplicado de outro risco{% endif %}
+      </span>
+    </label>
+    {% endfor %}
+    {% if erros.get('motivo') %}<span id="erro-motivo" class="field__erro">{{ erros['motivo'] }}</span>{% endif %}
+  </fieldset>
+
+  <div class="fgrid mt-16">
+    <div class="field">
+      <label for="encerrar-data">Data do encerramento</label>
+      <input id="encerrar-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or '' }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field" x-show="motivo === '{{ duplicado }}'">
+      <label for="encerrar-duplicado">Risco duplicado de</label>
+      <select id="encerrar-duplicado" name="duplicadoDe" class="input{% if erros.get('duplicadoDe') %} input--erro{% endif %}"
+        {% if erros.get('duplicadoDe') %}aria-invalid="true" aria-describedby="erro-duplicadoDe"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for outro in outros %}
+        <option value="{{ outro.code }}"{% if valores.get('duplicadoDe') == outro.code %} selected{% endif %}>{{ outro.code }} · {{ outro.title }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'duplicadoDe') }}
+    </div>
+
+    <div class="field" x-show="motivo === '{{ materializado }}'">
+      <label for="encerrar-prazo">{{ 'Benefício real em prazo (dias)' if oportunidade else 'Impacto real em prazo (dias)' }}</label>
+      <input id="encerrar-prazo" name="impactoRealPrazoDias" type="number" min="0" max="999" step="1"
+        class="input{% if erros.get('impactoRealPrazoDias') %} input--erro{% endif %}"
+        value="{{ valores.get('impactoRealPrazoDias') or '0' }}"
+        {% if erros.get('impactoRealPrazoDias') %}aria-invalid="true" aria-describedby="erro-impactoRealPrazoDias"{% endif %} />
+      <span class="hint">Usado para calibrar as escalas em projetos futuros.</span>
+      {{ erro(erros, 'impactoRealPrazoDias') }}
+    </div>
+    <div class="field" x-show="motivo === '{{ materializado }}'">
+      <label for="encerrar-custo">{{ 'Benefício real em custo (R$)' if oportunidade else 'Impacto real em custo (R$)' }}</label>
+      <input id="encerrar-custo" name="impactoRealCustoCentavos" inputmode="decimal"
+        class="input{% if erros.get('impactoRealCustoCentavos') %} input--erro{% endif %}"
+        value="{{ valores.get('impactoRealCustoCentavos') or '0,00' }}"
+        {% if erros.get('impactoRealCustoCentavos') %}aria-invalid="true" aria-describedby="erro-impactoRealCustoCentavos"{% endif %} />
+      {{ erro(erros, 'impactoRealCustoCentavos') }}
+    </div>
+
+    <div class="field field--full" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }}">
+      <div class="aviso aviso--info" role="note">
+        <span>Risco materializado vira problema: trate por ações na Central e, se exigir alterar escopo, prazo ou custo, por solicitação de mudança (08). As ações em aberto continuam na Central.</span>
+      </div>
+    </div>
+    <div class="field field--full" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }}">
+      <label class="registro__opcao">
+        <input type="checkbox" name="gerarAcao" value="1"{% if valores.get('gerarAcao') == '1' %} checked{% endif %}
+          @change="gerarAcao = $event.target.checked ? '1' : ''" />
+        <span>Gerar ação na Central para tratar o problema (origem Risco)</span>
+      </label>
+    </div>
+    <div class="field field--full" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }} && gerarAcao === '1'">
+      <label for="encerrar-acao-assunto">Assunto da ação</label>
+      <input id="encerrar-acao-assunto" name="acaoAssunto" class="input{% if erros.get('acaoAssunto') %} input--erro{% endif %}" maxlength="255"
+        value="{{ valores.get('acaoAssunto') or '' }}"
+        {% if erros.get('acaoAssunto') %}aria-invalid="true" aria-describedby="erro-acaoAssunto"{% endif %} />
+      {{ erro(erros, 'acaoAssunto') }}
+    </div>
+    <div class="field" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }} && gerarAcao === '1'">
+      <label for="encerrar-acao-responsavel">Responsável</label>
+      <select id="encerrar-acao-responsavel" name="acaoResponsavelId" class="input{% if erros.get('acaoResponsavelId') %} input--erro{% endif %}"
+        {% if erros.get('acaoResponsavelId') %}aria-invalid="true" aria-describedby="erro-acaoResponsavelId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('acaoResponsavelId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'acaoResponsavelId') }}
+    </div>
+    <div class="field" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }} && gerarAcao === '1'">
+      <label for="encerrar-acao-prevista">Data prevista</label>
+      <input id="encerrar-acao-prevista" name="acaoPrevista" type="date" class="input{% if erros.get('acaoPrevista') %} input--erro{% endif %}"
+        value="{{ valores.get('acaoPrevista') or '' }}"
+        {% if erros.get('acaoPrevista') %}aria-invalid="true" aria-describedby="erro-acaoPrevista"{% endif %} />
+      {{ erro(erros, 'acaoPrevista') }}
+    </div>
+    <div class="field field--full" x-show="motivo === '{{ materializado }}' && !{{ 'true' if oportunidade else 'false' }}">
+      <label class="registro__opcao">
+        <input type="checkbox" name="abrirSm" value="1"{% if valores.get('abrirSm') == '1' %} checked{% endif %} />
+        <span>Exige alterar escopo, prazo ou custo: registrar solicitação de mudança (08)</span>
+      </label>
+    </div>
+
+    <div class="field field--full">
+      <label for="encerrar-licao">Lição aprendida</label>
+      <textarea id="encerrar-licao" name="licao" class="input{% if erros.get('licao') %} input--erro{% endif %}" rows="3" maxlength="1000" required
+        placeholder="O que este risco ensina para os próximos projetos"
+        {% if erros.get('licao') %}aria-invalid="true" aria-describedby="erro-licao"{% endif %}>{{ valores.get('licao') or '' }}</textarea>
+      <span class="hint">Sempre obrigatória, inclusive quando o risco não se materializou. Alimenta o acervo de lições (08), em Rascunho.</span>
+      {{ erro(erros, 'licao') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Encerrar risco</button>
+  </div>
+</form>
+{% endblock %}

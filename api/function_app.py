@@ -19,6 +19,7 @@ from src.modulos.planejamento.routes import bp as planejamento_bp
 from src.modulos.programacao_semanal.routes import bp as programacao_semanal_bp
 from src.modulos.qualidade.routes import bp as qualidade_bp
 from src.modulos.relatorio.routes import bp as relatorio_bp
+from src.modulos.riscos.ficha_routes import bp as riscos_ficha_bp
 from src.modulos.riscos.routes import bp as riscos_bp
 from src.modulos.suprimentos.routes import bp as suprimentos_bp
 
@@ -39,6 +40,7 @@ app.register_functions(programacao_semanal_bp)
 app.register_functions(financeiro_bp)
 app.register_functions(suprimentos_bp)
 app.register_functions(riscos_bp)
+app.register_functions(riscos_ficha_bp)
 app.register_functions(qualidade_bp)
 app.register_functions(hse_bp)
 app.register_functions(governanca_bp)

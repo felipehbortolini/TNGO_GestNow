@@ -1,16 +1,160 @@
 /* ============================================================
    ficha.css — Estilo da tela Ficha do risco (riscos/ficha)
 
-   Identificação, avaliação, resposta, monitoramento e histórico do risco.
+   Identificação, avaliação, resposta, monitoramento e histórico do risco (ISSUE-065).
 
-   Escopo: tudo que morar aqui começa por .pagina--riscos-ficha, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
+   Escopo: tudo que mora aqui começa por .pagina--riscos-ficha, a classe da raiz da view,
+   para não vazar entre telas. Só tokens do Design System: nenhum valor de cor, espaçamento,
+   raio ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-065.
+   O que a tela acrescenta ao Design System: a faixa de identificação com os dois scores, os
+   cartões de avaliação, as duas colunas de detalhe, a linha do tempo das revisões e a
+   contagem das abas. O fragmento é desenhado pelo servidor (api/src/templates/riscos/).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--riscos-ficha .ficha__faixa-corpo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+.pagina--riscos-ficha .ficha__codigo {
+  margin: 0;
+  font-weight: 600;
+  color: var(--brand-title);
+}
+
+.pagina--riscos-ficha .ficha__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  margin: var(--space-xs) 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-ficha .ficha__selos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--riscos-ficha .ficha__seta {
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-ficha .ficha__contagem {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  padding: 0 var(--space-xs);
+  border-radius: var(--r-sm);
+  background: var(--neutro-100);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-ficha .ficha__aval-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-lg);
+}
+
+.pagina--riscos-ficha .ficha__colunas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-xl);
+}
+
+.pagina--riscos-ficha .aval-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  background: var(--surface-hover-suave);
+}
+
+.pagina--riscos-ficha .aval-card__rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-ficha .aval-card__score {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.pagina--riscos-ficha .aval-card__score b {
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--brand-title);
+}
+
+.pagina--riscos-ficha .aval-card__pi {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.pagina--riscos-ficha .ficha__feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--riscos-ficha .ficha__feed-item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--neutro-100);
+}
+
+.pagina--riscos-ficha .ficha__feed-item:last-child {
+  border-bottom: 0;
+}
+
+.pagina--riscos-ficha .ficha__feed-item--warn {
+  border-left: 3px solid var(--warn-500);
+  padding-left: var(--space-md);
+}
+
+.pagina--riscos-ficha .ficha__feed-data {
+  font-weight: 600;
+  color: var(--brand-title);
+}
+
+.pagina--riscos-ficha .ficha__feed-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.pagina--riscos-ficha .ficha__linha-alerta td {
+  background: var(--warn-50);
+}
+
+.pagina--riscos-ficha .nowrap {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .pagina--riscos-ficha .ficha__colunas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pagina--riscos-ficha .ficha__feed-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
