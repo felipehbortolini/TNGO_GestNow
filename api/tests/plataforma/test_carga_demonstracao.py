@@ -130,6 +130,7 @@ PARTS = [
     "suprimentos-processos",
     "suprimentos-pedidos",
     "suprimentos-diligenciamento",
+    "suprimentos-painel",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -233,7 +234,15 @@ def test_carga_grava_os_contratos_do_mock(db_session: Session) -> None:
     assert project.code == "TN-2026-014"
     item = db_session.scalars(select(EacItem).where(EacItem.id == contract.eac_item_id)).one()
     assert item.code == "1.2"
-    assert contract.purchase_package_id is None
+    package = db_session.scalars(
+        select(PurchasePackage).where(
+            PurchasePackage.project_id == contract.project_id,
+            PurchasePackage.code == "PC-01",
+        )
+    ).one()
+    assert contract.purchase_package_id == package.id, (
+        "a parte do painel fecha a ligação do contrato com o pacote (ISSUE-063)"
+    )
     assert (contract.start, contract.current_end) == (date(2026, 1, 12), date(2026, 11, 20))
 
     addendum = db_session.scalars(
@@ -1882,6 +1891,45 @@ def test_oraculo_do_mas_com_a_carga(db_session: Session) -> None:
     assert documentos is not None
     assert documentos.estimated is True, "o PC-14 ainda não tem pedido"
     assert documentos.baseline == date(2026, 10, 5), "15% entre o pedido planejado e o ROS"
+
+
+def test_oraculo_do_painel_de_suprimentos_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-063: os indicadores do painel sobre a carga, na âncora.
+
+    No projeto 1, 13 dos 14 pacotes planejados até o corte estão adjudicados — aderência de
+    92,9% —; o saving sobre a estimativa é de 5,2% e o de negociação, 4,7% (a primeira proposta
+    vencedora vem do processo vivo no PC-12 e das colunas da carga nos demais); o avanço de
+    suprimentos pondera os 14 pacotes pelo valor (o contrato para o serviço, o pedido para o
+    equipamento, a estimativa para o PC-14) e sai de 90,9% x 97,3% previsto, com o índice 0,93.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    projeto = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+
+    listing = suprimentos.list_panel(
+        db_session,
+        user=user,
+        scope=Scope(project_id=projeto.id, source="url"),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    summary = listing.summary
+    assert summary.packages == 14, "os pacotes do projeto"
+    assert summary.planned_until_reference == 14
+    assert summary.adjudicated_until_reference == 13, "13 de 14 pacotes adjudicados até o corte"
+    assert summary.adherence_pct == Decimal("92.9")
+    assert summary.saving_pct == Decimal("5.2"), "sobre a estimativa dos adjudicados"
+    assert summary.negotiation_saving_pct == Decimal("4.7"), "sobre a primeira proposta vencedora"
+    assert listing.mas.summary.realized_pct == Decimal("90.9")
+    assert listing.mas.summary.planned_pct == Decimal("97.3")
+    assert listing.mas.summary.index == Decimal("0.93")
+    assert summary.orders.critical == 3, "os três pedidos críticos do diligenciamento"
 
 
 def _count_where(db_session: Session, *conditions: Any) -> int:
