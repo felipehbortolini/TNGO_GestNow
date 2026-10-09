@@ -87,6 +87,7 @@ from src.modulos.riscos.models import Risk
 from src.modulos.suprimentos import service as suprimentos
 from src.modulos.suprimentos import validation as suprimentos_validation
 from src.modulos.suprimentos.models import (
+    DeliveryReceipt,
     PackageMilestone,
     ProcessInvitee,
     ProcessNegotiation,
@@ -128,6 +129,7 @@ PARTS = [
     "suprimentos-pacotes",
     "suprimentos-processos",
     "suprimentos-pedidos",
+    "suprimentos-diligenciamento",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -1670,8 +1672,9 @@ def test_oraculo_dos_pedidos_de_compra_com_a_carga(db_session: Session) -> None:
     e 1 do projeto 3) com 84 marcos (14 vezes 6), todos com a LB contratual e a previsão; 3 já
     entregues (PED-2026-0003, 0006 e 0008) e 3 nascidos com folga negativa (0001, 0002 e 0004).
     O pedido da PC-12 (PED-2026-0010) fica ligado ao pacote e à Teta Automação, com os R$ 300.000
-    negociados; o ``recebimento`` do mock não vira tabela (ISSUE-061) e nenhuma ação nova de
-    diligenciamento é criada pela carga (a do PED-2026-0011 já vem do mock da Central).
+    negociados; o ``recebimento`` do mock entra pela parte do diligenciamento (ISSUE-061) e
+    nenhuma ação nova de diligenciamento é criada pela carga (a do PED-2026-0011 já vem do mock
+    da Central).
     """
     run_demonstration(db_session, reference_date=DEMO_ANCHOR)
 
@@ -1751,6 +1754,81 @@ def test_oraculo_dos_pedidos_de_compra_com_a_carga(db_session: Session) -> None:
     )
     assert proximo_contrato == "CT-2026-029", (
         "o README cita 015; a divergência está registrada (mocks completos)"
+    )
+
+
+def test_oraculo_do_diligenciamento_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-061: os 3 pedidos críticos do projeto, o OTD de 66,7% e os recebimentos.
+
+    Na âncora, o diligenciamento lê os pedidos já semeados pela 060: no projeto 1, 3 críticos com
+    folga de -20 (PED-2026-0001), -9 (0002) e -5 (0004) dias contra o ROS; 3 entregues (0003,
+    0006 e 0008), 2 no prazo (0003 e 0008) — OTD de 66,7% —; 3 recebimentos do mock com a
+    conferência e as pendências. As ações de diligenciamento do mock da Central (0007, 0002 e a
+    caldeira) já vêm da parte da Central, então o bloco de pendentes do projeto fica com o 0001 e
+    o 0004; no Portfólio a caldeira (PED-2026-0011, folga -26) é o quarto crítico, como o mock
+    analisa.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, DeliveryReceipt) == 3, "os recebimentos do mock"
+    pedido6 = db_session.scalars(
+        select(DeliveryReceipt)
+        .join(PurchaseOrder, PurchaseOrder.id == DeliveryReceipt.order_id)
+        .where(PurchaseOrder.number == "PED-2026-0006")
+    ).one()
+    assert pedido6.checked is True
+    assert pedido6.damaged is False
+    assert "Certificados" in (pedido6.pending or "")
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    projeto = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
+
+    listing = suprimentos.list_orders(
+        db_session,
+        user=user,
+        scope=Scope(project_id=projeto.id, source="url"),
+        filters=suprimentos_validation.OrderFilters(situation="todos"),
+        reference_date=DEMO_ANCHOR,
+    )
+    criticos = sorted(
+        (line for line in listing.lines if line.critical), key=lambda line: line.slack_days or 0
+    )
+    assert [(line.number, line.slack_days) for line in criticos] == [
+        ("PED-2026-0001", -20),
+        ("PED-2026-0002", -9),
+        ("PED-2026-0004", -5),
+    ]
+    assert listing.summary.otd == Decimal("66.7"), "2 de 3 entregas até a data contratual"
+    assert listing.summary.delivered_on_time == 2
+    assert listing.summary.delivered == 3
+    assert [line.number for line in listing.pending] == [
+        "PED-2026-0001",
+        "PED-2026-0004",
+    ], "o 0002 já tem a ação do mock da Central"
+
+    portfolio = suprimentos.list_orders(
+        db_session,
+        user=user,
+        scope=Scope(project_id=None, source="padrao"),
+        filters=suprimentos_validation.OrderFilters(situation="todos"),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert portfolio.summary.critical == 4, "a caldeira do projeto 2 fecha o quarto crítico"
+    assert portfolio.summary.otd == Decimal("66.7")
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(Action)
+            .where(Action.origin == "Suprimentos", Action.group == "Diligenciamento")
+        )
+        == 3
+    ), (
+        "as três ações de diligenciamento do mock da Central (0007, 0002 e a caldeira), nenhuma da carga"
     )
 
 
