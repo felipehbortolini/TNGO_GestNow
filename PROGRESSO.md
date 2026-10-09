@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 64 de 93 -->
+<!-- Progresso da migração: 65 de 93 -->
 
 # Progresso da migração
 
-**64 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 15:30 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**65 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 16:48 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 64 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 064, 072 |
-| na fila | 29 | 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 65 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 072 |
+| na fila | 28 | 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -75,6 +75,7 @@
 | ISSUE-060 | Processo de compra: recomendação, aprovação por alçada e emissão de pedido ou contrato | `2bdbdde` |
 | ISSUE-061 | Diligenciamento e recebimento | `706ecab` |
 | ISSUE-062 | MAS: Mapa de Suprimentos | `f2a2830` |
+| ISSUE-063 | Painel de suprimentos | `e7d1589` |
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
@@ -82,7 +83,6 @@
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-063 | Painel de suprimentos | na fila | ISSUE-062 |
 | ISSUE-065 | Ficha do risco: plano de resposta, revisões, encerramento e reabertura | na fila | ISSUE-064, ISSUE-019, ISSUE-023, ISSUE-027 |
 | ISSUE-066 | Matriz P x I e painel de riscos | na fila | ISSUE-065 |
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | na fila | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 |
