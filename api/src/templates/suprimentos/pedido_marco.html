@@ -1,0 +1,106 @@
+{% extends "base_fragment.html" %}
+{#
+  Atualizar marco (ISSUE-061): o marco pendente, o que registrar (marco realizado ou nova
+  previsão), a data, a reprogramação em cascata dos marcos seguintes e o comentário do
+  diligenciamento. A realização exige o marco anterior realizado e data até a referência; a
+  previsão não fica no passado. O resultado da inspeção em fábrica (FAT) e o registro no 06
+  Qualidade são da ISSUE-069 e não entram aqui. O 422 devolve este formulário preenchido com a
+  mensagem sob cada campo; o sucesso atualiza a tela atrás do modal.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data e pill_do_marco.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+{% set pendentes = linha.milestones | rejectattr('done') | list %}
+{% set proximo = pendentes[0].position if pendentes else '' %}
+<form id="pedido-marco-form" method="post" action="/api/suprimentos/diligenciamento/{{ linha.id }}/marco"
+  x-target="diligenciamento-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  x-data="{ tipo: '{{ valores.get('tipo') or 'previsao' }}' }"
+  data-tn-loading="Salvando o marco...">
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  {% if not pendentes %}
+  <div class="aviso aviso--ok mb-16">
+    <span>Todos os marcos deste pedido estão realizados; a entrega se registra no recebimento.</span>
+  </div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="marco-marco">Marco</label>
+      <select id="marco-marco" name="marco" class="input{% if erros.get('marco') %} input--erro{% endif %}" required
+        {% if erros.get('marco') %}aria-invalid="true" aria-describedby="erro-marco"{% endif %}>
+        {% for marco in pendentes %}
+        <option value="{{ marco.position }}"
+          {% if (valores.get('marco') or proximo|string) == marco.position|string %} selected{% endif %}>
+          {{ marco.name }} · LB {{ formatar_data(marco.baseline) }} · previsão {{ formatar_data(marco.forecast) }}
+        </option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'marco') }}
+    </div>
+
+    <div class="field">
+      <label for="marco-tipo">O que registrar</label>
+      <select id="marco-tipo" name="tipo" class="input" required x-model="tipo">
+        <option value="realizado">Marco realizado</option>
+        <option value="previsao">Nova previsão (reprogramação)</option>
+      </select>
+    </div>
+
+    <div class="field" x-show="tipo === 'realizado'">
+      <label for="marco-realizada">Data realizada</label>
+      <input id="marco-realizada" name="realizada" type="date"
+        class="input{% if erros.get('realizada') %} input--erro{% endif %}"
+        value="{{ valores.get('realizada') or referencia }}"
+        {% if erros.get('realizada') %}aria-invalid="true" aria-describedby="erro-realizada"{% endif %} />
+      <span class="hint">Até a data de referência; exige o marco anterior realizado.</span>
+      {{ campo_erro(erros, 'realizada') }}
+    </div>
+
+    <div class="field" x-show="tipo === 'previsao'">
+      <label for="marco-previsao">Nova previsão</label>
+      <input id="marco-previsao" name="previsao" type="date"
+        class="input{% if erros.get('previsao') %} input--erro{% endif %}"
+        value="{{ valores.get('previsao') or '' }}"
+        {% if erros.get('previsao') %}aria-invalid="true" aria-describedby="erro-previsao"{% endif %} />
+      <span class="hint">A previsão não fica no passado.</span>
+      {{ campo_erro(erros, 'previsao') }}
+    </div>
+
+    <div class="field field--full" x-show="tipo === 'previsao'">
+      <label class="check" for="marco-cascata">
+        <input id="marco-cascata" type="checkbox" name="cascata" value="1"
+          {% if valores.get('cascata') in (None, '', '1') %}checked{% endif %} />
+        Reprogramar os marcos seguintes na mesma quantidade de dias
+      </label>
+    </div>
+
+    <div class="field field--full">
+      <label for="marco-comentario">Comentário do diligenciamento</label>
+      <textarea id="marco-comentario" name="comentario" rows="3" maxlength="300"
+        class="input{% if erros.get('comentario') %} input--erro{% endif %}"
+        placeholder="Fonte da informação, visita à fábrica, relatório do inspetor"
+        {% if erros.get('comentario') %}aria-invalid="true" aria-describedby="erro-comentario"{% endif %}>{{ valores.get('comentario') or '' }}</textarea>
+      {{ campo_erro(erros, 'comentario') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
+      Salvar marco
+    </button>
+  </div>
+</form>
+{% endblock %}

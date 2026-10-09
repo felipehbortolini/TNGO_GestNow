@@ -1,12 +1,14 @@
-"""The export of the register, of the plan and of the process: one ``Document``, the Excel and the print (D12).
+"""The export of the register, of the plan, of the process and of the expediting: one ``Document``, the Excel and the print (D12).
 
-What the screen shows is what leaves: the six KPIs of the register (or the five of the plan and
-of the process), the line of active filters and the table, with the same content the prototype
-exported. The register is global, so its table declares itself not per project; the plan and the
-process tables are per project and in the Portfólio open with ``Projeto`` (HU-016). The
-adjudicated and saving columns of the plan travel empty while the process (ISSUE-059) and the
-order (ISSUE-061) do not exist (DECISION, ISSUE-058); the process document carries the
-equalization map when the request names a package, as the prototype's export did.
+What the screen shows is what leaves: the six KPIs of the register (or the five of the plan, of
+the process and of the expediting), the line of active filters and the table, with the same
+content the prototype exported. The register is global, so its table declares itself not per
+project; the plan, the process and the expediting tables are per project and in the Portfólio
+open with ``Projeto`` (HU-016). The expediting document also carries the manufacturing milestones
+of the order the request names, as the prototype's export did. The adjudicated and saving columns
+of the plan travel empty while the process (ISSUE-059) and the order (ISSUE-061) do not exist
+(DECISION, ISSUE-058); the process document carries the equalization map when the request names a
+package, as the prototype's export did.
 """
 
 from __future__ import annotations
@@ -32,7 +34,12 @@ from src.core.money import format_brl
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.suprimentos import calculations, service
-from src.modulos.suprimentos.validation import PackageFilters, ProcessFilters, SupplierFilters
+from src.modulos.suprimentos.validation import (
+    OrderFilters,
+    PackageFilters,
+    ProcessFilters,
+    SupplierFilters,
+)
 
 TITLE = "Fornecedores"
 TABLE_TITLE = "Fornecedores e contratadas"
@@ -529,4 +536,177 @@ def _map_row(proposal: service.ProposalLine) -> Row:
         proposal.commercial_score,
         proposal.final_score,
         proposal.deviations,
+    )
+
+
+# ── The expediting and receiving (ISSUE-061) ─────────────────────────────────────────────────
+
+ORDERS_TITLE = "Diligenciamento e recebimento"
+ORDERS_TABLE_TITLE = "Pedidos em diligenciamento"
+ORDER_MILESTONES_TITLE = "Marcos de fabricação do pedido"
+ALL_ORDERS = "Todos os pedidos"
+SITUATION_TONES_ORDER = {
+    calculations.ORDER_DELIVERED: Tone.OK,
+    calculations.ORDER_CRITICAL: Tone.ERROR,
+    calculations.ORDER_WARNING: Tone.WARN,
+    calculations.ORDER_ON_TIME: Tone.OK,
+}
+MILESTONE_TONES = {
+    calculations.MILESTONE_ON_TIME: Tone.OK,
+    calculations.MILESTONE_LATE: Tone.ERROR,
+    calculations.MILESTONE_OVERDUE: Tone.ERROR,
+    calculations.MILESTONE_FORECAST_LATE: Tone.WARN,
+    calculations.MILESTONE_DUE_SOON: Tone.OK,
+    calculations.MILESTONE_WITHOUT_DATE: Tone.NEUTRAL,
+}
+
+
+def build_orders_document(
+    *,
+    listing: service.OrderListing,
+    line: service.OrderLine | None,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The document of the expediting, with the milestones of the order the request names."""
+    tables = [_orders_table(listing.lines)]
+    if line is not None:
+        tables.append(_order_milestones_table(line))
+    return Document(
+        title=ORDERS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(
+            ("Filtros", orders_filter_text(listing.filters)),
+            ("Pedidos no filtro", str(listing.total)),
+        ),
+        kpis=_orders_kpis(listing),
+        tables=tuple(tables),
+        paper=Paper.A3,
+    )
+
+
+def orders_filter_text(filters: OrderFilters) -> str:
+    """The active filters as one line: the search and the orders shown."""
+    parts: list[str] = []
+    if filters.search:
+        parts.append(f"Busca: {filters.search}")
+    if filters.situation != "abertos":
+        parts.append("Todos os pedidos")
+    if filters.band:
+        parts.append(f"Faixa: {filters.band}")
+    return " · ".join(parts) if parts else ALL_ORDERS
+
+
+def _orders_kpis(listing: service.OrderListing) -> tuple[Kpi, ...]:
+    summary = listing.summary
+    return (
+        Kpi(
+            "Pedidos em aberto",
+            summary.open_orders,
+            f"Previsto: {summary.expected_open}",
+            ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=f"{format_brl(summary.open_cents)} a receber",
+        ),
+        Kpi(
+            "Críticos",
+            summary.critical,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.critical else Tone.OK,
+            status=f"{summary.lli_critical} de longo prazo (LLI) · previsão depois do ROS",
+        ),
+        Kpi(
+            "Em atenção",
+            summary.warning,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.warning else Tone.OK,
+            status="folga de até 7 dias ou marco vencido",
+        ),
+        Kpi(
+            "Marcos vencidos",
+            summary.overdue_milestones,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.overdue_milestones else Tone.OK,
+            status="previsão passou sem realização",
+        ),
+        Kpi(
+            "Entrega no prazo (OTD)",
+            summary.otd if summary.otd is not None else "—",
+            "Meta: ≥ 90,0%",
+            ValueKind.PERCENT if summary.otd is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.OK if summary.otd is not None and summary.otd >= 90 else Tone.WARN,
+            status=f"{summary.delivered_on_time} de {summary.delivered} entregas até a data contratual",
+        ),
+    )
+
+
+def _orders_table(lines: Sequence[service.OrderLine]) -> Table:
+    return Table(
+        title=ORDERS_TABLE_TITLE,
+        columns=(
+            Column("Pedido", width=16),
+            Column("Pacote", width=12),
+            Column("Descrição", width=34),
+            Column("Fornecedor", width=24),
+            Column("Valor", width=18, kind=ValueKind.MONEY),
+            Column("Próximo marco", width=22),
+            Column("Data contratual", width=14, kind=ValueKind.DATE),
+            Column("Previsão de entrega", width=16, kind=ValueKind.DATE),
+            Column("ROS", width=12, kind=ValueKind.DATE),
+            Column("Folga (dias)", width=12, kind=ValueKind.INTEGER),
+            Column("Situação", width=14),
+        ),
+        rows=tuple(_order_row(line) for line in lines),
+    )
+
+
+def _order_row(line: service.OrderLine) -> Row:
+    next_milestone = line.next_milestone
+    return row(
+        line.number,
+        line.package_code,
+        line.description,
+        line.supplier,
+        line.value_cents,
+        next_milestone.name if next_milestone is not None else "Entregue",
+        line.contractual_date,
+        line.prediction,
+        line.ros,
+        Cell(line.slack_days, SLACK_TONES.get(line.band, Tone.NEUTRAL)),
+        Cell(line.situation, SITUATION_TONES_ORDER.get(line.situation, Tone.NEUTRAL)),
+        project=line.project_label,
+    )
+
+
+def _order_milestones_table(line: service.OrderLine) -> Table:
+    return Table(
+        title=f"{ORDER_MILESTONES_TITLE} {line.number}",
+        columns=(
+            Column("Marco", width=24),
+            Column("LB (contratual)", width=16, kind=ValueKind.DATE),
+            Column("Previsão", width=16, kind=ValueKind.DATE),
+            Column("Realizado", width=16, kind=ValueKind.DATE),
+            Column("Desvio (dias)", width=14, kind=ValueKind.INTEGER),
+            Column("Situação", width=16),
+        ),
+        rows=tuple(_order_milestone_row(row) for row in line.milestones),
+        per_project=False,
+    )
+
+
+def _order_milestone_row(milestone: service.OrderMilestoneLine) -> Row:
+    return row(
+        milestone.name,
+        milestone.baseline,
+        None if milestone.done else milestone.forecast,
+        milestone.real,
+        Cell(milestone.deviation_days, MILESTONE_TONES.get(milestone.situation, Tone.NEUTRAL)),
+        Cell(milestone.situation, MILESTONE_TONES.get(milestone.situation, Tone.NEUTRAL)),
     )

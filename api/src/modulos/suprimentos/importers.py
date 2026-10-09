@@ -1,12 +1,18 @@
-"""Importação do plano de compras pela planilha modelo (D12, ISSUE-058).
+"""Importação do plano de compras e dos marcos dos pedidos pela planilha modelo (D12, ISSUE-058/061).
 
-O importador registra as colunas do protótipo — escopo, tipo, modalidade, disciplina, item da
-EAC, estimativa, comprador, as quatro datas do plano, ROS e LLI — e valida linha a linha com as
-mesmas regras do formulário: o item é de custo (nível 3) da EAC do projeto, o comprador é uma
-pessoa do cadastro, a disciplina é do cadastro de disciplinas, a estimativa é maior que zero, as
-datas crescem e o plano não nasce com folga negativa. A conferência e a confirmação são o fluxo
-genérico da plataforma (``core.importing``); a gravação passa pela fachada
+O importador do plano registra as colunas do protótipo — escopo, tipo, modalidade, disciplina,
+item da EAC, estimativa, comprador, as quatro datas do plano, ROS e LLI — e valida linha a linha
+com as mesmas regras do formulário: o item é de custo (nível 3) da EAC do projeto, o comprador é
+uma pessoa do cadastro, a disciplina é do cadastro de disciplinas, a estimativa é maior que zero,
+as datas crescem e o plano não nasce com folga negativa. A conferência e a confirmação são o
+fluxo genérico da plataforma (``core.importing``); a gravação passa pela fachada
 (``service.create_package``), com a trilha e a versão.
+
+O importador do diligenciamento (ISSUE-061) é a importação do ERP: uma linha por marco do pedido
+(``Nº do pedido``, ``Marco``, ``Previsão`` e ``Realizada``), com a previsão ou a realização — uma
+delas obrigatória —, a realização nunca futura e a previsão nunca no passado; a gravação passa
+por ``service.apply_order_import_row``, a mesma regra da tela, e a linha do mesmo pedido e marco
+repetida na planilha é recusada (o protótipo aplicava as duas em ordem).
 
 O protótipo exigia o prazo de entrega para equipamento e material e o somava ao pedido na folga;
 o modelo não tem a coluna e o mock não traz o dado, então a coluna não entra na planilha e a
@@ -33,6 +39,9 @@ from src.modulos.suprimentos import service, validation
 KEY = "plano-de-compras"
 MODULE = "suprimentos"
 TITLE = "Plano de compras"
+
+ORDERS_KEY = "diligenciamento"
+ORDERS_TITLE = "Diligenciamento e recebimento (ERP)"
 
 SCOPE_HEADER = "Escopo"
 KIND_HEADER = "Tipo"
@@ -61,6 +70,18 @@ FIELD_ADJUDICATION = "adjudicacao"
 FIELD_ORDER = "pedido"
 FIELD_ROS = "ros"
 FIELD_LLI = "lli"
+
+# The columns of the ERP import of the expediting (ISSUE-061): one line per milestone.
+ERP_ORDER_HEADER = "Nº do pedido"
+MILESTONE_HEADER = "Marco"
+FORECAST_HEADER = "Previsão"
+REALIZED_HEADER = "Realizada"
+FIELD_ORDER_NUMBER = "numero"
+FIELD_MILESTONE = "marco"
+FIELD_FORECAST = "previsao"
+FIELD_REALIZED = "realizada"
+
+LINE_EMPTY = "Informe a previsão ou a data realizada."
 
 LLI_YES = "Sim"
 LLI_NO = "Não"
@@ -161,10 +182,10 @@ def packages_importer() -> Importer:
 
 
 def register_importers() -> None:
-    """Register the importer once; calling again keeps the one already registered."""
-    importer = packages_importer()
-    if importing.find(importer.key) is None:
-        importing.register(importer)
+    """Register the importers once; calling again keeps the ones already registered."""
+    for importer in (packages_importer(), orders_importer()):
+        if importing.find(importer.key) is None:
+            importing.register(importer)
 
 
 def _validate(session: Session, *, values: Mapping[str, Any], context: ImportContext) -> RowCheck:
@@ -244,4 +265,69 @@ def _date(values: Mapping[str, Any], field: str) -> date | None:
     return value if isinstance(value, date) else None
 
 
-__all__ = ["packages_importer", "register_importers"]
+# ── The ERP import of the order milestones (ISSUE-061) ───────────────────────────────────────
+
+
+def orders_importer() -> Importer:
+    """The ERP importer: one line per milestone, with the forecast or the realization."""
+    return Importer(
+        key=ORDERS_KEY,
+        title=ORDERS_TITLE,
+        module=MODULE,
+        columns=(
+            ImportColumn(
+                FIELD_ORDER_NUMBER, ERP_ORDER_HEADER, required=True, example="PED-2026-0001"
+            ),
+            ImportColumn(
+                FIELD_MILESTONE,
+                MILESTONE_HEADER,
+                options=service.DILIGENCE_MILESTONES,
+                required=True,
+                example="Embarque",
+            ),
+            ImportColumn(FIELD_FORECAST, FORECAST_HEADER, ValueKind.DATE, example="30/09/2026"),
+            ImportColumn(FIELD_REALIZED, REALIZED_HEADER, ValueKind.DATE, example="28/09/2026"),
+        ),
+        validate=_validate_order,
+        save=_save_order,
+        unique=(FIELD_ORDER_NUMBER, FIELD_MILESTONE),
+    )
+
+
+def _validate_order(
+    session: Session, *, values: Mapping[str, Any], context: ImportContext
+) -> RowCheck:
+    """Check one imported line: the order, the milestone, the dates and one date at least."""
+    context.scope.require_project()
+    forecast = _date(values, FIELD_FORECAST)
+    realized = _date(values, FIELD_REALIZED)
+    if forecast is None and realized is None:
+        return RowCheck(errors=(LINE_EMPTY,))
+    problems = service.order_import_problems(
+        session,
+        scope=context.scope,
+        number=_text(values, FIELD_ORDER_NUMBER),
+        milestone=_text(values, FIELD_MILESTONE),
+        forecast=forecast,
+        realized=realized,
+        reference_date=context.reference_date,
+    )
+    return RowCheck(errors=tuple(problems.values()))
+
+
+def _save_order(session: Session, *, values: Mapping[str, Any], context: ImportContext) -> None:
+    """Write one checked line through the facade, as an ERP import of the expediting."""
+    context.scope.require_project()
+    service.apply_order_import_row(
+        session,
+        user=context.user,
+        scope=context.scope,
+        number=_text(values, FIELD_ORDER_NUMBER),
+        milestone=_text(values, FIELD_MILESTONE),
+        forecast=_date(values, FIELD_FORECAST),
+        realized=_date(values, FIELD_REALIZED),
+        reference_date=context.reference_date,
+    )
+
+
+__all__ = ["orders_importer", "packages_importer", "register_importers"]

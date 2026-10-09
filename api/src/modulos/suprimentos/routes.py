@@ -72,12 +72,15 @@ from src.modulos.suprimentos.validation import (
     CommercialInput,
     DocumentInput,
     EmissionInput,
+    MilestoneInput,
     NegotiationInput,
+    OrderFilters,
     PackageChangeInput,
     PackageFilters,
     PackageInput,
     ProposalInput,
     QualificationInput,
+    ReceiptInput,
     RecommendationInput,
     RequisitionInput,
     ReturnInput,
@@ -317,6 +320,7 @@ def supplier_performance(
             "fornecedor": line,
             "formatar_data": _format_date,
             "formatar_moeda": _format_money,
+            "formatar_numero": _format_decimal,
             "pill_da_classe": lambda name: CLASS_TONES.get(name, "pill--neutral"),
             "sem_qualificacao": service.NO_QUALIFICATION,
         },
@@ -2391,4 +2395,607 @@ def _posted_ids(form: Mapping[str, object], field: str) -> tuple[int, ...]:
         return ()
     return tuple(
         parsed for raw in getlist(field) if (parsed := validation.parse_id(raw)) is not None
+    )
+
+
+# ── Diligenciamento e recebimento (ISSUE-061) ────────────────────────────────────────────────
+
+DILIGENCE_ROUTE = "/api/suprimentos/diligenciamento"
+DILIGENCE_TARGET = "diligenciamento-conteudo"
+DILIGENCE_MODAL_TARGET = "diligenciamento-modal-corpo"
+
+DILIGENCE_TEMPLATE = "suprimentos/diligenciamento.html"
+ORDER_MILESTONE_TEMPLATE = "suprimentos/pedido_marco.html"
+ORDER_RECEIPT_TEMPLATE = "suprimentos/pedido_recebimento.html"
+
+ORDER_UPDATED_NOTICE = "Marco do pedido {number} atualizado."
+ORDER_ACTION_NOTICE = "Folga negativa: ação criada na Central."
+RECEIPT_SAVED_NOTICE = "Recebimento de {number} registrado; entrega realizada no MAS."
+ACTION_OPENED_NOTICE = "Ação criada na Central: {subject}."
+
+MILESTONE_PILL = {
+    calculations.MILESTONE_ON_TIME: "pill--ok",
+    calculations.MILESTONE_LATE: "pill--erro",
+    calculations.MILESTONE_OVERDUE: "pill--erro",
+    calculations.MILESTONE_FORECAST_LATE: "pill--warn",
+    calculations.MILESTONE_DUE_SOON: "pill--ok",
+    calculations.MILESTONE_WITHOUT_DATE: "pill--neutral",
+}
+ORDER_PILL = {
+    calculations.ORDER_DELIVERED: "pill--ok",
+    calculations.ORDER_CRITICAL: "pill--erro",
+    calculations.ORDER_WARNING: "pill--warn",
+    calculations.ORDER_ON_TIME: "pill--ok",
+}
+
+
+def _diligence_modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
+    """A refusal inside the modal of the expediting: the message where the person is looking."""
+    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    return AlpineAjaxResponse(
+        template_name="comum/erro.html",
+        context={"mensagens": messages},
+        request=req,
+        target_id=DILIGENCE_MODAL_TARGET,
+        status_code=_error_status(error),
+        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast_tipo="erro",
+    )
+
+
+@bp.route(route="suprimentos/diligenciamento", methods=["GET"])
+@fragment_route(access=READ)
+def order_list(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The expediting: KPIs, toolbar, table and the ficha of the selected order."""
+    return _diligence_screen(
+        req,
+        session,
+        context,
+        filters=validation.parse_order_filters(req.params),
+        pedido=(req.params.get("pedido") or "").strip() or None,
+    )
+
+
+@bp.route(route="suprimentos/diligenciamento/excel", methods=["GET"])
+@file_route(access=READ)
+def order_list_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the expediting: what the screen lists, with its KPIs."""
+    return excel_response(_orders_document(req, session, context))
+
+
+@bp.route(route="suprimentos/diligenciamento/imprimivel", methods=["GET"])
+@fragment_route(access=READ)
+def order_list_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable version of the same document: what the PDF button mounts and prints."""
+    return printable_response(_orders_document(req, session, context), req)
+
+
+# ── Atualizar marco e Registrar recebimento ──────────────────────────────────────────────────
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/marco", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_milestone_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of Atualizar marco: realize the next milestone or reprogram the forecast."""
+    line = _order_line_or_refuse(session, context, req)
+    return _milestone_form(req, session, context, line=line, values={}, errors={})
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/marco", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_milestone_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the milestone; a refusal answers the form again, filled in."""
+    line = _order_line_or_refuse(session, context, req)
+    form = req.form
+    saved: list[service.OrderSave] = []
+    error = _attempt(
+        session,
+        lambda: saved.append(
+            service.update_order_milestone(
+                session,
+                user=context.user,
+                scope=context.scope,
+                order_id=line.id,
+                data=_milestone_input(form),
+                reference_date=calendario.today(),
+            )
+        ),
+    )
+    if error is not None or not saved:
+        return _milestone_form(
+            req,
+            session,
+            context,
+            line=line,
+            values=dict(form),
+            errors=_field_errors(error),
+            status_code=_form_status(error),
+        )
+    notice = ORDER_UPDATED_NOTICE.format(number=saved[0].number)
+    toast_tipo = "ok"
+    if saved[0].action_created:
+        notice = f"{notice} {ORDER_ACTION_NOTICE}"
+        toast_tipo = "aviso"
+    return _diligence_screen(
+        req,
+        session,
+        context,
+        filters=_diligence_filters_of(form.get("consulta", "")),
+        pedido=saved[0].number,
+        after=_After(notice, {}),
+        toast_tipo=toast_tipo,
+    )
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/recebimento", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_receipt_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of Registrar recebimento na obra, with the shipment the order carries."""
+    line = _order_line_or_refuse(session, context, req)
+    return _receipt_form(req, session, context, line=line, values={}, errors={})
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/recebimento", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_receipt_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Save the receipt: the delivery, the check, the damages, the pending items and the evidence."""
+    line = _order_line_or_refuse(session, context, req)
+    form = req.form
+    sent = req.files.get(attachments.FILE_FIELD)
+    file_name = sent.filename if sent is not None else None
+    content = sent.stream.read() if sent is not None else b""
+    saved: list[service.OrderSave] = []
+    error = _attempt(
+        session,
+        lambda: saved.append(
+            service.register_receipt(
+                session,
+                user=context.user,
+                scope=context.scope,
+                order_id=line.id,
+                data=_receipt_input(form),
+                reference_date=calendario.today(),
+                file_name=file_name,
+                content=content,
+            )
+        ),
+    )
+    if error is not None or not saved:
+        return _receipt_form(
+            req,
+            session,
+            context,
+            line=line,
+            values=dict(form),
+            errors=_field_errors(error),
+            status_code=_form_status(error),
+        )
+    return _diligence_screen(
+        req,
+        session,
+        context,
+        filters=_diligence_filters_of(form.get("consulta", "")),
+        pedido=saved[0].number,
+        after=_After(RECEIPT_SAVED_NOTICE.format(number=saved[0].number), {}),
+    )
+
+
+@bp.route(route="suprimentos/diligenciamento/{pedido_id}/acao", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_diligence_modal_error)
+def order_action_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Open the diligence action of a critical order by hand; never a second open one."""
+    line = _order_line_or_refuse(session, context, req)
+    form = req.form
+    saved: list[service.OrderSave] = []
+    error = _attempt(
+        session,
+        lambda: saved.append(
+            service.open_diligence_action(
+                session,
+                user=context.user,
+                scope=context.scope,
+                order_id=line.id,
+                reference_date=calendario.today(),
+            )
+        ),
+    )
+    if error is not None or not saved:
+        return _diligence_screen(
+            req,
+            session,
+            context,
+            filters=_diligence_filters_of(form.get("consulta", "")),
+            pedido=line.number,
+            error=error,
+        )
+    notice = ACTION_OPENED_NOTICE.format(subject=f"Recuperar a folga do pedido {saved[0].number}")
+    return _diligence_screen(
+        req,
+        session,
+        context,
+        filters=_diligence_filters_of(form.get("consulta", "")),
+        pedido=saved[0].number,
+        after=_After(notice, {}),
+    )
+
+
+# ── Drawing the expediting ───────────────────────────────────────────────────────────────────
+
+
+def _diligence_filters_of(query: str) -> OrderFilters:
+    return validation.parse_order_filters(dict(parse_qsl(query)))
+
+
+def _diligence_query_string(filters: OrderFilters) -> str:
+    pairs: list[tuple[str, str]] = []
+    if filters.search:
+        pairs.append(("busca", filters.search))
+    if filters.situation != validation.ORDER_SITUATION_OPEN:
+        pairs.append(("situacao", filters.situation))
+    if filters.band:
+        pairs.append(("faixa", filters.band))
+    return urlencode(pairs)
+
+
+def _diligence_address(
+    filters: OrderFilters, *, path: str = DILIGENCE_ROUTE, **changes: object
+) -> str:
+    """The address of the screen with the filters: only what differs from the default travels."""
+    values: dict[str, object] = {
+        "busca": filters.search,
+        "situacao": filters.situation,
+        "faixa": filters.band,
+        "pagina": filters.page,
+    }
+    values.update(changes)
+    query: dict[str, object] = {}
+    for key, value in values.items():
+        if key == "situacao":
+            if value and value != validation.ORDER_SITUATION_OPEN:
+                query[key] = value
+        elif key == "pagina":
+            if isinstance(value, int) and value > 1:
+                query[key] = value
+        elif value:
+            query[key] = value
+    if not query:
+        return path
+    return f"{path}?{urlencode(query)}"
+
+
+def _order_page_link(filters: OrderFilters, page: int, page_count: int) -> str:
+    if page < 1 or page > page_count:
+        return ""
+    return _diligence_address(filters, pagina=page)
+
+
+def _diligence_screen(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    filters: OrderFilters,
+    pedido: str | None = None,
+    after: _After | None = None,
+    toast_tipo: str = "ok",
+    error: DomainError | None = None,
+) -> func.HttpResponse:
+    """The screen fragment for the filters, with the ficha of the selected order."""
+    today = calendario.today()
+    listing = service.list_orders(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=today,
+    )
+    selected = _selected_order(session, context, listing=listing, number=pedido, today=today)
+    consulta = _diligence_query_string(filters)
+    ficha = (
+        None
+        if selected is None
+        else _diligence_ficha_context(session, context, number=selected.number, consulta=consulta)
+    )
+    if error is not None:
+        messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+        return AlpineAjaxResponse(
+            template_name="comum/erro.html",
+            context={"mensagens": messages},
+            request=req,
+            target_id=DILIGENCE_TARGET,
+            status_code=_error_status(error),
+            toast=messages[0] if messages else "Não foi possível concluir.",
+            toast_tipo="erro",
+        )
+    return AlpineAjaxResponse(
+        template_name=DILIGENCE_TEMPLATE,
+        context={
+            "listagem": listing,
+            "filtros": filters,
+            "kpis": _order_kpi_cards(listing),
+            "ficha": ficha,
+            "selecionado": selected.number if selected is not None else "",
+            "link_limpar": _diligence_address(filters, busca="", faixa="", pagina=1),
+            "url_excel": _diligence_address(filters, pagina=1, path=f"{DILIGENCE_ROUTE}/excel"),
+            "url_pdf": _diligence_address(filters, pagina=1, path=f"{DILIGENCE_ROUTE}/imprimivel"),
+            "consulta": consulta,
+            "parametro_consulta": urlencode({"consulta": consulta}),
+            "pode_gravar": rbac.can(context.user, Permission.WRITE),
+            "portfolio": context.scope.is_portfolio,
+            "pill_da_situacao": lambda situation: ORDER_PILL.get(situation, "pill--neutral"),
+            "pill_do_marco": lambda situation: MILESTONE_PILL.get(situation, "pill--neutral"),
+            "formatar_data": _format_date,
+            "formatar_moeda": _format_money,
+            "pagina_inicial": (listing.page - 1) * validation.ORDER_PAGE_SIZE + 1,
+            "pagina_final": min(listing.page * validation.ORDER_PAGE_SIZE, listing.total),
+            "link_anterior": _order_page_link(filters, listing.page - 1, listing.page_count),
+            "link_proximo": _order_page_link(filters, listing.page + 1, listing.page_count),
+            **(after.extra if after else {}),
+        },
+        request=req,
+        target_id=DILIGENCE_TARGET,
+        toast=after.notice if after else None,
+        toast_tipo=toast_tipo,
+    )
+
+
+def _selected_order(
+    session: Session,
+    context: RequestContext,
+    *,
+    listing: service.OrderListing,
+    number: str | None,
+    today: date,
+) -> service.OrderLine | None:
+    """The order the ficha shows: the one asked for, the first critical or the first of the list."""
+    if number:
+        line = service.find_order(
+            session, user=context.user, scope=context.scope, number=number, reference_date=today
+        )
+        if line is not None:
+            return line
+    return next(
+        (line for line in listing.lines if line.critical),
+        listing.lines[0] if listing.lines else None,
+    )
+
+
+def _diligence_ficha_context(
+    session: Session, context: RequestContext, *, number: str, consulta: str
+) -> dict[str, object] | None:
+    """Everything the ficha prints, or ``None`` when the order is not in the scope."""
+    today = calendario.today()
+    line = service.find_order(
+        session, user=context.user, scope=context.scope, number=number, reference_date=today
+    )
+    if line is None:
+        return None
+    return {
+        "linha": line,
+        "anexos": _receipt_attachments(session, context, line, today=today),
+        "consulta": consulta,
+        "pode_gravar": rbac.can(context.user, Permission.WRITE),
+        "url_excel": f"{DILIGENCE_ROUTE}/excel?pedido={line.number}",
+        "url_pdf": f"{DILIGENCE_ROUTE}/imprimivel?pedido={line.number}",
+        "mas_url": f"/suprimentos/mas?{urlencode({'busca': line.package_code})}",
+        "formatar_data": _format_date,
+        "formatar_moeda": _format_money,
+    }
+
+
+def _receipt_attachments(
+    session: Session, context: RequestContext, line: service.OrderLine, *, today: date
+) -> tuple[str, ...]:
+    """The names of the evidence of the receipt, read by the platform facade (D5a)."""
+    if line.receipt is None:
+        return ()
+    panel = attachments.panel(
+        session,
+        user=context.user,
+        origin_table=service.RECEIPT_ATTACHMENT_TABLE,
+        origin_record_id=line.receipt.id,
+        reference_date=today,
+    )
+    return tuple(entry.name for entry in panel.entries)
+
+
+def _order_kpi_cards(listing: service.OrderListing) -> list[KpiCard]:
+    summary = listing.summary
+    filters = listing.filters
+    otd = summary.otd
+    return [
+        KpiCard(
+            label="Pedidos em aberto",
+            icon="truck",
+            tone="info",
+            value=summary.open_orders,
+            reference=f"Previsto: {summary.expected_open}",
+            footer=f"{_format_money(summary.open_cents)} a receber",
+            url=_diligence_address(filters, faixa="", pagina=1),
+            active=not filters.band,
+        ),
+        KpiCard(
+            label="Críticos",
+            icon="alertTriangle",
+            tone="erro" if summary.critical else "ok",
+            value=summary.critical,
+            reference="Esperado: 0",
+            footer=f"{summary.lli_critical} de longo prazo (LLI) · previsão depois do ROS",
+            url=_diligence_address(filters, faixa="critico", pagina=1),
+            active=filters.band == "critico",
+        ),
+        KpiCard(
+            label="Em atenção",
+            icon="clock",
+            tone="warn" if summary.warning else "ok",
+            value=summary.warning,
+            reference="Esperado: 0",
+            footer="folga de até 7 dias ou marco vencido",
+            url=_diligence_address(filters, faixa="atencao", pagina=1),
+            active=filters.band == "atencao",
+        ),
+        KpiCard(
+            label="Marcos vencidos",
+            icon="calendar",
+            tone="erro" if summary.overdue_milestones else "ok",
+            value=summary.overdue_milestones,
+            reference="Esperado: 0",
+            footer="previsão passou sem realização: atualize",
+            url=_diligence_address(filters, faixa="vencidos", pagina=1),
+            active=filters.band == "vencidos",
+        ),
+        KpiCard(
+            label="Entrega no prazo (OTD)",
+            icon="checkCircle",
+            tone="ok" if otd is not None and otd >= 90 else "warn",
+            value=_format_decimal(otd, 1) if otd is not None else "—",
+            reference="Meta: ≥ 90,0%",
+            footer=f"{summary.delivered_on_time} de {summary.delivered} entregas até a data contratual",
+            url="",
+            active=False,
+        ),
+    ]
+
+
+def _orders_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    """The document of the expediting for the filters of the request; the only clock."""
+    filters = validation.parse_order_filters(req.params)
+    today = calendario.today()
+    listing = service.list_orders(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=today,
+    )
+    number = (req.params.get("pedido") or "").strip() or None
+    line = (
+        None
+        if number is None
+        else service.find_order(
+            session, user=context.user, scope=context.scope, number=number, reference_date=today
+        )
+    )
+    return export.build_orders_document(
+        listing=listing,
+        line=line,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=today,
+    )
+
+
+def _order_line_or_refuse(
+    session: Session, context: RequestContext, req: func.HttpRequest
+) -> service.OrderLine:
+    order_id = validation.parse_id(req.route_params.get("pedido_id"))
+    line = (
+        None
+        if order_id is None
+        else service.find_order(
+            session,
+            user=context.user,
+            scope=context.scope,
+            order_id=order_id,
+            reference_date=calendario.today(),
+        )
+    )
+    if line is None:
+        raise InvalidDataError(validation.ORDER_NOT_FOUND)
+    return line
+
+
+def _milestone_form(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    line: service.OrderLine,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    status_code: int = 200,
+) -> func.HttpResponse:
+    """The modal body of Atualizar marco, filled in, for the GET and for a refusal."""
+    del session, context
+    consulta = (values.get("consulta") or req.params.get("consulta") or "").strip()
+    return AlpineAjaxResponse(
+        template_name=ORDER_MILESTONE_TEMPLATE,
+        context={
+            "valores": dict(values),
+            "erros": dict(errors),
+            "linha": line,
+            "consulta": consulta,
+            "referencia": calendario.today().isoformat(),
+            "formatar_data": _format_date,
+            "pill_do_marco": lambda situation: MILESTONE_PILL.get(situation, "pill--neutral"),
+        },
+        request=req,
+        target_id=DILIGENCE_MODAL_TARGET,
+        status_code=status_code,
+    )
+
+
+def _receipt_form(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    line: service.OrderLine,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    status_code: int = 200,
+) -> func.HttpResponse:
+    """The modal body of Registrar recebimento, filled in, for the GET and for a refusal."""
+    del session, context
+    consulta = (values.get("consulta") or req.params.get("consulta") or "").strip()
+    return AlpineAjaxResponse(
+        template_name=ORDER_RECEIPT_TEMPLATE,
+        context={
+            "valores": dict(values),
+            "erros": dict(errors),
+            "linha": line,
+            "consulta": consulta,
+            "referencia": calendario.today().isoformat(),
+            "formatar_data": _format_date,
+        },
+        request=req,
+        target_id=DILIGENCE_MODAL_TARGET,
+        status_code=status_code,
+    )
+
+
+def _milestone_input(form: Mapping[str, str]) -> MilestoneInput:
+    return MilestoneInput(
+        index=validation.parse_id(form.get("marco")),
+        kind=(form.get("tipo") or "").strip(),
+        realized=validation.parse_date(form.get("realizada")),
+        forecast=validation.parse_date(form.get("previsao")),
+        cascade=validation.parse_flag(form.get("cascata")),
+        comment=form.get("comentario", ""),
+    )
+
+
+def _receipt_input(form: Mapping[str, str]) -> ReceiptInput:
+    return ReceiptInput(
+        date=validation.parse_date(form.get("data")),
+        checked=validation.parse_flag(form.get("conferido")),
+        damaged=validation.parse_flag(form.get("avarias")),
+        damage_description=form.get("descricaoAvarias", ""),
+        pending=form.get("pendencias", ""),
     )

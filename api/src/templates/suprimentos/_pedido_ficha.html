@@ -1,0 +1,153 @@
+{#
+  A ficha de um pedido (ISSUE-061): o cabeçalho com as ações, os seis marcos de fabricação (LB
+  contratual, previsão, realizado e desvio), o recebimento, a ação e o risco vinculados e as
+  últimas atualizações. Partial: entra no fragmento da tela, sempre com o contexto ``ficha``
+  (linha, anexos, consulta, pode_gravar, url_excel, url_pdf, mas_url, formatar_data e
+  formatar_moeda).
+#}
+{% macro dias_com_sinal(dias) %}{% if dias > 0 %}+{% endif %}{{ dias }} d{% endmacro %}
+{% set p = ficha.linha %}
+<section class="card dilig__ficha" aria-labelledby="pedido-ficha-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="pedido-ficha-titulo">{{ p.number }} · {{ p.description }}</h2>
+      <p class="hint">
+        {{ p.supplier }} · emissão {{ ficha.formatar_data(p.emission) }} ·
+        {{ ficha.formatar_moeda(p.value_cents) }} · pacote {{ p.package_code }} ·
+        <span class="pill {{ pill_da_situacao(p.situation) }}">{{ p.situation }}</span>
+      </p>
+    </div>
+    <div class="dilig__ficha-acoes">
+      {% if ficha.pode_gravar and not p.delivered %}
+      <button type="button" class="btn btn--primary btn--sm"
+        data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/marco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
+        data-diligencia-modal-titulo="Atualizar marco"
+        data-diligencia-modal-subtitulo="{{ p.number }} · {{ p.supplier }}">
+        <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
+        Atualizar marco
+      </button>
+      {% endif %}
+      {% if ficha.pode_gravar and not p.delivered and p.milestones|length >= 5 and p.milestones[4].done %}
+      <button type="button" class="btn btn--primary btn--sm"
+        data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/recebimento{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
+        data-diligencia-modal-titulo="Registrar recebimento na obra"
+        data-diligencia-modal-subtitulo="{{ p.number }} · {{ p.description }}">
+        <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>
+        Registrar recebimento
+      </button>
+      {% endif %}
+      {% if ficha.pode_gravar and p.critical and not p.action %}
+      <form method="post" action="/api/suprimentos/diligenciamento/{{ p.id }}/acao"
+        x-target="{{ target_id }}" x-target.403="{{ target_id }}" x-target.422="{{ target_id }}">
+        <input type="hidden" name="consulta" value="{{ ficha.consulta }}" />
+        <button type="submit" class="btn btn--secondary btn--sm">
+          <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>
+          Gerar ação
+        </button>
+      </form>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="tbl-wrap">
+      <table class="tbl dilig__marcos">
+        <caption class="sr-only">Marcos de fabricação do pedido</caption>
+        <thead>
+          <tr>
+            <th scope="col">Marco</th>
+            <th scope="col">LB (contratual)</th>
+            <th scope="col">Previsão</th>
+            <th scope="col">Realizado</th>
+            <th scope="col" class="td-num">Desvio</th>
+            <th scope="col">Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for marco in p.milestones %}
+          <tr class="{% if marco.situation == 'vencido' %}dilig__linha--alerta{% endif %}">
+            <td>{{ marco.name }}</td>
+            <td class="num">{{ ficha.formatar_data(marco.baseline) }}</td>
+            <td class="num">{% if marco.done %}<span class="muted">·</span>{% else %}{{ ficha.formatar_data(marco.forecast) }}{% endif %}</td>
+            <td class="num">{{ ficha.formatar_data(marco.real) }}</td>
+            <td class="td-num num">
+              {% if marco.deviation_days is none %}<span class="muted">·</span>
+              {% elif marco.deviation_days > 0 %}<span class="valor--negativo">{{ dias_com_sinal(marco.deviation_days) }}</span>
+              {% else %}{{ dias_com_sinal(marco.deviation_days) }}{% endif %}
+            </td>
+            <td>
+              <span class="pill {{ pill_do_marco(marco.situation) }}">{{ marco.situation }}</span>
+              {% if marco.situation == 'vencido' %}
+              <span class="hint valor--negativo">há {{ marco.days_overdue }} d</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tbl-wrap mt-16">
+      <table class="tbl dilig__rodape">
+        <caption class="sr-only">Recebimento, ação e últimas atualizações do pedido</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Data contratual</th>
+            <td>
+              {{ ficha.formatar_data(p.contractual_date) }}
+              {% if p.contractual_delay_days and p.contractual_delay_days > 0 %}
+              <span class="valor--negativo">{{ dias_com_sinal(p.contractual_delay_days) }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">ROS e folga</th>
+            <td>
+              {{ ficha.formatar_data(p.ros) }}
+              {% if p.slack_days is not none %}
+              <span class="pill {{ 'pill--erro' if p.band == 'critico' else ('pill--warn' if p.band == 'atencao' else 'pill--ok') }}">{{ dias_com_sinal(p.slack_days) }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Ação na Central</th>
+            <td>
+              {% if p.action %}
+              <a href="/central-acoes/acoes?busca={{ p.number | urlencode }}" data-tn-tela>{{ p.action.subject }}</a>
+              {% if p.action.due_date %} · {{ ficha.formatar_data(p.action.due_date) }}{% endif %}
+              {% else %}<span class="muted">nenhuma aberta</span>{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Risco</th>
+            <td><span class="muted">sem risco registrado (ISSUE-067)</span></td>
+          </tr>
+          {% if p.receipt %}
+          <tr>
+            <th scope="row">Recebimento</th>
+            <td>
+              {{ ficha.formatar_data(p.receipt.date) }} ·
+              {{ 'conferido' if p.receipt.checked else 'conferência pendente' }} ·
+              {% if p.receipt.damaged %}com avarias: {{ p.receipt.damage_description }}{% else %}sem avarias{% endif %}
+              {% if p.receipt.pending %}<br /><span class="hint valor--negativo">{{ p.receipt.pending }}</span>{% endif %}
+              {% if ficha.anexos %}<br /><span class="hint">Evidências: {{ ficha.anexos | join(', ') }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% if p.history %}
+          <tr>
+            <th scope="row">Últimas atualizações</th>
+            <td>
+              {% for atualizacao in (p.history | reverse | list)[:5] %}
+              {{ ficha.formatar_data(atualizacao.date) }} · {{ atualizacao.author or '—' }} · {{ atualizacao.text }}<br />
+              {% endfor %}
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

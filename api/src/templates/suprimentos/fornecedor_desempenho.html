@@ -1,12 +1,13 @@
 {% extends "base_fragment.html" %}
 {#
-  Desempenho e histórico de um fornecedor (ISSUE-057): o resumo (situação, nota média e valor
-  contratado), as avaliações de contrato do 03 (período, contrato, tipo, nota e classe), os
-  contratos da empresa e o histórico da qualificação (data, de, para, por e justificativa). O
-  OTD dos pedidos chega com a ISSUE-061. Leitura apenas: o modal não grava nada.
+  Desempenho e histórico de um fornecedor (ISSUE-057): o resumo (situação, nota média, valor
+  contratado e o OTD dos pedidos, ISSUE-061), as avaliações de contrato do 03 (período, contrato,
+  tipo, nota e classe), os contratos da empresa, os pedidos com a entrega contra a data
+  contratual e o histórico da qualificação (data, de, para, por e justificativa). Leitura apenas:
+  o modal não grava nada.
 
-  Espera: fornecedor (SupplierLine), formatar_data, formatar_moeda, pill_da_classe e
-  sem_qualificacao.
+  Espera: fornecedor (SupplierLine), formatar_data, formatar_moeda, formatar_numero,
+  pill_da_classe e sem_qualificacao.
 #}
 {% block fragment %}
 <div class="fornecedor__resumo">
@@ -24,6 +25,16 @@
         <td class="num">{{ formatar_moeda(fornecedor.contracted_cents) }}</td>
         <th scope="row">Categorias</th>
         <td>{{ fornecedor.categories|join(', ') if fornecedor.categories else '—' }}</td>
+      </tr>
+      <tr>
+        <th scope="row">Entrega no prazo (OTD)</th>
+        <td class="num">
+          {% if fornecedor.otd is not none %}
+          <span class="pill {{ 'pill--ok' if fornecedor.otd >= 90 else 'pill--warn' }}">{{ formatar_numero(fornecedor.otd, 1) }}%</span>
+          {% else %}<span class="muted">·</span>{% endif %}
+        </td>
+        <th scope="row">Pedidos no escopo</th>
+        <td class="num">{{ fornecedor.delivered_orders|length }} de {{ fornecedor.orders|length }} entregues</td>
       </tr>
       {% if fornecedor.observation %}
       <tr>
@@ -94,6 +105,44 @@
 </div>
 {% else %}
 <p class="body-txt muted">Sem contratos no escopo para esta empresa.</p>
+{% endif %}
+
+<h3 class="h-card5 mt-16">Pedidos e entregas</h3>
+{% if fornecedor.orders %}
+<div class="tbl-wrap">
+  <table class="tbl">
+    <caption class="sr-only">Pedidos da empresa no escopo</caption>
+    <thead>
+      <tr>
+        <th scope="col">Pedido</th>
+        <th scope="col">Descrição</th>
+        <th scope="col" class="td-num">Valor</th>
+        <th scope="col">Data contratual</th>
+        <th scope="col">Entrega</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pedido in fornecedor.orders %}
+      <tr>
+        <td>{{ pedido.number }}</td>
+        <td>{{ pedido.description }}</td>
+        <td class="td-num num">{{ formatar_moeda(pedido.value_cents) }}</td>
+        <td class="num">{{ formatar_data(pedido.contractual_date) }}</td>
+        <td class="num">
+          {% if pedido.delivery %}
+          {{ formatar_data(pedido.delivery) }}
+          {% if pedido.delivery > pedido.contractual_date %}
+          <span class="pill pill--erro">fora do prazo</span>
+          {% else %}<span class="pill pill--ok">no prazo</span>{% endif %}
+          {% else %}<span class="muted">em aberto</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="body-txt muted">Sem pedidos no escopo para esta empresa.</p>
 {% endif %}
 
 <h3 class="h-card5 mt-16">Histórico da qualificação</h3>

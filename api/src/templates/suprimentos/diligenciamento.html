@@ -1,0 +1,220 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Diligenciamento e recebimento (ISSUE-061): os cinco KPIs, a barra de busca e filtros, o
+  bloco dos pedidos críticos com tratamento pendente, a tabela dos pedidos e a ficha do pedido
+  selecionado. O fragmento é um só e se pede de novo, com os filtros na consulta, a cada clique:
+  KPI, busca, filtro, página ou a abertura de um pedido são links ou um formulário GET com
+  x-target no próprio fragmento. Os modais (Atualizar marco, Registrar recebimento e a importação
+  do ERP) abrem por JavaScript (diligenciamento.js) e o servidor entrega o corpo no alvo do
+  modal. No Portfólio a tabela abre com a coluna Projeto e o botão de importação pede o projeto
+  antes (data-tn-incluir, TN.escopo).
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, ficha, selecionado, link_limpar, url_excel, url_pdf, consulta,
+  parametro_consulta, pode_gravar, portfolio, pill_da_situacao, pill_do_marco, formatar_data,
+  formatar_moeda, pagina_inicial, pagina_final, link_anterior e link_proximo.
+#}
+
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+  x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="dilig__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro dias_com_sinal(dias) %}{% if dias > 0 %}+{% endif %}{{ dias }} d{% endmacro %}
+
+{% macro botao_do_modal(url, titulo, subtitulo, rotulo, texto, icone) %}
+<button type="button" class="btn btn--primary btn--sm" data-diligencia-modal-url="{{ url }}"
+  data-diligencia-modal-titulo="{{ titulo }}" data-diligencia-modal-subtitulo="{{ subtitulo }}"
+  aria-label="{{ rotulo }}" title="{{ rotulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 16)" aria-hidden="true"></span>
+  {% if texto %}<span>{{ texto }}</span>{% endif %}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis dilig__kpis" style="--kpis-colunas: 5">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+{% if listagem.pending %}
+<div class="aviso aviso--erro mb-16" role="alert">
+  <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
+  <div class="dilig__pendentes-corpo">
+    <p class="fw-600">
+      {{ listagem.pending|length }} {{ 'pedido crítico com tratamento pendente' if listagem.pending|length == 1 else 'pedidos críticos com tratamento pendente' }}
+    </p>
+    <p>Folga negativa exige ação de diligenciamento na Central e avaliação do risco no registro (05).</p>
+    <ul class="dilig__pendentes">
+      {% for pendente in listagem.pending %}
+      <li>
+        <span x-init="$el.innerHTML = window.icon('truck', 16)" aria-hidden="true"></span>
+        <span><b>{{ pendente.number }}</b> {{ pendente.description }} · folga {{ dias_com_sinal(pendente.slack_days) }}
+          {% if pode_gravar %}
+          <form method="post" action="/api/suprimentos/diligenciamento/{{ pendente.id }}/acao"
+            x-target="{{ target_id }}" x-target.403="{{ target_id }}" x-target.422="{{ target_id }}"
+            class="dilig__pendente-acao">
+            <input type="hidden" name="consulta" value="{{ consulta }}" />
+            <button type="submit" class="btn btn--secondary btn--sm">
+              <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>
+              Gerar ação
+            </button>
+          </form>
+          {% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/suprimentos/diligenciamento" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar pedidos</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar pedido, fornecedor ou descrição" />
+        <label class="sr-only" for="{{ target_id }}-situacao">Pedidos exibidos</label>
+        <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
+          <option value="abertos"{% if filtros.situation == 'abertos' %} selected{% endif %}>Em aberto</option>
+          <option value="todos"{% if filtros.situation == 'todos' %} selected{% endif %}>Todos</option>
+        </select>
+      </form>
+      <div class="dilig__barra">
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-diligencia-acao="importar"
+          data-diligencia-url="/api/importacao/diligenciamento">
+          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+          Importar do ERP
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="hint dilig__contagem" role="status">
+      {{ listagem.total }} {{ 'pedido' if listagem.total == 1 else 'pedidos' }} no filtro atual ·
+      folga = ROS menos a previsão de entrega · alerta com 7 dias ou menos
+    </p>
+
+    {% if listagem.summary.open_orders == 0 and listagem.summary.delivered == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há pedidos em diligenciamento</h2>
+      <p>Emita o pedido de um processo de compra aprovado para acompanhar fabricação e entrega.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum pedido encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver os pedidos.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl dilig__tabela">
+        <caption class="sr-only">Pedidos em diligenciamento</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Pedido</th>
+            <th scope="col">Descrição</th>
+            <th scope="col">Próximo marco</th>
+            <th scope="col">Data contratual</th>
+            <th scope="col">Previsão de entrega</th>
+            <th scope="col">ROS</th>
+            <th scope="col" class="td-num">Folga</th>
+            <th scope="col">Situação</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.page_lines %}
+          <tr class="{% if linha.number == selecionado %}dilig__linha--selecionada{% elif linha.critical %}dilig__linha--alerta{% endif %}">
+            {% if portfolio %}<td>{{ linha.project_label }}</td>{% endif %}
+            <td class="dilig__nowrap">
+              <b>{{ linha.number }}</b><br />
+              <span class="hint">{{ linha.package_code }}</span>
+            </td>
+            <td>
+              <span class="fw-600">{{ linha.description }}</span><br />
+              <span class="hint">{{ linha.supplier }}{% if linha.lli %} · LLI{% endif %}</span>
+            </td>
+            <td class="dilig__nowrap">
+              {% if linha.next_milestone %}
+              {{ linha.next_milestone.name }}<br />
+              <span class="hint">{{ formatar_data(linha.next_milestone.forecast) }}</span>
+              {% if linha.next_milestone.situation not in ('a-vencer', 'prazo') %}
+              <span class="pill {{ pill_do_marco(linha.next_milestone.situation) }}">{{ linha.next_milestone.situation }}</span>
+              {% endif %}
+              {% else %}
+              <span class="pill pill--ok">Entregue</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ formatar_data(linha.contractual_date) }}</td>
+            <td class="num">
+              {{ formatar_data(linha.prediction) }}
+              {% if linha.contractual_delay_days and linha.contractual_delay_days > 0 %}
+              <br /><span class="hint valor--negativo">{{ dias_com_sinal(linha.contractual_delay_days) }} x contrato</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ formatar_data(linha.ros) }}</td>
+            <td class="td-num num">
+              {% if linha.slack_days is none %}<span class="muted">—</span>
+              {% else %}<span class="pill {{ 'pill--erro' if linha.band == 'critico' else ('pill--warn' if linha.band == 'atencao' else 'pill--ok') }}">{{ dias_com_sinal(linha.slack_days) }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="pill {{ pill_da_situacao(linha.situation) }}">{{ linha.situation }}</span>
+              {% if linha.critical %}
+              <br /><span class="hint{% if not linha.action %} valor--negativo{% endif %}">
+                {{ 'ação na Central' if linha.action else 'sem ação' }}</span>
+              {% endif %}
+            </td>
+            <td class="dilig__acoes">
+              <a class="btn btn--secondary btn--icon btn--sm"
+                href="/api/suprimentos/diligenciamento?pedido={{ linha.number | urlencode }}{% if consulta %}&{{ consulta }}{% endif %}"
+                x-target="{{ target_id }}" aria-label="Abrir pedido {{ linha.number }}" title="Abrir pedido">
+                <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="dilig__paginas" aria-label="Páginas da lista">
+      <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+      {% if link_anterior %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      {% endif %}
+      <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+      {% if link_proximo %}
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+{% if ficha %}
+{% include "suprimentos/_pedido_ficha.html" %}
+{% else %}
+<p class="hint dilig__ficha-vazia">Abra um pedido na tabela para ver os marcos de fabricação, o recebimento e as últimas atualizações.</p>
+{% endif %}
+{% endblock %}

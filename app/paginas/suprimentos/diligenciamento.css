@@ -1,16 +1,125 @@
 /* ============================================================
    diligenciamento.css — Estilo da tela Diligenciamento e recebimento (suprimentos/diligenciamento)
 
-   Marcos dos pedidos, folga sobre o ROS, riscos sugeridos e recebimento.
+   Marcos dos pedidos, folga sobre o ROS, ação na Central e recebimento na obra (ISSUE-061).
 
    Escopo: tudo que morar aqui começa por .pagina--suprimentos-diligenciamento, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-061.
+   O que a tela acrescenta ao Design System (ISSUE-061): o texto de duas linhas do indicador, a
+   barra de ações, a contagem, o bloco de pendências, as linhas em alerta e a selecionada, as
+   ações da linha, a paginação, as ações da ficha e o destaque de valor negativo. O fragmento é
+   desenhado pelo servidor (api/src/templates/suprimentos/).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--suprimentos-diligenciamento .dilig__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__barra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__contagem {
+  margin: 0 0 var(--space-md);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__pendentes-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__pendentes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__pendentes li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__pendente-acao {
+  display: inline-block;
+  margin-left: var(--space-xs);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__linha--alerta td {
+  background: var(--warn-50);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__linha--selecionada td {
+  background: var(--azul-50);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__nowrap {
+  white-space: nowrap;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__acoes {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__paginas {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__ficha {
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__ficha-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__ficha-acoes form {
+  display: inline;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__rodape th {
+  width: 180px;
+}
+
+.pagina--suprimentos-diligenciamento .dilig__rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pagina--suprimentos-diligenciamento .dilig__ficha-vazia {
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-diligenciamento .valor--negativo {
+  color: var(--erro-700);
+}

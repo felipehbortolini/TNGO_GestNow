@@ -1,0 +1,97 @@
+{% extends "base_fragment.html" %}
+{#
+  Registrar recebimento na obra (ISSUE-061): a data, a conferência de quantidade e documentos, as
+  avarias com a descrição, as pendências e a evidência (romaneio, nota fiscal e fotos). O
+  recebimento exige o embarque realizado; a evidência é um anexo de verdade do registro (D5a). O
+  422 devolve este formulário preenchido com a mensagem sob cada campo; o sucesso atualiza a tela
+  atrás do modal.
+
+  Espera: valores, erros, linha, consulta, referencia e formatar_data.
+#}
+{% macro campo_erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<form id="pedido-recebimento-form" method="post"
+  action="/api/suprimentos/diligenciamento/{{ linha.id }}/recebimento"
+  enctype="multipart/form-data"
+  x-target="diligenciamento-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  x-data="{ avarias: {{ 'true' if valores.get('avarias') else 'false' }} }"
+  data-tn-loading="Registrando o recebimento...">
+  <input type="hidden" name="consulta" value="{{ valores.get('consulta') or consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="recebimento-data">Data do recebimento</label>
+      <input id="recebimento-data" name="data" type="date"
+        class="input{% if erros.get('data') %} input--erro{% endif %}" required
+        value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      <span class="hint">Depois do embarque ({{ formatar_data(linha.milestones[4].real) if linha.milestones|length >= 5 else '·' }}) e até a data de referência.</span>
+      {{ campo_erro(erros, 'data') }}
+    </div>
+
+    <div class="field">
+      <span class="dilig__rotulo">Entrega realizada</span>
+      <p class="hint">O recebimento conclui o marco Entrega e realiza a entrega no MAS.</p>
+    </div>
+
+    <div class="field field--full">
+      <label class="check" for="recebimento-conferido">
+        <input id="recebimento-conferido" type="checkbox" name="conferido" value="1"
+          {% if valores.get('conferido') in (None, '', '1') %}checked{% endif %} />
+        Conferência de quantidade e documentos concluída
+      </label>
+    </div>
+
+    <div class="field field--full">
+      <label class="check" for="recebimento-avarias">
+        <input id="recebimento-avarias" type="checkbox" name="avarias" value="1" x-model="avarias" />
+        Recebido com avarias
+      </label>
+    </div>
+
+    <div class="field field--full" x-show="avarias">
+      <label for="recebimento-descricao-avarias">Descrição das avarias</label>
+      <textarea id="recebimento-descricao-avarias" name="descricaoAvarias" rows="3" maxlength="300"
+        class="input{% if erros.get('descricaoAvarias') %} input--erro{% endif %}"
+        {% if erros.get('descricaoAvarias') %}aria-invalid="true" aria-describedby="erro-descricaoAvarias"{% endif %}>{{ valores.get('descricaoAvarias') or '' }}</textarea>
+      <span class="hint">Mínimo de 10 caracteres.</span>
+      {{ campo_erro(erros, 'descricaoAvarias') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="recebimento-pendencias">Pendências do recebimento</label>
+      <textarea id="recebimento-pendencias" name="pendencias" rows="3" maxlength="300"
+        class="input{% if erros.get('pendencias') %} input--erro{% endif %}"
+        placeholder="Certificados, data book, sobressalentes, itens faltantes"
+        {% if erros.get('pendencias') %}aria-invalid="true" aria-describedby="erro-pendencias"{% endif %}>{{ valores.get('pendencias') or '' }}</textarea>
+      {{ campo_erro(erros, 'pendencias') }}
+    </div>
+
+    <div class="field field--full">
+      <label for="recebimento-arquivo">Evidência do recebimento (romaneio, nota fiscal e fotos)</label>
+      <input id="recebimento-arquivo" name="arquivo" type="file" accept=".pdf,.jpg,.jpeg,.png"
+        class="input{% if erros.get('arquivo') %} input--erro{% endif %}"
+        {% if erros.get('arquivo') %}aria-invalid="true" aria-describedby="erro-arquivo"{% endif %} />
+      <span class="hint">O arquivo é o anexo do recebimento (D5a); dá para enviar mais de um pela ficha, depois de salvar.</span>
+      {{ campo_erro(erros, 'arquivo') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>
+      Registrar recebimento
+    </button>
+  </div>
+</form>
+{% endblock %}
