@@ -88,7 +88,11 @@ from src.modulos.suprimentos import service as suprimentos
 from src.modulos.suprimentos import validation as suprimentos_validation
 from src.modulos.suprimentos.models import (
     PackageMilestone,
+    ProcessInvitee,
+    ProcessNegotiation,
+    ProcessProposal,
     PurchasePackage,
+    PurchaseProcess,
     Supplier,
     SupplierCategory,
     SupplierDocument,
@@ -120,6 +124,7 @@ PARTS = [
     "financeiro-contratos-fluxos",
     "suprimentos-fornecedores",
     "suprimentos-pacotes",
+    "suprimentos-processos",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -1551,6 +1556,108 @@ def test_oraculo_do_plano_de_compras_com_a_carga(db_session: Session) -> None:
     assert primeiro.slack_days == 4, "ROS 12/01/2026 menos o pedido planejado de 08/01/2026"
     assert primeiro.eac_code == "1.2"
     assert primeiro.buyer == "Diego Matos"
+
+
+def test_oraculo_dos_processos_de_compra_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-059: os quatro processos do mock, com o PC-14 em equalização comercial.
+
+    Na âncora, os quatro processos do protótipo entram com 16 convidados, 13 propostas e 1
+    negociação; os nomes sem cadastro (Sistemas Nu, Xi Controles, Ômicron Automação, Épsilon
+    Instrumentos, Chi Ventiladores, Psi Fluidos e Ômega Drives) ficam no `nome`. O PC-14
+    (RFQ-2026-014) está em **Equalização comercial**, a etapa da última linha do histórico — a
+    mesma da verificação da issue —, com 4 propostas, 3 aprovadas e a melhor a Teta Automação
+    (nota final 95,2, sem negociação); a Sistemas Nu, reprovada, fica fora do ranking. O PC-12
+    (RFQ-2026-012) chegou ao pedido com o ciclo de 67 dias e a negociação de R$ 300.000,00; o
+    CB-PC-05 está em Propostas recebidas e o TR-PC-04 em Equalização técnica. A lista padrão
+    mostra 5 processos (o filtro de andamento corta os 23 no pedido) e o filtro "todos", 28.
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, PurchaseProcess) == 4, "os processos do mock"
+    assert _count(db_session, ProcessInvitee) == 16
+    assert _count(db_session, ProcessProposal) == 13
+    assert _count(db_session, ProcessNegotiation) == 1
+    historico = db_session.scalar(
+        select(func.count())
+        .select_from(AuditEntry)
+        .where(AuditEntry.entity == suprimentos.PROCESS_HISTORY_ENTITY)
+    )
+    assert historico == 14, "as linhas de histórico dos quatro processos"
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
+    scope = Scope(project_id=None, source="padrao")
+    listagem = suprimentos.list_processes(
+        db_session,
+        user=user,
+        scope=scope,
+        filters=suprimentos_validation.ProcessFilters(),
+        reference_date=DEMO_ANCHOR,
+    )
+
+    assert listagem.total == 5, "o filtro padrão corta os processos no pedido"
+    assert listagem.summary.in_progress == 5
+    assert listagem.summary.awaiting_approval == 0
+    assert listagem.summary.single_supplier_count == 0
+    assert listagem.summary.mean_valid_proposals == Decimal("2.3")
+    assert listagem.summary.cycle_mean_days is not None, "os pacotes no pedido têm ciclo"
+
+    completa = suprimentos.list_processes(
+        db_session,
+        user=user,
+        scope=scope,
+        filters=suprimentos_validation.ProcessFilters(situation=""),
+        reference_date=DEMO_ANCHOR,
+    )
+    assert completa.total == 28
+
+    por_codigo = {linha.code: linha for linha in completa.lines}
+    pc14 = por_codigo["PC-14"]
+    assert (pc14.stage, pc14.stage_index) == ("Equalização comercial", 5), (
+        "o PC-14 fica pronto para a equalização comercial, como a issue cita"
+    )
+    assert pc14.number == "RFQ-2026-014"
+    assert pc14.received_count == 4
+    assert pc14.approved_count == 3
+    assert pc14.minimum == 3 and pc14.single_supplier is False
+    assert pc14.invitees[0].name == "Teta Automação"
+    assert pc14.best is not None
+    assert pc14.best.name == "Teta Automação"
+    assert (pc14.best.commercial_score, pc14.best.final_score, pc14.best.rank) == (
+        Decimal("100.0"),
+        Decimal("95.2"),
+        1,
+    )
+    assert pc14.best.qualification == "Em qualificação"
+    reprovada = next(proposta for proposta in pc14.proposals if proposta.name == "Sistemas Nu")
+    assert reprovada.rank is None and reprovada.technically_approved is False
+    assert pc14.approval_band == "Gerente de suprimentos"
+    assert [passo.situation for passo in pc14.steps][:5] == [
+        "concluido",
+        "concluido",
+        "concluido",
+        "concluido",
+        "andamento",
+    ]
+
+    pc12 = por_codigo["PC-12"]
+    assert pc12.stage == "Pedido/contrato emitido"
+    assert pc12.cycle_days == 67, "requisição 06/04/2026 ao pedido 12/06/2026"
+    assert pc12.negotiations[0].value_cents == 30_000_000
+    assert pc12.best is not None and pc12.best.negotiated_cents == 30_000_000
+    assert pc12.best.final_score == Decimal("93.6")
+    processo = db_session.scalars(
+        select(PurchaseProcess).where(PurchaseProcess.package_id == pc12.package_id)
+    ).one()
+    assert processo.recommendation_value_cents == 30_000_000
+    assert processo.approval_band == "Gerente de suprimentos"
+
+    assert por_codigo["CB-PC-05"].stage == "Propostas recebidas"
+    assert por_codigo["TR-PC-04"].stage == "Equalização técnica"
 
 
 def _pacotes_no(db_session: Session, project_id: int) -> int:
