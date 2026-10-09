@@ -1,0 +1,95 @@
+{% extends "base_fragment.html" %}
+{#
+  Equalização técnica (ISSUE-059): a nota e a aprovação de cada proposta, os desvios, o
+  responsável pelo parecer e a data. A proposta reprovada fica fora do mapa comercial; sem
+  nenhuma aprovada o servidor recusa, e abaixo do mínimo de aprovadas exige justificativa.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, formatar_moeda e pessoas.
+#}
+{% block fragment %}
+<form id="processo-eq-tecnica-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/equalizacao-tecnica"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando a equalização técnica...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for chave in ['geral', 'avaliacoes'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get(chave) }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  {% for proposta in linha.proposals %}
+  <div class="processo__parecer">
+    <input type="hidden" name="versao_{{ proposta.id }}" value="{{ proposta.version }}" />
+    <p class="body-txt">
+      <b>{{ proposta.name }}</b>
+      <span class="hint">· {{ formatar_moeda(proposta.value_cents) }} · {{ proposta.deadline_days }} dias</span>
+    </p>
+    <div class="fgrid">
+      <div class="field">
+        <label for="nota-{{ proposta.id }}">Nota técnica (0 a 100)</label>
+        <input id="nota-{{ proposta.id }}" name="nota_{{ proposta.id }}" class="input" inputmode="numeric"
+          required value="{{ valores.get('nota_' ~ proposta.id) or (proposta.technical_score if proposta.technical_score is not none else '') }}" />
+      </div>
+      <div class="field">
+        <label class="check" for="aprovada-{{ proposta.id }}">
+          <input id="aprovada-{{ proposta.id }}" type="checkbox" name="aprovada_{{ proposta.id }}" value="1"
+            {% if valores.get('aprovada_' ~ proposta.id) or (not valores and proposta.technically_approved is not false) %}checked{% endif %} />
+          Aprovada tecnicamente
+        </label>
+      </div>
+      <div class="field field--full">
+        <label for="desvios-{{ proposta.id }}">Desvios e esclarecimentos</label>
+        <input id="desvios-{{ proposta.id }}" name="desvios_{{ proposta.id }}" class="input" maxlength="160"
+          value="{{ valores.get('desvios_' ~ proposta.id) or proposta.deviations }}" />
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="fgrid mt-16">
+    <div class="field">
+      <label for="eq-tecnica-responsavel">Responsável pelo parecer técnico</label>
+      <select id="eq-tecnica-responsavel" name="responsavel" class="input">
+        <option value="">Escolha o responsável</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('responsavel') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="eq-tecnica-data">Data do parecer</label>
+      <input id="eq-tecnica-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      <span class="hint">A data realizada do marco de equalização técnica no MAS.</span>
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="eq-tecnica-parecer">Parecer técnico</label>
+      <textarea id="eq-tecnica-parecer" name="parecer" rows="3" maxlength="400"
+        class="input">{{ valores.get('parecer') or '' }}</textarea>
+    </div>
+
+    <div class="field field--full">
+      <label for="eq-tecnica-justificativa">Justificativa (menos aprovadas que o mínimo)</label>
+      <textarea id="eq-tecnica-justificativa" name="justificativa" rows="3" maxlength="300"
+        class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">Obrigatória quando as aprovadas ficam abaixo do mínimo (20 caracteres).</span>
+      {% if erros.get('justificativa') %}<span id="erro-justificativa" class="field__erro">{{ erros.get('justificativa') }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
+      Concluir equalização técnica
+    </button>
+  </div>
+</form>
+{% endblock %}

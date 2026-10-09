@@ -1,0 +1,94 @@
+{% extends "base_fragment.html" %}
+{#
+  Concluir equalização comercial (ISSUE-059): os pesos, a data do mapa e a prévia do ranking
+  (nota comercial = menor preço aprovado ÷ preço x 100; nota final ponderada). A prévia é só a
+  prévia (processos.js); o servidor revalida os pesos e calcula o ranking de verdade.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, peso_tecnico, peso_comercial
+  e propostas_dados.
+#}
+{% block fragment %}
+<form id="processo-eq-comercial-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/equalizacao-comercial"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  x-data="TN.paginas['suprimentos/processos'].previaComercial()"
+  x-init="carregar($el)"
+  data-peso-tecnico="{{ valores.get('pesoTecnico') or peso_tecnico }}"
+  data-peso-comercial="{{ valores.get('pesoComercial') or peso_comercial }}"
+  data-propostas='{{ propostas_dados | tojson }}'
+  data-tn-loading="Concluindo a equalização comercial...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <input type="hidden" name="versao" value="{{ linha.process_version or '' }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="eq-comercial-peso-tecnico">Peso técnico (%)</label>
+      <input id="eq-comercial-peso-tecnico" name="pesoTecnico" class="input{% if erros.get('pesoTecnico') %} input--erro{% endif %}"
+        inputmode="numeric" required @input="pt = Number($el.value || 0)"
+        value="{{ valores.get('pesoTecnico') or peso_tecnico }}"
+        {% if erros.get('pesoTecnico') %}aria-invalid="true" aria-describedby="erro-pesoTecnico"{% endif %} />
+      {% if erros.get('pesoTecnico') %}<span id="erro-pesoTecnico" class="field__erro">{{ erros.get('pesoTecnico') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="eq-comercial-peso-comercial">Peso comercial (%)</label>
+      <input id="eq-comercial-peso-comercial" name="pesoComercial" class="input{% if erros.get('pesoComercial') %} input--erro{% endif %}"
+        inputmode="numeric" required @input="pc = Number($el.value || 0)"
+        value="{{ valores.get('pesoComercial') or peso_comercial }}"
+        {% if erros.get('pesoComercial') %}aria-invalid="true" aria-describedby="erro-pesoComercial"{% endif %} />
+      {% if erros.get('pesoComercial') %}<span id="erro-pesoComercial" class="field__erro">{{ erros.get('pesoComercial') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="eq-comercial-data">Data do mapa comercial</label>
+      <input id="eq-comercial-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      <span class="hint">A data realizada do marco de equalização comercial no MAS.</span>
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+  </div>
+
+  <h3 class="h-card5 mt-16">Prévia do ranking</h3>
+  <p class="hint" x-show="!linhas().length">Os pesos devem somar 100 e as propostas precisam da nota técnica.</p>
+  <div class="tbl-wrap" x-show="linhas().length">
+    <table class="tbl">
+      <caption class="sr-only">Prévia do ranking</caption>
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Fornecedor</th>
+          <th scope="col" class="td-num">Valor</th>
+          <th scope="col" class="td-num">Técnica</th>
+          <th scope="col" class="td-num">Comercial</th>
+          <th scope="col" class="td-num">Final</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="(item, indice) in linhas()" :key="indice">
+          <tr>
+            <td class="td-num num" x-text="indice + 1"></td>
+            <td x-text="item.fornecedor"></td>
+            <td class="td-num num" x-text="moeda(item.valor)"></td>
+            <td class="td-num num" x-text="numero(item.tecnica, 0)"></td>
+            <td class="td-num num" x-text="numero(item.comercial, 1)"></td>
+            <td class="td-num num fw-600" x-text="numero(item.final, 1)"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
+      Concluir equalização comercial
+    </button>
+  </div>
+</form>
+{% endblock %}

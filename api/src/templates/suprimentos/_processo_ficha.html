@@ -1,0 +1,175 @@
+{#
+  A ficha de um processo de compra (ISSUE-059): as nove etapas, o resumo, o mapa de equalização
+  com as notas e o ranking e o histórico. Partial: entra no fragmento da lista e no fragmento da
+  ficha, sempre com o contexto ``ficha`` (linha, acoes, anexos, consulta, pode_gravar, url_excel,
+  url_pdf, mas_url, formatar_data e formatar_moeda).
+#}
+{% set linha = ficha.linha %}
+<section class="card processo-ficha" aria-labelledby="processo-ficha-titulo">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="processo-ficha-titulo">{{ linha.code }} · {{ linha.scope }}</h2>
+      <p class="hint">
+        {{ linha.number or 'RFx ainda não emitida' }} · {{ linha.kind }} · {{ linha.modality }} ·
+        comprador {{ linha.buyer or '—' }}
+      </p>
+    </div>
+    <div class="processo-ficha__acoes">
+      {% if ficha.pode_gravar %}
+      {% for acao in ficha.acoes %}
+      <button type="button" class="btn btn--{{ acao.tone }} btn--sm"
+        data-processo-modal-url="{{ acao.url }}" data-processo-modal-titulo="{{ acao.label }}"
+        data-processo-modal-subtitulo="{{ linha.code }} · {{ linha.scope }}">{{ acao.label }}</button>
+      {% endfor %}
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
+    </div>
+  </div>
+  <div class="card__body">
+    <ol class="processo-etapas" aria-label="Etapas do processo de compra">
+      {% for passo in linha.steps %}
+      <li class="processo-etapas__item processo-etapas__item--{{ passo.situation }}"
+        {% if passo.situation == 'andamento' %}aria-current="step"{% endif %}>
+        <span class="processo-etapas__ponto" aria-hidden="true"></span>
+        <span class="processo-etapas__nome">{{ passo.label }}</span>
+        <span class="hint processo-etapas__data">
+          {% if passo.date %}{{ ficha.formatar_data(passo.date) }}
+          {% elif passo.planned %}Prev. {{ ficha.formatar_data(passo.planned) }}
+          {% else %}·{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ol>
+
+    <div class="tbl-wrap">
+      <table class="tbl processo__resumo">
+        <caption class="sr-only">Resumo do processo</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Item da EAC</th>
+            <td>
+              {% if linha.eac_code %}
+              <span class="fw-600">{{ linha.eac_code }}</span> {{ linha.eac_description }}
+              {% if linha.eac_balance_cents is not none %}
+              <span class="hint">· saldo a comprometer {{ ficha.formatar_moeda(linha.eac_balance_cents) }}</span>
+              {% endif %}
+              {% else %}<span class="muted">sem EAC</span>{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Estimativa</th>
+            <td class="num">{{ ficha.formatar_moeda(linha.estimate_cents) }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Pesos técnico e comercial</th>
+            <td>{% if linha.process_id %}{{ linha.weight_technical }} / {{ linha.weight_commercial }}{% else %}·{% endif %}</td>
+          </tr>
+          <tr>
+            <th scope="row">Prazo das propostas</th>
+            <td>
+              {% if linha.proposals_deadline %}{{ ficha.formatar_data(linha.proposals_deadline) }}
+              {% else %}·{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Convidados</th>
+            <td>
+              {% if linha.invitees %}
+              {% for convidado in linha.invitees %}{{ convidado.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+              {% else %}·{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Propostas</th>
+            <td>
+              {% if linha.process_id %}
+              {{ linha.received_count }} recebidas · {{ linha.approved_count }} aprovadas tecnicamente · mínimo {{ linha.minimum }}
+              {% if linha.single_supplier %}<br /><span class="pill pill--warn">Fornecedor único</span>{% endif %}
+              {% else %}·{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Alçada exigida</th>
+            <td>
+              {{ linha.approval_band or '·' }}
+              <span class="hint">· valor de referência {{ ficha.formatar_moeda(linha.reference_value_cents) }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="h-card5 mt-16">Mapa de equalização</h3>
+    <p class="hint">
+      {% if not linha.process_id %}O mapa aparece quando a RFx é emitida.
+      {% elif linha.approved_count == 0 %}Equalização técnica pendente: notas e aprovação antes da comercial.
+      {% else %}Nota comercial = menor preço tecnicamente aprovado ÷ preço x 100 · nota final ponderada pelos pesos ·
+      proposta reprovada fica fora do ranking.{% endif %}
+    </p>
+    {% if linha.proposals %}
+    <div class="tbl-wrap">
+      <table class="tbl processo__mapa">
+        <caption class="sr-only">Mapa de equalização do processo</caption>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Fornecedor</th>
+            <th scope="col" class="td-num">Valor</th>
+            <th scope="col" class="td-num">Negociado</th>
+            <th scope="col" class="td-num">Prazo (dias)</th>
+            <th scope="col" class="td-num">Nota técnica</th>
+            <th scope="col">Técnica</th>
+            <th scope="col" class="td-num">Nota comercial</th>
+            <th scope="col" class="td-num">Nota final</th>
+            <th scope="col">Desvios</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for proposta in linha.proposals %}
+          <tr class="{% if proposta.tecnicamente_approved is sameas false %}processo__linha--reprovada{% endif %}">
+            <td class="td-num num">{{ proposta.rank or '' }}</td>
+            <td>
+              <span class="fw-600">{{ proposta.name }}</span><br />
+              <span class="hint">{{ proposta.qualification }}</span>
+              {% for anexo in ficha.anexos.get(proposta.id, ()) %}
+              <br /><span class="hint" title="{{ anexo }}">{{ anexo }}</span>
+              {% endfor %}
+            </td>
+            <td class="td-num num">{{ ficha.formatar_moeda(proposta.value_cents) }}</td>
+            <td class="td-num num">{{ ficha.formatar_moeda(proposta.negotiated_cents) }}</td>
+            <td class="td-num num">{{ proposta.deadline_days }}</td>
+            <td class="td-num num">{{ proposta.technical_score if proposta.technical_score is not none else '·' }}</td>
+            <td>
+              {% if proposta.tecnicamente_approved is none %}<span class="pill pill--neutral">Pendente</span>
+              {% elif proposta.tecnicamente_approved %}<span class="pill pill--ok">Aprovada</span>
+              {% else %}<span class="pill pill--erro">Reprovada</span>{% endif %}
+            </td>
+            <td class="td-num num">{{ ficha.formatar_numero(proposta.commercial_score) }}</td>
+            <td class="td-num num fw-600">{{ ficha.formatar_numero(proposta.final_score) }}</td>
+            <td class="processo__desvios">{{ proposta.deviations or '·' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif linha.process_id %}
+    <p class="body-txt muted">Nenhuma proposta registrada.</p>
+    {% endif %}
+
+    <h3 class="h-card5 mt-16">Histórico do processo</h3>
+    {% if linha.history %}
+    <ul class="lista-simples">
+      {% for registro in linha.history | reverse %}
+      <li class="lista-simples__item">
+        <span class="fw-600">{{ registro.stage }}</span><br />
+        <span class="hint">{{ ficha.formatar_data(registro.date) }} · {{ registro.author or '—' }} · {{ registro.text }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="body-txt muted">Sem registros no histórico.</p>
+    {% endif %}
+  </div>
+</section>

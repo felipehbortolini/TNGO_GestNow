@@ -1,0 +1,98 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Processos de compra (ISSUE-059): os cinco KPIs, a barra de busca e filtros, a régua de
+  nove etapas de cada processo (a biblioteca de gráficos, visual Etapas) e a ficha do processo
+  selecionado. O fragmento é um só e se pede de novo, com os filtros na consulta, a cada clique:
+  KPI, busca, filtro ou página são links ou um formulário GET com x-target no próprio fragmento.
+  O clique numa linha da régua abre a ficha (o servidor entrega o fragmento no alvo
+  processo-ficha); os modais das ações abrem por JavaScript (processos.js) e o servidor entrega o
+  corpo no alvo do modal. No Portfólio os botões de inclusão pedem o projeto antes
+  (data-tn-incluir, TN.escopo).
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: listagem, filtros, kpis, grafico, ficha, link_limpar, url_excel, url_pdf, consulta,
+  parametro_consulta, pode_gravar, portfolio, formatar_data e formatar_moeda.
+#}
+
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}{% if kpi.active %} is-active{% endif %}" href="{{ kpi.url }}"
+  x-target="{{ target_id }}"{% if kpi.active %} aria-current="true"{% endif %}>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="processos__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<div class="kpis processos__kpis" style="--kpis-colunas: 5">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <div class="toolbar">
+      <form class="busca" method="get" action="/api/suprimentos/processos" x-target="{{ target_id }}" role="search">
+        <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar processos</label>
+        <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar pacote, RFx ou fornecedor" />
+        <label class="sr-only" for="{{ target_id }}-situacao">Processos exibidos</label>
+        <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
+          <option value="andamento"{% if filtros.situation == 'andamento' %} selected{% endif %}>Em andamento</option>
+          <option value="todos"{% if filtros.situation == '' %} selected{% endif %}>Todos</option>
+        </select>
+      </form>
+      <div class="processos__barra">
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary" data-tn-incluir="requisicao" data-processo-acao="requisicao"
+          data-processo-url="/api/suprimentos/processos/requisicao{% if consulta %}?{{ consulta }}{% endif %}">
+          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+          Nova requisição
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="hint processos__contagem" role="status">
+      {{ listagem.total }} {{ 'processo' if listagem.total == 1 else 'processos' }} no filtro atual ·
+      o clique numa linha abre a ficha do processo
+    </p>
+
+    {% if listagem.summary.total == 0 %}
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Ainda não há processos de compra</h2>
+      <p>Inclua os pacotes no plano de compras e registre a primeira requisição para conduzir o processo.</p>
+    </div>
+    {% elif not listagem.lines %}
+    <div class="empty" data-estado="vazio-filtro">
+      <h2 class="h-card4">Nenhum processo encontrado com os filtros atuais</h2>
+      <p>Ajuste ou limpe os filtros para ver os processos.</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+    </div>
+    {% else %}
+    <div data-grafico="etapas" data-dados='{{ grafico | tojson }}'
+      @grafico:selecionar.prevent="$ajax($event.detail.item.href, { target: 'processo-ficha' })"></div>
+    {% endif %}
+  </div>
+</div>
+
+<div id="processo-ficha">
+  {% if ficha %}
+  {% include "suprimentos/_processo_ficha.html" %}
+  {% else %}
+  <p class="hint processos__ficha-vazia">Selecione um processo na régua para ver a ficha, o mapa de equalização e o histórico.</p>
+  {% endif %}
+</div>
+{% endblock %}

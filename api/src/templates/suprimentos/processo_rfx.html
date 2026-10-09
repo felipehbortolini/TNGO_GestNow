@@ -1,0 +1,98 @@
+{% extends "base_fragment.html" %}
+{#
+  Emitir RFx (ISSUE-059): a emissão, o prazo das propostas, os pesos, os convidados do cadastro
+  (fornecedor Bloqueado não entra), os outros convidados por nome e o fornecedor único com a
+  justificativa. O servidor recusa abaixo do mínimo sem justificativa e o convidado bloqueado.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, fornecedores e prazo_padrao.
+#}
+{% block fragment %}
+<form id="processo-rfx-form" method="post" action="/api/suprimentos/processos/{{ linha.package_id }}/acao/rfx"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  x-data="{ unico: {{ 'true' if valores.get('unico') else 'false' }} }"
+  data-tn-loading="Emitindo a RFx...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="rfx-data">Emissão</label>
+      <input id="rfx-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="rfx-data-limite">Prazo para as propostas</label>
+      <input id="rfx-data-limite" name="dataLimite" type="date" class="input{% if erros.get('dataLimite') %} input--erro{% endif %}"
+        required value="{{ valores.get('dataLimite') or (prazo_padrao.isoformat() if prazo_padrao else '') }}"
+        {% if erros.get('dataLimite') %}aria-invalid="true" aria-describedby="erro-dataLimite"{% endif %} />
+      <span class="hint">Vira a previsão do marco de propostas no MAS.</span>
+      {% if erros.get('dataLimite') %}<span id="erro-dataLimite" class="field__erro">{{ erros.get('dataLimite') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="rfx-peso-tecnico">Peso técnico (%)</label>
+      <input id="rfx-peso-tecnico" name="pesoTecnico" class="input{% if erros.get('pesoTecnico') %} input--erro{% endif %}"
+        inputmode="numeric" required value="{{ valores.get('pesoTecnico') or 40 }}"
+        {% if erros.get('pesoTecnico') %}aria-invalid="true" aria-describedby="erro-pesoTecnico"{% endif %} />
+      {% if erros.get('pesoTecnico') %}<span id="erro-pesoTecnico" class="field__erro">{{ erros.get('pesoTecnico') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="rfx-peso-comercial">Peso comercial (%)</label>
+      <input id="rfx-peso-comercial" name="pesoComercial" class="input{% if erros.get('pesoComercial') %} input--erro{% endif %}"
+        inputmode="numeric" required value="{{ valores.get('pesoComercial') or 60 }}"
+        {% if erros.get('pesoComercial') %}aria-invalid="true" aria-describedby="erro-pesoComercial"{% endif %} />
+      {% if erros.get('pesoComercial') %}<span id="erro-pesoComercial" class="field__erro">{{ erros.get('pesoComercial') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="rfx-convidados">Fornecedores cadastrados convidados</label>
+      <select id="rfx-convidados" name="convidados" class="input" multiple size="6">
+        {% for fornecedor in fornecedores %}
+        <option value="{{ fornecedor.company_id }}"{% if valores.get('convidados') == fornecedor.company_id|string %} selected{% endif %}>{{ fornecedor.name }} · {{ fornecedor.situation }}{% if fornecedor.categories %} · {{ fornecedor.categories | join(', ') }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Fornecedor bloqueado não aparece na lista nem pode ser convidado.</span>
+      {% if erros.get('convidados') %}<span class="field__erro">{{ erros.get('convidados') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="rfx-outros">Outros convidados (separados por vírgula)</label>
+      <input id="rfx-outros" name="outros" class="input" maxlength="200"
+        placeholder="Sem cadastro: para ser adjudicado, o fornecedor precisa ser cadastrado e qualificado"
+        value="{{ valores.get('outros') or '' }}" />
+    </div>
+
+    <div class="field field--full">
+      <label class="check" for="rfx-unico">
+        <input id="rfx-unico" type="checkbox" name="unico" value="1" x-model="unico"
+          {% if valores.get('unico') %}checked{% endif %} />
+        Fornecedor único (sem concorrência)
+      </label>
+    </div>
+
+    <div class="field field--full" x-show="unico">
+      <label for="rfx-just-unico">Justificativa do fornecedor único</label>
+      <textarea id="rfx-just-unico" name="justUnico" rows="3" maxlength="300"
+        class="input{% if erros.get('justUnico') %} input--erro{% endif %}"
+        {% if erros.get('justUnico') %}aria-invalid="true" aria-describedby="erro-justUnico"{% endif %}>{{ valores.get('justUnico') or '' }}</textarea>
+      <span class="hint">Mínimo de 20 caracteres.</span>
+      {% if erros.get('justUnico') %}<span id="erro-justUnico" class="field__erro">{{ erros.get('justUnico') }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+      Emitir RFx
+    </button>
+  </div>
+</form>
+{% endblock %}

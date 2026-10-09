@@ -1,16 +1,133 @@
 /* ============================================================
    processos.css — Estilo da tela Processos de compra (suprimentos/processos)
 
-   Da requisição ao pedido ou contrato: RFx, equalização, ranking e aprovação por alçada.
+   Da requisição ao pedido ou contrato: RFx, equalização, ranking e aprovação por alçada
+   (ISSUE-059).
 
    Escopo: tudo que morar aqui começa por .pagina--suprimentos-processos, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-059 e ISSUE-060.
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor de cor,
+   espaçamento, raio ou sombra escrito direto. O que se repetir em três telas sobe para
+   ds/patterns.css. A régua de etapas é da biblioteca de gráficos (app/ds/graficos/etapas.js);
+   aqui ficam só os KPIs, a barra de ações e a ficha do processo.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--suprimentos-processos .processos__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pagina--suprimentos-processos .processos__barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-processos .processos__contagem {
+  margin: var(--space-sm) 0 var(--space-lg);
+}
+
+.pagina--suprimentos-processos .processos__ficha-vazia {
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-processos .processo-ficha {
+  margin-top: var(--space-lg);
+}
+
+.pagina--suprimentos-processos .processo-ficha__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--suprimentos-processos .processo-etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--suprimentos-processos .processo-etapas__item {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 96px;
+  padding: var(--space-sm) var(--space-sm) var(--space-xs);
+  border-top: 3px solid var(--borda);
+  background: var(--branco);
+}
+
+.pagina--suprimentos-processos .processo-etapas__item--concluido {
+  border-top-color: var(--ok-500);
+}
+
+.pagina--suprimentos-processos .processo-etapas__item--andamento {
+  border-top-color: var(--warn-500);
+  background: var(--warn-50);
+}
+
+.pagina--suprimentos-processos .processo-etapas__ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--borda);
+}
+
+.pagina--suprimentos-processos .processo-etapas__item--concluido .processo-etapas__ponto {
+  background: var(--ok-500);
+}
+
+.pagina--suprimentos-processos .processo-etapas__item--andamento .processo-etapas__ponto {
+  background: var(--warn-500);
+}
+
+.pagina--suprimentos-processos .processo-etapas__nome {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pagina--suprimentos-processos .processo-etapas__data {
+  font-size: 11px;
+}
+
+.pagina--suprimentos-processos .processo__resumo th[scope="row"] {
+  width: 200px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.pagina--suprimentos-processos .processo__linha--reprovada td {
+  color: var(--text-secondary);
+}
+
+.pagina--suprimentos-processos .processo__desvios {
+  max-width: 260px;
+}
+
+.pagina--suprimentos-processos .processo__parecer {
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--borda);
+}
+
+.pagina--suprimentos-processos .processo__parecer:last-of-type {
+  border-bottom: none;
+}
+
+@media (max-width: 900px) {
+  .pagina--suprimentos-processos .processo-ficha__acoes {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pagina--suprimentos-processos .processo-etapas__item {
+    min-width: 72px;
+  }
+}

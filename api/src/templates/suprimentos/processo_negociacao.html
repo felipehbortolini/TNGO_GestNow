@@ -1,0 +1,65 @@
+{% extends "base_fragment.html" %}
+{#
+  Registrar negociação (ISSUE-059): a rodada com uma proposta aprovada tecnicamente, o valor
+  negociado (nunca acima da proposta original), a data e as condições. O fato é imutável.
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, formatar_moeda e aprovadas.
+#}
+{% block fragment %}
+<form id="processo-negociacao-form" method="post"
+  action="/api/suprimentos/processos/{{ linha.package_id }}/acao/negociacao"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a negociação...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="negociacao-proposta">Fornecedor</label>
+      <select id="negociacao-proposta" name="proposta" class="input{% if erros.get('fornecedor') %} input--erro{% endif %}" required
+        {% if erros.get('fornecedor') %}aria-invalid="true" aria-describedby="erro-fornecedor"{% endif %}>
+        <option value="">Escolha a proposta aprovada</option>
+        {% for proposta in aprovadas %}
+        <option value="{{ proposta.id }}"{% if valores.get('proposta') == proposta.id|string %} selected{% endif %}>
+          {% if proposta.rank %}{{ proposta.rank }}º {% endif %}{{ proposta.name }} · {{ formatar_moeda(proposta.value_cents) }}
+        </option>
+        {% endfor %}
+      </select>
+      {% if erros.get('fornecedor') %}<span id="erro-fornecedor" class="field__erro">{{ erros.get('fornecedor') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="negociacao-valor">Valor negociado</label>
+      <input id="negociacao-valor" name="valor" class="input{% if erros.get('valor') %} input--erro{% endif %}"
+        inputmode="decimal" placeholder="0,00" required value="{{ valores.get('valor') or '' }}"
+        {% if erros.get('valor') %}aria-invalid="true" aria-describedby="erro-valor"{% endif %} />
+      {% if erros.get('valor') %}<span id="erro-valor" class="field__erro">{{ erros.get('valor') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="negociacao-data">Data</label>
+      <input id="negociacao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="negociacao-observacao">Condições negociadas</label>
+      <textarea id="negociacao-observacao" name="observacao" rows="3" maxlength="300"
+        class="input">{{ valores.get('observacao') or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+      Registrar negociação
+    </button>
+  </div>
+</form>
+{% endblock %}

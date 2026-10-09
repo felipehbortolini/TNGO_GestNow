@@ -1,11 +1,12 @@
-"""The export of the register and of the plan: one ``Document``, the Excel and the print (D12).
+"""The export of the register, of the plan and of the process: one ``Document``, the Excel and the print (D12).
 
-What the screen shows is what leaves: the six KPIs of the register (or the five of the plan),
-the line of active filters and the table, with the same content the prototype exported. The
-register is global, so its table declares itself not per project; the plan table is per project
-and in the Portfólio opens with ``Projeto`` (HU-016). The adjudicated and saving columns of the
-plan travel empty while the process (ISSUE-059) and the order (ISSUE-061) do not exist
-(DECISION, ISSUE-058).
+What the screen shows is what leaves: the six KPIs of the register (or the five of the plan and
+of the process), the line of active filters and the table, with the same content the prototype
+exported. The register is global, so its table declares itself not per project; the plan and the
+process tables are per project and in the Portfólio open with ``Projeto`` (HU-016). The
+adjudicated and saving columns of the plan travel empty while the process (ISSUE-059) and the
+order (ISSUE-061) do not exist (DECISION, ISSUE-058); the process document carries the
+equalization map when the request names a package, as the prototype's export did.
 """
 
 from __future__ import annotations
@@ -24,13 +25,14 @@ from src.core.export_document import (
     Tone,
     ValueKind,
     describe_scope,
+    format_value,
     row,
 )
 from src.core.money import format_brl
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.suprimentos import calculations, service
-from src.modulos.suprimentos.validation import PackageFilters, SupplierFilters
+from src.modulos.suprimentos.validation import PackageFilters, ProcessFilters, SupplierFilters
 
 TITLE = "Fornecedores"
 TABLE_TITLE = "Fornecedores e contratadas"
@@ -333,4 +335,198 @@ def _plan_row(line: service.PackageLine) -> Row:
         line.adjudicated_cents,
         line.saving_cents,
         project=line.project_label,
+    )
+
+
+# ── The purchase process (ISSUE-059) ─────────────────────────────────────────────────────────
+
+PROCESS_TITLE = "Processos de compra (RFx)"
+PROCESS_TABLE_TITLE = "Processos de compra"
+MAP_TABLE_TITLE = "Mapa de equalização"
+ALL_PROCESSES = "Todos os processos"
+IN_PROGRESS = "Em andamento"
+
+TECHNICAL_TONES = {
+    True: Tone.OK,
+    False: Tone.ERROR,
+    None: Tone.NEUTRAL,
+}
+
+
+def build_process_document(
+    *,
+    listing: service.ProcessListing,
+    line: service.ProcessLine | None,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The document of the process list, with the equalization map when a process is named."""
+    tables = [_process_table(listing.lines)]
+    if line is not None:
+        tables.append(_map_table(line))
+    return Document(
+        title=PROCESS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(
+            ("Filtros", process_filter_text(listing.filters)),
+            ("Processos no filtro", str(listing.total)),
+        ),
+        kpis=_process_kpis(listing),
+        tables=tuple(tables),
+        paper=Paper.A3,
+    )
+
+
+def process_filter_text(filters: ProcessFilters) -> str:
+    """The active filters as one line: the search and the situation shown."""
+    situation = IN_PROGRESS if filters.situation == "andamento" else ALL_PROCESSES
+    if filters.search:
+        return f"Busca: {filters.search} · {situation}"
+    return situation
+
+
+def _process_kpis(listing: service.ProcessListing) -> tuple[Kpi, ...]:
+    summary = listing.summary
+    minimum = summary.minimum_proposals
+    mean = summary.mean_valid_proposals
+    share = summary.single_supplier_share
+    return (
+        Kpi(
+            "Em andamento",
+            summary.in_progress,
+            f"Previsto: {summary.expected_in_progress}",
+            ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=f"{summary.total} pacotes no plano",
+        ),
+        Kpi(
+            "Aguardando aprovação",
+            summary.awaiting_approval,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.awaiting_approval else Tone.OK,
+            status="recomendação na alçada",
+        ),
+        Kpi(
+            "Propostas válidas por processo",
+            mean if mean is not None else "—",
+            f"Meta: ≥ {minimum}",
+            ValueKind.DECIMAL if mean is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.OK if mean is not None and mean >= minimum else Tone.WARN,
+        ),
+        Kpi(
+            "Fornecedor único",
+            share if share is not None else "—",
+            "Esperado: 0%",
+            ValueKind.PERCENT if share is not None else ValueKind.TEXT,
+            digits=1,
+            tone=Tone.WARN if summary.single_supplier_count else Tone.OK,
+            status=f"{summary.single_supplier_count} processos com justificativa",
+        ),
+        Kpi(
+            "Ciclo de compra",
+            summary.cycle_mean_days if summary.cycle_mean_days is not None else "—",
+            (
+                "Linha de base: ·"
+                if summary.baseline_cycle_days is None
+                else f"Linha de base: {summary.baseline_cycle_days} dias"
+            ),
+            ValueKind.INTEGER if summary.cycle_mean_days is not None else ValueKind.TEXT,
+            tone=Tone.NEUTRAL,
+            status="requisição até o pedido emitido",
+        ),
+    )
+
+
+def _process_table(lines: Sequence[service.ProcessLine]) -> Table:
+    return Table(
+        title=PROCESS_TABLE_TITLE,
+        columns=(
+            Column("Pacote", width=12),
+            Column("Escopo", width=30),
+            Column("Tipo", width=14),
+            Column("RFx", width=14),
+            Column("Etapa", width=22),
+            Column("Propostas", width=24),
+            Column("Melhor proposta", width=34),
+            Column("Alçada", width=22),
+            Column("Adjudicação (LB)", width=14, kind=ValueKind.DATE),
+            Column("Adjudicação (real)", width=14, kind=ValueKind.DATE),
+            Column("Adjudicação (previsão)", width=14, kind=ValueKind.DATE),
+        ),
+        rows=tuple(_process_row(line) for line in lines),
+    )
+
+
+def _process_row(line: service.ProcessLine) -> Row:
+    return row(
+        line.code,
+        line.scope,
+        line.kind,
+        line.number or "",
+        Cell(line.stage, STAGE_TONES.get(line.stage, Tone.NEUTRAL)),
+        f"{line.received_count} recebidas · {line.approved_count} aprovadas"
+        if line.process_id is not None
+        else "",
+        _best_text(line),
+        line.approval_band or "",
+        line.adjudication_plan,
+        line.adjudication_real,
+        line.adjudication_forecast,
+        project=line.project_label,
+    )
+
+
+def _best_text(line: service.ProcessLine) -> str:
+    if line.best is None:
+        return f"estimativa {format_brl(line.estimate_cents)}"
+    value = line.best.negotiated_cents or line.best.value_cents
+    score = format_value(ValueKind.DECIMAL, line.best.final_score, 1)
+    return f"{format_brl(value)} · {line.best.name} · nota {score}"
+
+
+def _map_table(line: service.ProcessLine) -> Table:
+    ordered = sorted(line.proposals, key=lambda proposal: (proposal.rank or 99, proposal.id))
+    return Table(
+        title=f"{MAP_TABLE_TITLE} {line.number or line.code}",
+        columns=(
+            Column("#", width=6, kind=ValueKind.INTEGER),
+            Column("Fornecedor", width=30),
+            Column("Qualificação", width=18),
+            Column("Valor", width=18, kind=ValueKind.MONEY),
+            Column("Negociado", width=18, kind=ValueKind.MONEY),
+            Column("Prazo (dias)", width=12, kind=ValueKind.INTEGER),
+            Column("Nota técnica", width=12, kind=ValueKind.INTEGER),
+            Column("Técnica", width=14),
+            Column("Nota comercial", width=14, kind=ValueKind.DECIMAL),
+            Column("Nota final", width=12, kind=ValueKind.DECIMAL),
+            Column("Desvios", width=40),
+        ),
+        rows=tuple(_map_row(proposal) for proposal in ordered),
+        per_project=False,
+    )
+
+
+def _map_row(proposal: service.ProposalLine) -> Row:
+    return row(
+        proposal.rank,
+        proposal.name,
+        proposal.qualification,
+        proposal.value_cents,
+        proposal.negotiated_cents,
+        proposal.deadline_days,
+        proposal.technical_score,
+        Cell(
+            "Pendente"
+            if proposal.technically_approved is None
+            else ("Aprovada" if proposal.technically_approved else "Reprovada"),
+            TECHNICAL_TONES[proposal.technically_approved],
+        ),
+        proposal.commercial_score,
+        proposal.final_score,
+        proposal.deviations,
     )

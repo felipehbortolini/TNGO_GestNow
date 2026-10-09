@@ -1,0 +1,89 @@
+{% extends "base_fragment.html" %}
+{#
+  Registrar proposta (ISSUE-059): o fornecedor do cadastro (ou o nome de quem não está nele), a
+  recepção, o valor, o prazo e a validade; o PDF é obrigatório e vira um anexo de verdade do
+  registro (D5a). A primeira proposta move o processo para "Propostas recebidas".
+
+  Espera: valores, erros, linha, consulta, referencia, formatar_data, empresas e convidados.
+#}
+{% block fragment %}
+<form id="processo-proposta-form" method="post" action="/api/suprimentos/processos/{{ linha.package_id }}/acao/proposta"
+  enctype="multipart/form-data"
+  x-target="processos-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a proposta...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('geral') }}</span></div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="proposta-empresa">Fornecedor do cadastro</label>
+      <select id="proposta-empresa" name="empresa" class="input{% if erros.get('fornecedor') %} input--erro{% endif %}"
+        {% if erros.get('fornecedor') %}aria-invalid="true" aria-describedby="erro-fornecedor"{% endif %}>
+        <option value="">Escolha o fornecedor ou use o nome ao lado</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if valores.get('empresa') == empresa.id|string %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+      {% if convidados %}<span class="hint">Convidados da RFx: {{ convidados | join(', ') }}.</span>{% endif %}
+      {% if erros.get('fornecedor') %}<span id="erro-fornecedor" class="field__erro">{{ erros.get('fornecedor') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="proposta-nome">Fornecedor sem cadastro (nome)</label>
+      <input id="proposta-nome" name="nome" class="input" maxlength="80"
+        placeholder="Só para quem não está no cadastro; para adjudicar, é preciso cadastrar e qualificar"
+        value="{{ valores.get('nome') or '' }}" />
+    </div>
+
+    <div class="field">
+      <label for="proposta-data">Recebida em</label>
+      <input id="proposta-data" name="data" type="date" class="input{% if erros.get('recebida') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('recebida') %}aria-invalid="true" aria-describedby="erro-recebida"{% endif %} />
+      {% if erros.get('recebida') %}<span id="erro-recebida" class="field__erro">{{ erros.get('recebida') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="proposta-validade">Validade da proposta</label>
+      <input id="proposta-validade" name="validade" type="date" class="input"
+        value="{{ valores.get('validade') or '' }}" />
+    </div>
+
+    <div class="field">
+      <label for="proposta-valor">Valor total</label>
+      <input id="proposta-valor" name="valor" class="input{% if erros.get('valor') %} input--erro{% endif %}"
+        inputmode="decimal" placeholder="0,00" required value="{{ valores.get('valor') or '' }}"
+        {% if erros.get('valor') %}aria-invalid="true" aria-describedby="erro-valor"{% endif %} />
+      {% if erros.get('valor') %}<span id="erro-valor" class="field__erro">{{ erros.get('valor') }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="proposta-prazo">Prazo de entrega (dias após o pedido)</label>
+      <input id="proposta-prazo" name="prazo" class="input{% if erros.get('prazo') %} input--erro{% endif %}"
+        inputmode="numeric" required value="{{ valores.get('prazo') or '' }}"
+        {% if erros.get('prazo') %}aria-invalid="true" aria-describedby="erro-prazo"{% endif %} />
+      {% if erros.get('prazo') %}<span id="erro-prazo" class="field__erro">{{ erros.get('prazo') }}</span>{% endif %}
+    </div>
+
+    <div class="field field--full">
+      <label for="proposta-arquivo">Proposta técnica e comercial (PDF)</label>
+      <input id="proposta-arquivo" name="arquivo" type="file" accept=".pdf" required
+        class="input{% if erros.get('arquivo') %} input--erro{% endif %}"
+        {% if erros.get('arquivo') %}aria-invalid="true" aria-describedby="erro-arquivo"{% endif %} />
+      <span class="hint">O PDF é o anexo da proposta (D5a).</span>
+      {% if erros.get('arquivo') %}<span id="erro-arquivo" class="field__erro">{{ erros.get('arquivo') }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
+      Registrar proposta
+    </button>
+  </div>
+</form>
+{% endblock %}

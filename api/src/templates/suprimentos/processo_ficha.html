@@ -1,0 +1,10 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha de um processo de compra, sozinha (ISSUE-059): o que o clique numa linha da régua
+  carrega no alvo processo-ficha. O conteúdo é o partial _processo_ficha.html, o mesmo que a
+  lista inclui. Espera: ficha (linha, acoes, anexos, consulta, pode_gravar, url_excel, url_pdf,
+  mas_url, formatar_data, formatar_moeda e formatar_numero).
+#}
+{% block fragment %}
+{% include "suprimentos/_processo_ficha.html" %}
+{% endblock %}

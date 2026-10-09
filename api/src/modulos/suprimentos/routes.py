@@ -1,4 +1,4 @@
-"""Routes of the Procurement module: the supplier register and the purchase plan (D14).
+"""Routes of the Procurement module: the supplier register, the purchase plan and the process (D14).
 
 Prefix ``/api/suprimentos/``. The supplier screen is one fragment, ``fornecedores-conteudo``:
 the KPIs, the toolbar and the table of the register. Everything that changes the view (a KPI, a
@@ -24,6 +24,19 @@ according to the real date of the requisition. Excel import runs by the generic 
 * ``GET/POST plano-de-compras/novo``            Novo pacote;
 * ``GET/POST plano-de-compras/{pacote_id}/editar``   Editar pacote (full or frozen).
 
+The process screen (ISSUE-059) is one fragment, ``processos-conteudo``: the five KPIs, the
+toolbar, the Etapas chart with the nine steps of each process and the ficha of the selected one.
+The ficha also answers alone (``processo-ficha``) for the click on a chart line; the actions open
+in a modal (``processo-modal-corpo``) drawn by GET and saved by POST, and a refusal answers the
+form again, filled in. The actions of this issue are the requisition, the RFx, the proposal (its
+PDF is a real attachment), the closing of the receipt and the three equalization/negotiation
+steps; the recommendation and the approval arrive with ISSUE-060.
+
+* ``GET  processos`` and ``processos/excel``/``imprimivel``   the list (and the map, with ``pacote``);
+* ``GET  processos/ficha``                      the ficha of one process (``pacote``);
+* ``GET/POST processos/requisicao``             Nova requisição;
+* ``GET/POST processos/{pacote_id}/acao/{nome}``  the other actions of the flow.
+
 The rules are in ``service``; the routes only read the request, call it and draw the answer.
 """
 
@@ -37,7 +50,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import attachments, calendario, rbac
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -45,7 +58,7 @@ from src.core.errors import (
     VersionConflictError,
 )
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, format_value
+from src.core.export_document import CellValue, Document, ValueKind, format_value
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
@@ -53,13 +66,21 @@ from src.core.routing import Access, RequestContext, file_route, fragment_route
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.suprimentos import calculations, export, importers, service, validation
 from src.modulos.suprimentos.validation import (
+    ClosingInput,
+    CommercialInput,
     DocumentInput,
+    NegotiationInput,
     PackageChangeInput,
     PackageFilters,
     PackageInput,
+    ProposalInput,
     QualificationInput,
+    RequisitionInput,
+    RfxInput,
     SupplierFilters,
     SupplierInput,
+    TechnicalEvaluation,
+    TechnicalInput,
 )
 
 bp = func.Blueprint()
@@ -469,6 +490,11 @@ def _format_date(value: date | None) -> str:
 def _format_money(cents: int | None) -> str:
     """``R$ 1.850.000,00`` from cents; the dash when there is no value."""
     return "—" if cents is None else format_value(ValueKind.MONEY, cents)
+
+
+def _format_decimal(value: CellValue, digits: int = 1) -> str:
+    """``95,2`` from a score; the dot when there is no value."""
+    return "·" if value is None else format_value(ValueKind.DECIMAL, value, digits)
 
 
 def _document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
@@ -1174,4 +1200,980 @@ def _package_change_input(form: Mapping[str, str]) -> PackageChangeInput:
         ros=validation.parse_date(form.get("ros")),
         justification=form.get("justificativa", ""),
         version=(form.get("versao") or "").strip() or None,
+    )
+
+
+# ── The purchase process (ISSUE-059) ─────────────────────────────────────────────────────────
+
+PROCESS_TARGET = "processos-conteudo"
+FICHA_TARGET = "processo-ficha"
+PROCESS_MODAL_TARGET = "processo-modal-corpo"
+PROCESS_ROUTE = "/api/suprimentos/processos"
+
+PROCESS_TEMPLATE = "suprimentos/processos.html"
+FICHA_TEMPLATE = "suprimentos/processo_ficha.html"
+
+REQUISITION_TEMPLATE = "suprimentos/processo_requisicao.html"
+ACTION_TEMPLATES: Mapping[str, str] = {
+    "rfx": "suprimentos/processo_rfx.html",
+    "proposta": "suprimentos/processo_proposta.html",
+    "encerrar-recebimento": "suprimentos/processo_encerrar.html",
+    "equalizacao-tecnica": "suprimentos/processo_eq_tecnica.html",
+    "equalizacao-comercial": "suprimentos/processo_eq_comercial.html",
+    "negociacao": "suprimentos/processo_negociacao.html",
+}
+
+PROCESS_NOT_FOUND_MESSAGE = validation.PROCESS_NOT_FOUND
+UNKNOWN_ACTION_MESSAGE = "Ação desconhecida."
+
+REQUISITION_NOTICE = "Requisição de {code} registrada; marco realizado no MAS."
+RFX_NOTICE = "{number} emitida."
+PROPOSAL_NOTICE = "Proposta registrada em {number}."
+CLOSING_NOTICE = "Recebimento encerrado; equalização técnica liberada."
+TECHNICAL_NOTICE = "Equalização técnica concluída; mapa comercial liberado."
+COMMERCIAL_NOTICE = "Mapa comercial concluído; processo em negociação."
+NEGOTIATION_NOTICE = "Negociação registrada."
+
+# The actions each stage of the process offers (ISSUE-059): name, label, icon and tone.
+STAGE_ACTIONS: Mapping[str, tuple[tuple[str, str, str, str], ...]] = {
+    calculations.STAGE_PLANNED: (("requisicao", "Registrar requisição", "fileAdd", "primary"),),
+    "Requisição": (("rfx", "Emitir RFx", "send", "primary"),),
+    "RFx emitida": (("proposta", "Registrar proposta", "fileAdd", "primary"),),
+    "Propostas recebidas": (
+        ("proposta", "Registrar proposta", "fileAdd", "secondary"),
+        ("encerrar-recebimento", "Encerrar recebimento", "check", "primary"),
+    ),
+    "Equalização técnica": (
+        ("equalizacao-tecnica", "Equalização técnica", "checkCircle", "primary"),
+    ),
+    "Equalização comercial": (
+        ("equalizacao-comercial", "Concluir equalização comercial", "money", "primary"),
+    ),
+    "Negociação": (("negociacao", "Registrar negociação", "send", "secondary"),),
+}
+
+# The vocabulary of the Etapas chart: the states of the steps and of the line.
+CHART_STATES: tuple[Mapping[str, object], ...] = (
+    {"id": "concluido", "rotulo": "Concluído", "tom": "ok"},
+    {"id": "andamento", "rotulo": "Em andamento", "tom": "alerta"},
+    {"id": "futuro", "rotulo": "Não iniciado", "tom": "atencao"},
+    {"id": "na", "rotulo": "Sem RFx", "tom": "cinza", "padrao": True},
+)
+STEP_CHART_STATES: Mapping[str, str] = {
+    calculations.STEP_DONE: "concluido",
+    calculations.STEP_CURRENT: "andamento",
+    calculations.STEP_FUTURE: "futuro",
+}
+
+
+@dataclass(frozen=True)
+class ActionButton:
+    """One action the ficha offers for the current stage, as the modal opener reads it."""
+
+    name: str
+    label: str
+    icon: str
+    tone: str
+    url: str
+
+
+def _process_modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
+    """A refusal inside the process modal: the message where the person is looking."""
+    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    return AlpineAjaxResponse(
+        template_name="comum/erro.html",
+        context={"mensagens": messages},
+        request=req,
+        target_id=PROCESS_MODAL_TARGET,
+        status_code=_error_status(error),
+        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast_tipo="erro",
+    )
+
+
+# ── The list and the ficha ───────────────────────────────────────────────────────────────────
+
+
+@bp.route(route="suprimentos/processos", methods=["GET"])
+@fragment_route(access=READ)
+def process_list(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The processes: KPIs, toolbar, the Etapas chart and the ficha of the selected one."""
+    return _process_screen(
+        req,
+        session,
+        context,
+        filters=validation.parse_process_filters(req.params),
+        selected=validation.parse_id(req.params.get("pacote")),
+    )
+
+
+@bp.route(route="suprimentos/processos/excel", methods=["GET"])
+@file_route(access=READ)
+def process_list_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The Excel of the list, with the equalization map when a process is named."""
+    return excel_response(_process_document(req, session, context))
+
+
+@bp.route(route="suprimentos/processos/imprimivel", methods=["GET"])
+@fragment_route(access=READ)
+def process_list_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The printable version of the same document."""
+    return printable_response(_process_document(req, session, context), req)
+
+
+@bp.route(route="suprimentos/processos/ficha", methods=["GET"])
+@fragment_route(access=READ)
+def process_sheet(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The ficha of one process, for the click on a line of the chart."""
+    package_id = validation.parse_id(req.params.get("pacote"))
+    ficha = (
+        None
+        if package_id is None
+        else _ficha_context(
+            session,
+            context,
+            package_id=package_id,
+            consulta=(req.params.get("consulta") or "").strip(),
+        )
+    )
+    if ficha is None:
+        raise InvalidDataError(PROCESS_NOT_FOUND_MESSAGE)
+    return AlpineAjaxResponse(
+        template_name=FICHA_TEMPLATE,
+        context={"ficha": ficha},
+        request=req,
+        target_id=FICHA_TARGET,
+    )
+
+
+def _process_screen(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    filters: validation.ProcessFilters,
+    selected: int | None = None,
+    after: _After | None = None,
+) -> func.HttpResponse:
+    """The screen fragment for the filters, with the ficha of the selected process."""
+    listing = service.list_processes(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=calendario.today(),
+    )
+    consulta = _process_query_string(filters)
+    ficha = (
+        None
+        if selected is None
+        else _ficha_context(session, context, package_id=selected, consulta=consulta)
+    )
+    return AlpineAjaxResponse(
+        template_name=PROCESS_TEMPLATE,
+        context={
+            "listagem": listing,
+            "filtros": filters,
+            "kpis": _process_kpi_cards(listing),
+            "grafico": _chart_data(
+                listing, consulta=consulta, portfolio=context.scope.is_portfolio
+            ),
+            "ficha": ficha,
+            "link_limpar": _process_address(filters, busca=""),
+            "url_excel": _process_address(filters, path=f"{PROCESS_ROUTE}/excel"),
+            "url_pdf": _process_address(filters, path=f"{PROCESS_ROUTE}/imprimivel"),
+            "consulta": consulta,
+            "parametro_consulta": urlencode({"consulta": consulta}),
+            "pode_gravar": rbac.can(context.user, Permission.WRITE),
+            "portfolio": context.scope.is_portfolio,
+            "formatar_data": _format_date,
+            "formatar_moeda": _format_money,
+            **(after.extra if after else {}),
+        },
+        request=req,
+        target_id=PROCESS_TARGET,
+        toast=after.notice if after else None,
+    )
+
+
+def _ficha_context(
+    session: Session, context: RequestContext, *, package_id: int, consulta: str
+) -> dict[str, object] | None:
+    """Everything the ficha prints, or ``None`` when the package is not in the scope."""
+    today = calendario.today()
+    line = service.find_process(
+        session,
+        user=context.user,
+        scope=context.scope,
+        package_id=package_id,
+        reference_date=today,
+    )
+    if line is None:
+        return None
+    return {
+        "linha": line,
+        "acoes": _stage_actions(line, consulta=consulta),
+        "anexos": _proposal_attachments(session, context, line, today=today),
+        "consulta": consulta,
+        "pode_gravar": rbac.can(context.user, Permission.WRITE),
+        "url_excel": f"{PROCESS_ROUTE}/excel?pacote={line.package_id}",
+        "url_pdf": f"{PROCESS_ROUTE}/imprimivel?pacote={line.package_id}",
+        "mas_url": f"/suprimentos/mas?{urlencode({'busca': line.code})}",
+        "formatar_data": _format_date,
+        "formatar_moeda": _format_money,
+        "formatar_numero": _format_decimal,
+    }
+
+
+def _proposal_attachments(
+    session: Session, context: RequestContext, line: service.ProcessLine, *, today: date
+) -> dict[int, tuple[str, ...]]:
+    """The names of the attachments of each proposal, read by the platform facade (D5a)."""
+    names: dict[int, tuple[str, ...]] = {}
+    for proposal in line.proposals:
+        panel = attachments.panel(
+            session,
+            user=context.user,
+            origin_table=service.PROPOSAL_ATTACHMENT_TABLE,
+            origin_record_id=proposal.id,
+            reference_date=today,
+        )
+        names[proposal.id] = tuple(entry.name for entry in panel.entries)
+    return names
+
+
+def _stage_actions(line: service.ProcessLine, *, consulta: str) -> tuple[ActionButton, ...]:
+    """The buttons the ficha offers for the stage the process is in."""
+    buttons: list[ActionButton] = []
+    for name, label, icon, tone in STAGE_ACTIONS.get(line.stage, ()):
+        if name == "requisicao":
+            url = f"{PROCESS_ROUTE}/requisicao?pacote={line.package_id}"
+        else:
+            url = f"{PROCESS_ROUTE}/{line.package_id}/acao/{name}"
+        separator = "&" if "?" in url else "?"
+        buttons.append(
+            ActionButton(
+                name=name,
+                label=label,
+                icon=icon,
+                tone=tone,
+                url=url + (f"{separator}{consulta}" if consulta else ""),
+            )
+        )
+    return tuple(buttons)
+
+
+def _chart_data(
+    listing: service.ProcessListing, *, consulta: str, portfolio: bool
+) -> dict[str, object]:
+    """The Etapas chart of the list: one line per process with its nine steps."""
+    return {
+        "titulo": "Processos de compra (RFx)",
+        "rotulo_linhas": "Pacote",
+        "etapas": [{"id": key, "rotulo": label} for key, label in calculations.PROCESS_STEPS],
+        "estados": [dict(state) for state in CHART_STATES],
+        "colunas_datas": ["Adjudicação (LB)", "Adjudicação"],
+        "linhas": [
+            _chart_line(line, consulta=consulta, portfolio=portfolio) for line in listing.lines
+        ],
+    }
+
+
+def _chart_line(line: service.ProcessLine, *, consulta: str, portfolio: bool) -> dict[str, object]:
+    """One line of the chart: the tags, the general state and the nine steps with their dates."""
+    if line.stage_index >= len(calculations.PROCESS_STEPS):
+        general = "concluido"
+    elif line.stage == calculations.STAGE_PLANNED:
+        general = "na"
+    else:
+        general = "andamento"
+    adjudication = line.adjudication_real or line.adjudication_forecast
+    return {
+        "id": line.package_id,
+        "titulo": f"{line.code} — {line.scope}",
+        "tags": _chart_tags(line, portfolio=portfolio),
+        "estado": general,
+        "etapas": {
+            step.key: {
+                "estado": STEP_CHART_STATES.get(step.situation, "futuro"),
+                "data": _iso_of_step(step),
+                "previsto": step.date is None and step.planned is not None,
+            }
+            for step in line.steps
+        },
+        "datas": [
+            line.adjudication_plan.isoformat() if line.adjudication_plan else None,
+            adjudication.isoformat() if adjudication else None,
+        ],
+        "href": f"{PROCESS_ROUTE}/ficha?pacote={line.package_id}"
+        + (f"&{consulta}" if consulta else ""),
+    }
+
+
+def _chart_tags(line: service.ProcessLine, *, portfolio: bool) -> list[str]:
+    """The short tags of the line: the RFx, the proposals, the best one and the approval band."""
+    tags: list[str] = []
+    if portfolio:
+        tags.append(line.project_label.split(" · ")[0])
+    if line.number:
+        tags.append(line.number)
+    tags.append(f"{line.received_count} propostas · {line.approved_count} aprovadas")
+    if line.best is not None:
+        score = format_value(ValueKind.DECIMAL, line.best.final_score, 1)
+        tags.append(f"{line.best.name} · nota {score}")
+    else:
+        tags.append(f"estimativa {format_value(ValueKind.MONEY, line.estimate_cents)}")
+    if line.approval_band:
+        tags.append(f"Alçada: {line.approval_band}")
+    return tags
+
+
+def _iso_of_step(step: service.ProcessStep) -> str | None:
+    value = step.date or step.planned
+    return value.isoformat() if value else None
+
+
+def _process_kpi_cards(listing: service.ProcessListing) -> list[KpiCard]:
+    summary = listing.summary
+    minimum = summary.minimum_proposals
+    mean = summary.mean_valid_proposals
+    share = summary.single_supplier_share
+    return [
+        KpiCard(
+            label="Em andamento",
+            icon="file",
+            tone="info",
+            value=summary.in_progress,
+            reference=f"Previsto: {summary.expected_in_progress}",
+            footer=f"{summary.total} pacotes no plano",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Aguardando aprovação",
+            icon="clock",
+            tone="warn" if summary.awaiting_approval else "ok",
+            value=summary.awaiting_approval,
+            reference="Esperado: 0",
+            footer="recomendação na alçada",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Propostas válidas por processo",
+            icon="checkCircle",
+            tone="ok" if mean is not None and mean >= minimum else "warn",
+            value="—" if mean is None else format_value(ValueKind.DECIMAL, mean, 1),
+            reference=f"Meta: ≥ {minimum}",
+            footer="",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Fornecedor único",
+            icon="person",
+            tone="warn" if summary.single_supplier_count else "ok",
+            value="—" if share is None else f"{format_value(ValueKind.DECIMAL, share, 1)}%",
+            reference="Esperado: 0%",
+            footer=f"{summary.single_supplier_count} processos com justificativa",
+            url="",
+            active=False,
+        ),
+        KpiCard(
+            label="Ciclo de compra",
+            icon="refresh",
+            tone="neutro",
+            value="—" if summary.cycle_mean_days is None else summary.cycle_mean_days,
+            reference=(
+                "Linha de base: ·"
+                if summary.baseline_cycle_days is None
+                else f"Linha de base: {summary.baseline_cycle_days} dias"
+            ),
+            footer="requisição até o pedido emitido",
+            url="",
+            active=False,
+        ),
+    ]
+
+
+def _process_filters_of(consulta: str) -> validation.ProcessFilters:
+    return validation.parse_process_filters(dict(parse_qsl(consulta)))
+
+
+def _process_query_string(filters: validation.ProcessFilters) -> str:
+    """The filters as the consulta parameter of the forms and links (without the page)."""
+    values = {"busca": filters.search}
+    if filters.situation != "andamento":
+        values["situacao"] = "todos"
+    return urlencode({name: value for name, value in values.items() if value})
+
+
+def _process_address(
+    filters: validation.ProcessFilters, *, path: str = PROCESS_ROUTE, **changes: object
+) -> str:
+    """The address of the list with the current filters and the informed changes."""
+    values: dict[str, object] = {
+        "busca": filters.search,
+        "situacao": "" if filters.situation == "andamento" else "todos",
+    }
+    values.update(changes)
+    clean = {name: str(value) for name, value in values.items() if value not in ("", None)}
+    query = urlencode(clean)
+    return f"{path}?{query}" if query else path
+
+
+def _process_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
+    """The document of the screen for the filters of the request; the only place with the clock."""
+    filters = validation.parse_process_filters(req.params)
+    today = calendario.today()
+    listing = service.list_processes(
+        session,
+        user=context.user,
+        scope=context.scope,
+        filters=filters,
+        reference_date=today,
+    )
+    package_id = validation.parse_id(req.params.get("pacote"))
+    line = (
+        None
+        if package_id is None
+        else service.find_process(
+            session,
+            user=context.user,
+            scope=context.scope,
+            package_id=package_id,
+            reference_date=today,
+        )
+    )
+    return export.build_process_document(
+        listing=listing,
+        line=line,
+        scope=context.scope,
+        projects=configuracoes.list_projects(session),
+        today=today,
+    )
+
+
+# ── Nova requisição ──────────────────────────────────────────────────────────────────────────
+
+
+@bp.route(route="suprimentos/processos/requisicao", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_process_modal_error)
+def process_requisition_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of Nova requisição: the packages of the plan still without a requisition."""
+    return _requisition_form(
+        req,
+        session,
+        context,
+        values={"pacote": (req.params.get("pacote") or "").strip()},
+        errors={},
+        consulta=(req.params.get("consulta") or "").strip(),
+    )
+
+
+@bp.route(route="suprimentos/processos/requisicao", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_process_modal_error)
+def process_requisition_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Registrar requisição: the real date of the milestone, or the form again with the messages."""
+    form = req.form
+    package_id = validation.parse_id(form.get("pacote"))
+    data = _requisition_input(form)
+    today = calendario.today()
+    saved: list[service.ProcessSave] = []
+    error = (
+        InvalidDataError({"pacote": validation.PACKAGE_NOT_FOUND})
+        if package_id is None
+        else _attempt(
+            session,
+            lambda: saved.append(
+                service.start_requisition(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=package_id,
+                    data=data,
+                    reference_date=today,
+                )
+            ),
+        )
+    )
+    if error is not None or not saved:
+        return _requisition_form(
+            req,
+            session,
+            context,
+            values=dict(form),
+            errors=_field_errors(error),
+            consulta=form.get("consulta", ""),
+            status_code=_form_status(error),
+        )
+    return _process_screen(
+        req,
+        session,
+        context,
+        filters=_process_filters_of(form.get("consulta", "")),
+        selected=saved[0].package_id,
+        after=_After(REQUISITION_NOTICE.format(code=saved[0].code), {}),
+    )
+
+
+def _requisition_form(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    consulta: str = "",
+    status_code: int = 200,
+) -> func.HttpResponse:
+    today = calendario.today()
+    packages = service.planned_packages(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    return AlpineAjaxResponse(
+        template_name=REQUISITION_TEMPLATE,
+        context={
+            "valores": dict(values),
+            "erros": dict(errors),
+            "pacotes": packages,
+            "consulta": consulta,
+            "referencia": today.isoformat(),
+            "formatar_data": _format_date,
+        },
+        request=req,
+        target_id=PROCESS_MODAL_TARGET,
+        status_code=status_code,
+    )
+
+
+# ── The actions of the flow ──────────────────────────────────────────────────────────────────
+
+
+@bp.route(route="suprimentos/processos/{pacote_id}/acao/{nome}", methods=["GET"])
+@fragment_route(access=WRITE, on_error=_process_modal_error)
+def process_action_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """The form of one action of the flow, for the stage the process is in."""
+    line = _action_line(session, context, req)
+    name = _action_name(req)
+    return _action_form(req, session, context, name=name, line=line, values={}, errors={})
+
+
+@bp.route(route="suprimentos/processos/{pacote_id}/acao/{nome}", methods=["POST"])
+@fragment_route(access=WRITE, on_error=_process_modal_error)
+def process_action_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Run one action of the flow, or answer the form again with the messages."""
+    line = _action_line(session, context, req)
+    name = _action_name(req)
+    form = req.form
+    error, saved = _run_action(
+        req, session, context, name=name, line=line, form=form, today=calendario.today()
+    )
+    if error is not None or saved is None:
+        return _action_form(
+            req,
+            session,
+            context,
+            name=name,
+            line=line,
+            values=dict(form),
+            errors=_field_errors(error),
+            status_code=_form_status(error),
+        )
+    return _process_screen(
+        req,
+        session,
+        context,
+        filters=_process_filters_of(form.get("consulta", "")),
+        selected=line.package_id,
+        after=_After(_action_notice(name, saved), {}),
+    )
+
+
+def _run_action(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    name: str,
+    line: service.ProcessLine,
+    form: Mapping[str, str],
+    today: date,
+) -> tuple[DomainError | None, service.ProcessSave | None]:
+    """Parse the form of the action, call the facade inside a savepoint and answer what happened."""
+    saved: list[service.ProcessSave] = []
+    if name == "rfx":
+        rfx = _rfx_input(form)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.issue_rfx(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=rfx,
+                    reference_date=today,
+                )
+            ),
+        )
+    elif name == "proposta":
+        sent = req.files.get(attachments.FILE_FIELD)
+        proposta = _proposal_input(form)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.register_proposal(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=proposta,
+                    reference_date=today,
+                    file_name=sent.filename if sent is not None else None,
+                    content=sent.stream.read() if sent is not None else b"",
+                )
+            ),
+        )
+    elif name == "encerrar-recebimento":
+        encerramento = _closing_input(form)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.close_receipt(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=encerramento,
+                    reference_date=today,
+                )
+            ),
+        )
+    elif name == "equalizacao-tecnica":
+        tecnica = _technical_input(form, line)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.equalize_technically(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=tecnica,
+                    reference_date=today,
+                )
+            ),
+        )
+    elif name == "equalizacao-comercial":
+        comercial = _commercial_input(form)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.equalize_commercially(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=comercial,
+                    reference_date=today,
+                )
+            ),
+        )
+    elif name == "negociacao":
+        negociacao = _negotiation_input(form)
+        error = _attempt(
+            session,
+            lambda: saved.append(
+                service.register_negotiation(
+                    session,
+                    user=context.user,
+                    scope=context.scope,
+                    package_id=line.package_id,
+                    data=negociacao,
+                    reference_date=today,
+                )
+            ),
+        )
+    else:
+        raise InvalidDataError({"geral": UNKNOWN_ACTION_MESSAGE})
+    return error, (saved[0] if saved else None)
+
+
+def _action_notice(name: str, saved: service.ProcessSave) -> str:
+    if name == "rfx":
+        return RFX_NOTICE.format(number=saved.number)
+    if name == "proposta":
+        return PROPOSAL_NOTICE.format(number=saved.number)
+    notices = {
+        "encerrar-recebimento": CLOSING_NOTICE,
+        "equalizacao-tecnica": TECHNICAL_NOTICE,
+        "equalizacao-comercial": COMMERCIAL_NOTICE,
+        "negociacao": NEGOTIATION_NOTICE,
+    }
+    return notices.get(name, "")
+
+
+def _action_line(
+    session: Session, context: RequestContext, req: func.HttpRequest
+) -> service.ProcessLine:
+    package_id = validation.parse_id(req.route_params.get("pacote_id"))
+    line = (
+        None
+        if package_id is None
+        else service.find_process(
+            session,
+            user=context.user,
+            scope=context.scope,
+            package_id=package_id,
+            reference_date=calendario.today(),
+        )
+    )
+    if line is None:
+        raise InvalidDataError(PROCESS_NOT_FOUND_MESSAGE)
+    return line
+
+
+def _action_name(req: func.HttpRequest) -> str:
+    name = (req.route_params.get("nome") or "").strip()
+    if name not in ACTION_TEMPLATES:
+        raise InvalidDataError({"geral": UNKNOWN_ACTION_MESSAGE})
+    return name
+
+
+def _action_form(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    name: str,
+    line: service.ProcessLine,
+    values: Mapping[str, str],
+    errors: Mapping[str, str],
+    status_code: int = 200,
+) -> func.HttpResponse:
+    """The modal body of one action, filled in, for the GET and for a refusal."""
+    today = calendario.today()
+    consulta = (values.get("consulta") or req.params.get("consulta") or "").strip()
+    extra = _action_context(session, context, name=name, line=line, today=today)
+    return AlpineAjaxResponse(
+        template_name=ACTION_TEMPLATES[name],
+        context={
+            "valores": dict(values),
+            "erros": dict(errors),
+            "linha": line,
+            "consulta": consulta,
+            "referencia": today.isoformat(),
+            "formatar_data": _format_date,
+            "formatar_moeda": _format_money,
+            **extra,
+        },
+        request=req,
+        target_id=PROCESS_MODAL_TARGET,
+        status_code=status_code,
+    )
+
+
+def _action_context(
+    session: Session,
+    context: RequestContext,
+    *,
+    name: str,
+    line: service.ProcessLine,
+    today: date,
+) -> dict[str, object]:
+    """What each action form needs besides the common values: choices and previews."""
+    builders = {
+        "rfx": _rfx_context,
+        "proposta": _proposal_context,
+        "encerrar-recebimento": _closing_context,
+        "equalizacao-tecnica": _technical_context,
+        "equalizacao-comercial": _commercial_context,
+        "negociacao": _negotiation_context,
+    }
+    builder = builders.get(name)
+    return builder(session, context, line, today) if builder is not None else {}
+
+
+def _rfx_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    options = service.process_options(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    propostas = line.step("propostas")
+    return {
+        "fornecedores": tuple(
+            choice for choice in options.suppliers if choice.situation != calculations.BLOCKED
+        ),
+        "prazo_padrao": propostas.planned if propostas is not None else None,
+    }
+
+
+def _proposal_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    options = service.process_options(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    return {
+        "empresas": options.companies,
+        "convidados": tuple(
+            invitee.name for invitee in line.invitees if invitee.company_id is not None
+        ),
+    }
+
+
+def _closing_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    del session, context, today
+    return {
+        "recebidas": line.received_count,
+        "minimo": line.minimum,
+        "abaixo": line.received_count < line.minimum and not line.single_supplier,
+    }
+
+
+def _technical_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    del line
+    options = service.process_options(
+        session, user=context.user, scope=context.scope, reference_date=today
+    )
+    return {"pessoas": options.people}
+
+
+def _commercial_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    del session, context, today
+    return {
+        "peso_tecnico": line.weight_technical,
+        "peso_comercial": line.weight_commercial,
+        "propostas_dados": [
+            {
+                "fornecedor": proposal.name,
+                "valor": proposal.value_cents,
+                "notaTecnica": proposal.technical_score,
+            }
+            for proposal in line.proposals
+            if proposal.technically_approved
+        ],
+    }
+
+
+def _negotiation_context(
+    session: Session, context: RequestContext, line: service.ProcessLine, today: date
+) -> dict[str, object]:
+    del session, context, today
+    return {
+        "aprovadas": tuple(proposal for proposal in line.proposals if proposal.technically_approved)
+    }
+
+
+# ── Reading the forms of the actions ─────────────────────────────────────────────────────────
+
+
+def _requisition_input(form: Mapping[str, str]) -> RequisitionInput:
+    return RequisitionInput(
+        date=validation.parse_date(form.get("data")),
+        document=form.get("documento", ""),
+        observation=form.get("observacao", ""),
+    )
+
+
+def _rfx_input(form: Mapping[str, str]) -> RfxInput:
+    return RfxInput(
+        date=validation.parse_date(form.get("data")),
+        deadline=validation.parse_date(form.get("dataLimite")),
+        weight_technical=validation.parse_points(form.get("pesoTecnico")),
+        weight_commercial=validation.parse_points(form.get("pesoComercial")),
+        invitees=_posted_ids(form, "convidados"),
+        other_invitees=validation.names_of(form.get("outros", "")),
+        single_supplier=validation.parse_flag(form.get("unico")),
+        single_justification=form.get("justUnico", ""),
+    )
+
+
+def _proposal_input(form: Mapping[str, str]) -> ProposalInput:
+    return ProposalInput(
+        company_id=validation.parse_id(form.get("empresa")),
+        name=form.get("nome", ""),
+        received=validation.parse_date(form.get("data")),
+        value_cents=validation.parse_money(form.get("valor", "")),
+        deadline_days=validation.parse_positive_int(form.get("prazo")),
+        validity=validation.parse_date(form.get("validade")),
+    )
+
+
+def _closing_input(form: Mapping[str, str]) -> ClosingInput:
+    return ClosingInput(
+        date=validation.parse_date(form.get("data")),
+        justification=form.get("justificativa", ""),
+    )
+
+
+def _technical_input(form: Mapping[str, str], line: service.ProcessLine) -> TechnicalInput:
+    evaluations = tuple(
+        TechnicalEvaluation(
+            proposal_id=proposal.id,
+            score=validation.parse_points(form.get(f"nota_{proposal.id}")),
+            approved=validation.parse_flag(form.get(f"aprovada_{proposal.id}")),
+            deviations=form.get(f"desvios_{proposal.id}", ""),
+            version=(form.get(f"versao_{proposal.id}") or "").strip() or None,
+        )
+        for proposal in line.proposals
+    )
+    return TechnicalInput(
+        date=validation.parse_date(form.get("data")),
+        evaluations=evaluations,
+        responsible_id=validation.parse_id(form.get("responsavel")),
+        opinion=form.get("parecer", ""),
+        justification=form.get("justificativa", ""),
+    )
+
+
+def _commercial_input(form: Mapping[str, str]) -> CommercialInput:
+    return CommercialInput(
+        date=validation.parse_date(form.get("data")),
+        weight_technical=validation.parse_points(form.get("pesoTecnico")),
+        weight_commercial=validation.parse_points(form.get("pesoComercial")),
+        version=(form.get("versao") or "").strip() or None,
+    )
+
+
+def _negotiation_input(form: Mapping[str, str]) -> NegotiationInput:
+    return NegotiationInput(
+        proposal_id=validation.parse_id(form.get("proposta")),
+        value_cents=validation.parse_money(form.get("valor", "")),
+        date=validation.parse_date(form.get("data")),
+        observation=form.get("observacao", ""),
+    )
+
+
+def _posted_ids(form: Mapping[str, object], field: str) -> tuple[int, ...]:
+    """The repeated ids of a multi-select of the form, without the invalid ones."""
+    getlist = getattr(form, "getlist", None)
+    if getlist is None:
+        return ()
+    return tuple(
+        parsed for raw in getlist(field) if (parsed := validation.parse_id(raw)) is not None
     )
