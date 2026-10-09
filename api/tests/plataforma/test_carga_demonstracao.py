@@ -24,7 +24,7 @@ from src.carga import (
     run_for_mode,
 )
 from src.carga.plataforma import DATA_PATH
-from src.core import calendario, config
+from src.core import calendario, config, numbering
 from src.core.auth import _user_of
 from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry, Client, SeedRun
@@ -91,6 +91,8 @@ from src.modulos.suprimentos.models import (
     ProcessInvitee,
     ProcessNegotiation,
     ProcessProposal,
+    PurchaseOrder,
+    PurchaseOrderMilestone,
     PurchasePackage,
     PurchaseProcess,
     Supplier,
@@ -125,6 +127,7 @@ PARTS = [
     "suprimentos-fornecedores",
     "suprimentos-pacotes",
     "suprimentos-processos",
+    "suprimentos-pedidos",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
@@ -1658,6 +1661,97 @@ def test_oraculo_dos_processos_de_compra_com_a_carga(db_session: Session) -> Non
 
     assert por_codigo["CB-PC-05"].stage == "Propostas recebidas"
     assert por_codigo["TR-PC-04"].stage == "Equalização técnica"
+
+
+def test_oraculo_dos_pedidos_de_compra_com_a_carga(db_session: Session) -> None:
+    """O oráculo da ISSUE-060: os 14 pedidos do mock com os seis marcos de fabricação.
+
+    Na âncora, os pedidos do protótipo entram assim: 14 pedidos (10 do projeto 1, 3 do projeto 2
+    e 1 do projeto 3) com 84 marcos (14 vezes 6), todos com a LB contratual e a previsão; 3 já
+    entregues (PED-2026-0003, 0006 e 0008) e 3 nascidos com folga negativa (0001, 0002 e 0004).
+    O pedido da PC-12 (PED-2026-0010) fica ligado ao pacote e à Teta Automação, com os R$ 300.000
+    negociados; o ``recebimento`` do mock não vira tabela (ISSUE-061) e nenhuma ação nova de
+    diligenciamento é criada pela carga (a do PED-2026-0011 já vem do mock da Central).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, PurchaseOrder) == 14, "os pedidos do mock"
+    assert _count(db_session, PurchaseOrderMilestone) == 84, "14 pedidos vezes 6 marcos"
+    marcos = db_session.scalars(select(PurchaseOrderMilestone)).all()
+    assert all(row.baseline_date is not None for row in marcos)
+    assert all(row.forecast_date is not None for row in marcos)
+    assert sum(1 for row in marcos if row.real_date is not None) == 44, (
+        "os marcos realizados do mock"
+    )
+    assert (
+        db_session.scalar(
+            select(func.count())
+            .select_from(PurchaseOrder)
+            .where(PurchaseOrder.delivery.is_not(None))
+        )
+        == 3
+    ), "três pedidos já recebidos no mock"
+
+    pc12 = db_session.scalars(
+        select(PurchaseOrder)
+        .join(PurchasePackage, PurchasePackage.id == PurchaseOrder.package_id)
+        .where(PurchasePackage.code == "PC-12")
+    ).one()
+    assert pc12.number == "PED-2026-0010"
+    assert pc12.value_cents == 30_000_000, "o valor negociado da PC-12"
+    assert pc12.lli is False
+    assert pc12.emission == date(2026, 6, 12)
+    assert pc12.contractual_date == date(2026, 11, 5)
+    assert pc12.forecast == date(2026, 11, 5)
+    assert pc12.ros == date(2026, 11, 20)
+    assert configuracoes.list_company_names(db_session)[pc12.company_id] == "Teta Automação"
+    marcos_do_pedido = db_session.scalars(
+        select(PurchaseOrderMilestone)
+        .where(PurchaseOrderMilestone.order_id == pc12.id)
+        .order_by(PurchaseOrderMilestone.position)
+    ).all()
+    assert [row.name for row in marcos_do_pedido] == [
+        "Aprovação de documentos",
+        "Matéria-prima",
+        "Fabricação",
+        "Inspeção / FAT",
+        "Embarque",
+        "Entrega",
+    ]
+    assert marcos_do_pedido[-1].baseline_date == date(2026, 11, 5)
+
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    scope = Scope(project_id=None, source="padrao")
+    linha = suprimentos.find_process(
+        db_session,
+        user=_user_of(admin),
+        scope=scope,
+        package_id=pc12.package_id,
+        reference_date=DEMO_ANCHOR,
+    )
+    assert linha is not None
+    assert linha.order_number == "PED-2026-0010", "a ficha do processo mostra o pedido emitido"
+    assert linha.contract_number is None
+
+    proximo_pedido = numbering.next_series_number(
+        list(db_session.scalars(select(PurchaseOrder.number))),
+        prefix="PED",
+        year=2026,
+        digits=4,
+    )
+    assert proximo_pedido == "PED-2026-0015", (
+        "o README cita 0012; a divergência está registrada (mocks completos)"
+    )
+    proximo_contrato = numbering.next_series_number(
+        list(db_session.scalars(select(Contract.number))), prefix="CT", year=2026
+    )
+    assert proximo_contrato == "CT-2026-029", (
+        "o README cita 015; a divergência está registrada (mocks completos)"
+    )
 
 
 def _pacotes_no(db_session: Session, project_id: int) -> int:
