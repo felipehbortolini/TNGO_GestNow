@@ -157,6 +157,7 @@ class RiskLine:
     days_to_review: int | None
     never_reviewed: bool
     plan_pending: bool
+    trigger_on: date | None
     actions: OriginActionCount
 
     @property
@@ -911,6 +912,7 @@ def _build_lines(
     latest = _latest_assessments(session, ids)
     approvals = _latest_approvals(session, ids)
     reviewed = _reviewed_ids(session, ids)
+    triggers = _latest_trigger_dates(session, ids)
     categories = {category.id: category for category in list_categories(session)}
     owners = configuracoes.find_people(session, {risk.owner_id for risk in risks})
     counts = actions.count_actions_of_origin(
@@ -929,6 +931,7 @@ def _build_lines(
                 assessments=latest.get(risk.id, {}),
                 approval=approvals.get(risk.id),
                 reviewed=risk.id in reviewed,
+                trigger_on=triggers.get(risk.id),
                 category=categories[risk.category_id],
                 owner_name=owners[risk.owner_id].name if risk.owner_id in owners else "",
                 actions=counts.get(risk.code, OriginActionCount()),
@@ -954,6 +957,7 @@ class _Parts:
     assessments: Mapping[str, RiskAssessment]
     approval: str | None
     reviewed: bool
+    trigger_on: date | None
     category: RiskCategory
     owner_name: str
     actions: OriginActionCount
@@ -1047,6 +1051,7 @@ def _line_of(
         days_to_review=calculations.days_until(risk.next_review, reference_date),
         never_reviewed=not parts.reviewed and not parts.assessments,
         plan_pending=bool(risk.strategy and risk.plan) and parts.approval == APPROVAL_PENDING,
+        trigger_on=parts.trigger_on,
         actions=parts.actions,
     )
 
@@ -1085,6 +1090,21 @@ def _reviewed_ids(session: Session, risk_ids: Collection[int]) -> set[int]:
         return set()
     statement = select(RiskReview.risk_id).where(RiskReview.risk_id.in_(list(risk_ids)))
     return set(session.scalars(statement))
+
+
+def _latest_trigger_dates(session: Session, risk_ids: Collection[int]) -> dict[int, date]:
+    """The date of the newest review that found the trigger, per risk; only while it is the newest."""
+    if not risk_ids:
+        return {}
+    statement = (
+        select(RiskReview).where(RiskReview.risk_id.in_(list(risk_ids))).order_by(RiskReview.id)
+    )
+    newest: dict[int, RiskReview] = {}
+    for review in session.scalars(statement):
+        newest[review.risk_id] = review
+    return {
+        risk_id: review.reviewed_on for risk_id, review in newest.items() if review.trigger_occurred
+    }
 
 
 def _normalize(text: str) -> str:

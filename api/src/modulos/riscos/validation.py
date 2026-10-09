@@ -12,6 +12,7 @@ constants of the vocabulary the screen and the facade share.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -60,6 +61,9 @@ MAX_DAYS = 999
 PAGE_SIZE = 15
 MAX_ID_DIGITS = 18
 CENTS = Decimal(100)
+
+# The cell of the matrix as the chart sends it: ``p3|i4`` is probability 3 and impact 4.
+CELL_LABEL = re.compile(r"^p([1-5])\|i([1-5])$")
 
 TEXT_REQUIRED = "{label} é obrigatório."
 TEXT_TOO_SHORT = "{label}: mínimo de {minimum} caracteres."
@@ -320,6 +324,10 @@ def parse_filters(params: Mapping[str, str]) -> RiskFilters:
     severities = tuple(item for item in (params.get("severidade") or "").split(",") if item)
     review = params.get("revisao", "")
     situation = params.get("situacao", SITUATION_ACTIVE)
+    probability, impact = parse_level(params.get("p")), parse_level(params.get("i"))
+    cell = CELL_LABEL.fullmatch((params.get("celula") or "").strip())
+    if cell is not None:
+        probability, impact = int(cell[1]), int(cell[2])
     return RiskFilters(
         search=(params.get("busca") or "").strip()[:MAX_SEARCH],
         nature=params.get("natureza", "") if params.get("natureza") in NATURES else "",
@@ -335,8 +343,8 @@ def parse_filters(params: Mapping[str, str]) -> RiskFilters:
         identified_until=parse_date(params.get("ate")),
         include_closed=params.get("encerrados") == "1",
         include_deleted=params.get("excluidos") == "1",
-        probability=parse_level(params.get("p")),
-        impact=parse_level(params.get("i")),
+        probability=probability,
+        impact=impact,
         assessment=INHERENT if params.get("aval") == INHERENT else RESIDUAL,
         page=parse_id(params.get("pagina")) or 1,
     )

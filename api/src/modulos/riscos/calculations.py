@@ -246,6 +246,13 @@ def is_target_above(nature: str, current_band_id: str, target_band_id: str, scal
     )
 
 
+def is_above_target(nature: str, current_band_id: str, target_band_id: str, scale: Scale) -> bool:
+    """Whether the current band sits past the target: a threat above it, an opportunity below."""
+    current = severity_rank(current_band_id, scale)
+    target = severity_rank(target_band_id, scale)
+    return current < target if nature == OPPORTUNITY else current > target
+
+
 def has_no_reduction(nature: str, residual_score: int | None, inherent_score: int | None) -> bool:
     """A threat whose residual did not drop below the inherent: the response is not working."""
     return (
@@ -332,7 +339,7 @@ def _target_reason(facts: PautaFacts, parameters: RiskParameters) -> str:
         return ""
     if facts.days_to_target is None or facts.days_to_target > parameters.pauta_days_before_deadline:
         return ""
-    if not is_target_above(
+    if not is_above_target(
         facts.nature, facts.current_band_id, facts.target_band_id, parameters.scale
     ):
         return ""
@@ -344,3 +351,90 @@ def _target_reason(facts: PautaFacts, parameters: RiskParameters) -> str:
     else:
         distance = f"com prazo vencido há {-facts.days_to_target} dias"
     return f"{direction} da severidade-alvo ({name}) {distance}"
+
+
+# ── Matriz e evolução mensal (ISSUE-066) ─────────────────────────────────────────────────────
+
+
+def band_ceiling(band: Band, scale: Scale) -> int:
+    """The highest score of the band: the next band's floor minus one; 25 for the heaviest."""
+    position = severity_rank(band.id, scale)
+    if 0 <= position < len(scale.bands) - 1:
+        return scale.bands[position + 1].minimum - 1
+    return risk_score(MAX_LEVEL, MAX_LEVEL)
+
+
+@dataclass(frozen=True)
+class ScoredEvent:
+    """A dated score of a risk: an assessment or a periodic review.
+
+    ``residual`` marks an event of the residual kind; on the same date it wins the tie, because it
+    is the score the register shows when both kinds exist.
+    """
+
+    when: date
+    score: int
+    residual: bool
+
+
+@dataclass(frozen=True)
+class RiskHistory:
+    """What the monthly reconstruction reads of one risk: when it existed and the scores it had."""
+
+    identified_on: date
+    closed_on: date | None
+    events: tuple[ScoredEvent, ...]
+
+
+@dataclass(frozen=True)
+class MonthWindow:
+    """A month of the evolution: its label and the last day data is read in it."""
+
+    label: str
+    end: date
+
+
+@dataclass(frozen=True)
+class MonthlyScore:
+    """The sum of the reconstructed residual scores of one month."""
+
+    month: str
+    score: int
+
+
+def is_active_on(history: RiskHistory, when: date) -> bool:
+    """Whether the risk was in the book at the end of the date: already identified, not yet closed."""
+    return history.identified_on <= when and (history.closed_on is None or history.closed_on > when)
+
+
+def score_at(history: RiskHistory, through: date) -> int | None:
+    """The score of the newest event at or before the date; ``None`` when none happened yet."""
+    if history.identified_on > through:
+        return None
+    happened = [event for event in history.events if event.when <= through]
+    if not happened:
+        return None
+    return max(happened, key=lambda event: (event.when, event.residual)).score
+
+
+def monthly_residual_scores(
+    histories: Iterable[RiskHistory], windows: Sequence[MonthWindow]
+) -> tuple[MonthlyScore, ...]:
+    """Score residual somado das ameaças ativas ao fim de cada mês (D6).
+
+    The series is never stored: for each month it is the sum, over the risks active at the end of
+    the month, of the newest score at or before it (residual when it exists, else the inherent
+    one); a risk identified after the month or without an assessment by then does not add.
+    """
+    selected = list(histories)
+    result: list[MonthlyScore] = []
+    for window in windows:
+        total = 0
+        for history in selected:
+            if not is_active_on(history, window.end):
+                continue
+            score = score_at(history, window.end)
+            if score is not None:
+                total += score
+        result.append(MonthlyScore(month=window.label, score=total))
+    return tuple(result)

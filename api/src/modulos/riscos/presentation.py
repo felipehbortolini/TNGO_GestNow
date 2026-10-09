@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import Any
 from urllib.parse import urlencode
 
+from src.core import origin_links
 from src.modulos.riscos.calculations import Band
 from src.modulos.riscos.validation import (
     INHERENT,
@@ -25,6 +26,7 @@ from src.modulos.riscos.validation import (
 )
 
 ROUTE = "/api/riscos/registro"
+SCREEN_PATH = "/riscos/registro"
 
 REVIEW_TEXT = {
     "vencidas": "Vencidas",
@@ -107,6 +109,22 @@ def address(filters: RiskFilters, *, path: str = ROUTE) -> str:
     """The address of ``path`` carrying the filters."""
     query = query_string(filters)
     return f"{path}?{query}" if query else path
+
+
+def screen_address(filters: RiskFilters) -> str:
+    """The public address of the register screen with the filters (a link from another screen)."""
+    return address(filters, path=origin_links.link_to_screen("riscos/registro") or SCREEN_PATH)
+
+
+def cell_address(filters: RiskFilters) -> str:
+    """The register filtered by one cell of the matrix: the ``celula`` the chart sends (``p3|i4``)."""
+    parameters = {"celula": f"p{filters.probability}|i{filters.impact}"}
+    if filters.assessment == INHERENT:
+        parameters["aval"] = INHERENT
+    if filters.nature:
+        parameters["natureza"] = filters.nature
+    path = origin_links.link_to_screen("riscos/registro") or SCREEN_PATH
+    return f"{path}?{urlencode(parameters)}"
 
 
 def with_assessment(filters: RiskFilters, assessment: str) -> RiskFilters:

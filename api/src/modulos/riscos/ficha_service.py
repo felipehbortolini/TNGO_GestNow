@@ -327,7 +327,7 @@ def _sheet_of(ctx: _Ctx, risk: Risk, line: service.RiskLine) -> RiskSheet:
             risk.closed_by_id or 0,
         },
     )
-    trigger_on = _trigger_on(ctx.session, risk.id)
+    trigger_on = line.trigger_on
     return RiskSheet(
         line=line,
         project_label=_project_label(ctx, risk.project_id),
@@ -397,20 +397,6 @@ def _reviews_of(ctx: _Ctx, risk: Risk) -> tuple[ReviewLine, ...]:
 
 def _severity_name(params: RiskParameters, score: int, *, life_risk: bool) -> str:
     return calculations.risk_severity(score, params.scale, life_risk=life_risk).name
-
-
-def _trigger_on(session: Session, risk_id: int) -> date | None:
-    """The date of the newest review that found the trigger, while no assessment followed it."""
-    statement = (
-        select(RiskReview)
-        .where(RiskReview.risk_id == risk_id)
-        .order_by(RiskReview.id.desc())
-        .limit(1)
-    )
-    latest = session.scalars(statement).first()
-    if latest is None or not latest.trigger_occurred:
-        return None
-    return latest.reviewed_on
 
 
 def _cadence_of(ctx: _Ctx, line: service.RiskLine) -> int | None:
