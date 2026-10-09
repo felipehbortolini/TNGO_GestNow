@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 61 de 93 -->
+<!-- Progresso da migração: 62 de 93 -->
 
 # Progresso da migração
 
-**61 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 02:31 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**62 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 09/10/2026 10:55 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 61 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 064, 072 |
-| na fila | 32 | 060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 62 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 064, 072 |
+| na fila | 31 | 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -72,6 +72,7 @@
 | ISSUE-057 | Fornecedores com qualificação, documentos com validade e desempenho | `5ab2e28` |
 | ISSUE-058 | Plano de compras | `640753e` |
 | ISSUE-059 | Processo de compra: da requisição à negociação | `21ca4d0` |
+| ISSUE-060 | Processo de compra: recomendação, aprovação por alçada e emissão de pedido ou contrato | `2bdbdde` |
 | ISSUE-064 | Registro e avaliação de riscos | `cfbe40d` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
@@ -79,7 +80,6 @@
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-060 | Processo de compra: recomendação, aprovação por alçada e emissão de pedido ou contrato | na fila | ISSUE-059, ISSUE-032 |
 | ISSUE-061 | Diligenciamento e recebimento | na fila | ISSUE-060 |
 | ISSUE-062 | MAS: Mapa de Suprimentos | na fila | ISSUE-061 |
 | ISSUE-063 | Painel de suprimentos | na fila | ISSUE-062 |
