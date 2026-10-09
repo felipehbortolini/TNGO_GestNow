@@ -21,6 +21,13 @@ separate rows; a supplier outside the register is kept by ``nome`` (the prototyp
 names), with ``empresa_id`` empty. Commercial and final scores, the ranking and the saving are
 never columns: they are calculated on every read from the proposals, the weights and the
 parameters in force. The history of the process travels in the audit trail.
+
+``pedido`` is the purchase order the emission of an equipment/material process creates: the
+package it came from, the supplier, the value and the dates of the contract. Its six
+manufacturing milestones (``pedido_marco``) carry the contractual baseline, the forecast and the
+real date in the same row (ISSUE-004 decision), exactly as the acquisition milestones of the
+package do; slack, situation and OTD are never columns (ISSUE-061). The contract of a service/EPC
+process is born in the Financeiro (``contrato.pacote_compra_id``, D9).
 """
 
 from __future__ import annotations
@@ -210,3 +217,50 @@ class PackageMilestone(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
     __table_args__ = (UniqueConstraint("pacote_id", "marco"),)
+
+
+class PurchaseOrder(Base):
+    """Pedido de compra emitido na adjudicação de um equipamento/material (UK: número).
+
+    O pedido nasce do processo aprovado e aponta o pacote (``pacote_id``) e o fornecedor
+    (``empresa_id``); o valor e as datas vêm da recomendação e do prazo da proposta. A folga, a
+    situação e o OTD não são colunas: são calculados na leitura (ISSUE-061).
+    """
+
+    __tablename__ = "pedido"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    package_id: Mapped[int] = mapped_column("pacote_id", ForeignKey("pacote_compra.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    number: Mapped[str] = mapped_column("numero", Text, unique=True)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    value_cents: Mapped[int] = mapped_column("valor_centavos", Centavos)
+    lli: Mapped[bool] = mapped_column("lli", Boolean)
+    emission: Mapped[date] = mapped_column("emissao", Date)
+    contractual_date: Mapped[date] = mapped_column("data_contratual", Date)
+    forecast: Mapped[date] = mapped_column("previsao", Date)
+    ros: Mapped[date] = mapped_column("ros", Date)
+    delivery: Mapped[date | None] = mapped_column("entrega", Date)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+
+class PurchaseOrderMilestone(Base):
+    """Marco de fabricação do pedido com as três camadas na mesma linha (UK: pedido + ordem).
+
+    ``ordem`` guarda a posição do marco no cronograma padrão (1 a 6); o desvio e a situação são
+    calculados na leitura (ISSUE-061).
+    """
+
+    __tablename__ = "pedido_marco"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column("pedido_id", ForeignKey("pedido.id"))
+    position: Mapped[int] = mapped_column("ordem", Integer)
+    name: Mapped[str] = mapped_column("nome", Text)
+    baseline_date: Mapped[date | None] = mapped_column("data_lb", Date)
+    forecast_date: Mapped[date | None] = mapped_column("data_previsao", Date)
+    real_date: Mapped[date | None] = mapped_column("data_realizada", Date)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+    __table_args__ = (UniqueConstraint("pedido_id", "ordem"),)

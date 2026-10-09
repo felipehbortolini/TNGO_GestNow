@@ -234,8 +234,10 @@ class CurvaFinanceiraMonth(Base):
 class Contract(Base):
     """Contrato da administração contratual: valor original, datas, retenção e prazos.
 
-    ``pacote_compra_id`` entra como coluna sem chave estrangeira: a ``pacote_compra`` só nasce na
-    ISSUE-058/060, que acrescenta a chave (D9). Valor atual, medido e saldo são calculados.
+    ``pacote_compra_id`` liga o contrato ao pacote do plano que o originou quando ele nasce da
+    adjudicação de um processo de serviço/EPC (D9, ISSUE-060); os contratos da carga de
+    demonstração e os de outros módulos ficam sem o vínculo. Valor atual, medido e saldo são
+    calculados.
     """
 
     __tablename__ = "contrato"
@@ -245,7 +247,9 @@ class Contract(Base):
     project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
     company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
     eac_item_id: Mapped[int | None] = mapped_column("eac_item_id", ForeignKey("eac_item.id"))
-    purchase_package_id: Mapped[int | None] = mapped_column("pacote_compra_id", BigInteger)
+    purchase_package_id: Mapped[int | None] = mapped_column(
+        "pacote_compra_id", ForeignKey("pacote_compra.id")
+    )
     manager_id: Mapped[int] = mapped_column("gestor_id", ForeignKey("pessoa.id"))
     fiscal_id: Mapped[int] = mapped_column("fiscal_id", ForeignKey("pessoa.id"))
     number: Mapped[str] = mapped_column("numero", Text)

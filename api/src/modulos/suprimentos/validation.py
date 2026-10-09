@@ -27,6 +27,7 @@ from datetime import date
 
 from src.core.export_document import ValueKind
 from src.core.import_values import RawCell, convert
+from src.core.money import format_brl
 from src.modulos.suprimentos import calculations
 from src.modulos.suprimentos.calculations import BLOCKED, QUALIFIED, RESTRICTED, SITUATIONS
 
@@ -272,6 +273,39 @@ NEGOTIATION_VALUE_REQUIRED = "Informe o valor negociado."
 NEGOTIATION_ABOVE_PROPOSAL = "O valor negociado não pode superar a proposta original."
 PROCESS_NOT_FOUND = "Processo não encontrado."
 
+# ── Recomendação, aprovação e emissão (ISSUE-060) ────────────────────────────────────────────
+
+MIN_RETURN_REASON = 10
+MAX_RETENTION_PCT = 20
+RECOMMENDATION_APPROVED_ONLY = "Recomende só propostas aprovadas tecnicamente."
+RECOMMENDATION_UNREGISTERED = "Cadastre e qualifique {name} em Fornecedores antes de recomendar."
+RECOMMENDATION_BLOCKED = "Fornecedor bloqueado não pode ser adjudicado."
+RECOMMENDATION_BEST_JUSTIFICATION = (
+    "A recomendação não é a melhor nota final. Justifique (mínimo de 20 caracteres)."
+)
+RECOMMENDATION_QUALIFICATION_JUSTIFICATION = (
+    "Fornecedor não está qualificado. Justifique (mínimo de 20 caracteres)."
+)
+RECOMMENDATION_VALUE_REQUIRED = "Informe o valor recomendado."
+RETURN_REASON_REQUIRED = "Informe o motivo (mínimo de 10 caracteres)."
+APPROVER_REQUIRED = "Preencha este campo."
+APPROVER_UNKNOWN = "O aprovador informado não está no cadastro."
+SEGREGATION_MESSAGE = (
+    "Quem aprova não pode ser o comprador nem quem recomendou (segregação de funções)."
+)
+LLI_GATE_MESSAGE = (
+    "LLI contratado antes do gate de investimento: registre a aprovação específica do gate LLI "
+    "no plano de compras."
+)
+EAC_BALANCE_MESSAGE = (
+    "O valor recomendado supera o saldo a comprometer do item {code} da EAC ({balance}). Faça "
+    "remanejamento ou SM antes de aprovar."
+)
+CONTRACT_END_REQUIRED = "Informe o término contratual (posterior à emissão)."
+CHOOSE_FISCAL = "Escolha o fiscal do contrato."
+FISCAL_UNKNOWN = "O fiscal informado não está no cadastro."
+RETENTION_RANGE = f"A retenção contratual deve ficar entre 0% e {MAX_RETENTION_PCT}%."
+
 
 @dataclass(frozen=True)
 class RequisitionInput:
@@ -356,6 +390,66 @@ class NegotiationInput:
     value_cents: int | None
     date: date | None
     observation: str = ""
+
+
+@dataclass(frozen=True)
+class RecommendationInput:
+    """What the form of Recomendar adjudicação sends: the proposal and the recommended value."""
+
+    proposal_id: int | None
+    value_cents: int | None
+    date: date | None
+    justification: str = ""
+
+
+@dataclass(frozen=True)
+class ReturnInput:
+    """What the form of Devolver recomendação sends: the reason that returns to negotiation."""
+
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class ApprovalInput:
+    """What the form of Aprovar adjudicação sends: who approves, when and the opinion."""
+
+    approver_id: int | None
+    date: date | None
+    opinion: str = ""
+
+
+@dataclass(frozen=True)
+class EmissionInput:
+    """What the form of Emitir pedido ou contrato sends.
+
+    For an equipment/material package only the delivery deadline matters; for a service/EPC
+    package the contract carries the start, the end, the fiscal and the retention.
+    """
+
+    date: date | None
+    deadline_days: int | None = None
+    start: date | None = None
+    end: date | None = None
+    fiscal_id: int | None = None
+    retention_pct: int | None = None
+
+
+@dataclass(frozen=True)
+class ProposalSituation:
+    """What the recommendation check needs to know about the chosen proposal.
+
+    ``approved`` is whether it is technically approved, ``registered`` whether its supplier is
+    in the register and ``blocked`` whether the qualification blocks it; ``not_best`` and
+    ``needs_justification`` say why the justification is demanded, as the prototype chose the
+    message between the two cases.
+    """
+
+    approved: bool
+    registered: bool
+    blocked: bool
+    name: str
+    not_best: bool
+    needs_justification: bool
 
 
 @dataclass(frozen=True)
@@ -487,6 +581,91 @@ def negotiation_problems(
     elif above_proposal:
         problems["valor"] = NEGOTIATION_ABOVE_PROPOSAL
     return problems
+
+
+def recommendation_problems(
+    data: RecommendationInput,
+    *,
+    reference_date: date,
+    situation: ProposalSituation,
+) -> dict[str, str]:
+    """One message per field of the recommendation that does not hold up.
+
+    A recommendation that is not the best score or not from a qualified supplier demands the
+    justification (20 characters and up), with the message of the prototype for each case; a
+    blocked supplier never follows.
+    """
+    problems = date_problem(data.date, reference_date=reference_date)
+    if data.proposal_id is None or not situation.approved:
+        problems["fornecedor"] = RECOMMENDATION_APPROVED_ONLY
+    elif not situation.registered:
+        problems["fornecedor"] = RECOMMENDATION_UNREGISTERED.format(name=situation.name)
+    elif situation.blocked:
+        problems["fornecedor"] = RECOMMENDATION_BLOCKED
+    if data.value_cents is None or data.value_cents <= 0:
+        problems["valor"] = RECOMMENDATION_VALUE_REQUIRED
+    if situation.needs_justification and (
+        len(data.justification.strip()) < MIN_PROCESS_JUSTIFICATION
+    ):
+        problems["justificativa"] = (
+            RECOMMENDATION_BEST_JUSTIFICATION
+            if situation.not_best
+            else RECOMMENDATION_QUALIFICATION_JUSTIFICATION
+        )
+    return problems
+
+
+def return_problems(data: ReturnInput) -> dict[str, str]:
+    """The reason of the return (10 characters and up), as the prototype; the date is the reference."""
+    if len(data.reason.strip()) < MIN_RETURN_REASON:
+        return {"motivo": RETURN_REASON_REQUIRED}
+    return {}
+
+
+def approval_problems(
+    data: ApprovalInput, *, reference_date: date, approver_known: bool
+) -> dict[str, str]:
+    """The approver and the date of the approval; the segregation is a 403 of the facade."""
+    problems = date_problem(data.date, reference_date=reference_date)
+    if data.approver_id is None:
+        problems["aprovador"] = APPROVER_REQUIRED
+    elif not approver_known:
+        problems["aprovador"] = APPROVER_UNKNOWN
+    return problems
+
+
+def emission_problems(
+    data: EmissionInput,
+    *,
+    reference_date: date,
+    service: bool,
+    fiscal_known: bool = True,
+) -> dict[str, str]:
+    """One message per field of the emission that does not hold up.
+
+    An equipment/material package demands the delivery deadline; a service/EPC package demands
+    the contractual end after the emission, the fiscal and a retention between 0% and 20%.
+    """
+    problems = date_problem(data.date, reference_date=reference_date)
+    if service:
+        if data.end is None or (data.date is not None and data.end <= data.date):
+            problems["termino"] = CONTRACT_END_REQUIRED
+        if data.fiscal_id is None:
+            problems["fiscal"] = CHOOSE_FISCAL
+        elif not fiscal_known:
+            problems["fiscal"] = FISCAL_UNKNOWN
+        if data.retention_pct is not None and not 0 <= data.retention_pct <= MAX_RETENTION_PCT:
+            problems["retencao"] = RETENTION_RANGE
+    elif data.deadline_days is None or data.deadline_days <= 0:
+        problems["prazo"] = PROPOSAL_DEADLINE_REQUIRED
+    return problems
+
+
+def eac_balance_problem(*, code: str, balance_cents: int, value_cents: int) -> str | None:
+    """The message of a recommended value above the saldo a comprometer, or ``None``."""
+    if value_cents <= balance_cents:
+        return None
+    return EAC_BALANCE_MESSAGE.format(code=code, balance=format_brl(balance_cents))
 
 
 def _weight_problems(weight_technical: int | None, weight_commercial: int | None) -> dict[str, str]:

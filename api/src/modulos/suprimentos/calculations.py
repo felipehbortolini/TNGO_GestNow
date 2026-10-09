@@ -12,6 +12,11 @@ milestone dates are pure functions too, so the screen and the import share the s
 The purchase process: the ten stages of the flow, the situation of each of the nine steps of the
 bar, the required approval band, the process number, the commercial and final scores and the
 ranking of the proposals are pure functions, so the screen, the seed and the exports share them.
+
+The emission (ISSUE-060): the standard manufacturing schedule of an order, its delivery slack,
+the justification the recommendation demands and the LLI gate are pure functions too; the
+numbers of the order and of the contract follow the prototype's global series
+(``core.numbering.next_series_number``).
 """
 
 from __future__ import annotations
@@ -448,6 +453,67 @@ def cycle_days(requisition: date | None, order: date | None, reference_date: dat
     if requisition is None:
         return None
     return ((order or reference_date) - requisition).days
+
+
+# ── The emission (ISSUE-060) ─────────────────────────────────────────────────────────────────
+
+# The six manufacturing milestones of the prototype (``NOMES_MARCOS_PEDIDO``) and the share of
+# the order-to-delivery window each one falls on (``PROP_FAB``).
+MANUFACTURING_MILESTONES: tuple[tuple[str, Decimal], ...] = (
+    ("Aprovação de documentos", Decimal("0.15")),
+    ("Matéria-prima", Decimal("0.3")),
+    ("Fabricação", Decimal("0.75")),
+    ("Inspeção / FAT", Decimal("0.85")),
+    ("Embarque", Decimal("0.93")),
+    ("Entrega", Decimal("1")),
+)
+
+PURCHASE_ORDER_PREFIX = "PED"
+PURCHASE_CONTRACT_PREFIX = "CT"
+
+
+def manufacturing_schedule(emission: date, contractual: date) -> tuple[tuple[str, date], ...]:
+    """The standard manufacturing schedule: the six milestones between emission and delivery.
+
+    Each milestone falls on the share of the window the prototype used (``entre`` with
+    ``PROP_FAB``), rounded half up; the last one lands on the contractual date itself.
+    """
+    return tuple(
+        (name, _between(emission, contractual, share)) for name, share in MANUFACTURING_MILESTONES
+    )
+
+
+def delivery_slack_days(ros: date | None, forecast: date | None) -> int | None:
+    """The slack of an order: the ROS minus the forecast delivery (negative is late)."""
+    if ros is None or forecast is None:
+        return None
+    return (ros - forecast).days
+
+
+def recommendation_requires_justification(rank: int | None, qualification: str | None) -> bool:
+    """Whether recommending demands a justification: not the best score or not qualified.
+
+    The prototype's rule: only the first of the ranking with the supplier qualified follows
+    without justification; a blocked supplier never follows (the facade refuses it).
+    """
+    return rank != 1 or qualification != QUALIFIED
+
+
+def lli_before_gate(
+    *,
+    lli: bool,
+    requisition: date | None,
+    project_start: date | None,
+    gate_date: date | None,
+) -> bool:
+    """Whether an LLI package was contracted before the investment gate without its approval.
+
+    The prototype's rule: an LLI whose requisition happened before the project start demands the
+    specific approval of the LLI gate (the date saved in the plan) before the adjudication.
+    """
+    if not lli or requisition is None or project_start is None or gate_date is not None:
+        return False
+    return requisition < project_start
 
 
 def next_package_code(codes: Sequence[str]) -> str:

@@ -2032,7 +2032,7 @@ fachada, não por coluna.
 |---|---|---|
 | `pacote_compra` | Pacote do plano de compras (escopo, tipo, disciplina, modalidade, LLI, item de nível 3 da EAC, estimativa, comprador, ROS, emergencial e gate LLI). Etapa, folga planejada, adjudicado, fornecedor, primeira proposta, propostas válidas e fornecedor único são calculados. UK: projeto + código. | suprimentos |
 | `pacote_compra_marco` | Marco de aquisição com as três camadas (plano/LB, previsão e real). A LB fica congelada a partir da requisição; mudança com justificativa e trilha. UK: pacote + marco. | suprimentos |
-| `pedido` | Pedido de compra (número, pacote, fornecedor, descrição, valor, LLI, emissão, data contratual, previsão, ROS e entrega). Folga, situação e desvios são calculados. UK: projeto + número. | suprimentos |
+| `pedido` | Pedido de compra (número, pacote, fornecedor, descrição, valor, LLI, emissão, data contratual, previsão, ROS e entrega). Folga, situação e desvios são calculados. UK: número. | suprimentos |
 | `pedido_marco` | Marco de fabricação do pedido (LB contratual, previsão e realizada). Desvio e situação são calculados. UK: pedido + ordem. | suprimentos |
 | `recebimento` | Recebimento do pedido (data, conferência, avarias com descrição e pendências); as evidências são `anexo`. | suprimentos |
 | `fornecedor` | Qualificação por empresa (situação, validade e observação). Documentos em dia, desempenho e valor contratado são calculados (as avaliações vêm do 03). UK: empresa. | suprimentos |

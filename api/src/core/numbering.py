@@ -9,6 +9,7 @@ standard pattern (``SM-TN-2026-0001``), the same the prototype printed.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from typing import Protocol
 
@@ -70,6 +71,23 @@ def start_after(session: Session, *, project: NumberedProject, kind: str, last_n
     row = _locked_row(session, project.id, kind)
     row.next_value = max(row.next_value, last_number + 1)
     session.flush()
+
+
+def next_series_number(numbers: Sequence[str], *, prefix: str, year: int, digits: int = 3) -> str:
+    """The next number of a global series of the year: the highest number plus one, padded.
+
+    The prototype's order and contract series are global, not per project (``proximoCodigo`` and
+    ``proximoNumeroCt``), so they do not use the locked sequence of ``next_number``; the order
+    series pads four digits and the contract series three, and past the padding width the field
+    simply grows.
+    """
+    wanted = f"{prefix}-{year}-"
+    counters = [
+        int(number[len(wanted) :])
+        for number in numbers
+        if number.startswith(wanted) and number[len(wanted) :].isdigit()
+    ]
+    return f"{wanted}{max(counters, default=0) + 1:0{digits}d}"
 
 
 def _prefix(project: NumberedProject, kind: str, reference_date: date) -> tuple[str, int]:

@@ -27,6 +27,7 @@ from src.core import (
     audit,
     calendario,
     notification,
+    numbering,
     rbac,
     recording,
 )
@@ -3447,6 +3448,148 @@ def contract_by_number(session: Session, *, user: User, number: str) -> Contract
     if contract_id is None:
         raise InvalidDataError(CONTRACT_NOT_FOUND_MESSAGE)
     return contract_detail(session, user=user, contract_id=contract_id)
+
+
+# ── O contrato e o compromisso da adjudicação do 04 (ISSUE-060, D9) ──────────────────────────
+
+
+PURCHASE_CONTRACT_SITUATION = "Em execução"
+PURCHASE_CONTRACT_PREFIX = "CT"
+CLAIMS_GROUP = "claims"
+CLAIM_NOTICE_KEY = "prazoNotificacaoPadraoDias"
+DEFAULT_CLAIM_NOTICE_DAYS = 30
+PROJECT_MANAGER_MISSING_MESSAGE = "O projeto não tem gerente definido para o contrato."
+FIELD_CONTRACT_FISCAL = "fiscal"
+FISCAL_UNKNOWN_MESSAGE = "O fiscal informado não está no cadastro."
+
+
+@dataclass(frozen=True)
+class CreatedContract:
+    """O contrato que a adjudicação de um serviço/EPC cria: identidade e número."""
+
+    id: int
+    number: str
+
+
+def create_purchase_contract(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    company_id: int,
+    eac_item_id: int | None,
+    purchase_package_id: int,
+    object: str,
+    modality: str,
+    value_cents: int,
+    emission: date,
+    start: date,
+    end: date,
+    fiscal_id: int | None,
+    retention_pct: int,
+) -> CreatedContract:
+    """Cria o contrato de um processo de serviço/EPC adjudicado, na transação do chamador (D9).
+
+    O gestor é o gerente do projeto e o prazo de notificação do claim vem do grupo ``claims`` em
+    vigor, como o protótipo; o número segue a série global de três dígitos (``CT-2026-001``). A
+    fachada recusa (422) um projeto sem gerente ou um fiscal fora do cadastro; o contrato nasce
+    Em execução, com a trilha da plataforma.
+    """
+    rbac.require(user, Permission.WRITE)
+    project = next(
+        (item for item in configuracoes.list_projects(session) if item.id == project_id), None
+    )
+    if project is None:
+        raise InvalidDataError(UNKNOWN_PROJECT_MESSAGE)
+    if project.manager_id is None:
+        raise InvalidDataError(PROJECT_MANAGER_MISSING_MESSAGE)
+    if fiscal_id is None or fiscal_id not in configuracoes.person_names(session, {fiscal_id}):
+        raise InvalidDataError({FIELD_CONTRACT_FISCAL: FISCAL_UNKNOWN_MESSAGE})
+    values = configuracoes.current_group(session, group=CLAIMS_GROUP, reference_date=emission)
+    notice = values.get(CLAIM_NOTICE_KEY, DEFAULT_CLAIM_NOTICE_DAYS)
+    if isinstance(notice, bool) or not isinstance(notice, int) or notice < 0:
+        notice = DEFAULT_CLAIM_NOTICE_DAYS
+    number = _next_contract_number(session, reference_date=emission)
+    record = recording.create(
+        session,
+        user_id=user.id,
+        record=Contract(
+            project_id=project_id,
+            company_id=company_id,
+            eac_item_id=eac_item_id,
+            purchase_package_id=purchase_package_id,
+            manager_id=project.manager_id,
+            fiscal_id=fiscal_id,
+            number=number,
+            object=object,
+            modality=modality,
+            original_value_cents=value_cents,
+            start=start,
+            original_end=end,
+            current_end=end,
+            retention_pct=retention_pct,
+            claim_notice_days=notice,
+            situation=PURCHASE_CONTRACT_SITUATION,
+        ),
+    )
+    return CreatedContract(id=record.id, number=record.number)
+
+
+def _next_contract_number(session: Session, *, reference_date: date) -> str:
+    """O próximo número da série global de contratos do ano, como o protótipo numerava."""
+    numbers = list(session.scalars(select(Contract.number)))
+    return numbering.next_series_number(
+        numbers, prefix=PURCHASE_CONTRACT_PREFIX, year=reference_date.year
+    )
+
+
+def contract_number_by_package(session: Session, *, package_id: int) -> str | None:
+    """O número do contrato nascido do pacote do plano, para a ficha do processo (D9)."""
+    return session.scalar(select(Contract.number).where(Contract.purchase_package_id == package_id))
+
+
+def commit_purchase_cost(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    item_id: int,
+    on: date,
+    value_cents: int,
+) -> None:
+    """Compromete o valor do pedido/contrato no item da EAC, no mês da emissão (D9).
+
+    O comprometido é um fato de ``custo_erp`` por item e mês, como o realizado da medição: a
+    linha do mês é atualizada, nunca duplicada. Um item que não é de custo (nível 3) do projeto
+    não recebe o fato, como o protótipo deixava de somar.
+    """
+    rbac.require(user, Permission.WRITE)
+    item = session.get(EacItem, item_id)
+    if item is None or item.project_id != project_id or item.level < calculations.LEAF_LEVEL:
+        return
+    month = on.replace(day=1)
+    statement = select(ErpCost).where(ErpCost.item_id == item_id, ErpCost.month == month)
+    fact = session.scalars(statement).one_or_none()
+    if fact is None:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=ErpCost(
+                project_id=project_id,
+                item_id=item_id,
+                imported_by_id=user.person_id,
+                month=month,
+                committed_cents=value_cents,
+                imported_at=calendario.now(),
+            ),
+        )
+        return
+    before = audit.snapshot(fact)
+    fact.committed_cents = (fact.committed_cents or 0) + value_cents
+    fact.imported_by_id = user.person_id
+    fact.imported_at = calendario.now()
+    session.flush()
+    audit.changed(session, user_id=user.id, entity=fact.__tablename__, record=fact, before=before)
 
 
 # ── Avaliação de desempenho da contratada (ISSUE-034) ────────────────────

@@ -32,13 +32,24 @@ scores, ranking, approval band); ``start_requisition``, ``issue_rfx``, ``registe
 milestone of the package and a line of the process history in the audit trail. The proposal's
 PDF is a real attachment (D5a), registered here as the origin type ``processo_proposta``.
 
+The close of the flow (ISSUE-060): ``recommend_award`` fills the recommendation of the process
+(only a technically approved proposal of a registered supplier; another one, or one that is not
+the best score or not qualified, demands a justification), ``return_recommendation`` sends it
+back to negotiation with the reason, ``approve_award`` writes the approval of the band with the
+segregation of duties and the limit of the saldo a comprometer of the EAC item (read from the
+Financeiro, D9), and ``emit_order_or_contract`` creates the order (equipment/material) or the
+contract through the Financeiro facade (service/EPC), commits the value in ``custo_erp`` and
+opens the diligence action in the Central when the order is born with negative slack, everything
+in the caller's transaction.
+
 Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``find_supplier``,
 ``create_supplier``, ``save_qualification``, ``apply_final_evaluation``, ``list_packages``,
 ``find_package``, ``package_options``, ``create_package``, ``update_package``,
 ``change_package``, ``list_processes``, ``find_process``, ``process_options``,
 ``planned_packages``, ``start_requisition``, ``issue_rfx``, ``register_proposal``,
-``close_receipt``, ``equalize_technically``, ``equalize_commercially`` and
-``register_negotiation``.
+``close_receipt``, ``equalize_technically``, ``equalize_commercially``,
+``register_negotiation``, ``recommend_award``, ``return_recommendation``, ``approve_award`` and
+``emit_order_or_contract``.
 """
 
 from __future__ import annotations
@@ -46,15 +57,15 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.core import attachment_origins, attachments, audit, rbac, recording, versioning
-from src.core.errors import InvalidDataError
+from src.core import attachment_origins, attachments, audit, numbering, rbac, recording, versioning
+from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.export_document import project_label
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
@@ -67,6 +78,8 @@ from src.modulos.suprimentos.models import (
     ProcessInvitee,
     ProcessNegotiation,
     ProcessProposal,
+    PurchaseOrder,
+    PurchaseOrderMilestone,
     PurchasePackage,
     PurchaseProcess,
     Supplier,
@@ -75,16 +88,20 @@ from src.modulos.suprimentos.models import (
     SupplierHistory,
 )
 from src.modulos.suprimentos.validation import (
+    ApprovalInput,
     ClosingInput,
     CommercialInput,
     DocumentInput,
+    EmissionInput,
     NegotiationInput,
     PackageChangeInput,
     PackageFilters,
     PackageInput,
     ProposalInput,
     QualificationInput,
+    RecommendationInput,
     RequisitionInput,
+    ReturnInput,
     RfxInput,
     SupplierFilters,
     SupplierInput,
@@ -1521,6 +1538,28 @@ class ProcessHistoryLine:
 
 
 @dataclass(frozen=True)
+class RecommendationLine:
+    """The recommendation of the adjudication, as the ficha and the approval form read it."""
+
+    date: date
+    company_id: int
+    name: str
+    value_cents: int
+    author: str
+    justification: str
+
+
+@dataclass(frozen=True)
+class ApprovalLine:
+    """The approval of the adjudication: who, when, in which band and the opinion."""
+
+    date: date
+    approver: str
+    band: str
+    opinion: str
+
+
+@dataclass(frozen=True)
 class ProcessLine:
     """One package of the scope with its process: the list and the ficha read this line."""
 
@@ -1534,6 +1573,7 @@ class ProcessLine:
     lli: bool
     buyer: str
     estimate_cents: int
+    ros: date | None
     eac_item_id: int
     eac_code: str
     eac_description: str
@@ -1560,6 +1600,10 @@ class ProcessLine:
     approval_band: str | None
     reference_value_cents: int
     reference_date: date
+    recommendation: RecommendationLine | None = None
+    approval: ApprovalLine | None = None
+    order_number: str | None = None
+    contract_number: str | None = None
 
     def step(self, key: str) -> ProcessStep | None:
         """The step named by key, or ``None`` when the process has no such step."""
@@ -1656,11 +1700,16 @@ class ProcessOptions:
 
 @dataclass(frozen=True)
 class ProcessSave:
-    """What a process action answers: the package, its code and the RFx number, when it has one."""
+    """What a process action answers: the package, its code, the RFx number and the document.
+
+    ``document`` is the number of the order or of the contract the emission created; it stays
+    ``None`` for the other actions.
+    """
 
     package_id: int
     code: str
     number: str | None
+    document: str | None = None
 
 
 # ── Reading the process ──────────────────────────────────────────────────────────────────────
@@ -1692,8 +1741,9 @@ def find_process(
 ) -> ProcessLine | None:
     """The line of one package with its process, or ``None`` when it is not in the scope.
 
-    The ficha is the only reader that needs the saldo a comprometer of the EAC item, so the
-    balance of the package's project is read here and not on the list (D9).
+    The ficha is the only reader that needs the saldo a comprometer of the EAC item and the
+    document the emission created, so the balance of the package's project and the order/contract
+    numbers are read here and not on the list (D9).
     """
     line = _line_in_scope(
         session, user=user, scope=scope, package_id=package_id, reference_date=reference_date
@@ -1703,6 +1753,8 @@ def find_process(
     return replace(
         line,
         eac_balance_cents=_eac_balance(session, line=line, reference_date=reference_date),
+        order_number=_order_number(session, package_id=package_id),
+        contract_number=financeiro.contract_number_by_package(session, package_id=package_id),
     )
 
 
@@ -1774,6 +1826,12 @@ def _process_universe(
             for rows in histories.values()
             for row in rows
             if (author := (row.after or {}).get(HISTORY_AUTHOR)) is not None
+        }
+        | {
+            author
+            for process in processes.values()
+            for author in (process.recommendation_by_id, process.approval_by_id)
+            if author is not None
         },
     )
     situations = _supplier_situations(session)
@@ -1859,6 +1917,7 @@ def _process_line(
         lli=package.lli,
         buyer=buyer,
         estimate_cents=package.estimate_cents,
+        ros=package.ros,
         eac_item_id=package.eac_item_id,
         eac_code=eac[0],
         eac_description=eac[1],
@@ -1906,6 +1965,48 @@ def _process_line(
         approval_band=calculations.approval_band_for(reference_value, parameters.approval_bands),
         reference_value_cents=reference_value,
         reference_date=reference_date,
+        recommendation=_recommendation_line(
+            process, authors=authors, names_by_company=names_by_company
+        ),
+        approval=_approval_line(process, authors=authors),
+    )
+
+
+def _recommendation_line(
+    process: PurchaseProcess | None,
+    *,
+    authors: Mapping[int, str],
+    names_by_company: Mapping[int, str],
+) -> RecommendationLine | None:
+    """The recommendation of the process, or ``None`` when it has none."""
+    if (
+        process is None
+        or process.recommendation_on is None
+        or process.recommendation_company_id is None
+        or process.recommendation_value_cents is None
+    ):
+        return None
+    return RecommendationLine(
+        date=process.recommendation_on,
+        company_id=process.recommendation_company_id,
+        name=names_by_company.get(process.recommendation_company_id, ""),
+        value_cents=process.recommendation_value_cents,
+        author=authors.get(process.recommendation_by_id or 0, ""),
+        justification=process.recommendation_justification or "",
+    )
+
+
+def _approval_line(
+    process: PurchaseProcess | None, *, authors: Mapping[int, str]
+) -> ApprovalLine | None:
+    """The approval of the process, or ``None`` when it has none."""
+    if process is None or process.approval_on is None:
+        return None
+    return ApprovalLine(
+        date=process.approval_on,
+        approver=authors.get(process.approval_by_id or 0, ""),
+        band=process.approval_band or "",
+        opinion=process.approval_opinion or "",
     )
 
 
@@ -2601,6 +2702,450 @@ def register_negotiation(
     return ProcessSave(package_id=package_id, code=line.code, number=line.number)
 
 
+# ── Recommendation, approval and emission (ISSUE-060) ────────────────────────────────────────
+
+RECOMMENDATION_NOTE = "Recomendada a {name}."
+RETURN_NOTE = "Recomendação devolvida: {reason}"
+APPROVAL_NOTE = "Aprovada na alçada: {band}."
+ORDER_NOTE = "Pedido {number} emitido; valor comprometido na EAC."
+CONTRACT_NOTE = "Contrato {number} emitido; valor comprometido na EAC."
+
+DILIGENCE_ORIGIN = "Suprimentos"
+DILIGENCE_GROUP = "Diligenciamento"
+DILIGENCE_DAYS = 7
+DEFAULT_RETENTION_PCT = 5
+
+
+def recommend_award(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    package_id: int,
+    data: RecommendationInput,
+    reference_date: date,
+) -> ProcessSave:
+    """Recomendar adjudicação: only an approved proposal of a registered supplier follows.
+
+    Another proposal, one that is not the best score or a supplier that is not qualified demands
+    the justification (20 characters and up); a blocked supplier is refused. The recommendation
+    fills the columns ISSUE-060 added and moves the process to the approval stage.
+    """
+    rbac.require(user, Permission.WRITE)
+    line = _process_or_refuse(
+        session, user=user, scope=scope, package_id=package_id, reference_date=reference_date
+    )
+    _require_stage(line, "Negociação")
+    process = _process_row(session, package_id)
+    proposal = next(
+        (row for row in _proposal_rows(session, process.id) if row.id == data.proposal_id), None
+    )
+    proposal_line = next((item for item in line.proposals if item.id == data.proposal_id), None)
+    approved = proposal is not None and proposal.technically_approved is True
+    registered = proposal is not None and proposal.company_id is not None
+    situations = _supplier_situations(session)
+    qualification = situations.get(proposal.company_id) if registered else None
+    blocked = qualification == calculations.BLOCKED
+    not_best = proposal_line is None or proposal_line.rank != 1
+    needs_justification = calculations.recommendation_requires_justification(
+        proposal_line.rank if proposal_line is not None else None, qualification
+    )
+    problems = validation.recommendation_problems(
+        data,
+        reference_date=reference_date,
+        situation=validation.ProposalSituation(
+            approved=approved,
+            registered=registered,
+            blocked=blocked,
+            name=_proposal_display(session, proposal),
+            not_best=not_best,
+            needs_justification=needs_justification,
+        ),
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    if proposal is None or proposal.company_id is None:
+        raise InvalidDataError({"fornecedor": validation.RECOMMENDATION_APPROVED_ONLY})
+    recording.update(
+        session,
+        user_id=user.id,
+        record=process,
+        changes={
+            "recommendation_on": data.date,
+            "recommendation_company_id": proposal.company_id,
+            "recommendation_value_cents": _required_int(
+                data.value_cents, validation.RECOMMENDATION_VALUE_REQUIRED
+            ),
+            "recommendation_by_id": user.person_id,
+            "recommendation_justification": data.justification.strip() or None,
+        },
+        version=process.version,
+    )
+    _append_process_history(
+        session,
+        user=user,
+        line=line,
+        process=process,
+        stage="Recomendação de adjudicação",
+        text=RECOMMENDATION_NOTE.format(name=_proposal_display(session, proposal)),
+        reference_date=reference_date,
+    )
+    return ProcessSave(package_id=package_id, code=line.code, number=line.number)
+
+
+def return_recommendation(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    package_id: int,
+    data: ReturnInput,
+    reference_date: date,
+) -> ProcessSave:
+    """Devolver: the recommendation goes back to negotiation with the reason in the history."""
+    rbac.require(user, Permission.WRITE)
+    line = _process_or_refuse(
+        session, user=user, scope=scope, package_id=package_id, reference_date=reference_date
+    )
+    _require_stage(line, "Recomendação de adjudicação")
+    problems = validation.return_problems(data)
+    if problems:
+        raise InvalidDataError(problems)
+    process = _process_row(session, package_id)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=process,
+        changes={
+            "recommendation_on": None,
+            "recommendation_company_id": None,
+            "recommendation_value_cents": None,
+            "recommendation_by_id": None,
+            "recommendation_justification": None,
+        },
+        version=process.version,
+    )
+    _append_process_history(
+        session,
+        user=user,
+        line=line,
+        process=process,
+        stage="Negociação",
+        text=RETURN_NOTE.format(reason=data.reason.strip()),
+        reference_date=reference_date,
+    )
+    return ProcessSave(package_id=package_id, code=line.code, number=line.number)
+
+
+def approve_award(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    package_id: int,
+    data: ApprovalInput,
+    reference_date: date,
+) -> ProcessSave:
+    """Aprovar adjudicação: the band of the recommendation, with the segregation of duties.
+
+    Who approves may not be the buyer nor who recommended (403); an LLI contracted before the
+    investment gate without its approval and a value above the saldo a comprometer of the EAC
+    item are refused; the approval writes the real date of the adjudication milestone.
+    """
+    rbac.require(user, Permission.WRITE)
+    line = _process_or_refuse(
+        session, user=user, scope=scope, package_id=package_id, reference_date=reference_date
+    )
+    _require_stage(line, "Recomendação de adjudicação")
+    process = _process_row(session, package_id)
+    value = process.recommendation_value_cents
+    if value is None or process.recommendation_company_id is None:
+        raise InvalidDataError({"geral": validation.PROCESS_NOT_FOUND})
+    known = (
+        configuracoes.person_names(session, {data.approver_id})
+        if data.approver_id is not None
+        else {}
+    )
+    problems = validation.approval_problems(
+        data, reference_date=reference_date, approver_known=bool(known)
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    package = session.get(PurchasePackage, package_id)
+    if package is None:
+        raise InvalidDataError(validation.PACKAGE_NOT_FOUND)
+    if data.approver_id in (process.recommendation_by_id, package.buyer_id):
+        raise AccessDeniedError(validation.SEGREGATION_MESSAGE)
+    if calculations.lli_before_gate(
+        lli=package.lli,
+        requisition=line.requisition_real,
+        project_start=_project_start(session, line.project_id),
+        gate_date=package.gate_lli_date,
+    ):
+        raise InvalidDataError({"geral": validation.LLI_GATE_MESSAGE})
+    balance = _eac_balance(session, line=line, reference_date=reference_date)
+    if balance is not None:
+        over = validation.eac_balance_problem(
+            code=line.eac_code, balance_cents=balance, value_cents=value
+        )
+        if over is not None:
+            raise InvalidDataError({"geral": over})
+    parameters = _process_parameters(session, reference_date=reference_date)
+    band = calculations.approval_band_for(value, parameters.approval_bands)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=process,
+        changes={
+            "approval_on": data.date,
+            "approval_by_id": data.approver_id,
+            "approval_band": band,
+            "approval_opinion": data.opinion.strip() or None,
+        },
+        version=process.version,
+    )
+    _write_real(
+        session,
+        user=user,
+        package_id=package_id,
+        key=calculations.ADJUDICATION_MILESTONE,
+        value=_required_date(data.date, validation.PLAN_DATE_REQUIRED),
+    )
+    _append_process_history(
+        session,
+        user=user,
+        line=line,
+        process=process,
+        stage="Aprovada",
+        text=APPROVAL_NOTE.format(band=band or ""),
+        reference_date=reference_date,
+    )
+    return ProcessSave(package_id=package_id, code=line.code, number=line.number)
+
+
+def emit_order_or_contract(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    package_id: int,
+    data: EmissionInput,
+    reference_date: date,
+) -> ProcessSave:
+    """Emitir pedido ou contrato: everything in the caller's transaction, or nothing at all.
+
+    An equipment/material package creates the order with the standard manufacturing schedule
+    from the deadline of the proposal, and an order born with negative slack opens the diligence
+    action in the Central; a service/EPC package creates the contract through the Financeiro
+    facade (D9). The value is committed in ``custo_erp`` in the month of the emission and the
+    real date of the order milestone closes the flow.
+    """
+    rbac.require(user, Permission.WRITE)
+    line = _process_or_refuse(
+        session, user=user, scope=scope, package_id=package_id, reference_date=reference_date
+    )
+    _require_stage(line, "Aprovada")
+    process = _process_row(session, package_id)
+    value = process.recommendation_value_cents
+    company_id = process.recommendation_company_id
+    if value is None or company_id is None:
+        raise InvalidDataError({"geral": validation.PROCESS_NOT_FOUND})
+    package = session.get(PurchasePackage, package_id)
+    if package is None:
+        raise InvalidDataError(validation.PACKAGE_NOT_FOUND)
+    service = calculations.is_service(line.kind)
+    known_fiscal = (
+        configuracoes.person_names(session, {data.fiscal_id}) if data.fiscal_id is not None else {}
+    )
+    problems = validation.emission_problems(
+        data, reference_date=reference_date, service=service, fiscal_known=bool(known_fiscal)
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    emission = _required_date(data.date, validation.PLAN_DATE_REQUIRED)
+    document = (
+        _emit_contract(
+            session,
+            user=user,
+            line=line,
+            package=package,
+            data=data,
+            emission=emission,
+            value_cents=value,
+            company_id=company_id,
+        )
+        if service
+        else _emit_order(
+            session,
+            user=user,
+            line=line,
+            package=package,
+            data=data,
+            emission=emission,
+            value_cents=value,
+            company_id=company_id,
+            reference_date=reference_date,
+        )
+    )
+    financeiro.commit_purchase_cost(
+        session,
+        user=user,
+        project_id=line.project_id,
+        item_id=line.eac_item_id,
+        on=emission,
+        value_cents=value,
+    )
+    _write_real(
+        session,
+        user=user,
+        package_id=package_id,
+        key=calculations.ORDER_MILESTONE,
+        value=emission,
+    )
+    note = CONTRACT_NOTE if service else ORDER_NOTE
+    _append_process_history(
+        session,
+        user=user,
+        line=line,
+        process=process,
+        stage="Pedido/contrato emitido",
+        text=note.format(number=document),
+        reference_date=reference_date,
+    )
+    return ProcessSave(package_id=package_id, code=line.code, number=line.number, document=document)
+
+
+def _emit_order(
+    session: Session,
+    *,
+    user: User,
+    line: ProcessLine,
+    package: PurchasePackage,
+    data: EmissionInput,
+    emission: date,
+    value_cents: int,
+    company_id: int,
+    reference_date: date,
+) -> str:
+    """The order of an equipment/material package, with its six manufacturing milestones."""
+    deadline = _required_int(data.deadline_days, validation.PROPOSAL_DEADLINE_REQUIRED)
+    contractual = emission + timedelta(days=deadline)
+    number = _next_order_number(session, reference_date=emission)
+    order = recording.create(
+        session,
+        user_id=user.id,
+        record=PurchaseOrder(
+            project_id=line.project_id,
+            package_id=line.package_id,
+            company_id=company_id,
+            number=number,
+            description=line.scope,
+            value_cents=value_cents,
+            lli=line.lli,
+            emission=emission,
+            contractual_date=contractual,
+            forecast=contractual,
+            ros=_required_date(package.ros, validation.ROS_REQUIRED),
+        ),
+    )
+    for position, (name, planned) in enumerate(
+        calculations.manufacturing_schedule(emission, contractual), start=1
+    ):
+        recording.create(
+            session,
+            user_id=user.id,
+            record=PurchaseOrderMilestone(
+                order_id=order.id,
+                position=position,
+                name=name,
+                baseline_date=planned,
+                forecast_date=planned,
+            ),
+        )
+    slack = calculations.delivery_slack_days(order.ros, contractual)
+    if slack is not None and slack < 0:
+        _open_diligence_action(
+            session,
+            user=user,
+            order=order,
+            buyer_id=package.buyer_id,
+            slack_days=slack,
+            reference_date=reference_date,
+        )
+    return number
+
+
+def _emit_contract(
+    session: Session,
+    *,
+    user: User,
+    line: ProcessLine,
+    package: PurchasePackage,
+    data: EmissionInput,
+    emission: date,
+    value_cents: int,
+    company_id: int,
+) -> str:
+    """The contract of a service/EPC package, created by the Financeiro facade (D9)."""
+    created = financeiro.create_purchase_contract(
+        session,
+        user=user,
+        project_id=line.project_id,
+        company_id=company_id,
+        eac_item_id=line.eac_item_id,
+        purchase_package_id=line.package_id,
+        object=line.scope,
+        modality=line.modality,
+        value_cents=value_cents,
+        emission=emission,
+        start=data.start or package.ros or emission,
+        end=_required_date(data.end, validation.CONTRACT_END_REQUIRED),
+        fiscal_id=data.fiscal_id,
+        retention_pct=(
+            data.retention_pct if data.retention_pct is not None else DEFAULT_RETENTION_PCT
+        ),
+    )
+    return created.number
+
+
+def _open_diligence_action(
+    session: Session,
+    *,
+    user: User,
+    order: PurchaseOrder,
+    buyer_id: int,
+    slack_days: int,
+    reference_date: date,
+) -> None:
+    """The diligence action of an order born with negative slack, in the Central (D9)."""
+    from src.modulos.central_acoes import service as central_acoes
+    from src.modulos.central_acoes.validation import NewAction
+
+    central_acoes.create_action(
+        session,
+        user=user,
+        new=NewAction(
+            project_id=order.project_id,
+            origin=DILIGENCE_ORIGIN,
+            origin_ref=order.number,
+            subject=f"Recuperar a folga do pedido {order.number}",
+            description=(
+                f"Previsão de entrega em {_brazilian_date(order.forecast)} passa a data necessária "
+                f"na obra ({_brazilian_date(order.ros)}): folga de {slack_days} dias."
+            ),
+            requester_id=user.person_id,
+            responsible_id=buyer_id,
+            planned_date=reference_date + timedelta(days=DILIGENCE_DAYS),
+            group=DILIGENCE_GROUP,
+        ),
+        reference_date=reference_date,
+    )
+
+
+def _brazilian_date(value: date) -> str:
+    return value.strftime("%d/%m/%Y")
+
+
 # ── Process internals ────────────────────────────────────────────────────────────────────────
 
 
@@ -3017,6 +3562,32 @@ def _eac_balance(session: Session, *, line: ProcessLine, reference_date: date) -
     )
     return next(
         (balance.saldo_cents for balance in balances if balance.item_id == line.eac_item_id), None
+    )
+
+
+def _project_start(session: Session, project_id: int) -> date | None:
+    """The start of the project, which the LLI gate compares with the requisition."""
+    project = next(
+        (item for item in configuracoes.list_projects(session) if item.id == project_id), None
+    )
+    return project.start_date if project is not None else None
+
+
+def _order_number(session: Session, *, package_id: int) -> str | None:
+    """The number of the order the package originated, for the ficha of the process."""
+    return session.scalar(
+        select(PurchaseOrder.number).where(PurchaseOrder.package_id == package_id)
+    )
+
+
+def _next_order_number(session: Session, *, reference_date: date) -> str:
+    """The next number of the global order series of the year, as the prototype numbered."""
+    numbers = list(session.scalars(select(PurchaseOrder.number)))
+    return numbering.next_series_number(
+        numbers,
+        prefix=calculations.PURCHASE_ORDER_PREFIX,
+        year=reference_date.year,
+        digits=4,
     )
 
 
