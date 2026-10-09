@@ -280,6 +280,15 @@ max-complexity = 10
 # disciplina, empresa e fechamento).
 "tests/planejamento/test_punch_painel_calculos.py" = ["PLR0913"]
 
+# `_facts`, nos testes dos cálculos da matriz e do painel de riscos, e `_registrar`, nos
+# testes da fachada, montam os fatos da pauta e o risco com o histórico conhecido com muitos
+# campos opcionais, e é assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada
+# teste informa só o que importa para o caso (ISSUE-066). A regra existe para argumento
+# posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de
+# opções, a mesma coisa com mais indireção.
+"tests/riscos/test_riscos_matriz_painel_calculos.py" = ["PLR0913"]
+"tests/riscos/test_riscos_painel_fachada.py" = ["PLR0913"]
+
 # process_bind_param e process_result_value recebem o dialect por contrato do
 # SQLAlchemy (TypeDecorator) e não o usam: o tipo só converte centavos. O
 # parâmetro não pode ser renomeado para `_dialect` porque o ty exige o nome
@@ -299,11 +308,23 @@ max-complexity = 10
 # requisição, da sessão, do contexto e do estado, e é assim de propósito: depois
 # do `*` são todos KEYWORD-ONLY (destino, modal_target, estado, valores, erro),
 # o contrato das respostas que voltam para o registro ou para a ficha
-# (ISSUE-064/ISSUE-065). A regra existe para argumento posicional, onde a ordem
-# se erra na chamada; reduzir significaria criar um objeto de opções, a mesma
-# coisa com mais indireção.
+# (ISSUE-064/ISSUE-065). O mesmo vale para `_agenda_response`, nas rotas da
+# matriz e do painel: depois do `*` vêm o formulário, o resultado e o toast, o
+# contrato do modal do envio da pauta (ISSUE-066). A regra existe para argumento
+# posicional, onde a ordem se erra na chamada; reduzir significaria criar um
+# objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/riscos/routes.py" = ["PLR0913"]
 "src/modulos/riscos/ficha_routes.py" = ["PLR0913"]
+"src/modulos/riscos/panel_routes.py" = ["PLR0913"]
+
+# `risk_matrix`, `send_risk_agenda` e `_cell`, no serviço da matriz e do painel
+# de riscos, têm 6 parâmetros, e é assim de propósito: depois do `*` são todos
+# KEYWORD-ONLY (user, scope, assessment, natureza, data de referência, mensagem
+# e canal), o contrato que as rotas da matriz e do painel chamam (ISSUE-066).
+# A regra existe para argumento posicional, onde a ordem se erra na chamada;
+# reduzir significaria criar um objeto de opções, a mesma coisa com mais
+# indireção.
+"src/modulos/riscos/panel_service.py" = ["PLR0913"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -1,0 +1,109 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Matriz de riscos 5x5 (ISSUE-066): o alternador Inerente/Residual, o filtro de natureza, o
+  visual Matriz Formatada (variante grade) do Design System, a legenda pelas faixas da escala
+  ativa e a movimentação inerente para residual. A célula com risco leva ao Registro filtrado
+  (celula=p3|i4, o parâmetro que o registro entende); a vazia fica esmaecida e não é clicável. O
+  servidor calcula tudo (D6) e entrega o gráfico como dado (data-grafico + data-dados, D11); o
+  fragmento não traz <script>. Excel e PDF saem pelos mecanismos genéricos da plataforma
+  (data-tn-excel e data-tn-pdf, D12). No Portfólio a movimentação traz o projeto.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: matriz, grafico, link_inerente, link_residual, naturezas, link_registro, url_excel,
+  url_pdf, portfolio, rotulos_de_projeto, link_da_ficha, tons_das_faixas e situacao.
+#}
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}"></span>
+
+<div class="toolbar">
+  <div class="seg" role="group" aria-label="Avaliação exibida">
+    <a class="seg__btn{% if matriz.assessment == 'inerente' %} is-active{% endif %}" href="{{ link_inerente }}"
+      x-target="{{ target_id }}"{% if matriz.assessment == 'inerente' %} aria-current="true"{% endif %}>Inerente</a>
+    <a class="seg__btn{% if matriz.assessment == 'residual' %} is-active{% endif %}" href="{{ link_residual }}"
+      x-target="{{ target_id }}"{% if matriz.assessment == 'residual' %} aria-current="true"{% endif %}>Residual</a>
+  </div>
+  <form class="matriz__natureza" method="get" action="/api/riscos/matriz" x-target="{{ target_id }}">
+    <label class="sr-only" for="{{ target_id }}-natureza">Natureza</label>
+    <select id="{{ target_id }}-natureza" class="input" name="natureza" @change="$el.form.requestSubmit()">
+      {% for valor, rotulo in naturezas %}
+      <option value="{{ valor }}"{% if matriz.nature == valor %} selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+    {% if matriz.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
+  </form>
+  <div class="matriz__acoes">
+    <a class="btn btn--secondary" href="{{ link_registro }}" data-tn-tela>Registro</a>
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  </div>
+</div>
+
+{% if situacao == 'vazio-origem' %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+  <h2 class="h-card4">Ainda não há riscos registrados</h2>
+  <p>Registre e avalie os riscos para a matriz mostrar a distribuição por probabilidade e impacto.</p>
+  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>Ir ao Registro de riscos</a>
+</div>
+{% else %}
+<div class="matriz__grade">
+  <section class="card" aria-labelledby="matriz-t-grade">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="matriz-t-grade">Distribuição por probabilidade e impacto</h2>
+        <span class="hint">{{ matriz.caption }}</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <p class="hint">Cada célula mostra a quantidade de riscos e o número; clique na célula para abrir o Registro filtrado; célula vazia fica esmaecida.</p>
+      <div class="matriz__visual" data-grafico="matriz-formatada" data-dados='{{ grafico | tojson }}'
+        @grafico:selecionar.prevent="TN.shell.navegar($event.detail.item.href)"></div>
+      <ul class="matriz__legenda" aria-label="Faixas de severidade">
+        {% for style in matriz.bands %}
+        <li class="matriz__legenda-item">
+          <span class="matriz__legenda-cor matriz__tom--{{ style.tone }}" aria-hidden="true"></span>
+          <span class="fw-600">{{ style.band.name }}</span>
+          <span class="hint">{{ style.minimum }} a {{ style.maximum }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% for nota in matriz.notes %}<p class="hint">{{ nota }}</p>{% endfor %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="matriz-t-mov">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="matriz-t-mov">Movimentação inerente para residual</h2>
+        <span class="hint">Eficácia do plano de resposta</span>
+      </div>
+    </div>
+    <div class="card__body">
+      {% if matriz.movement %}
+      <ul class="matriz__mov">
+        {% for item in matriz.movement %}
+        <li>
+          <a class="matriz__mov-linha{% if item.no_reduction %} is-alerta{% endif %}" href="{{ link_da_ficha(item.code) }}" data-tn-tela
+            title="{{ item.code }} · {{ item.title }}">
+            <span class="matriz__mov-id">{{ item.code }}{% if portfolio %}<small>{{ rotulos_de_projeto[item.project_id] }}</small>{% endif %}</span>
+            <span class="matriz__mov-trilho" aria-hidden="true">
+              <span class="matriz__mov-ine matriz__tom--{{ tons_das_faixas[item.inherent_band.id] }}" style="width: {{ (item.inherent_score / 25 * 100) | round(1) }}%"></span>
+              <span class="matriz__mov-res matriz__tom--{{ tons_das_faixas[item.residual_band.id] }}" style="width: {{ (item.residual_score / 25 * 100) | round(1) }}%"></span>
+            </span>
+            <span class="matriz__mov-val">{{ item.inherent_score }} → {{ item.residual_score }}</span>
+            <span class="sr-only">{{ item.title }}: inerente {{ item.inherent_score }}, residual {{ item.residual_score }}{% if item.no_reduction %}, sem redução{% endif %}{% if item.nature != 'Ameaça' %} (oportunidade){% endif %}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty" data-estado="vazio-filtro">Nenhum risco com plano de resposta e avaliação residual.</p>
+      {% endif %}
+      <p class="hint">{{ matriz.movement_note }}</p>
+    </div>
+  </section>
+</div>
+{% endif %}
+{% endblock %}

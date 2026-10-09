@@ -1,0 +1,43 @@
+{% extends "base_fragment.html" %}
+{#
+  Envio da pauta ao gerente do projeto, no modal do Painel de riscos (ISSUE-066). Dois momentos no
+  mesmo fragmento: o formulário (formulario) e o que foi registrado (resultado). O destinatário
+  vem do cadastro do projeto, nunca de campo livre; a mensagem começa com o texto do protótipo e
+  passa pela porta de notificação (tipo pauta_riscos) — com o envio por e-mail desligado, fica na
+  trilha como simulado e nada sai.
+
+  Espera: formulario (ou nulo), resultado (ou nulo) e escopo.
+#}
+{% block fragment %}
+{% if resultado %}
+<div class="aviso aviso--{{ 'erro' if resultado.erro else ('warn' if resultado.simulado else 'ok') }}" role="status">
+  <span>{{ resultado.aviso }}</span>
+</div>
+<div class="modal__actions">
+  <button type="button" class="btn btn--primary" data-riscos-pauta-fechar-modal>Fechar</button>
+</div>
+{% else %}
+<form method="post" action="/api/riscos/painel/pauta"
+  x-target="{{ target_id }}" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}"
+  data-tn-loading="Enviando a pauta...">
+  <p class="body-txt mb-16">A pauta vai para o gerente do projeto ({{ escopo }}); o envio fica registrado na trilha de auditoria.</p>
+  <div class="fgrid">
+    <div class="field field--full">
+      <span class="hint">Para (gerente do projeto)</span>
+      <span class="body-txt">{{ formulario.destinatario }}</span>
+    </div>
+    <div class="field field--full">
+      <label for="riscos-pauta-mensagem">Mensagem</label>
+      <textarea id="riscos-pauta-mensagem" name="mensagem" rows="12" class="input">{{ formulario.mensagem }}</textarea>
+    </div>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-riscos-pauta-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
+      Enviar
+    </button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

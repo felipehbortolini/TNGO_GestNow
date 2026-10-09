@@ -1,0 +1,160 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Painel de riscos (ISSUE-066): os cinco KPIs, a exposição por categoria da RBS (barras que
+  abrem o Registro filtrado), a evolução mensal do score residual das ameaças — reconstruída no
+  servidor do histórico de avaliações e revisões (D6), no visual Linhas Múltiplas da biblioteca —
+  e a pauta de escalonamento, com o envio ao gerente do projeto pela porta de notificação. O
+  modal do envio abre por JavaScript (data-riscos-pauta-enviar) e o corpo vem do servidor; o
+  fragmento não traz <script>. Excel e PDF saem pelos mecanismos genéricos (D12). No Portfólio a
+  pauta traz a coluna Projeto.
+
+  Os cinco estados da tela: carregando (a view), vazio de origem e vazio por filtro (aqui,
+  data-estado), erro e sem permissão (a view).
+
+  Espera: painel, kpis, grafico, maximo_da_categoria, portfolio, rotulos_de_projeto,
+  link_da_ficha, link_registro, url_excel, url_pdf, etiqueta_de_faixa, formatar_moeda,
+  pode_gravar, rotulo_do_envio e situacao.
+#}
+{% macro cartao(kpi) %}
+{% if kpi.url %}
+<a class="kpi kpi--{{ kpi.tone }}" href="{{ kpi.url }}" data-tn-tela>
+{% else %}
+<div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
+{% endif %}
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
+  <span class="painel__kpi-texto">
+    <span class="kpi__label">{{ kpi.label }}</span>
+    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+  </span>
+  <span class="kpi__value">{{ kpi.value }}</span>
+{% if kpi.url %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}"></span>
+
+{% if situacao == 'vazio-origem' %}
+<div class="empty" data-estado="vazio-origem">
+  <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+  <h2 class="h-card4">Ainda não há riscos registrados</h2>
+  <p>Registre e avalie os riscos para o painel mostrar a exposição, a evolução e a pauta de escalonamento.</p>
+  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>Ir ao Registro de riscos</a>
+</div>
+{% else %}
+<div class="kpis painel__kpis" style="--kpis-colunas: 5">
+  {% for kpi in kpis %}{{ cartao(kpi) }}{% endfor %}
+</div>
+
+<div class="painel__barra">
+  <p class="hint">
+    Avaliação residual (ou a inerente quando não existe); o VME soma só as ameaças ativas e a
+    evolução é reconstruída das avaliações e revisões.
+  </p>
+  <div class="painel__exportacoes">
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  </div>
+</div>
+
+<div class="painel__grade">
+  <section class="card" aria-labelledby="painel-t-categorias">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="painel-t-categorias">Exposição por categoria (RBS)</h2>
+        <span class="hint">Soma do score residual das ameaças ativas; clique para abrir o Registro filtrado</span>
+      </div>
+    </div>
+    <div class="card__body">
+      {% if painel.categories %}
+      <ul class="painel__categorias">
+        {% for item in painel.categories %}
+        <li>
+          <a class="painel__categoria" href="{{ item.href }}" data-tn-tela
+            title="{{ item.group }}: {{ item.risks }} risco(s), VME {{ formatar_moeda(item.vme_cents) }}">
+            <span class="painel__categoria-nome">{{ item.group }}</span>
+            <span class="painel__categoria-trilho" aria-hidden="true">
+              <span class="painel__categoria-barra" style="width: {{ (item.score / maximo_da_categoria * 100) | round(1) }}%"></span>
+            </span>
+            <span class="painel__categoria-valor">{{ item.score }}</span>
+            <span class="sr-only">{{ item.risks }} risco(s), VME {{ formatar_moeda(item.vme_cents) }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty" data-estado="vazio-filtro">Nenhuma ameaça ativa avaliada no escopo.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="painel-t-evolucao">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="painel-t-evolucao">Evolução da exposição total</h2>
+        <span class="hint">Score residual somado das ameaças, por mês; o mês corrente vai até a data de referência</span>
+      </div>
+    </div>
+    <div class="card__body">
+      <div class="painel__grafico" data-grafico="linhas-multiplas" data-dados='{{ grafico | tojson }}'></div>
+    </div>
+  </section>
+</div>
+
+<section class="card painel__pauta" aria-labelledby="painel-t-pauta">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="painel-t-pauta">Pauta de escalonamento</h2>
+      <span class="hint">{{ resumo_da_pauta }}</span>
+    </div>
+    {% if pode_gravar %}
+    <button type="button" class="btn btn--secondary btn--sm" data-riscos-pauta-enviar>
+      <span x-init="$el.innerHTML = window.icon('mail', 16)" aria-hidden="true"></span>
+      {{ rotulo_do_envio }}
+    </button>
+    {% endif %}
+  </div>
+  {% if painel.agenda %}
+  <div class="tbl-wrap">
+    <table class="tbl painel__tabela">
+      <caption class="sr-only">Pauta de escalonamento</caption>
+      <thead>
+        <tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Nº</th>
+          <th scope="col">Risco</th>
+          <th scope="col">Residual</th>
+          <th scope="col">Motivo</th>
+          <th scope="col">Dono</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in painel.agenda %}
+        <tr>
+          {% if portfolio %}<td><span class="pill pill--neutral">{{ rotulos_de_projeto[item.project_id] }}</span></td>{% endif %}
+          <td class="nowrap"><a href="{{ link_da_ficha(item.code) }}" data-tn-tela><b>{{ item.code }}</b></a></td>
+          <td>
+            <span class="fw-600">{{ item.title }}</span><br />
+            <span class="hint">{{ item.category_label }}</span>
+          </td>
+          <td class="nowrap">
+            {% if item.severity %}
+            <span class="pill {{ etiqueta_de_faixa(item.severity) }}"><b>{{ item.score }}</b> {{ item.severity.name }}</span>
+            {% else %}
+            <span class="muted">não avaliado</span>
+            {% endif %}
+          </td>
+          <td>{{ item.reasons | join(' · ') }}</td>
+          <td>{{ item.owner_name }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card__body">
+    <p class="empty" data-estado="vazio-filtro">Nenhum risco exige decisão do gerente do projeto.</p>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
