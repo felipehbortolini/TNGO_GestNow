@@ -14,7 +14,9 @@ Points where other modules enter (D9):
 * ``register_origin`` is how the owner of a record says that a number exists: the Mudança is here;
   the Ata is registered by ISSUE-021 and each other module by its own issue (until then its origin
   is not offered in the form);
-* the risk that "Aplicar em projeto" may create in Riscos is wired in ISSUE-067.
+* the risk that "Aplicar em projeto" may create goes through the facade of Riscos
+  (``save_risk``), in the same transaction, and its id is kept in ``licao_aplicacao.risco_id``
+  (ISSUE-067), whose foreign key arrives with that slice.
 """
 
 from __future__ import annotations
@@ -219,7 +221,7 @@ class LessonPanel:
 
 @dataclass(frozen=True)
 class ApplicationLine:
-    """One reuse of the lesson: when, where, how, and the action it generated in the Central."""
+    """One reuse of the lesson: when, where, how, and the action or the risk it generated."""
 
     applied_on: date
     project_label: str
@@ -227,6 +229,7 @@ class ApplicationLine:
     registered_by: str
     action_id: int | None
     risk_id: int | None
+    risk_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -700,8 +703,9 @@ def apply_lesson(
     """Register the reuse of a published lesson in a project and, when asked, open the action.
 
     The action is created by the single seam of the Central (origin ``Lição``, reference the code of the
-    lesson), in the same transaction; the reuse keeps the link to it. The risk of Riscos is wired in
-    ISSUE-067.
+    lesson); the risk is created by the facade of Riscos (``save_risk``), in the same transaction, and
+    its id is kept in the reuse. The risk is a threat for an "A evitar" lesson and an opportunity for
+    an "A repetir" one, identified from the text of the lesson and without an assessment.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.WRITE)
@@ -719,6 +723,13 @@ def apply_lesson(
     action_id = _open_action(
         session, user=user, lesson=lesson, new=new, reference_date=reference_date
     )
+    risk_id, risk_code = _open_risk(
+        session,
+        user=user,
+        lesson=lesson,
+        new=new,
+        reference_date=reference_date,
+    )
     recording.create(
         session,
         user_id=user.id,
@@ -726,14 +737,26 @@ def apply_lesson(
             lesson_id=lesson.id,
             project_id=project.id,
             action_id=action_id,
+            risk_id=risk_id,
             registered_by_id=user.person_id,
             applied_on=new.applied_on,
             how=new.how,
         ),
     )
-    generated = " Gerado: ação na Central." if action_id else ""
-    _note(session, lesson, user.person_id, f"Aplicada no projeto {project.code}.{generated}")
+    generated: list[str] = []
+    if action_id:
+        generated.append("ação na Central")
+    if risk_code:
+        generated.append(f"risco {risk_code} no registro")
+    suffix = f" Gerado: {', '.join(generated)}." if generated else ""
+    _note(session, lesson, user.person_id, f"Aplicada no projeto {project.code}.{suffix}")
     return _created(lesson)
+
+
+def lesson_kind(session: Session, *, user: User, code: str) -> str:
+    """O tipo da lição, para o formulário de aplicação rotular o risco que ela gera."""
+    rbac.require_module(user, MODULE)
+    return _lesson(session, code).kind
 
 
 # ── Demonstration load ───────────────────────────────────────────────────
@@ -1033,6 +1056,52 @@ def _open_action(
     return record.id
 
 
+def _open_risk(
+    session: Session,
+    *,
+    user: User,
+    lesson: Lesson,
+    new: validation.ApplicationInput,
+    reference_date: date,
+) -> tuple[int | None, str]:
+    """O risco do reuso, pela fachada de Riscos (D9), em análise conceitual: sem avaliação.
+
+    O contrato da lição com o 05 é o ``RiskInput`` da fachada alheia; natureza, origem e o texto
+    seguem o protótipo (ameaça para "A evitar", oportunidade para "A repetir", origem "Lições
+    aprendidas" com o número da lição).
+    """
+    if not new.generate_risk:
+        return None, ""
+    from src.modulos.riscos import service as riscos
+    from src.modulos.riscos import validation as riscos_validation
+
+    nature = "Ameaça" if lesson.kind == "A evitar" else "Oportunidade"
+    result = riscos.save_risk(
+        session,
+        user=user,
+        data=riscos_validation.RiskInput(
+            nature=nature,
+            category_id=new.category_id,
+            cause=lesson.cause,
+            title=lesson.title,
+            consequence=lesson.what_happened,
+            owner_id=new.owner_id,
+            identified_on=new.applied_on,
+            origin_type="Lições aprendidas",
+            origin=f"Lição {lesson.code}",
+            description=(
+                f"Identificado a partir da lição {lesson.code}. "
+                f"Recomendação: {lesson.recommendation}"
+            ),
+            schedule_impact_days=lesson.term_impact_days,
+            cost_impact_cents=lesson.cost_impact_cents,
+            project_id=new.project_id,
+        ),
+        reference_date=reference_date,
+    )
+    return result.risk_id, result.code
+
+
 def _visible(item: _Loaded, scope: Scope) -> bool:
     return calc.is_lesson_visible(
         lesson_project_id=item.lesson.project_id,
@@ -1186,9 +1255,15 @@ def _application_lines(
         )
     )
     names = configuracoes.person_names(session, {row.registered_by_id for row in rows})
+    from src.modulos.riscos import service as riscos
+
+    risks = riscos.risk_labels(session, risk_ids=[row.risk_id for row in rows if row.risk_id])
     lines = []
     for row in rows:
         project = lookups.projects.get(row.project_id)
+        risk_code = ""
+        if row.risk_id is not None and row.risk_id in risks:
+            risk_code = risks[row.risk_id].code
         lines.append(
             ApplicationLine(
                 applied_on=row.applied_on,
@@ -1197,6 +1272,7 @@ def _application_lines(
                 registered_by=names.get(row.registered_by_id, ""),
                 action_id=row.action_id,
                 risk_id=row.risk_id,
+                risk_code=risk_code,
             )
         )
     return tuple(lines)

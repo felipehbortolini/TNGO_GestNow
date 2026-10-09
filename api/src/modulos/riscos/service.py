@@ -64,6 +64,8 @@ from src.modulos.riscos.validation import (
 MODULE = "riscos"
 ORIGIN_KIND = "Risco"
 PARAMETER_GROUP = "riscos"
+RISK_ENTITY = "risco"
+HISTORY_ENTITY = "risco.historico"
 
 NOT_FOUND_MESSAGE = "Risco não encontrado."
 CLOSED_MESSAGE = "Risco encerrado não pode ser editado nem reavaliado. Reabra o risco antes."
@@ -79,6 +81,20 @@ DUPLICATE_NOTICE = (
     "Já existe risco com o mesmo evento no projeto ({code}). Verifique se não é duplicidade."
 )
 PARAMETERS_MISSING_MESSAGE = "Os parâmetros de Riscos ainda não foram cadastrados."
+
+SUGGESTED_ORIGIN_TYPE = "Diligenciamento"
+SUGGESTED_CATEGORY_GROUP = "Suprimentos"
+SUGGESTED_CATEGORY_NAME = "Fornecedores"
+SUGGESTED_TRIGGER = "Previsão de entrega depois do ROS."
+SUGGESTED_DIMENSION = "Prazo"
+SUGGESTED_REVIEW_TEXT = "Avaliação inicial a partir do diligenciamento."
+SUGGESTED_TITLE_SHORT = "Descreva o risco (mínimo de 10 caracteres)."
+SUGGESTED_LEVELS_MESSAGE = "Probabilidade e impacto de 1 a 5."
+SUGGESTED_DUPLICATED_MESSAGE = "Já existe risco sugerido para o pedido {number} ({code})."
+SUGGESTED_HISTORY = (
+    "Risco criado pelo diligenciamento do pedido {number}. Avaliação inerente {score} "
+    "(P{probability} x I{impact})."
+)
 
 SITUATION_IDENTIFIED = "Identificado"
 SITUATION_ANALYSIS = "Em análise"
@@ -256,6 +272,63 @@ class SaveResult:
     code: str
     created: bool
     notices: tuple[str, ...]
+    risk_id: int = 0
+
+
+@dataclass(frozen=True)
+class SuggestedRiskInput:
+    """O risco sugerido pelo diligenciamento: o pedido, o dono e a avaliação proposta.
+
+    Quem monta é a fachada de Suprimentos, com os textos do protótipo; a categoria da RBS é
+    resolvida aqui (Suprimentos > Fornecedores), criada quando o catálogo ainda não a tem.
+    """
+
+    project_id: int
+    order_number: str
+    title: str
+    owner_id: int
+    cause: str
+    consequence: str
+    description: str
+    trigger: str
+    probability: int
+    impact: int
+    schedule_impact_days: int
+    cost_impact_cents: int
+
+
+@dataclass(frozen=True)
+class OriginRisk:
+    """Um risco lido pela sua origem, como outro módulo o mostra (D9)."""
+
+    code: str
+    title: str
+    situation: str
+
+    @property
+    def active(self) -> bool:
+        """Whether the risk is still in the active portfolio."""
+        return calculations.is_active(self.situation)
+
+
+@dataclass(frozen=True)
+class RiskLabel:
+    """Um risco pelo id ou pelo código, para o dono do vínculo mostrar o que ligou (D9)."""
+
+    id: int
+    project_id: int
+    code: str
+    title: str
+    situation: str
+
+
+@dataclass(frozen=True)
+class RiskOption:
+    """Um risco do projeto como o formulário de outro módulo o oferece (D9)."""
+
+    code: str
+    title: str
+    situation: str
 
 
 @dataclass(frozen=True)
@@ -461,11 +534,10 @@ def save_risk(session: Session, *, user: User, data: RiskInput, reference_date: 
     notices = _duplicate_notices(session, project_id, data.title, ignore=existing)
     ctx = _Ctx(session, user, reference_date)
     if existing is None:
-        return SaveResult(
-            _create_risk(ctx, data, project_id=project_id).code, created=True, notices=notices
-        )
+        created = _create_risk(ctx, data, project_id=project_id)
+        return SaveResult(created.code, created=True, notices=notices, risk_id=created.id)
     _update_identification(ctx, existing, data)
-    return SaveResult(existing.code, created=False, notices=notices)
+    return SaveResult(existing.code, created=False, notices=notices, risk_id=existing.id)
 
 
 def assess_risk(
@@ -642,6 +714,232 @@ def reserve_code(session: Session, *, project_id: int, reference_date: date) -> 
     return calculations.format_code(prefix, number)
 
 
+# ── Integrações que chegam (D9, ISSUE-067) ───────────────────────────────────────────────────
+
+
+def create_suggested_risk(
+    session: Session,
+    *,
+    user: User,
+    data: SuggestedRiskInput,
+    reference_date: date,
+) -> SaveResult:
+    """O risco sugerido pelo diligenciamento de Suprimentos, criado na mesma transação (D9).
+
+    Entra em análise, com a categoria da RBS do diligenciamento, a origem ``Diligenciamento
+    PED-...``, a dimensão Prazo e a avaliação inerente do formulário; a linha do tempo ganha a
+    avaliação inicial e a cadência sai da severidade. O mesmo pedido não sugere duas vezes.
+    """
+    rbac.require(user, Permission.WRITE)
+    problems = _suggested_problems(session, data)
+    if problems:
+        raise InvalidDataError(problems)
+    params = parameters(session, reference_date=reference_date)
+    category_id = _suggested_category_id(session, user)
+    score = calculations.risk_score(data.probability, data.impact)
+    band = calculations.risk_severity(score, params.scale)
+    cadence = calculations.review_cadence(band.id, params.cadence_days)
+    ctx = _Ctx(session, user, reference_date)
+    risk = Risk(
+        project_id=data.project_id,
+        category_id=category_id,
+        owner_id=data.owner_id,
+        identified_by_id=user.person_id,
+        code=reserve_code(session, project_id=data.project_id, reference_date=reference_date),
+        title=data.title.strip(),
+        nature=THREAT,
+        origin_type=SUGGESTED_ORIGIN_TYPE,
+        origin=f"{SUGGESTED_ORIGIN_TYPE} {data.order_number}",
+        cause=data.cause.strip(),
+        consequence=data.consequence.strip(),
+        description=data.description.strip() or None,
+        trigger=data.trigger.strip() or SUGGESTED_TRIGGER,
+        dimension=SUGGESTED_DIMENSION,
+        schedule_impact_days=data.schedule_impact_days,
+        cost_impact_cents=data.cost_impact_cents,
+        cadence_days=cadence,
+        last_review=reference_date,
+        next_review=reference_date + timedelta(days=cadence),
+        situation=SITUATION_ANALYSIS,
+        identified_on=reference_date,
+    )
+    recording.create(session, user_id=user.id, record=risk)
+    _write_suggested_assessment(ctx, risk, data)
+    _append_history(
+        ctx,
+        risk,
+        SUGGESTED_HISTORY.format(
+            number=data.order_number, score=score, probability=data.probability, impact=data.impact
+        ),
+    )
+    return SaveResult(code=risk.code, created=True, notices=(), risk_id=risk.id)
+
+
+def _suggested_problems(session: Session, data: SuggestedRiskInput) -> dict[str, str]:
+    """One message per field of the suggestion that does not hold up; the duplicate blocks."""
+    problems: dict[str, str] = {}
+    if len(data.title.strip()) < validation.MIN_TEXT:
+        problems["titulo"] = SUGGESTED_TITLE_SHORT
+    levels = (data.probability, data.impact)
+    if any(level < calculations.MIN_LEVEL or level > calculations.MAX_LEVEL for level in levels):
+        problems["probabilidade"] = SUGGESTED_LEVELS_MESSAGE
+    if not _project_exists(session, data.project_id):
+        problems["projeto"] = UNKNOWN_PROJECT_MESSAGE
+    if not configuracoes.find_people(session, [data.owner_id]):
+        problems["donoId"] = UNKNOWN_OWNER_MESSAGE
+    existing = _suggestion_of(session, project_id=data.project_id, number=data.order_number)
+    if existing is not None:
+        problems["geral"] = SUGGESTED_DUPLICATED_MESSAGE.format(
+            number=data.order_number, code=existing.code
+        )
+    return problems
+
+
+def _suggestion_of(session: Session, *, project_id: int, number: str) -> Risk | None:
+    """O risco já sugerido para o pedido, se houver: a origem exata é a chave natural."""
+    statement = select(Risk).where(
+        Risk.project_id == project_id,
+        Risk.origin_type == SUGGESTED_ORIGIN_TYPE,
+        Risk.origin == f"{SUGGESTED_ORIGIN_TYPE} {number}",
+    )
+    return session.scalars(statement).first()
+
+
+def _suggested_category_id(session: Session, user: User) -> int:
+    """A categoria do diligenciamento, criada quando o catálogo da RBS ainda não a tem."""
+    category = next(
+        (
+            item
+            for item in list_categories(session)
+            if item.group == SUGGESTED_CATEGORY_GROUP and item.name == SUGGESTED_CATEGORY_NAME
+        ),
+        None,
+    )
+    if category is None:
+        category = create_category(
+            session,
+            user=user,
+            group=SUGGESTED_CATEGORY_GROUP,
+            name=SUGGESTED_CATEGORY_NAME,
+        )
+    return category.id
+
+
+def _write_suggested_assessment(ctx: _Ctx, risk: Risk, data: SuggestedRiskInput) -> None:
+    """A avaliação inerente e a linha do tempo, fatos do risco sugerido (como o protótipo)."""
+    score = calculations.risk_score(data.probability, data.impact)
+    assessment = RiskAssessment(
+        risk_id=risk.id,
+        author_id=ctx.user.person_id,
+        kind=INHERENT,
+        probability=data.probability,
+        impact=data.impact,
+        assessed_on=ctx.reference_date,
+        schedule_dimension=data.impact,
+    )
+    ctx.session.add(assessment)
+    ctx.session.flush()
+    audit.created(
+        ctx.session, user_id=ctx.user.id, entity=assessment.__tablename__, record=assessment
+    )
+    review = RiskReview(
+        risk_id=risk.id,
+        author_id=ctx.user.person_id,
+        reviewed_on=ctx.reference_date,
+        kind=INHERENT,
+        assessed_situation=calculations.assessed_situation(None, score),
+        score_from=None,
+        score_to=score,
+        probability=data.probability,
+        impact=data.impact,
+        trigger_occurred=False,
+        body=SUGGESTED_REVIEW_TEXT,
+    )
+    ctx.session.add(review)
+    ctx.session.flush()
+    audit.created(ctx.session, user_id=ctx.user.id, entity=review.__tablename__, record=review)
+
+
+def diligence_risks(session: Session, *, numbers: Sequence[str]) -> dict[str, OriginRisk]:
+    """Os riscos sugeridos pelo diligenciamento, por número de pedido, para a ficha do pedido.
+
+    A leitura é pela origem (``Diligenciamento PED-...``): o pedido não guarda o vínculo (MODELO,
+    ligações entre módulos). Um pedido com mais de um risco sugerido devolve o mais recente.
+    """
+    wanted = [number for number in numbers if number]
+    if not wanted:
+        return {}
+    statement = (
+        select(Risk)
+        .where(
+            Risk.origin_type == SUGGESTED_ORIGIN_TYPE,
+            Risk.origin.in_([f"{SUGGESTED_ORIGIN_TYPE} {number}" for number in wanted]),
+            Risk.hidden.is_(False),
+        )
+        .order_by(Risk.id)
+    )
+    found: dict[str, OriginRisk] = {}
+    for risk in session.scalars(statement):
+        number = (risk.origin or "").removeprefix(f"{SUGGESTED_ORIGIN_TYPE} ")
+        found[number] = OriginRisk(code=risk.code, title=risk.title, situation=risk.situation)
+    return found
+
+
+def risk_options(session: Session, *, project_id: int) -> tuple[RiskOption, ...]:
+    """Os riscos do projeto que outro módulo oferece para vincular (D9)."""
+    statement = (
+        select(Risk)
+        .where(Risk.project_id == project_id, Risk.hidden.is_(False))
+        .order_by(Risk.code)
+    )
+    return tuple(
+        RiskOption(code=risk.code, title=risk.title, situation=risk.situation)
+        for risk in session.scalars(statement)
+    )
+
+
+def risk_labels(session: Session, *, risk_ids: Sequence[int | None]) -> dict[int, RiskLabel]:
+    """Os riscos dos ids, para o dono do vínculo mostrar o código na sua tela (D9)."""
+    wanted = {risk_id for risk_id in risk_ids if risk_id is not None}
+    if not wanted:
+        return {}
+    statement = select(Risk).where(Risk.id.in_(wanted))
+    return {risk.id: _label_of(risk) for risk in session.scalars(statement)}
+
+
+def risk_by_code(session: Session, *, code: str) -> RiskLabel | None:
+    """O risco pelo código, para outro módulo vinculá-lo pela fachada; o dono confere o projeto."""
+    risk = session.scalars(select(Risk).where(Risk.code == code.strip())).one_or_none()
+    return None if risk is None else _label_of(risk)
+
+
+def _label_of(risk: Risk) -> RiskLabel:
+    return RiskLabel(
+        id=risk.id,
+        project_id=risk.project_id,
+        code=risk.code,
+        title=risk.title,
+        situation=risk.situation,
+    )
+
+
+def active_threats(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> tuple[RiskLine, ...]:
+    """As ameaças ativas do escopo por VME desc, como a cobertura da contingência as lê (D9)."""
+    rbac.require_module(user, MODULE)
+    params = parameters(session, reference_date=reference_date)
+    lines = _lines(
+        _Ctx(session, user, reference_date),
+        project_id=scope.project_id,
+        include_hidden=False,
+        params=params,
+    )
+    threats = [line for line in lines if line.active and line.nature == THREAT]
+    threats.sort(key=lambda line: (-line.vme_cents, line.code))
+    return tuple(threats)
+
+
 # ── Internals: writing ───────────────────────────────────────────────────────────────────────
 
 
@@ -696,7 +994,7 @@ def _duplicate_notices(
 
 def _ata_origin(session: Session, data: RiskInput, project_id: int) -> tuple[int | None, str]:
     if data.origin_type != validation.ATA_ORIGIN:
-        return None, data.origin_type
+        return None, data.origin.strip() or data.origin_type
     label = next(
         (option.label for option in ata_options(session, project_id) if option.id == data.ata_id),
         "",
@@ -721,6 +1019,8 @@ def _create_risk(ctx: _Ctx, data: RiskInput, *, project_id: int) -> Risk:
         consequence=data.consequence.strip(),
         description=data.description.strip() or None,
         trigger=data.trigger.strip() or None,
+        schedule_impact_days=data.schedule_impact_days,
+        cost_impact_cents=data.cost_impact_cents,
         situation=SITUATION_IDENTIFIED,
         identified_on=data.identified_on,
     )
@@ -788,6 +1088,21 @@ def _dimension_columns(dimensions: Mapping[str, int | None]) -> dict[str, int | 
         "legal": "legal_dimension",
     }
     return {column: dimensions.get(key) or None for key, column in columns.items()}
+
+
+def _append_history(ctx: _Ctx, risk: Risk, text: str) -> None:
+    """A linha do histórico da ficha: a trilha de auditoria, que o risco já tem por fato (D5b)."""
+    audit.append(
+        ctx.session,
+        audit.TrailLine(
+            user_id=ctx.user.id,
+            entity=HISTORY_ENTITY,
+            record_id=risk.id,
+            action=audit.CREATED,
+            after={"data": ctx.reference_date.isoformat(), "texto": text},
+            project_id=risk.project_id,
+        ),
+    )
 
 
 def _write_assessment(ctx: _Ctx, risk: Risk, data: AssessmentInput, before: int | None) -> None:

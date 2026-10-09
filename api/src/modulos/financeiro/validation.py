@@ -903,6 +903,7 @@ FIELD_CLAIM_DAYS = "dias"
 FIELD_CLAIM_SITUATION = "situacao"
 FIELD_CLAIM_RECOGNIZED = "reconhecido"
 FIELD_CLAIM_STATEMENT = "parecer"
+FIELD_CLAIM_RISK = "risco"
 FIELD_EXTENSION_CLAIM = "claim"
 FIELD_EXTENSION_EVENT = "evento"
 FIELD_EXTENSION_DAYS = "dias"
@@ -928,6 +929,7 @@ CLAIM_KIND_REQUIRED = "Escolha o tipo: Prazo, Custo ou Prazo e custo."
 CLAIM_CAUSE_REQUIRED = "Escolha a causa do claim."
 CLAIM_CLAUSE_MAX_MESSAGE = f"A cláusula aceita até {CLAIM_CLAUSE_MAX} caracteres."
 CLAIM_DESCRIPTION_ASK = "Informe a descrição do claim"
+CLAIM_RISK_NOT_FOUND = "Risco não encontrado no projeto do contrato."
 CLAIM_EVENT_REQUIRED = "Informe a data do evento."
 CLAIM_NOTIFICATION_REQUIRED = "Informe a data da notificação."
 CLAIM_NOTIFICATION_BEFORE_EVENT = "A notificação não pode ser anterior ao evento."
@@ -976,6 +978,7 @@ class ClaimForm:
     notification_date: date
     claimed_cents: int
     claimed_days: int
+    risk_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -1082,12 +1085,13 @@ def parse_milestone_evidence_form(form: Mapping[str, str | None]) -> date:
 
 
 def parse_claim_form(form: Mapping[str, str | None]) -> ClaimForm:
-    """O claim novo: direção, tipo, causa, datas e o valor/dias que o tipo pede."""
+    """O claim novo: direção, tipo, causa, datas e o valor/dias que o tipo pede; risco opcional."""
     direction = _text(form, FIELD_CLAIM_DIRECTION)
     kind = _text(form, FIELD_CLAIM_KIND)
     cause = _text(form, FIELD_CLAIM_CAUSE)
     clause = _text(form, FIELD_CLAIM_CLAUSE)
     description = _text(form, FIELD_CLAIM_DESCRIPTION)
+    risk_code = _text(form, FIELD_CLAIM_RISK)
     event_date = _date(_text(form, FIELD_CLAIM_EVENT))
     notification_date = _date(_text(form, FIELD_CLAIM_NOTIFICATION))
     claimed = parse_money(_text(form, FIELD_CLAIM_VALUE))
@@ -1123,6 +1127,7 @@ def parse_claim_form(form: Mapping[str, str | None]) -> ClaimForm:
         notification_date=notification_date or date.min,
         claimed_cents=claimed or 0,
         claimed_days=days or 0,
+        risk_code=risk_code,
     )
 
 

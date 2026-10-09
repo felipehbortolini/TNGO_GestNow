@@ -2289,6 +2289,7 @@ class ClaimView:
     change_code: str
     notification_days: int
     notification_late: bool
+    risk_code: str = ""
     version: int = 1
 
 
@@ -2392,6 +2393,7 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
         ],
     )
     claim_codes = {row.id: row.code for row in claims}
+    risk_codes = _risk_codes(session, [row.risk_id for row in claims])
     return ContractView(
         id=contract.id,
         project_id=contract.project_id,
@@ -2424,7 +2426,10 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
         addenda=tuple(_addendum_view(row, change_codes=change_codes) for row in addenda),
         milestone_pct_total=calculations.milestone_pct_total([row.pct for row in milestones]),
         milestones=tuple(_milestone_view(current, contract, row) for row in milestones),
-        claims=tuple(_claim_view(contract, row, change_codes=change_codes) for row in claims),
+        claims=tuple(
+            _claim_view(contract, row, change_codes=change_codes, risk_codes=risk_codes)
+            for row in claims
+        ),
         extensions=tuple(
             _extension_view(row, claim_codes=claim_codes, change_codes=change_codes)
             for row in extensions
@@ -2728,20 +2733,23 @@ def create_claim(
     """Registra um claim Notificado, com o código sequencial do projeto (``CLM-...-0001``).
 
     Direção, tipo e causa vêm das listas do contrato e o valor/dias pleiteados seguem o tipo
-    (Prazo pede dias, Custo pede valor e Prazo e custo pede os dois). O alerta de notificação
-    compara a data da notificação com o prazo do contrato e viaja na visão. A operação é de
-    quem gere o contrato.
+    (Prazo pede dias, Custo pede valor e Prazo e custo pede os dois). O risco de origem, quando
+    informado, é conferido pela fachada da Riscos no projeto do contrato e gravado em
+    ``risco_id`` (ISSUE-067). O alerta de notificação compara a data da notificação com o prazo
+    do contrato e viaja na visão. A operação é de quem gere o contrato.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.MANAGE)
     contract = _contract_in_scope(session, scope=scope, contract_id=contract_id)
     parsed = validation.parse_claim_form(form)
+    risk_id, risk_code = _claim_risk(session, contract=contract, code=parsed.risk_code)
     prefix = _code_prefix(session, contract=contract, kind=CLAIM_CODE_KIND)
     record = recording.create(
         session,
         user_id=user.id,
         record=ContractClaim(
             contract_id=contract.id,
+            risk_id=risk_id,
             code=_next_code(
                 session.scalars(
                     select(ContractClaim.code).where(ContractClaim.code.startswith(prefix))
@@ -2760,7 +2768,25 @@ def create_claim(
             situation=calculations.CLAIM_NOTIFIED,
         ),
     )
-    return _claim_view(contract, record, change_codes={})
+    return _claim_view(
+        contract,
+        record,
+        change_codes={},
+        risk_codes={risk_id: risk_code} if risk_id and risk_code else {},
+    )
+
+
+def _claim_risk(session: Session, *, contract: Contract, code: str) -> tuple[int | None, str]:
+    """O risco do claim: opcional, do projeto do contrato, resolvido pela fachada da Riscos (D9)."""
+    from src.modulos.riscos import service as riscos
+
+    wanted = (code or "").strip()
+    if not wanted:
+        return None, ""
+    risk = riscos.risk_by_code(session, code=wanted)
+    if risk is None or risk.project_id != contract.project_id:
+        raise InvalidDataError({validation.FIELD_CLAIM_RISK: validation.CLAIM_RISK_NOT_FOUND})
+    return risk.id, risk.code
 
 
 def update_claim(
@@ -2809,7 +2835,12 @@ def update_claim(
         changes=changes,
         version=form.get(validation.FIELD_VERSION),
     )
-    return _claim_view(contract, claim, change_codes=_change_codes(session, [claim.change_id]))
+    return _claim_view(
+        contract,
+        claim,
+        change_codes=_change_codes(session, [claim.change_id]),
+        risk_codes=_risk_codes(session, [claim.risk_id]),
+    )
 
 
 def decide_claim(
@@ -3220,7 +3251,11 @@ def _milestone_view(
 
 
 def _claim_view(
-    contract: Contract, row: ContractClaim, *, change_codes: Mapping[int, str]
+    contract: Contract,
+    row: ContractClaim,
+    *,
+    change_codes: Mapping[int, str],
+    risk_codes: Mapping[int, str] | None = None,
 ) -> ClaimView:
     deadline = calculations.claim_notification_deadline(row.event_date, contract.claim_notice_days)
     return ClaimView(
@@ -3243,7 +3278,36 @@ def _claim_view(
         change_code=change_codes.get(row.change_id or 0, ""),
         notification_days=(row.notification_date - row.event_date).days,
         notification_late=calculations.claim_notification_late(row.notification_date, deadline),
+        risk_code=(risk_codes or {}).get(row.risk_id or 0, ""),
         version=row.version,
+    )
+
+
+def _risk_codes(session: Session, risk_ids: Sequence[int | None]) -> dict[int, str]:
+    """O código de cada risco pelo id, pela fachada da Riscos (D9)."""
+    from src.modulos.riscos import service as riscos
+
+    labels = riscos.risk_labels(session, risk_ids=[risk_id for risk_id in risk_ids if risk_id])
+    return {risk_id: label.code for risk_id, label in labels.items()}
+
+
+@dataclass(frozen=True)
+class ClaimOfRisk:
+    """Um claim que aponta o risco, como a ficha do risco o mostra (D9)."""
+
+    code: str
+    description: str
+    situation: str
+
+
+def claims_of_risk(session: Session, *, risk_id: int) -> tuple[ClaimOfRisk, ...]:
+    """Os claims vinculados ao risco, lidos na tabela do próprio Financeiro (D9)."""
+    statement = (
+        select(ContractClaim).where(ContractClaim.risk_id == risk_id).order_by(ContractClaim.code)
+    )
+    return tuple(
+        ClaimOfRisk(code=row.code, description=row.description, situation=row.situation)
+        for row in session.scalars(statement)
     )
 
 
@@ -4753,9 +4817,11 @@ def _register_lesson_origin() -> None:
 
 
 DEFAULT_CONSUMPTION_TOLERANCE_PP = Decimal(10)
+DEFAULT_COVERAGE_MINIMUM_PCT = 100
 SITUATION_EFFECTIVE = "Efetivado"
 RESERVE_ALERT_CONSUMPTION = "consumo"
 RESERVE_ALERT_ANALYSIS = "analise"
+RESERVE_ALERT_COVERAGE = "cobertura"
 
 
 @dataclass(frozen=True)
@@ -4854,6 +4920,20 @@ class ContingencyProjectRow:
 
 
 @dataclass(frozen=True)
+class ContingencyThreatView:
+    """Uma ameaça ativa da cobertura: o VME e as SMs que a citam na análise de impacto."""
+
+    project_id: int
+    code: str
+    title: str
+    severity: str
+    situation: str
+    vme_cents: int
+    change_codes: tuple[str, ...] = ()
+    project_code: str = ""
+
+
+@dataclass(frozen=True)
 class ContingencyOverview:
     """A tela de Contingência do escopo: as reservas, o extrato, o burn, a composição e os alertas."""
 
@@ -4874,6 +4954,10 @@ class ContingencyOverview:
     analysis_count: int
     alerts: tuple[ReserveAlert, ...]
     projects: tuple[ContingencyProjectRow, ...] = ()
+    exposure_cents: int = 0
+    coverage_pct: Decimal | None = None
+    coverage_minimum_pct: int = 100
+    threats: tuple[ContingencyThreatView, ...] = ()
 
     @property
     def is_empty(self) -> bool:
@@ -4897,6 +4981,9 @@ class _ProjectReserves:
     analysis_count: int
     alerts: tuple[ReserveAlert, ...]
     eac_current_cents: int
+    exposure_cents: int = 0
+    coverage_pct: Decimal | None = None
+    threats: tuple[ContingencyThreatView, ...] = ()
 
 
 def reserve_kind_for_source(source: str | None) -> str | None:
@@ -5046,28 +5133,43 @@ def contingency_consumption(session: Session, *, scope: Scope) -> ContingencyCon
 
 
 def contingency_overview(
-    session: Session, *, scope: Scope, reference_date: date
+    session: Session, *, user: User, scope: Scope, reference_date: date
 ) -> ContingencyOverview:
     """A tela de Contingência do escopo: as reservas, o extrato, o burn e a composição (HU-094).
 
     No projeto, as reservas de contingência e gerencial com o saldo, o consumo, a liberação, o
     pedido em SMs abertas e o limite de consumo (avanço físico real mais a tolerância); o burn usa
     os meses da Curva S física congelada. No Portfólio, a soma dos projetos com a tabela por
-    projeto e o burn da união. A cobertura sobre a exposição a riscos fica para a ISSUE-067.
+    projeto e o burn da união. A cobertura é o saldo da contingência sobre a exposição de VME das
+    ameaças ativas do 05, lida pela fachada da Riscos, contra a meta do grupo ``financeiro``.
     """
     projects = configuracoes.list_projects(session)
     tolerance = _consumption_tolerance(session, reference_date=reference_date)
+    coverage_minimum = _coverage_minimum(session, reference_date=reference_date)
     if scope.is_portfolio:
         return _portfolio_contingency(
-            session, projects=projects, reference_date=reference_date, tolerance_pp=tolerance
+            session,
+            user=user,
+            projects=projects,
+            reference_date=reference_date,
+            tolerance_pp=tolerance,
+            coverage_minimum=coverage_minimum,
         )
     project = _project_of(projects, scope)
     part = _project_reserves(
-        session, project=project, reference_date=reference_date, tolerance_pp=tolerance
+        session,
+        user=user,
+        project=project,
+        reference_date=reference_date,
+        tolerance_pp=tolerance,
+        coverage_minimum=coverage_minimum,
     )
     if part is None:
         return _empty_contingency(
-            is_portfolio=False, scope_label=_label(project), tolerance_pp=tolerance
+            is_portfolio=False,
+            scope_label=_label(project),
+            tolerance_pp=tolerance,
+            coverage_minimum=coverage_minimum,
         )
     composition = calculations.reserve_composition(
         part.eac_current_cents,
@@ -5091,6 +5193,10 @@ def contingency_overview(
         expected_balance_cents=part.expected_balance_cents,
         analysis_count=part.analysis_count,
         alerts=part.alerts,
+        exposure_cents=part.exposure_cents,
+        coverage_pct=part.coverage_pct,
+        coverage_minimum_pct=coverage_minimum,
+        threats=part.threats,
     )
 
 
@@ -5190,12 +5296,22 @@ def _consumption_tolerance(session: Session, *, reference_date: date) -> Decimal
     return Decimal(str(raw)) if raw is not None else DEFAULT_CONSUMPTION_TOLERANCE_PP
 
 
+def _coverage_minimum(session: Session, *, reference_date: date) -> int:
+    """A meta da cobertura do grupo ``financeiro`` (``coberturaMinimaPct``), nunca no código."""
+    group = configuracoes.current_group(session, group=MODULE, reference_date=reference_date)
+    contingency = group.get("contingencia")
+    raw = contingency.get("coberturaMinimaPct") if isinstance(contingency, Mapping) else None
+    return int(raw) if raw is not None else DEFAULT_COVERAGE_MINIMUM_PCT
+
+
 def _project_reserves(
     session: Session,
     *,
+    user: User,
     project: configuracoes.ProjectSummary,
     reference_date: date,
     tolerance_pp: Decimal,
+    coverage_minimum: int,
 ) -> _ProjectReserves | None:
     reserves = session.scalars(
         select(Reserve).where(Reserve.project_id == project.id).order_by(Reserve.id)
@@ -5229,6 +5345,12 @@ def _project_reserves(
     burn, expected = _project_burn(
         series=series, contingency=contingency, movements=contingency_movements
     )
+    threats = _threat_views(
+        session, user=user, project_id=project.id, reference_date=reference_date
+    )
+    exposure = sum(threat.vme_cents for threat in threats)
+    balance = contingency.balance_cents if contingency is not None else 0
+    coverage = _coverage_pct(balance, exposure)
     return _ProjectReserves(
         project=project,
         contingency=contingency,
@@ -5244,9 +5366,55 @@ def _project_reserves(
         analysis_count=sum(
             1 for request in requests if _request_kind(request) == calculations.RESERVE_CONTINGENCY
         ),
-        alerts=_reserve_alerts(contingency=contingency, limit=limit),
+        alerts=_reserve_alerts(
+            contingency=contingency,
+            limit=limit,
+            coverage=coverage,
+            coverage_minimum=coverage_minimum,
+        ),
         eac_current_cents=_eac_current_cents(session, project_id=project.id),
+        exposure_cents=exposure,
+        coverage_pct=coverage,
+        threats=threats,
     )
+
+
+def _threat_views(
+    session: Session, *, user: User, project_id: int, reference_date: date
+) -> tuple[ContingencyThreatView, ...]:
+    """As ameaças ativas do projeto pela fachada da Riscos, com as SMs que as citam (D9)."""
+    from src.modulos.governanca import service as governanca
+    from src.modulos.riscos import service as riscos
+
+    threats = riscos.active_threats(
+        session,
+        user=user,
+        scope=Scope(project_id=project_id, source="padrao"),
+        reference_date=reference_date,
+    )
+    mentions = governanca.change_codes_citing_risks(
+        session, project_id=project_id, codes=[threat.code for threat in threats]
+    )
+    return tuple(
+        ContingencyThreatView(
+            project_id=project_id,
+            code=threat.code,
+            title=threat.title,
+            severity=threat.current.severity.name if threat.current is not None else "",
+            situation=threat.situation,
+            vme_cents=threat.vme_cents,
+            change_codes=mentions.get(threat.code, ()),
+        )
+        for threat in threats
+    )
+
+
+def _coverage_pct(balance_cents: int, exposure_cents: int) -> Decimal | None:
+    """A cobertura do saldo sobre a exposição: saldo dividido pela exposição, uma casa (protótipo)."""
+    if not exposure_cents:
+        return None
+    value = Decimal(balance_cents) / Decimal(exposure_cents) * 100
+    return value.quantize(calculations.ONE_PLACE, rounding=ROUND_HALF_UP)
 
 
 def _reserve_line(
@@ -5390,7 +5558,11 @@ def _expected_of(burn: Sequence[calculations.ReserveBurnPoint]) -> int | None:
 
 
 def _reserve_alerts(
-    *, contingency: ReserveLine | None, limit: Decimal | None
+    *,
+    contingency: ReserveLine | None,
+    limit: Decimal | None,
+    coverage: Decimal | None = None,
+    coverage_minimum: int = DEFAULT_COVERAGE_MINIMUM_PCT,
 ) -> tuple[ReserveAlert, ...]:
     if contingency is None:
         return ()
@@ -5403,6 +5575,16 @@ def _reserve_alerts(
                 text=(
                     f"Consumo da contingência ({_decimal_text(pct)}%) acima do avanço físico real "
                     f"mais a tolerância ({_decimal_text(limit)}%)."
+                ),
+            )
+        )
+    if coverage is not None and coverage < coverage_minimum:
+        alerts.append(
+            ReserveAlert(
+                kind=RESERVE_ALERT_COVERAGE,
+                text=(
+                    f"Saldo cobre {_decimal_text(coverage)}% da exposição das ameaças ativas "
+                    f"(meta {coverage_minimum}%)."
                 ),
             )
         )
@@ -5426,16 +5608,23 @@ def _decimal_text(value: Decimal) -> str:
 def _portfolio_contingency(
     session: Session,
     *,
+    user: User,
     projects: Sequence[configuracoes.ProjectSummary],
     reference_date: date,
     tolerance_pp: Decimal,
+    coverage_minimum: int,
 ) -> ContingencyOverview:
     parts = [
         part
         for project in projects
         if (
             part := _project_reserves(
-                session, project=project, reference_date=reference_date, tolerance_pp=tolerance_pp
+                session,
+                user=user,
+                project=project,
+                reference_date=reference_date,
+                tolerance_pp=tolerance_pp,
+                coverage_minimum=coverage_minimum,
             )
         )
         is not None
@@ -5444,7 +5633,10 @@ def _portfolio_contingency(
     management = _sum_lines([part.management for part in parts])
     if contingency is None and management is None:
         return _empty_contingency(
-            is_portfolio=True, scope_label=PORTFOLIO_LABEL, tolerance_pp=tolerance_pp
+            is_portfolio=True,
+            scope_label=PORTFOLIO_LABEL,
+            tolerance_pp=tolerance_pp,
+            coverage_minimum=coverage_minimum,
         )
     burn = calculations.reserve_burn_union(
         [
@@ -5462,6 +5654,7 @@ def _portfolio_contingency(
         contingency.balance_cents if contingency else 0,
         management.balance_cents if management else 0,
     )
+    exposure = sum(part.exposure_cents for part in parts)
     return ContingencyOverview(
         is_portfolio=True,
         scope_label=PORTFOLIO_LABEL,
@@ -5488,6 +5681,14 @@ def _portfolio_contingency(
             for alert in part.alerts
         ),
         projects=tuple(_project_row(part) for part in parts),
+        exposure_cents=exposure,
+        coverage_pct=_coverage_pct(contingency.balance_cents if contingency else 0, exposure),
+        coverage_minimum_pct=coverage_minimum,
+        threats=tuple(
+            replace(threat, project_code=part.project.code)
+            for part in parts
+            for threat in part.threats
+        ),
     )
 
 
@@ -5574,7 +5775,11 @@ def _map_reserves(
 
 
 def _empty_contingency(
-    *, is_portfolio: bool, scope_label: str, tolerance_pp: Decimal
+    *,
+    is_portfolio: bool,
+    scope_label: str,
+    tolerance_pp: Decimal,
+    coverage_minimum: int = DEFAULT_COVERAGE_MINIMUM_PCT,
 ) -> ContingencyOverview:
     return ContingencyOverview(
         is_portfolio=is_portfolio,
@@ -5593,6 +5798,7 @@ def _empty_contingency(
         expected_balance_cents=None,
         analysis_count=0,
         alerts=(),
+        coverage_minimum_pct=coverage_minimum,
     )
 
 

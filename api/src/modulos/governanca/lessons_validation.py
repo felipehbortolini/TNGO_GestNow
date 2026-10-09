@@ -54,6 +54,8 @@ FIELD_HOW = "como"
 FIELD_GENERATE = "gerar"
 FIELD_RESPONSIBLE = "responsavel_id"
 FIELD_PLANNED = "prevista"
+FIELD_CATEGORY = "categoria"
+FIELD_OWNER = "dono_id"
 
 RESULT_VALIDATED = "Validada"
 RESULT_PUBLISHED = "Publicada"
@@ -63,8 +65,10 @@ VALIDATION_RESULTS = (RESULT_VALIDATED, RESULT_PUBLISHED, RESULT_RETURNED)
 GENERATE_NOTHING = "nada"
 GENERATE_ACTION = "acao"
 GENERATE_RISK = "risco"
-GENERATE_OPTIONS = (GENERATE_NOTHING, GENERATE_ACTION)
-RISK_LATER_MESSAGE = "A criação de risco a partir da lição chega com o módulo de Riscos."
+GENERATE_OPTIONS = (GENERATE_NOTHING, GENERATE_ACTION, GENERATE_RISK)
+CHOOSE_GENERATE = "Escolha o que gerar."
+CHOOSE_RISK_CATEGORY = "Escolha a categoria da RBS."
+CHOOSE_RISK_OWNER = "Escolha o dono do risco."
 
 ORIGIN_REF_REQUIRED = "Informe o número do registro de origem (rastreabilidade)."
 DATE_AFTER_REFERENCE = "A data não pode ser posterior a hoje."
@@ -186,6 +190,9 @@ class ApplicationInput:
     generate_action: bool
     responsible_person_id: int | None
     planned_date: date | None
+    generate_risk: bool = False
+    category_id: int | None = None
+    owner_id: int | None = None
 
 
 def validate_application(
@@ -199,11 +206,9 @@ def validate_application(
         messages[FIELD_DATE] = DATE_AFTER_REFERENCE
     how = _text(form, FIELD_HOW, "Como a lição será aplicada", HOW_LIMITS, messages)
     generate = (form.get(FIELD_GENERATE) or GENERATE_NOTHING).strip()
-    responsible, planned = None, None
-    if generate == GENERATE_RISK:
-        messages[FIELD_GENERATE] = RISK_LATER_MESSAGE
-    elif generate not in GENERATE_OPTIONS:
-        messages[FIELD_GENERATE] = "Escolha o que gerar."
+    responsible, planned, category, owner = None, None, None, None
+    if generate not in GENERATE_OPTIONS:
+        messages[FIELD_GENERATE] = CHOOSE_GENERATE
     elif generate == GENERATE_ACTION:
         responsible = _integer(
             form, FIELD_RESPONSIBLE, "Escolha o responsável pela ação.", messages
@@ -213,6 +218,11 @@ def validate_application(
         planned = _date(form, FIELD_PLANNED, "Informe a data prevista.", messages)
         if planned is not None and planned < reference_date:
             messages[FIELD_PLANNED] = PLANNED_BEFORE_REFERENCE
+    elif generate == GENERATE_RISK:
+        category = _integer(form, FIELD_CATEGORY, CHOOSE_RISK_CATEGORY, messages)
+        owner = _integer(form, FIELD_OWNER, CHOOSE_RISK_OWNER, messages)
+        if owner is not None and owner not in person_ids:
+            messages[FIELD_OWNER] = CHOOSE_RISK_OWNER
     if messages or project_id is None or applied_on is None:
         raise InvalidDataError(messages)
     return ApplicationInput(
@@ -222,6 +232,9 @@ def validate_application(
         generate_action=generate == GENERATE_ACTION,
         responsible_person_id=responsible,
         planned_date=planned,
+        generate_risk=generate == GENERATE_RISK,
+        category_id=category,
+        owner_id=owner,
     )
 
 

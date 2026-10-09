@@ -340,6 +340,14 @@ DILIGENCE_ACTION_EXISTS = "Já existe ação aberta na Central para {number}."
 COMMENT_TOO_LONG = f"O comentário comporta no máximo {MAX_ORDER_COMMENT} caracteres."
 PENDING_TOO_LONG = f"As pendências comportam no máximo {MAX_RECEIPT_PENDING} caracteres."
 
+MIN_RISK_TITLE = 10
+RISK_LEVEL_MIN = 1
+RISK_LEVEL_MAX = 5
+RISK_TITLE_SHORT = f"Descreva o risco (mínimo de {MIN_RISK_TITLE} caracteres)."
+RISK_LEVELS_MESSAGE = "Probabilidade e impacto de 1 a 5."
+RISK_OWNER_REQUIRED = "Escolha o dono do risco."
+RISK_COST_INVALID = "Informe o impacto em custo (zero ou mais)."
+
 
 @dataclass(frozen=True)
 class OrderFilters:
@@ -372,6 +380,34 @@ class ReceiptInput:
     damaged: bool
     damage_description: str = ""
     pending: str = ""
+
+
+@dataclass(frozen=True)
+class SuggestedRiskInput:
+    """O que o modal de Registrar risco sugerido envia: a avaliação proposta do risco."""
+
+    title: str
+    owner_id: int | None
+    probability: int | None
+    impact: int | None
+    cost_cents: int | None = None
+    cause: str = ""
+    consequence: str = ""
+
+
+def suggested_risk_problems(data: SuggestedRiskInput) -> dict[str, str]:
+    """Uma mensagem por campo do risco sugerido que não passa (as do protótipo)."""
+    problems: dict[str, str] = {}
+    if len(data.title.strip()) < MIN_RISK_TITLE:
+        problems["titulo"] = RISK_TITLE_SHORT
+    if data.owner_id is None:
+        problems["dono"] = RISK_OWNER_REQUIRED
+    for level in (data.probability, data.impact):
+        if level is None or not RISK_LEVEL_MIN <= level <= RISK_LEVEL_MAX:
+            problems["probabilidade"] = RISK_LEVELS_MESSAGE
+    if data.cost_cents is not None and data.cost_cents < 0:
+        problems["custo"] = RISK_COST_INVALID
+    return problems
 
 
 @dataclass(frozen=True)

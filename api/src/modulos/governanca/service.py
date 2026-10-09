@@ -1737,6 +1737,31 @@ def change_ids_by_code(session: Session, *, codes: Sequence[str]) -> dict[str, i
     return {row.code: row.id for row in session.execute(statement)}
 
 
+def change_codes_citing_risks(
+    session: Session, *, project_id: int, codes: Sequence[str]
+) -> dict[str, tuple[str, ...]]:
+    """Os códigos das SMs do projeto cuja análise de impacto cita cada risco (D9).
+
+    O protótipo ligava a ameaça às SMs que citam o risco no texto da análise ("Riscos novos ou
+    alterados"); a leitura mora aqui, no dono da SM, e a contingência a recebe por esta porta.
+    """
+    wanted = [code.strip() for code in codes if code and code.strip()]
+    if not wanted:
+        return {}
+    statement = (
+        select(ChangeRequest.code, ChangeImpact.risks)
+        .join(ChangeImpact, ChangeImpact.change_id == ChangeRequest.id)
+        .where(ChangeRequest.project_id == project_id)
+        .order_by(ChangeRequest.code)
+    )
+    found: dict[str, list[str]] = {}
+    for code, text in session.execute(statement):
+        for wanted_code in wanted:
+            if wanted_code in (text or ""):
+                found.setdefault(wanted_code, []).append(code)
+    return {code: tuple(items) for code, items in found.items()}
+
+
 # ── The links with the EAP (ISSUE-038) ───────────────────────────────────
 
 

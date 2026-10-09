@@ -197,6 +197,7 @@ class RiskSheet:
     change: RecordLink | None
     closing_change: RecordLink | None
     lesson: RecordLink | None
+    claims: tuple[RecordLink, ...]
 
     @property
     def approval_situation(self) -> str:
@@ -350,6 +351,7 @@ def _sheet_of(ctx: _Ctx, risk: Risk, line: service.RiskLine) -> RiskSheet:
         change=_change_link(ctx, risk.change_id, risk.project_id),
         closing_change=_change_link(ctx, risk.closing_change_id, risk.project_id),
         lesson=_lesson_link(ctx, risk.lesson_id),
+        claims=_claims_link(ctx, risk.id),
     )
 
 
@@ -490,6 +492,16 @@ def _lesson_link(ctx: _Ctx, lesson_id: int | None) -> RecordLink | None:
     for option in lessons_service.lesson_options(ctx.session, lesson_ids=[lesson_id]):
         return RecordLink(option.code, option.title, option.situation)
     return None
+
+
+def _claims_link(ctx: _Ctx, risk_id: int) -> tuple[RecordLink, ...]:
+    """Os claims do contrato que apontam o risco, pela fachada do Financeiro (D9)."""
+    from src.modulos.financeiro import service as financeiro
+
+    return tuple(
+        RecordLink(item.code, item.description, item.situation)
+        for item in financeiro.claims_of_risk(ctx.session, risk_id=risk_id)
+    )
 
 
 # ── Reading: the history ─────────────────────────────────────────────────────────────────────

@@ -103,7 +103,13 @@ CATEGORY_DUPLICATED = "Categoria já cadastrada."
 
 @dataclass(frozen=True)
 class RiskInput:
-    """What the form of Novo risco and edição sends: the identification of the risk."""
+    """What the form of Novo risco and edição sends: the identification of the risk.
+
+    ``origin``, ``schedule_impact_days`` and ``cost_impact_cents`` are filled by the modules
+    that suggest a risk through the facade (the diligence of Suprimentos, the lesson of
+    Governança); the manual form leaves them at their defaults and ``origin`` falls back to
+    the origin type.
+    """
 
     nature: str
     category_id: int | None
@@ -119,6 +125,9 @@ class RiskInput:
     version: int | str | None = None
     project_id: int | None = None
     code: str | None = None
+    origin: str = ""
+    schedule_impact_days: int = 0
+    cost_impact_cents: int = 0
 
 
 @dataclass(frozen=True)

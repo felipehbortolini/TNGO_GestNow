@@ -138,6 +138,7 @@ from src.modulos.suprimentos.validation import (
     RequisitionInput,
     ReturnInput,
     RfxInput,
+    SuggestedRiskInput,
     SupplierFilters,
     SupplierInput,
     TechnicalInput,
@@ -3349,6 +3350,15 @@ class OrderActionLine:
 
 
 @dataclass(frozen=True)
+class OrderRiskLine:
+    """O risco sugerido do pedido, resolvido pela origem no registro do 05 (D9, ISSUE-067)."""
+
+    code: str
+    title: str
+    situation: str
+
+
+@dataclass(frozen=True)
 class OrderLine:
     """One order of the scope: the list, the ficha and the exports read this line."""
 
@@ -3374,6 +3384,7 @@ class OrderLine:
     receipt: ReceiptLine | None
     action: OrderActionLine | None
     history: tuple[OrderHistoryLine, ...]
+    risk: OrderRiskLine | None
     slack_days: int | None
     band: str
     situation: str
@@ -3452,6 +3463,7 @@ class OrderSave:
     order_id: int
     number: str
     action_created: bool = False
+    risk_code: str = ""
 
 
 # ── Reading the orders ───────────────────────────────────────────────────────────────────────
@@ -3472,7 +3484,11 @@ def list_orders(
     return OrderListing(
         lines=shown,
         summary=_order_summary(universe, reference_date=reference_date),
-        pending=tuple(line for line in universe if line.critical and line.action is None),
+        pending=tuple(
+            line
+            for line in universe
+            if line.critical and (line.action is None or line.risk is None)
+        ),
         filters=filters,
         page=page,
     )
@@ -3526,6 +3542,7 @@ def _order_universe(
     receipts = _receipts_by_order(session, [order.id for order in orders])
     history = _order_history_by_order(session, [order.id for order in orders])
     actions = _order_actions(session, user=user, orders=orders, reference_date=reference_date)
+    risks = _order_risks(session, [order.number for order in orders])
     labels = {project.id: project_label(project) for project in projects}
     companies = configuracoes.list_company_names(session)
     buyers = configuracoes.person_names(
@@ -3552,11 +3569,23 @@ def _order_universe(
             receipt=receipts.get(order.id),
             action=actions.get(order.number),
             history=history.get(order.id, ()),
+            risk=risks.get(order.number),
             authors=authors,
             reference_date=reference_date,
         )
         for order in orders
     )
+
+
+def _order_risks(session: Session, numbers: Sequence[str]) -> dict[str, OrderRiskLine]:
+    """Os riscos sugeridos dos pedidos, pela fachada da Riscos (D9, ISSUE-067)."""
+    from src.modulos.riscos import service as riscos
+
+    found = riscos.diligence_risks(session, numbers=[number for number in numbers if number])
+    return {
+        number: OrderRiskLine(code=risk.code, title=risk.title, situation=risk.situation)
+        for number, risk in found.items()
+    }
 
 
 def _order_milestones_by_order(
@@ -3634,6 +3663,7 @@ def _order_line(
     receipt: DeliveryReceipt | None,
     action: OrderActionLine | None,
     history: Sequence[Any],
+    risk: OrderRiskLine | None,
     authors: Mapping[int, str],
     reference_date: date,
 ) -> OrderLine:
@@ -3686,6 +3716,7 @@ def _order_line(
             )
             for line in history
         ),
+        risk=risk,
         slack_days=slack,
         band=band,
         situation=situation,
@@ -4006,6 +4037,94 @@ def open_diligence_action(
     if not created:
         raise InvalidDataError(validation.DILIGENCE_ACTION_EXISTS.format(number=order.number))
     return OrderSave(order_id=order.id, number=order.number, action_created=True)
+
+
+@dataclass(frozen=True)
+class SuggestedRiskDefaults:
+    """O que o modal de Registrar risco sugerido abre preenchido (os textos do protótipo)."""
+
+    title: str
+    probability: int
+    impact: int
+    impact_cost_cents: int
+    owner_id: int | None
+    cause: str
+    consequence: str
+    slack_days: int
+
+
+def suggested_risk_defaults(
+    session: Session, *, scope: Scope, order_id: int
+) -> SuggestedRiskDefaults:
+    """Os valores de partida do risco sugerido: título, P, I, custo, dono (comprador), causa.
+
+    ``slack < -14`` ou o item LLI elevam o impacto de partida para 4, como o protótipo.
+    """
+    order = _order_or_refuse(session, scope=scope, order_id=order_id)
+    package = session.get(PurchasePackage, order.package_id)
+    supplier = configuracoes.list_company_names(session).get(order.company_id, "")
+    slack = calculations.required_on_site_slack(order.ros, order.delivery or order.forecast)
+    slack_days = slack if slack is not None else 0
+    impact = 4 if order.lli or slack_days < -14 else 3
+    return SuggestedRiskDefaults(
+        title=f"Atraso na entrega de {order.description.lower()} compromete a montagem",
+        probability=4,
+        impact=impact,
+        impact_cost_cents=0,
+        owner_id=package.buyer_id if package is not None else None,
+        cause=f"Fabricação atrasada no fornecedor {supplier}.",
+        consequence="Frente de montagem parada aguardando o equipamento; impacto no caminho crítico.",
+        slack_days=slack_days,
+    )
+
+
+def register_suggested_risk(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    order_id: int,
+    data: SuggestedRiskInput,
+    reference_date: date,
+) -> OrderSave:
+    """Registra o risco sugerido do diligenciamento pela fachada da Riscos, na mesma transação (D9).
+
+    A descrição leva a folga e o ROS, o impacto em prazo é a folga negativa; a categoria da RBS,
+    a origem ``Diligenciamento PED-...`` e a avaliação inerente são da fachada da Riscos. Um
+    pedido não ganha dois riscos sugeridos (a fachada recusa a duplicidade).
+    """
+    from src.modulos.riscos import service as riscos
+
+    rbac.require(user, Permission.WRITE)
+    order = _order_or_refuse(session, scope=scope, order_id=order_id)
+    problems = validation.suggested_risk_problems(data)
+    if problems:
+        raise InvalidDataError(problems)
+    slack = calculations.required_on_site_slack(order.ros, order.delivery or order.forecast)
+    slack_days = slack if slack is not None else 0
+    result = riscos.create_suggested_risk(
+        session,
+        user=user,
+        data=riscos.SuggestedRiskInput(
+            project_id=order.project_id,
+            order_number=order.number,
+            title=data.title.strip(),
+            owner_id=data.owner_id or user.person_id,
+            cause=data.cause.strip(),
+            consequence=data.consequence.strip(),
+            description=(
+                f"Folga de {slack_days} dias em relação à data necessária na obra "
+                f"(ROS {_brazilian_date(order.ros)})."
+            ),
+            trigger="",
+            probability=data.probability or 4,
+            impact=data.impact or 3,
+            schedule_impact_days=max(0, -slack_days),
+            cost_impact_cents=data.cost_cents or 0,
+        ),
+        reference_date=reference_date,
+    )
+    return OrderSave(order_id=order.id, number=order.number, risk_code=result.code)
 
 
 def _open_diligence_action_if_critical(
