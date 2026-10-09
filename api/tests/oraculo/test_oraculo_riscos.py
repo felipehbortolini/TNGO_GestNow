@@ -5,6 +5,8 @@ Valores obtidos executando ``severidade`` e ``vme`` do protótipo (``regras.js``
 o projeto 1 (TN-2026-014) tem 7 riscos ativos (os riscos 8 e 9 estão encerrado e
 materializado), 2 na faixa Crítico (3 e 4, esta uma oportunidade), 1 em Alto, 1 com revisão
 vencida e exposição de R$ 3,4 mi, que soma só o VME das ameaças (a oportunidade fica fora).
+O painel (ISSUE-066) reconstrói a evolução mensal do histórico (divergência registrada em
+`DIVERGENCIAS-DO-PROTOTIPO.md`): o mês de referência fecha no 56 do protótipo.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from src.core.rbac import Bond, GeneralProfile, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Project
-from src.modulos.riscos import service
+from src.modulos.riscos import panel_service, service
 from tests.oraculo import OracleContext, register_check
 
 PROJECT_CODE = "TN-2026-014"
@@ -25,6 +27,7 @@ EXPECTED_CRITICAL_RESIDUAL = 2
 EXPECTED_HIGH_RESIDUAL = 1
 EXPECTED_OVERDUE = 1
 EXPECTED_EXPOSURE_CENTS = 340_000_000
+EXPECTED_RESIDUAL_SCORE = 56
 
 
 def _admin(context: OracleContext) -> User:
@@ -61,4 +64,20 @@ def _afirmar_riscos_do_projeto_1(context: OracleContext) -> None:
     assert summary.exposure_cents == EXPECTED_EXPOSURE_CENTS, "exposicao de R$ 3,4 mi (ameacas)"
 
 
+def _afirmar_painel_de_riscos(context: OracleContext) -> None:
+    project_id = context.session.scalars(
+        select(Project.id).where(Project.code == PROJECT_CODE)
+    ).one()
+    panel = panel_service.risk_panel(
+        context.session,
+        user=_admin(context),
+        scope=Scope(project_id=project_id, source="padrao"),
+        reference_date=context.reference_date,
+    )
+    reference = [point for point in panel.evolution if point.current]
+    assert reference, "o mes de referencia esta na evolucao"
+    assert reference[0].score == EXPECTED_RESIDUAL_SCORE, "score residual somado de 56 no corte"
+
+
 register_check("riscos: ativos, criticos e exposicao do projeto 1", _afirmar_riscos_do_projeto_1)
+register_check("riscos: painel reconstroi o score residual do corte", _afirmar_painel_de_riscos)
