@@ -21,6 +21,11 @@ numbers of the order and of the contract follow the prototype's global series
 The expediting and the receipt (ISSUE-061): the situation of a manufacturing milestone against
 the reference date, the slack against the ROS, the contractual delay and the on-time delivery
 (OTD) of a set of orders are pure functions, so the screen, the import and the exports share them.
+
+The map of purchases (ISSUE-062): the twelve milestones in the two halves of the map, the
+estimated baseline of the manufacturing milestones of a package still without an order, the line
+situation and the procurement progress (the weights of the parameters over the applicable
+milestones, weighted by the value of the package) are pure functions too.
 """
 
 from __future__ import annotations
@@ -322,6 +327,7 @@ RFP_PREFIX = "RFP"
 SERVICE_KINDS: tuple[str, ...] = ("Serviço", "EPC")
 
 ONE_TENTH = Decimal("0.1")
+ONE_HUNDREDTH = Decimal("0.01")
 HUNDRED = Decimal(100)
 
 
@@ -549,6 +555,7 @@ MILESTONE_OVERDUE = "vencido"
 MILESTONE_FORECAST_LATE = "previsto-atraso"
 MILESTONE_DUE_SOON = "a-vencer"
 MILESTONE_WITHOUT_DATE = "sem-data"
+MILESTONE_NOT_APPLICABLE = "na"
 
 # How an order reads in the list (``sit`` of the prototype).
 ORDER_DELIVERED = "Entregue"
@@ -572,6 +579,7 @@ def milestone_situation(
     forecast: date | None,
     real: date | None,
     reference_date: date,
+    applicable: bool = True,
 ) -> MilestoneSituation:
     """The situation of a milestone against the reference date, as the prototype reads it.
 
@@ -579,8 +587,11 @@ def milestone_situation(
     situation is ``prazo`` or ``atraso``. Without it the target is the forecast, else the
     baseline: a target before the reference date is ``vencido`` (with the days overdue), a target
     after it is ``previsto-atraso`` when it passes the baseline or ``a-vencer`` otherwise; with no
-    target at all, ``sem-data``.
+    target at all, ``sem-data``. A milestone that does not apply to the package (the manufacturing
+    half of a service/EPC package, ISSUE-062) reads ``na``.
     """
+    if not applicable:
+        return MilestoneSituation(MILESTONE_NOT_APPLICABLE, None, 0)
     if real is not None:
         deviation = (real - baseline).days if baseline is not None else 0
         return MilestoneSituation(
@@ -651,3 +662,169 @@ def on_time_delivery(deliveries: Iterable[tuple[date | None, date | None]]) -> D
     return (Decimal(on_time) / Decimal(len(realized)) * HUNDRED).quantize(
         ONE_TENTH, rounding=ROUND_HALF_UP
     )
+
+
+# ── The map of purchases (ISSUE-062) ─────────────────────────────────────────────────────────
+
+# The two halves of the twelve milestones of the map (``MARCOS_AQ`` and ``MARCOS_FAB`` of the
+# prototype). Each manufacturing milestone keeps its position in the standard schedule
+# (``MANUFACTURING_MILESTONES``): "Matéria-prima" does not enter the map, as in the prototype.
+MAS_ACQUISITION = "aquisicao"
+MAS_FABRICATION = "fabricacao"
+
+MAS_FABRICATION_MILESTONES: tuple[tuple[str, str, int], ...] = (
+    ("documentos", "Documentos aprovados", 0),
+    ("fabricacao", "Fabricação", 2),
+    ("inspecao", "Inspeção / FAT", 3),
+    ("embarque", "Embarque", 4),
+    ("entrega", "Entrega", 5),
+)
+
+MAS_MILESTONES: tuple[tuple[str, str, str], ...] = (
+    *((key, label, MAS_ACQUISITION) for key, label in ACQUISITION_MILESTONES),
+    *((key, label, MAS_FABRICATION) for key, label, _ in MAS_FABRICATION_MILESTONES),
+)
+MAS_PHASE_LABELS: Mapping[str, str] = {
+    MAS_ACQUISITION: "Aquisição",
+    MAS_FABRICATION: "Fabricação e entrega",
+}
+
+# The situations of the line of the map, in the words of the prototype (``sit`` de ``linhaMas``).
+MAS_DELIVERED = "Entregue"
+MAS_CONTRACTED = "Contratado"
+MAS_CRITICAL = "Crítico"
+MAS_WARNING = "Atenção"
+MAS_ON_TIME = "No prazo"
+MAS_LINE_SITUATIONS: tuple[str, ...] = (
+    MAS_CRITICAL,
+    MAS_WARNING,
+    MAS_ON_TIME,
+    MAS_DELIVERED,
+    MAS_CONTRACTED,
+)
+
+
+def estimated_fabrication_date(
+    start: date | None, delivery: date | None, position: int
+) -> date | None:
+    """The estimated date of a manufacturing milestone between the order and the delivery target.
+
+    A package still without an order has no contractual schedule; the map estimates its
+    manufacturing baseline between the planned order and the ROS, on the same shares the emission
+    uses (``MANUFACTURING_MILESTONES``). The prototype interpolated to the planned delivery of the
+    mock (``plano.entrega``), a column the model does not have (DECISION, ISSUE-058); the ROS is
+    the delivery target of the plan (DIVERGENCIAS-DO-PROTOTIPO).
+    """
+    if start is None or delivery is None:
+        return None
+    return _between(start, delivery, MANUFACTURING_MILESTONES[position][1])
+
+
+def mas_line_situation(*, concluded: bool, service: bool, band: str, has_overdue: bool) -> str:
+    """How the line of the map reads: delivered or contracted, critical, warning or on time.
+
+    The prototype's ``sit`` of the line: a package already delivered (equipment) or contracted
+    (service and EPC) closes the cycle; the rest is critical with negative slack, a warning within
+    the alert window or with an overdue milestone, and on time otherwise.
+    """
+    if concluded:
+        return MAS_CONTRACTED if service else MAS_DELIVERED
+    if band == SLACK_CRITICAL:
+        return MAS_CRITICAL
+    if band == SLACK_WARNING or has_overdue:
+        return MAS_WARNING
+    return MAS_ON_TIME
+
+
+@dataclass(frozen=True)
+class MasProgressMilestone:
+    """One milestone of the map for the progress: its parameter weight and its layers."""
+
+    weight: int
+    applicable: bool
+    baseline: date | None
+    real: date | None
+
+
+@dataclass(frozen=True)
+class MasProgress:
+    """The progress of the map: the realized and the planned percentages and their index."""
+
+    realized_pct: Decimal
+    planned_pct: Decimal
+
+    @property
+    def index(self) -> Decimal | None:
+        """Real over planned, two decimals; ``None`` when nothing is planned yet."""
+        if not self.planned_pct:
+            return None
+        return (self.realized_pct / self.planned_pct).quantize(
+            ONE_HUNDREDTH, rounding=ROUND_HALF_UP
+        )
+
+
+# How the index of the advance reads: on the pace of the baseline, near it or below it.
+PROGRESS_ON_PACE = "no-ritmo"
+PROGRESS_NEAR = "proximo"
+PROGRESS_BELOW = "abaixo"
+
+
+def progress_band(index: Decimal | None) -> str | None:
+    """The band of the index: on pace at 1.00 or more, near at 0.95, below under it."""
+    if index is None:
+        return None
+    if index >= 1:
+        return PROGRESS_ON_PACE
+    return PROGRESS_NEAR if index >= Decimal("0.95") else PROGRESS_BELOW
+
+
+def _progress_pct(part: int, whole: int) -> Decimal:
+    """The percentage of the weights, one decimal, half up, as the prototype rounds it."""
+    if whole <= 0:
+        return Decimal(0)
+    return (Decimal(part) / Decimal(whole) * HUNDRED).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+
+
+def package_progress(
+    milestones: Iterable[MasProgressMilestone], *, reference_date: date
+) -> MasProgress:
+    """The progress of one package: the weights of the applicable milestones.
+
+    The realized part is the weight of the milestones already done and the planned part is the
+    weight of the ones whose baseline is up to the reference date; the weight of a milestone that
+    does not apply (the manufacturing half of a service/EPC package) stays out of the total, so
+    the acquisition half is renormalized by itself. One decimal, half up.
+    """
+    applicable = [milestone for milestone in milestones if milestone.applicable]
+    total = sum(milestone.weight for milestone in applicable)
+    done = sum(milestone.weight for milestone in applicable if milestone.real is not None)
+    planned = sum(
+        milestone.weight
+        for milestone in applicable
+        if milestone.baseline is not None and milestone.baseline <= reference_date
+    )
+    return MasProgress(
+        realized_pct=_progress_pct(done, total),
+        planned_pct=_progress_pct(planned, total),
+    )
+
+
+def procurement_progress(packages: Iterable[tuple[MasProgress, int]]) -> MasProgress:
+    """The procurement progress: the progress of each package weighted by its value.
+
+    ``packages`` are ``(progress, value in cents)`` pairs; the value of a package is the
+    adjudicated one (the order or the recommendation), else the estimate (the prototype's
+    ``adjudicado || estimativa``). Both percentages and the index read one and two decimals, half
+    up, as the prototype printed them.
+    """
+    entries = list(packages)
+    total_value = sum(value for _, value in entries)
+    if total_value <= 0:
+        return MasProgress(Decimal(0), Decimal(0))
+    realized = (
+        sum(progress.realized_pct * value for progress, value in entries) / Decimal(total_value)
+    ).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+    planned = (
+        sum(progress.planned_pct * value for progress, value in entries) / Decimal(total_value)
+    ).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+    return MasProgress(realized_pct=realized, planned_pct=planned)

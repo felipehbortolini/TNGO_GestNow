@@ -1161,3 +1161,68 @@ def receipt_problems(
     if len(data.pending.strip()) > MAX_RECEIPT_PENDING:
         problems["pendencias"] = PENDING_TOO_LONG
     return problems
+
+
+# ── O Mapa de Suprimentos (ISSUE-062) ────────────────────────────────────────────────────────
+
+MAS_MODE_DATES = "datas"
+MAS_MODE_DEVIATION = "desvio"
+MAS_MODES: tuple[str, ...] = (MAS_MODE_DATES, MAS_MODE_DEVIATION)
+MAS_PHASE_ALL = "todos"
+MAS_PHASES: tuple[str, ...] = ("aquisicao", "fabricacao")
+MAS_LLI_CHOICES: tuple[str, ...] = ("sim", "nao")
+MAS_ORDERS: tuple[str, ...] = ("codigo", "folga", "valor", "avanco")
+MAS_LINE_SITUATIONS: tuple[str, ...] = (
+    calculations.MAS_CRITICAL,
+    calculations.MAS_WARNING,
+    calculations.MAS_ON_TIME,
+    calculations.MAS_DELIVERED,
+    calculations.MAS_CONTRACTED,
+)
+
+MAS_ORDER_DEFAULT = "codigo"
+
+
+@dataclass(frozen=True)
+class MasFilters:
+    """The filters of the map: what the query string of the screen says.
+
+    ``mode`` is what the cells show (dates or the deviation in days), ``phase`` which half of the
+    milestones the table carries, and ``order`` the sorting of the lines; an invalid value falls
+    back to the default, as everywhere else.
+    """
+
+    search: str = ""
+    mode: str = MAS_MODE_DATES
+    phase: str = MAS_PHASE_ALL
+    discipline_id: int | None = None
+    kind: str = ""
+    lli: str = ""
+    buyer_id: int | None = None
+    supplier_id: int | None = None
+    situation: str = ""
+    overdue_only: bool = False
+    order: str = MAS_ORDER_DEFAULT
+
+
+def parse_mas_filters(params: Mapping[str, str]) -> MasFilters:
+    """Read the filters of the map from the query string; an invalid value is ignored."""
+    mode = (params.get("modo") or "").strip()
+    phase = (params.get("fase") or "").strip()
+    lli = (params.get("lli") or "").strip()
+    situation = (params.get("situacao") or "").strip()
+    kind = (params.get("tipo") or "").strip()
+    order = (params.get("ordem") or "").strip()
+    return MasFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        mode=mode if mode in MAS_MODES else MAS_MODE_DATES,
+        phase=phase if phase in MAS_PHASES else MAS_PHASE_ALL,
+        discipline_id=parse_id(params.get("disciplina")),
+        kind=kind if kind in PACKAGE_TYPES else "",
+        lli=lli if lli in MAS_LLI_CHOICES else "",
+        buyer_id=parse_id(params.get("comprador")),
+        supplier_id=parse_id(params.get("fornecedor")),
+        situation=situation if situation in MAS_LINE_SITUATIONS else "",
+        overdue_only=parse_flag(params.get("vencidos")),
+        order=order if order in MAS_ORDERS else MAS_ORDER_DEFAULT,
+    )

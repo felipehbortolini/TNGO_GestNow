@@ -52,6 +52,14 @@ line. Every path that meets a critical order calls ``_open_diligence_action``, w
 a second action for the same order. The OTD of the orders feeds the performance of the supplier
 (ISSUE-057), read by ``_universe`` from the orders of the scope.
 
+The map of purchases (ISSUE-062): ``list_mas``/``find_mas_package`` read each package with its
+twelve milestones in the two halves of the map: the seven acquisition ones come from the plan
+(ISSUE-058), the five of manufacturing and delivery from the order (ISSUE-061) or estimated by
+the emission shares when the package still has no order; the process (ISSUE-059) gives the number
+and the recommended value. The situation of each milestone, the line situation, the progress
+weighted by the value of the package and its index are calculated on every query, never stored:
+the map is a view of the plan, the processes and the expediting.
+
 Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``find_supplier``,
 ``create_supplier``, ``save_qualification``, ``apply_final_evaluation``, ``list_packages``,
 ``find_package``, ``package_options``, ``create_package``, ``update_package``,
@@ -60,14 +68,15 @@ Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``f
 ``close_receipt``, ``equalize_technically``, ``equalize_commercially``,
 ``register_negotiation``, ``recommend_award``, ``return_recommendation``, ``approve_award``,
 ``emit_order_or_contract``, ``list_orders``, ``find_order``, ``update_order_milestone``,
-``register_receipt``, ``open_diligence_action``, ``order_import_problems`` and
-``apply_order_import_row``.
+``register_receipt``, ``open_diligence_action``, ``order_import_problems``,
+``apply_order_import_row``, ``list_mas`` and ``find_mas_package``.
 """
 
 from __future__ import annotations
 
+import re
 import unicodedata
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -106,6 +115,7 @@ from src.modulos.suprimentos.validation import (
     CommercialInput,
     DocumentInput,
     EmissionInput,
+    MasFilters,
     MilestoneInput,
     NegotiationInput,
     OrderFilters,
@@ -4705,3 +4715,774 @@ def apply_final_evaluation(
 
 
 financeiro.register_final_evaluation_listener(apply_final_evaluation)
+
+
+# ── The map of purchases (ISSUE-062) ─────────────────────────────────────────────────────────
+
+# The parameter of the group that carries the measurement weight of each of the twelve milestones.
+MAS_WEIGHTS_KEY = "pesosMarcos"
+
+# The twelve milestones in order: key, label, half and (for manufacturing) the position in the
+# standard schedule of the order. The acquisition half has no position (``-1``).
+MAS_MILESTONE_DEFINITIONS: tuple[tuple[str, str, str, int], ...] = (
+    *(
+        (key, label, calculations.MAS_ACQUISITION, -1)
+        for key, label in calculations.ACQUISITION_MILESTONES
+    ),
+    *(
+        (key, label, calculations.MAS_FABRICATION, position)
+        for key, label, position in calculations.MAS_FABRICATION_MILESTONES
+    ),
+)
+
+
+@dataclass(frozen=True)
+class MasMilestoneLine:
+    """One of the twelve milestones of the map, already read against the reference date.
+
+    ``baseline`` is the LB (of the plan or of the order's contractual schedule; estimated for a
+    package still without an order), ``forecast`` the reprogramming and ``real`` the realization;
+    ``weight`` is the measurement weight of the parameter and ``applicable`` whether the milestone
+    belongs to the package at all (the manufacturing half of a service/EPC package does not).
+    """
+
+    key: str
+    label: str
+    phase: str
+    baseline: date | None
+    forecast: date | None
+    real: date | None
+    weight: int
+    applicable: bool
+    estimated: bool
+    situation: str
+    deviation_days: int | None
+    days_overdue: int
+
+    @property
+    def done(self) -> bool:
+        """Whether the milestone has a real date."""
+        return self.real is not None
+
+    @property
+    def display_date(self) -> date | None:
+        """The date the cell shows: the real one, else the forecast, else the baseline."""
+        return self.real or self.forecast or self.baseline
+
+
+@dataclass(frozen=True)
+class MasLine:
+    """One package of the map: the record, its twelve milestones and everything calculated."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    scope: str
+    kind: str
+    modality: str
+    discipline_id: int | None
+    discipline: str
+    buyer_id: int
+    buyer: str
+    lli: bool
+    supplier_id: int | None
+    supplier: str
+    eac_code: str
+    eac_description: str
+    estimate_cents: int
+    adjudicated_cents: int | None
+    value_cents: int
+    process_number: str | None
+    order_number: str | None
+    contract_number: str | None
+    ros: date | None
+    delivery_forecast: date | None
+    slack_days: int | None
+    band: str
+    situation: str
+    concluded: bool
+    delivered: bool
+    stage: str
+    milestones: tuple[MasMilestoneLine, ...]
+    progress: calculations.MasProgress
+    overdue_milestones: int
+    late_milestones: int
+
+    def milestone(self, key: str) -> MasMilestoneLine | None:
+        """The milestone named by key, or ``None`` when the map has no such row."""
+        return next((item for item in self.milestones if item.key == key), None)
+
+    @property
+    def service(self) -> bool:
+        """Whether the package generates a contract: service and EPC."""
+        return calculations.is_service(self.kind)
+
+    @property
+    def critical(self) -> bool:
+        """Whether the line reads critical: negative slack and not concluded."""
+        return self.situation == calculations.MAS_CRITICAL
+
+    @property
+    def with_baseline(self) -> bool:
+        """Whether the line has any baseline at all."""
+        return any(item.baseline is not None for item in self.milestones)
+
+    @property
+    def next_milestone(self) -> MasMilestoneLine | None:
+        """The first applicable milestone without a real date, or ``None`` when all are done."""
+        return next(
+            (item for item in self.milestones if item.applicable and not item.done),
+            None,
+        )
+
+    @property
+    def current_stage(self) -> str:
+        """Where the package reads: the situation when concluded, else the next milestone."""
+        if self.concluded:
+            return self.situation
+        next_milestone = self.next_milestone
+        return next_milestone.label if next_milestone is not None else self.stage
+
+    @property
+    def realized_pct(self) -> Decimal:
+        """The realized progress of the package."""
+        return self.progress.realized_pct
+
+    @property
+    def planned_pct(self) -> Decimal:
+        """The planned progress of the package."""
+        return self.progress.planned_pct
+
+
+@dataclass(frozen=True)
+class MasMilestoneColumn:
+    """One column of the map: the milestone, its half and its measurement weight."""
+
+    key: str
+    label: str
+    phase: str
+    weight: int
+
+
+@dataclass(frozen=True)
+class MasMilestoneTotal:
+    """The footer of a milestone column: realizados over previstos on the baseline."""
+
+    key: str
+    realized: int
+    planned: int
+
+
+@dataclass(frozen=True)
+class MasSummary:
+    """The KPIs of the map, counted on the whole universe (the filters cut the table)."""
+
+    items: int
+    with_baseline: int
+    concluded: int
+    on_time: int
+    warning: int
+    critical: int
+    overdue_milestones: int
+    late_milestones: int
+    realized_milestones: int
+    progress: calculations.MasProgress
+
+    @property
+    def realized_pct(self) -> Decimal:
+        """The procurement progress realized, weighted by the value of the packages."""
+        return self.progress.realized_pct
+
+    @property
+    def planned_pct(self) -> Decimal:
+        """The procurement progress planned on the baseline."""
+        return self.progress.planned_pct
+
+    @property
+    def index(self) -> Decimal | None:
+        """Real over planned; ``None`` when nothing is planned yet."""
+        return self.progress.index
+
+    @property
+    def late_share(self) -> Decimal | None:
+        """The percentage of the realized milestones done after the baseline.
+
+        One decimal, half up, as the prototype printed it (``marcosComAtraso / realizados * 100``);
+        without any realization there is no share.
+        """
+        if not self.realized_milestones:
+            return None
+        value = (
+            Decimal(self.late_milestones) / Decimal(self.realized_milestones) * calculations.HUNDRED
+        )
+        return value.quantize(calculations.ONE_TENTH, rounding=ROUND_HALF_UP)
+
+
+@dataclass(frozen=True)
+class MasListing:
+    """What the map shows for a filter: the lines, the KPIs, the columns and the filter choices."""
+
+    lines: tuple[MasLine, ...]
+    summary: MasSummary
+    columns: tuple[MasMilestoneColumn, ...]
+    totals: tuple[MasMilestoneTotal, ...]
+    filters: MasFilters
+    buyers: tuple[configuracoes.RegisterOption, ...]
+    suppliers: tuple[configuracoes.RegisterOption, ...]
+    disciplines: tuple[configuracoes.RegisterOption, ...]
+    reference_date: date
+
+    @property
+    def total(self) -> int:
+        """How many packages the filter holds."""
+        return len(self.lines)
+
+
+# ── Reading the map ──────────────────────────────────────────────────────────────────────────
+
+
+def list_mas(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: MasFilters,
+    reference_date: date,
+) -> MasListing:
+    """The map for the filters: the lines, the KPIs of the whole universe and the columns."""
+    universe = _mas_universe(session, user=user, scope=scope, reference_date=reference_date)
+    shown = _mas_sorted(
+        (line for line in universe if _matches_mas(line, filters)), order=filters.order
+    )
+    weights = _milestone_weights(session, reference_date=reference_date)
+    columns = _mas_columns(filters.phase, weights=weights)
+    return MasListing(
+        lines=shown,
+        summary=_mas_summary(universe),
+        columns=columns,
+        totals=_mas_totals(shown, columns=columns, reference_date=reference_date),
+        filters=filters,
+        buyers=_distinct_options((line.buyer_id, line.buyer) for line in universe),
+        suppliers=_distinct_options(
+            (line.supplier_id, line.supplier) for line in universe if line.supplier_id is not None
+        ),
+        disciplines=tuple(
+            configuracoes.RegisterOption(id=discipline_id, name=name)
+            for discipline_id, name in sorted(
+                configuracoes.discipline_names_by_id(session).items(),
+                key=lambda item: item[1],
+            )
+        ),
+        reference_date=reference_date,
+    )
+
+
+def find_mas_package(
+    session: Session, *, user: User, scope: Scope, package_id: int, reference_date: date
+) -> MasLine | None:
+    """The line of one package, or ``None`` when it is not in the scope."""
+    for line in _mas_universe(session, user=user, scope=scope, reference_date=reference_date):
+        if line.id == package_id:
+            return line
+    return None
+
+
+def _mas_universe(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> tuple[MasLine, ...]:
+    """Every package of the scope with its twelve milestones, order, process and contract."""
+    packages = _package_universe(session, user=user, scope=scope, reference_date=reference_date)
+    if not packages:
+        return ()
+    orders = _orders_by_package(session, [line.id for line in packages])
+    milestones = _order_milestones_by_order(session, [order.id for order in orders.values()])
+    processes = _processes_by_package(session, [line.id for line in packages])
+    companies = configuracoes.list_company_names(session)
+    contracts = {
+        line.id: financeiro.contract_number_by_package(session, package_id=line.id)
+        for line in packages
+    }
+    weights = _milestone_weights(session, reference_date=reference_date)
+    built: list[MasLine] = []
+    for line in packages:
+        order = orders.get(line.id)
+        built.append(
+            _mas_line(
+                line,
+                order=order,
+                order_milestones=milestones.get(order.id, ()) if order is not None else (),
+                process=processes.get(line.id),
+                contract_number=contracts.get(line.id),
+                companies=companies,
+                weights=weights,
+                reference_date=reference_date,
+            )
+        )
+    return tuple(built)
+
+
+def _orders_by_package(session: Session, package_ids: Collection[int]) -> dict[int, PurchaseOrder]:
+    """The order of each package, by package; the lowest id wins when there is more than one."""
+    if not package_ids:
+        return {}
+    statement = (
+        select(PurchaseOrder)
+        .where(PurchaseOrder.package_id.in_(package_ids))
+        .order_by(PurchaseOrder.id)
+    )
+    orders: dict[int, PurchaseOrder] = {}
+    for order in session.scalars(statement):
+        orders.setdefault(order.package_id, order)
+    return orders
+
+
+def _milestone_weights(session: Session, *, reference_date: date) -> Mapping[str, int]:
+    """The measurement weight of each milestone, from the group ``suprimentos`` in force.
+
+    The parameters arrive with the group (``pesosMarcos``, sum 100); without a version in force
+    the initial values of the platform apply. A value that is not a whole number is ignored, as
+    the facade ignores the malformed bands of the approval.
+    """
+    values = configuracoes.current_group(
+        session, group=PROCESS_GROUP, reference_date=reference_date
+    )
+    initial = configuracoes.INITIAL_PARAMETERS[PROCESS_GROUP][MAS_WEIGHTS_KEY]
+    raw = values.get(MAS_WEIGHTS_KEY, initial)
+    weights: dict[str, int] = {}
+    for key, value in (raw or {}).items():
+        if isinstance(value, bool) or not isinstance(value, int):
+            continue
+        weights[key] = value
+    return weights or {key: int(value) for key, value in initial.items()}
+
+
+def _mas_line(
+    line: PackageLine,
+    *,
+    order: PurchaseOrder | None,
+    order_milestones: Sequence[PurchaseOrderMilestone],
+    process: PurchaseProcess | None,
+    contract_number: str | None,
+    companies: Mapping[int, str],
+    weights: Mapping[str, int],
+    reference_date: date,
+) -> MasLine:
+    """The line of one package: the twelve milestones and everything calculated from them."""
+    service = calculations.is_service(line.kind)
+    milestones = tuple(
+        _mas_milestone(
+            line,
+            key=key,
+            label=label,
+            phase=phase,
+            position=position,
+            service=service,
+            order=order,
+            order_milestones=order_milestones,
+            weight=weights.get(key, 0),
+            reference_date=reference_date,
+        )
+        for key, label, phase, position in MAS_MILESTONE_DEFINITIONS
+    )
+    order_value = order.value_cents if order is not None else None
+    recommendation_value = process.recommendation_value_cents if process is not None else None
+    adjudicated = order_value if order_value is not None else recommendation_value
+    supplier_id = _mas_supplier_id(order=order, process=process)
+    delivery_forecast = _mas_delivery_forecast(line, milestones, service=service, order=order)
+    slack = calculations.required_on_site_slack(line.ros, delivery_forecast)
+    band = calculations.slack_band(slack)
+    concluded = _mas_concluded(line, service=service, order=order)
+    overdue = sum(1 for item in milestones if item.situation == calculations.MILESTONE_OVERDUE)
+    return MasLine(
+        id=line.id,
+        project_id=line.project_id,
+        project_label=line.project_label,
+        code=line.code,
+        scope=line.scope,
+        kind=line.kind,
+        modality=line.modality,
+        discipline_id=line.discipline_id,
+        discipline=line.discipline,
+        buyer_id=line.buyer_id,
+        buyer=line.buyer,
+        lli=line.lli,
+        supplier_id=supplier_id,
+        supplier=companies.get(supplier_id, "") if supplier_id is not None else "",
+        eac_code=line.eac_code,
+        eac_description=line.eac_description,
+        estimate_cents=line.estimate_cents,
+        adjudicated_cents=adjudicated,
+        value_cents=adjudicated if adjudicated is not None else line.estimate_cents,
+        process_number=process.number if process is not None else None,
+        order_number=order.number if order is not None else None,
+        contract_number=contract_number,
+        ros=line.ros,
+        delivery_forecast=delivery_forecast,
+        slack_days=slack,
+        band=band,
+        situation=calculations.mas_line_situation(
+            concluded=concluded, service=service, band=band, has_overdue=overdue > 0
+        ),
+        concluded=concluded,
+        delivered=order is not None and order.delivery is not None,
+        stage=line.stage,
+        milestones=milestones,
+        progress=calculations.package_progress(
+            (
+                calculations.MasProgressMilestone(
+                    weight=item.weight,
+                    applicable=item.applicable,
+                    baseline=item.baseline,
+                    real=item.real,
+                )
+                for item in milestones
+            ),
+            reference_date=reference_date,
+        ),
+        overdue_milestones=overdue,
+        late_milestones=sum(
+            1 for item in milestones if item.situation == calculations.MILESTONE_LATE
+        ),
+    )
+
+
+def _mas_milestone(
+    line: PackageLine,
+    *,
+    key: str,
+    label: str,
+    phase: str,
+    position: int,
+    service: bool,
+    order: PurchaseOrder | None,
+    order_milestones: Sequence[PurchaseOrderMilestone],
+    weight: int,
+    reference_date: date,
+) -> MasMilestoneLine:
+    """One milestone of the map: the acquisition from the plan, the manufacturing from the order."""
+    if phase == calculations.MAS_ACQUISITION:
+        return _acquisition_milestone(
+            line, key=key, label=label, weight=weight, reference_date=reference_date
+        )
+    if service:
+        return _not_applicable_milestone(
+            key=key, label=label, weight=weight, reference_date=reference_date
+        )
+    if order is not None:
+        return _order_milestone(
+            order_milestones,
+            key=key,
+            label=label,
+            position=position,
+            weight=weight,
+            reference_date=reference_date,
+        )
+    return _estimated_milestone(
+        line, key=key, label=label, position=position, weight=weight, reference_date=reference_date
+    )
+
+
+def _acquisition_milestone(
+    line: PackageLine, *, key: str, label: str, weight: int, reference_date: date
+) -> MasMilestoneLine:
+    milestone = line.milestone(key)
+    baseline = milestone.plan if milestone is not None else None
+    real = milestone.real if milestone is not None else None
+    forecast = None if real is not None else (milestone.forecast if milestone is not None else None)
+    read = calculations.milestone_situation(
+        baseline=baseline, forecast=forecast, real=real, reference_date=reference_date
+    )
+    return _mas_milestone_line(
+        key=key,
+        label=label,
+        phase=calculations.MAS_ACQUISITION,
+        baseline=baseline,
+        forecast=forecast,
+        real=real,
+        weight=weight,
+        applicable=True,
+        estimated=False,
+        read=read,
+    )
+
+
+def _not_applicable_milestone(
+    *, key: str, label: str, weight: int, reference_date: date
+) -> MasMilestoneLine:
+    """A manufacturing milestone of a service/EPC package: the contract has no fabrication."""
+    read = calculations.milestone_situation(
+        baseline=None, forecast=None, real=None, reference_date=reference_date, applicable=False
+    )
+    return _mas_milestone_line(
+        key=key,
+        label=label,
+        phase=calculations.MAS_FABRICATION,
+        baseline=None,
+        forecast=None,
+        real=None,
+        weight=weight,
+        applicable=False,
+        estimated=False,
+        read=read,
+    )
+
+
+def _order_milestone(
+    order_milestones: Sequence[PurchaseOrderMilestone],
+    *,
+    key: str,
+    label: str,
+    position: int,
+    weight: int,
+    reference_date: date,
+) -> MasMilestoneLine:
+    """The manufacturing milestone of a package with an order: the row of the contractual schedule."""
+    row = next((item for item in order_milestones if item.position == position + 1), None)
+    baseline = row.baseline_date if row is not None else None
+    real = row.real_date if row is not None else None
+    forecast = None if real is not None else (row.forecast_date if row is not None else None)
+    read = calculations.milestone_situation(
+        baseline=baseline, forecast=forecast, real=real, reference_date=reference_date
+    )
+    return _mas_milestone_line(
+        key=key,
+        label=label,
+        phase=calculations.MAS_FABRICATION,
+        baseline=baseline,
+        forecast=forecast,
+        real=real,
+        weight=weight,
+        applicable=True,
+        estimated=False,
+        read=read,
+    )
+
+
+def _estimated_milestone(
+    line: PackageLine,
+    *,
+    key: str,
+    label: str,
+    position: int,
+    weight: int,
+    reference_date: date,
+) -> MasMilestoneLine:
+    """The manufacturing milestone of a package still without an order: estimated on the shares.
+
+    The baseline interpolates between the planned order and the ROS and the forecast between the
+    forecast order (or the planned one) and the ROS; the milestone reads as estimated so the
+    screen and the exports carry the "LB estimada" warning.
+    """
+    pedido = line.milestone(calculations.ORDER_MILESTONE)
+    start = pedido.plan if pedido is not None else None
+    forecast_start = pedido.forecast if pedido is not None and pedido.forecast else start
+    baseline = calculations.estimated_fabrication_date(start, line.ros, position)
+    forecast = calculations.estimated_fabrication_date(forecast_start, line.ros, position)
+    read = calculations.milestone_situation(
+        baseline=baseline, forecast=forecast, real=None, reference_date=reference_date
+    )
+    return _mas_milestone_line(
+        key=key,
+        label=label,
+        phase=calculations.MAS_FABRICATION,
+        baseline=baseline,
+        forecast=forecast,
+        real=None,
+        weight=weight,
+        applicable=True,
+        estimated=baseline is not None,
+        read=read,
+    )
+
+
+def _mas_milestone_line(
+    *,
+    key: str,
+    label: str,
+    phase: str,
+    baseline: date | None,
+    forecast: date | None,
+    real: date | None,
+    weight: int,
+    applicable: bool,
+    estimated: bool,
+    read: calculations.MilestoneSituation,
+) -> MasMilestoneLine:
+    return MasMilestoneLine(
+        key=key,
+        label=label,
+        phase=phase,
+        baseline=baseline,
+        forecast=forecast,
+        real=real,
+        weight=weight,
+        applicable=applicable,
+        estimated=estimated,
+        situation=read.situation,
+        deviation_days=read.deviation_days,
+        days_overdue=read.days_overdue,
+    )
+
+
+def _mas_supplier_id(*, order: PurchaseOrder | None, process: PurchaseProcess | None) -> int | None:
+    """The supplier of the package: the order it was emitted to, or the recommended one."""
+    if order is not None:
+        return order.company_id
+    if process is not None:
+        return process.recommendation_company_id
+    return None
+
+
+def _mas_delivery_forecast(
+    line: PackageLine,
+    milestones: Sequence[MasMilestoneLine],
+    *,
+    service: bool,
+    order: PurchaseOrder | None,
+) -> date | None:
+    """The delivery forecast of the line: the contract, the order or the estimated delivery.
+
+    A service/EPC package has no fabrication: its date is the real, forecast or planned
+    order/contract milestone. An equipment/material package with an order reads its delivery or
+    forecast; without one, the forecast of the estimated delivery milestone.
+    """
+    pedido = line.milestone(calculations.ORDER_MILESTONE)
+    if service:
+        if pedido is None:
+            return None
+        return pedido.real or pedido.forecast or pedido.plan
+    if order is not None:
+        return order.delivery or order.forecast
+    entrega = next((item for item in milestones if item.key == "entrega"), None)
+    if entrega is None:
+        return None
+    return entrega.forecast or entrega.baseline
+
+
+def _mas_concluded(line: PackageLine, *, service: bool, order: PurchaseOrder | None) -> bool:
+    """Whether the package closed the cycle: delivered (equipment) or contracted (service)."""
+    if service:
+        pedido = line.milestone(calculations.ORDER_MILESTONE)
+        return pedido is not None and pedido.real is not None
+    return order is not None and order.delivery is not None
+
+
+def _matches_mas(line: MasLine, filters: MasFilters) -> bool:
+    conditions = [
+        filters.discipline_id is None or line.discipline_id == filters.discipline_id,
+        not filters.kind or line.kind == filters.kind,
+        filters.lli != "sim" or line.lli,
+        filters.lli != "nao" or not line.lli,
+        filters.buyer_id is None or line.buyer_id == filters.buyer_id,
+        filters.supplier_id is None or line.supplier_id == filters.supplier_id,
+        not filters.situation or line.situation == filters.situation,
+        not filters.overdue_only or line.overdue_milestones > 0,
+    ]
+    if not all(conditions):
+        return False
+    if not filters.search:
+        return True
+    searched = " ".join(
+        (
+            line.code,
+            line.project_label,
+            line.scope,
+            line.supplier,
+            line.order_number or "",
+            line.contract_number or "",
+            line.process_number or "",
+            line.eac_code,
+        )
+    )
+    return _normalize(filters.search) in _normalize(searched)
+
+
+def _mas_sorted(lines: Iterable[MasLine], *, order: str) -> tuple[MasLine, ...]:
+    """The lines in the order the filter chose: code, slack, value or progress."""
+    if order == "folga":
+        return tuple(
+            sorted(
+                lines,
+                key=lambda line: (
+                    line.concluded,
+                    line.slack_days if line.slack_days is not None else 9999,
+                ),
+            )
+        )
+    if order == "valor":
+        return tuple(sorted(lines, key=lambda line: -line.value_cents))
+    if order == "avanco":
+        return tuple(sorted(lines, key=lambda line: line.realized_pct))
+    return tuple(sorted(lines, key=lambda line: _natural_key(line.code)))
+
+
+def _natural_key(text: str) -> tuple[tuple[int, str], ...]:
+    """The code split between text and digits, so ``PC-2`` comes before ``PC-14``."""
+    parts = re.split(r"(\d+)", text)
+    return tuple((1, part.zfill(12)) if part.isdigit() else (0, part) for part in parts if part)
+
+
+def _mas_summary(universe: Sequence[MasLine]) -> MasSummary:
+    return MasSummary(
+        items=len(universe),
+        with_baseline=sum(1 for line in universe if line.with_baseline),
+        concluded=sum(1 for line in universe if line.concluded),
+        on_time=sum(1 for line in universe if line.situation == calculations.MAS_ON_TIME),
+        warning=sum(1 for line in universe if line.situation == calculations.MAS_WARNING),
+        critical=sum(1 for line in universe if line.situation == calculations.MAS_CRITICAL),
+        overdue_milestones=sum(line.overdue_milestones for line in universe),
+        late_milestones=sum(line.late_milestones for line in universe),
+        realized_milestones=sum(1 for line in universe for item in line.milestones if item.done),
+        progress=calculations.procurement_progress(
+            (line.progress, line.value_cents) for line in universe
+        ),
+    )
+
+
+def _mas_columns(phase: str, *, weights: Mapping[str, int]) -> tuple[MasMilestoneColumn, ...]:
+    """The visible columns of the table: the whole map or one of its two halves."""
+    return tuple(
+        MasMilestoneColumn(key=key, label=label, phase=item_phase, weight=weights.get(key, 0))
+        for key, label, item_phase in calculations.MAS_MILESTONES
+        if phase == validation.MAS_PHASE_ALL or item_phase == phase
+    )
+
+
+def _mas_totals(
+    lines: Sequence[MasLine],
+    *,
+    columns: Sequence[MasMilestoneColumn],
+    reference_date: date,
+) -> tuple[MasMilestoneTotal, ...]:
+    """The footer of the map: realizados over previstos on the baseline, per visible milestone."""
+    totals: list[MasMilestoneTotal] = []
+    for column in columns:
+        milestones = [line.milestone(column.key) for line in lines]
+        applicable = [item for item in milestones if item is not None and item.applicable]
+        totals.append(
+            MasMilestoneTotal(
+                key=column.key,
+                realized=sum(1 for item in applicable if item.done),
+                planned=sum(
+                    1
+                    for item in applicable
+                    if item.baseline is not None and item.baseline <= reference_date
+                ),
+            )
+        )
+    return tuple(totals)
+
+
+def _distinct_options(
+    pairs: Iterable[tuple[int, str]],
+) -> tuple[configuracoes.RegisterOption, ...]:
+    """The choices of a filter: the distinct non-empty pairs, by name."""
+    names: dict[int, str] = {}
+    for item_id, name in pairs:
+        if name and item_id not in names:
+            names[item_id] = name
+    return tuple(
+        configuracoes.RegisterOption(id=item_id, name=name)
+        for item_id, name in sorted(names.items(), key=lambda item: item[1])
+    )
