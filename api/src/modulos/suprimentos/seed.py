@@ -20,6 +20,12 @@ negotiations; the free names outside the register stay in ``nome`` (the prototyp
 them). The history of each process goes to the audit trail, the entity the facade reads the feed
 from. The recommendation and the approval of the mock ride in the columns ISSUE-060 fills. The
 PDF of a proposal is not loaded: the demonstration has no files (DIVERGENCIAS, anexo).
+
+The 14 orders of the mock (``pedidos``, from the suprimentos and the portfolio mocks) enter with
+their six manufacturing milestones, tied to the real package and company; the ``recebimento`` of
+the mock is not loaded (the table is ISSUE-061) and neither are new diligence actions: the ones
+the mock carries already come in the ``central_acoes`` part. The orders continue the numbering
+series on emission (ISSUE-060).
 """
 
 from __future__ import annotations
@@ -44,6 +50,8 @@ from src.modulos.suprimentos.models import (
     ProcessInvitee,
     ProcessNegotiation,
     ProcessProposal,
+    PurchaseOrder,
+    PurchaseOrderMilestone,
     PurchasePackage,
     PurchaseProcess,
     Supplier,
@@ -55,6 +63,7 @@ from src.modulos.suprimentos.models import (
 PART_NAME = "suprimentos-fornecedores"
 PACKAGES_PART_NAME = "suprimentos-pacotes"
 PROCESSES_PART_NAME = "suprimentos-processos"
+ORDERS_PART_NAME = "suprimentos-pedidos"
 
 
 @dataclass(frozen=True)
@@ -486,3 +495,119 @@ def _record_process(session: Session, lookups: _ProcessLookups, source: Mapping[
 
 
 register(PROCESSES_PART_NAME, load_processes)
+
+
+# ── The purchase orders (ISSUE-060) ──────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _OrderLookups:
+    """What the order load needs to turn ids of the prototype into ids of the database."""
+
+    user: User
+    reference_date: date
+    packages: Mapping[int, int]
+    project_of_package: Mapping[int, int]
+    companies: Mapping[int, int]
+
+    def shifted(self, value: str | None) -> date | None:
+        """A date of the prototype moved to the reference date of the run."""
+        return shift_date(date.fromisoformat(value), self.reference_date) if value else None
+
+    def required(self, value: str | None) -> date:
+        """A date the mock always carries; without it the load fails loud."""
+        shifted = self.shifted(value)
+        if shifted is None:
+            message = "Data obrigatória ausente no mock dos pedidos."
+            raise LookupError(message)
+        return shifted
+
+
+def load_orders(session: Session, reference_date: date) -> None:
+    """Write the orders of the prototype with their six manufacturing milestones."""
+    lookups = _order_lookups(session, reference_date)
+    for source in prototype_collection("pedidos"):
+        _record_order(session, lookups, source)
+
+
+def _order_lookups(session: Session, reference_date: date) -> _OrderLookups:
+    access = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if access is None:
+        message = f"O Admin da demonstração ({ADMIN_EMAIL}) não está no cadastro."
+        raise LookupError(message)
+    user = User(
+        id=access.id,
+        person_id=access.person_id,
+        name=access.name,
+        email=access.email,
+        general_profile=GeneralProfile(access.general_profile),
+        bond=Bond(access.bond),
+        company_id=access.company_id,
+    )
+    real_projects = {project.code: project.id for project in configuracoes.list_projects(session)}
+    projects = {
+        source["id"]: real_projects[source["codigo"]] for source in prototype_collection("projetos")
+    }
+    real_packages = {
+        (project_id, code): package_id
+        for project_id, code, package_id in session.execute(
+            select(PurchasePackage.project_id, PurchasePackage.code, PurchasePackage.id)
+        )
+    }
+    real_companies = {
+        company.name: company.id for company in configuracoes.list_company_summaries(session)
+    }
+    return _OrderLookups(
+        user=user,
+        reference_date=reference_date,
+        packages={
+            source["id"]: real_packages[(projects[source["projetoId"]], source["codigo"])]
+            for source in prototype_collection("pacotes")
+        },
+        project_of_package={
+            source["id"]: projects[source["projetoId"]]
+            for source in prototype_collection("pacotes")
+        },
+        companies={
+            company["id"]: real_companies[company["nome"]]
+            for company in prototype_collection("empresas")
+        },
+    )
+
+
+def _record_order(session: Session, lookups: _OrderLookups, source: Mapping[str, Any]) -> None:
+    package_id = lookups.packages[source["pacoteId"]]
+    order = recording.create(
+        session,
+        user_id=lookups.user.id,
+        record=PurchaseOrder(
+            project_id=lookups.project_of_package[source["pacoteId"]],
+            package_id=package_id,
+            company_id=lookups.companies[source["fornecedorId"]],
+            number=source["numero"],
+            description=source["descricao"],
+            value_cents=int(source["valorCentavos"]),
+            lli=bool(source["lli"]),
+            emission=lookups.required(source["emissao"]),
+            contractual_date=lookups.required(source["dataContratual"]),
+            forecast=lookups.required(source["previsao"]),
+            ros=lookups.required(source["ros"]),
+            delivery=lookups.shifted(source.get("entrega")),
+        ),
+    )
+    for position, milestone in enumerate(source["marcos"], start=1):
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=PurchaseOrderMilestone(
+                order_id=order.id,
+                position=position,
+                name=milestone["nome"],
+                baseline_date=lookups.required(milestone["lb"]),
+                forecast_date=lookups.required(milestone["previsao"]),
+                real_date=lookups.shifted(milestone.get("realizada")),
+            ),
+        )
+
+
+register(ORDERS_PART_NAME, load_orders)
