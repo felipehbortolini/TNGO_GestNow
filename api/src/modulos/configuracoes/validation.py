@@ -156,6 +156,14 @@ def minimum_proposals_error(values: Mapping[str, Any]) -> str | None:
     return None
 
 
+def supply_targets_error(values: Mapping[str, Any]) -> str | None:
+    """Metas do painel de compras (aderência e OTD) ficam entre 0 e 100%."""
+    for key in ("metaAderenciaPct", "metaOtdPct"):
+        if not 0 <= _number(values.get(key)) <= 100:
+            return "As metas de aderência e de OTD de suprimentos devem ficar entre 0 e 100%."
+    return None
+
+
 # ── 05 Riscos ────────────────────────────────────────────────────────────
 
 
@@ -444,6 +452,7 @@ _RULES: dict[str, tuple[tuple[str, Callable[[Mapping[str, Any]], str | None]], .
         ("suprimentos.pesosMarcos", mas_weight_total_error),
         ("suprimentos.alcadas", supply_authority_limits_error),
         ("suprimentos.propostasMinimas", minimum_proposals_error),
+        ("suprimentos.metas", supply_targets_error),
     ),
     "mudancas": (
         ("mudancas.alcadaGerentePctOrcamento", change_manager_authority_error),

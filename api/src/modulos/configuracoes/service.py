@@ -118,6 +118,8 @@ INITIAL_PARAMETERS: dict[str, dict[str, Any]] = {
     "suprimentos": {
         "propostasMinimas": 3,
         "folgaAlertaDias": 7,
+        "metaAderenciaPct": 90,
+        "metaOtdPct": 90,
         "alcadas": [
             {"ate": 50000000, "papel": "Gerente de suprimentos"},
             {"ate": 500000000, "papel": "Gerente do projeto"},

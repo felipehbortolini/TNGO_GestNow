@@ -2030,7 +2030,7 @@ fachada, não por coluna.
 
 | Tabela | O que guarda | Dono |
 |---|---|---|
-| `pacote_compra` | Pacote do plano de compras (escopo, tipo, disciplina, modalidade, LLI, item de nível 3 da EAC, estimativa, comprador, ROS, emergencial e gate LLI). Etapa, folga planejada, adjudicado, fornecedor, primeira proposta, propostas válidas e fornecedor único são calculados. UK: projeto + código. | suprimentos |
+| `pacote_compra` | Pacote do plano de compras (escopo, tipo, disciplina, modalidade, LLI, item de nível 3 da EAC, estimativa, comprador, ROS, emergencial e gate LLI) e o resultado comercial do processo que a carga histórica trouxe: primeira proposta vencedora, propostas válidas e fornecedor único (m050), preteridos pelo processo vivo (ISSUE-063). Etapa, folga planejada, adjudicado, fornecedor e saving são calculados. UK: projeto + código. | suprimentos |
 | `pacote_compra_marco` | Marco de aquisição com as três camadas (plano/LB, previsão e real). A LB fica congelada a partir da requisição; mudança com justificativa e trilha. UK: pacote + marco. | suprimentos |
 | `pedido` | Pedido de compra (número, pacote, fornecedor, descrição, valor, LLI, emissão, data contratual, previsão, ROS e entrega). Folga, situação e desvios são calculados. UK: número. | suprimentos |
 | `pedido_marco` | Marco de fabricação do pedido (LB contratual, previsão e realizada). Desvio e situação são calculados. UK: pedido + ordem. | suprimentos |
@@ -2241,7 +2241,7 @@ protótipo, carregados na ordem em que o protótipo os carrega (ver
 
 | Coleção | No protótipo | Destino no GestNow |
 |---|---|---|
-| `pacotes` | Plano de compras com `plano`, `previsao`, `real`, `etapa`, `adjudicadoCentavos`, `gateLli`, `contratoRef` e `pedidoRef`. | `pacote_compra` + `pacote_compra_marco` (três camadas); etapa, folga, adjudicado, propostas válidas e fornecedor único são calculados; `contratoRef`/`pedidoRef` vêm de `contrato.pacote_compra_id` e `pedido.pacote_id`. |
+| `pacotes` | Plano de compras com `plano`, `previsao`, `real`, `etapa`, `adjudicadoCentavos`, `primeiraPropostaCentavos`, `propostasValidas`, `fornecedorUnico`, `gateLli`, `contratoRef` e `pedidoRef`. | `pacote_compra` + `pacote_compra_marco` (três camadas); etapa, folga e adjudicado são calculados; a primeira proposta, as propostas válidas e o fornecedor único têm coluna para a carga (m050), com o processo vivo na frente (ISSUE-063); `contratoRef`/`pedidoRef` vêm de `contrato.pacote_compra_id` e `pedido.pacote_id`. |
 | `pedidos` | Pedidos com `marcos` (lb, previsão, realizada) e `recebimento`. | `pedido` + `pedido_marco` + `recebimento` (+ `anexo`); folga, situação e OTD são calculados. |
 | `processos` | RFx com `convidados`, `propostas` (com anexos), `negociacoes`, `recomendacao`, `aprovacao` e `historico`. | `processo_compra` + `processo_convidado` + `processo_proposta` (+ `anexo`) + `processo_negociacao`; `historico` na `auditoria`; notas e ranking são calculados. |
 | `fornecedores` | Qualificação, `documentos`, `historico`, `categorias` e observação. | `fornecedor` + `fornecedor_categoria` + `fornecedor_documento` + `fornecedor_historico`; `documentosEmDia`, desempenho e valor contratado são calculados. |

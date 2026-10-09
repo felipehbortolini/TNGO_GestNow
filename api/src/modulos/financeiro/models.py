@@ -236,8 +236,8 @@ class Contract(Base):
 
     ``pacote_compra_id`` liga o contrato ao pacote do plano que o originou quando ele nasce da
     adjudicação de um processo de serviço/EPC (D9, ISSUE-060); os contratos da carga de
-    demonstração e os de outros módulos ficam sem o vínculo. Valor atual, medido e saldo são
-    calculados.
+    demonstração nascem sem o vínculo e a parte do painel de suprimentos o fecha (ISSUE-063).
+    Valor atual, medido e saldo são calculados.
     """
 
     __tablename__ = "contrato"

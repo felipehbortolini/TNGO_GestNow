@@ -26,6 +26,12 @@ The map of purchases (ISSUE-062): the twelve milestones in the two halves of the
 estimated baseline of the manufacturing milestones of a package still without an order, the line
 situation and the procurement progress (the weights of the parameters over the applicable
 milestones, weighted by the value of the package) are pure functions too.
+
+The panel (ISSUE-063): the nine indicators of the prototype (adherence, the mean cycle, the two
+savings, the emergency share, the committed-against-budget share, the mean of valid proposals and
+the single-supplier share) and the three accumulated curves of the panel (contracting, saving and
+the advancement of the map, with the baseline, the real and the trend) are pure functions as well,
+so the screen, the seed, the exports and the oracle share the same arithmetic.
 """
 
 from __future__ import annotations
@@ -828,3 +834,294 @@ def procurement_progress(packages: Iterable[tuple[MasProgress, int]]) -> MasProg
         sum(progress.planned_pct * value for progress, value in entries) / Decimal(total_value)
     ).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
     return MasProgress(realized_pct=realized, planned_pct=planned)
+
+
+# ── The panel (ISSUE-063) ────────────────────────────────────────────────────────────────────
+#
+# The nine indicators of the prototype and the three cumulative curves of the panel are pure
+# functions too, so the screen, the seed, the exports and the oracle share the same arithmetic:
+# adherence, the mean cycle, the two savings, the emergency share, the committed-against-budget
+# share and the curves of contracting, saving and the MAP advancement (baseline, real and trend).
+
+
+def purchase_plan_adherence(adjudicated: int, planned: int) -> Decimal | None:
+    """The adherence to the purchase plan: adjudicated over planned until the date, in percent.
+
+    The prototype's ``aderenciaPct``: one decimal, half up; without anything planned there is no
+    adherence.
+    """
+    if planned <= 0:
+        return None
+    return (Decimal(adjudicated) / Decimal(planned) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def average_cycle_days(days: Iterable[int]) -> int | None:
+    """The mean purchase cycle, in whole days, half up (the prototype's ``Math.round``).
+
+    Without any cycle there is no mean.
+    """
+    values = list(days)
+    if not values:
+        return None
+    mean = Decimal(sum(values)) / Decimal(len(values))
+    return int(mean.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def saving_pct(base_cents: int, paid_cents: int) -> Decimal | None:
+    """The saving over a base value, in percent: ``(base - paid) / base``.
+
+    The same arithmetic serves the saving over the estimate and the saving in the negotiation
+    (the base is the estimate or the winner's first proposal); one decimal, half up, and no
+    saving without a base.
+    """
+    if base_cents <= 0:
+        return None
+    return (Decimal(base_cents - paid_cents) / Decimal(base_cents) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def emergency_share(emergency_cents: int, adjudicated_cents: int) -> Decimal | None:
+    """The share of emergency purchases: the emergency value over the adjudicated value."""
+    if adjudicated_cents <= 0:
+        return None
+    return (Decimal(emergency_cents) / Decimal(adjudicated_cents) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def committed_over_budget(adjudicated_cents: int, budget_cents: int) -> Decimal | None:
+    """Comprometido x orçado: the adjudicated value over the current budget of the EAC items."""
+    if budget_cents <= 0:
+        return None
+    return (Decimal(adjudicated_cents) / Decimal(budget_cents) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def average_offers(counts: Iterable[int]) -> Decimal | None:
+    """The mean of valid proposals per package, one decimal, half up; without any, ``None``."""
+    values = list(counts)
+    if not values:
+        return None
+    return (Decimal(sum(values)) / Decimal(len(values))).quantize(ONE_TENTH, rounding=ROUND_HALF_UP)
+
+
+def single_supplier_share(flags: Iterable[bool]) -> Decimal | None:
+    """The share of the packages with a single supplier, in percent, one decimal, half up."""
+    values = list(flags)
+    if not values:
+        return None
+    return (Decimal(sum(1 for flag in values if flag)) / Decimal(len(values)) * HUNDRED).quantize(
+        ONE_TENTH, rounding=ROUND_HALF_UP
+    )
+
+
+def month_start(value: date) -> date:
+    """The first day of the month of a date: the key of the monthly curves."""
+    return value.replace(day=1)
+
+
+def month_end(value: date) -> date:
+    """The last day of the month of a date."""
+    if value.month == 12:
+        following = date(value.year + 1, 1, 1)
+    else:
+        following = date(value.year, value.month + 1, 1)
+    return following - timedelta(days=1)
+
+
+def _months_between(first: date, last: date) -> tuple[date, ...]:
+    """The first day of every month from ``first`` to ``last``, both included."""
+    months: list[date] = []
+    current = month_start(first)
+    limit = month_start(last)
+    while current <= limit:
+        months.append(current)
+        current = month_end(current) + timedelta(days=1)
+    return tuple(months)
+
+
+@dataclass(frozen=True)
+class ContractingCurve:
+    """The contracting curve: adjudicated packages accumulated, plan against real, by month."""
+
+    months: tuple[date, ...]
+    planned: tuple[int, ...]
+    realized: tuple[int | None, ...]
+    cut_month: date
+
+
+def contracting_curve(
+    planned_dates: Iterable[date],
+    realized_dates: Iterable[date],
+    *,
+    reference_date: date,
+) -> ContractingCurve:
+    """The accumulated adjudications per month: the plan and the real until the cut month.
+
+    The months run from the first date to the last one or the reference month, whichever is
+    later; the realized count is ``None`` after the month of the reference date, as the
+    prototype's curve (the plan keeps going to the right).
+    """
+    planned = [value for value in planned_dates if value is not None]
+    realized = [value for value in realized_dates if value is not None]
+    if not planned and not realized:
+        return ContractingCurve((), (), (), month_start(reference_date))
+    months = _months_between(min([*planned, *realized]), max([*planned, *realized, reference_date]))
+    cut = month_start(reference_date)
+    return ContractingCurve(
+        months=months,
+        planned=tuple(
+            sum(1 for value in planned if month_start(value) <= month) for month in months
+        ),
+        realized=tuple(
+            None if month > cut else sum(1 for value in realized if month_start(value) <= month)
+            for month in months
+        ),
+        cut_month=cut,
+    )
+
+
+@dataclass(frozen=True)
+class SavingCurve:
+    """The saving curve: the accumulated saving over the estimate and in the negotiation."""
+
+    months: tuple[date, ...]
+    estimated: tuple[int | None, ...]
+    negotiation: tuple[int | None, ...]
+    cut_month: date
+
+
+def saving_curve(
+    entries: Iterable[tuple[date, int, int | None]],
+    *,
+    reference_date: date,
+) -> SavingCurve:
+    """The accumulated saving per adjudication month.
+
+    ``entries`` are ``(adjudication date, saving over the estimate, saving in the negotiation or
+    ``None``)``; a package without a first proposal does not sum in the negotiation line. Both
+    lines are ``None`` after the cut month, as the prototype's chart.
+    """
+    rows = list(entries)
+    if not rows:
+        return SavingCurve((), (), (), month_start(reference_date))
+    months = _months_between(
+        min(row[0] for row in rows), max([*(row[0] for row in rows), reference_date])
+    )
+    cut = month_start(reference_date)
+    return SavingCurve(
+        months=months,
+        estimated=tuple(
+            None if month > cut else sum(row[1] for row in rows if month_start(row[0]) <= month)
+            for month in months
+        ),
+        negotiation=tuple(
+            None
+            if month > cut
+            else sum(row[2] or 0 for row in rows if month_start(row[0]) <= month)
+            for month in months
+        ),
+        cut_month=cut,
+    )
+
+
+@dataclass(frozen=True)
+class ProgressCurveMilestone:
+    """One milestone for the advancement curve: its weight, applicability and its three layers."""
+
+    weight: int
+    applicable: bool
+    baseline: date | None
+    forecast: date | None
+    real: date | None
+
+
+@dataclass(frozen=True)
+class ProcurementCurve:
+    """The advancement curve of the map: the baseline, the real and the trend, per month."""
+
+    months: tuple[date, ...]
+    baseline: tuple[Decimal, ...]
+    real: tuple[Decimal | None, ...]
+    trend: tuple[Decimal | None, ...]
+    cut_month: date
+
+
+def procurement_curve(
+    packages: Iterable[tuple[Iterable[ProgressCurveMilestone], int]],
+    *,
+    reference_date: date,
+) -> ProcurementCurve | None:
+    """The advancement of the map per month, weighted by the value of the package.
+
+    ``packages`` are ``(milestones, value in cents)`` pairs. The baseline of a month counts the
+    applicable milestones whose baseline is up to its end; the real counts the realized ones up
+    to the cut (the reference date in the cut month, ``None`` after it) and the trend follows the
+    real, the forecast or the baseline of each milestone after the cut. The weights of the
+    milestones that do not apply stay out, so a service package renormalizes its acquisition half
+    (the same rule of ``package_progress``; the prototype's curve did not renormalize — DIVERGENCIAS).
+    A package with no date and no value leaves no curve.
+    """
+    entries = [(list(milestones), value) for milestones, value in packages]
+    dates = [
+        value
+        for milestones, _ in entries
+        for milestone in milestones
+        if milestone.applicable
+        for value in (milestone.baseline, milestone.forecast, milestone.real)
+        if value is not None
+    ]
+    total_value = sum(value for _, value in entries)
+    if not dates or total_value <= 0:
+        return None
+    months = _months_between(min(dates), max([*dates, reference_date]))
+    cut = month_start(reference_date)
+
+    def percentage(until: date, layer: str) -> Decimal:
+        weighted = Decimal(0)
+        for milestones, value in entries:
+            applicable = [milestone for milestone in milestones if milestone.applicable]
+            total = sum(milestone.weight for milestone in applicable)
+            if total <= 0:
+                continue
+            done = sum(
+                milestone.weight
+                for milestone in applicable
+                if (moment := _curve_layer(milestone, layer)) is not None and moment <= until
+            )
+            weighted += Decimal(value) * Decimal(done) / Decimal(total)
+        return (weighted / Decimal(total_value) * HUNDRED).quantize(
+            ONE_TENTH, rounding=ROUND_HALF_UP
+        )
+
+    return ProcurementCurve(
+        months=months,
+        baseline=tuple(percentage(month_end(month), "baseline") for month in months),
+        real=tuple(
+            None
+            if month > cut
+            else percentage(reference_date if month == cut else month_end(month), "real")
+            for month in months
+        ),
+        trend=tuple(
+            None
+            if month < cut
+            else percentage(
+                reference_date if month == cut else month_end(month),
+                "real" if month == cut else "fallback",
+            )
+            for month in months
+        ),
+        cut_month=cut,
+    )
+
+
+def _curve_layer(milestone: ProgressCurveMilestone, layer: str) -> date | None:
+    """The date the curve reads of a milestone: one layer, or the first one that exists."""
+    if layer == "fallback":
+        return milestone.real or milestone.forecast or milestone.baseline
+    return getattr(milestone, layer)

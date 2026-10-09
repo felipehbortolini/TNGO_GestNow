@@ -60,6 +60,15 @@ and the recommended value. The situation of each milestone, the line situation, 
 weighted by the value of the package and its index are calculated on every query, never stored:
 the map is a view of the plan, the processes and the expediting.
 
+The panel (ISSUE-063): ``list_panel`` composes the plan, the map and the orders into the nine
+indicators of the prototype (adherence, cycle, the two savings, competitiveness, OTD, critical
+orders, emergency purchases and committed against budget), the three accumulated curves
+(contracting, saving and the advancement of the map) and the orders by slack. The adjudicated
+value of a package is the order's, the recommendation's or the contract's that was born from it
+(service/EPC, read from the Financeiro, D9); the winner's first proposal, the valid proposals and
+the single-supplier flag prefer the live process and fall back to the columns the historical load
+brought (ISSUE-063).
+
 Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``find_supplier``,
 ``create_supplier``, ``save_qualification``, ``apply_final_evaluation``, ``list_packages``,
 ``find_package``, ``package_options``, ``create_package``, ``update_package``,
@@ -69,7 +78,7 @@ Public API (stable; a change needs an issue of its own): ``list_suppliers``, ``f
 ``register_negotiation``, ``recommend_award``, ``return_recommendation``, ``approve_award``,
 ``emit_order_or_contract``, ``list_orders``, ``find_order``, ``update_order_milestone``,
 ``register_receipt``, ``open_diligence_action``, ``order_import_problems``,
-``apply_order_import_row``, ``list_mas`` and ``find_mas_package``.
+``apply_order_import_row``, ``list_mas``, ``find_mas_package`` and ``list_panel``.
 """
 
 from __future__ import annotations
@@ -896,6 +905,11 @@ class PackageLine:
     adjudicated_cents: int | None = None
     supplier: str | None = None
     saving_cents: int | None = None
+    # The commercial outcome the load brought from the prototype (ISSUE-063): the panel prefers
+    # the live process and falls back to these when the package has none.
+    first_proposal_cents: int | None = None
+    valid_proposals: int | None = None
+    single_supplier: bool | None = None
 
     def milestone(self, key: str) -> MilestoneLine | None:
         """The milestone named by key, or ``None`` when the package has no such row."""
@@ -1159,6 +1173,9 @@ def _package_line(
         emergency=package.emergency,
         gate_date=package.gate_lli_date,
         gate_reference=package.gate_lli_reference or "",
+        first_proposal_cents=package.first_proposal_cents,
+        valid_proposals=package.valid_proposals,
+        single_supplier=package.single_supplier,
         version=package.version,
         milestones=tuple(
             MilestoneLine(
@@ -4999,10 +5016,7 @@ def _mas_universe(
     milestones = _order_milestones_by_order(session, [order.id for order in orders.values()])
     processes = _processes_by_package(session, [line.id for line in packages])
     companies = configuracoes.list_company_names(session)
-    contracts = {
-        line.id: financeiro.contract_number_by_package(session, package_id=line.id)
-        for line in packages
-    }
+    contracts = financeiro.purchase_contracts_by_package(session, [line.id for line in packages])
     weights = _milestone_weights(session, reference_date=reference_date)
     built: list[MasLine] = []
     for line in packages:
@@ -5013,7 +5027,7 @@ def _mas_universe(
                 order=order,
                 order_milestones=milestones.get(order.id, ()) if order is not None else (),
                 process=processes.get(line.id),
-                contract_number=contracts.get(line.id),
+                contract=contracts.get(line.id),
                 companies=companies,
                 weights=weights,
                 reference_date=reference_date,
@@ -5063,7 +5077,7 @@ def _mas_line(
     order: PurchaseOrder | None,
     order_milestones: Sequence[PurchaseOrderMilestone],
     process: PurchaseProcess | None,
-    contract_number: str | None,
+    contract: financeiro.PurchaseContractRef | None,
     companies: Mapping[int, str],
     weights: Mapping[str, int],
     reference_date: date,
@@ -5087,7 +5101,15 @@ def _mas_line(
     )
     order_value = order.value_cents if order is not None else None
     recommendation_value = process.recommendation_value_cents if process is not None else None
-    adjudicated = order_value if order_value is not None else recommendation_value
+    contract_value = contract.value_cents if contract is not None else None
+    adjudicated = next(
+        (
+            value
+            for value in (order_value, recommendation_value, contract_value)
+            if value is not None
+        ),
+        None,
+    )
     supplier_id = _mas_supplier_id(order=order, process=process)
     delivery_forecast = _mas_delivery_forecast(line, milestones, service=service, order=order)
     slack = calculations.required_on_site_slack(line.ros, delivery_forecast)
@@ -5116,7 +5138,7 @@ def _mas_line(
         value_cents=adjudicated if adjudicated is not None else line.estimate_cents,
         process_number=process.number if process is not None else None,
         order_number=order.number if order is not None else None,
-        contract_number=contract_number,
+        contract_number=contract.number if contract is not None else None,
         ros=line.ros,
         delivery_forecast=delivery_forecast,
         slack_days=slack,
@@ -5486,3 +5508,451 @@ def _distinct_options(
         configuracoes.RegisterOption(id=item_id, name=name)
         for item_id, name in sorted(names.items(), key=lambda item: item[1])
     )
+
+
+# ── The panel (ISSUE-063) ────────────────────────────────────────────────────────────────────
+#
+# The panel is a calculated view of the plan, the processes, the orders and the contracts:
+# nothing is stored for it. ``list_panel`` composes the same universes the other screens read
+# (``_package_universe``, ``list_mas`` and ``list_orders``) and calculates the nine indicators of
+# the prototype with ``calculations``, plus the three accumulated curves and the distribution of
+# the packages by stage. The commercial outcome of a package prefers the live process; the
+# columns of the historical load (ISSUE-063) are the fallback for the packages the load brought.
+
+
+@dataclass(frozen=True)
+class PanelStageCount:
+    """How many packages of the plan are in one stage."""
+
+    stage: str
+    total: int
+
+
+@dataclass(frozen=True)
+class _PanelOutcome:
+    """The commercial outcome of a package: adjudicated, first proposal, offers and single supplier."""
+
+    adjudicated_cents: int | None
+    first_proposal_cents: int | None
+    valid_proposals: int | None
+    single_supplier: bool | None
+
+
+@dataclass(frozen=True)
+class PanelSummary:
+    """The nine indicators of the panel, counted on the whole universe.
+
+    The KPIs of the plan (adherence, cycle, the two savings, competitiveness, emergency and
+    committed against budget) read the packages; the order KPIs (critical, warning, OTD) come
+    from the order universe, exactly as the expediting screen counts them. The adherence and OTD
+    targets come from the group ``suprimentos`` in force.
+    """
+
+    packages: int
+    planned_until_reference: int
+    adjudicated_until_reference: int
+    adherence_pct: Decimal | None
+    adherence_target: int
+    cycle_days: int | None
+    cycle_baseline_days: int | None
+    minimum_proposals: int
+    estimate_cents: int
+    adjudicated_cents: int
+    saving_cents: int
+    saving_pct: Decimal | None
+    first_proposal_cents: int
+    negotiation_saving_cents: int
+    negotiation_saving_pct: Decimal | None
+    offers_packages: int
+    average_offers: Decimal | None
+    single_supplier_pct: Decimal | None
+    orders: OrderSummary
+    otd_target: int
+    emergency_cents: int
+    emergency_pct: Decimal | None
+    budget_cents: int
+    committed_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class PanelListing:
+    """What the panel shows: the nine indicators, the four visuals and the orders by slack."""
+
+    summary: PanelSummary
+    contracting: calculations.ContractingCurve
+    saving: calculations.SavingCurve
+    progress_curve: calculations.ProcurementCurve | None
+    stages: tuple[PanelStageCount, ...]
+    mas: MasListing
+    reference_date: date
+
+    @property
+    def slack_lines(self) -> tuple[MasLine, ...]:
+        """The packages with a delivery forecast, by slack: the table of the panel.
+
+        The service/EPC packages stay out (the contract has no delivery) and so do the packages
+        without any delivery date; the line keeps the package, the order or the stage, the next
+        milestone, the forecast, the ROS, the slack and the situation.
+        """
+        lines = (
+            line for line in self.mas.lines if not line.service and line.slack_days is not None
+        )
+        return tuple(sorted(lines, key=lambda line: (line.slack_days or 0, line.code)))
+
+
+def list_panel(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    reference_date: date,
+) -> PanelListing:
+    """The panel of the scope: the indicators, the curves, the stages and the orders by slack."""
+    rbac.require_module(user, MODULE)
+    packages = _package_universe(session, user=user, scope=scope, reference_date=reference_date)
+    processes = _processes_by_package(session, [line.id for line in packages])
+    history = _history_by_process(session, [process.id for process in processes.values()])
+    minimum = _process_parameters(session, reference_date=reference_date).minimum_proposals
+    targets = _panel_targets(session, reference_date=reference_date)
+    outcomes = _panel_outcomes(session, packages, processes=processes, minimum=minimum)
+    mas = list_mas(
+        session,
+        user=user,
+        scope=scope,
+        filters=validation.MasFilters(),
+        reference_date=reference_date,
+    )
+    orders = list_orders(
+        session,
+        user=user,
+        scope=scope,
+        filters=OrderFilters(situation=validation.ORDER_SITUATION_ALL),
+        reference_date=reference_date,
+    )
+    return PanelListing(
+        summary=_panel_summary(
+            session,
+            packages=packages,
+            outcomes=outcomes,
+            orders=orders.summary,
+            minimum=minimum,
+            targets=targets,
+            reference_date=reference_date,
+        ),
+        contracting=calculations.contracting_curve(
+            _panel_plan_adjudications(packages),
+            _panel_real_adjudications(packages, outcomes),
+            reference_date=reference_date,
+        ),
+        saving=calculations.saving_curve(
+            _panel_saving_entries(packages, outcomes),
+            reference_date=reference_date,
+        ),
+        progress_curve=calculations.procurement_curve(
+            (
+                (
+                    [
+                        calculations.ProgressCurveMilestone(
+                            weight=item.weight,
+                            applicable=item.applicable,
+                            baseline=item.baseline,
+                            forecast=item.forecast,
+                            real=item.real,
+                        )
+                        for item in line.milestones
+                    ],
+                    line.value_cents,
+                )
+                for line in mas.lines
+            ),
+            reference_date=reference_date,
+        ),
+        stages=_panel_stages(packages, processes=processes, history=history),
+        mas=mas,
+        reference_date=reference_date,
+    )
+
+
+def _panel_outcomes(
+    session: Session,
+    packages: Sequence[PackageLine],
+    *,
+    processes: Mapping[int, PurchaseProcess],
+    minimum: int,
+) -> dict[int, _PanelOutcome]:
+    """The commercial outcome of each package: the process wins, the loaded column follows.
+
+    The adjudicated value is the order's, else the recommendation's, else the value of the
+    contract born from the package (service/EPC, read from the Financeiro, D9). The winner's
+    first proposal, the valid proposals and the single-supplier flag come from the live process
+    when it exists and from the columns the load brought (ISSUE-063) when it does not.
+    """
+    package_ids = [line.id for line in packages]
+    orders = _orders_by_package(session, package_ids)
+    process_ids = [process.id for process in processes.values()]
+    proposals = _proposals_by_process(session, process_ids)
+    invitees = _invitees_by_process(session, process_ids)
+    contracts = financeiro.purchase_contracts_by_package(session, package_ids)
+    outcomes: dict[int, _PanelOutcome] = {}
+    for line in packages:
+        order = orders.get(line.id)
+        process = processes.get(line.id)
+        contract = contracts.get(line.id)
+        adjudicated = next(
+            (
+                value
+                for value in (
+                    order.value_cents if order is not None else None,
+                    process.recommendation_value_cents if process is not None else None,
+                    contract.value_cents if contract is not None else None,
+                )
+                if value is not None
+            ),
+            None,
+        )
+        rows = proposals.get(process.id, ()) if process is not None else ()
+        first = _winner_first_proposal(process, rows)
+        if first is None:
+            first = line.first_proposal_cents
+        outcomes[line.id] = _PanelOutcome(
+            adjudicated_cents=adjudicated,
+            first_proposal_cents=first,
+            valid_proposals=len(rows) if process is not None else line.valid_proposals,
+            single_supplier=(
+                len(invitees.get(process.id, ())) < minimum
+                if process is not None
+                else line.single_supplier
+            ),
+        )
+    return outcomes
+
+
+def _winner_first_proposal(
+    process: PurchaseProcess | None, proposals: Sequence[ProcessProposal]
+) -> int | None:
+    """The value of the proposal of the recommended company: the winner's first proposal."""
+    if process is None or process.recommendation_company_id is None:
+        return None
+    return next(
+        (
+            proposal.value_cents
+            for proposal in proposals
+            if proposal.company_id == process.recommendation_company_id
+        ),
+        None,
+    )
+
+
+def _panel_plan_adjudications(packages: Sequence[PackageLine]) -> list[date]:
+    """The planned adjudication of every package, the plan of the contracting curve."""
+    return [
+        adjudication.plan
+        for line in packages
+        if (adjudication := line.adjudication) is not None and adjudication.plan is not None
+    ]
+
+
+def _panel_real_adjudications(
+    packages: Sequence[PackageLine], outcomes: Mapping[int, _PanelOutcome]
+) -> list[date]:
+    """The real adjudication of the adjudicated packages, the real of the contracting curve."""
+    return [
+        adjudication.real
+        for line in packages
+        if outcomes[line.id].adjudicated_cents is not None
+        and (adjudication := line.adjudication) is not None
+        and adjudication.real is not None
+    ]
+
+
+def _panel_saving_entries(
+    packages: Sequence[PackageLine], outcomes: Mapping[int, _PanelOutcome]
+) -> list[tuple[date, int, int | None]]:
+    """The saving of each adjudicated package: date, over the estimate and in the negotiation."""
+    entries: list[tuple[date, int, int | None]] = []
+    for line in packages:
+        outcome = outcomes[line.id]
+        adjudication = line.adjudication
+        if outcome.adjudicated_cents is None or adjudication is None or adjudication.real is None:
+            continue
+        negotiation = (
+            None
+            if outcome.first_proposal_cents is None
+            else outcome.first_proposal_cents - outcome.adjudicated_cents
+        )
+        entries.append(
+            (adjudication.real, line.estimate_cents - outcome.adjudicated_cents, negotiation)
+        )
+    return entries
+
+
+def _panel_stages(
+    packages: Sequence[PackageLine],
+    *,
+    processes: Mapping[int, PurchaseProcess],
+    history: Mapping[int, Sequence[Any]],
+) -> tuple[PanelStageCount, ...]:
+    """The distribution of the plan by stage, in the order of the flow; empty stages stay out.
+
+    The stage of a package with a live process is the one of the last recorded action (the same
+    reading of the process screen), so the PC-14 of the demonstration reads "Equalização
+    comercial" even with the real dates stopping at the technical one, as the prototype did;
+    without a process, the stage the real dates lead to.
+    """
+    totals: dict[str, int] = {}
+    for line in packages:
+        process = processes.get(line.id)
+        stage = line.stage
+        if process is not None:
+            stage = calculations.process_stage(
+                [
+                    str((row.after or {}).get(HISTORY_STAGE, ""))
+                    for row in history.get(process.id, ())
+                ],
+                line.stage,
+            )
+        totals[stage] = totals.get(stage, 0) + 1
+    return tuple(
+        PanelStageCount(stage=stage, total=totals[stage])
+        for stage in calculations.PROCESS_STAGES
+        if totals.get(stage)
+    )
+
+
+def _panel_targets(session: Session, *, reference_date: date) -> tuple[int, int]:
+    """The adherence and OTD targets of the group ``suprimentos`` in force.
+
+    Without a version in force the initial values of the platform apply; a value outside 0-100
+    is ignored, as the facade ignores the malformed bands of the approval.
+    """
+    values = configuracoes.current_group(
+        session, group=PROCESS_GROUP, reference_date=reference_date
+    )
+    initial = configuracoes.INITIAL_PARAMETERS[PROCESS_GROUP]
+
+    def read(key: str) -> int:
+        target = values.get(key, initial[key])
+        if isinstance(target, bool) or not isinstance(target, int) or not 0 <= target <= 100:
+            return int(initial[key])
+        return target
+
+    return read("metaAderenciaPct"), read("metaOtdPct")
+
+
+def _panel_summary(
+    session: Session,
+    *,
+    packages: Sequence[PackageLine],
+    outcomes: Mapping[int, _PanelOutcome],
+    orders: OrderSummary,
+    minimum: int,
+    targets: tuple[int, int],
+    reference_date: date,
+) -> PanelSummary:
+    """The nine indicators of the panel: the plan KPIs, the order KPIs and the two shares."""
+    adjudicated = [line for line in packages if outcomes[line.id].adjudicated_cents is not None]
+    planned_until = [
+        line
+        for line in packages
+        if (adjudication := line.adjudication) is not None
+        and adjudication.plan is not None
+        and adjudication.plan <= reference_date
+    ]
+    adjudicated_until = [
+        line for line in planned_until if outcomes[line.id].adjudicated_cents is not None
+    ]
+    cycles = [
+        (order.real - requisition.real).days
+        for line in adjudicated
+        if (requisition := line.milestone(calculations.REQUISITION_MILESTONE)) is not None
+        and requisition.real is not None
+        and (order := line.milestone(calculations.ORDER_MILESTONE)) is not None
+        and order.real is not None
+    ]
+    baseline_cycles = [
+        (order.plan - requisition.plan).days
+        for line in adjudicated
+        if (requisition := line.milestone(calculations.REQUISITION_MILESTONE)) is not None
+        and requisition.plan is not None
+        and (order := line.milestone(calculations.ORDER_MILESTONE)) is not None
+        and order.plan is not None
+    ]
+    estimate_cents = sum(line.estimate_cents for line in adjudicated)
+    adjudicated_cents = sum(outcomes[line.id].adjudicated_cents or 0 for line in adjudicated)
+    with_first = [
+        line for line in adjudicated if outcomes[line.id].first_proposal_cents is not None
+    ]
+    first_proposal_cents = sum(outcomes[line.id].first_proposal_cents or 0 for line in with_first)
+    negotiation_paid_cents = sum(outcomes[line.id].adjudicated_cents or 0 for line in with_first)
+    offers = [
+        value
+        for line in packages
+        if (value := outcomes[line.id].valid_proposals) is not None and value > 0
+    ]
+    single = [
+        flag
+        for line in packages
+        if (valid := outcomes[line.id].valid_proposals) is not None
+        and valid > 0
+        and (flag := outcomes[line.id].single_supplier) is not None
+    ]
+    emergency_cents = sum(
+        outcomes[line.id].adjudicated_cents or 0 for line in adjudicated if line.emergency
+    )
+    budget_cents = _panel_budget_cents(session, packages=adjudicated, reference_date=reference_date)
+    return PanelSummary(
+        packages=len(packages),
+        planned_until_reference=len(planned_until),
+        adjudicated_until_reference=len(adjudicated_until),
+        adherence_pct=calculations.purchase_plan_adherence(
+            len(adjudicated_until), len(planned_until)
+        ),
+        adherence_target=targets[0],
+        cycle_days=calculations.average_cycle_days(cycles),
+        cycle_baseline_days=calculations.average_cycle_days(baseline_cycles),
+        minimum_proposals=minimum,
+        estimate_cents=estimate_cents,
+        adjudicated_cents=adjudicated_cents,
+        saving_cents=estimate_cents - adjudicated_cents,
+        saving_pct=calculations.saving_pct(estimate_cents, adjudicated_cents),
+        first_proposal_cents=first_proposal_cents,
+        negotiation_saving_cents=first_proposal_cents - negotiation_paid_cents,
+        negotiation_saving_pct=calculations.saving_pct(
+            first_proposal_cents, negotiation_paid_cents
+        ),
+        offers_packages=len(offers),
+        average_offers=calculations.average_offers(offers),
+        single_supplier_pct=calculations.single_supplier_share(single),
+        orders=orders,
+        otd_target=targets[1],
+        emergency_cents=emergency_cents,
+        emergency_pct=calculations.emergency_share(emergency_cents, adjudicated_cents),
+        budget_cents=budget_cents,
+        committed_pct=calculations.committed_over_budget(adjudicated_cents, budget_cents),
+    )
+
+
+def _panel_budget_cents(
+    session: Session,
+    *,
+    packages: Sequence[PackageLine],
+    reference_date: date,
+) -> int:
+    """The current budget of the EAC items the adjudicated packages cost (the map, D9).
+
+    Read per project through the Financeiro facade (``mapa_controle``): in the Portfólio the map
+    has one line per project, so the items are summed project by project. A package without an
+    adjudicated value stays out, and two packages of the same item count it once.
+    """
+    wanted: dict[int, set[int]] = {}
+    for line in packages:
+        wanted.setdefault(line.project_id, set()).add(line.eac_item_id)
+    total = 0
+    for project_id, item_ids in wanted.items():
+        view = financeiro.mapa_controle(
+            session,
+            scope=Scope(project_id=project_id, source="url"),
+            reference_date=reference_date,
+        )
+        total += sum(row.current_cents for row in view.rows if row.item_id in item_ids)
+    return total

@@ -12,7 +12,10 @@ buyer, a discipline, the scope and the data of the contracting strategy. The thr
 each acquisition milestone (plan/LB, forecast and real) live in the same row of
 ``pacote_compra_marco`` (ISSUE-004 decision); the history travels in the audit trail. Stage,
 slack and adjudicated are never columns: they are calculated on every read from the milestones and
-from the registros of the process (ISSUE-059) and of the order (ISSUE-061).
+from the registros of the process (ISSUE-059) and of the order (ISSUE-061). The commercial outcome
+of the process (the winner's first proposal, the valid proposals and the single-supplier flag)
+has a column for the historical load (ISSUE-063); the panel prefers the live process when it
+exists and falls back to the column for the packages the load brought.
 
 The purchase process (ISSUE-059) is the RFx of a package: its number, the technical and
 commercial weights, the deadline of the proposals and the fields of the recommendation and of the
@@ -119,6 +122,9 @@ class PurchasePackage(Base):
     emergency: Mapped[bool] = mapped_column("emergencial", Boolean)
     gate_lli_date: Mapped[date | None] = mapped_column("gate_lli_data", Date)
     gate_lli_reference: Mapped[str | None] = mapped_column("gate_lli_referencia", Text)
+    first_proposal_cents: Mapped[int | None] = mapped_column("primeira_proposta_centavos", Centavos)
+    valid_proposals: Mapped[int | None] = mapped_column("propostas_validas", Integer)
+    single_supplier: Mapped[bool | None] = mapped_column("fornecedor_unico", Boolean)
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
     __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)

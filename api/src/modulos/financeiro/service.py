@@ -12,7 +12,7 @@ Nothing here reads the clock: the routes pass the reference date.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -3546,6 +3546,37 @@ def _next_contract_number(session: Session, *, reference_date: date) -> str:
 def contract_number_by_package(session: Session, *, package_id: int) -> str | None:
     """O número do contrato nascido do pacote do plano, para a ficha do processo (D9)."""
     return session.scalar(select(Contract.number).where(Contract.purchase_package_id == package_id))
+
+
+@dataclass(frozen=True)
+class PurchaseContractRef:
+    """O contrato nascido de um pacote do plano: número e valor original (D9, ISSUE-063)."""
+
+    number: str
+    value_cents: int
+
+
+def purchase_contracts_by_package(
+    session: Session, package_ids: Collection[int]
+) -> dict[int, PurchaseContractRef]:
+    """Os contratos nascidos dos pacotes informados, por pacote: número e valor original.
+
+    Leitura aditiva para o painel de suprimentos: o contrato é o documento emitido do serviço/EPC
+    e o seu valor é o adjudicado do pacote. O primeiro contrato de um pacote vence, como o
+    ``pedido`` do pacote (a emissão cria um só).
+    """
+    if not package_ids:
+        return {}
+    statement = select(Contract).where(Contract.purchase_package_id.in_(package_ids))
+    contracts: dict[int, PurchaseContractRef] = {}
+    for contract in session.scalars(statement):
+        if contract.purchase_package_id is None:
+            continue
+        contracts.setdefault(
+            contract.purchase_package_id,
+            PurchaseContractRef(number=contract.number, value_cents=contract.original_value_cents),
+        )
+    return contracts
 
 
 def commit_purchase_cost(
