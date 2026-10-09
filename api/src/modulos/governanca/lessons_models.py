@@ -140,7 +140,7 @@ class LessonKeyword(Base):
 
 
 class LessonApplication(Base):
-    """Cada reuso registrado: projeto, data, como, e a ação da Central ou o risco gerados."""
+    """Cada reuso registrado: projeto, data, como, e a ação da Central ou o risco gerados (FKs)."""
 
     __tablename__ = "licao_aplicacao"
 
@@ -148,7 +148,7 @@ class LessonApplication(Base):
     lesson_id: Mapped[int] = mapped_column("licao_id", ForeignKey("licao.id"))
     project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
     action_id: Mapped[int | None] = mapped_column("acao_id", ForeignKey("acao.id"))
-    risk_id: Mapped[int | None] = mapped_column("risco_id", BigInteger)
+    risk_id: Mapped[int | None] = mapped_column("risco_id", ForeignKey("risco.id"))
     registered_by_id: Mapped[int] = mapped_column("registrado_por_id", ForeignKey("pessoa.id"))
     applied_on: Mapped[date] = mapped_column("data", Date)
     how: Mapped[str] = mapped_column("como", Text)
