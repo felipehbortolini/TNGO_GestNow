@@ -70,3 +70,19 @@ Nenhuma.
 ## Notas
 
 Fonte: `mas.html`, `GI.api.suprimentos.mas`, `GI.regras.situacaoMarco`; README, "MAS (Mapa de Suprimentos): regras".
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: a fachada do mapa (uma linha por pacote e os doze marcos nos dois
+grupos, com a situação de cada marco, a folga, a situação da linha e o avanço ponderado pelo
+valor), as rotas (`mas`, `mas/excel`, `mas/imprimivel` e `mas/pacote/{pacote_id}`), a tela (trio
+preenchido com o DS: filtros, segmentos, legenda, rodapé e o detalhe em modal), as exportações
+(Excel com as colunas do protótipo e PDF A3 paisagem com as células coloridas) e os testes
+(cálculos, fachada, rotas e o oráculo da carga). Não houve migração: o MAS é uma visão calculada
+do plano, dos processos e do diligenciamento.
+
+- DECISAO: LB estimada do pacote sem pedido | Sem a coluna da entrega planejada (decisão da ISSUE-058), a LB e a previsão dos marcos de fabricação interpolam entre o pedido e o ROS pelas proporções da emissão, em itálico e com o aviso "LB estimada" | ISSUE-062
+- DECISAO: valor do pacote no avanço | O valor é o do pedido ou o da recomendação da adjudicação; sem nenhum, vale a estimativa com o aviso "estimado" | ISSUE-062
+- DECISAO: alternância e fase na consulta | Datas/Desvio e Todos/Aquisição/Fabricação são parâmetros da URL, como os demais filtros, e cada mudança é um GET do mesmo fragmento | ISSUE-062
+- DECISAO: detalhe do pacote | O clique na célula abre um modal cujo corpo o servidor entrega por GET (`mas/pacote/{pacote_id}`), sem recarregar a tela | ISSUE-062
+- DECISAO: tons das células | O Excel e o A3 usam o mesmo mapa de tons do diligenciamento; "a vencer" e "sem data" ficam sem tom, como no protótipo | D12, ISSUE-062
