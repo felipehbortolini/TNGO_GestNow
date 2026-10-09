@@ -4,10 +4,10 @@ Class and attribute names are English (D1); tables and columns are Portuguese sn
 exactly as in ``docs/MODELO-DE-DADOS.md``. Score, severity, VME, exposure and the review
 situation are never columns: they are calculated on every query (D6, ``calculations``).
 
-``risco.ata_id``, ``risco.mudanca_id``, ``risco.licao_id`` and ``risco.encerramento_mudanca_id``
-are plain columns in this slice: the foreign keys arrive with the issues that own those tables
-(minutes, changes, lessons). ``risco.identificado_em`` is the identification date the form asks
-for (added to the model with this slice).
+The links of the risk to the minutes, the change request (the SM of the strategy Evitar and the
+SM of the materialized closing) and the lesson are real foreign keys since ISSUE-065, the slice
+that wires the closing and the response plan; the tables are owned by Central de Ações and
+Governança. ``risco.identificado_em`` is the identification date the form asks for.
 """
 
 from __future__ import annotations
@@ -53,9 +53,9 @@ class Risk(Base):
     category_id: Mapped[int] = mapped_column("categoria_id", ForeignKey("risco_categoria.id"))
     owner_id: Mapped[int] = mapped_column("dono_id", ForeignKey("pessoa.id"))
     identified_by_id: Mapped[int] = mapped_column("identificado_por_id", ForeignKey("pessoa.id"))
-    ata_id: Mapped[int | None] = mapped_column("ata_id", BigInteger)
-    change_id: Mapped[int | None] = mapped_column("mudanca_id", BigInteger)
-    lesson_id: Mapped[int | None] = mapped_column("licao_id", BigInteger)
+    ata_id: Mapped[int | None] = mapped_column("ata_id", ForeignKey("ata.id"))
+    change_id: Mapped[int | None] = mapped_column("mudanca_id", ForeignKey("mudanca.id"))
+    lesson_id: Mapped[int | None] = mapped_column("licao_id", ForeignKey("licao.id"))
     plan_responsible_id: Mapped[int | None] = mapped_column(
         "responsavel_plano_id", ForeignKey("pessoa.id")
     )
@@ -98,7 +98,9 @@ class Risk(Base):
     closing_cost_impact_cents: Mapped[int | None] = mapped_column(
         "encerramento_impacto_custo_centavos", Centavos
     )
-    closing_change_id: Mapped[int | None] = mapped_column("encerramento_mudanca_id", BigInteger)
+    closing_change_id: Mapped[int | None] = mapped_column(
+        "encerramento_mudanca_id", ForeignKey("mudanca.id")
+    )
     hidden: Mapped[bool] = mapped_column("oculto", Boolean, server_default=FALSE_SERVER_DEFAULT)
     deletion_reason: Mapped[str | None] = mapped_column("motivo_exclusao", Text)
     hidden_at: Mapped[datetime | None] = mapped_column("ocultado_em", DateTime(timezone=True))
