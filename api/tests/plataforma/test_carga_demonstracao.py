@@ -497,9 +497,16 @@ def test_oraculo_das_reservas_com_a_data_deslocada(db_session: Session) -> None:
     reference_date = DEMO_ANCHOR + timedelta(days=5)
     run_demonstration(db_session, reference_date=reference_date)
 
+    admin = next(
+        access
+        for access in configuracoes.list_active_access(db_session)
+        if access.general_profile == "Admin"
+    )
+    user = _user_of(admin)
     project = db_session.scalars(select(Project).where(Project.code == "TN-2026-014")).one()
     visao = financeiro.contingency_overview(
         db_session,
+        user=user,
         scope=Scope(project_id=project.id, source="url"),
         reference_date=reference_date,
     )
@@ -545,6 +552,7 @@ def test_oraculo_das_reservas_com_a_data_deslocada(db_session: Session) -> None:
 
     carteira = financeiro.contingency_overview(
         db_session,
+        user=user,
         scope=Scope(project_id=None, source="padrao"),
         reference_date=reference_date,
     )
@@ -1817,8 +1825,9 @@ def test_oraculo_do_diligenciamento_com_a_carga(db_session: Session) -> None:
     assert listing.summary.delivered == 3
     assert [line.number for line in listing.pending] == [
         "PED-2026-0001",
+        "PED-2026-0002",
         "PED-2026-0004",
-    ], "o 0002 já tem a ação do mock da Central"
+    ], "o 0002 tem a ação do mock da Central, mas ainda não tem o risco sugerido (ISSUE-067)"
 
     portfolio = suprimentos.list_orders(
         db_session,

@@ -14,9 +14,11 @@ from datetime import date
 from decimal import Decimal
 
 import azure.functions as func
+import pytest
 from sqlalchemy import select
 
 from src.core import auth
+from src.core.rbac import GeneralProfile
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Project, Unit
@@ -26,7 +28,7 @@ from src.modulos.governanca import models as governanca_models
 from src.modulos.governanca.models import ChangeImpact, ChangeRequest
 from src.modulos.planejamento import service as planejamento
 from src.modulos.planejamento.models import EapItem, EapMeasurement, EapRevision, EapRevisionItem
-from tests.financeiro.conftest import MEMBER_EMAIL, REFERENCE_DATE, EacScenario
+from tests.financeiro.conftest import MEMBER_EMAIL, REFERENCE_DATE, EacScenario, user_of
 from tests.identidades import cabecalho_do_principal
 
 D = Decimal
@@ -34,6 +36,14 @@ HOJE = REFERENCE_DATE
 PORTFOLIO = Scope(project_id=None, source="padrao")
 EAC_FIRST_CENTS = 7_001_000
 EAC_SECOND_CENTS = 5_000_000
+
+
+@pytest.fixture(autouse=True)
+def parametros(cenario: EacScenario) -> None:
+    """A versão 1 dos parâmetros: a cobertura da contingência lê o grupo financeiro e a Riscos."""
+    configuracoes.seed_initial_parameters(
+        cenario.session, author_id=cenario.member.id, effective_from=date(2026, 1, 1)
+    )
 
 
 def _escopo(project: Project) -> Scope:
@@ -212,7 +222,10 @@ def _curva(
 
 def _visao(cenario: EacScenario, scope: Scope | None = None) -> service.ContingencyOverview:
     return service.contingency_overview(
-        cenario.session, scope=scope or _escopo(cenario.first), reference_date=HOJE
+        cenario.session,
+        user=user_of(cenario.member, cenario.session, GeneralProfile.MEMBER),
+        scope=scope or _escopo(cenario.first),
+        reference_date=HOJE,
     )
 
 

@@ -41,6 +41,7 @@ KPI_LABELS = (
     "Saldo da contingência",
     "Consumo da contingência",
     "Pedido em SMs em análise",
+    "Cobertura da exposição a riscos",
     "Reserva gerencial",
 )
 COMPOSITION_ROWS = (
@@ -169,7 +170,9 @@ def test_a_contingencia_da_carteira_traz_a_tabela_por_projeto() -> None:
     body = _body(response)
     assert 'data-situacao="conteudo"' in body
     assert 'data-carteira="sim"' in body
-    assert body.count('<th scope="col">Projeto</th>') == 2, "a tabela por projeto e o extrato"
+    assert body.count('<th scope="col">Projeto</th>') == 3, (
+        "a tabela por projeto, o extrato e a lista de ameaças ativas"
+    )
 
     projetos = _table_text(response, "data-projetos")
     for coluna in ("Projeto", "Constituída", "Consumida", "Saldo", "Consumo", "Em análise"):
@@ -181,6 +184,11 @@ def test_a_contingencia_da_carteira_traz_a_tabela_por_projeto() -> None:
     movimentos = _table_text(response, "data-movimentos")
     assert "TN-2026-014" in movimentos and "TN-2026-021" in movimentos
     assert "SM-CB-2026-0001" in movimentos, "o consumo do projeto 2"
+
+    ameacas = _table_text(response, "data-ameacas")
+    for coluna in ("Risco", "Ameaça", "Severidade", "Situação", "VME", "SMs vinculadas"):
+        assert coluna in ameacas
+    assert "RSK-TN-2026-0001" in ameacas, "a licença de operação do projeto 1"
 
 
 @pytest.mark.usefixtures("carga")
