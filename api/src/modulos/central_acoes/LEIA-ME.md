@@ -109,6 +109,7 @@ A fronteira é a prevista igual à data de referência: ainda em andamento.
 | Função | Quando chamar |
 |---|---|
 | `service.create_action(session, user=, new=NewAction(...), reference_date=)` | Única forma de gravar uma ação; exige origem (uma de `origins.ORIGINS`), referência do registro de origem, assunto e, para Ação, data prevista |
+| `service.count_actions_of_origin(session, user=, origin_kind=, references=, reference_date=)` | O módulo dono pergunta quantas ações (e quantas abertas) cada registro de origem tem, sem ler a tabela `acao`: devolve `OriginActionCount` (total, abertas, atrasadas e, quando há aberta, o assunto e o prazo da mais próxima). O diligenciamento usa para não duplicar a ação de um pedido (ISSUE-061) |
 | `service.close_from_origin(session, user=, origin=OriginRef, completed_on=, reference_date=)` | O registro de origem foi encerrado na tela do módulo dono: conclui as ações abertas dele |
 | `service.reopen_from_origin(session, user=, origin=OriginRef, reference_date=)` | O registro de origem foi reaberto |
 | `origins.register_reaction(origem, reacao)` | O módulo dono diz como reage quando a ação é replanejada ou concluída na Central (`reacao(session, user, action, ActionEvent)`, mesma transação; pode recusar) |

@@ -2,18 +2,18 @@
 
 Módulo `suprimentos`. Planeja compras, conduz concorrências e acompanha aquisição, fabricação e entrega. O Mapa de Suprimentos (MAS) é uma projeção dos registros do módulo, não um cadastro duplicado.
 
-A tela **Fornecedores** (ISSUE-057) está pronta: qualificação por empresa, documentos com validade, desempenho e a ligação com a avaliação final do Financeiro. A tela **Plano de compras** (ISSUE-058) também está pronta: pacotes vinculados à EAC, datas da linha de base, ROS, folga planejada e importação. A tela **Processos de compra** (ISSUE-059/060) está pronta do início ao fim do fluxo: RFx, propostas com PDF, encerramento, equalizações, ranking, recomendação de adjudicação, aprovação por alçada com segregação de funções e emissão do pedido (com o cronograma de fabricação e o compromisso na EAC) ou do contrato no 03. As demais telas ainda são esqueletos até as suas issues (ISSUE-061 a ISSUE-063).
+A tela **Fornecedores** (ISSUE-057) está pronta: qualificação por empresa, documentos com validade, desempenho (com o OTD dos pedidos) e a ligação com a avaliação final do Financeiro. A tela **Plano de compras** (ISSUE-058) também está pronta: pacotes vinculados à EAC, datas da linha de base, ROS, folga planejada e importação. A tela **Processos de compra** (ISSUE-059/060) está pronta do início ao fim do fluxo: RFx, propostas com PDF, encerramento, equalizações, ranking, recomendação de adjudicação, aprovação por alçada com segregação de funções e emissão do pedido (com o cronograma de fabricação e o compromisso na EAC) ou do contrato no 03. A tela **Diligenciamento e recebimento** (ISSUE-061) está pronta: marcos de fabricação, folga sobre o ROS, ação na Central sem duplicar, recebimento com evidência e importação do ERP. As demais telas ainda são esqueletos até as suas issues (ISSUE-062 e ISSUE-063).
 
 ## Telas
 
 | Tela | Conteúdo | Issue |
 |---|---|---|
-| Fornecedores | Qualificação, documentos com validade e desempenho | ISSUE-057 (pronta) |
+| Fornecedores | Qualificação, documentos com validade e desempenho (com o OTD) | ISSUE-057 (pronta) |
 | Painel de suprimentos | Indicadores, curva de contratação, avanço do MAS e pedidos críticos | ISSUE-063 |
 | Plano de compras | Pacotes, datas de linha de base, ROS e vínculo à EAC | ISSUE-058 (pronta) |
 | Processos de compra | RFx, equalizações, ranking, alçada e emissão | ISSUE-059/060 (pronta) |
 | MAS | Doze marcos de aquisição, fabricação e entrega | ISSUE-062 |
-| Diligenciamento e recebimento | Marcos, folga, riscos sugeridos, ação e recebimento | ISSUE-061 |
+| Diligenciamento e recebimento | Marcos, folga, ação na Central, recebimento e importação do ERP | ISSUE-061 (pronta) |
 
 ## Trios das telas
 
@@ -71,11 +71,24 @@ A tela é um fragmento só, `processos-conteudo`: os cinco KPIs, a barra de busc
 | `processos/requisicao` | GET/POST | Nova requisição: o pacote planejado e a data realizada do marco |
 | `processos/{pacote_id}/acao/{nome}` | GET/POST | As ações do fluxo: `rfx`, `proposta`, `encerrar-recebimento`, `equalizacao-tecnica`, `equalizacao-comercial`, `negociacao`, `recomendacao`, `devolver`, `aprovar` e `emitir` |
 
+### Diligenciamento e recebimento (ISSUE-061)
+
+A tela é um fragmento só, `diligenciamento-conteudo`: os cinco KPIs, a barra de busca e filtros, o bloco dos pedidos críticos com tratamento pendente, a tabela dos pedidos e a ficha do pedido selecionado (os seis marcos de fabricação, o recebimento, a ação da Central e as últimas atualizações). Tudo que muda a visão — um KPI, uma página, a busca, um filtro ou a abertura de um pedido — é um GET da mesma rota com os filtros na consulta. Os modais (Atualizar marco, Registrar recebimento e a importação genérica do ERP) abrem por JavaScript (o trio da tela) e o servidor entrega o corpo no alvo `diligenciamento-modal-corpo`; a recusa (422, 409, 403) devolve o formulário preenchido no próprio modal. A leitura pede `Access(module="suprimentos")` e a gravação, `Permission.WRITE` — o Visualizador vê, não grava. No Portfólio a tabela ganha a coluna Projeto (e as exportações também) e o botão de importação passa pelo mecanismo do shell (`data-tn-incluir`), que pede o projeto antes.
+
+| Rota | Método | O que devolve |
+|---|---|---|
+| `diligenciamento` | GET | A tela: KPIs, barra, pendências, tabela e ficha; filtros `busca`, `situacao` (`abertos` ou `todos`), `faixa` (`critico`, `atencao` ou `vencidos`), `pagina` e `pedido` (a ficha aberta) |
+| `diligenciamento/excel` | GET | Excel da lista e dos KPIs; com `pedido`, os marcos do pedido (download, `file_route`) |
+| `diligenciamento/imprimivel` | GET | PDF do mesmo documento (`data-tn-pdf`, imprimível genérico) |
+| `diligenciamento/{pedido_id}/marco` | GET/POST | Atualizar marco: realizado (exige o anterior e data até a referência) ou nova previsão (com cascata) |
+| `diligenciamento/{pedido_id}/recebimento` | GET/POST | Registrar recebimento na obra, com a evidência (anexo de verdade, D5a) |
+| `diligenciamento/{pedido_id}/acao` | POST | Abre a ação de diligenciamento na Central; recusa quando já existe uma aberta |
+| `/api/importacao/diligenciamento` | GET/POST | Importação do ERP pelo importador genérico (modelo, conferência e confirmação) |
+
 ### Demais telas (previstas)
 
 | Grupo previsto | Uso | Issue |
 |---|---|---|
-| `pedidos` | Marcos, recebimento e diligenciamento | ISSUE-061 |
 | `mas` | Consultar mapa calculado dos doze marcos | ISSUE-062 |
 | `painel` | Consultar indicadores do módulo | ISSUE-063 |
 
@@ -121,6 +134,9 @@ O cadastro de fornecedores é global (a qualificação pertence à empresa do ca
 | Justificativa da recomendação | Exigida quando a recomendação não é a melhor nota final ou o fornecedor não está qualificado | `calculations.recommendation_requires_justification` |
 | Cronograma de fabricação padrão | As seis datas do pedido entre a emissão e a data contratual, nas proporções do protótipo (15%, 30%, 75%, 85%, 93% e 100%) | `calculations.manufacturing_schedule` |
 | Folga do pedido | ROS menos a previsão de entrega; negativa é crítica | `calculations.delivery_slack_days` |
+| Situação do marco de fabricação | Prazo, atraso, vencido (com os dias), previsto em atraso, a vencer ou sem data, na data de referência | `calculations.milestone_situation` |
+| Atraso contratual | Entrega (ou previsão) menos a data contratual; positivo é atraso | `calculations.contractual_delay_days` |
+| Situação do pedido | Entregue, Crítico, Atenção ou No prazo, pela faixa da folga e pelos marcos vencidos | `calculations.order_situation` |
 | LLI antes do gate | Requisição real anterior ao início do projeto, sem a data do gate LLI registrada no pacote | `calculations.lli_before_gate` |
 | Número do pedido e do contrato | Série global do ano, maior número do prefixo + 1, três dígitos (`PED-2026-001`, `CT-2026-001`) | `core.numbering.next_series_number` |
 | Limite do saldo da EAC | O valor recomendado não supera o saldo a comprometer do item (orçado atual − comprometido) | `validation.eac_balance_problem` via `financeiro.calculations.saldo_a_comprometer_cents` |
@@ -149,30 +165,43 @@ O processo nasce na **Emitir RFx** (a etapa do pacote é Requisição): o númer
 
 **Recomendar adjudicação** (ISSUE-060) só aceita proposta aprovada tecnicamente e fornecedor do cadastro; recomendação que não é a melhor nota final, ou fornecedor que não está qualificado, exige justificativa (mínimo de 20 caracteres) e fornecedor bloqueado é recusado. A recomendação preenche as colunas `recomendacao_*` e o passo vira "Recomendação de adjudicação". **Devolver** limpa a recomendação e volta à negociação, com o motivo (mínimo de 10 caracteres) na linha do histórico. **Aprovar adjudicação** recalcula a alçada exigida a partir do valor recomendado (as faixas vêm do parâmetro `alcadas`, nunca do código), exige aprovador diferente do comprador e de quem recomendou — recusa com 403 (segregação de funções) —, recusa o LLI requisitado antes do início do projeto sem a data do gate LLI no pacote e recusa o valor acima do saldo a comprometer do item da EAC; grava `aprovacao_*` e a data real do marco `adjudicacao`. **Emitir pedido ou contrato**: equipamento e material criam o `pedido` (número global `PED-2026-001` em diante) com os seis marcos de fabricação padrão entre a emissão e a data contratual (o prazo vem da proposta), e o pedido que nasce com folga negativa (ROS menos a previsão) abre a ação de diligenciamento na Central (origem Suprimentos, grupo Diligenciamento, responsável o comprador, prazo de 7 dias); serviço e EPC criam o contrato no 03 pela fachada `financeiro.create_purchase_contract` (`CT-2026-001` em diante, ligado ao `pacote_compra`). O valor fica comprometido na EAC pelo fato de `custo_erp` do mês da emissão (`financeiro.commit_purchase_cost`) e o marco `pedido` ganha a data real — tudo na transação do chamador, ou nada. A ficha mostra a recomendação, a aprovação e o documento emitido, com o atalho para o diligenciamento ou para o contrato.
 
+## Fluxo do diligenciamento e recebimento (ISSUE-061)
+
+A tela lê cada pedido do escopo com os seis marcos de fabricação (`pedido_marco`, com a LB contratual, a previsão e a realizada na mesma linha), o recebimento e o histórico (na auditoria, entidade `pedido.historico`), e calcula na leitura: a situação de cada marco (`calculations.milestone_situation`), a folga contra o ROS (`required_on_site_slack`), o atraso contratual e a situação do pedido (`calculations.order_situation`). Os KPIs contam o universo (os filtros cortam a tabela): pedidos em aberto e o valor a receber, críticos (e os LLI entre eles), em atenção (folga de até 7 dias ou marco vencido), marcos vencidos e o OTD das entregas (`calculations.on_time_delivery`, meta de 90%). O bloco de pendências lista os críticos sem ação aberta na Central.
+
+**Atualizar marco** realiza um marco ou reprograma a previsão. A realização exige o marco anterior realizado e data até a data de referência; a previsão não fica no passado; a reprogramação pode deslocar os marcos seguintes na mesma quantidade de dias (a cascata do protótipo, desligável), e as previsões seguintes nunca ficam antes da anterior. A entrega (o sexto marco) não se realiza por aqui: a mensagem manda registrar o recebimento. Cada atualização grava o comentário na trilha e, se a folga ficar negativa, abre a ação de diligenciamento — **uma só**: `_open_diligence_action` pergunta à Central quantas ações abertas o pedido tem (`central_acoes.count_actions_of_origin`) e não cria a segunda. O botão "Gerar ação" da lista de pendentes usa o mesmo caminho (`open_diligence_action`), com recusa "Já existe ação aberta na Central para o pedido" quando há uma.
+
+**Registrar recebimento** exige o embarque realizado; a data é até a referência e nunca antes do embarque; avarias exigem a descrição (mínimo de 10 caracteres). A gravação escreve a entrega no pedido e no marco `Entrega`, cria a linha `recebimento` (data, conferência, avarias com descrição e pendências) e guarda a evidência como anexo de verdade do registro (tipo de origem `recebimento`, D5a). Um pedido já recebido é recusado.
+
+**Importar do ERP** usa o importador genérico (`/api/importacao/diligenciamento`): uma linha por marco, com o número do pedido, o marco, a previsão e a realizada — uma das duas datas é obrigatória. A conferência recusa pedido fora do escopo, marco desconhecido, data realizada futura e previsão no passado; a gravação passa por `service.apply_order_import_row`, que grava a previsão ou a realização, cria o recebimento pendente quando a linha é a entrega e deixa a nota "Atualizado pela importação do ERP (marco)" na trilha. A linha repetida do mesmo pedido e marco é recusada pela unicidade do importador (o protótipo aplicava as duas em ordem).
+
+O OTD dos pedidos alimenta o **desempenho do fornecedor** (ISSUE-057): a fachada lê os pedidos do escopo por empresa e a ficha de desempenho mostra o OTD, os pedidos e a entrega contra a data contratual. O risco sugerido fica anotado para a ISSUE-067 e o FAT para a ISSUE-069 (não ligados nesta fatia); a ficha do pedido mostra "sem risco registrado (ISSUE-067)".
+
 ## Integrações
 
-Pacotes se vinculam à EAC do Financeiro; o saldo a comprometer do item é lido na consulta pela porta `financeiro.service.cost_item_balances` e o vínculo do pacote é resolvido pelos itens de custo lidos por `financeiro.service.eac_item_labels`/`eac_item_ids_by_code` — o plano só lê a EAC, nunca a tabela (D9). A emissão (ISSUE-060) grava o pedido no próprio módulo e chama o Financeiro na mesma transação: `financeiro.create_purchase_contract` cria o contrato de um serviço/EPC ligado ao `pacote_compra` (o gestor é o gerente do projeto e o prazo de notificação do claim vem do grupo `claims`) e `financeiro.commit_purchase_cost` soma o valor ao comprometido do item em `custo_erp` no mês da emissão; a ficha lê o número do contrato por `financeiro.contract_number_by_package`. A folga negativa do pedido abre a ação de diligenciamento pela costura única da Central (`central_acoes.create_action`, origem Suprimentos); o risco sugerido entra em Riscos com a ISSUE-061. FAT realizado registra inspeção em Qualidade. O cadastro de empresas e pessoas é compartilhado com Configurações; o desempenho é lido do Financeiro e a avaliação final atualiza a qualificação (D9). O arquivo do documento do fornecedor como anexo ainda não foi ligado: no cadastro o documento tem nome e validade, como no protótipo; no processo, o PDF da proposta é anexo de verdade.
+Pacotes se vinculam à EAC do Financeiro; o saldo a comprometer do item é lido na consulta pela porta `financeiro.service.cost_item_balances` e o vínculo do pacote é resolvido pelos itens de custo lidos por `financeiro.service.eac_item_labels`/`eac_item_ids_by_code` — o plano só lê a EAC, nunca a tabela (D9). A emissão (ISSUE-060) grava o pedido no próprio módulo e chama o Financeiro na mesma transação: `financeiro.create_purchase_contract` cria o contrato de um serviço/EPC ligado ao `pacote_compra` (o gestor é o gerente do projeto e o prazo de notificação do claim vem do grupo `claims`) e `financeiro.commit_purchase_cost` soma o valor ao comprometido do item em `custo_erp` no mês da emissão; a ficha lê o número do contrato por `financeiro.contract_number_by_package`. A folga negativa do pedido abre a ação de diligenciamento pela costura única da Central (`central_acoes.create_action`, origem Suprimentos), sempre precedida da pergunta de quantas ações abertas existem (`central_acoes.count_actions_of_origin`) para não duplicar; o diligenciamento lê a ação aberta de cada pedido pela mesma porta, nunca da tabela `acao`. O risco sugerido entra em Riscos com a ISSUE-067 e o FAT realizado registra inspeção em Qualidade com a ISSUE-069 (não ligados nesta fatia). O cadastro de empresas e pessoas é compartilhado com Configurações; o desempenho é lido do Financeiro (mais os pedidos do próprio módulo, para o OTD) e a avaliação final atualiza a qualificação (D9). O arquivo do documento do fornecedor como anexo ainda não foi ligado: no cadastro o documento tem nome e validade, como no protótipo; no processo, o PDF da proposta é anexo de verdade e, no diligenciamento, a evidência do recebimento também (tipo de origem `recebimento`).
 
 ## Parâmetros
 
-Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de aprovação e pesos dos marcos do MAS (soma 100). O grupo `suprimentos` é lido pela fachada na consulta (`configuracoes.current_group`, sem versão vigente vale o inicial): o mínimo de propostas da RFx e das equalizações e a faixa da alçada saem de `propostasMinimas` e `alcadas` (nunca no código); o prazo de notificação do claim do contrato emitido sai do grupo `claims` (`prazoNotificacaoPadraoDias`), lido pela fachada do Financeiro. Os alertas do cadastro (30 dias do documento e 90 da qualificação), os três documentos iniciais e o alerta da folga (7 dias, `calculations.SLACK_ALERT_DAYS`) ainda estão no código (`calculations.py` e `validation.py`); os demais parâmetros de compras entram nas ISSUE-061 a ISSUE-063 e ISSUE-076.
+Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de aprovação e pesos dos marcos do MAS (soma 100). O grupo `suprimentos` é lido pela fachada na consulta (`configuracoes.current_group`, sem versão vigente vale o inicial): o mínimo de propostas da RFx e das equalizações e a faixa da alçada saem de `propostasMinimas` e `alcadas` (nunca no código); o prazo de notificação do claim do contrato emitido sai do grupo `claims` (`prazoNotificacaoPadraoDias`), lido pela fachada do Financeiro. Os alertas do cadastro (30 dias do documento e 90 da qualificação), os três documentos iniciais e o alerta da folga (7 dias, `calculations.SLACK_ALERT_DAYS`, usado pelo plano e pelo diligenciamento) ainda estão no código (`calculations.py` e `validation.py`); os demais parâmetros de compras entram nas ISSUE-062, ISSUE-063 e ISSUE-076.
 
 ## Onde mexer
 
 | Alteração | Arquivo ou pasta |
 |---|---|
 | Rotas | `routes.py` |
-| Qualificação, desempenho, plano de compras, processo e ligações | `service.py` |
-| Fronteiras de validade, folga, etapa, datas do plano, notas, ranking, alçada, cronograma de fabricação e numeração | `calculations.py` |
+| Qualificação, desempenho (com o OTD), plano de compras, processo, diligenciamento e ligações | `service.py` |
+| Fronteiras de validade, folga, etapa, datas do plano, notas, ranking, alçada, cronograma de fabricação, situação do marco, atraso contratual, situação do pedido, OTD e numeração | `calculations.py` |
 | Formulários, filtros e recusas | `validation.py` |
-| Importação Excel | `importers.py` (registrado em `routes.py`) |
+| Importação Excel (plano e ERP do diligenciamento) | `importers.py` (registrado em `routes.py`) |
 | Excel e PDF imprimível | `export.py` |
-| Persistência | `models.py`; migrações `m043_fornecedores.py`, `m046_pacotes_de_compra.py`, `m047_processos_de_compra.py` e `m048_pedidos_de_compra.py`; entidades em `docs/MODELO-DE-DADOS.md` |
-| Carga de demonstração | `seed.py` (`suprimentos-fornecedores`, `suprimentos-pacotes`, `suprimentos-processos` e `suprimentos-pedidos`) |
+| Persistência | `models.py`; migrações `m043_fornecedores.py`, `m046_pacotes_de_compra.py`, `m047_processos_de_compra.py`, `m048_pedidos_de_compra.py` e `m049_recebimento.py`; entidades em `docs/MODELO-DE-DADOS.md` |
+| Carga de demonstração | `seed.py` (`suprimentos-fornecedores`, `suprimentos-pacotes`, `suprimentos-processos`, `suprimentos-pedidos` e `suprimentos-diligenciamento`) |
 | Fragmentos | `api/src/templates/suprimentos/` |
 | Tela, estilo e comportamento | `app/_views/suprimentos/` e `app/paginas/suprimentos/` |
 | Contrato e compromisso da emissão (D9) | `api/src/modulos/financeiro/service.py` (`create_purchase_contract`, `commit_purchase_cost` e `contract_number_by_package`) |
-| Testes | `api/tests/suprimentos/`, `api/tests/apoio_processos.py` e o oráculo em `api/tests/plataforma/test_carga_demonstracao.py` |
+| Ação de diligenciamento e leitura por origem | `api/src/modulos/central_acoes/service.py` (`create_action` e `count_actions_of_origin`) |
+| Testes | `api/tests/suprimentos/`, `api/tests/apoio_diligenciamento.py`, `api/tests/apoio_processos.py` e o oráculo em `api/tests/plataforma/test_carga_demonstracao.py` |
 
 ## Testes
 
@@ -188,7 +217,10 @@ Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), alçadas de 
 - `test_pedidos_calculos.py`: as fronteiras do cronograma de fabricação, da folga do pedido, da justificativa da recomendação, do gate LLI, da numeração global e do limite do saldo da EAC.
 - `test_pedidos_fachada.py`: a recomendação (aprovada, cadastro, justificativa e bloqueado), a aprovação (403 da segregação, fronteira da alçada e do saldo, gate LLI), a devolução, a emissão do pedido (cronograma, compromisso na EAC e ação de diligenciamento) e do contrato, e o teste transversal de atomicidade.
 - `test_pedidos_rotas.py`: os formulários da recomendação, da aprovação e da emissão, a recusa de 422 no modal, o 403 do Visualizador e o pedido criado pela rota.
-- `api/tests/plataforma/test_carga_demonstracao.py`: o oráculo da carga na âncora — as 17 qualificações do mock, o documento vencido, o histórico, as empresas sem qualificação, o desempenho, os 28 pacotes com as camadas dos marcos, os 4 processos com o PC-14 em equalização comercial e os 14 pedidos com os 84 marcos de fabricação.
-- `api/tests/apoio_suprimentos.py`, `api/tests/apoio_pacotes.py`, `api/tests/apoio_processos.py` e `api/tests/suprimentos/conftest.py`: os cenários e a sessão do teste.
+- `test_diligenciamento_calculos.py`: as fronteiras da situação do marco, da folga do ROS, do atraso contratual, da situação do pedido e do OTD.
+- `test_diligenciamento_fachada.py`: a leitura por escopo, a realização com o marco anterior e a data até a referência, a previsão com a cascata, o recebimento com a evidência (D5a), a importação do ERP e a ação de diligenciamento sem duplicar.
+- `test_diligenciamento_rotas.py`: a tela, o formulário do marco e do recebimento, a recusa de 422 no modal, a ação criada pela rota e o 403 do Visualizador.
+- `api/tests/plataforma/test_carga_demonstracao.py`: o oráculo da carga na âncora — as 17 qualificações do mock, o documento vencido, o histórico, as empresas sem qualificação, o desempenho, os 28 pacotes com as camadas dos marcos, os 4 processos com o PC-14 em equalização comercial, os 14 pedidos com os 84 marcos de fabricação, os 3 recebimentos do mock e o diligenciamento com 3 pedidos críticos (−20, −9 e −5) e OTD de 66,7%.
+- `api/tests/apoio_suprimentos.py`, `api/tests/apoio_pacotes.py`, `api/tests/apoio_processos.py`, `api/tests/apoio_diligenciamento.py` e `api/tests/suprimentos/conftest.py`: os cenários e a sessão do teste.
 
-As ISSUE-061 a ISSUE-063 completam este documento e acrescentam os testes de fronteira de cada tela.
+As ISSUE-062 e ISSUE-063 completam este documento e acrescentam os testes de fronteira de cada tela.

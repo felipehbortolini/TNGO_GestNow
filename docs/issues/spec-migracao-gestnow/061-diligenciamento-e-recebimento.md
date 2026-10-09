@@ -71,3 +71,16 @@ Nenhuma.
 ## Notas
 
 Fonte: `diligenciamento.html`, `GI.api.suprimentos.pedidos`, `atualizarMarco`, `registrarRecebimento`, `gerarAcao` e `importarPedidos`.
+
+## Registro de execução
+
+Entregues: a fachada do diligenciamento (leitura com situação dos marcos, folga do ROS, atraso contratual e OTD; atualização de marco com cascata; recebimento com anexo de verdade; importação do ERP; ação na Central sem duplicar; OTD no desempenho do fornecedor), a migração `m049_recebimento` (down `m048`), as rotas da tela, dos dois modais e da ação, o trio da tela com os fragmentos, a parte `suprimentos-diligenciamento` da carga, os testes de cálculos, fachada, rotas e o oráculo (3 críticos −20/−9/−5 e OTD 66,7% no projeto; o quarto crítico do Portfólio é a caldeira), e a documentação (LEIA-ME, DIVERGENCIAS, este registro). `ruff format` e `ruff check` limpos nos arquivos tocados.
+
+- DECISAO: FAT | o resultado da inspeção em fábrica e o registro no 06 ficam para a ISSUE-069; a realização do marco grava só a data | D5a, ISSUE-061
+- DECISAO: evidência da atualização do marco | o modal não coleta anexo (a trilha não é registro de anexo); a evidência de entrega é o anexo do recebimento | D5a, ISSUE-061
+- DECISAO: anexo do recebimento | um arquivo por gravação no formulário; o registro aceita mais anexos pela porta genérica de anexos | D5a, ISSUE-061
+- DECISAO: importação do ERP | a linha repetida do mesmo pedido e marco é recusada pela unicidade do importador genérico | D12, ISSUE-061
+- DECISAO: risco sugerido | o vínculo com o registro de riscos fica para a ISSUE-067; a ficha do pedido mostra "sem risco registrado (ISSUE-067)" | D9, ISSUE-061
+- DECISAO: folga do ROS e OTD | `calculations.required_on_site_slack` (a mesma fórmula do `delivery_slack_days`) e `calculations.on_time_delivery` (uma casa, meio para cima) | D6, ISSUE-061
+- DECISAO: ficha do pedido | a ficha vive no fragmento da tela; o clique numa linha pede a tela de novo com `pedido`, sem rota de ficha separada | D14, ISSUE-061
+- DECISAO: ação sem duplicar | a existência de ação aberta é perguntada à Central (`count_actions_of_origin`), nunca lida da tabela `acao` | D5, ISSUE-061
