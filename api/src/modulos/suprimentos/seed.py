@@ -1,4 +1,4 @@
-"""Parts of the Procurement module in the demonstration load (ISSUE-057/058, D6/Q15).
+"""Parts of the Procurement module in the demonstration load (ISSUE-057/058/059, D6/Q15).
 
 The 17 qualifications of the prototype (``fornecedores``), with their categories, documents and
 the situation history, enter through the facade (``core.recording``, inside the caller's
@@ -15,8 +15,11 @@ the codes the mock linked to level-2 items are loaded as they are, since only a 
 required to be tied to a level-3 item. The gate LLI rides in the package; the codes come from
 the project sequence of the mock.
 
-The file of a document is an ``anexo`` (D5a): the load keeps the metadata of the document only,
-as the prototype kept the name, because the demonstration has no files.
+The four processes of the mock (``processos``) enter with their invitees, proposals and
+negotiations; the free names outside the register stay in ``nome`` (the prototype accepted
+them). The history of each process goes to the audit trail, the entity the facade reads the feed
+from. The recommendation and the approval of the mock ride in the columns ISSUE-060 fills. The
+PDF of a proposal is not loaded: the demonstration has no files (DIVERGENCIAS, anexo).
 """
 
 from __future__ import annotations
@@ -26,18 +29,23 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
-from src.core import recording
+from src.core import audit, recording
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import service as financeiro
-from src.modulos.suprimentos import calculations
+from src.modulos.suprimentos import calculations, service
 from src.modulos.suprimentos.models import (
     PackageMilestone,
+    ProcessInvitee,
+    ProcessNegotiation,
+    ProcessProposal,
     PurchasePackage,
+    PurchaseProcess,
     Supplier,
     SupplierCategory,
     SupplierDocument,
@@ -46,6 +54,7 @@ from src.modulos.suprimentos.models import (
 
 PART_NAME = "suprimentos-fornecedores"
 PACKAGES_PART_NAME = "suprimentos-pacotes"
+PROCESSES_PART_NAME = "suprimentos-processos"
 
 
 @dataclass(frozen=True)
@@ -294,3 +303,186 @@ def _record_milestones(
 
 
 register(PACKAGES_PART_NAME, load_packages)
+
+
+# ── The purchase processes (ISSUE-059) ───────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _ProcessLookups:
+    """What the process load needs to turn ids of the prototype into ids of the database."""
+
+    user: User
+    reference_date: date
+    packages: Mapping[int, int]
+    project_of_package: Mapping[int, int]
+    people: Mapping[int, int]
+    companies: Mapping[int, int]
+    companies_by_name: Mapping[str, int]
+
+    def shifted(self, value: str | None) -> date | None:
+        """A date of the prototype moved to the reference date of the run."""
+        return shift_date(date.fromisoformat(value), self.reference_date) if value else None
+
+    def required(self, value: str | None) -> date:
+        """A date the mock always carries; without it the load fails loud."""
+        shifted = self.shifted(value)
+        if shifted is None:
+            message = "Data obrigatória ausente no mock dos processos."
+            raise LookupError(message)
+        return shifted
+
+    def person(self, mock_id: int | None) -> int | None:
+        """The person of the register behind an id of the prototype."""
+        return None if mock_id is None else self.people.get(mock_id)
+
+    def company(self, mock_id: int | None) -> int | None:
+        """The company of the register behind an id of the prototype."""
+        return None if mock_id is None else self.companies.get(mock_id)
+
+
+def load_processes(session: Session, reference_date: date) -> None:
+    """Write the processes of the prototype with their invitees, proposals and negotiations."""
+    lookups = _process_lookups(session, reference_date)
+    for source in prototype_collection("processos"):
+        _record_process(session, lookups, source)
+
+
+def _process_lookups(session: Session, reference_date: date) -> _ProcessLookups:
+    access = configuracoes.find_access_by_email(session, ADMIN_EMAIL)
+    if access is None:
+        message = f"O Admin da demonstração ({ADMIN_EMAIL}) não está no cadastro."
+        raise LookupError(message)
+    user = User(
+        id=access.id,
+        person_id=access.person_id,
+        name=access.name,
+        email=access.email,
+        general_profile=GeneralProfile(access.general_profile),
+        bond=Bond(access.bond),
+        company_id=access.company_id,
+    )
+    real_projects = {project.code: project.id for project in configuracoes.list_projects(session)}
+    projects = {
+        source["id"]: real_projects[source["codigo"]] for source in prototype_collection("projetos")
+    }
+    real_packages = {
+        (project_id, code): package_id
+        for project_id, code, package_id in session.execute(
+            select(PurchasePackage.project_id, PurchasePackage.code, PurchasePackage.id)
+        )
+    }
+    packages = {
+        source["id"]: real_packages[(projects[source["projetoId"]], source["codigo"])]
+        for source in prototype_collection("pacotes")
+    }
+    companies_by_name = {
+        company.name: company.id for company in configuracoes.list_company_summaries(session)
+    }
+    ids_by_email = {
+        person.email.lower(): person.id for person in configuracoes.list_people(session)
+    }
+    return _ProcessLookups(
+        user=user,
+        reference_date=reference_date,
+        packages=packages,
+        project_of_package={
+            source["id"]: projects[source["projetoId"]]
+            for source in prototype_collection("pacotes")
+        },
+        people={
+            person["id"]: ids_by_email[person["email"].lower()]
+            for person in prototype_collection("pessoas")
+        },
+        companies={
+            company["id"]: companies_by_name[company["nome"]]
+            for company in prototype_collection("empresas")
+        },
+        companies_by_name=companies_by_name,
+    )
+
+
+def _record_process(session: Session, lookups: _ProcessLookups, source: Mapping[str, Any]) -> None:
+    recommendation = source.get("recomendacao") or {}
+    approval = source.get("aprovacao") or {}
+    process = recording.create(
+        session,
+        user_id=lookups.user.id,
+        record=PurchaseProcess(
+            package_id=lookups.packages[source["pacoteId"]],
+            number=source["numero"],
+            weight_technical=source["pesoTecnico"],
+            weight_commercial=source["pesoComercial"],
+            proposals_deadline=lookups.required(source["dataLimitePropostas"]),
+            recommendation_on=lookups.shifted(recommendation.get("data")),
+            recommendation_company_id=lookups.company(recommendation.get("fornecedorId")),
+            recommendation_value_cents=recommendation.get("valorCentavos"),
+            recommendation_by_id=lookups.person(recommendation.get("porId")),
+            recommendation_justification=recommendation.get("justificativa"),
+            approval_on=lookups.shifted(approval.get("data")),
+            approval_by_id=lookups.person(approval.get("porId")),
+            approval_band=approval.get("alcada"),
+            approval_opinion=approval.get("parecer"),
+        ),
+    )
+    for name in source["convidados"]:
+        company_id = lookups.companies_by_name.get(name)
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=ProcessInvitee(
+                process_id=process.id, company_id=company_id, name=None if company_id else name
+            ),
+        )
+    for proposal in source["propostas"]:
+        company_id = lookups.company(proposal.get("fornecedorId"))
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=ProcessProposal(
+                process_id=process.id,
+                company_id=company_id,
+                name=None if company_id else proposal["fornecedor"],
+                received=lookups.required(proposal["recebida"]),
+                value_cents=proposal["valorCentavos"],
+                deadline_days=proposal["prazoDias"],
+                validity=lookups.shifted(proposal.get("validade")),
+                technical_score=proposal.get("notaTecnica"),
+                technically_approved=proposal.get("tecnicamenteAprovada"),
+                deviations=proposal.get("desvios") or None,
+            ),
+        )
+    for negotiation in source.get("negociacoes", ()):
+        company_id = lookups.companies_by_name.get(negotiation["fornecedor"])
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=ProcessNegotiation(
+                process_id=process.id,
+                company_id=company_id,
+                name=None if company_id else negotiation["fornecedor"],
+                on=lookups.required(negotiation["data"]),
+                value_cents=negotiation["valorCentavos"],
+                observation=negotiation.get("observacao") or None,
+            ),
+        )
+    for entry in source.get("historico", ()):
+        audit.append(
+            session,
+            audit.TrailLine(
+                user_id=lookups.user.id,
+                entity=service.PROCESS_HISTORY_ENTITY,
+                record_id=process.id,
+                action=audit.CREATED,
+                after={
+                    "data": lookups.required(entry["data"]).isoformat(),
+                    "etapa": entry["etapa"],
+                    "por_id": lookups.person(entry.get("porId")),
+                    "texto": entry["texto"],
+                },
+                project_id=lookups.project_of_package[source["pacoteId"]],
+            ),
+        )
+
+
+register(PROCESSES_PART_NAME, load_processes)
