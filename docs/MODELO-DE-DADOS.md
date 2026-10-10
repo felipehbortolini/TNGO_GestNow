@@ -1832,6 +1832,8 @@ erDiagram
         text descricao
         date prazo
         text situacao
+        date data_conclusao
+        text evidencia
         integer versao
     }
 ```
@@ -1840,7 +1842,10 @@ erDiagram
 preenche, mas só Gestor e Admin leem o nome e os dados médicos, e os anexos com
 esses dados seguem a mesma permissão. O registro geral guarda função e número
 de pessoas envolvidas, **sem nome**. Taxas, pirâmide, dias sem afastamento e
-histograma são calculados dos fatos.
+histograma são calculados dos fatos. O fechamento da recomendação do estudo de
+risco guarda a `data_conclusao` e a `evidencia` (colunas acrescentadas na
+migração `m074`, ISSUE-074): o protótipo as gravava e o diagrama não tinha onde;
+o atraso continua calculado (aberta com o prazo anterior à data de referência).
 
 ### 13. Análise do período e relatório
 
