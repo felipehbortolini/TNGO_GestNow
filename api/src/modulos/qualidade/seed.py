@@ -1,11 +1,21 @@
-"""Part of the RNC list in the demonstration load (ISSUE-068, D6/Q15).
+"""Parts of the Quality module in the demonstration load (ISSUE-068 and ISSUE-069, D6/Q15).
 
-The 10 reports of the prototype (``rncs``: the six of ``mock-qualidade`` and the four the
-portfolio mock adds for the other projects) enter through the facade (``service.record_rnc``),
-with the columns the mock already had: situation, disposition, concession, root cause,
-deadline, effectiveness and cost. Every date is shifted by ``shift_date``; on 25/09/2026 (the
-oracle) nothing moves and the numbers of the prototype come out whole: 4 open reports in the
-project 1 (0002, 0004, 0005 and 0006), 0004 with the treatment deadline overdue.
+``qualidade-rnc``: the 10 reports of the prototype (``rncs``: the six of ``mock-qualidade``
+and the four the portfolio mock adds for the other projects) enter through the facade
+(``service.record_rnc``), with the columns the mock already had: situation, disposition,
+concession, root cause, deadline, effectiveness and cost. Every date is shifted by
+``shift_date``; on 25/09/2026 (the oracle) nothing moves and the numbers of the prototype come
+out whole: 4 open reports in the project 1 (0002, 0004, 0005 and 0006), 0004 with the
+treatment deadline overdue.
+
+``qualidade-inspecoes``: the 8 ITPs and the 28 inspections of the prototype (``itps`` and
+``inspecoesQualidade``, the five ITPs and 20 inspections of ``mock-qualidade`` plus the three
+ITPs and eight inspections of ``mock-portfolio``) enter after the reports, because the
+inspections point to the RNC they opened. The point of the mock is the id inside the ITP, so
+the load keeps the map ``(mock ITP, mock point) -> itp_ponto``; the inspections carry the
+copied point and type and the number of the report. The numbering of both series continues
+from the loaded codes when a person records a new one, because both are read from the codes
+in force (``service._next_itp_code`` and ``service._next_inspection_code``).
 
 The corrective actions with origin ``RNC`` are seeded by the Central de Ações, whose part runs
 before this one; the numbering of each project continues after the highest loaded number, so
@@ -25,14 +35,15 @@ from sqlalchemy.orm import Session
 
 from src.carga import prototype_collection, register, shift_date
 from src.carga.plataforma import ADMIN_EMAIL
-from src.core import numbering
+from src.core import numbering, recording
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.governanca import lessons_service
-from src.modulos.qualidade import service
-from src.modulos.qualidade.models import Rnc
+from src.modulos.qualidade import calculations, service
+from src.modulos.qualidade.models import Inspection, Itp, ItpPoint, ItpRevision, Rnc
 
 PART_NAME = "qualidade-rnc"
+PART_INSPECOES = "qualidade-inspecoes"
 HISTORY_HOUR = time(9, 0)
 
 
@@ -75,6 +86,13 @@ def load(session: Session, reference_date: date) -> None:
     for source in prototype_collection("rncs"):
         _record(session, lookups, source)
     _start_numbering(session, lookups)
+
+
+def load_inspecoes(session: Session, reference_date: date) -> None:
+    """Write the ITPs and the inspections of the prototype, after the reports they point to."""
+    lookups = _lookups(session, reference_date)
+    points = _load_itps(session, lookups)
+    _load_inspections(session, lookups, points)
 
 
 def _lookups(session: Session, reference_date: date) -> _Lookups:
@@ -200,4 +218,78 @@ def _start_numbering(session: Session, lookups: _Lookups) -> None:
             numbering.start_after(session, project=project, kind="rnc", last_number=last)
 
 
+def _load_itps(session: Session, lookups: _Lookups) -> dict[tuple[int, int], int]:
+    """Write the ITPs with their current revision and points; the map of the mock points."""
+    points: dict[tuple[int, int], int] = {}
+    for source in prototype_collection("itps"):
+        approval = source.get("aprovacao") or {}
+        company = lookups.companies_by_id[source["empresaId"]]
+        itp = Itp(
+            project_id=lookups.projects[source["projetoId"]],
+            discipline_id=lookups.disciplines[source["disciplina"]],
+            company_id=lookups.companies[company],
+            code=source["codigo"],
+            title=source["titulo"],
+        )
+        recording.create(session, user_id=lookups.user.id, record=itp)
+        revision = ItpRevision(
+            itp_id=itp.id,
+            approved_by_id=lookups.person(approval.get("porId")),
+            revision=source["revisao"],
+            revision_date=lookups.shifted(source["data"]),
+            approved_by_client=bool(source.get("aprovadoCliente")),
+            approval_reference=approval.get("referencia"),
+            approval_date=lookups.maybe_shifted(approval.get("data")),
+        )
+        recording.create(session, user_id=lookups.user.id, record=revision)
+        for point in source["pontos"]:
+            row = ItpPoint(
+                revision_id=revision.id,
+                order=point["id"],
+                activity=point["atividade"],
+                point_type=point["tipo"],
+                criterion=point["criterio"],
+                reference=point.get("referencia") or "",
+                responsible=point.get("responsavel") or calculations.DEFAULT_POINT_RESPONSIBLE,
+            )
+            recording.create(session, user_id=lookups.user.id, record=row)
+            points[(source["id"], point["id"])] = row.id
+    return points
+
+
+def _load_inspections(
+    session: Session, lookups: _Lookups, points: Mapping[tuple[int, int], int]
+) -> None:
+    """Write the inspections of the prototype, pointing to the point and the report created."""
+    for source in prototype_collection("inspecoesQualidade"):
+        company = lookups.companies_by_id[source["empresaId"]]
+        inspection = Inspection(
+            project_id=lookups.projects[source["projetoId"]],
+            itp_point_id=points[(source["itpId"], source["pontoId"])],
+            company_id=lookups.companies[company],
+            inspector_id=lookups.person(source["inspetorId"]),
+            rnc_id=_rnc_id(session, source.get("rncRef")),
+            order_id=None,
+            code=source["codigo"],
+            point=source["ponto"],
+            point_type=source["tipoPonto"],
+            inspection_date=lookups.shifted(source["data"]),
+            result=source["resultado"],
+            observation=(source.get("observacao") or "").strip(),
+            notification=None,
+        )
+        recording.create(session, user_id=lookups.user.id, record=inspection)
+
+
+def _rnc_id(session: Session, code: str | None) -> int | None:
+    if not code:
+        return None
+    found = session.scalar(select(Rnc.id).where(Rnc.code == code))
+    if found is None:
+        message = f"RNC do protótipo não carregada: {code}."
+        raise LookupError(message)
+    return found
+
+
 register(PART_NAME, load)
+register(PART_INSPECOES, load_inspecoes)

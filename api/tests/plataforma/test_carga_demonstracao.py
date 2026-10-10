@@ -124,6 +124,7 @@ PARTS = [
     "planejamento-punch",
     "programacao_semanal",
     "qualidade-rnc",
+    "qualidade-inspecoes",
     "riscos",
     "financeiro-contratos-fluxos",
     "suprimentos-fornecedores",
