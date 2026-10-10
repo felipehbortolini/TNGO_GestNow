@@ -1,0 +1,81 @@
+{% extends "base_fragment.html" %}
+{#
+  Corpo do modal do histórico de versões (ISSUE-076): a tabela de todas as versões de todos os
+  grupos, da mais recente para a mais antiga, com o selo Vigente na versão vigente de cada grupo
+  e o número de alterações; e, quando o Ver pede (``grupo`` e ``versao`` na query), a tabela das
+  alterações da versão com o antes e o depois. O Ver é um GET deste mesmo fragmento com x-target
+  no corpo do modal.
+
+  Espera: versoes, detalhe, url_historico e data.
+#}
+{% block fragment %}
+{% if not versoes %}
+<div class="empty" data-estado="vazio-origem">
+  <h2 class="h-card4">Nenhuma versão registrada</h2>
+  <p>As versões nascem da gravação de um grupo de parâmetros.</p>
+</div>
+{% else %}
+<div class="tbl-wrap">
+  <table class="tbl parametros__versoes">
+    <caption class="sr-only">Versões dos parâmetros</caption>
+    <thead>
+      <tr>
+        <th scope="col">Versão</th>
+        <th scope="col">Grupo</th>
+        <th scope="col">Vigência</th>
+        <th scope="col">Alterada por</th>
+        <th scope="col">Justificativa</th>
+        <th scope="col" class="parametros__valor">Alterações</th>
+        <th scope="col"><span class="sr-only">Ver alterações</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for versao in versoes %}
+      <tr>
+        <td class="nowrap"><b>v{{ versao.version }}</b>{% if versao.current %} <span class="pill pill--ok">Vigente</span>{% endif %}</td>
+        <td>{{ versao.group_name }}</td>
+        <td class="nowrap">{{ data(versao.effective_from) }} em diante</td>
+        <td>{{ versao.author_name or '·' }}</td>
+        <td>{{ versao.justification or 'Versão inicial' }}</td>
+        <td class="parametros__valor">{{ versao.changes|length }}</td>
+        <td class="nowrap">
+          {% if versao.changes %}
+          <a class="btn btn--ghost btn--sm"
+            href="{{ url_historico }}?grupo={{ versao.group }}&versao={{ versao.version }}"
+            x-target="{{ target_id }}">Ver</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if detalhe %}
+<h3 class="h-card5 parametros__detalhe-titulo">Alterações da v{{ detalhe.version }} · {{ detalhe.group_name }}</h3>
+<div class="tbl-wrap">
+  <table class="tbl parametros__alteracoes">
+    <caption class="sr-only">Alterações da versão {{ detalhe.version }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Grupo</th>
+        <th scope="col">Parâmetro</th>
+        <th scope="col">Antes</th>
+        <th scope="col">Depois</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for alteracao in detalhe.changes %}
+      <tr>
+        <td>{{ alteracao.grupo }}</td>
+        <td>{{ alteracao.parametro }}</td>
+        <td>{{ alteracao.de }}</td>
+        <td>{{ alteracao.para }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Parâmetros do sistema (ISSUE-076): o card da versão vigente (a mais recente entre os
+  grupos), a barra com a busca e o filtro por módulo e os grupos por módulo com a tabela de
+  parâmetro x valor vigente e o botão Editar. O filtro é um GET do próprio fragmento — o servidor
+  filtra e re-renderiza; o modal de edição e o histórico carregam pelo JS da página
+  (parametros.js). Excel e PDF saem pelos mecanismos genéricos (data-tn-excel e data-tn-pdf).
+
+  Os estados: carregando, erro e sem permissão são da view; o vazio por filtro vem daqui
+  (data-situacao).
+
+  Espera: visao, busca, modulo, modulos, consulta, hoje, url_tela, url_historico, url_excel,
+  url_pdf, pode_gravar, situacao e data.
+#}
+{% block fragment %}
+<span hidden data-situacao="{{ situacao }}"></span>
+
+<div class="card parametros__versao">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Versão vigente</h2>
+      <span class="hint">
+        {% if visao.latest %}
+        v{{ visao.latest.version }} vigente desde {{ data(visao.latest.effective_from) }} ·
+        alterada por {{ visao.latest.author_name or '·' }} · {{ visao.latest.justification }}
+        {% else %}
+        Nenhuma versão registrada
+        {% endif %}
+      </span>
+    </div>
+    <div class="parametros__acoes">
+      <button type="button" class="btn btn--secondary btn--sm"
+        data-parametros-modal-url="{{ url_historico }}"
+        data-parametros-modal-titulo="Histórico de versões"
+        data-parametros-modal-subtitulo="Quem alterou, quando e por quê"
+        data-parametros-modal-largura="1040">
+        <span x-init="$el.innerHTML = window.icon('clock', 14)" aria-hidden="true"></span>
+        Histórico de versões
+      </button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    </div>
+  </div>
+  <div class="card__body">
+    <dl class="parametros__resumo">
+      <div><dt>Versão</dt><dd>{% if visao.latest %}v{{ visao.latest.version }}{% else %}·{% endif %}</dd></div>
+      <div><dt>Vigência</dt><dd>{% if visao.latest %}desde {{ data(visao.latest.effective_from) }}{% else %}·{% endif %}</dd></div>
+      <div><dt>Alterada por</dt><dd>{{ visao.latest.author_name if visao.latest else '·' }}</dd></div>
+      <div><dt>Justificativa</dt><dd>{{ visao.latest.justification if visao.latest else '·' }}</dd></div>
+      <div><dt>Versões anteriores</dt><dd>{{ visao.previous_versions }}</dd></div>
+    </dl>
+  </div>
+</div>
+
+<form class="toolbar parametros__filtros" method="get" action="{{ url_tela }}"
+  x-target="{{ target_id }}" role="search">
+  <label class="sr-only" for="{{ target_id }}-busca">Buscar parâmetro</label>
+  <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ busca }}"
+    maxlength="120" placeholder="Buscar parâmetro" />
+  <select class="input" name="modulo" aria-label="Módulo" @change="$el.form.requestSubmit()">
+    <option value="">Módulo: todos</option>
+    {% for valor, rotulo in modulos %}
+    <option value="{{ valor }}"{% if modulo == valor %} selected{% endif %}>{{ rotulo }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn--secondary btn--sm">
+    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
+  </button>
+  {% if busca or modulo %}
+  <a class="btn btn--ghost btn--sm" href="{{ url_tela }}" x-target="{{ target_id }}">Limpar filtros</a>
+  {% endif %}
+</form>
+
+{% if situacao == 'vazio-filtro' %}
+<div class="empty" data-estado="vazio-filtro">
+  <h2 class="h-card4">Nenhum parâmetro encontrado com os filtros atuais</h2>
+  <p>Ajuste ou limpe a busca e o módulo para ver os parâmetros vigentes.</p>
+</div>
+{% else %}
+<div class="parametros__grade">
+  {% for grupo in visao.groups %}
+  <section class="card parametros__grupo" aria-labelledby="parametros-t-{{ grupo.form.id }}">
+    <div class="card__head">
+      <div>
+        <h2 class="h-card4" id="parametros-t-{{ grupo.form.id }}">{{ grupo.form.nome }}</h2>
+        <span class="hint">{{ grupo.form.modulo_nome }} · usado em {{ grupo.form.onde }}. {{ grupo.form.nota }}</span>
+        {% if grupo.current %}
+        <span class="hint parametros__vigencia">
+          v{{ grupo.current.version }} vigente desde {{ data(grupo.current.effective_from) }} ·
+          alterada por {{ grupo.current.author_name or '·' }}
+          {%- if grupo.source_count > 1 %} · {{ grupo.source_count }} grupos de parâmetros{% endif %}
+        </span>
+        {% endif %}
+      </div>
+      {% if pode_gravar %}
+      <button type="button" class="btn btn--secondary btn--sm"
+        data-parametros-modal-url="/api/configuracoes/parametros/{{ grupo.form.id }}/editar?consulta={{ consulta }}"
+        data-parametros-modal-titulo="Editar parâmetros · {{ grupo.form.nome }}"
+        data-parametros-modal-subtitulo="A gravação cria uma nova versão com vigência a partir de {{ data(hoje) }}"
+        data-parametros-modal-largura="{{ 1200 if grupo.form.campos|length > 10 else 760 }}">
+        <span x-init="$el.innerHTML = window.icon('edit', 14)" aria-hidden="true"></span> Editar
+      </button>
+      {% endif %}
+    </div>
+    <div class="card__body">
+      <div class="tbl-wrap">
+        <table class="tbl parametros__tabela">
+          <caption class="sr-only">Parâmetros de {{ grupo.form.nome }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Parâmetro</th>
+              <th scope="col" class="parametros__valor">Valor vigente</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in grupo.rows %}
+            <tr>
+              <td>{{ linha.rotulo }}</td>
+              <td class="parametros__valor">{{ linha.valor }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

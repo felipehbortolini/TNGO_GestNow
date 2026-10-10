@@ -8,9 +8,94 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-076.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--configuracoes-parametros .parametros__aviso {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--configuracoes-parametros .parametros__versao {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--configuracoes-parametros .parametros__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--configuracoes-parametros .parametros__resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md) var(--space-lg);
+  margin: 0;
+}
+
+.pagina--configuracoes-parametros .parametros__resumo dt {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-hint);
+}
+
+.pagina--configuracoes-parametros .parametros__resumo dd {
+  margin: var(--space-xxs) 0 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pagina--configuracoes-parametros .parametros__filtros {
+  flex-wrap: wrap;
+}
+
+.pagina--configuracoes-parametros .parametros__grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.pagina--configuracoes-parametros .parametros__grupo .card__head {
+  align-items: flex-start;
+}
+
+.pagina--configuracoes-parametros .parametros__vigencia {
+  display: block;
+  margin-top: var(--space-xs);
+}
+
+.pagina--configuracoes-parametros .parametros__valor {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pagina--configuracoes-parametros .parametros__campos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pagina--configuracoes-parametros .parametros__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pagina--configuracoes-parametros .parametros__justificativa {
+  margin-top: var(--space-lg);
+}
+
+.pagina--configuracoes-parametros .parametros__detalhe-titulo {
+  margin: var(--space-xl) 0 var(--space-md);
+}
+
+@media (max-width: 1100px) {
+  .pagina--configuracoes-parametros .parametros__grade {
+    grid-template-columns: 1fr;
+  }
+}

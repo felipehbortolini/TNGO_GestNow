@@ -1,0 +1,95 @@
+{% extends "base_fragment.html" %}
+{#
+  Corpo do modal de edição de um grupo de parâmetros (ISSUE-076): os campos com os valores
+  vigentes (select com as opções, número com min/max/passo, moeda em reais), a nota do grupo
+  como intro, a justificativa obrigatória no fim e, no grupo Riscos, o aviso e a confirmação da
+  troca de escala. O POST devolve este formulário preenchido no 422, com a mensagem sob o campo
+  (ou no topo, quando o erro é de um bloco); o sucesso atualiza a tela atrás do modal
+  (x-target) e o modal fecha (@ajax:success).
+
+  Espera: grupo, campos, justificativa, erros, erros_gerais, consulta, confirmar_escala.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% macro campo(view, erros) %}
+{% set c = view.campo %}
+<div class="field{% if c.tipo == 'select' or c.tipo == 'texto' %} field--full{% endif %}">
+  <label for="{{ c.field_id }}">{{ c.rotulo }}{% if c.unidade %} ({{ c.unidade }}){% endif %}</label>
+  {% if c.tipo == 'select' %}
+  <select id="{{ c.field_id }}" name="{{ c.field_id }}"
+    class="input{% if erros.get(c.field_id) %} input--erro{% endif %}"{% if c.somente %} disabled{% endif %} required>
+    {% for opcao in c.opcoes %}
+    <option value="{{ opcao.valor }}"{% if opcao.valor|string == view.input_value %} selected{% endif %}>{{ opcao.texto }}</option>
+    {% endfor %}
+  </select>
+  {% elif c.tipo == 'moeda' %}
+  <input id="{{ c.field_id }}" name="{{ c.field_id }}" type="text" inputmode="decimal"
+    class="input{% if erros.get(c.field_id) %} input--erro{% endif %}"
+    value="{{ view.input_value }}" required />
+  {% elif c.tipo == 'texto' %}
+  <input id="{{ c.field_id }}" name="{{ c.field_id }}" type="text" class="input"
+    value="{{ view.input_value }}" disabled />
+  {% else %}
+  <input id="{{ c.field_id }}" name="{{ c.field_id }}" type="number"
+    class="input{% if erros.get(c.field_id) %} input--erro{% endif %}" value="{{ view.input_value }}"
+    {%- if c.minimo is not none %} min="{{ c.minimo }}"{% endif %}
+    {%- if c.maximo is not none %} max="{{ c.maximo }}"{% endif %}
+    step="{{ c.passo if c.passo is not none else 1 }}"{% if c.somente %} disabled{% endif %} required />
+  {% endif %}
+  {% if c.ajuda %}<span class="hint">{{ c.ajuda }}</span>{% endif %}
+  {{ erro(erros, c.field_id) }}
+</div>
+{% endmacro %}
+
+{% block fragment %}
+<form method="post" action="/api/configuracoes/parametros/{{ grupo.id }}"
+  x-target="parametros-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Gravando...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>{{ grupo.nota }}</span>
+  </div>
+
+  {% if grupo.id == 'riscos' %}
+  <div class="aviso aviso--warn mb-16" role="note">
+    <span>A troca da escala de severidade muda as faixas e a contagem de riscos críticos em todo
+      o sistema (05 e Início). Marque a confirmação abaixo para gravar.</span>
+  </div>
+  {% endif %}
+
+  <div class="fgrid parametros__campos">
+    {% for view in campos %}{{ campo(view, erros) }}{% endfor %}
+  </div>
+
+  {% if grupo.id == 'riscos' %}
+  <div class="field parametros__confirmacao">
+    <label class="parametros__checkbox" for="confirmar_escala">
+      <input type="checkbox" id="confirmar_escala" name="confirmar_escala" value="sim"
+        {%- if confirmar_escala %} checked{% endif %} />
+      Confirmo a troca da escala de severidade
+    </label>
+    {{ erro(erros, 'confirmar_escala') }}
+  </div>
+  {% endif %}
+
+  <div class="field field--full parametros__justificativa">
+    <label for="justificativa">Justificativa da alteração</label>
+    <textarea id="justificativa" name="justificativa" rows="3" maxlength="400"
+      class="input{% if erros.get('justificativa') %} input--erro{% endif %}" required>{{ justificativa }}</textarea>
+    <span class="hint">Obrigatória: vira a justificativa da nova versão (mínimo de 10 caracteres).</span>
+    {{ erro(erros, 'justificativa') }}
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-parametros-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Gravar nova versão</button>
+  </div>
+</form>
+{% endblock %}
