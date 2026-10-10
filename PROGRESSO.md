@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 74 de 93 -->
+<!-- Progresso da migração: 75 de 93 -->
 
 # Progresso da migração
 
-**74 de 93 issues concluídas** (última fechada: ISSUE-074). Atualizado em 10/10/2026 17:21 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**75 de 93 issues concluídas** (última fechada: ISSUE-075). Atualizado em 10/10/2026 19:10 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 74 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074 |
-| na fila | 19 | 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 75 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075 |
+| na fila | 18 | 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -87,12 +87,12 @@
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | `18b1173` |
 | ISSUE-074 | Análises de risco APR e HAZOP | `45883f8` |
+| ISSUE-075 | Painel HSE | `8e919ab` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-075 | Painel HSE | na fila | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 |
 | ISSUE-076 | Parâmetros: edição por grupo com justificativa, versões e histórico | na fila | ISSUE-066 |
 | ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | na fila | ISSUE-054 |
 | ISSUE-078 | Cadastros de apoio: empresas, pessoas, projetos, sistemas, unidades e locais | na fila | ISSUE-054 |

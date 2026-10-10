@@ -101,7 +101,7 @@ vem primeiro.
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | 7 | task | done | ready-for-agent | ISSUE-072, ISSUE-019, ISSUE-027 | [ISSUE-073](./073-ocorrencias-investigacao-e-lgpd.md) |
 | ISSUE-074 | Análises de risco APR e HAZOP | 7 | task | done | ready-for-agent | ISSUE-019 | [ISSUE-074](./074-apr-e-hazop.md) |
-| ISSUE-075 | Painel HSE | 7 | task | proposed | ready-for-agent | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 | [ISSUE-075](./075-painel-hse.md) |
+| ISSUE-075 | Painel HSE | 7 | task | done | ready-for-agent | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 | [ISSUE-075](./075-painel-hse.md) |
 | ISSUE-076 | Parâmetros: edição por grupo com justificativa, versões e histórico | 7 | task | proposed | ready-for-agent | ISSUE-066 | [ISSUE-076](./076-configuracoes-parametros.md) |
 | ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | 7 | task | proposed | ready-for-agent | ISSUE-054 | [ISSUE-077](./077-configuracoes-colaboradores.md) |
 | ISSUE-078 | Cadastros de apoio: empresas, pessoas, projetos, sistemas, unidades e locais | 7 | task | proposed | ready-for-agent | ISSUE-054 | [ISSUE-078](./078-configuracoes-cadastros-de-apoio.md) |
