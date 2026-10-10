@@ -1,0 +1,134 @@
+{% extends "base_fragment.html" %}
+{#
+  Análise de causa e disposição (ISSUE-068, HU-115): método, causa raiz, disposição do produto
+  não conforme (Reparo e Usar como está exigem a concessão do cliente), custo da não qualidade
+  estimado e ao menos uma ação corretiva — que nasce na Central de Ações com origem RNC. O 422
+  devolve este formulário preenchido; o sucesso atualiza a lista atrás do modal.
+
+  Espera: rnc, valores, erros, pessoas, metodos, disposicoes, concessao, max_acoes e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+{% set visiveis = namespace(n=1) %}
+{% for posicao in range(1, max_acoes + 1) %}
+{% if valores.get('acao' ~ posicao ~ '_assunto') or valores.get('acao' ~ posicao ~ '_responsavel') or valores.get('acao' ~ posicao ~ '_prevista') %}
+{% set visiveis.n = posicao %}
+{% endif %}
+{% endfor %}
+<form method="post" action="/api/qualidade/rnc/{{ rnc.code }}/analise"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a análise..."
+  x-data="{ disposicao: $el.dataset.disposicao, mostrar: {{ visiveis.n }} }"
+  data-disposicao="{{ valores.get('disposicao') or '' }}">
+  <input type="hidden" name="versao" value="{{ rnc.version }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <p class="hint mb-16">{{ rnc.description }}</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="rnc-metodo">Método de análise</label>
+      <select id="rnc-metodo" name="metodo" class="input{% if erros.get('metodo') %} input--erro{% endif %}" required
+        {% if erros.get('metodo') %}aria-invalid="true" aria-describedby="erro-metodo"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for metodo in metodos %}
+        <option value="{{ metodo }}"{% if valores.get('metodo') == metodo %} selected{% endif %}>{{ metodo }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'metodo') }}
+    </div>
+    <div class="field field--full">
+      <label for="rnc-causa">Causa raiz</label>
+      <textarea id="rnc-causa" name="causaRaiz" class="input{% if erros.get('causaRaiz') %} input--erro{% endif %}"
+        rows="3" maxlength="800" required
+        {% if erros.get('causaRaiz') %}aria-invalid="true" aria-describedby="erro-causaRaiz"{% endif %}>{{ valores.get('causaRaiz') or '' }}</textarea>
+      {{ erro(erros, 'causaRaiz') }}
+    </div>
+    <div class="field field--full">
+      <label for="rnc-disposicao">Disposição do produto não conforme</label>
+      <select id="rnc-disposicao" name="disposicao" class="input{% if erros.get('disposicao') %} input--erro{% endif %}" required
+        @change="disposicao = $event.target.value"
+        {% if erros.get('disposicao') %}aria-invalid="true" aria-describedby="erro-disposicao"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for disposicao in disposicoes %}
+        <option value="{{ disposicao }}"{% if valores.get('disposicao') == disposicao %} selected{% endif %}>{{ disposicao }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'disposicao') }}
+    </div>
+    <div class="field" x-show="['Reparo', 'Usar como está'].includes(disposicao)">
+      <label for="rnc-concessao-ref">Concessão do cliente (documento)</label>
+      <input id="rnc-concessao-ref" name="concessaoReferencia" class="input{% if erros.get('concessaoReferencia') %} input--erro{% endif %}"
+        maxlength="120" value="{{ valores.get('concessaoReferencia') or '' }}"
+        placeholder="Ex.: carta, parecer de engenharia ou aceite formal"
+        {% if erros.get('concessaoReferencia') %}aria-invalid="true" aria-describedby="erro-concessaoReferencia"{% endif %} />
+      {{ erro(erros, 'concessaoReferencia') }}
+    </div>
+    <div class="field" x-show="['Reparo', 'Usar como está'].includes(disposicao)">
+      <label for="rnc-concessao-data">Data da concessão</label>
+      <input id="rnc-concessao-data" name="concessaoData" type="date" class="input{% if erros.get('concessaoData') %} input--erro{% endif %}"
+        value="{{ valores.get('concessaoData') or '' }}"
+        {% if erros.get('concessaoData') %}aria-invalid="true" aria-describedby="erro-concessaoData"{% endif %} />
+      {{ erro(erros, 'concessaoData') }}
+    </div>
+    <div class="field">
+      <label for="rnc-custo">Custo da não qualidade estimado</label>
+      <input id="rnc-custo" name="custoCentavos" class="input{% if erros.get('custoCentavos') %} input--erro{% endif %}"
+        inputmode="decimal" value="{{ valores.get('custoCentavos') or '0,00' }}"
+        {% if erros.get('custoCentavos') %}aria-invalid="true" aria-describedby="erro-custoCentavos"{% endif %} />
+      <span class="hint">Retrabalho, reparo, ensaios, perda de material e paralisação.</span>
+      {{ erro(erros, 'custoCentavos') }}
+    </div>
+  </div>
+
+  <fieldset class="rnc__acoes-form">
+    <legend>Ações corretivas (vão para a Central de Ações, origem RNC)</legend>
+    {% if erros.get('acoes') %}
+    <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['acoes'] }}</span></div>
+    {% endif %}
+    {% for posicao in range(1, max_acoes + 1) %}
+    <div class="fgrid rnc__acao-bloco" x-show="mostrar >= {{ posicao }}">
+      <div class="field field--full">
+        <label for="rnc-acao{{ posicao }}-assunto">Ação {{ posicao }}</label>
+        <input id="rnc-acao{{ posicao }}-assunto" name="acao{{ posicao }}_assunto" class="input" maxlength="255"
+          value="{{ valores.get('acao' ~ posicao ~ '_assunto') or '' }}" />
+      </div>
+      <div class="field">
+        <label for="rnc-acao{{ posicao }}-responsavel">Responsável</label>
+        <select id="rnc-acao{{ posicao }}-responsavel" name="acao{{ posicao }}_responsavel" class="input">
+          <option value="">Escolha...</option>
+          {% for pessoa in pessoas %}
+          <option value="{{ pessoa.id }}"{% if valores.get('acao' ~ posicao ~ '_responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="rnc-acao{{ posicao }}-prevista">Data prevista</label>
+        <input id="rnc-acao{{ posicao }}-prevista" name="acao{{ posicao }}_prevista" type="date" class="input"
+          value="{{ valores.get('acao' ~ posicao ~ '_prevista') or '' }}" />
+      </div>
+      <div class="field field--full">
+        <label for="rnc-acao{{ posicao }}-descricao">Descrição</label>
+        <input id="rnc-acao{{ posicao }}-descricao" name="acao{{ posicao }}_descricao" class="input" maxlength="500"
+          value="{{ valores.get('acao' ~ posicao ~ '_descricao') or '' }}" />
+      </div>
+    </div>
+    {% endfor %}
+    <button type="button" class="btn btn--secondary btn--sm" x-show="mostrar < {{ max_acoes }}"
+      @click="mostrar = Math.min(mostrar + 1, {{ max_acoes }})">
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar ação
+    </button>
+  </fieldset>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar análise</button>
+  </div>
+</form>
+{% endblock %}

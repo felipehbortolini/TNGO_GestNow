@@ -1,0 +1,32 @@
+{% extends "base_fragment.html" %}
+{#
+  Envio para a verificação de eficácia (ISSUE-068): confirma que as ações corretivas estão
+  concluídas e prevê a verificação para os dias do parâmetro à frente. O serviço recusa com
+  ação aberta ou concessão pendente, e a mensagem volta no modal.
+
+  Espera: rnc, dias e consulta.
+#}
+{% block fragment %}
+<form method="post" action="/api/qualidade/rnc/{{ rnc.code }}/verificacao"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Enviando para verificação...">
+  <input type="hidden" name="versao" value="{{ rnc.version }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Todas as ações corretivas da {{ rnc.code }} estão concluídas? A verificação de eficácia
+      fica prevista para {{ dias }} dias à frente, com o Gestor do projeto.</span>
+  </div>
+
+  <div class="det mb-16">
+    <div class="det__row"><span class="det__label">Ações na Central</span><span class="det__valor">{{ rnc.actions.open }} aberta(s) de {{ rnc.actions.total }}</span></div>
+    <div class="det__row"><span class="det__label">Disposição</span><span class="det__valor">{{ rnc.disposition or '—' }}{% if rnc.concession_reference %} · concessão {{ rnc.concession_reference }}{% endif %}</span></div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Enviar para verificação</button>
+  </div>
+</form>
+{% endblock %}

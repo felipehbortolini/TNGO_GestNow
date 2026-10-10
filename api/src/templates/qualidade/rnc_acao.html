@@ -1,0 +1,60 @@
+{% extends "base_fragment.html" %}
+{#
+  Nova ação corretiva de uma RNC na etapa Ação corretiva (ISSUE-068): nasce na Central de Ações
+  com origem RNC, junto das demais da mesma RNC. O 422 devolve este formulário preenchido; o
+  sucesso atualiza a lista atrás do modal.
+
+  Espera: rnc, valores, erros, pessoas e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/rnc/{{ rnc.code }}/acoes"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Criando a ação...">
+  <input type="hidden" name="versao" value="{{ rnc.version }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <p class="hint mb-16">{{ rnc.description }}</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="rnc-nova-acao-assunto">Ação corretiva</label>
+      <input id="rnc-nova-acao-assunto" name="acao1_assunto" class="input{% if erros.get('acoes') %} input--erro{% endif %}"
+        maxlength="255" required value="{{ valores.get('acao1_assunto') or '' }}"
+        {% if erros.get('acoes') %}aria-invalid="true" aria-describedby="erro-acoes"{% endif %} />
+      {{ erro(erros, 'acoes') }}
+    </div>
+    <div class="field">
+      <label for="rnc-nova-acao-responsavel">Responsável</label>
+      <select id="rnc-nova-acao-responsavel" name="acao1_responsavel" class="input" required>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('acao1_responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="rnc-nova-acao-prevista">Data prevista</label>
+      <input id="rnc-nova-acao-prevista" name="acao1_prevista" type="date" class="input" required
+        value="{{ valores.get('acao1_prevista') or '' }}" />
+      <span class="hint">Não pode ser anterior a hoje.</span>
+    </div>
+    <div class="field field--full">
+      <label for="rnc-nova-acao-descricao">Descrição</label>
+      <input id="rnc-nova-acao-descricao" name="acao1_descricao" class="input" maxlength="500"
+        value="{{ valores.get('acao1_descricao') or '' }}" />
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Criar ação</button>
+  </div>
+</form>
+{% endblock %}

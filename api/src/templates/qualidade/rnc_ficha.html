@@ -1,0 +1,155 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha da RNC (ISSUE-068): a situação e o prazo, a contenção, a causa raiz e a disposição
+  com a concessão, a eficácia, as ações da Central (com o status calculado na data), as
+  evidências pela porta genérica de anexos (D5a) e o histórico. Os botões do fluxo abrem o
+  formulário da etapa no lugar desta ficha; depois de gravar, a lista recarrega e a ficha
+  reabre pelo marcador oculto do fragmento da lista.
+
+  Espera: ficha (linha, actions, history e lesson_code), pode_gravar, pode_gerir,
+  formatar_data, formatar_moeda, nomes, consulta e parametro_consulta.
+#}
+{% set pill_da_situacao = {
+  'Aberta': 'pill--neutral', 'Em análise de causa': 'pill--warn', 'Ação corretiva': 'pill--fix',
+  'Verificação de eficácia': 'pill--fix', 'Encerrada': 'pill--ok', 'Cancelada': 'pill--neutral'
+} %}
+{% set pill_da_severidade = {'Crítica': 'pill--erro', 'Maior': 'pill--warn', 'Menor': 'pill--fix'} %}
+{% set linha = ficha.line %}
+
+{% macro campo(rotulo, conteudo) %}
+<div class="field">
+  <span class="field__label">{{ rotulo }}</span>
+  <div>{{ conteudo if conteudo else '·' }}</div>
+</div>
+{% endmacro %}
+
+{% macro botao(url, titulo, rotulo, icone) %}
+<button type="button" class="btn btn--secondary btn--sm" data-rnc-formulario data-rnc-fechar="1"
+  data-rnc-url="{{ url }}{{ ('?' ~ parametro_consulta) if parametro_consulta else '' }}"
+  data-rnc-titulo="{{ titulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 14)" aria-hidden="true"></span> {{ rotulo }}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+<div class="rnc__ficha">
+  <div class="toolbar mb-16">
+    {% if linha.situation == 'Aberta' and pode_gravar %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/responsavel', 'Atribuir análise · ' ~ linha.code, 'Atribuir análise', 'person') }}
+    {% elif linha.situation == 'Em análise de causa' and pode_gravar %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/analise', 'Registrar análise · ' ~ linha.code, 'Registrar análise', 'file') }}
+    {% elif linha.situation == 'Ação corretiva' and pode_gravar %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/acoes', 'Nova ação corretiva · ' ~ linha.code, 'Nova ação', 'add') }}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/verificacao', 'Enviar para verificação · ' ~ linha.code, 'Enviar para verificação', 'send') }}
+    {% elif linha.situation == 'Verificação de eficácia' and pode_gerir %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/eficacia', 'Verificar eficácia · ' ~ linha.code, 'Verificar eficácia', 'checkCircle') }}
+    {% endif %}
+    {% if linha.active and pode_gravar %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/custo', 'Custo da não qualidade · ' ~ linha.code, 'Custo', 'money') }}
+    {% endif %}
+    {% if linha.situation in ('Aberta', 'Em análise de causa') and pode_gerir %}
+      {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/cancelamento', 'Cancelar RNC · ' ~ linha.code, 'Cancelar RNC', 'dismiss') }}
+    {% endif %}
+    {% if pode_gerir and linha.situation == 'Verificação de eficácia' %}
+    <span class="pill pill--fix">Verificação pelo Gestor; quem analisou não verifica</span>
+    {% endif %}
+  </div>
+
+  <div class="fgrid mb-16">
+    {{ campo('Situação', '<span class="pill ' ~ pill_da_situacao.get(linha.situation, 'pill--neutral') ~ '">' ~ linha.situation ~ '</span>' ~ (' <span class="pill pill--erro">' ~ linha.recurrence_count ~ ' reincidência(s)</span>' if linha.recurrence_count else '')) }}
+    {{ campo('Severidade', '<span class="pill ' ~ pill_da_severidade.get(linha.severity, 'pill--neutral') ~ '">' ~ linha.severity ~ '</span>') }}
+    {{ campo('Projeto', linha.project_code) }}
+    {{ campo('Data', formatar_data(linha.rnc_date)) }}
+    {{ campo('Origem', linha.origin ~ (' · ' ~ linha.origin_ref if linha.origin_ref else '')) }}
+    {{ campo('Disciplina', linha.discipline) }}
+    {{ campo('Empresa', linha.company_name) }}
+    {{ campo('Responsável pela análise', linha.responsible_name or '<span class="muted">a atribuir</span>') }}
+    {{ campo('Prazo de tratamento', formatar_data(linha.deadline) ~ (' <span class="pill pill--erro">vencido há ' ~ linha.days_overdue ~ ' dia(s)</span>' if linha.overdue else '')) }}
+    {{ campo('Custo da não qualidade', '<span class="num">' ~ formatar_moeda(linha.cost_cents) ~ '</span>') }}
+    {% if linha.verification_expected %}
+    {{ campo('Verificação prevista', formatar_data(linha.verification_expected) ~ (' <span class="pill pill--erro">vencida</span>' if linha.verification_overdue else '')) }}
+    {% endif %}
+    {% if ficha.lesson_code %}
+    {{ campo('Lição aprendida', '<a href="' ~ (lesson_url or '#') ~ '" data-tn-tela>' ~ ficha.lesson_code ~ '</a>') }}
+    {% endif %}
+  </div>
+
+  <p class="mb-16">{{ linha.description }}</p>
+
+  <div class="aviso mb-16" role="note">
+    <span><b>Contenção</b>: {{ linha.containment }}</span>
+  </div>
+
+  {% if linha.root_cause %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>
+      <b>Causa raiz ({{ linha.method }})</b>: {{ linha.root_cause }}<br />
+      <b>Disposição</b>: {{ linha.disposition }}
+      {%- if linha.concession_reference %} · concessão {{ linha.concession_reference }} ({{ formatar_data(linha.concession_date) }}){% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  {% if linha.effectiveness_date %}
+  <div class="aviso {{ 'aviso--ok' if linha.effective else 'aviso--warn' }} mb-16" role="note">
+    <span><b>{{ 'Eficácia verificada' if linha.effective else 'Última verificação: ineficaz' }}</b>
+      ({{ formatar_data(linha.effectiveness_date) }}): {{ linha.effectiveness_text }}</span>
+  </div>
+  {% endif %}
+
+  <h3 class="section-title">Ações na Central</h3>
+  {% if ficha.actions %}
+  <div class="tbl-wrap mb-16">
+    <table class="tbl">
+      <caption class="sr-only">Ações da Central da RNC</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Assunto</th><th scope="col">Responsável</th>
+          <th scope="col">Prevista</th><th scope="col">Status</th></tr>
+      </thead>
+      <tbody>
+        {% for acao in ficha.actions %}
+        <tr>
+          <td class="nowrap">{{ acao.item or acao.id }}</td>
+          <td>{{ acao.subject }}</td>
+          <td>{{ nomes.get(acao.responsible_id, '') }}</td>
+          <td class="nowrap">{{ formatar_data(acao.due_date) }}</td>
+          <td><span class="pill {{ 'pill--ok' if acao.status_label == 'Concluída' else 'pill--erro' if acao.status_label == 'Atrasada' else 'pill--fix' }}">{{ acao.status_label }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint mb-16">Nenhuma ação corretiva na Central ainda.</p>
+  {% endif %}
+
+  <h3 class="section-title">Evidências</h3>
+  <div id="rnc-anexos" class="mb-16" data-url="/api/anexos?origem=rnc&registro={{ linha.id }}"
+    x-data x-init="$ajax($el.dataset.url, { target: 'rnc-anexos' })">
+    <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+  </div>
+
+  <h3 class="section-title">Histórico</h3>
+  {% if ficha.history %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <caption class="sr-only">Histórico da RNC</caption>
+      <thead>
+        <tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr>
+      </thead>
+      <tbody>
+        {% for item in ficha.history %}
+        <tr>
+          <td class="nowrap">{{ item.moment.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ item.author_name }}</td>
+          <td>{{ item.text }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint">Sem histórico registrado.</p>
+  {% endif %}
+</div>
+{% endblock %}

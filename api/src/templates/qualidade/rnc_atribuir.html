@@ -1,0 +1,45 @@
+{% extends "base_fragment.html" %}
+{#
+  Atribuição da análise de causa (ISSUE-068): o responsável técnico que responde pela causa
+  raiz; não pode ser quem verifica a eficácia (segregação). O 422 devolve este formulário
+  preenchido com a mensagem; o sucesso atualiza a lista atrás do modal.
+
+  Espera: rnc, valores, erros, pessoas e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/rnc/{{ rnc.code }}/responsavel"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Atribuindo a análise...">
+  <input type="hidden" name="versao" value="{{ rnc.version }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <p class="body-txt mb-16">{{ rnc.description }}</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="rnc-responsavel">Responsável pela análise</label>
+      <select id="rnc-responsavel" name="responsavelId" class="input{% if erros.get('responsavelId') %} input--erro{% endif %}" required
+        {% if erros.get('responsavelId') %}aria-invalid="true" aria-describedby="erro-responsavelId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('responsavelId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Normalmente o responsável técnico da empresa que gerou a não conformidade. Quem responde pela análise não verifica a eficácia.</span>
+      {{ erro(erros, 'responsavelId') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Atribuir</button>
+  </div>
+</form>
+{% endblock %}

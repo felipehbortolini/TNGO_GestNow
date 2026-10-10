@@ -1,0 +1,86 @@
+{% extends "base_fragment.html" %}
+{#
+  Verificação de eficácia (ISSUE-068, HU-116): do Gestor, e quem respondeu pela análise não
+  verifica a própria eficácia (segregação). Eficaz encerra a RNC e pode abrir a lição em
+  Rascunho no 08 Governança; ineficaz volta para Ação corretiva e conta reincidência. O 422
+  devolve este formulário preenchido; 403 da segregação volta no modal.
+
+  Espera: rnc, valores, erros, referencia e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/rnc/{{ rnc.code }}/eficacia"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a verificação..."
+  x-data="{ eficaz: $el.dataset.eficaz, licao: $el.dataset.licao === '1' }"
+  data-eficaz="{{ valores.get('eficaz') or '' }}" data-licao="{{ '1' if valores.get('registrarLicao') == '1' else '0' }}">
+  <input type="hidden" name="versao" value="{{ rnc.version }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <p class="hint mb-16">Causa raiz: {{ rnc.root_cause or '—' }}</p>
+
+  <div class="fgrid">
+    <fieldset class="field field--full">
+      <legend>Resultado</legend>
+      <label class="registro__opcao">
+        <input type="radio" name="eficaz" value="sim" required @change="eficaz = 'sim'"
+          {% if valores.get('eficaz') == 'sim' %} checked{% endif %} />
+        <span>Eficaz — a causa foi eliminada; encerra a RNC</span>
+      </label>
+      <label class="registro__opcao">
+        <input type="radio" name="eficaz" value="nao" @change="eficaz = 'nao'"
+          {% if valores.get('eficaz') == 'nao' %} checked{% endif %} />
+        <span>Ineficaz — volta para Ação corretiva</span>
+      </label>
+      {{ erro(erros, 'eficaz') }}
+    </fieldset>
+    <div class="field field--full">
+      <label for="rnc-eficacia-texto">Evidência da verificação</label>
+      <textarea id="rnc-eficacia-texto" name="texto" class="input{% if erros.get('texto') %} input--erro{% endif %}"
+        rows="3" maxlength="600" required
+        placeholder="Inspeções seguintes, ensaios, auditoria ou indicador que comprovam o resultado"
+        {% if erros.get('texto') %}aria-invalid="true" aria-describedby="erro-texto"{% endif %}>{{ valores.get('texto') or '' }}</textarea>
+      {{ erro(erros, 'texto') }}
+    </div>
+    <div class="field">
+      <label for="rnc-eficacia-data">Data da verificação</label>
+      <input id="rnc-eficacia-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field field--full" x-show="eficaz === 'sim'">
+      <label class="registro__opcao">
+        <input type="checkbox" name="registrarLicao" value="1" @change="licao = $event.target.checked"
+          {% if valores.get('registrarLicao') == '1' %} checked{% endif %} />
+        <span>Registrar lição aprendida (Rascunho no 08 Governança, origem RNC)</span>
+      </label>
+    </div>
+    <div class="field field--full" x-show="eficaz === 'sim' && licao">
+      <label for="rnc-licao-titulo">Título da lição</label>
+      <input id="rnc-licao-titulo" name="licaoTitulo" class="input{% if erros.get('licaoTitulo') %} input--erro{% endif %}"
+        maxlength="120" value="{{ valores.get('licaoTitulo') or '' }}"
+        {% if erros.get('licaoTitulo') %}aria-invalid="true" aria-describedby="erro-licaoTitulo"{% endif %} />
+      {{ erro(erros, 'licaoTitulo') }}
+    </div>
+    <div class="field field--full" x-show="eficaz === 'sim' && licao">
+      <label for="rnc-licao-recomendacao">Recomendação</label>
+      <textarea id="rnc-licao-recomendacao" name="licaoRecomendacao" class="input{% if erros.get('licaoRecomendacao') %} input--erro{% endif %}"
+        rows="2" maxlength="500"
+        {% if erros.get('licaoRecomendacao') %}aria-invalid="true" aria-describedby="erro-licaoRecomendacao"{% endif %}>{{ valores.get('licaoRecomendacao') or '' }}</textarea>
+      {{ erro(erros, 'licaoRecomendacao') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar verificação</button>
+  </div>
+</form>
+{% endblock %}

@@ -8,9 +8,95 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-068.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--qualidade-rnc .rnc__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-rnc .rnc__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--qualidade-rnc .rnc__filtros {
+  flex-wrap: wrap;
+}
+
+.pagina--qualidade-rnc .rnc__barra {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--qualidade-rnc .rnc__barra-acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.pagina--qualidade-rnc .rnc__contagem {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pagina--qualidade-rnc .rnc__tabela td {
+  vertical-align: top;
+}
+
+.pagina--qualidade-rnc .rnc__codigo a {
+  color: var(--brand-title);
+}
+
+.pagina--qualidade-rnc .rnc__acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+
+.pagina--qualidade-rnc .rnc__linha--alerta {
+  background: var(--erro-50);
+}
+
+.pagina--qualidade-rnc .rnc__linha--apagada {
+  opacity: 0.7;
+}
+
+.pagina--qualidade-rnc .rnc__paginas {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+.pagina--qualidade-rnc .rnc__acoes-form {
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.pagina--qualidade-rnc .rnc__acoes-form legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-title);
+  padding: 0 var(--space-xs);
+}
+
+.pagina--qualidade-rnc .rnc__acao-bloco {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--neutro-100);
+  margin-top: var(--space-sm);
+}
+
+.pagina--qualidade-rnc .rnc__ficha .section-title {
+  margin-top: var(--space-lg);
+}
+
+.pagina--qualidade-rnc .rnc__atraso {
+  color: var(--erro-700);
+}

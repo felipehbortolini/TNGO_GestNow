@@ -1,0 +1,126 @@
+{% extends "base_fragment.html" %}
+{#
+  Abertura da RNC (ISSUE-068, HU-114): data da constatação, origem e referência, disciplina,
+  empresa responsável, severidade, descrição (o que, onde e o requisito) e contenção imediata.
+  O prazo de tratamento vem da severidade (parâmetro) e o número nasce na gravação. As
+  evidências entram na ficha, pela porta genérica de anexos (D5a). O 422 devolve este formulário
+  preenchido com a mensagem sob cada campo; o sucesso atualiza a lista atrás do modal.
+
+  Espera: projeto, projeto_id, valores, erros, referencia, disciplinas, empresas, origens,
+  severidades, prazo_dias e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/rnc/nova"
+  x-target="rnc-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Abrindo a RNC...">
+  <input type="hidden" name="projeto" value="{{ projeto_id }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Fluxo: Aberta → Em análise de causa → Ação corretiva → Verificação de eficácia → Encerrada.
+      A contenção imediata é obrigatória; o prazo de tratamento vem da severidade.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field">
+      <span class="field__label">Projeto</span>
+      <p class="body-txt fw-600">{{ projeto.code }} · {{ projeto.name if projeto else '' }}</p>
+    </div>
+    <div class="field">
+      <span class="field__label">Número</span>
+      <p class="body-txt"><span class="muted">gerado ao salvar (RNC-...)</span></p>
+    </div>
+    <div class="field">
+      <label for="rnc-data">Data da constatação</label>
+      <input id="rnc-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="rnc-origem">Origem</label>
+      <select id="rnc-origem" name="origem" class="input{% if erros.get('origem') %} input--erro{% endif %}" required
+        {% if erros.get('origem') %}aria-invalid="true" aria-describedby="erro-origem"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for origem in origens %}
+        <option value="{{ origem }}"{% if valores.get('origem') == origem %} selected{% endif %}>{{ origem }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'origem') }}
+    </div>
+    <div class="field field--full">
+      <label for="rnc-origem-ref">Referência da origem</label>
+      <input id="rnc-origem-ref" name="origemRef" class="input" maxlength="40"
+        value="{{ valores.get('origemRef') or '' }}"
+        placeholder="Ex.: INS-2026-0160, AUD-TN-2026-02, PED-2026-0004" />
+      {{ erro(erros, 'origemRef') }}
+    </div>
+    <div class="field">
+      <label for="rnc-disciplina">Disciplina</label>
+      <select id="rnc-disciplina" name="disciplina" class="input{% if erros.get('disciplina') %} input--erro{% endif %}" required
+        {% if erros.get('disciplina') %}aria-invalid="true" aria-describedby="erro-disciplina"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for disciplina in disciplinas %}
+        <option value="{{ disciplina }}"{% if valores.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'disciplina') }}
+    </div>
+    <div class="field">
+      <label for="rnc-empresa">Empresa responsável</label>
+      <select id="rnc-empresa" name="empresaId" class="input{% if erros.get('empresaId') %} input--erro{% endif %}" required
+        {% if erros.get('empresaId') %}aria-invalid="true" aria-describedby="erro-empresaId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if valores.get('empresaId') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'empresaId') }}
+    </div>
+    <div class="field">
+      <label for="rnc-severidade">Severidade</label>
+      <select id="rnc-severidade" name="severidade" class="input{% if erros.get('severidade') %} input--erro{% endif %}" required
+        {% if erros.get('severidade') %}aria-invalid="true" aria-describedby="erro-severidade"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for severidade in severidades %}
+        <option value="{{ severidade }}"{% if valores.get('severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Prazo de tratamento: Crítica {{ prazo_dias.critica }} · Maior {{ prazo_dias.maior }} · Menor {{ prazo_dias.menor }} dias.</span>
+      {{ erro(erros, 'severidade') }}
+    </div>
+    <div class="field field--full">
+      <label for="rnc-descricao">Descrição da não conformidade</label>
+      <textarea id="rnc-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}"
+        rows="3" maxlength="600" required
+        placeholder="O que foi constatado, onde e qual requisito (desenho, especificação, norma) não foi atendido"
+        {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
+      {{ erro(erros, 'descricao') }}
+    </div>
+    <div class="field field--full">
+      <label for="rnc-contencao">Contenção imediata</label>
+      <textarea id="rnc-contencao" name="contencao" class="input{% if erros.get('contencao') %} input--erro{% endif %}"
+        rows="2" maxlength="400" required
+        placeholder="Bloqueio, segregação, identificação ou suspensão da atividade"
+        {% if erros.get('contencao') %}aria-invalid="true" aria-describedby="erro-contencao"{% endif %}>{{ valores.get('contencao') or '' }}</textarea>
+      {{ erro(erros, 'contencao') }}
+    </div>
+  </div>
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Evidências (fotos, relatórios): anexe na ficha da RNC depois de abrir.</span>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Abrir RNC</button>
+  </div>
+</form>
+{% endblock %}
