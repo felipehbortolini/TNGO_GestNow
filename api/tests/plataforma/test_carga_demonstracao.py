@@ -116,6 +116,7 @@ PARTS = [
     "financeiro-contratos",
     "financeiro-contratos-avaliacoes",
     "hse",
+    "hse-ocorrencias",
     "planejamento",
     "planejamento-eap",
     "planejamento-curva",
