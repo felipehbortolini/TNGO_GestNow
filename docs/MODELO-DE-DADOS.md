@@ -1536,7 +1536,7 @@ erDiagram
     itp ||--o{ itp_revisao : "revisa"
     pessoa |o--o{ itp_revisao : "aprova"
     itp_revisao ||--o{ itp_ponto : "pontos"
-    itp_ponto ||--o{ inspecao : "inspeciona"
+    itp_ponto |o--o{ inspecao : "inspeciona"
     projeto ||--o{ inspecao : "inspeciona"
     empresa |o--o{ inspecao : "executa"
     pessoa ||--o{ inspecao : "inspetor"
@@ -1624,6 +1624,7 @@ erDiagram
         date data
         text resultado
         text observacao
+        date notificacao
         integer versao
     }
     auditoria_qualidade {
@@ -1666,7 +1667,11 @@ erDiagram
 `auditoria_qualidade` tem nome próprio para não se confundir com `auditoria`
 (trilha da plataforma). O ponto e o tipo do ponto ficam copiados na inspeção
 como fato do momento; a reprovação abre a `rnc` na mesma transação e o FAT
-gravado no diligenciamento aponta `pedido_id`.
+gravado no diligenciamento aponta `pedido_id`. A `notificacao` da inspeção é a
+data em que o cliente foi convocado no ponto W (e no H), acrescentada na
+ISSUE-069 para a fronteira da antecedência mínima (`notificacaoClienteHoras`); o
+ponto de ITP é opcional na inspeção porque o FAT grava a inspeção sem ponto,
+identificado pelo `pedido_id`.
 
 ### 12. 07 HSE
 
