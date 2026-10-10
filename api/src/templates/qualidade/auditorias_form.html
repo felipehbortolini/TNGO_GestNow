@@ -1,0 +1,115 @@
+{% extends "base_fragment.html" %}
+{#
+  Planejar auditoria e reprogramar (ISSUE-070): o tipo (Contratada, Fornecedor ou Interna), o
+  auditado, o auditor líder, o escopo, os critérios e a data planejada. A reprogramação abre
+  preenchida com a auditoria em vigor; mudar a data exige a justificativa (mínimo de 10
+  caracteres), que fica registrada em `auditoria_reprogramacao` com o autor. O 422 devolve este
+  formulário preenchido com a mensagem sob cada campo; o sucesso atualiza a lista atrás do
+  modal.
+
+  Espera: projeto, projeto_id, codigo, valores, erros, tipos, empresas, pessoas, referencia e
+  consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post"
+  action="{% if codigo %}/api/qualidade/auditorias/{{ codigo }}/reprogramacao{% else %}/api/qualidade/auditorias/nova{% endif %}"
+  x-target="auditorias-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando a auditoria..."
+  x-data="{ dataOriginal: '{{ valores.get('data') or '' }}', dataAtual: '{{ valores.get('data') or '' }}' }">
+  <input type="hidden" name="projeto" value="{{ projeto_id }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if codigo %}<input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />{% endif %}
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="aud-tipo">Tipo</label>
+      <select id="aud-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required
+        {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
+        <option value="">Escolha...</option>
+        <option value="Contratada"{% if valores.get('tipo') == 'Contratada' %} selected{% endif %}>Contratada · segunda parte, na obra</option>
+        <option value="Fornecedor"{% if valores.get('tipo') == 'Fornecedor' %} selected{% endif %}>Fornecedor · na fábrica</option>
+        <option value="Interna"{% if valores.get('tipo') == 'Interna' %} selected{% endif %}>Interna · processos da gerenciadora</option>
+      </select>
+      {{ erro(erros, 'tipo') }}
+    </div>
+    <div class="field">
+      <label for="aud-auditado">Auditado</label>
+      <select id="aud-auditado" name="auditadoId" class="input{% if erros.get('auditadoId') %} input--erro{% endif %}" required
+        {% if erros.get('auditadoId') %}aria-invalid="true" aria-describedby="erro-auditadoId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if valores.get('auditadoId') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'auditadoId') }}
+    </div>
+    <div class="field">
+      <label for="aud-auditor">Auditor líder</label>
+      <select id="aud-auditor" name="auditorId" class="input{% if erros.get('auditorId') %} input--erro{% endif %}" required
+        {% if erros.get('auditorId') %}aria-invalid="true" aria-describedby="erro-auditorId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('auditorId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'auditorId') }}
+    </div>
+    <div class="field field--full">
+      <label for="aud-escopo">Escopo</label>
+      <input id="aud-escopo" name="escopo" class="input{% if erros.get('escopo') %} input--erro{% endif %}"
+        maxlength="160" required value="{{ valores.get('escopo') or '' }}"
+        {% if erros.get('escopo') %}aria-invalid="true" aria-describedby="erro-escopo"{% endif %} />
+      {{ erro(erros, 'escopo') }}
+    </div>
+    <div class="field field--full">
+      <label for="aud-criterio">Critérios</label>
+      <input id="aud-criterio" name="criterio" class="input{% if erros.get('criterio') %} input--erro{% endif %}"
+        maxlength="160" required placeholder="Normas, procedimentos e cláusulas contratuais"
+        value="{{ valores.get('criterio') or '' }}"
+        {% if erros.get('criterio') %}aria-invalid="true" aria-describedby="erro-criterio"{% endif %} />
+      {{ erro(erros, 'criterio') }}
+    </div>
+    <div class="field">
+      <label for="aud-data">Data planejada</label>
+      <input id="aud-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or '' }}" @input="dataAtual = $event.target.value"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    {% if codigo %}
+    <div class="field field--full" x-show="dataAtual !== dataOriginal">
+      <label for="aud-justificativa">Justificativa da reprogramação</label>
+      <textarea id="aud-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+        rows="2" maxlength="300"
+        {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
+      <span class="hint">A reprogramação fica registrada com o autor e a data (mínimo de 10 caracteres).</span>
+      {{ erro(erros, 'justificativa') }}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if codigo %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Auditoria {{ codigo }} · {{ projeto.code }}. Mudar a data exige a justificativa e fica registrada.</span>
+  </div>
+  {% else %}
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>Auditoria de {{ projeto.code }} · ISO 19011. O número segue o padrão do projeto.</span>
+  </div>
+  {% endif %}
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-auditorias-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">{% if codigo %}Salvar{% else %}Planejar auditoria{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha da auditoria (ISSUE-070): a situação, o projeto, o tipo, o auditado, o auditor líder,
+  a data, os critérios e a conformidade; a conclusão (resumo), as reprogramações registradas e
+  as constatações com a RNC que cada Não conformidade abriu. Os botões do topo abrem o
+  resultado e a reprogramação no lugar desta ficha; depois de gravar, a lista recarrega atrás
+  do modal.
+
+  Espera: auditoria, consulta, parametro_consulta, pode_gravar, formatar_data e link_rnc.
+#}
+{% set pill_da_situacao = {'Planejada': 'pill--fix', 'Realizada': 'pill--ok'} %}
+{% set pill_do_tipo = {'Não conformidade': 'pill--erro', 'Observação': 'pill--warn', 'Oportunidade de melhoria': 'pill--fix'} %}
+
+{% macro campo(rotulo, conteudo) %}
+<div class="field">
+  <span class="field__label">{{ rotulo }}</span>
+  <div>{{ conteudo if conteudo else '·' }}</div>
+</div>
+{% endmacro %}
+
+{% macro botao(url, titulo, rotulo, icone) %}
+<button type="button" class="btn btn--secondary btn--sm" data-auditorias-formulario data-auditorias-fechar="1"
+  data-auditorias-url="{{ url }}" data-auditorias-titulo="{{ titulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 14)" aria-hidden="true"></span> {{ rotulo }}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+{% set sufixo = ('?' ~ parametro_consulta) if parametro_consulta else '' %}
+<div class="auditorias__ficha">
+  {% if pode_gravar and auditoria.situation == 'Planejada' %}
+  <div class="toolbar mb-16">
+    {{ botao('/api/qualidade/auditorias/' ~ auditoria.code ~ '/resultado' ~ sufixo, 'Resultado da auditoria · ' ~ auditoria.code, 'Registrar resultado', 'clipboardCheck') }}
+    {{ botao('/api/qualidade/auditorias/' ~ auditoria.code ~ '/reprogramacao' ~ sufixo, 'Reprogramar auditoria · ' ~ auditoria.code, 'Reprogramar', 'calendarClock') }}
+  </div>
+  {% endif %}
+
+  <div class="fgrid mb-16">
+    {{ campo('Situação', ('<span class="pill pill--erro">Atrasada</span>' if auditoria.overdue else '<span class="pill ' ~ pill_da_situacao.get(auditoria.situation, 'pill--neutral') ~ '">' ~ auditoria.situation ~ '</span>')) }}
+    {{ campo('Projeto', auditoria.project_code) }}
+    {{ campo('Tipo', auditoria.audit_type) }}
+    {{ campo('Auditado', auditoria.auditee_name) }}
+    {{ campo('Auditor líder', auditoria.lead_auditor_name) }}
+    {{ campo('Data', formatar_data(auditoria.performed_on or auditoria.audit_date)) }}
+    {{ campo('Critérios', auditoria.criterion) }}
+    {% if auditoria.situation == 'Realizada' %}
+    {{ campo('Conformidade', (auditoria.conformity_pct | round(1) | replace('.', ',')) ~ '% (' ~ auditoria.items_conforming ~ ' de ' ~ auditoria.items_verified ~ ')') }}
+    {% endif %}
+  </div>
+
+  {% if auditoria.summary %}
+  <p class="mb-16">{{ auditoria.summary }}</p>
+  {% endif %}
+
+  {% if auditoria.reschedules %}
+  <p class="hint mb-16">
+    Reprogramada:
+    {% for reprogramacao in auditoria.reschedules %}{{ formatar_data(reprogramacao.previous_date) }} para {{ formatar_data(reprogramacao.new_date) }} ({{ reprogramacao.justification }}){% if reprogramacao.author_name %} — {{ reprogramacao.author_name }}{% if reprogramacao.registered_on %} em {{ formatar_data(reprogramacao.registered_on) }}{% endif %}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+
+  {% if auditoria.findings %}
+  <h3 class="section-title">Constatações</h3>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <caption class="sr-only">Constatações da auditoria</caption>
+      <thead>
+        <tr>
+          <th scope="col">Nº</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Descrição</th>
+          <th scope="col">Requisito</th>
+          <th scope="col">RNC</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for constatacao in auditoria.findings %}
+        <tr>
+          <td class="nowrap">{{ constatacao.order }}</td>
+          <td><span class="pill {{ pill_do_tipo.get(constatacao.finding_type, 'pill--neutral') }}">{{ constatacao.finding_type }}</span></td>
+          <td>{{ constatacao.description }}</td>
+          <td>{{ constatacao.requirement }}</td>
+          <td class="nowrap">
+            {% if constatacao.rnc_code %}
+            <a href="{{ link_rnc(constatacao.rnc_code) }}" data-tn-tela>{{ constatacao.rnc_code }}</a>
+            <br /><span class="hint">{{ constatacao.rnc_situation }}</span>
+            {% else %}
+            <span class="hint">·</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

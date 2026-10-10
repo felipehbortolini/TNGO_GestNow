@@ -351,6 +351,14 @@ max-complexity = 10
 # criar um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/qualidade/inspecoes_routes.py" = ["PLR0913"]
 
+# `_screen` e `_result_fragment`, nas rotas das Auditorias, recebem a requisição,
+# a sessão e o que a resposta precisa imprimir, todos KEYWORD-ONLY depois do `*` —
+# o contrato da tela e do formulário do resultado (ISSUE-070), como as rotas da
+# RNC e das Inspeções acima. A regra existe para argumento posicional, onde a
+# ordem se erra na chamada; reduzir significaria criar um objeto de opções, a
+# mesma coisa com mais indireção.
+"src/modulos/qualidade/auditorias_routes.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

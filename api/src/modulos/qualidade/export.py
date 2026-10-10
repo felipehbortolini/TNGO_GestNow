@@ -29,6 +29,9 @@ from src.core.export_document import (
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.qualidade.service import (
+    AuditLine,
+    AuditListing,
+    AuditSummary,
     InspectionLine,
     InspectionListing,
     InspectionSummary,
@@ -38,7 +41,7 @@ from src.modulos.qualidade.service import (
     RncListing,
     RncSummary,
 )
-from src.modulos.qualidade.validation import InspectionFilters, RncFilters
+from src.modulos.qualidade.validation import AuditFilters, InspectionFilters, RncFilters
 
 TITLE = "Não conformidades (RNC)"
 TABLE_TITLE = "Relatórios de não conformidade"
@@ -378,3 +381,154 @@ def _inspection_row(line: InspectionLine) -> Row:
         rnc,
         project=line.project_code,
     )
+
+
+# ── Auditorias (ISSUE-070) ───────────────────────────────────────────────────────────────────
+
+AUDITORIAS_TITLE = "Auditorias"
+AUDIT_TABLE_TITLE = "Programa de auditorias"
+
+AUDIT_SITUATION_TONES = {
+    "Planejada": Tone.INFO,
+    "Realizada": Tone.OK,
+}
+
+AUDIT_COLUMNS: tuple[Column, ...] = (
+    Column("Nº", width=22),
+    Column("Data", ValueKind.DATE, width=12),
+    Column("Escopo", width=52),
+    Column("Auditor líder", width=22),
+    Column("Situação", width=14),
+    Column("Conformidade", ValueKind.PERCENT, digits=1, width=14),
+    Column("Resultado", width=28),
+)
+
+
+def build_auditorias_document(
+    *,
+    listing: AuditListing,
+    filters: AuditFilters,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    meta_pct: Decimal,
+) -> Document:
+    """The document of the programme: the five KPIs and the table of the audits of the filter."""
+    return Document(
+        title=AUDITORIAS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(
+            ("Filtros", auditorias_filters_text(filters)),
+            ("Auditorias no filtro", str(listing.total)),
+        ),
+        kpis=_auditorias_kpis(listing.summary, meta_pct=meta_pct),
+        tables=(_audit_table(listing),),
+        paper=Paper.A3,
+    )
+
+
+def auditorias_filters_text(filters: AuditFilters) -> str:
+    """The filters in force as one line, the way the export header writes them."""
+    parts: list[str] = []
+    if filters.search:
+        parts.append(f"busca «{filters.search}»")
+    if filters.situation:
+        parts.append(filters.situation)
+    if filters.audit_type:
+        parts.append(filters.audit_type)
+    return " · ".join(parts) or "Todas"
+
+
+def _auditorias_kpis(summary: AuditSummary, *, meta_pct: Decimal) -> tuple[Kpi, ...]:
+    next_audit = summary.next_audit
+    conformity_tone = (
+        Tone.OK if summary.conformity is not None and summary.conformity >= meta_pct else Tone.WARN
+    )
+    open_nc = summary.open_nc
+    return (
+        Kpi(
+            label="Aderência ao programa",
+            value=summary.adherence,
+            reference="Meta: 100%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.WARN if summary.overdue else Tone.OK,
+            status=f"{summary.done} de {summary.due} previstas até hoje",
+        ),
+        Kpi(
+            label="Auditorias atrasadas",
+            value=summary.overdue,
+            reference="Esperado: 0",
+            kind=ValueKind.INTEGER,
+            tone=Tone.ERROR if summary.overdue else Tone.OK,
+            status="data planejada vencida sem resultado",
+        ),
+        Kpi(
+            label="Conformidade nas auditorias",
+            value=summary.conformity,
+            reference=f"Meta: {meta_pct:.0f}%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=conformity_tone,
+            status=f"{summary.conforming_items} de {summary.verified_items} itens",
+        ),
+        Kpi(
+            label="Não conformidades de auditoria",
+            value=summary.nc,
+            reference="Esperado: 0",
+            kind=ValueKind.INTEGER,
+            tone=Tone.WARN if open_nc else Tone.OK,
+            status=f"{open_nc} RNC em aberto" if open_nc == 1 else f"{open_nc} RNCs em aberto",
+        ),
+        Kpi(
+            label="Próxima auditoria",
+            value=next_audit.audit_date if next_audit is not None else None,
+            reference=(
+                f"Linha de base: {next_audit.baseline_date}" if next_audit is not None else "·"
+            ),
+            kind=ValueKind.DATE,
+            tone=Tone.INFO,
+            status=(
+                f"{next_audit.code} · {next_audit.auditee_name}"
+                if next_audit is not None
+                else "nenhuma planejada"
+            ),
+        ),
+    )
+
+
+def _audit_table(listing: AuditListing) -> Table:
+    return Table(
+        title=AUDIT_TABLE_TITLE,
+        columns=AUDIT_COLUMNS,
+        rows=tuple(_audit_row(line) for line in listing.lines),
+    )
+
+
+def _audit_row(line: AuditLine) -> Row:
+    counts = line.finding_counts
+    result = (
+        f"NC {counts.get('Não conformidade', 0)}, "
+        f"Obs. {counts.get('Observação', 0)}, "
+        f"OM {counts.get('Oportunidade de melhoria', 0)}"
+        if line.situation == "Realizada"
+        else NOT_ASSESSED
+    )
+    return row(
+        line.code,
+        line.performed_on or line.audit_date,
+        f"{line.scope} ({line.audit_type}, {line.auditee_name})",
+        line.lead_auditor_name,
+        Cell("Atrasada" if line.overdue else line.situation, _audit_situation_tone(line)),
+        line.conformity_pct,
+        result,
+        project=line.project_code,
+    )
+
+
+def _audit_situation_tone(line: AuditLine) -> Tone:
+    if line.overdue:
+        return Tone.ERROR
+    return AUDIT_SITUATION_TONES.get(line.situation, Tone.NEUTRAL)

@@ -17,6 +17,7 @@ from src.modulos.hse.routes import bp as hse_bp
 from src.modulos.inicio.routes import bp as inicio_bp
 from src.modulos.planejamento.routes import bp as planejamento_bp
 from src.modulos.programacao_semanal.routes import bp as programacao_semanal_bp
+from src.modulos.qualidade.auditorias_routes import bp as qualidade_auditorias_bp
 from src.modulos.qualidade.inspecoes_routes import bp as qualidade_inspecoes_bp
 from src.modulos.qualidade.routes import bp as qualidade_bp
 from src.modulos.relatorio.routes import bp as relatorio_bp
@@ -46,6 +47,7 @@ app.register_functions(riscos_ficha_bp)
 app.register_functions(riscos_panel_bp)
 app.register_functions(qualidade_bp)
 app.register_functions(qualidade_inspecoes_bp)
+app.register_functions(qualidade_auditorias_bp)
 app.register_functions(hse_bp)
 app.register_functions(governanca_bp)
 app.register_functions(governanca_licoes_bp)

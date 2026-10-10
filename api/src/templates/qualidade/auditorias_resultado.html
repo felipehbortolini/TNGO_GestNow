@@ -1,0 +1,135 @@
+{% extends "base_fragment.html" %}
+{#
+  Resultado da auditoria (ISSUE-070): a data de realização, os itens verificados e conformes
+  (com a conformidade calculada ao vivo e a meta dos parâmetros), as constatações repetíveis
+  (tipo, descrição, requisito, disciplina e severidade da RNC) e a conclusão. Cada Não
+  conformidade abre uma RNC (origem Auditoria) na mesma transação; não pode haver mais NC que
+  itens não conformes. O 422 devolve este formulário preenchido; o sucesso atualiza a lista
+  atrás do modal.
+
+  Espera: auditoria, valores, erros, visiveis, max_constatacoes, tipos_constatacao, disciplinas,
+  severidades, meta, referencia e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/auditorias/{{ auditoria.code }}/resultado"
+  x-target="auditorias-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando o resultado..."
+  x-data="{ ver: '{{ valores.get('itensVerificados') or '' }}', conf: '{{ valores.get('itensConformes') or '' }}', constatacoes: {{ visiveis }} }">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <input type="hidden" name="versao" value="{{ valores.get('versao') or auditoria.version }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>{{ auditoria.code }} · {{ auditoria.scope }} · {{ auditoria.auditee_name }}. Cada constatação do tipo
+      Não conformidade abre uma RNC (origem Auditoria) com o prazo da severidade.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field">
+      <label for="res-data">Data de realização</label>
+      <input id="res-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="res-verificados">Itens verificados</label>
+      <input id="res-verificados" name="itensVerificados" type="number" min="1" max="500"
+        class="input{% if erros.get('itensVerificados') %} input--erro{% endif %}" required
+        value="{{ valores.get('itensVerificados') or '' }}" @input="ver = $event.target.value"
+        {% if erros.get('itensVerificados') %}aria-invalid="true" aria-describedby="erro-itensVerificados"{% endif %} />
+      {{ erro(erros, 'itensVerificados') }}
+    </div>
+    <div class="field">
+      <label for="res-conformes">Itens conformes</label>
+      <input id="res-conformes" name="itensConformes" type="number" min="0" max="500"
+        class="input{% if erros.get('itensConformes') %} input--erro{% endif %}" required
+        value="{{ valores.get('itensConformes') or '' }}" @input="conf = $event.target.value"
+        {% if erros.get('itensConformes') %}aria-invalid="true" aria-describedby="erro-itensConformes"{% endif %} />
+      {{ erro(erros, 'itensConformes') }}
+    </div>
+    <div class="field" x-show="Number(ver) > 0 && Number(conf) >= 0 && Number(conf) <= Number(ver)">
+      <span class="field__label">Conformidade</span>
+      <div>
+        <b x-text="(Number(conf) / Number(ver) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'"></b>
+        <span class="hint">meta {{ meta | round(0) }}%</span>
+      </div>
+    </div>
+  </div>
+
+  <fieldset class="auditorias__constatacoes-form">
+    <legend>Constatações</legend>
+    {% if erros.get('constatacoes') %}
+    <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['constatacoes'] }}</span></div>
+    {% endif %}
+    {% for posicao in range(1, max_constatacoes + 1) %}
+    <div class="fgrid auditorias__constatacao" x-show="constatacoes >= {{ posicao }}"
+      x-data="{ nc: {{ 'true' if valores.get('constatacao' ~ posicao ~ '_tipo') == 'Não conformidade' else 'false' }} }">
+      <div class="field field--full">
+        <label for="res-constatacao{{ posicao }}-tipo">Constatação {{ posicao }} · tipo</label>
+        <select id="res-constatacao{{ posicao }}-tipo" name="constatacao{{ posicao }}_tipo" class="input"
+          @change="nc = $event.target.value === 'Não conformidade'">
+          <option value="">Escolha...</option>
+          {% for tipo in tipos_constatacao %}
+          <option value="{{ tipo }}"{% if valores.get('constatacao' ~ posicao ~ '_tipo') == tipo %} selected{% endif %}>{{ tipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field--full">
+        <label for="res-constatacao{{ posicao }}-descricao">Descrição</label>
+        <textarea id="res-constatacao{{ posicao }}-descricao" name="constatacao{{ posicao }}_descricao"
+          class="input" rows="2" maxlength="400">{{ valores.get('constatacao' ~ posicao ~ '_descricao') or '' }}</textarea>
+      </div>
+      <div class="field" x-show="nc">
+        <label for="res-constatacao{{ posicao }}-requisito">Requisito</label>
+        <input id="res-constatacao{{ posicao }}-requisito" name="constatacao{{ posicao }}_requisito"
+          class="input" maxlength="80" placeholder="Norma, procedimento ou cláusula"
+          value="{{ valores.get('constatacao' ~ posicao ~ '_requisito') or '' }}" />
+      </div>
+      <div class="field" x-show="nc">
+        <label for="res-constatacao{{ posicao }}-disciplina">Disciplina (RNC)</label>
+        <select id="res-constatacao{{ posicao }}-disciplina" name="constatacao{{ posicao }}_disciplina" class="input">
+          <option value="">Escolha...</option>
+          {% for disciplina in disciplinas %}
+          <option value="{{ disciplina }}"{% if valores.get('constatacao' ~ posicao ~ '_disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" x-show="nc">
+        <label for="res-constatacao{{ posicao }}-severidade">Severidade (RNC)</label>
+        <select id="res-constatacao{{ posicao }}-severidade" name="constatacao{{ posicao }}_severidade" class="input">
+          <option value="">Escolha...</option>
+          {% for severidade in severidades %}
+          <option value="{{ severidade }}"{% if valores.get('constatacao' ~ posicao ~ '_severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    {% endfor %}
+    <button type="button" class="btn btn--secondary btn--sm" x-show="constatacoes < {{ max_constatacoes }}"
+      @click="constatacoes = Math.min(constatacoes + 1, {{ max_constatacoes }})">
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar constatação
+    </button>
+  </fieldset>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="res-resumo">Conclusão da auditoria</label>
+      <textarea id="res-resumo" name="resumo" class="input" rows="3" maxlength="600">{{ valores.get('resumo') or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-auditorias-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar resultado</button>
+  </div>
+</form>
+{% endblock %}

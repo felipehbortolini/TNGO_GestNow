@@ -3,14 +3,86 @@
 
    Programa de auditorias, resultado, constatações e reprogramação.
 
-   Escopo: tudo que morar aqui começa por .pagina--qualidade-auditorias, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-070.
+   Escopo: o que vive na tela começa por .pagina--qualidade-auditorias, a classe da raiz da
+   view, para não vazar entre telas. O conteúdo dos modais mora fora da raiz da view (o
+   Design System os anexa ao fim do <body>): ali o seletor começa por .modal. Só tokens do
+   Design System: nenhum valor de cor, espaçamento, raio ou sombra escrito direto. O que se
+   repetir em três telas sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--qualidade-auditorias .auditorias__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-auditorias .auditorias__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--qualidade-auditorias .auditorias__kpi-unidade {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--qualidade-auditorias .auditorias__filtros {
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.pagina--qualidade-auditorias .auditorias__barra {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pagina--qualidade-auditorias .auditorias__barra-acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.pagina--qualidade-auditorias .auditorias__contagem {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.pagina--qualidade-auditorias .auditorias__tabela td {
+  vertical-align: top;
+}
+
+.pagina--qualidade-auditorias .auditorias__linha--alerta {
+  background: var(--erro-50);
+}
+
+.pagina--qualidade-auditorias .auditorias__acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+
+.modal .auditorias__constatacoes-form {
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.modal .auditorias__constatacoes-form legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-title);
+  padding: 0 var(--space-xs);
+}
+
+.modal .auditorias__constatacao {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--neutro-100);
+  margin-top: var(--space-sm);
+}
+
+.modal .auditorias__ficha .section-title {
+  margin-top: var(--space-lg);
+}

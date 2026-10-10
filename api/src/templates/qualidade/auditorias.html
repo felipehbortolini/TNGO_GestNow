@@ -1,0 +1,168 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Auditorias (ISSUE-070): os cinco KPIs, os filtros (busca, situação e tipo) e a tabela
+  do programa, com a coluna Resultado (conformidade e NC/Obs./OM) e as ações da linha. O
+  fragmento é um só e se pede de novo, com os filtros na consulta, a cada clique: busca, filtro
+  e limpar são um formulário GET com x-target no próprio fragmento. O modal carrega os
+  fragmentos pelo JS da página (auditorias.js): a ficha, o formulário de planejar/reprogramar e
+  o do resultado.
+
+  Espera: listagem, filtros, kpis, consulta, parametro_consulta, url_excel, url_pdf, portfolio,
+  pode_gravar, tipos, situacoes, link_limpar, tem_filtro, formatar_data e link_rnc.
+#}
+{% set pill_da_situacao = {'Planejada': 'pill--fix', 'Realizada': 'pill--ok'} %}
+
+{% macro kpi(cartao) %}
+<div class="kpi kpi--{{ cartao.tone }} kpi--estatico">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>
+  <span class="auditorias__kpi-texto">
+    <span class="kpi__label">{{ cartao.label }}</span>
+    <span class="hint">{{ cartao.reference }}</span>
+    {% if cartao.footer %}<span class="hint">{{ cartao.footer }}</span>{% endif %}
+  </span>
+  <span class="kpi__value">{{ cartao.value }}{% if cartao.unit %}<small class="auditorias__kpi-unidade"> {{ cartao.unit }}</small>{% endif %}</span>
+</div>
+{% endmacro %}
+
+{% block fragment %}
+{% set sufixo = ('?' ~ parametro_consulta) if parametro_consulta else '' %}
+
+<div class="kpis auditorias__kpis" style="--kpis-colunas: 5">
+  {% for cartao in kpis %}{{ kpi(cartao) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <form class="toolbar auditorias__filtros" method="get" action="/api/qualidade/auditorias" x-target="{{ target_id }}" role="search">
+      <label class="sr-only" for="{{ target_id }}-busca">Buscar auditoria</label>
+      <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ filtros.search }}"
+        maxlength="120" placeholder="Buscar número, escopo ou auditado..." />
+      <select class="input" name="situacao" aria-label="Situação" @change="$el.form.requestSubmit()">
+        <option value=""{% if not filtros.situation %} selected{% endif %}>Situação: todas</option>
+        {% for situacao in situacoes %}
+        <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
+        {% endfor %}
+      </select>
+      <select class="input" name="tipo" aria-label="Tipo" @change="$el.form.requestSubmit()">
+        <option value="">Tipo: todos</option>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if filtros.audit_type == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn--secondary btn--sm">
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
+      </button>
+      {% if tem_filtro %}
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      {% endif %}
+    </form>
+
+    <div class="toolbar auditorias__barra">
+      <span class="auditorias__contagem" role="status">
+        {{ listagem.total }} {{ 'auditoria encontrada' if listagem.total == 1 else 'auditorias encontradas' }}
+        · ISO 19011; Não conformidade abre RNC
+      </span>
+      <span class="auditorias__barra-acoes">
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary btn--sm" data-auditorias-formulario
+          data-auditorias-url="/api/qualidade/auditorias/nova{{ sufixo }}" data-auditorias-titulo="Planejar auditoria">
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Planejar auditoria
+        </button>
+        {% endif %}
+      </span>
+    </div>
+
+    {% if listagem.total == 0 %}
+    <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">
+        {% if tem_filtro %}Nenhuma auditoria encontrada com os filtros atuais{% else %}Ainda não há auditorias planejadas{% endif %}
+      </h2>
+      <p>
+        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
+        {% else %}Planeje a primeira auditoria com o escopo, os critérios, o auditado e o auditor líder.{% endif %}
+      </p>
+      {% if tem_filtro and pode_gravar %}
+      <p><a class="btn btn--secondary btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a></p>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl auditorias__tabela">
+        <caption class="sr-only">Programa de auditorias</caption>
+        <thead>
+          <tr>
+            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            <th scope="col">Nº</th>
+            <th scope="col">Data</th>
+            <th scope="col">Escopo</th>
+            <th scope="col">Situação</th>
+            <th scope="col">Resultado</th>
+            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in listagem.lines %}
+          <tr class="{{ 'auditorias__linha--alerta' if linha.overdue else '' }}">
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_code }}</span></td>{% endif %}
+            <td class="nowrap">
+              <a href="#" data-auditoria-ficha="{{ linha.code }}" title="Ver auditoria"><b>{{ linha.code }}</b></a>
+            </td>
+            <td class="nowrap">
+              {{ formatar_data(linha.performed_on or linha.audit_date) }}
+              {% if linha.overdue %}
+              <br /><span class="valor--negativo">planejada há {{ linha.days_overdue }} dia{{ 's' if linha.days_overdue != 1 else '' }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="fw-600">{{ linha.scope }}</span>
+              <br /><span class="hint">{{ linha.audit_type }} · {{ linha.auditee_name }} · auditor {{ linha.lead_auditor_name }}</span>
+            </td>
+            <td>
+              {% if linha.overdue %}
+              <span class="pill pill--erro">Atrasada</span>
+              {% else %}
+              <span class="pill {{ pill_da_situacao.get(linha.situation, 'pill--neutral') }}">{{ linha.situation }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if linha.situation != 'Realizada' %}
+              <span class="hint">·</span>
+              {% else %}
+              <b class="{{ 'valor--negativo' if linha.conformity_pct is not none and linha.conformity_pct < meta else '' }}">{{ linha.conformity_pct | round(1) | replace('.', ',') }}%</b>
+              <span class="hint">conforme</span>
+              <br /><span class="hint nowrap">NC {{ linha.finding_counts.get('Não conformidade', 0) }} · Obs. {{ linha.finding_counts.get('Observação', 0) }} · OM {{ linha.finding_counts.get('Oportunidade de melhoria', 0) }}</span>
+              {% if linha.open_nc %}
+              <br /><span class="valor--negativo">{{ linha.open_nc }} RNC{{ 's' if linha.open_nc != 1 else '' }} em aberto</span>
+              {% endif %}
+              {% endif %}
+            </td>
+            <td class="auditorias__acoes nowrap">
+              <button type="button" class="iconbtn" data-auditoria-ficha="{{ linha.code }}" title="Ver auditoria" aria-label="Ver auditoria {{ linha.code }}">
+                <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
+              </button>
+              {% if pode_gravar and linha.situation == 'Planejada' %}
+              <button type="button" class="btn btn--ghost btn--sm" data-auditorias-formulario
+                data-auditorias-url="/api/qualidade/auditorias/{{ linha.code }}/resultado{{ sufixo }}"
+                data-auditorias-titulo="Resultado da auditoria · {{ linha.code }}">
+                <span x-init="$el.innerHTML = window.icon('clipboardCheck', 14)" aria-hidden="true"></span> Resultado
+              </button>
+              <button type="button" class="btn btn--ghost btn--icon btn--sm" data-auditorias-formulario
+                data-auditorias-url="/api/qualidade/auditorias/{{ linha.code }}/reprogramacao{{ sufixo }}"
+                data-auditorias-titulo="Reprogramar auditoria · {{ linha.code }}"
+                title="Reprogramar" aria-label="Reprogramar {{ linha.code }}">
+                <span x-init="$el.innerHTML = window.icon('calendarClock', 16)" aria-hidden="true"></span>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
