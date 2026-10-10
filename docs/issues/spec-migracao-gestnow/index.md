@@ -95,7 +95,7 @@ vem primeiro.
 | ISSUE-066 | Matriz P x I e painel de riscos | 6 | task | done | ready-for-agent | ISSUE-065 | [ISSUE-066](./066-matriz-pxi-e-painel-de-riscos.md) |
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | 6 | task | done | ready-for-agent | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 | [ISSUE-067](./067-integracoes-que-chegam-aos-riscos.md) |
 | ISSUE-068 | Não conformidades (RNC) | 7 | task | done | ready-for-agent | ISSUE-019, ISSUE-027 | [ISSUE-068](./068-nao-conformidades-rnc.md) |
-| ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | 7 | task | proposed | ready-for-agent | ISSUE-068, ISSUE-061 | [ISSUE-069](./069-inspecoes-itp-e-fat.md) |
+| ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | 7 | task | done | ready-for-agent | ISSUE-068, ISSUE-061 | [ISSUE-069](./069-inspecoes-itp-e-fat.md) |
 | ISSUE-070 | Auditorias | 7 | task | proposed | ready-for-agent | ISSUE-068 | [ISSUE-070](./070-auditorias.md) |
 | ISSUE-071 | Painel da qualidade | 7 | task | proposed | ready-for-agent | ISSUE-069, ISSUE-070 | [ISSUE-071](./071-painel-da-qualidade.md) |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | 7 | task | done | ready-for-agent | ISSUE-012, ISSUE-013, ISSUE-016, ISSUE-018 | [ISSUE-072](./072-hht-inspecoes-observacoes-e-dds.md) |
