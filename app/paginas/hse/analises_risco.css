@@ -1,16 +1,89 @@
 /* ============================================================
    analises_risco.css — Estilo da tela Análises de risco (APR/HAZOP) (hse/analises_risco)
 
-   Estudos APR/JSA e HAZOP, com as recomendações que viram ações.
+   Estudos APR/JSA e HAZOP, com as recomendações que viram ações na Central.
 
    Escopo: tudo que morar aqui começa por .pagina--hse-analises_risco, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-074.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--hse-analises_risco .analises-risco__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--hse-analises_risco .analises-risco__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--hse-analises_risco .analises-risco__filtros {
+  flex-wrap: wrap;
+}
+
+.pagina--hse-analises_risco .analises-risco__barra {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-analises_risco .analises-risco__barra-acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.pagina--hse-analises_risco .analises-risco__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.8125rem;
+}
+
+.pagina--hse-analises_risco .analises-risco__tipo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pagina--hse-analises_risco .analises-risco__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.pagina--hse-analises_risco .analises-risco__acao-form {
+  display: inline;
+}
+
+.pagina--hse-analises_risco .analises-risco__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-title);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pagina--hse-analises_risco .analises-risco__paginas {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.pagina--hse-analises_risco .analises-risco__linha-rec {
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+  align-items: end;
+}

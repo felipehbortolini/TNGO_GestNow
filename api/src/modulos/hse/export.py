@@ -4,9 +4,10 @@ What a screen shows is what leaves: the HHT screen exports its four indicators w
 reference, the HHT table and the labour histogram; the screen Inspeções e observações exports its
 four indicators and the four lists (monthly closings, inspections, observations and DDS); the
 screen Ocorrências exports its four indicators and the list, with the same columns the prototype
-exported. In the Portfólio every table opens with ``Projeto`` (HU-016). The name of the person
-observed leaves only for who may read it (Q35); the restricted data of an occurrence never
-leaves, because the list does not carry it.
+exported; the screen Análises de risco exports its four indicators and the study list. In the
+Portfólio every table opens with ``Projeto`` (HU-016). The name of the person observed leaves
+only for who may read it (Q35); the restricted data of an occurrence never leaves, because the
+list does not carry it.
 """
 
 from __future__ import annotations
@@ -35,9 +36,11 @@ from src.modulos.hse.calculations import ProactiveSummary
 HOURS_TITLE = "Horas trabalhadas (HHT)"
 PROACTIVE_TITLE = "Inspeções, observações e DDS"
 OCCURRENCES_TITLE = "Ocorrências HSE"
+ANALYSES_TITLE = "Análises de risco (APR/HAZOP)"
 HOURS_FILE = "hht-hse"
 PROACTIVE_FILE = "inspecoes-hse"
 OCCURRENCES_FILE = "ocorrencias-hse"
+ANALYSES_FILE = "analises-risco-hse"
 NONE = "·"
 WITHIN_DEADLINE = "no prazo"
 
@@ -471,3 +474,97 @@ def _deadlines_text(line: service.OccurrenceRow) -> str:
         elif line.report_late == "vencido":
             badges.append("Relatório final vencido")
     return "; ".join(badges) if badges else WITHIN_DEADLINE
+
+
+def analyses_document(
+    screen: service.AnalysisScreen,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """O documento da tela Análises de risco: os quatro indicadores e a lista de estudos."""
+    return Document(
+        title=ANALYSES_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        kpis=_analysis_kpis(screen),
+        tables=(_analysis_table(screen.rows),),
+    )
+
+
+def _analysis_kpis(screen: service.AnalysisScreen) -> tuple[Kpi, ...]:
+    summary = screen.summary
+    emitted = summary.open + summary.closed
+    return (
+        Kpi(
+            "Estudos registrados",
+            len(screen.rows),
+            f"Referência: de {screen.universe} registrados",
+            ValueKind.INTEGER,
+            tone=Tone.NEUTRAL,
+            status="Pelo filtro em tela",
+        ),
+        Kpi(
+            "Recomendações abertas",
+            summary.open,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.open else Tone.OK,
+            status="Não fechadas",
+        ),
+        Kpi(
+            "Recomendações atrasadas",
+            summary.overdue,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.overdue else Tone.OK,
+            status="Abertas com o prazo vencido",
+        ),
+        Kpi(
+            "Recomendações fechadas",
+            summary.closed_pct if summary.closed_pct is not None else NONE,
+            "Esperado: 100%",
+            ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+            status=f"{summary.closed} de {emitted} emitidas",
+        ),
+    )
+
+
+def _analysis_table(rows: Sequence[service.AnalysisRow]) -> Table:
+    return Table(
+        title="Estudos",
+        columns=(
+            Column("Nº", width=18),
+            Column("Tipo", width=10),
+            Column("Área", width=22),
+            Column("Título", width=40),
+            Column("Data", ValueKind.DATE),
+            Column("Participantes", ValueKind.INTEGER),
+            Column("Recomendações", width=36),
+        ),
+        rows=tuple(
+            row(
+                line.code,
+                line.kind,
+                line.area,
+                line.title,
+                line.held_on,
+                line.participants,
+                _recommendations_text(line),
+                project=line.project_label,
+            )
+            for line in rows
+        ),
+    )
+
+
+def _recommendations_text(line: service.AnalysisRow) -> str:
+    opened = f"{line.open_count} aberta{'' if line.open_count == 1 else 's'}"
+    if line.overdue_count:
+        opened += f" ({line.overdue_count} atrasada{'' if line.overdue_count == 1 else 's'})"
+    closed = f"{line.closed_count} fechada{'' if line.closed_count == 1 else 's'}"
+    return f"{opened}, {closed}"

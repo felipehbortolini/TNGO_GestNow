@@ -7,6 +7,7 @@ was typed before a refusal. Nothing here talks to the database.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -15,6 +16,8 @@ from src.modulos.configuracoes.service import RegisterOption
 from src.modulos.hse import calculations, service, validation
 from src.modulos.hse.models import SafetyInspectionItem
 from src.modulos.hse.validation import (
+    AnalysisInput,
+    AnalysisRecommendationInput,
     ChecklistItemInput,
     ClosingInput,
     ClosureInput,
@@ -24,6 +27,7 @@ from src.modulos.hse.validation import (
     InvestigationInput,
     ObservationInput,
     OccurrenceInput,
+    RecommendationClosureInput,
     TalkInput,
 )
 
@@ -256,6 +260,63 @@ def parse_closure(form: Mapping[str, str]) -> ClosureInput:
         closed_on=validation.parse_date(form.get("data")),
         lesson_title=_text(form, "titulo"),
         lesson_recommendation=_text(form, "recomendacao"),
+    )
+
+
+# ── Análises de risco (ISSUE-074) ────────────────────────────────────────────────────────────
+
+_RECOMMENDATION_KEY = re.compile(r"rec_descricao_(\d+)$")
+
+
+def _multi_ids(form: Mapping[str, str], name: str) -> tuple[int, ...]:
+    """Os ids de um campo de múltipla escolha; um campo simples vale como um só id."""
+    getlist = getattr(form, "getlist", None)
+    raws = getlist(name) if getlist is not None else [form.get(name)]
+    return validation.parse_ids(raws)
+
+
+def recommendation_rows(form: Mapping[str, str]) -> tuple[AnalysisRecommendationInput, ...]:
+    """As recomendações digitadas, na ordem dos índices, sem as linhas de descrição vazia."""
+    indexes = sorted(
+        {
+            int(match.group(1))
+            for key in form
+            if (match := _RECOMMENDATION_KEY.match(key)) is not None
+        }
+    )
+    rows: list[AnalysisRecommendationInput] = []
+    for index in indexes:
+        description = _text(form, f"rec_descricao_{index}")
+        if not description:
+            continue
+        rows.append(
+            AnalysisRecommendationInput(
+                description=description,
+                responsible_id=_opt_id(form, f"rec_responsavel_{index}"),
+                due_date=validation.parse_date(form.get(f"rec_prazo_{index}")),
+            )
+        )
+    return tuple(rows)
+
+
+def parse_analysis(form: Mapping[str, str], *, project_id: int) -> AnalysisInput:
+    """O formulário do novo estudo: tipo, área, título, data, participantes e recomendações."""
+    return AnalysisInput(
+        project_id=project_id,
+        kind=_text(form, "tipo"),
+        area=_text(form, "area"),
+        title=_text(form, "titulo"),
+        held_on=validation.parse_date(form.get("data")),
+        participant_ids=_multi_ids(form, "participantes"),
+        recommendations=recommendation_rows(form),
+    )
+
+
+def parse_recommendation_closure(form: Mapping[str, str]) -> RecommendationClosureInput:
+    """O formulário do fechamento da recomendação: a data de conclusão e a evidência."""
+    return RecommendationClosureInput(
+        closed_on=validation.parse_date(form.get("data")),
+        evidence=_text(form, "evidencia"),
     )
 
 

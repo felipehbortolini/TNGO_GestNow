@@ -1,0 +1,102 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha do estudo (ISSUE-074): os dados do estudo, os participantes e as recomendações com a
+  situação, o status da ação na Central e as ações da linha (Fechar e Criar ação). O status da
+  ação chega pela fachada da Central (``actions_of_origin``, D9), nunca lendo a tabela ``acao``.
+  Depois de gravar, a lista recarrega e a ficha reabre pelo marcador oculto do fragmento da lista.
+
+  Espera: ficha (linha com participantes e recomendações), pode_gravar, consulta e o formatador
+  (data).
+#}
+{% set pill_do_tipo = {'APR': 'pill--fix', 'HAZOP': 'pill--neutral'} %}
+{% set linha = ficha.line %}
+
+{% macro campo(rotulo, conteudo) %}
+<div class="field">
+  <span class="field__label">{{ rotulo }}</span>
+  <div>{{ conteudo if conteudo else '·' }}</div>
+</div>
+{% endmacro %}
+
+{% macro botao_fechar(recomendacao) %}
+<button type="button" class="btn btn--ghost btn--sm"
+  data-analises-risco-modal-url="/api/hse/analises-risco/{{ linha.code }}/recomendacoes/{{ recomendacao.position }}/fechar{{ ('?' ~ consulta) if consulta else '' }}"
+  data-analises-risco-modal-titulo="Fechar recomendação · {{ linha.code }}"
+  data-analises-risco-modal-subtitulo="{{ recomendacao.description|truncate(80) }}" data-analises-risco-modal-largura="640">
+  <span x-init="$el.innerHTML = window.icon('check', 14)" aria-hidden="true"></span> Fechar
+</button>
+{% endmacro %}
+
+{% macro form_criar_acao(recomendacao) %}
+<form class="analises-risco__acao-form" method="post"
+  action="/api/hse/analises-risco/{{ linha.code }}/recomendacoes/{{ recomendacao.position }}/acao"
+  x-target="analises-risco-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <button type="submit" class="btn btn--ghost btn--sm"
+    title="Criar ação na Central para esta recomendação">
+    <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Criar ação
+  </button>
+</form>
+{% endmacro %}
+
+{% block fragment %}
+<div class="analises-risco__ficha">
+  <div class="fgrid mb-16">
+    {{ campo('Tipo', '<span class="pill ' ~ pill_do_tipo.get(linha.kind, 'pill--neutral') ~ '">' ~ ('APR / JSA' if linha.kind == 'APR' else linha.kind) ~ '</span>') }}
+    {{ campo('Área', linha.area) }}
+    {{ campo('Data do estudo', data(linha.held_on)) }}
+    {{ campo('Participantes', linha.participant_names|join(', ')) }}
+  </div>
+
+  <p class="hint mb-16">A recomendação nasce Aberta; fechar a recomendação conclui a ação na
+    Central e concluir a ação fecha a recomendação.</p>
+
+  <h3 class="section-title">Recomendações</h3>
+  {% if linha.recommendations %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <caption class="sr-only">Recomendações do estudo</caption>
+      <thead><tr><th scope="col">Recomendação</th><th scope="col">Responsável</th>
+        <th scope="col">Prazo</th><th scope="col">Situação</th><th scope="col">Ação na Central</th>
+        <th scope="col"><span class="sr-only">Ações da linha</span></th></tr></thead>
+      <tbody>
+        {% for rec in linha.recommendations %}
+        {% set pode_fechar = pode_gravar and not rec.is_closed %}
+        {% set pode_acao = pode_gravar and not rec.action %}
+        <tr>
+          <td>
+            {{ rec.description }}
+            {% if rec.closed_on %}
+            <br /><small class="muted">Fechada em {{ data(rec.closed_on) }}{% if rec.evidence %} · {{ rec.evidence }}{% endif %}</small>
+            {% endif %}
+          </td>
+          <td>{{ rec.responsible_name }}</td>
+          <td class="nowrap">{{ data(rec.due_date) }}</td>
+          <td>
+            <span class="pill {{ 'pill--ok' if rec.is_closed else ('pill--erro' if rec.overdue else 'pill--warn') }}">{{ rec.situation }}</span>
+            {% if rec.overdue %}<span class="pill pill--erro">Atrasada</span>{% endif %}
+          </td>
+          <td>
+            {% if rec.action %}
+            <span class="pill {{ 'pill--ok' if rec.action.status_label == 'Concluída' else ('pill--erro' if rec.action.status_label == 'Atrasada' else 'pill--fix') }}">{{ rec.action.status_label }}</span>
+            <small class="muted">prevista {{ data(rec.action.due_date) }}</small>
+            {% else %}<span class="muted">·</span>{% endif %}
+          </td>
+          <td>
+            <div class="analises-risco__acoes">
+              {% if pode_fechar %}{{ botao_fechar(rec) }}{% endif %}
+              {% if pode_acao %}{{ form_criar_acao(rec) }}{% endif %}
+              {% if not pode_fechar and not pode_acao %}<span class="muted">·</span>{% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint">Nenhuma recomendação registrada.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Análises de risco (ISSUE-074): os quatro indicadores, os filtros e a lista de estudos,
+  com a ação de ver a ficha em cada linha. O fragmento é um só e se pede de novo, com os filtros
+  na consulta, a cada clique; a busca e os seletores são um formulário GET com x-target no
+  próprio fragmento. A ficha e o formulário de novo estudo abrem o modal pelo JS da página
+  (analises_risco.js); depois de uma gravação o fragmento traz o marcador oculto que reabre a
+  ficha.
+
+  Espera: kpis, linhas, total, pagina, pagina_total, link_anterior, link_proximo, consulta,
+  url_excel, url_pdf, filtros, tem_filtro, tipos, pode_gravar, portfolio, abrir_ficha e os
+  formatadores (numero, data).
+#}
+{% set pill_do_tipo = {'APR': 'pill--fix', 'HAZOP': 'pill--neutral'} %}
+
+{% macro kpi(cartao) %}
+<div class="kpi kpi--estatico kpi--{{ cartao.tom }}">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icone }}', 16)" aria-hidden="true"></span>
+  <span class="analises-risco__kpi-texto">
+    <span class="kpi__label">{{ cartao.rotulo }}</span>
+    <span class="hint">{{ cartao.referencia }}</span>
+    {% if cartao.rodape %}<span class="hint">{{ cartao.rodape }}</span>{% endif %}
+  </span>
+  <span class="kpi__value">{{ cartao.valor }}</span>
+</div>
+{% endmacro %}
+
+{% macro botao_ficha(linha, rotulo) %}
+<button type="button" class="btn btn--ghost btn--sm" data-analises-risco-modal-url="/api/hse/analises-risco/{{ linha.code }}/ficha?{{ consulta }}"
+  data-analises-risco-modal-titulo="Estudo {{ linha.code }}"
+  data-analises-risco-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}" data-analises-risco-modal-largura="960"
+  {% if not rotulo %}title="Ver estudo {{ linha.code }}" aria-label="Ver estudo {{ linha.code }}"{% endif %}>
+  <span x-init="$el.innerHTML = window.icon('eye', 14)" aria-hidden="true"></span>{% if rotulo %} {{ rotulo }}{% endif %}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+{% if abrir_ficha %}
+<span hidden data-analises-risco-abrir-ficha="{{ abrir_ficha }}"
+  x-init="TN.paginas['hse/analises_risco'].abrirFicha($el)"></span>
+{% endif %}
+
+<div class="kpis analises-risco__kpis" style="--kpis-colunas: 4">
+  {% for cartao in kpis %}{{ kpi(cartao) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <form class="toolbar analises-risco__filtros" method="get" action="/api/hse/analises-risco" x-target="{{ target_id }}" role="search">
+      <div class="toolbar__search input-icon">
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar estudos</label>
+        <input id="{{ target_id }}-busca" class="input input--pill" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar por número, título ou área" />
+      </div>
+      <select class="input" name="tipo" aria-label="Tipo" @change="$el.form.requestSubmit()">
+        <option value="">Tipo: todos</option>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ 'APR / JSA' if tipo == 'APR' else tipo }}</option>
+        {% endfor %}
+      </select>
+      <label class="analises-risco__opcao">
+        <input type="checkbox" name="abertas" value="1"{% if filtros.open_only %} checked{% endif %}
+          @change="$el.form.requestSubmit()" />
+        Só com recomendação aberta
+      </label>
+      <button type="submit" class="btn btn--secondary btn--sm">
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
+      </button>
+      {% if tem_filtro %}
+      <a class="btn btn--ghost btn--sm" href="/api/hse/analises-risco" x-target="{{ target_id }}">Limpar filtros</a>
+      {% endif %}
+    </form>
+
+    <div class="toolbar analises-risco__barra">
+      <span class="hint" role="status">
+        {{ total }} {{ 'estudo encontrado' if total == 1 else 'estudos encontrados' }}
+      </span>
+      <span class="analises-risco__barra-acoes">
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary btn--sm" data-tn-incluir="nova"
+          data-analises-risco-modal-url="/api/hse/analises-risco/nova?consulta={{ consulta }}"
+          data-analises-risco-modal-titulo="Nova análise de risco"
+          data-analises-risco-modal-subtitulo="Estudo APR/JSA ou HAZOP com participantes e recomendações"
+          data-analises-risco-modal-largura="920">
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Novo estudo
+        </button>
+        {% endif %}
+      </span>
+    </div>
+
+    {% if not total %}
+    <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">
+        {% if tem_filtro %}Nenhum estudo encontrado com os filtros atuais{% else %}Ainda não há estudos registrados{% endif %}
+      </h2>
+      <p>
+        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
+        {% else %}Registre o primeiro estudo com tipo, área, título, participantes e recomendações.{% endif %}
+      </p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Análises de risco do projeto</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Nº</th><th scope="col">Tipo</th><th scope="col">Área</th>
+          <th scope="col">Título</th><th scope="col">Data</th><th scope="col">Participantes</th>
+          <th scope="col">Recomendações</th>
+          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap"><button type="button" class="analises-risco__link"
+              data-analises-risco-modal-url="/api/hse/analises-risco/{{ linha.code }}/ficha?{{ consulta }}"
+              data-analises-risco-modal-titulo="Estudo {{ linha.code }}"
+              data-analises-risco-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}"
+              data-analises-risco-modal-largura="960">{{ linha.code }}</button></td>
+            <td><span class="pill {{ pill_do_tipo.get(linha.kind, 'pill--neutral') }}">{{ 'APR / JSA' if linha.kind == 'APR' else linha.kind }}</span></td>
+            <td>{{ linha.area }}</td>
+            <td>{{ linha.title }}</td>
+            <td class="nowrap">{{ data(linha.held_on) }}</td>
+            <td class="td-num">{{ linha.participants }}</td>
+            <td>
+              <span class="analises-risco__tipo">
+                <span class="pill {{ 'pill--erro' if linha.overdue_count else ('pill--warn' if linha.open_count else 'pill--ok') }}">{{ linha.open_count }} aberta{{ '' if linha.open_count == 1 else 's' }}</span>
+                {% if linha.overdue_count %}<span class="pill pill--erro">{{ linha.overdue_count }} atrasada{{ '' if linha.overdue_count == 1 else 's' }}</span>{% endif %}
+                <span class="pill pill--neutral">{{ linha.closed_count }} fechada{{ '' if linha.closed_count == 1 else 's' }}</span>
+              </span>
+            </td>
+            <td>{{ botao_ficha(linha, '') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="analises-risco__paginas" aria-label="Páginas da tabela">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+      <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

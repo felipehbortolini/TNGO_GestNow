@@ -13,6 +13,7 @@ from src.modulos.configuracoes.routes import bp as configuracoes_bp
 from src.modulos.financeiro.routes import bp as financeiro_bp
 from src.modulos.governanca.lessons_routes import bp as governanca_licoes_bp
 from src.modulos.governanca.routes import bp as governanca_bp
+from src.modulos.hse.analises_risco_routes import bp as hse_analises_risco_bp
 from src.modulos.hse.ocorrencias_routes import bp as hse_ocorrencias_bp
 from src.modulos.hse.routes import bp as hse_bp
 from src.modulos.inicio.routes import bp as inicio_bp
@@ -53,6 +54,7 @@ app.register_functions(qualidade_auditorias_bp)
 app.register_functions(qualidade_painel_bp)
 app.register_functions(hse_bp)
 app.register_functions(hse_ocorrencias_bp)
+app.register_functions(hse_analises_risco_bp)
 app.register_functions(governanca_bp)
 app.register_functions(governanca_licoes_bp)
 app.register_functions(configuracoes_bp)

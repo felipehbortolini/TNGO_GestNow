@@ -362,10 +362,27 @@ max-complexity = 10
 # `_screen_response` e `_new_form`, nas rotas das Ocorrências, recebem a requisição,
 # a sessão e o contexto além do que a resposta precisa imprimir (os filtros, a página,
 # o aviso e a ficha a reabrir), todos KEYWORD-ONLY depois do `*` — o contrato da tela e
-# dos formulários do fluxo (ISSUE-073), como as rotas da RNC e das Inspeções acima. A
-# regra existe para argumento posicional, onde a ordem se erra na chamada; reduzir
-# significaria criar um objeto de opções, a mesma coisa com mais indireção.
+# dos formulários do fluxo (ISSUE-073), como as rotas da RNC e das Inspeções acima. O
+# mesmo vale para `_screen_response`, `_new_form`, `_close_context` e `_recommendation_rows`,
+# nas rotas das Análises de risco (ISSUE-074). A regra existe para argumento
+# posicional, onde a ordem se erra na chamada; reduzir significaria criar um objeto de
+# opções, a mesma coisa com mais indireção.
 "src/modulos/hse/ocorrencias_routes.py" = ["PLR0913"]
+"src/modulos/hse/analises_risco_routes.py" = ["PLR0913"]
+
+# `_analysis_row`, `close_recommendation`, `_complete_linked_action` e
+# `create_recommendation_action`, na fachada do HSE, recebem o usuário e o estudo além do que
+# a operação precisa (as recomendações, a ação da Central, a data de referência e o projeto
+# que desempata o código), todos KEYWORD-ONLY depois do `*` — o contrato do estudo de risco
+# (ISSUE-074). A regra existe para argumento posicional, onde a ordem se erra na chamada;
+# reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/hse/service.py" = ["PLR0913"]
+
+# `_analysis`, na carga do HSE, recebe o usuário e os mapas do protótipo (projetos e pessoas)
+# além do estudo e da data, todos KEYWORD-ONLY depois do `*`, o contrato da conversão da carga
+# (ISSUE-074). A regra existe para argumento posicional, onde a ordem se erra na chamada;
+# reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/hse/seed.py" = ["PLR0913"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
