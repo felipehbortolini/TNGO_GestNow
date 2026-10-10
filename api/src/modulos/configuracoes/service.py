@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from src.core import recording
 from src.core.errors import InvalidDataError
 from src.core.models import Client
-from src.modulos.configuracoes import validation
+from src.modulos.configuracoes import forms, validation
 from src.modulos.configuracoes.models import (
     Collaborator,
     CollaboratorScheduleRole,
@@ -725,6 +725,258 @@ def _next_version(session: Session, group: str) -> int:
         select(func.max(ParameterVersion.version)).where(ParameterVersion.group == group)
     )
     return (last or 0) + 1
+
+
+# ── Tela de Parâmetros (ISSUE-076) ───────────────────────────────────────
+#
+# A leitura que a tela e o histórico consomem: os grupos da tela (``forms``)
+# com os valores vigentes, a versão vigente de cada grupo de origem com autor,
+# vigência e justificativa, e as alterações de cada versão contra a anterior do
+# MESMO grupo (o GestNow versiona por grupo; o protótipo versionava o conjunto).
+# O filtro da tela (busca e módulo) é do servidor: o fragmento é pedido de novo
+# pela query.
+
+
+@dataclass(frozen=True)
+class ParameterRow:
+    """Uma linha da tabela de um grupo: o rótulo do campo e o valor vigente já escrito."""
+
+    rotulo: str
+    valor: str
+
+
+@dataclass(frozen=True)
+class GroupVersion:
+    """A versão vigente de um grupo de parâmetros como a tela a lê."""
+
+    group: str
+    version: int
+    effective_from: date
+    author_name: str
+    justification: str
+
+
+@dataclass(frozen=True)
+class GroupView:
+    """Um grupo da tela: os metadados, as linhas vigentes e as versões dos grupos de origem."""
+
+    form: forms.ParameterGroupForm
+    rows: tuple[ParameterRow, ...]
+    versions: tuple[GroupVersion, ...]
+
+    @property
+    def current(self) -> GroupVersion | None:
+        """A versão mais recente entre os grupos de origem: a manchete do grupo."""
+        return self.versions[0] if self.versions else None
+
+    @property
+    def source_count(self) -> int:
+        return len(self.versions)
+
+
+@dataclass(frozen=True)
+class ParameterOverview:
+    """O que a tela mostra: os grupos filtrados, a versão mais recente e a contagem de versões."""
+
+    groups: tuple[GroupView, ...]
+    latest: GroupVersion | None
+    previous_versions: int
+    total_versions: int
+
+
+@dataclass(frozen=True)
+class VersionChange:
+    """Uma alteração de uma versão: o grupo, o parâmetro e o antes e o depois já escritos."""
+
+    grupo: str
+    parametro: str
+    de: str
+    para: str
+
+
+@dataclass(frozen=True)
+class HistoryEntry:
+    """Uma versão no histórico: identificação, autor, justificativa, alterações e se é a vigente."""
+
+    group: str
+    group_name: str
+    version: int
+    effective_from: date
+    author_name: str
+    justification: str
+    current: bool
+    changes: tuple[VersionChange, ...]
+
+
+def parameter_overview(
+    session: Session, *, reference_date: date, search: str = "", module: str = ""
+) -> ParameterOverview:
+    """Os grupos da tela com os valores vigentes, já filtrados pela busca e pelo módulo."""
+    values = current_parameters(session, reference_date=reference_date)
+    versions = current_versions(session, reference_date=reference_date)
+    names = _author_names(session, [version.author_id for version in versions.values()])
+    todas = [_group_version(version, names) for version in versions.values()]
+    latest = max(todas, key=_version_order) if todas else None
+    groups: list[GroupView] = []
+    for group_form in forms.group_forms(values):
+        if module and group_form.modulo != module:
+            continue
+        visible = [field for field in group_form.campos if forms.matches(group_form, field, search)]
+        if not visible:
+            continue
+        group_versions = tuple(
+            _group_version(versions[group], names)
+            for group in forms.group_sources(group_form.id)
+            if group in versions
+        )
+        rows = tuple(
+            ParameterRow(
+                rotulo=field.rotulo,
+                valor=forms.exibir(field, forms.value_at(values, field.caminho)),
+            )
+            for field in visible
+        )
+        groups.append(GroupView(form=group_form, rows=rows, versions=_latest_first(group_versions)))
+    total = session.scalar(select(func.count()).select_from(ParameterVersion)) or 0
+    return ParameterOverview(
+        groups=tuple(groups),
+        latest=latest,
+        previous_versions=max(total - len(versions), 0),
+        total_versions=total,
+    )
+
+
+def parameter_history(
+    session: Session, *, reference_date: date, group: str | None = None
+) -> tuple[HistoryEntry, ...]:
+    """As versões registradas, da mais recente para a mais antiga, com o antes e o depois.
+
+    As alterações de cada versão comparam com a versão anterior do MESMO grupo,
+    como o GestNow versiona (o protótipo versionava o conjunto inteiro); a
+    primeira versão de cada grupo não tem alterações.
+    """
+    statement = select(ParameterVersion).order_by(
+        ParameterVersion.effective_from.desc(),
+        ParameterVersion.version.desc(),
+        ParameterVersion.group,
+    )
+    if group is not None:
+        statement = statement.where(ParameterVersion.group == group)
+    versions = list(session.scalars(statement).all())
+    if not versions:
+        return ()
+    by_key = {(version.group, version.version): version for version in versions}
+    rows_by_version = _values_by_version(session, [version.id for version in versions])
+    current_ids = {
+        version.id for version in current_versions(session, reference_date=reference_date).values()
+    }
+    names = _author_names(session, [version.author_id for version in versions])
+    labels_by_path = forms.labels(current_parameters(session, reference_date=reference_date))
+    entries: list[HistoryEntry] = []
+    for version in versions:
+        previous = by_key.get((version.group, version.version - 1))
+        changes = (
+            ()
+            if previous is None
+            else _changes(
+                {version.group: _restore(rows_by_version.get(previous.id, []))},
+                {version.group: _restore(rows_by_version.get(version.id, []))},
+                labels_by_path,
+            )
+        )
+        entries.append(
+            HistoryEntry(
+                group=version.group,
+                group_name=_screen_group_name(version.group),
+                version=version.version,
+                effective_from=version.effective_from,
+                author_name=names.get(version.author_id, ""),
+                justification=version.justification,
+                current=version.id in current_ids,
+                changes=changes,
+            )
+        )
+    return tuple(entries)
+
+
+def _group_version(version: ParameterVersion, names: Mapping[int, str]) -> GroupVersion:
+    return GroupVersion(
+        group=version.group,
+        version=version.version,
+        effective_from=version.effective_from,
+        author_name=names.get(version.author_id, ""),
+        justification=version.justification,
+    )
+
+
+def _version_order(version: GroupVersion) -> tuple[date, int]:
+    return (version.effective_from, version.version)
+
+
+def _latest_first(versions: tuple[GroupVersion, ...]) -> tuple[GroupVersion, ...]:
+    return tuple(sorted(versions, key=_version_order, reverse=True))
+
+
+def _screen_group_name(group: str) -> str:
+    screen = forms.SCREEN_GROUP_OF.get(group)
+    return forms.GROUP_NAMES[screen] if screen is not None else group
+
+
+def _author_names(session: Session, author_ids: Iterable[int]) -> dict[int, str]:
+    """O nome do colaborador de cada id de autor: o que a tela e o histórico imprimem."""
+    wanted = {author_id for author_id in author_ids if author_id is not None}
+    if not wanted:
+        return {}
+    statement = (
+        select(Collaborator.id, Person.name)
+        .join(Person, Person.id == Collaborator.person_id)
+        .where(Collaborator.id.in_(wanted))
+    )
+    return {row.id: row.name for row in session.execute(statement)}
+
+
+def _values_by_version(
+    session: Session, version_ids: Sequence[int]
+) -> dict[int, list[ParameterValue]]:
+    statement = (
+        select(ParameterValue)
+        .where(ParameterValue.version_id.in_(version_ids))
+        .order_by(ParameterValue.order)
+    )
+    grouped: dict[int, list[ParameterValue]] = {}
+    for row in session.scalars(statement).all():
+        grouped.setdefault(row.version_id, []).append(row)
+    return grouped
+
+
+def _changes(
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    labels_by_path: Mapping[str, forms.FieldLabel],
+) -> tuple[VersionChange, ...]:
+    """As alterações entre duas versões, na ordem das folhas, pelo rótulo do campo."""
+    before_leaves = forms.leaf_values(before)
+    after_leaves = forms.leaf_values(after)
+    changes: list[VersionChange] = []
+    for path in dict.fromkeys([*before_leaves, *after_leaves]):
+        old = before_leaves.get(path)
+        new = after_leaves.get(path)
+        if forms.same_value(old, new):
+            continue
+        label = labels_by_path.get(path)
+        changes.append(
+            VersionChange(
+                grupo=label.grupo if label is not None else "Outros",
+                parametro=label.rotulo if label is not None else path,
+                de=forms.exibir(label.campo, old) if label is not None else _plain(old),
+                para=forms.exibir(label.campo, new) if label is not None else _plain(new),
+            )
+        )
+    return tuple(changes)
+
+
+def _plain(value: Any) -> str:
+    return "·" if value is None or value == "" else str(value)
 
 
 # ── Serialização dos valores ─────────────────────────────────────────────
