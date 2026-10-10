@@ -1786,6 +1786,8 @@ erDiagram
         integer prazo_investigacao_horas
         integer prazo_relatorio_dias
         text situacao
+        date data_encerramento
+        text eficacia
         integer versao
     }
     ocorrencia_restrito {
@@ -2087,7 +2089,7 @@ fachada, não por coluna.
 | `hse_inspecao_item` | Item do checklist (descrição, conforme e observação). Sem `versao` própria: entra com a inspeção. | hse |
 | `hse_observacao` | Observação comportamental (data, área, empresa, tipo, descrição e situação). | hse |
 | `hse_dds` | DDS (data, tema, responsável e número de participantes). | hse |
-| `ocorrencia` | Ocorrência sem dado pessoal: código, data e hora, área e local, empresa, tipo e subtipo, descrição, gravidade **potencial** (P x I), HiPo, ambiental, causa imediata, horas até a comunicação, **prazos vigentes gravados** (D5b), pessoas envolvidas e função (sem nome) e situação do fluxo. UK: projeto + código. | hse |
+| `ocorrencia` | Ocorrência sem dado pessoal: código, data e hora, área e local, empresa, tipo e subtipo, descrição, gravidade **potencial** (P x I), HiPo, ambiental, causa imediata, horas até a comunicação, **prazos vigentes gravados** (D5b), pessoas envolvidas e função (sem nome), situação do fluxo e o encerramento (data e eficácia). UK: projeto + código. | hse |
 | `ocorrencia_restrito` | **Acesso restrito (LGPD, Q35)**: nome e dados médicos da ocorrência (gravidade real, dias perdidos e debitados, CAT e descrição médica). Membro preenche; só Gestor e Admin leem, inclusive os anexos com esses dados. UK: ocorrência. | hse |
 | `ocorrencia_investigacao` | Investigação (método, causa raiz, data e responsável). Fato; HiPo encerrada gera lição obrigatória em Rascunho. | hse |
 | `analise_risco` | APR/JSA ou HAZOP (código, tipo, área, título e data). UK: projeto + código. | hse |
