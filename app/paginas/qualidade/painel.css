@@ -1,16 +1,78 @@
 /* ============================================================
    painel.css — Estilo da tela Painel da qualidade (qualidade/painel)
 
-   RNC, inspeções, auditorias, Pareto, custo da não qualidade e pauta de tratamento.
+   RNC, inspeções, auditorias, Pareto, custo da não qualidade e pauta de tratamento
+   (ISSUE-071).
 
    Escopo: tudo que morar aqui começa por .pagina--qualidade-painel, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-071.
+   O que a tela acrescenta ao Design System: a faixa de indicadores, a barra com as
+   exportações, o alerta das auditorias atrasadas, a grade dos quatro gráficos e as duas
+   tabelas. O gráfico nasce do data-grafico (a biblioteca já traz o estilo). O fragmento é
+   desenhado pelo servidor (api/src/templates/qualidade/painel.html).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--qualidade-painel .painel__kpis {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--qualidade-painel .painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--qualidade-painel .painel__barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-painel .painel__exportacoes {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.pagina--qualidade-painel .painel__alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-painel .painel__grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-painel .painel__grafico {
+  min-height: 320px;
+}
+
+.pagina--qualidade-painel .painel__pauta,
+.pagina--qualidade-painel .painel__empresas {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-painel .painel__tabela td {
+  vertical-align: top;
+}
+
+@media (max-width: 1100px) {
+  .pagina--qualidade-painel .painel__grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

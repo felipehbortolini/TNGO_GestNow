@@ -1,20 +1,24 @@
-"""The export of the Quality screens: the RNC list (ISSUE-068) and the ITP list (ISSUE-069).
+"""The export of the Quality screens: the RNC list (ISSUE-068), the ITP list (ISSUE-069) and the
+panel (ISSUE-071).
 
 What the screen shows is what leaves. In the RNC list: the five KPIs of the prototype with
 their reference, the line of the filters in force and the table of the reports with the same
 columns the prototype exported. In Inspeções e ITP: the five KPIs, the table of the plans
 (points by type, inspections and approval, the client) and the table of the inspections. In
-the Portfólio the tables open with ``Projeto`` (HU-016).
+the panel: the five KPIs, the four visuals of the screen (the Excel carries the numbers behind
+each one as a table) and the treatment agenda and the performance by company. In the Portfólio
+the tables open with ``Projeto`` (HU-016), except the ones aggregated by company or by group.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from src.core.export_document import (
     Cell,
+    Chart,
     Column,
     Document,
     Kpi,
@@ -24,10 +28,12 @@ from src.core.export_document import (
     Tone,
     ValueKind,
     describe_scope,
+    project_label,
     row,
 )
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
+from src.modulos.qualidade.painel_service import QualityGroupLine, QualityPanel
 from src.modulos.qualidade.service import (
     AuditLine,
     AuditListing,
@@ -532,3 +538,384 @@ def _audit_situation_tone(line: AuditLine) -> Tone:
     if line.overdue:
         return Tone.ERROR
     return AUDIT_SITUATION_TONES.get(line.situation, Tone.NEUTRAL)
+
+
+# ── Painel da qualidade (ISSUE-071) ──────────────────────────────────────────────────────────
+
+PANEL_TITLE = "Painel da qualidade"
+PANEL_MONTH_CHART_TITLE = "RNC por mês"
+PANEL_APPROVAL_CHART_TITLE = "Aprovação em inspeções"
+PANEL_DISCIPLINE_CHART_TITLE = "Pareto de RNC por disciplina"
+PANEL_ORIGIN_CHART_TITLE = "RNC por origem"
+PANEL_MONTH_TABLE_TITLE = "RNC por mês"
+PANEL_APPROVAL_TABLE_TITLE = "Aprovação em inspeções por mês"
+PANEL_DISCIPLINE_TABLE_TITLE = "RNC por disciplina"
+PANEL_ORIGIN_TABLE_TITLE = "RNC por origem"
+PANEL_AGENDA_TITLE = "Pauta de tratamento"
+PANEL_COMPANY_TITLE = "Desempenho por empresa"
+
+MONTH_SHORT_NAMES = (
+    "jan",
+    "fev",
+    "mar",
+    "abr",
+    "mai",
+    "jun",
+    "jul",
+    "ago",
+    "set",
+    "out",
+    "nov",
+    "dez",
+)
+
+SEVERITY_TONES = {
+    "Crítica": Tone.ERROR,
+    "Maior": Tone.WARN,
+    "Menor": Tone.INFO,
+}
+
+PANEL_MONTH_COLUMNS: tuple[Column, ...] = (
+    Column("Mês", width=14),
+    Column("Abertas", ValueKind.INTEGER, width=12),
+    Column("Encerradas", ValueKind.INTEGER, width=12),
+    Column("Em aberto", ValueKind.INTEGER, width=12),
+)
+
+PANEL_APPROVAL_COLUMNS: tuple[Column, ...] = (
+    Column("Mês", width=14),
+    Column("Inspeções", ValueKind.INTEGER, width=12),
+    Column("Aprovação", ValueKind.PERCENT, digits=1, width=14),
+)
+
+PANEL_GROUP_COLUMNS: tuple[Column, ...] = (
+    Column("Grupo", width=32),
+    Column("RNC", ValueKind.INTEGER, width=10),
+    Column("Percentual", ValueKind.PERCENT, digits=1, width=14),
+    Column("Acumulado", ValueKind.PERCENT, digits=1, width=14),
+)
+
+PANEL_AGENDA_COLUMNS: tuple[Column, ...] = (
+    Column("Nº", width=22),
+    Column("Não conformidade", width=52),
+    Column("Disciplina", width=16),
+    Column("Empresa", width=22),
+    Column("Severidade", width=12),
+    Column("Situação", width=22),
+    Column("Atraso (dias)", ValueKind.INTEGER, width=12),
+    Column("Motivo", width=52),
+)
+
+PANEL_COMPANY_COLUMNS: tuple[Column, ...] = (
+    Column("Empresa", width=32),
+    Column("Inspeções", ValueKind.INTEGER, width=12),
+    Column("Reprovadas", ValueKind.INTEGER, width=12),
+    Column("Aprovação", ValueKind.PERCENT, digits=1, width=12),
+    Column("RNC", ValueKind.INTEGER, width=10),
+    Column("Custo da não qualidade", ValueKind.MONEY, width=22),
+)
+
+
+def build_panel_document(
+    panel: QualityPanel,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """O painel como documento: os indicadores, os gráficos e as tabelas por trás deles (D12)."""
+    labels = {project.id: project_label(project) for project in projects}
+    return Document(
+        title=PANEL_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=(
+            ("Data de referência", panel.reference_date.strftime("%d/%m/%Y")),
+            ("RNC no escopo", str(panel.registered)),
+        ),
+        kpis=_panel_kpis(panel),
+        charts=panel_charts(panel),
+        tables=(
+            _panel_month_table(panel),
+            _panel_approval_table(panel),
+            _panel_group_table(PANEL_DISCIPLINE_TABLE_TITLE, panel.by_discipline),
+            _panel_group_table(PANEL_ORIGIN_TABLE_TITLE, panel.by_origin),
+            _panel_agenda_table(panel, labels),
+            _panel_company_table(panel),
+        ),
+    )
+
+
+def panel_charts(panel: QualityPanel) -> tuple[Chart, ...]:
+    """Os quatro visuais do painel, na ordem da tela."""
+    return (
+        Chart(PANEL_MONTH_CHART_TITLE, "curva-s-barra-linha", panel_month_chart(panel)),
+        Chart(PANEL_APPROVAL_CHART_TITLE, "linhas-multiplas", panel_approval_chart(panel)),
+        Chart(PANEL_DISCIPLINE_CHART_TITLE, "pareto", panel_discipline_chart(panel)),
+        Chart(PANEL_ORIGIN_CHART_TITLE, "comparativo-barras", panel_origin_chart(panel)),
+    )
+
+
+def panel_month_chart(panel: QualityPanel) -> dict[str, object]:
+    """O ``data-dados`` do RNC por mês (curva-s-barra-linha): a quantidade de cada mês."""
+    return {
+        "titulo": PANEL_MONTH_CHART_TITLE,
+        "modo": "periodo",
+        "formato": "numero",
+        "unidade": "",
+        "casas": 0,
+        "series": [
+            {"id": "abertas", "rotulo": "Abertas", "papel": "atencao"},
+            {"id": "encerradas", "rotulo": "Encerradas", "papel": "realizado"},
+        ],
+        "periodos": [
+            {
+                "ano": int(point.month[:4]),
+                "mes": int(point.month[5:]),
+                "valores": {"abertas": point.opened, "encerradas": point.closed},
+            }
+            for point in panel.series
+        ],
+    }
+
+
+def panel_approval_chart(panel: QualityPanel) -> dict[str, object]:
+    """O ``data-dados`` da aprovação em inspeções (linhas-multiplas), com a meta em tracejado."""
+    return {
+        "titulo": PANEL_APPROVAL_CHART_TITLE,
+        "base_zero": True,
+        "eixo": {"min": 0, "max": 100},
+        "casas": 1,
+        "unidade": "%",
+        "suavizar": False,
+        "series": [{"id": "aprovacao", "rotulo": "Aprovação", "papel": "realizado"}],
+        "referencias": [
+            {
+                "valor": float(panel.indicators.inspection_approval_target_pct),
+                "rotulo": "Meta",
+                "papel": "linha-base",
+            }
+        ],
+        "periodos": [
+            {
+                "ano": int(point.month[:4]),
+                "mes": int(point.month[5:]),
+                "valores": {
+                    "aprovacao": None if point.approval_pct is None else float(point.approval_pct)
+                },
+            }
+            for point in panel.series
+        ],
+    }
+
+
+def panel_discipline_chart(panel: QualityPanel) -> dict[str, object]:
+    """O ``data-dados`` do Pareto de RNC por disciplina (pareto): a quantidade de cada grupo."""
+    return {
+        "titulo": PANEL_DISCIPLINE_CHART_TITLE,
+        "eixo_esquerdo": "RNC",
+        "eixo_direito": "% acumulado",
+        "status": [{"id": "rnc", "rotulo": "RNC", "papel": "erro"}],
+        "categorias": [
+            {"rotulo": line.name, "valores": {"rnc": line.total}} for line in panel.by_discipline
+        ],
+    }
+
+
+def panel_origin_chart(panel: QualityPanel) -> dict[str, object]:
+    """O ``data-dados`` do RNC por origem (comparativo-barras): uma barra com um trecho por origem."""
+    categories = [
+        {"id": f"origem-{position}", "rotulo": line.name}
+        for position, line in enumerate(panel.by_origin, start=1)
+    ]
+    values = {
+        f"origem-{position}": line.total for position, line in enumerate(panel.by_origin, start=1)
+    }
+    return {
+        "titulo": PANEL_ORIGIN_CHART_TITLE,
+        "paineis": [
+            {
+                "titulo": PANEL_ORIGIN_CHART_TITLE,
+                "categorias": categories,
+                "linhas": [{"rotulo": "RNC", "valores": values}],
+            }
+        ]
+        if categories
+        else [],
+    }
+
+
+def _panel_kpis(panel: QualityPanel) -> tuple[Kpi, ...]:
+    indicators = panel.indicators
+    open_tone = (
+        Tone.ERROR
+        if indicators.overdue_rncs or indicators.critical_open_rncs
+        else Tone.WARN
+        if indicators.open_rncs
+        else Tone.OK
+    )
+    approval_tone = (
+        Tone.OK
+        if indicators.inspection_approval_pct is not None
+        and indicators.inspection_approval_pct >= indicators.inspection_approval_target_pct
+        else Tone.WARN
+    )
+    conformity_tone = (
+        Tone.OK
+        if indicators.audit_conformity_pct is not None
+        and indicators.audit_conformity_pct >= indicators.audit_conformity_target_pct
+        else Tone.WARN
+    )
+    effectiveness = (
+        ""
+        if indicators.first_time_effectiveness_pct is None
+        else f" · {_percent_text(indicators.first_time_effectiveness_pct)}% eficazes na 1ª verificação"
+    )
+    return (
+        Kpi(
+            label="RNC em aberto",
+            value=indicators.open_rncs,
+            reference="Esperado: 0",
+            kind=ValueKind.INTEGER,
+            tone=open_tone,
+            status=(
+                f"{_plural(indicators.overdue_rncs, 'vencida', 'vencidas')} · "
+                f"{_plural(indicators.critical_open_rncs, 'crítica', 'críticas')}"
+            ),
+        ),
+        Kpi(
+            label="Tempo médio de tratamento",
+            value=indicators.average_treatment_days,
+            reference=f"Limite: {panel.treatment_limit}",
+            kind=ValueKind.INTEGER,
+            tone=Tone.INFO,
+            status=(
+                _plural(indicators.closed_rncs, "RNC encerrada", "RNCs encerradas") + effectiveness
+                if indicators.closed_rncs
+                else "sem encerramento"
+            ),
+        ),
+        Kpi(
+            label="Aprovação em inspeções",
+            value=indicators.inspection_approval_pct,
+            reference=f"Meta: {indicators.inspection_approval_target_pct:.0f}%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=approval_tone,
+            status=(
+                f"{_plural(indicators.rejected_inspections, 'reprovada', 'reprovadas')} "
+                f"em {indicators.inspections} · ressalva conta como aprovada"
+            ),
+        ),
+        Kpi(
+            label="Conformidade em auditorias",
+            value=indicators.audit_conformity_pct,
+            reference=f"Meta: {indicators.audit_conformity_target_pct:.0f}%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=conformity_tone,
+            status=(
+                f"programa {_percent_text(indicators.audit_program_adherence_pct)} cumprido · "
+                f"{_plural(indicators.overdue_audits, 'atrasada', 'atrasadas')}"
+            ),
+        ),
+        Kpi(
+            label="Custo da não qualidade",
+            value=indicators.non_quality_cost_cents,
+            reference="Esperado: R$ 0,00",
+            kind=ValueKind.MONEY,
+            tone=Tone.ERROR if indicators.non_quality_cost_cents else Tone.OK,
+            status="soma das RNC (retrabalho, reparo, ensaios e perdas)",
+        ),
+    )
+
+
+def _panel_month_table(panel: QualityPanel) -> Table:
+    return Table(
+        title=PANEL_MONTH_TABLE_TITLE,
+        columns=PANEL_MONTH_COLUMNS,
+        rows=tuple(
+            row(_month_label(point.month), point.opened, point.closed, point.open)
+            for point in panel.series
+        ),
+        per_project=False,
+    )
+
+
+def _panel_approval_table(panel: QualityPanel) -> Table:
+    return Table(
+        title=PANEL_APPROVAL_TABLE_TITLE,
+        columns=PANEL_APPROVAL_COLUMNS,
+        rows=tuple(
+            row(_month_label(point.month), point.inspections, point.approval_pct)
+            for point in panel.series
+        ),
+        per_project=False,
+    )
+
+
+def _panel_group_table(title: str, lines: Sequence[QualityGroupLine]) -> Table:
+    return Table(
+        title=title,
+        columns=PANEL_GROUP_COLUMNS,
+        rows=tuple(row(line.name, line.total, line.pct, line.accumulated_pct) for line in lines),
+        per_project=False,
+    )
+
+
+def _panel_agenda_table(panel: QualityPanel, labels: Mapping[int, str]) -> Table:
+    return Table(
+        title=PANEL_AGENDA_TITLE,
+        columns=PANEL_AGENDA_COLUMNS,
+        rows=tuple(
+            row(
+                entry.line.code,
+                entry.line.description,
+                entry.line.discipline,
+                entry.line.company_name,
+                Cell(entry.line.severity, SEVERITY_TONES.get(entry.line.severity)),
+                entry.line.situation,
+                entry.line.days_overdue,
+                " · ".join(entry.reasons),
+                project=labels.get(entry.line.project_id),
+            )
+            for entry in panel.agenda
+        ),
+    )
+
+
+def _panel_company_table(panel: QualityPanel) -> Table:
+    return Table(
+        title=PANEL_COMPANY_TITLE,
+        columns=PANEL_COMPANY_COLUMNS,
+        rows=tuple(
+            row(
+                line.company_name,
+                line.inspections,
+                line.rejected,
+                line.approval_pct,
+                line.rncs,
+                line.cost_cents,
+            )
+            for line in panel.by_company
+        ),
+        per_project=False,
+    )
+
+
+def _percent_text(value: Decimal | None) -> str:
+    """A share as the prototype writes the status: rounded to the unit (``67``)."""
+    if value is None:
+        return "·"
+    return str(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"
+
+
+def _month_label(month: str) -> str:
+    """``2026-09`` as the prototype printed it: ``set/26``."""
+    year, number = int(month[:4]), int(month[5:])
+    return f"{MONTH_SHORT_NAMES[number - 1]}/{year % 100:02d}"
