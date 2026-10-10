@@ -1,8 +1,9 @@
 # HSE
 
 Módulo `hse` (saúde, segurança e meio ambiente). Registra HHT, inspeções, observações, DDS,
-ocorrências com investigação, prazos legais e dado restrito (ISSUE-072 e ISSUE-073) e as análises
-de risco APR/JSA e HAZOP com recomendações que viram ações (ISSUE-074); o painel entra na ISSUE-075.
+ocorrências com investigação, prazos legais e dado restrito (ISSUE-072 e ISSUE-073), as análises
+de risco APR/JSA e HAZOP com recomendações que viram ações (ISSUE-074) e o painel com as taxas,
+as pirâmides, os proativos e a nota HSE sugerida (ISSUE-075).
 
 ## Telas
 
@@ -12,7 +13,7 @@ de risco APR/JSA e HAZOP com recomendações que viram ações (ISSUE-074); o pa
 | Inspeções e observações | Checklist de inspeção, observações comportamentais, DDS e consolidado mensal | ISSUE-072 | pronta |
 | Ocorrências | Registro, investigação, ações corretivas na Central, tratamento, encerramento, anexos e dado restrito | ISSUE-073 | pronta |
 | Análises de risco (APR/HAZOP) | Estudos APR/JSA e HAZOP, participantes e recomendações que viram ações na Central | ISSUE-074 | pronta |
-| Painel HSE | Taxas reativas/proativas, pirâmides, dias sem afastamento e evolução | ISSUE-075 | prevista |
+| Painel HSE | Taxas reativas/proativas, pirâmides, dias sem afastamento e evolução | ISSUE-075 | pronta |
 
 Nome e dados médicos das ocorrências ficam restritos segundo Q35: o Membro preenche no registro,
 mas só Gestor e Admin leem o bloco restrito e os anexos com esses dados; o download do anexo da
@@ -97,6 +98,19 @@ numeração (kinds `apr` e `hazop`).
 No Portfólio a lista traz a coluna Projeto (também nas exportações) e o botão de inclusão pede o
 projeto antes do formulário (`data-tn-incluir`, `ds/shell.js`).
 
+## Rotas (ISSUE-075)
+
+Prefixo: `/api/hse/painel`. A tela é um fragmento (`painel-conteudo`); a barra de filtros (ano,
+mês e a referência da pirâmide) é um formulário GET com `x-target` no próprio fragmento, e a
+referência é a do parâmetro (`referenciaPiramide`) sobreposta pela query. No Portfólio os
+indicadores são do escopo inteiro e as listas por área e por empresa são agregadas, sem a coluna
+Projeto (como o protótipo); a tela é só de leitura, sem botão de inclusão.
+
+| Rota | Uso |
+|---|---|
+| `GET painel` com `ano`, `mes` e `referencia` na query | A tela: os três blocos de indicadores, os dois gráficos e as listas |
+| `GET painel/excel` e `painel/imprimivel` | As duas exportações, com a query da tela |
+
 ## Fórmulas e nomes no código
 
 | Termo de negócio | Definição | Nome no código |
@@ -117,6 +131,15 @@ projeto antes do formulário (`data-tn-incluir`, `ds/shell.js`).
 | Relatório final | Exigido de LTI (nível 1) e de HiPo; fora do prazo quando o encerramento passou do evento + dias, ou vencido quando ainda aberto | `calculations.report_required`, `calculations.report_overdue` |
 | Recomendação atrasada | Recomendação aberta com o prazo anterior à data de referência | `calculations.recommendation_overdue` |
 | Recomendações fechadas ÷ emitidas | As recomendações fechadas divididas pelas emitidas (abertas + fechadas), em percentual de uma casa; sem emitidas não há indicador | `calculations.closed_recommendations_pct` |
+| Taxa de frequência (TF) | (fatalidades + acidentes com afastamento) x base ÷ HHT; sem HHT não há taxa | `calculations.rate_hse` |
+| Lesões registráveis (TRIF) | (fatalidades + afastamentos + trabalho restrito + tratamento médico) x base ÷ HHT | `calculations.rate_hse` |
+| Taxa de gravidade (TG) | (dias perdidos + dias debitados) x base ÷ HHT, com uma casa | `calculations.rate_hse` |
+| Base das taxas | 1.000.000 de HHT (NBR 14280) ou 200.000 (OSHA), do parâmetro `hse.baseTaxa` | `calculations.rate_base_name` |
+| Dias sem afastamento | Dias da última LTI (ou do início do projeto/carteira, sem LTI) até a data de referência; nunca negativo | `calculations.days_without_leave` |
+| Pirâmide de segurança | Contagem por nível (1 a 4 das ocorrências; o 5º, desvios, vem do consolidado mensal), do vértice à base; a referência Bird/Heinrich vem do parâmetro `hse.referenciaPiramide` | `calculations.summarize_window`, `calculations.pyramid_reference` |
+| Relato de quase acidentes | Quase acidentes (nível 4) ÷ lesões registráveis, com uma casa; a referência é o quase ÷ lesões da proporção (Bird 600/11, Heinrich 300/30) | `calculations.almost_miss_report` |
+| Ações HSE no prazo | Ações do escopo da origem `HSE` ou do grupo `HSE` (as da Central, nunca lidas da tabela `acao`), vencidas até a data de referência e concluídas até o próprio prazo; a meta do card é 90% | `calculations.actions_on_time`, `painel_service.ACTIONS_ON_TIME_TARGET` |
+| Nota HSE sugerida da contratada | Sem HHT da empresa na janela não há sugestão; 5 se a TRIF da empresa é zero, 4 até a do projeto, 3 até o dobro, 2 até o quádruplo, 1 acima (a comparação usa as TRIF arredondadas como a tela as lê); uma LTI na janela limita a nota a 2 | `calculations.suggested_hse_note`, `painel_service.company_note_suggestion` |
 
 ## Fluxos
 
@@ -142,6 +165,16 @@ replanejar a ação na Central fecha a recomendação (na data da conclusão) ou
 recomendação na tela do estudo conclui a ação vinculada, na mesma transação. Uma ação de
 ocorrência (`OCR-`), que divide a origem `HSE`, não reage nos estudos.
 
+O **painel** (ISSUE-075) é calculado a cada leitura, sem nada gravado (D5b): o mês padrão é o
+último com HHT e o acumulado vai do primeiro mês com HHT até ele; o bloco "No mês selecionado"
+mostra a TF, a TRIF, a TG e o HiPo do mês, o "Acumulado" os mesmos mais os dias sem afastamento e
+as ações HSE no prazo, e os proativos (DDS, conformidade, observações por 10 mil HHT, relato de
+quase acidentes, recomendações fechadas e incidentes ambientais) saem do acumulado. A pirâmide
+dupla (mês e acumulado) e a evolução mensal de TF e TRIF usam os visuais `piramide-seguranca` e
+`linhas-multiplas` da biblioteca de gráficos (D11). Trocar a base ou a referência no parâmetro
+recalcula na hora; trocar a referência na tela recarrega o fragmento pela query (divergência
+registrada em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`).
+
 ## Integrações
 
 Empresas e pessoas vêm de Configurações. O histograma de mão de obra é calculado aqui e mostrado
@@ -163,13 +196,23 @@ registrada em `service.py`) espelha a conclusão e o replanejamento nos dois sen
 as ações de cada recomendação por `central_acoes.service.actions_of_origin` (nunca lê `acao`). A
 fatia não registrou tipo de origem de anexo para o estudo (não há tela de anexos nas análises).
 
+O painel lê as ações de HSE pela fachada da Central
+(`central_acoes.service.actions_of_origin_or_group`, origem `HSE` ou grupo `HSE`, no escopo) —
+nunca a tabela `acao` (D9). A **nota HSE sugerida** de uma empresa é calculada pelo painel
+(`painel_service.company_note_suggestion`) e o Financeiro (03) a consome no formulário da
+avaliação de desempenho (`financeiro/routes.py`, `_contrato_avaliacao_form_context`): o critério
+HSE mostra o hint e pré-seleciona a nota, e o avaliador pode trocá-la — a nota gravada é a que
+ele confirmar. Não há ciclo: o HSE não importa o Financeiro.
+
 ## Parâmetros
 
 O grupo `hse` dos parâmetros traz as metas de observações e desvios por 10 mil HHT
 (`metas.observacoesPor10MilHht` e `metas.desviosPor10MilHht`) e os prazos legais da ocorrência
 (`prazos.comunicacaoHoras`, `prazos.investigacaoPreliminarHoras` e `prazos.relatorioFinalDias`,
 padrões 24, 48 e 30 quando ausentes); os prazos **vigentes no registro ficam gravados na
-ocorrência** (D5b). A base das taxas entra com a ISSUE-075.
+ocorrência** (D5b). A base das taxas (`baseTaxa`, 1.000.000 ou 200.000) e a referência da
+pirâmide (`referenciaPiramide`, `bird` ou `heinrich`) entram com a ISSUE-075 e o painel as lê a
+cada leitura — trocar o parâmetro recalcula na hora.
 
 ## Onde mexer
 
@@ -178,8 +221,10 @@ ocorrência** (D5b). A base das taxas entra com a ISSUE-075.
 | Rotas de HHT e da segurança proativa | `routes.py` |
 | Rotas das ocorrências | `ocorrencias_routes.py` |
 | Rotas das análises de risco | `analises_risco_routes.py` |
+| Rotas do painel | `painel_routes.py` |
 | HHT, fechamento, inspeções, observações, DDS, a fachada das ocorrências e a das análises | `service.py` |
-| Fator, histograma, taxas, pirâmide, potencial, HiPo, prazos e o indicador de fechamento | `calculations.py` |
+| Painel: as janelas, os indicadores, os gráficos e a nota sugerida | `painel_service.py` |
+| Fator, histograma, taxas, pirâmide, potencial, HiPo, prazos, o indicador de fechamento e os cálculos do painel | `calculations.py` |
 | Validações e campos restritos | `validation.py` |
 | Formulários e campos por tipo | `forms.py` |
 | Importação por planilha | `importers.py` |
@@ -190,5 +235,7 @@ ocorrência** (D5b). A base das taxas entra com a ISSUE-075.
 | Tela, estilo e comportamento | `app/_views/hse/` e `app/paginas/hse/` |
 | Testes | `api/tests/hse/` e `api/tests/oraculo/test_oraculo_hse.py` |
 
-A ISSUE-075 completa o painel, que consome o indicador de recomendações fechadas ÷ emitidas por
-`service.recommendation_share`.
+O painel consome o indicador de recomendações fechadas ÷ emitidas por
+`service.recommendation_share` e as ações de HSE pela fachada da Central; a nota sugerida é lida
+pelo formulário da avaliação de desempenho do Financeiro (03). O botão "Análise do período" do
+protótipo fica para a ISSUE-082.
