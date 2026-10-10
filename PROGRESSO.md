@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 76 de 93 -->
+<!-- Progresso da migração: 77 de 93 -->
 
 # Progresso da migração
 
-**76 de 93 issues concluídas** (última fechada: ISSUE-076). Atualizado em 10/10/2026 21:55 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**77 de 93 issues concluídas** (última fechada: ISSUE-077). Atualizado em 10/10/2026 22:53 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 76 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076 |
-| na fila | 17 | 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 77 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077 |
+| na fila | 16 | 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -89,12 +89,12 @@
 | ISSUE-074 | Análises de risco APR e HAZOP | `45883f8` |
 | ISSUE-075 | Painel HSE | `8e919ab` |
 | ISSUE-076 | Parâmetros: edição por grupo com justificativa, versões e histórico | `e080668` |
+| ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | `deb8176` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | na fila | ISSUE-054 |
 | ISSUE-078 | Cadastros de apoio: empresas, pessoas, projetos, sistemas, unidades e locais | na fila | ISSUE-054 |
 | ISSUE-079 | Início do projeto: indicador-chave por módulo e pontos de atenção | na fila | ISSUE-020, ISSUE-026, ISSUE-035, ISSUE-040, ISSUE-042, ISSUE-050, ISSUE-063, ISSUE-066, ISSUE-071, ISSUE-075 |
 | ISSUE-080 | Início no Portfólio: carteira de projetos e edição da ponderação | na fila | ISSUE-079 |
