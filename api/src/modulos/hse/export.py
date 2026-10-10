@@ -8,6 +8,11 @@ exported; the screen Análises de risco exports its four indicators and the stud
 Portfólio every table opens with ``Projeto`` (HU-016). The name of the person observed leaves
 only for who may read it (Q35); the restricted data of an occurrence never leaves, because the
 list does not carry it.
+
+O painel (ISSUE-075) exporta os três blocos de indicadores do protótipo (mês, acumulado e
+proativos, com o bloco no rótulo), as duas tabelas da pirâmide com os nomes dos níveis, a tabela
+da evolução mensal com a TF e a TRIF de cada mês e as listas por área e por empresa. Todas as
+tabelas do painel são agregadas do escopo (sem a coluna ``Projeto``, como o protótipo).
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from datetime import date
 
 from src.core.export_document import (
     Cell,
+    Chart,
     Column,
     Document,
     Kpi,
@@ -26,21 +32,31 @@ from src.core.export_document import (
     Tone,
     ValueKind,
     describe_scope,
+    format_value,
     row,
 )
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
-from src.modulos.hse import calculations, service
-from src.modulos.hse.calculations import ProactiveSummary
+from src.modulos.hse import calculations, painel_service, service
+from src.modulos.hse.calculations import HseIndicators, ProactiveSummary
+from src.modulos.hse.painel_service import HsePanel
 
 HOURS_TITLE = "Horas trabalhadas (HHT)"
 PROACTIVE_TITLE = "Inspeções, observações e DDS"
 OCCURRENCES_TITLE = "Ocorrências HSE"
 ANALYSES_TITLE = "Análises de risco (APR/HAZOP)"
+PANEL_TITLE = "Painel HSE"
 HOURS_FILE = "hht-hse"
 PROACTIVE_FILE = "inspecoes-hse"
 OCCURRENCES_FILE = "ocorrencias-hse"
 ANALYSES_FILE = "analises-risco-hse"
+PANEL_FILE = "painel-hse"
+PANEL_PYRAMID_TITLE = "Pirâmide de segurança"
+PANEL_PYRAMID_MONTH_TITLE = "Pirâmide de segurança · mês"
+PANEL_PYRAMID_ACCUMULATED_TITLE = "Pirâmide de segurança · acumulado"
+PANEL_EVOLUTION_TITLE = "Evolução mensal de TF e TRIF"
+PANEL_AREA_TITLE = "Ocorrências por área"
+PANEL_COMPANY_TITLE = "Ocorrências por empresa"
 NONE = "·"
 WITHIN_DEADLINE = "no prazo"
 
@@ -568,3 +584,288 @@ def _recommendations_text(line: service.AnalysisRow) -> str:
         opened += f" ({line.overdue_count} atrasada{'' if line.overdue_count == 1 else 's'})"
     closed = f"{line.closed_count} fechada{'' if line.closed_count == 1 else 's'}"
     return f"{opened}, {closed}"
+
+
+def panel_document(
+    panel: HsePanel,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """O painel como documento: os indicadores, as pirâmides, a evolução e as listas (D12).
+
+    Os três blocos de indicadores do protótipo (mês, acumulado e proativos) viram KPIs com o
+    bloco no rótulo; o vazio de origem (sem HHT) sai sem indicadores nem tabelas.
+    """
+    return Document(
+        title=PANEL_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=_panel_context(panel),
+        kpis=_panel_kpis(panel, portfolio=scope.is_portfolio),
+        charts=_panel_charts(panel),
+        tables=_panel_tables(panel),
+    )
+
+
+def _panel_context(panel: HsePanel) -> tuple[tuple[str, str], ...]:
+    """As linhas extras do cabeçalho: o período lido e a base das taxas, como a linha de período."""
+    reference = ("Data de referência", _date_text(panel.reference_date))
+    if panel.month is None or panel.window_start is None or panel.window_end is None:
+        return (reference,)
+    return (
+        ("Mês selecionado", calculations.month_display(panel.month)),
+        (
+            "Acumulado",
+            (
+                f"{calculations.month_display(panel.window_start)}"
+                f" a {calculations.month_display(panel.window_end)}"
+            ),
+        ),
+        (
+            "Base das taxas",
+            f"{_integer_text(panel.base)} HHT ({calculations.rate_base_name(panel.base)})",
+        ),
+        ("Referência da pirâmide", panel.reference.name),
+        reference,
+    )
+
+
+def _panel_kpis(panel: HsePanel, *, portfolio: bool) -> tuple[Kpi, ...]:
+    """Os indicadores do protótipo, por bloco (mês, acumulado e proativos), no rótulo."""
+    month = panel.month_indicators
+    accumulated = panel.accumulated_indicators
+    if month is None or accumulated is None:
+        return ()
+    return (
+        *_reactive_kpis(month, block="No mês", footer="no mês"),
+        *_reactive_kpis(accumulated, block="Acumulado", footer="no acumulado"),
+        _days_kpi(panel, accumulated, portfolio=portfolio),
+        _actions_kpi(accumulated),
+        *_panel_proactive_kpis(panel, accumulated),
+    )
+
+
+def _reactive_kpis(indicators: HseIndicators, *, block: str, footer: str) -> tuple[Kpi, ...]:
+    """Os quatro indicadores reativos de uma janela (TF, TRIF, TG e HiPo)."""
+    return (
+        Kpi(
+            label=f"{block} · Taxa de frequência (TF)",
+            value=indicators.tf,
+            reference="Esperado: 0,00",
+            kind=ValueKind.DECIMAL,
+            digits=2,
+            tone=Tone.ERROR if indicators.lti else Tone.OK,
+            status=(
+                _plural(indicators.lti, "acidente com afastamento", "acidentes com afastamento")
+                + f" {footer}"
+            ),
+        ),
+        Kpi(
+            label=f"{block} · Lesões registráveis (TRIF)",
+            value=indicators.trif,
+            reference="Esperado: 0,00",
+            kind=ValueKind.DECIMAL,
+            digits=2,
+            tone=Tone.WARN if indicators.registrable else Tone.OK,
+            status=_plural(indicators.registrable, "lesão registrável", "lesões registráveis"),
+        ),
+        Kpi(
+            label=f"{block} · Taxa de gravidade (TG)",
+            value=indicators.tg,
+            reference="Esperado: 0,0",
+            kind=ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.INFO,
+            status="dias perdidos e debitados x base / HHT",
+        ),
+        Kpi(
+            label=f"{block} · Alto potencial (HiPo)",
+            value=indicators.hipo,
+            reference="Esperado: 0",
+            kind=ValueKind.INTEGER,
+            tone=Tone.ERROR if indicators.hipo else Tone.OK,
+            status=_plural(indicators.hipo, "ocorrência", "ocorrências") + f" {footer}",
+        ),
+    )
+
+
+def _days_kpi(panel: HsePanel, indicators: HseIndicators, *, portfolio: bool) -> Kpi:
+    """Dias sem afastamento: o valor do acumulado e o esperado desde o início do projeto."""
+    expected = calculations.days_without_leave(None, panel.project_start, panel.reference_date)
+    return Kpi(
+        label="Acumulado · Dias sem afastamento",
+        value=0 if indicators.days_without_leave is None else indicators.days_without_leave,
+        reference=(
+            f"Esperado: {_integer_text(expected)}" if expected is not None else "Esperado: ·"
+        ),
+        kind=ValueKind.INTEGER,
+        tone=Tone.NEUTRAL,
+        status=_days_footer(panel, portfolio=portfolio),
+    )
+
+
+def _days_footer(panel: HsePanel, *, portfolio: bool) -> str:
+    if panel.last_lti is not None:
+        return f"última LTI em {_date_text(panel.last_lti)}"
+    if panel.project_start is not None:
+        inicio = "da carteira" if portfolio else "do projeto"
+        return f"desde o início {inicio} ({_date_text(panel.project_start)})"
+    return "nenhum acidente com afastamento registrado"
+
+
+def _actions_kpi(indicators: HseIndicators) -> Kpi:
+    """Ações HSE no prazo contra a meta da tela (o protótipo tinha o limiar no código da página)."""
+    pct = indicators.actions_on_time_pct
+    return Kpi(
+        label="Acumulado · Ações HSE no prazo",
+        value=pct,
+        reference=f"Meta: ≥ {painel_service.ACTIONS_ON_TIME_TARGET}%",
+        kind=ValueKind.PERCENT,
+        digits=1,
+        tone=(
+            Tone.OK
+            if pct is not None and pct >= painel_service.ACTIONS_ON_TIME_TARGET
+            else Tone.WARN
+        ),
+        status="ações vencidas com a conclusão até o prazo",
+    )
+
+
+def _panel_proactive_kpis(panel: HsePanel, indicators: HseIndicators) -> tuple[Kpi, ...]:
+    """Os seis indicadores proativos do protótipo."""
+    return (
+        Kpi(
+            label="Proativo · DDS realizados",
+            value=indicators.dds_pct,
+            reference="Meta: 100%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+        ),
+        Kpi(
+            label="Proativo · Conformidade em inspeções",
+            value=indicators.conformity_pct,
+            reference="Esperado: 100%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+        ),
+        Kpi(
+            label="Proativo · Observações / 10 mil HHT",
+            value=indicators.observations_per_10k,
+            reference=f"Meta: ≥ {_integer_text(panel.observations_target)}",
+            kind=ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.INFO,
+        ),
+        Kpi(
+            label="Proativo · Relato de quase acidentes",
+            value=indicators.almost_miss_report,
+            reference=(
+                "Referência: "
+                + format_value(ValueKind.DECIMAL, panel.reference.almost_miss_ratio, 1)
+            ),
+            kind=ValueKind.DECIMAL,
+            digits=1,
+            tone=Tone.INFO,
+            status="quase acidentes por lesão registrável",
+        ),
+        Kpi(
+            label="Proativo · Recomendações fechadas (APR/HAZOP)",
+            value=indicators.recommendations_pct,
+            reference="Esperado: 100%",
+            kind=ValueKind.PERCENT,
+            digits=1,
+            tone=Tone.INFO,
+        ),
+        Kpi(
+            label="Proativo · Incidentes ambientais",
+            value=indicators.environmental,
+            reference="Esperado: 0",
+            kind=ValueKind.INTEGER,
+            tone=Tone.WARN if indicators.environmental else Tone.OK,
+        ),
+    )
+
+
+def _panel_charts(panel: HsePanel) -> tuple[Chart, ...]:
+    """Os dois visuais do painel (D11): a pirâmide dupla e a evolução mensal de TF e TRIF."""
+    if panel.is_empty:
+        return ()
+    return (
+        Chart(
+            PANEL_PYRAMID_TITLE,
+            "piramide-seguranca",
+            painel_service.pyramid_chart(panel),
+        ),
+        Chart(
+            PANEL_EVOLUTION_TITLE,
+            "linhas-multiplas",
+            painel_service.evolution_chart(panel),
+        ),
+    )
+
+
+def _panel_tables(panel: HsePanel) -> tuple[Table, ...]:
+    """As tabelas por trás dos visuais, como o protótipo as exportava (todas agregadas)."""
+    if panel.is_empty:
+        return ()
+    return (
+        _panel_pyramid_table(panel, PANEL_PYRAMID_MONTH_TITLE, month=True),
+        _panel_pyramid_table(panel, PANEL_PYRAMID_ACCUMULATED_TITLE, month=False),
+        _panel_evolution_table(panel),
+        _panel_group_table(PANEL_AREA_TITLE, "Área", panel.by_area),
+        _panel_group_table(PANEL_COMPANY_TITLE, "Empresa", panel.by_company),
+    )
+
+
+def _panel_pyramid_table(panel: HsePanel, title: str, *, month: bool) -> Table:
+    indicators = panel.month_indicators if month else panel.accumulated_indicators
+    levels = indicators.pyramid if indicators is not None else (0, 0, 0, 0, 0)
+    return Table(
+        title=title,
+        columns=(Column("Nível", width=24), Column("Ocorrências", ValueKind.INTEGER)),
+        rows=tuple(
+            row(f"{position}. {calculations.pyramid_level_name(position)}", value)
+            for position, value in enumerate(levels, start=1)
+        ),
+        per_project=False,
+    )
+
+
+def _panel_evolution_table(panel: HsePanel) -> Table:
+    return Table(
+        title=PANEL_EVOLUTION_TITLE,
+        columns=(
+            Column("Mês", width=12),
+            Column("TF (com afastamento)", ValueKind.DECIMAL, digits=2),
+            Column("TRIF (registráveis)", ValueKind.DECIMAL, digits=2),
+        ),
+        rows=tuple(
+            row(calculations.month_display(point.month), point.tf, point.trif)
+            for point in panel.evolution
+        ),
+        per_project=False,
+    )
+
+
+def _panel_group_table(
+    title: str, header: str, lines: Sequence[painel_service.HseGroupLine]
+) -> Table:
+    return Table(
+        title=title,
+        columns=(Column(header, width=40), Column("Ocorrências", ValueKind.INTEGER)),
+        rows=tuple(row(line.name, line.total) for line in lines),
+        per_project=False,
+    )
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"
+
+
+def _date_text(value: date) -> str:
+    return value.strftime("%d/%m/%Y")

@@ -1,16 +1,117 @@
 /* ============================================================
    painel.css — Estilo da tela Painel HSE (hse/painel)
 
-   Taxas reativas e proativas, pirâmides, dias sem afastamento e evolução.
+   Taxas reativas e proativas, pirâmides, dias sem afastamento e evolução
+   (ISSUE-075).
 
    Escopo: tudo que morar aqui começa por .pagina--hse-painel, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-075.
+   O que a tela acrescenta ao Design System: a faixa de indicadores, a barra com a
+   linha de período e as exportações, os títulos dos blocos, a grade dos gráficos e as
+   listas por área e por empresa (a barra proporcional do protótipo). O gráfico nasce do
+   data-grafico (a biblioteca já traz o estilo). O fragmento é desenhado pelo servidor
+   (api/src/templates/hse/painel.html).
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--hse-painel .painel__filtros {
+  justify-content: flex-start;
+}
+
+.pagina--hse-painel .painel__titulo {
+  margin-bottom: var(--space-sm);
+}
+
+.pagina--hse-painel .painel__kpis {
+  margin-bottom: var(--space-md);
+}
+
+.pagina--hse-painel .painel__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.pagina--hse-painel .painel__barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--hse-painel .painel__exportacoes {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-painel .painel__grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--hse-painel .painel__grafico {
+  min-height: 320px;
+}
+
+.pagina--hse-painel .painel__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pagina--hse-painel .painel__lista li {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-painel .painel__lista-nome {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pagina--hse-painel .painel__lista-trilho {
+  position: relative;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--neutro-100);
+  overflow: hidden;
+}
+
+.pagina--hse-painel .painel__lista-barra {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--verde-500);
+}
+
+.pagina--hse-painel .painel__lista-valor {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .pagina--hse-painel .painel__grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
