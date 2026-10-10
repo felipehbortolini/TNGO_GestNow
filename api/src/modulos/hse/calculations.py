@@ -1,5 +1,6 @@
-"""Pure calculations for the HSE module: HHT summary, proactive rates, the labour histogram
-and the occurrence (potential band, pyramid level, HiPo and the legal deadlines).
+"""Pure calculations for the HSE module: HHT summary, proactive rates, the labour histogram,
+the occurrence (potential band, pyramid level, HiPo and the legal deadlines) and the risk
+analysis recommendations (overdue and the closed ÷ issued indicator).
 
 Every rule is one function with its business name, and the reference date is always an argument:
 nothing here reads the clock (D6). A month is the first day of the civil month; its label is
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from src.modulos.hse.models import OCCURRENCE_TYPE_LEVELS
+from src.modulos.hse.models import OCCURRENCE_TYPE_LEVELS, RECOMMENDATION_CLOSED
 
 PERCENT = Decimal(100)
 TEN_THOUSAND = Decimal(10000)
@@ -449,3 +450,54 @@ class DeadlinePolicy:
     communication_hours: int
     investigation_hours: int
     report_days: int
+
+
+# ── Análises de risco (ISSUE-074) ────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class RecommendationLine:
+    """Uma recomendação como os indicadores a leem: a situação e o prazo."""
+
+    situation: str
+    due_date: date
+
+
+def recommendation_overdue(line: RecommendationLine, reference_date: date) -> bool:
+    """Recomendação atrasada: aberta com o prazo anterior à data de referência (o protótipo)."""
+    return line.situation != RECOMMENDATION_CLOSED and line.due_date < reference_date
+
+
+@dataclass(frozen=True)
+class RecommendationCounts:
+    """Abertas, fechadas e atrasadas de um conjunto de recomendações."""
+
+    open: int
+    closed: int
+    overdue: int
+
+    @property
+    def total(self) -> int:
+        """As recomendações emitidas: as abertas mais as fechadas."""
+        return self.open + self.closed
+
+
+def count_recommendations(
+    lines: Iterable[RecommendationLine], reference_date: date
+) -> RecommendationCounts:
+    """Conta as recomendações abertas, fechadas e atrasadas do conjunto recebido."""
+    found = list(lines)
+    return RecommendationCounts(
+        open=sum(1 for line in found if line.situation != RECOMMENDATION_CLOSED),
+        closed=sum(1 for line in found if line.situation == RECOMMENDATION_CLOSED),
+        overdue=sum(1 for line in found if recommendation_overdue(line, reference_date)),
+    )
+
+
+def closed_recommendations_pct(closed: int, emitted: int) -> Decimal | None:
+    """Recomendações de APR/HAZOP fechadas ÷ emitidas, em percentual de uma casa.
+
+    É o indicador ``recomendacoesFechadasPct`` do protótipo; sem recomendações emitidas não há
+    indicador (``None``).
+    """
+    return rate_percent(closed, emitted)

@@ -1,5 +1,6 @@
-"""Business facade of the HSE module: HHT, monthly closing, inspections, observations, DDS
-and the occurrence with its investigation, its restricted data and its closing (ISSUE-073).
+"""Business facade of the HSE module: HHT, monthly closing, inspections, observations, DDS,
+the occurrence with its investigation, its restricted data and its closing (ISSUE-073) and the
+risk analyses with their recommendations (ISSUE-074).
 
 Every write goes through ``core.recording`` (trail, version and transaction together); a module
 never reads these tables, it uses the functions below (D9, ISSUE-072).
@@ -21,6 +22,14 @@ never reads these tables, it uses the functions below (D9, ISSUE-072).
   transaction (origin ``HSE``, D9) and a closed HiPo opens its lesson in Rascunho through the
   facade of Governança (D9). The restricted data and the attachments never leave to whom does
   not hold ``Permission.VIEW_RESTRICTED`` (Q35).
+* ``save_analysis``: the risk analysis (APR/JSA or HAZOP) with its participants and its
+  recommendations, numbered by type (``APR-``/``HAZOP-``); ``close_recommendation`` closes a
+  recommendation manually and concludes its action in the Central, and
+  ``create_recommendation_action`` opens that action (origin ``HSE``, reference the study code
+  and item the position of the recommendation). The reaction registered for the origin ``HSE``
+  keeps both in step (D9): completing the action closes the recommendation on the completion
+  date and replanning moves its deadline; an occurrence action (``OCR-``) does not react.
+  ``recommendation_share`` is the closed ÷ issued indicator of the panel (ISSUE-075).
 
 The name of the person observed in an observation is personal data: only a manager or an admin
 reads it (``Permission.VIEW_RESTRICTED``, Q35); the others see the record without the name.
@@ -46,9 +55,12 @@ from src.core.export_document import project_label
 from src.core.models import AuditEntry
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
+from src.modulos.central_acoes import origins as action_origins
 from src.modulos.central_acoes import service as actions
 from src.modulos.central_acoes.calculations import ActionStatus
-from src.modulos.central_acoes.validation import NewAction
+from src.modulos.central_acoes.models import Action
+from src.modulos.central_acoes.origins import ActionEvent
+from src.modulos.central_acoes.validation import CompletionRequest, NewAction
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.governanca import lessons_models as lessons
 from src.modulos.governanca import lessons_service
@@ -69,16 +81,22 @@ from src.modulos.hse.models import (
     Occurrence,
     OccurrenceInvestigation,
     OccurrenceRestricted,
+    RiskAnalysis,
+    RiskAnalysisParticipant,
+    RiskAnalysisRecommendation,
     SafetyInspection,
     SafetyInspectionItem,
     SafetyTalk,
     WorkedHours,
 )
 from src.modulos.hse.validation import (
+    AnalysisFilters,
+    AnalysisInput,
     ClosingInput,
     HoursInput,
     InspectionInput,
     ObservationInput,
+    RecommendationClosureInput,
     RegisterChoices,
     TalkInput,
 )
@@ -922,7 +940,8 @@ def count_records(session: Session, *, scope: Scope) -> dict[str, int]:
 
 OCCURRENCE_ENTITY = "ocorrencia"
 OCCURRENCE_HISTORY_ENTITY = "ocorrencia.historico"
-OCCURRENCE_ORIGIN = "HSE"
+# A origem HSE é compartilhada pela ocorrência (OCR-) e pelas análises de risco (APR-/HAZOP-).
+HSE_ORIGIN = "HSE"
 ACTION_GROUP = "Ação corretiva"
 
 OCCURRENCE_NOT_FOUND_MESSAGE = "Ocorrência não encontrada."
@@ -1178,14 +1197,14 @@ def define_corrective_actions(
         raise InvalidDataError(problems)
     for item in actions_input:
         sequence = actions.next_origin_item(
-            session, origin_kind=OCCURRENCE_ORIGIN, reference=occurrence.code
+            session, origin_kind=HSE_ORIGIN, reference=occurrence.code
         )
         actions.create_action(
             session,
             user=user,
             new=NewAction(
                 project_id=occurrence.project_id,
-                origin=OCCURRENCE_ORIGIN,
+                origin=HSE_ORIGIN,
                 origin_ref=occurrence.code,
                 subject=item.subject.strip(),
                 description=(item.description or "").strip() or None,
@@ -1305,7 +1324,7 @@ def _open_actions(
     records = actions.actions_of_origin(
         session,
         user=user,
-        origin_kind=OCCURRENCE_ORIGIN,
+        origin_kind=HSE_ORIGIN,
         reference=occurrence.code,
         reference_date=reference_date,
     )
@@ -1618,7 +1637,7 @@ def occurrence_sheet(
     rows = actions.actions_of_origin(
         session,
         user=user,
-        origin_kind=OCCURRENCE_ORIGIN,
+        origin_kind=HSE_ORIGIN,
         reference=record.code,
         reference_date=reference_date,
     )
@@ -1726,6 +1745,604 @@ def restricted_view(session: Session, *, user: User, code: str) -> RestrictedRow
     )
 
 
+# ── Análises de risco (ISSUE-074) ────────────────────────────────────────────────────────────
+
+RECOMMENDATION_GROUP_SUFFIX = " · Recomendação"
+ANALYSIS_NOT_FOUND_MESSAGE = "Estudo não encontrado."
+RECOMMENDATION_NOT_FOUND_MESSAGE = "Recomendação não encontrada."
+ALREADY_CLOSED_RECOMMENDATION_MESSAGE = "Recomendação já fechada."
+RECOMMENDATION_ACTION_EXISTS_MESSAGE = "Já existe uma ação na Central para esta recomendação."
+# The type of the study decides the numbering kind and the group of the action it creates.
+ANALYSIS_NUMBERING_KINDS = {"APR": "apr", "HAZOP": "hazop"}
+
+
+@dataclass(frozen=True)
+class AnalysisSave:
+    """O que o registro do estudo devolveu: o código da série do tipo."""
+
+    code: str
+
+
+@dataclass(frozen=True)
+class RecommendationRow:
+    """Uma recomendação como a ficha a mostra: os nomes, o atraso e a ação da Central."""
+
+    id: int
+    position: int
+    description: str
+    responsible_id: int
+    responsible_name: str
+    due_date: date
+    situation: str
+    closed_on: date | None
+    evidence: str | None
+    overdue: bool
+    version: int
+    action: actions.ActionRecord | None
+
+    @property
+    def is_closed(self) -> bool:
+        """Whether the recommendation is already closed."""
+        return self.situation == models.RECOMMENDATION_CLOSED
+
+
+@dataclass(frozen=True)
+class AnalysisRow:
+    """Um estudo como a lista e a ficha o mostram, com os participantes e as recomendações."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    kind: str
+    area: str
+    title: str
+    held_on: date
+    participant_ids: tuple[int, ...]
+    participant_names: tuple[str, ...]
+    recommendations: tuple[RecommendationRow, ...]
+    version: int
+
+    @property
+    def participants(self) -> int:
+        """How many people took part in the study."""
+        return len(self.participant_ids)
+
+    @property
+    def open_count(self) -> int:
+        """Recomendações abertas do estudo."""
+        return sum(1 for line in self.recommendations if not line.is_closed)
+
+    @property
+    def closed_count(self) -> int:
+        """Recomendações fechadas do estudo."""
+        return sum(1 for line in self.recommendations if line.is_closed)
+
+    @property
+    def overdue_count(self) -> int:
+        """Recomendações abertas com o prazo vencido na data de referência."""
+        return sum(1 for line in self.recommendations if line.overdue)
+
+
+@dataclass(frozen=True)
+class RecommendationSummary:
+    """Abertas, fechadas, atrasadas e o indicador de fechamento de um conjunto de estudos."""
+
+    open: int
+    closed: int
+    overdue: int
+    closed_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class AnalysisScreen:
+    """O que a tela mostra: as linhas do filtro, o universo de estudos e o resumo das recomendações."""
+
+    rows: tuple[AnalysisRow, ...]
+    universe: int
+    summary: RecommendationSummary
+
+
+@dataclass(frozen=True)
+class AnalysisSheet:
+    """A ficha do estudo: a linha com os participantes e as recomendações com a ação da Central."""
+
+    line: AnalysisRow
+
+
+@dataclass(frozen=True)
+class RecommendationShare:
+    """Recomendações fechadas ÷ emitidas de um escopo: o indicador do painel (ISSUE-075)."""
+
+    closed: int
+    emitted: int
+    pct: Decimal | None
+
+
+def analysis_by_code(
+    session: Session, code: str, *, project_id: int | None = None
+) -> RiskAnalysis | None:
+    """O estudo pelo código, ou ``None``; o projeto desempata a série quando ela se repete."""
+    statement = select(RiskAnalysis).where(RiskAnalysis.code == code)
+    if project_id is not None:
+        statement = statement.where(RiskAnalysis.project_id == project_id)
+    return session.scalars(statement.order_by(RiskAnalysis.id)).first()
+
+
+def _analysis_or_refuse(
+    session: Session, code: str, *, project_id: int | None = None
+) -> RiskAnalysis:
+    analysis = analysis_by_code(session, code, project_id=project_id)
+    if analysis is None:
+        raise InvalidDataError(ANALYSIS_NOT_FOUND_MESSAGE)
+    return analysis
+
+
+def _recommendation_or_refuse(
+    session: Session, analysis: RiskAnalysis, position: int
+) -> RiskAnalysisRecommendation:
+    record = session.scalars(
+        select(RiskAnalysisRecommendation)
+        .where(
+            RiskAnalysisRecommendation.analysis_id == analysis.id,
+            RiskAnalysisRecommendation.position == position,
+        )
+        .order_by(RiskAnalysisRecommendation.id)
+    ).first()
+    if record is None:
+        raise InvalidDataError(RECOMMENDATION_NOT_FOUND_MESSAGE)
+    return record
+
+
+def save_analysis(
+    session: Session,
+    *,
+    user: User,
+    data: AnalysisInput,
+    reference_date: date,
+) -> AnalysisSave:
+    """Registra o estudo com os participantes e as recomendações na mesma transação.
+
+    O código nasce da série do tipo no projeto (``APR-<padrão da ata>-NNNN`` ou
+    ``HAZOP-<padrão da ata>-NNNN``) e cada recomendação nasce Aberta.
+    """
+    rbac.require(user, Permission.WRITE)
+    _require_project(session, data.project_id)
+    problems = validation.analysis_problems(
+        data, register_choices(session), reference_date=reference_date
+    )
+    if problems or data.held_on is None:
+        raise InvalidDataError(problems)
+    project = configuracoes.find_project(session, data.project_id)
+    if project is None:
+        raise InvalidDataError(UNKNOWN_PROJECT_MESSAGE)
+    code = numbering.next_number(
+        session,
+        project=project,
+        kind=ANALYSIS_NUMBERING_KINDS[data.kind],
+        reference_date=reference_date,
+    )
+    record = RiskAnalysis(
+        project_id=data.project_id,
+        code=code,
+        kind=data.kind,
+        area=data.area.strip(),
+        title=data.title.strip(),
+        held_on=data.held_on,
+    )
+    recording.create(session, user_id=user.id, record=record)
+    for person_id in data.participant_ids:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=RiskAnalysisParticipant(analysis_id=record.id, person_id=person_id),
+        )
+    for position, item in enumerate(data.recommendations, start=1):
+        recording.create(
+            session,
+            user_id=user.id,
+            record=RiskAnalysisRecommendation(
+                analysis_id=record.id,
+                responsible_id=cast(int, item.responsible_id),
+                position=position,
+                description=item.description.strip(),
+                due_date=cast(date, item.due_date),
+                situation=models.RECOMMENDATION_OPEN,
+            ),
+        )
+    return AnalysisSave(code=code)
+
+
+def _participants_of(
+    session: Session, analysis_ids: Sequence[int]
+) -> dict[int, list[RiskAnalysisParticipant]]:
+    if not analysis_ids:
+        return {}
+    statement = (
+        select(RiskAnalysisParticipant)
+        .where(RiskAnalysisParticipant.analysis_id.in_(analysis_ids))
+        .order_by(RiskAnalysisParticipant.id)
+    )
+    grouped: dict[int, list[RiskAnalysisParticipant]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.analysis_id, []).append(row)
+    return grouped
+
+
+def _recommendations_of(
+    session: Session, analysis_ids: Sequence[int]
+) -> dict[int, list[RiskAnalysisRecommendation]]:
+    if not analysis_ids:
+        return {}
+    statement = (
+        select(RiskAnalysisRecommendation)
+        .where(RiskAnalysisRecommendation.analysis_id.in_(analysis_ids))
+        .order_by(RiskAnalysisRecommendation.analysis_id, RiskAnalysisRecommendation.position)
+    )
+    grouped: dict[int, list[RiskAnalysisRecommendation]] = {}
+    for row in session.scalars(statement):
+        grouped.setdefault(row.analysis_id, []).append(row)
+    return grouped
+
+
+def _recommendation_row(
+    record: RiskAnalysisRecommendation,
+    action: actions.ActionRecord | None,
+    names: Names,
+    reference_date: date,
+) -> RecommendationRow:
+    return RecommendationRow(
+        id=record.id,
+        position=record.position,
+        description=record.description,
+        responsible_id=record.responsible_id,
+        responsible_name=names.person(record.responsible_id),
+        due_date=record.due_date,
+        situation=record.situation,
+        closed_on=record.closed_on,
+        evidence=record.evidence,
+        overdue=calculations.recommendation_overdue(
+            calculations.RecommendationLine(situation=record.situation, due_date=record.due_date),
+            reference_date,
+        ),
+        version=record.version,
+        action=action,
+    )
+
+
+def _analysis_row(
+    record: RiskAnalysis,
+    names: Names,
+    *,
+    participants: Sequence[RiskAnalysisParticipant],
+    recommendations: Sequence[RiskAnalysisRecommendation],
+    actions_by_position: Mapping[str, actions.ActionRecord],
+    reference_date: date,
+) -> AnalysisRow:
+    return AnalysisRow(
+        id=record.id,
+        project_id=record.project_id,
+        project_label=names.project(record.project_id),
+        code=record.code,
+        kind=record.kind,
+        area=record.area,
+        title=record.title,
+        held_on=record.held_on,
+        participant_ids=tuple(item.person_id for item in participants),
+        participant_names=tuple(names.person(item.person_id) for item in participants),
+        recommendations=tuple(
+            _recommendation_row(
+                item, actions_by_position.get(str(item.position)), names, reference_date
+            )
+            for item in recommendations
+        ),
+        version=record.version,
+    )
+
+
+def _matches_analysis(record: RiskAnalysis, filters: AnalysisFilters, *, open_count: int) -> bool:
+    if filters.kind and record.kind != filters.kind:
+        return False
+    if filters.open_only and open_count == 0:
+        return False
+    if filters.search:
+        wanted = _plain(filters.search)
+        haystack = _plain(" ".join((record.code, record.title, record.area)))
+        return wanted in haystack
+    return True
+
+
+def _summarize_recommendations(
+    rows: Sequence[AnalysisRow], reference_date: date
+) -> RecommendationSummary:
+    counts = calculations.count_recommendations(
+        (
+            calculations.RecommendationLine(situation=line.situation, due_date=line.due_date)
+            for row in rows
+            for line in row.recommendations
+        ),
+        reference_date,
+    )
+    return RecommendationSummary(
+        open=counts.open,
+        closed=counts.closed,
+        overdue=counts.overdue,
+        closed_pct=calculations.closed_recommendations_pct(counts.closed, counts.total),
+    )
+
+
+def analyses_screen(
+    session: Session,
+    *,
+    scope: Scope,
+    filters: AnalysisFilters,
+    reference_date: date,
+) -> AnalysisScreen:
+    """A tela de análises: as linhas do filtro, o universo de estudos e o resumo das recomendações."""
+    names = names_of(session)
+    records = list(
+        session.scalars(
+            _scoped(select(RiskAnalysis), RiskAnalysis, scope).order_by(
+                RiskAnalysis.held_on.desc(), RiskAnalysis.id.desc()
+            )
+        )
+    )
+    ids = [record.id for record in records]
+    participants = _participants_of(session, ids)
+    recommendations = _recommendations_of(session, ids)
+    rows: list[AnalysisRow] = []
+    for record in records:
+        found = recommendations.get(record.id, [])
+        open_count = sum(1 for item in found if item.situation != models.RECOMMENDATION_CLOSED)
+        if not _matches_analysis(record, filters, open_count=open_count):
+            continue
+        rows.append(
+            _analysis_row(
+                record,
+                names,
+                participants=participants.get(record.id, []),
+                recommendations=found,
+                actions_by_position={},
+                reference_date=reference_date,
+            )
+        )
+    return AnalysisScreen(
+        rows=tuple(rows),
+        universe=len(records),
+        summary=_summarize_recommendations(rows, reference_date),
+    )
+
+
+def analysis_sheet(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    reference_date: date,
+    project_id: int | None = None,
+) -> AnalysisSheet | None:
+    """A ficha do estudo, com as recomendações e o status das ações da Central de cada uma."""
+    record = analysis_by_code(session, code, project_id=project_id)
+    if record is None:
+        return None
+    names = names_of(session)
+    actions_by_position = {
+        (action.item or "").strip(): action
+        for action in actions.actions_of_origin(
+            session,
+            user=user,
+            origin_kind=HSE_ORIGIN,
+            reference=record.code,
+            reference_date=reference_date,
+        )
+    }
+    return AnalysisSheet(
+        line=_analysis_row(
+            record,
+            names,
+            participants=_participants_of(session, [record.id]).get(record.id, []),
+            recommendations=_recommendations_of(session, [record.id]).get(record.id, []),
+            actions_by_position=actions_by_position,
+            reference_date=reference_date,
+        )
+    )
+
+
+def close_recommendation(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    position: int,
+    data: RecommendationClosureInput,
+    reference_date: date,
+    project_id: int | None = None,
+) -> None:
+    """Fecha a recomendação com a data de conclusão e a evidência, e conclui a ação vinculada.
+
+    O fechamento manual move a recomendação para Fechada e conclui a ação da Central na mesma
+    transação (D9): a sincronização vale nas duas direções. Uma recomendação já fechada é
+    recusada (422).
+    """
+    rbac.require(user, Permission.WRITE)
+    analysis = _analysis_or_refuse(session, code, project_id=project_id)
+    recommendation = _recommendation_or_refuse(session, analysis, position)
+    if recommendation.situation == models.RECOMMENDATION_CLOSED:
+        raise InvalidDataError(ALREADY_CLOSED_RECOMMENDATION_MESSAGE)
+    problems = validation.recommendation_closure_problems(data, reference_date=reference_date)
+    if problems or data.closed_on is None:
+        raise InvalidDataError(problems)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=recommendation,
+        changes={
+            "situation": models.RECOMMENDATION_CLOSED,
+            "closed_on": data.closed_on,
+            "evidence": data.evidence.strip() or None,
+        },
+        version=recommendation.version,
+    )
+    _complete_linked_action(
+        session,
+        user=user,
+        analysis=analysis,
+        position=position,
+        completed_on=data.closed_on,
+        reference_date=reference_date,
+    )
+
+
+def _complete_linked_action(
+    session: Session,
+    *,
+    user: User,
+    analysis: RiskAnalysis,
+    position: int,
+    completed_on: date,
+    reference_date: date,
+) -> None:
+    """A recomendação fechou na tela do estudo: conclui a ação que a representa, se ainda aberta."""
+    record = _actions_by_position(
+        session, user=user, analysis=analysis, reference_date=reference_date
+    ).get(str(position))
+    if record is None or record.completed_on is not None:
+        return
+    actions.complete_action(
+        session,
+        user=user,
+        request=CompletionRequest(
+            action_id=record.id, completed_on=completed_on, version=record.version
+        ),
+        reference_date=reference_date,
+    )
+
+
+def _actions_by_position(
+    session: Session, *, user: User, analysis: RiskAnalysis, reference_date: date
+) -> dict[str, actions.ActionRecord]:
+    return {
+        (record.item or "").strip(): record
+        for record in actions.actions_of_origin(
+            session,
+            user=user,
+            origin_kind=HSE_ORIGIN,
+            reference=analysis.code,
+            reference_date=reference_date,
+        )
+    }
+
+
+def create_recommendation_action(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    position: int,
+    reference_date: date,
+    project_id: int | None = None,
+) -> actions.ActionRecord:
+    """Cria a ação da recomendação na Central (origem ``HSE``), na mesma transação (D9).
+
+    O ``item`` da ação é a ordem da recomendação e o grupo, ``<TIPO> · Recomendação``; a
+    descrição do estudo vai como descrição da ação. Uma recomendação tem no máximo uma ação:
+    a segunda tentativa é recusada com a mensagem do protótipo.
+    """
+    rbac.require(user, Permission.WRITE)
+    analysis = _analysis_or_refuse(session, code, project_id=project_id)
+    recommendation = _recommendation_or_refuse(session, analysis, position)
+    existing = _actions_by_position(
+        session, user=user, analysis=analysis, reference_date=reference_date
+    )
+    if str(recommendation.position) in existing:
+        raise InvalidDataError(RECOMMENDATION_ACTION_EXISTS_MESSAGE)
+    return actions.create_action(
+        session,
+        user=user,
+        new=NewAction(
+            project_id=analysis.project_id,
+            origin=HSE_ORIGIN,
+            origin_ref=analysis.code,
+            item=str(recommendation.position),
+            group=f"{analysis.kind}{RECOMMENDATION_GROUP_SUFFIX}",
+            subject=recommendation.description,
+            description=f"{analysis.title} ({analysis.area})",
+            requester_id=user.person_id,
+            responsible_id=recommendation.responsible_id,
+            planned_date=recommendation.due_date,
+        ),
+        reference_date=reference_date,
+    )
+
+
+def recommendation_share(session: Session, *, scope: Scope) -> RecommendationShare:
+    """Recomendações fechadas ÷ emitidas do escopo: o indicador do painel HSE (ISSUE-075)."""
+    statement = select(RiskAnalysisRecommendation.situation).join(
+        RiskAnalysis, RiskAnalysis.id == RiskAnalysisRecommendation.analysis_id
+    )
+    if scope.project_id is not None:
+        statement = statement.where(RiskAnalysis.project_id == scope.project_id)
+    situations = list(session.scalars(statement))
+    closed = sum(1 for situation in situations if situation == models.RECOMMENDATION_CLOSED)
+    return RecommendationShare(
+        closed=closed,
+        emitted=len(situations),
+        pct=calculations.closed_recommendations_pct(closed, len(situations)),
+    )
+
+
+def react_to_hse_action(session: Session, user: User, action: Action, event: ActionEvent) -> None:
+    """A ação mudou na Central: a recomendação do estudo espelha a conclusão ou o replanejamento.
+
+    A origem ``HSE`` é compartilhada com as ocorrências (ISSUE-073): uma ação ``OCR-`` não
+    reage aqui. A conclusão fecha a recomendação na data da conclusão; o replanejamento move o
+    prazo; uma recomendação já fechada não muda.
+    """
+    reference = (action.origin_ref or "").strip()
+    if not reference.startswith(("APR-", "HAZOP-")):
+        return
+    item = (action.item or "").strip()
+    if not item.isdigit():
+        return
+    recommendation = _recommendation_of_action(session, action, position=int(item))
+    if recommendation is None or recommendation.situation == models.RECOMMENDATION_CLOSED:
+        return
+    if event is ActionEvent.COMPLETED and action.completed_on is not None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=recommendation,
+            changes={
+                "situation": models.RECOMMENDATION_CLOSED,
+                "closed_on": action.completed_on,
+            },
+            version=recommendation.version,
+        )
+    elif event is ActionEvent.REPLANNED and action.replanned_date is not None:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=recommendation,
+            changes={"due_date": action.replanned_date},
+            version=recommendation.version,
+        )
+
+
+def _recommendation_of_action(
+    session: Session, action: Action, *, position: int
+) -> RiskAnalysisRecommendation | None:
+    statement = (
+        select(RiskAnalysisRecommendation)
+        .join(RiskAnalysis, RiskAnalysis.id == RiskAnalysisRecommendation.analysis_id)
+        .where(
+            RiskAnalysis.project_id == action.project_id,
+            RiskAnalysis.code == (action.origin_ref or "").strip(),
+            RiskAnalysisRecommendation.position == position,
+        )
+    )
+    return session.scalars(statement).one_or_none()
+
+
 # ── Integrações (D9, D5a) ────────────────────────────────────────────────────────────────────
 
 
@@ -1747,17 +2364,24 @@ def _occurrence_exists(session: Session, reference: str) -> bool:
     return session.scalar(select(Occurrence.id).where(Occurrence.code == reference)) is not None
 
 
-origin_links.register(
-    origin_links.OriginLinkType(
-        kind=OCCURRENCE_ORIGIN,
-        build=lambda reference: origin_links.link_to_screen(
-            "hse/ocorrencias", busca=reference.reference
-        ),
+def _hse_origin_link(reference: origin_links.OriginRef) -> str | None:
+    """A tela da origem pelo prefixo do código: o estudo (APR-/HAZOP-) ou a ocorrência (OCR-)."""
+    screen = (
+        "hse/analises_risco"
+        if reference.reference.startswith(("APR-", "HAZOP-"))
+        else "hse/ocorrencias"
     )
-)
+    return origin_links.link_to_screen(screen, busca=reference.reference)
+
+
+origin_links.register(origin_links.OriginLinkType(kind=HSE_ORIGIN, build=_hse_origin_link))
 
 attachment_origins.register(
     OriginType(table=OCCURRENCE_ENTITY, module=MODULE, read=read_occurrence_origin)
 )
 
 lessons_service.register_origin(lessons.ORIGIN_HSE, _occurrence_exists)
+
+# A reação da origem HSE (compartilhada com as ocorrências): a ação concluída fecha a
+# recomendação do estudo e o replanejamento move o prazo (D9, padrão da ISSUE-049).
+action_origins.register_reaction(HSE_ORIGIN, react_to_hse_action)

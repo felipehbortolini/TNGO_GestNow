@@ -1,5 +1,6 @@
-"""Input validation for the HSE module: HHT, monthly closing, inspections, observations, DDS
-and the occurrence with its investigation and its closing (ISSUE-073).
+"""Input validation for the HSE module: HHT, monthly closing, inspections, observations, DDS,
+the occurrence with its investigation and its closing (ISSUE-073) and the risk analyses
+(ISSUE-074).
 
 The shapes the facade receives and the checks of what a person types. The checks are pure and
 return the message by field of the form; the facade turns them into one ``InvalidDataError``, so
@@ -8,7 +9,7 @@ the rule holds for the form, for the import and for any module that calls the fa
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -616,4 +617,142 @@ def closure_problems(
     }
     if found["data"] is None and data.closed_on is not None and data.closed_on < event_date:
         found["data"] = DATE_BEFORE_EVENT
+    return {name: message for name, message in found.items() if message}
+
+
+# ── Análises de risco (ISSUE-074) ────────────────────────────────────────────────────────────
+
+MAX_ANALYSIS_AREA = 80
+MAX_ANALYSIS_TITLE = 150
+MIN_ANALYSIS_TITLE = 5
+
+ANALYSIS_TYPE_REQUIRED = "Escolha o tipo de estudo."
+ANALYSIS_AREA_REQUIRED = "Informe a área."
+ANALYSIS_TITLE_REQUIRED = f"Informe o título do estudo (mínimo de {MIN_ANALYSIS_TITLE} caracteres)."
+PARTICIPANTS_REQUIRED = "Escolha ao menos um participante."
+RECOMMENDATIONS_REQUIRED = "Inclua ao menos uma recomendação."
+RECOMMENDATION_RESPONSIBLE_REQUIRED = "Recomendação {index}: escolha o responsável."
+RECOMMENDATION_DEADLINE_REQUIRED = "Recomendação {index}: informe o prazo."
+CLOSING_DATE_REQUIRED = "Informe a data de conclusão."
+
+
+@dataclass(frozen=True)
+class AnalysisRecommendationInput:
+    """Uma recomendação digitada: descrição, responsável e prazo."""
+
+    description: str
+    responsible_id: int | None
+    due_date: date | None
+
+
+@dataclass(frozen=True)
+class AnalysisInput:
+    """Um estudo como a pessoa registra: tipo, área, título, data, participantes e recomendações."""
+
+    project_id: int
+    kind: str
+    area: str
+    title: str
+    held_on: date | None
+    participant_ids: tuple[int, ...] = ()
+    recommendations: tuple[AnalysisRecommendationInput, ...] = ()
+
+
+@dataclass(frozen=True)
+class RecommendationClosureInput:
+    """O fechamento de uma recomendação: a data de conclusão e a evidência opcional."""
+
+    closed_on: date | None
+    evidence: str = ""
+
+
+@dataclass(frozen=True)
+class AnalysisFilters:
+    """Os filtros da lista de análises: busca, tipo e só com recomendação aberta."""
+
+    search: str = ""
+    kind: str = ""
+    open_only: bool = False
+
+
+def parse_ids(raws: Iterable[str | None]) -> tuple[int, ...]:
+    """Os ids válidos de um campo de múltipla escolha, na ordem e sem repetição."""
+    found: list[int] = []
+    for raw in raws:
+        parsed = parse_id(raw)
+        if parsed is not None and parsed not in found:
+            found.append(parsed)
+    return tuple(found)
+
+
+def parse_analysis_filters(params: Mapping[str, str]) -> AnalysisFilters:
+    """Os filtros da lista a partir da query string; valor desconhecido é ignorado."""
+    kind = (params.get("tipo") or "").strip()
+    return AnalysisFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH_LENGTH],
+        kind=kind if kind in models.ANALYSIS_TYPES else "",
+        open_only=(params.get("abertas") or "").strip() in ("1", "true", "sim"),
+    )
+
+
+def _analysis_title_problem(title: str) -> str | None:
+    size = len(title.strip())
+    if size < MIN_ANALYSIS_TITLE:
+        return ANALYSIS_TITLE_REQUIRED
+    return f"Aceita até {MAX_ANALYSIS_TITLE} caracteres." if size > MAX_ANALYSIS_TITLE else None
+
+
+def _recommendations_problem(
+    recommendations: Sequence[AnalysisRecommendationInput], choices: RegisterChoices
+) -> str | None:
+    if not recommendations:
+        return RECOMMENDATIONS_REQUIRED
+    problems: list[str] = []
+    for index, item in enumerate(recommendations, start=1):
+        if item.responsible_id is None or item.responsible_id not in choices.person_ids:
+            problems.append(RECOMMENDATION_RESPONSIBLE_REQUIRED.format(index=index))
+        if item.due_date is None:
+            problems.append(RECOMMENDATION_DEADLINE_REQUIRED.format(index=index))
+        if _limit_problem(item.description, MAX_TEXT, required_message=None):
+            problems.append(f"Recomendação {index}: aceita até {MAX_TEXT} caracteres.")
+    return " ".join(problems) if problems else None
+
+
+def analysis_problems(
+    data: AnalysisInput, choices: RegisterChoices, *, reference_date: date
+) -> dict[str, str]:
+    """As mensagens de um novo estudo por campo, como o protótipo as escreve."""
+    found = {
+        "tipo": None if data.kind in models.ANALYSIS_TYPES else ANALYSIS_TYPE_REQUIRED,
+        "area": _limit_problem(
+            data.area, MAX_ANALYSIS_AREA, required_message=ANALYSIS_AREA_REQUIRED
+        ),
+        "titulo": _analysis_title_problem(data.title),
+        "data": day_problem(data.held_on, reference_date),
+        "participantes": (
+            PARTICIPANTS_REQUIRED
+            if not data.participant_ids
+            else UNKNOWN_PERSON
+            if any(person_id not in choices.person_ids for person_id in data.participant_ids)
+            else None
+        ),
+        "recomendacoes": _recommendations_problem(data.recommendations, choices),
+    }
+    return {name: message for name, message in found.items() if message}
+
+
+def recommendation_closure_problems(
+    data: RecommendationClosureInput, *, reference_date: date
+) -> dict[str, str]:
+    """As mensagens do fechamento: a data de conclusão (≤ hoje) e a evidência."""
+    found: dict[str, str | None] = {
+        "data": (
+            CLOSING_DATE_REQUIRED
+            if data.closed_on is None
+            else DATE_IN_THE_FUTURE
+            if data.closed_on > reference_date
+            else None
+        ),
+        "evidencia": _limit_problem(data.evidence, MAX_TEXT, required_message=None),
+    }
     return {name: message for name, message in found.items() if message}
