@@ -137,6 +137,21 @@ def average_treatment_days(days: Iterable[int]) -> int | None:
     return int(mean.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
+def first_time_effectiveness_pct(recurrences: Iterable[int]) -> Decimal | None:
+    """A eficácia na 1ª verificação: the share of the closed RNCs without recurrence.
+
+    The recurrence of each closed RNC comes from its audit trail (D5b); the share is in
+    points, half up, and no closed RNC gives ``None`` (the screen writes ``·``).
+    """
+    values = list(recurrences)
+    if not values:
+        return None
+    first = sum(1 for count in values if not count)
+    return (Decimal(first) / Decimal(len(values)) * 100).quantize(
+        Decimal("0.1"), rounding=ROUND_HALF_UP
+    )
+
+
 # ── ITP e inspeções (ISSUE-069) ──────────────────────────────────────────────────────────────
 
 POINT_TYPE_H = "H"
