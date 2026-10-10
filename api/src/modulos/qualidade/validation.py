@@ -1,24 +1,30 @@
-"""Input validation of the Quality module: the shapes and the checks of the RNC (ISSUE-068).
+"""Input validation of the Quality module: the RNC (ISSUE-068) and the ITP (ISSUE-069).
 
 The checks are pure and return one message per field, in a dict that is empty when everything
 holds up; the facade turns it into one ``InvalidDataError`` (422), so the rule holds for the
 route and for any module that calls the facade. The messages and the minimum lengths are the
-ones of the prototype (``js/services/api.js``, the RNC block). The vocabulary lives in
-``calculations`` and is reexported here for the screens.
+ones of the prototype (``js/services/api.js``, the RNC and the ITP blocks). The vocabulary
+lives in ``calculations`` and is reexported here for the screens.
 """
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from src.modulos.qualidade.calculations import (
+    DEFAULT_POINT_RESPONSIBLE,
     DISPOSITIONS,
     DISPOSITIONS_WITH_CONCESSION,
+    INSPECTION_RESULTS,
     METHODS,
     ORIGINS,
+    POINT_TYPES,
+    RESULT_APPROVED,
+    RESULT_REJECTED,
     SEVERITIES,
     SITUATIONS,
 )
@@ -304,6 +310,278 @@ def cost_problems(data: CostInput) -> dict[str, str]:
     if len((data.justification or "").strip()) < MIN_JUSTIFICATION:
         return {"justificativa": JUSTIFICATION_SHORT}
     return {}
+
+
+# ── ITP e inspeções (ISSUE-069) ──────────────────────────────────────────────────────────────
+
+MIN_ITP_TITLE = 5
+MIN_POINT_ACTIVITY = 3
+MIN_POINT_CRITERION = 3
+MIN_APPROVAL_REFERENCE = 5
+MIN_OBSERVATION = 10
+MAX_ITP_TITLE = 120
+MAX_POINT_ACTIVITY = 120
+MAX_POINT_CRITERION = 160
+MAX_POINT_REFERENCE = 60
+MAX_APPROVAL_REFERENCE = 120
+MAX_OBSERVATION = 500
+MAX_POINTS = 40
+
+ITP_TITLE_SHORT = "Informe o título do ITP (mínimo de 5 caracteres)."
+CHOOSE_ITP_COMPANY = "Escolha a empresa executante."
+POINTS_REQUIRED = "Inclua ao menos um ponto de inspeção."
+POINT_ACTIVITY_SHORT = "Ponto {position}: informe a atividade."
+POINT_TYPE_REQUIRED = "Ponto {position}: escolha H, W ou R."
+POINT_CRITERION_SHORT = "Ponto {position}: informe o critério de aceitação."
+REPEATED_ACTIVITIES = "Há atividades repetidas no ITP."
+POINTS_IN_USE = "Pontos com inspeção registrada não podem sair do ITP: {names}."
+ITP_NOT_FOUND = "ITP não encontrado."
+ITP_ALREADY_APPROVED = "Esta revisão do ITP já está aprovada."
+APPROVAL_REFERENCE_REQUIRED = "Informe o documento de aprovação do cliente."
+APPROVAL_DATE_REQUIRED = "Informe a data da aprovação (até a referência)."
+CHOOSE_ITP = "Escolha o ITP."
+ITP_NOT_APPROVED = (
+    "O ITP {code} rev {revision} ainda não tem aprovação do cliente: inspeção só em ITP aprovado."
+)
+CHOOSE_ITP_POINT = "Escolha o ponto do ITP."
+INSPECTION_DATE_REQUIRED = "Informe a data da inspeção."
+CHOOSE_INSPECTOR = "Escolha o inspetor."
+CHOOSE_RESULT = "Escolha o resultado."
+OBSERVATION_SHORT = "Descreva a ressalva ou a reprovação (mínimo de 10 caracteres)."
+REJECTION_SEVERITY = "Reprovação abre RNC: escolha a severidade."
+REJECTION_CONTAINMENT = (
+    "Reprovação abre RNC: registre a contenção imediata (mínimo de 10 caracteres)."
+)
+NOTIFICATION_AFTER = "A notificação ao cliente não pode ser posterior à inspeção."
+
+
+@dataclass(frozen=True)
+class ItpFilters:
+    """The filters of the ITP table: the search and the discipline."""
+
+    search: str = ""
+    discipline: str = ""
+
+
+@dataclass(frozen=True)
+class ItpPointInput:
+    """One point of the ITP form: the activity, its type (H, W or R) and the criterion."""
+
+    activity: str
+    point_type: str
+    criterion: str
+    reference: str = ""
+    responsible: str = DEFAULT_POINT_RESPONSIBLE
+
+
+@dataclass(frozen=True)
+class ItpInput:
+    """What the ITP form sends: the identification and the points of the revision."""
+
+    project_id: int | None
+    title: str
+    discipline: str
+    company_id: int | None
+    points: tuple[ItpPointInput, ...]
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class ItpApprovalInput:
+    """What the approval of the client sends: the document and its date."""
+
+    reference: str
+    approval_date: date | None
+
+
+@dataclass(frozen=True)
+class InspectionFilters:
+    """The filters of the inspection list: what the query string of the screen says."""
+
+    search: str = ""
+    itp_id: int | None = None
+    result: str = ""
+    point_type: str = ""
+    page: int = 1
+
+
+@dataclass(frozen=True)
+class InspectionInput:
+    """What the inspection form sends: the ITP point, the inspector and the result."""
+
+    project_id: int | None
+    itp_id: int | None
+    point_id: int | None
+    inspection_date: date | None
+    inspector_id: int | None
+    result: str
+    observation: str = ""
+    severity: str = ""
+    containment: str = ""
+    notification: date | None = None
+    version: int | str | None = None
+
+
+def itp_problems(
+    data: ItpInput,
+    *,
+    discipline_names: Sequence[str],
+    project_known: bool,
+    company_known: bool,
+) -> dict[str, str]:
+    """One message per field of the ITP that does not hold up, the repeated points included."""
+    problems: dict[str, str] = {}
+    if data.project_id is None or not project_known:
+        problems["projeto"] = CHOOSE_PROJECT
+    if len((data.title or "").strip()) < MIN_ITP_TITLE:
+        problems["titulo"] = ITP_TITLE_SHORT
+    if data.discipline not in discipline_names:
+        problems["disciplina"] = CHOOSE_DISCIPLINE
+    if data.company_id is None or not company_known:
+        problems["empresaId"] = CHOOSE_ITP_COMPANY
+    if not data.points:
+        problems["pontos"] = POINTS_REQUIRED
+    problems.update(point_problems(data.points))
+    return problems
+
+
+def point_problems(points: Sequence[ItpPointInput]) -> dict[str, str]:
+    """One message per point that does not hold up, numbered as the prototype did."""
+    problems: dict[str, str] = {}
+    for position, point in enumerate(points, start=1):
+        if len((point.activity or "").strip()) < MIN_POINT_ACTIVITY:
+            problems["pontos"] = POINT_ACTIVITY_SHORT.format(position=position)
+        if point.point_type not in POINT_TYPES:
+            problems["pontos"] = POINT_TYPE_REQUIRED.format(position=position)
+        if len((point.criterion or "").strip()) < MIN_POINT_CRITERION:
+            problems["pontos"] = POINT_CRITERION_SHORT.format(position=position)
+    names = [_normalize_text(point.activity) for point in points]
+    if len(set(names)) != len(names):
+        problems["pontos"] = REPEATED_ACTIVITIES
+    return problems
+
+
+def approval_problems(
+    data: ItpApprovalInput, *, reference_date: date, already_approved: bool
+) -> dict[str, str]:
+    """The approval of the client: once per revision, with the document and a date up to today."""
+    if already_approved:
+        return {"itp": ITP_ALREADY_APPROVED}
+    problems: dict[str, str] = {}
+    if len((data.reference or "").strip()) < MIN_APPROVAL_REFERENCE:
+        problems["referencia"] = APPROVAL_REFERENCE_REQUIRED
+    if data.approval_date is None or data.approval_date > reference_date:
+        problems["data"] = APPROVAL_DATE_REQUIRED
+    return problems
+
+
+@dataclass(frozen=True)
+class InspectionContext:
+    """O que a validação da inspeção lê do ITP e do ponto: o aprovado, o tipo e o inspetor."""
+
+    reference_date: date
+    itp_known: bool
+    itp_approved: bool
+    itp_code: str
+    itp_revision: int
+    point_known: bool
+    point_type: str
+    inspector_known: bool
+
+
+def inspection_problems(data: InspectionInput, context: InspectionContext) -> dict[str, str]:
+    """One message per field of the inspection that does not hold up (the prototype's rules).
+
+    The inspection happens only on a point of an ITP approved by the client; the result
+    Reprovado demands the severity and the containment that open the RNC. The notification
+    belongs to the H and W points and never comes after the inspection.
+    """
+    problems: dict[str, str] = {}
+    problems.update(_itp_problems(context))
+    problems.update(_identification_problems(data, context))
+    problems.update(_result_problems(data))
+    problems.update(_notification_problems(data, context))
+    return problems
+
+
+def _itp_problems(context: InspectionContext) -> dict[str, str]:
+    if not context.itp_known:
+        return {"itpId": CHOOSE_ITP}
+    if not context.itp_approved:
+        return {
+            "itpId": ITP_NOT_APPROVED.format(code=context.itp_code, revision=context.itp_revision)
+        }
+    return {}
+
+
+def _identification_problems(data: InspectionInput, context: InspectionContext) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    if not context.point_known:
+        problems["pontoId"] = CHOOSE_ITP_POINT
+    if data.inspection_date is None:
+        problems["data"] = INSPECTION_DATE_REQUIRED
+    elif data.inspection_date > context.reference_date:
+        problems["data"] = DATE_FUTURE
+    if data.inspector_id is None or not context.inspector_known:
+        problems["inspetorId"] = CHOOSE_INSPECTOR
+    return problems
+
+
+def _result_problems(data: InspectionInput) -> dict[str, str]:
+    problems: dict[str, str] = {}
+    if data.result not in INSPECTION_RESULTS:
+        problems["resultado"] = CHOOSE_RESULT
+    if (
+        data.result
+        and data.result != RESULT_APPROVED
+        and len((data.observation or "").strip()) < MIN_OBSERVATION
+    ):
+        problems["observacao"] = OBSERVATION_SHORT
+    if data.result == RESULT_REJECTED:
+        if data.severity not in SEVERITIES:
+            problems["severidade"] = REJECTION_SEVERITY
+        if len((data.containment or "").strip()) < MIN_CONTAINMENT:
+            problems["contencao"] = REJECTION_CONTAINMENT
+    return problems
+
+
+def _notification_problems(data: InspectionInput, context: InspectionContext) -> dict[str, str]:
+    if (
+        context.point_known
+        and context.point_type != "R"
+        and data.notification is not None
+        and data.inspection_date is not None
+        and data.notification > data.inspection_date
+    ):
+        return {"notificacao": NOTIFICATION_AFTER}
+    return {}
+
+
+def parse_itp_filters(params: Mapping[str, str]) -> ItpFilters:
+    """Read the filters of the ITP table from the query string; an invalid value is ignored."""
+    return ItpFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        discipline=(params.get("disciplina") or "").strip(),
+    )
+
+
+def parse_inspection_filters(params: Mapping[str, str]) -> InspectionFilters:
+    """Read the filters of the inspection list from the query string; invalid values are ignored."""
+    point_type = (params.get("tipo") or "").strip()
+    result = (params.get("resultado") or "").strip()
+    return InspectionFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        itp_id=parse_id(params.get("itp")),
+        result=result if result in INSPECTION_RESULTS else "",
+        point_type=point_type if point_type in POINT_TYPES else "",
+        page=parse_id(params.get("pagina")) or 1,
+    )
+
+
+def _normalize_text(text: str) -> str:
+    """The activity without case or accents, to match the points between revisions."""
+    decomposed = unicodedata.normalize("NFKD", (text or "").casefold())
+    return "".join(char for char in decomposed if not unicodedata.combining(char)).strip()
 
 
 def parse_id(raw: str | None) -> int | None:

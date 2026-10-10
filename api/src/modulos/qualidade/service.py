@@ -24,6 +24,7 @@ import unicodedata
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any, cast
 
 from sqlalchemy import select
@@ -43,7 +44,7 @@ from src.modulos.governanca import lessons_models as lessons
 from src.modulos.governanca import lessons_service
 from src.modulos.governanca.lessons_validation import DraftInput
 from src.modulos.qualidade import calculations, validation
-from src.modulos.qualidade.models import Rnc
+from src.modulos.qualidade.models import Inspection, Itp, ItpPoint, ItpRevision, Rnc
 from src.modulos.qualidade.validation import (
     ActionInput,
     AnalysisInput,
@@ -975,6 +976,911 @@ def record_rnc(
         ),
     )
     return rnc
+
+
+# ── ITP e inspeções (ISSUE-069) ──────────────────────────────────────────────────────────────
+
+ITP_PREFIX = "ITP"
+INSPECTION_PREFIX = "INS"
+INSPECTION_DIGITS = 4
+ITP_DIGITS = 2
+FAT_POINT_PREFIX = "Inspeção em fábrica (FAT)"
+FAT_ITP_LABEL = "Inspeção em fábrica (04)"
+FAT_RESULT_REQUIRED = "Informe o resultado da inspeção em fábrica."
+INSPECTION_APPROVAL_FORBIDDEN_MESSAGE = "Registrar a aprovação do ITP exige papel Gestor."
+ITP_NOT_FOUND_MESSAGE = "ITP não encontrado."
+
+
+@dataclass(frozen=True)
+class ItpPointLine:
+    """One point of the current revision of the ITP, as the screens read it."""
+
+    id: int
+    order: int
+    activity: str
+    point_type: str
+    criterion: str
+    reference: str
+    responsible: str
+
+
+@dataclass(frozen=True)
+class ItpLine:
+    """One ITP as the screens read it: the record and everything calculated from it."""
+
+    id: int
+    project_id: int
+    project_code: str
+    code: str
+    title: str
+    discipline_id: int
+    discipline: str
+    company_id: int
+    company_name: str
+    revision: int
+    revision_date: date
+    approved_by_client: bool
+    approval_reference: str | None
+    approval_date: date | None
+    points: tuple[ItpPointLine, ...]
+    inspections: int
+    approved: int
+    rejected: int
+    approval_pct: Decimal | None
+    covered_points: int
+    last_inspection: date | None
+    version: int
+
+    @property
+    def total_points(self) -> int:
+        """How many points the current revision has."""
+        return len(self.points)
+
+    @property
+    def point_type_counts(self) -> dict[str, int]:
+        """How many points of each type (H, W and R)."""
+        counts = {"H": 0, "W": 0, "R": 0}
+        for point in self.points:
+            counts[point.point_type] = counts.get(point.point_type, 0) + 1
+        return counts
+
+
+@dataclass(frozen=True)
+class ItpListing:
+    """What the ITP table shows: the lines and the choices of the filter."""
+
+    lines: tuple[ItpLine, ...]
+    disciplines: tuple[str, ...]
+    projects: tuple[configuracoes.ProjectDetail, ...]
+
+    @property
+    def total(self) -> int:
+        """How many ITPs the filter holds."""
+        return len(self.lines)
+
+
+@dataclass(frozen=True)
+class ItpResult:
+    """What saving an ITP answers: the number and the revision written."""
+
+    code: str
+    revision: int
+
+
+@dataclass(frozen=True)
+class InspectionLine:
+    """One inspection as the screens read it: the record and what it points to."""
+
+    id: int
+    project_id: int
+    project_code: str
+    code: str
+    point: str
+    point_type: str
+    inspection_date: date
+    company_id: int
+    company_name: str
+    inspector_id: int
+    inspector_name: str
+    result: str
+    observation: str
+    notification: date | None
+    itp_point_id: int | None
+    itp_id: int | None
+    itp_code: str
+    itp_title: str
+    rnc_id: int | None
+    rnc_code: str
+    rnc_situation: str
+    order_id: int | None
+    order_number: str
+    version: int
+
+
+@dataclass(frozen=True)
+class InspectionSummary:
+    """The KPIs of the screen for the scope, without filters (what the oracle reads)."""
+
+    itps: int
+    itps_approved: int
+    points: int
+    covered_points: int
+    registered: int
+    approved: int
+    with_remark: int
+    rejected: int
+    rejected_open_rnc: int
+    approval_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class InspectionListing:
+    """What the inspection list shows for a filter: the lines and the page."""
+
+    lines: tuple[InspectionLine, ...]
+    page: int
+
+    @property
+    def total(self) -> int:
+        """How many inspections the filter holds, whatever the page."""
+        return len(self.lines)
+
+    @property
+    def page_count(self) -> int:
+        """How many pages the list has; an empty list still has one."""
+        return max(1, -(-len(self.lines) // validation.PAGE_SIZE))
+
+    @property
+    def page_lines(self) -> tuple[InspectionLine, ...]:
+        """The lines of the current page."""
+        start = (self.page - 1) * validation.PAGE_SIZE
+        return self.lines[start : start + validation.PAGE_SIZE]
+
+
+@dataclass(frozen=True)
+class InspectionResult:
+    """What recording an inspection answers: the number, the RNC opened and the warnings."""
+
+    code: str
+    rnc_code: str | None
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FatInspectionResult:
+    """What the FAT of the diligence answers: the number of the inspection it wrote."""
+
+    code: str
+
+
+def list_itps(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: validation.ItpFilters,
+    reference_date: date,
+) -> ItpListing:
+    """The ITPs of the scope for the filters: the lines and the choices of the filter."""
+    rbac.require_module(user, MODULE)
+    lines = [
+        line
+        for line in _itp_lines(session, project_id=scope.project_id, reference_date=reference_date)
+        if _matches_itp(line, filters)
+    ]
+    return ItpListing(
+        lines=tuple(lines),
+        disciplines=tuple(configuracoes.list_discipline_names(session)),
+        projects=tuple(configuracoes.list_project_details(session)),
+    )
+
+
+def itp_sheet(session: Session, *, user: User, code: str, reference_date: date) -> ItpLine | None:
+    """The ficha of one ITP: the line with the points of the current revision."""
+    rbac.require_module(user, MODULE)
+    itp = _itp_by_code(session, code)
+    if itp is None:
+        return None
+    lines = _itp_lines(
+        session, project_id=itp.project_id, codes=[code], reference_date=reference_date
+    )
+    return lines[0] if lines else None
+
+
+def list_inspections(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: validation.InspectionFilters,
+) -> InspectionListing:
+    """The inspections of the scope for the filters, most recent first (the prototype's order)."""
+    rbac.require_module(user, MODULE)
+    shown = list(_inspection_lines(session, project_id=scope.project_id))
+    shown = [line for line in shown if _matches_inspection(line, filters)]
+    shown.sort(key=lambda line: (line.inspection_date, line.code), reverse=True)
+    page = min(max(filters.page, 1), max(1, -(-len(shown) // validation.PAGE_SIZE)))
+    return InspectionListing(lines=tuple(shown), page=page)
+
+
+def inspecoes_summary(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> InspectionSummary:
+    """The KPIs of the screen for the scope, without filters (what the oracle reads)."""
+    rbac.require_module(user, MODULE)
+    itps = _itp_lines(session, project_id=scope.project_id, reference_date=reference_date)
+    inspections = _inspection_lines(session, project_id=scope.project_id)
+    rejected = [line for line in inspections if line.result == calculations.RESULT_REJECTED]
+    open_rnc = _open_rnc_ids(session, {line.rnc_id for line in rejected})
+    return InspectionSummary(
+        itps=len(itps),
+        itps_approved=sum(1 for line in itps if line.approved_by_client),
+        points=sum(line.total_points for line in itps),
+        covered_points=sum(line.covered_points for line in itps),
+        registered=len(inspections),
+        approved=sum(1 for line in inspections if calculations.approved_inspection(line.result)),
+        with_remark=sum(
+            1 for line in inspections if line.result == calculations.RESULT_APPROVED_WITH_REMARK
+        ),
+        rejected=len(rejected),
+        rejected_open_rnc=sum(1 for line in rejected if line.rnc_id in open_rnc),
+        approval_pct=calculations.inspection_approval_rate(line.result for line in inspections),
+    )
+
+
+def create_itp(
+    session: Session, *, user: User, data: validation.ItpInput, reference_date: date
+) -> ItpResult:
+    """Create the ITP (revision 0) with its points; the approval of the client comes later."""
+    rbac.require(user, Permission.WRITE)
+    project = (
+        configuracoes.find_project(session, data.project_id)
+        if data.project_id is not None
+        else None
+    )
+    known_companies = {item.id for item in configuracoes.list_company_options(session)}
+    problems = validation.itp_problems(
+        data,
+        discipline_names=configuracoes.list_discipline_names(session),
+        project_known=project is not None,
+        company_known=data.company_id is not None and data.company_id in known_companies,
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    project_ok = cast(configuracoes.ProjectDetail, project)
+    itp = Itp(
+        project_id=project_ok.id,
+        discipline_id=_discipline_id(session, data.discipline),
+        company_id=cast(int, data.company_id),
+        code=_next_itp_code(session, project_ok, data.discipline, reference_date),
+        title=data.title.strip(),
+    )
+    recording.create(session, user_id=user.id, record=itp)
+    revision = _write_revision(
+        session, user=user, itp=itp, revision=0, reference_date=reference_date
+    )
+    _write_points(session, user=user, revision=revision, points=data.points)
+    return ItpResult(code=itp.code, revision=revision.revision)
+
+
+def revise_itp(
+    session: Session, *, user: User, code: str, data: validation.ItpInput, reference_date: date
+) -> ItpResult:
+    """Write the next revision: the approval resets and no point with an inspection may leave."""
+    rbac.require(user, Permission.WRITE)
+    itp = _itp_or_refuse(session, code)
+    project = configuracoes.find_project(session, itp.project_id)
+    known_companies = {item.id for item in configuracoes.list_company_options(session)}
+    problems = validation.itp_problems(
+        data,
+        discipline_names=configuracoes.list_discipline_names(session),
+        project_known=project is not None,
+        company_known=data.company_id is not None and data.company_id in known_companies,
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    current = _current_revision(session, itp.id)
+    old_points = _revision_points(session, current.id) if current is not None else []
+    matched = _match_points(old_points, data.points)
+    kept = {point.id for point in matched.values()}
+    used = _points_with_inspection(session, [point.id for point in old_points])
+    removed = [point for point in old_points if point.id not in kept]
+    in_use = [point.activity for point in removed if point.id in used]
+    if in_use:
+        raise InvalidDataError({"pontos": validation.POINTS_IN_USE.format(names=", ".join(in_use))})
+    revision = _write_revision(
+        session,
+        user=user,
+        itp=itp,
+        revision=(current.revision if current is not None else -1) + 1,
+        reference_date=reference_date,
+    )
+    for position, point_input in enumerate(data.points, start=1):
+        point = matched.get(_normalized_activity(point_input.activity))
+        if point is None:
+            _write_points(
+                session, user=user, revision=revision, points=(point_input,), start=position
+            )
+            continue
+        point.revision_id = revision.id
+        point.order = position
+        point.activity = point_input.activity.strip()
+        point.point_type = point_input.point_type
+        point.criterion = point_input.criterion.strip()
+        point.reference = (point_input.reference or "").strip()
+        point.responsible = point_input.responsible or calculations.DEFAULT_POINT_RESPONSIBLE
+    for point in removed:
+        session.delete(point)
+    session.flush()
+    recording.update(
+        session,
+        user_id=user.id,
+        record=itp,
+        changes={
+            "title": data.title.strip(),
+            "discipline_id": _discipline_id(session, data.discipline),
+            "company_id": cast(int, data.company_id),
+        },
+        version=data.version or itp.version,
+    )
+    return ItpResult(code=itp.code, revision=revision.revision)
+
+
+def approve_itp(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    data: validation.ItpApprovalInput,
+    reference_date: date,
+) -> None:
+    """Record the approval of the client of the current revision: Gestor, once per revision."""
+    if not rbac.can(user, Permission.MANAGE):
+        raise AccessDeniedError(INSPECTION_APPROVAL_FORBIDDEN_MESSAGE)
+    itp = _itp_or_refuse(session, code)
+    revision = _current_revision(session, itp.id)
+    if revision is None:
+        raise InvalidDataError(ITP_NOT_FOUND_MESSAGE)
+    problems = validation.approval_problems(
+        data, reference_date=reference_date, already_approved=revision.approved_by_client
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    revision.approved_by_client = True
+    revision.approval_reference = data.reference.strip()
+    revision.approval_date = cast(date, data.approval_date)
+    revision.approved_by_id = user.person_id
+    session.flush()
+
+
+def record_inspection(
+    session: Session, *, user: User, data: validation.InspectionInput, reference_date: date
+) -> InspectionResult:
+    """Record an inspection on a point of an approved ITP; a rejection opens the RNC here (D9)."""
+    rbac.require(user, Permission.WRITE)
+    itp = session.get(Itp, data.itp_id) if data.itp_id is not None else None
+    revision = _current_revision(session, itp.id) if itp is not None else None
+    point = session.get(ItpPoint, data.point_id) if data.point_id is not None else None
+    point_known = point is not None and revision is not None and point.revision_id == revision.id
+    inspector_known = bool(
+        data.inspector_id
+        and data.inspector_id in configuracoes.find_people(session, [data.inspector_id])
+    )
+    problems = validation.inspection_problems(
+        data,
+        validation.InspectionContext(
+            reference_date=reference_date,
+            itp_known=itp is not None,
+            itp_approved=revision is not None and revision.approved_by_client,
+            itp_code=itp.code if itp is not None else "",
+            itp_revision=revision.revision if revision is not None else 0,
+            point_known=point_known,
+            point_type=point.point_type if point_known and point is not None else "",
+            inspector_known=inspector_known,
+        ),
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    itp_ok = cast(Itp, itp)
+    point_ok = cast(ItpPoint, point)
+    inspection_date = cast(date, data.inspection_date)
+    notification = data.notification if point_ok.point_type != calculations.POINT_TYPE_R else None
+    warnings = tuple(
+        warning
+        for warning in (
+            calculations.notification_warning(
+                point_ok.point_type,
+                notification,
+                inspection_date,
+                notification_minimum_hours(session, reference_date=reference_date),
+            ),
+        )
+        if warning
+    )
+    code = _next_inspection_code(session, reference_date)
+    rnc_code: str | None = None
+    rnc_id: int | None = None
+    if data.result == calculations.RESULT_REJECTED:
+        opened = open_rnc(
+            session,
+            user=user,
+            data=OpeningInput(
+                project_id=itp_ok.project_id,
+                rnc_date=inspection_date,
+                origin=ORIGIN_KIND_INSPECTION,
+                origin_ref=code,
+                discipline=_discipline_name(session, itp_ok.discipline_id),
+                company_id=itp_ok.company_id,
+                severity=data.severity,
+                description=f"{point_ok.activity} ({itp_ok.code}): {data.observation.strip()}",
+                containment=data.containment,
+            ),
+            reference_date=reference_date,
+        )
+        rnc_code = opened.code
+        rnc_id = _rnc_id(session, opened.code)
+    inspection = Inspection(
+        project_id=itp_ok.project_id,
+        itp_point_id=point_ok.id,
+        company_id=itp_ok.company_id,
+        inspector_id=cast(int, data.inspector_id),
+        rnc_id=rnc_id,
+        order_id=None,
+        code=code,
+        point=point_ok.activity,
+        point_type=point_ok.point_type,
+        inspection_date=inspection_date,
+        result=data.result,
+        observation=(data.observation or "").strip(),
+        notification=notification,
+    )
+    recording.create(session, user_id=user.id, record=inspection)
+    return InspectionResult(code=inspection.code, rnc_code=rnc_code, warnings=warnings)
+
+
+def record_fat_inspection(
+    session: Session,
+    *,
+    user: User,
+    project_id: int,
+    order_id: int,
+    order_number: str,
+    supplier_company_id: int,
+    result: str,
+    inspected_on: date | None,
+    inspector_id: int | None,
+    reference_date: date,
+) -> FatInspectionResult:
+    """The FAT seam of Suprimentos (D9): write the inspection of the order without a point.
+
+    The inspection has no point of ITP and is identified by ``pedido_id``; the point text
+    carries the number of the order and the type is H, as the prototype wrote.
+    """
+    rbac.require_module(user, MODULE)
+    rbac.require(user, Permission.WRITE)
+    problems: dict[str, str] = {}
+    if result not in calculations.INSPECTION_RESULTS:
+        problems["resultado"] = FAT_RESULT_REQUIRED
+    if inspected_on is None:
+        problems["data"] = validation.INSPECTION_DATE_REQUIRED
+    elif inspected_on > reference_date:
+        problems["data"] = validation.DATE_FUTURE
+    if problems:
+        raise InvalidDataError(problems)
+    inspection = Inspection(
+        project_id=project_id,
+        itp_point_id=None,
+        company_id=supplier_company_id,
+        inspector_id=inspector_id or user.person_id,
+        rnc_id=None,
+        order_id=order_id,
+        code=_next_inspection_code(session, reference_date),
+        point=f"{FAT_POINT_PREFIX} {order_number}",
+        point_type=calculations.POINT_TYPE_H,
+        inspection_date=cast(date, inspected_on),
+        result=result,
+        observation="",
+        notification=None,
+    )
+    recording.create(session, user_id=user.id, record=inspection)
+    return FatInspectionResult(code=inspection.code)
+
+
+def notification_minimum_hours(session: Session, *, reference_date: date) -> int:
+    """The minimum lead of the notification of the client, from the parameters in force."""
+    return int(parameters(session, reference_date=reference_date)["notificacaoClienteHoras"])
+
+
+ORIGIN_KIND_INSPECTION = "Inspeção"
+
+
+def _itp_lines(
+    session: Session,
+    *,
+    project_id: int | None,
+    reference_date: date,
+    codes: Sequence[str] | None = None,
+) -> list[ItpLine]:
+    statement = select(Itp).order_by(Itp.code)
+    if project_id is not None:
+        statement = statement.where(Itp.project_id == project_id)
+    if codes is not None:
+        statement = statement.where(Itp.code.in_(codes))
+    itps = list(session.scalars(statement).all())
+    if not itps:
+        return []
+    itp_ids = [itp.id for itp in itps]
+    revisions = list(
+        session.scalars(
+            select(ItpRevision)
+            .where(ItpRevision.itp_id.in_(itp_ids))
+            .order_by(ItpRevision.revision)
+        ).all()
+    )
+    current: dict[int, ItpRevision] = {}
+    for revision in revisions:
+        current[revision.itp_id] = revision
+    revision_ids = [revision.id for revision in current.values()]
+    points = (
+        list(
+            session.scalars(
+                select(ItpPoint)
+                .where(ItpPoint.revision_id.in_(revision_ids))
+                .order_by(ItpPoint.revision_id, ItpPoint.order)
+            ).all()
+        )
+        if revision_ids
+        else []
+    )
+    point_lines: dict[int, list[ItpPointLine]] = {revision_id: [] for revision_id in revision_ids}
+    for point in points:
+        point_lines[point.revision_id].append(
+            ItpPointLine(
+                id=point.id,
+                order=point.order,
+                activity=point.activity,
+                point_type=point.point_type,
+                criterion=point.criterion,
+                reference=point.reference,
+                responsible=point.responsible,
+            )
+        )
+    aggregates = _inspection_aggregates(session, points)
+    disciplines = configuracoes.discipline_names_by_id(session)
+    companies = configuracoes.list_company_names(session)
+    projects = {item.id: item.code for item in configuracoes.list_project_details(session)}
+    lines: list[ItpLine] = []
+    for itp in itps:
+        revision = current.get(itp.id)
+        revision_points = point_lines.get(revision.id, []) if revision is not None else []
+        aggregate = aggregates.get(revision.id, _InspectionAggregate()) if revision else None
+        aggregate = aggregate or _InspectionAggregate()
+        lines.append(
+            ItpLine(
+                id=itp.id,
+                project_id=itp.project_id,
+                project_code=projects.get(itp.project_id, ""),
+                code=itp.code,
+                title=itp.title,
+                discipline_id=itp.discipline_id,
+                discipline=disciplines.get(itp.discipline_id, ""),
+                company_id=itp.company_id,
+                company_name=companies.get(itp.company_id, ""),
+                revision=revision.revision if revision is not None else 0,
+                revision_date=revision.revision_date if revision is not None else reference_date,
+                approved_by_client=bool(revision is not None and revision.approved_by_client),
+                approval_reference=revision.approval_reference if revision is not None else None,
+                approval_date=revision.approval_date if revision is not None else None,
+                points=tuple(revision_points),
+                inspections=aggregate.inspections,
+                approved=aggregate.approved,
+                rejected=aggregate.rejected,
+                approval_pct=calculations.inspection_approval_rate(aggregate.results),
+                covered_points=calculations.covered_points(aggregate.point_ids),
+                last_inspection=aggregate.last_inspection,
+                version=itp.version,
+            )
+        )
+    return lines
+
+
+@dataclass(frozen=True)
+class _InspectionAggregate:
+    """The inspections of one ITP, grouped for the line: the counts and the covered points."""
+
+    inspections: int = 0
+    approved: int = 0
+    rejected: int = 0
+    results: tuple[str, ...] = ()
+    point_ids: tuple[int | None, ...] = ()
+    last_inspection: date | None = None
+
+
+def _inspection_aggregates(
+    session: Session, points: Sequence[ItpPoint]
+) -> dict[int, _InspectionAggregate]:
+    """Group the inspections of the points by the ITP of their current revision."""
+    point_to_revision = {point.id: point.revision_id for point in points}
+    if not point_to_revision:
+        return {}
+    grouped: dict[int, _InspectionAggregate] = {}
+    rows = session.execute(
+        select(
+            Inspection.itp_point_id,
+            Inspection.result,
+            Inspection.inspection_date,
+        ).where(Inspection.itp_point_id.in_(point_to_revision.keys()))
+    ).all()
+    for point_id, result, inspection_date in rows:
+        revision_id = point_to_revision.get(point_id)
+        if revision_id is None:
+            continue
+        previous = grouped.get(revision_id, _InspectionAggregate())
+        grouped[revision_id] = _InspectionAggregate(
+            inspections=previous.inspections + 1,
+            approved=previous.approved + (1 if calculations.approved_inspection(result) else 0),
+            rejected=previous.rejected + (1 if result == calculations.RESULT_REJECTED else 0),
+            results=(*previous.results, result),
+            point_ids=(*previous.point_ids, point_id),
+            last_inspection=max(
+                (value for value in (previous.last_inspection, inspection_date) if value),
+                default=None,
+            ),
+        )
+    return grouped
+
+
+def _inspection_lines(session: Session, *, project_id: int | None) -> list[InspectionLine]:
+    statement = select(Inspection).order_by(Inspection.id)
+    if project_id is not None:
+        statement = statement.where(Inspection.project_id == project_id)
+    records = list(session.scalars(statement).all())
+    if not records:
+        return []
+    point_ids = [record.itp_point_id for record in records if record.itp_point_id is not None]
+    point_itp: dict[int, tuple[int, str, str]] = {}
+    if point_ids:
+        rows = session.execute(
+            select(ItpPoint.id, Itp.id, Itp.code, Itp.title)
+            .join(ItpRevision, ItpPoint.revision_id == ItpRevision.id)
+            .join(Itp, ItpRevision.itp_id == Itp.id)
+            .where(ItpPoint.id.in_(point_ids))
+        ).all()
+        point_itp = {row[0]: (row[1], row[2], row[3]) for row in rows}
+    rnc_ids = {record.rnc_id for record in records if record.rnc_id is not None}
+    rnc_situations: dict[int, tuple[str, str]] = {}
+    if rnc_ids:
+        for rnc in session.scalars(select(Rnc).where(Rnc.id.in_(rnc_ids))).all():
+            rnc_situations[rnc.id] = (rnc.code, rnc.situation)
+    companies = configuracoes.list_company_names(session)
+    projects = {item.id: item.code for item in configuracoes.list_project_details(session)}
+    people = configuracoes.find_people(
+        session, {record.inspector_id for record in records if record.inspector_id}
+    )
+    lines: list[InspectionLine] = []
+    for record in records:
+        itp_id, itp_code, itp_title = point_itp.get(record.itp_point_id or 0, (None, "", ""))
+        if itp_id is None:
+            itp_title = FAT_ITP_LABEL if record.order_id is not None else ""
+        rnc_code, rnc_situation = rnc_situations.get(record.rnc_id or 0, ("", ""))
+        lines.append(
+            InspectionLine(
+                id=record.id,
+                project_id=record.project_id,
+                project_code=projects.get(record.project_id, ""),
+                code=record.code,
+                point=record.point,
+                point_type=record.point_type,
+                inspection_date=record.inspection_date,
+                company_id=record.company_id,
+                company_name=companies.get(record.company_id, ""),
+                inspector_id=record.inspector_id,
+                inspector_name=people[record.inspector_id].name
+                if record.inspector_id in people
+                else "",
+                result=record.result,
+                observation=record.observation,
+                notification=record.notification,
+                itp_point_id=record.itp_point_id,
+                itp_id=itp_id,
+                itp_code=itp_code,
+                itp_title=itp_title,
+                rnc_id=record.rnc_id,
+                rnc_code=rnc_code,
+                rnc_situation=rnc_situation,
+                order_id=record.order_id,
+                order_number=_fat_order_number(record.point) if record.order_id is not None else "",
+                version=record.version,
+            )
+        )
+    return lines
+
+
+def _fat_order_number(point: str) -> str:
+    """The number of the order inside the point text the FAT wrote (no cross-module read)."""
+    prefix = f"{FAT_POINT_PREFIX} "
+    return point[len(prefix) :] if point.startswith(prefix) else ""
+
+
+def _open_rnc_ids(session: Session, rnc_ids: Collection[int | None]) -> set[int]:
+    wanted = {rnc_id for rnc_id in rnc_ids if rnc_id is not None}
+    if not wanted:
+        return set()
+    rows = session.execute(select(Rnc.id, Rnc.situation).where(Rnc.id.in_(wanted))).all()
+    return {
+        rnc_id
+        for rnc_id, situation in rows
+        if situation not in (calculations.SITUATION_CLOSED, calculations.SITUATION_CANCELLED)
+    }
+
+
+def _rnc_id(session: Session, code: str) -> int | None:
+    return session.scalar(select(Rnc.id).where(Rnc.code == code))
+
+
+def _matches_itp(line: ItpLine, filters: validation.ItpFilters) -> bool:
+    if filters.discipline and line.discipline != filters.discipline:
+        return False
+    if filters.search:
+        wanted = _normalize(filters.search)
+        haystack = " ".join((line.code, line.title, line.discipline))
+        return wanted in _normalize(haystack)
+    return True
+
+
+def _matches_inspection(line: InspectionLine, filters: validation.InspectionFilters) -> bool:
+    if filters.itp_id is not None and line.itp_id != filters.itp_id:
+        return False
+    if filters.result and line.result != filters.result:
+        return False
+    if filters.point_type and line.point_type != filters.point_type:
+        return False
+    if filters.search:
+        wanted = _normalize(filters.search)
+        haystack = " ".join(
+            part
+            for part in (
+                line.code,
+                line.point,
+                line.itp_code,
+                line.itp_title,
+                line.rnc_code,
+                line.company_name,
+            )
+            if part
+        )
+        return wanted in _normalize(haystack)
+    return True
+
+
+def _itp_or_refuse(session: Session, code: str) -> Itp:
+    itp = _itp_by_code(session, code)
+    if itp is None:
+        raise InvalidDataError(ITP_NOT_FOUND_MESSAGE)
+    return itp
+
+
+def _itp_by_code(session: Session, code: str) -> Itp | None:
+    return session.scalars(select(Itp).where(Itp.code == code)).one_or_none()
+
+
+def _current_revision(session: Session, itp_id: int) -> ItpRevision | None:
+    return session.scalars(
+        select(ItpRevision)
+        .where(ItpRevision.itp_id == itp_id)
+        .order_by(ItpRevision.revision.desc())
+        .limit(1)
+    ).one_or_none()
+
+
+def _revision_points(session: Session, revision_id: int) -> list[ItpPoint]:
+    return list(
+        session.scalars(
+            select(ItpPoint).where(ItpPoint.revision_id == revision_id).order_by(ItpPoint.order)
+        ).all()
+    )
+
+
+def _write_revision(
+    session: Session, *, user: User, itp: Itp, revision: int, reference_date: date
+) -> ItpRevision:
+    row = ItpRevision(
+        itp_id=itp.id,
+        approved_by_id=None,
+        revision=revision,
+        revision_date=reference_date,
+        approved_by_client=False,
+        approval_reference=None,
+        approval_date=None,
+    )
+    return recording.create(session, user_id=user.id, record=row)
+
+
+def _write_points(
+    session: Session,
+    *,
+    user: User,
+    revision: ItpRevision,
+    points: Sequence[validation.ItpPointInput],
+    start: int = 1,
+) -> None:
+    for offset, point in enumerate(points):
+        row = ItpPoint(
+            revision_id=revision.id,
+            order=start + offset,
+            activity=point.activity.strip(),
+            point_type=point.point_type,
+            criterion=point.criterion.strip(),
+            reference=(point.reference or "").strip(),
+            responsible=point.responsible or calculations.DEFAULT_POINT_RESPONSIBLE,
+        )
+        recording.create(session, user_id=user.id, record=row)
+
+
+def _match_points(
+    old_points: Sequence[ItpPoint], inputs: Sequence[validation.ItpPointInput]
+) -> dict[str, ItpPoint]:
+    """Match the form points to the old ones by the normalized activity (the prototype's rule)."""
+    by_activity = {_normalized_activity(point.activity): point for point in old_points}
+    matched: dict[str, ItpPoint] = {}
+    for point_input in inputs:
+        key = _normalized_activity(point_input.activity)
+        if key in by_activity:
+            matched[key] = by_activity[key]
+    return matched
+
+
+def _normalized_activity(text: str) -> str:
+    return validation._normalize_text(text)
+
+
+def _points_with_inspection(session: Session, point_ids: Sequence[int]) -> set[int]:
+    if not point_ids:
+        return set()
+    return {
+        point_id
+        for point_id in session.scalars(
+            select(Inspection.itp_point_id).where(Inspection.itp_point_id.in_(point_ids))
+        ).all()
+        if point_id is not None
+    }
+
+
+def _next_inspection_code(session: Session, reference_date: date) -> str:
+    """The next number of the global inspection series (``INS-2026-0001``), four digits."""
+    codes: Sequence[str] = session.scalars(select(Inspection.code)).all()
+    return numbering.next_series_number(
+        codes, prefix=INSPECTION_PREFIX, year=reference_date.year, digits=INSPECTION_DIGITS
+    )
+
+
+def _next_itp_code(
+    session: Session, project: configuracoes.ProjectDetail, discipline: str, reference_date: date
+) -> str:
+    """The next number of the ITP series of the project and discipline (``ITP-TN-CIV-01``).
+
+    The prototype computed it over the existing codes of the project and prefix, with two
+    digits; the same rule here, over the unique codes of the table.
+    """
+    initials = (project.ata_pattern or f"TN-{reference_date.year}").split("-")[0]
+    discipline_code = calculations.DISCIPLINE_CODES.get(
+        discipline, calculations.DISCIPLINE_CODE_FALLBACK
+    )
+    prefix = f"{ITP_PREFIX}-{initials}-{discipline_code}-"
+    codes: Sequence[str] = session.scalars(
+        select(Itp.code).where(Itp.project_id == project.id)
+    ).all()
+    counters = [
+        int(code[len(prefix) :])
+        for code in codes
+        if code.startswith(prefix) and code[len(prefix) :].isdigit()
+    ]
+    return f"{prefix}{max(counters, default=0) + 1:0{ITP_DIGITS}d}"
+
+
+def _discipline_name(session: Session, discipline_id: int) -> str:
+    names = configuracoes.discipline_names_by_id(session)
+    return names.get(discipline_id, "")
 
 
 # ── Integrações (D9, D5a) ────────────────────────────────────────────────────────────────────

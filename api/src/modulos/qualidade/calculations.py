@@ -135,3 +135,89 @@ def average_treatment_days(days: Iterable[int]) -> int | None:
         return None
     mean = Decimal(sum(values)) / Decimal(len(values))
     return int(mean.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+# ── ITP e inspeções (ISSUE-069) ──────────────────────────────────────────────────────────────
+
+POINT_TYPE_H = "H"
+POINT_TYPE_W = "W"
+POINT_TYPE_R = "R"
+POINT_TYPES: tuple[str, ...] = (POINT_TYPE_H, POINT_TYPE_W, POINT_TYPE_R)
+POINT_RESPONSIBLES: tuple[str, ...] = (
+    "Contratada",
+    "Fiscalização",
+    "Cliente",
+    "Laboratório",
+    "Fabricante",
+)
+DEFAULT_POINT_RESPONSIBLE = "Contratada"
+
+RESULT_APPROVED = "Aprovado"
+RESULT_APPROVED_WITH_REMARK = "Aprovado com ressalva"
+RESULT_REJECTED = "Reprovado"
+INSPECTION_RESULTS: tuple[str, ...] = (
+    RESULT_APPROVED,
+    RESULT_APPROVED_WITH_REMARK,
+    RESULT_REJECTED,
+)
+APPROVED_RESULTS = frozenset({RESULT_APPROVED, RESULT_APPROVED_WITH_REMARK})
+
+# A sigla da disciplina no código do ITP (``ITP-TN-CIV-01``), como o protótipo.
+DISCIPLINE_CODES: Mapping[str, str] = {
+    "Civil": "CIV",
+    "Estrutura metálica": "EST",
+    "Mecânica": "MEC",
+    "Tubulação": "TUB",
+    "Elétrica": "ELE",
+    "Instrumentação": "INS",
+    "Pintura": "PIN",
+    "Isolamento": "ISO",
+}
+DISCIPLINE_CODE_FALLBACK = "GER"
+
+
+def approved_inspection(result: str) -> bool:
+    """Whether the inspection counts as approved: a remark counts as approved."""
+    return result in APPROVED_RESULTS
+
+
+def inspection_approval_rate(results: Iterable[str]) -> Decimal | None:
+    """The share of approved inspections (remarks included), in points, half up; empty is None."""
+    values = list(results)
+    if not values:
+        return None
+    rate = Decimal(sum(1 for result in values if approved_inspection(result)))
+    return (rate / Decimal(len(values)) * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def notification_hours(notification: date | None, inspection_date: date) -> int | None:
+    """The hours between the notification of the client and the inspection; absent is ``None``."""
+    if notification is None:
+        return None
+    return (inspection_date - notification).days * 24
+
+
+def notification_warning(
+    point_type: str,
+    notification: date | None,
+    inspection_date: date,
+    minimum_hours: int,
+) -> str | None:
+    """The warning of the W (and H) point, by the boundary of ``notificacaoClienteHoras``.
+
+    A point of review (R) needs no notification. Absent notification warns; a notification
+    whose lead is smaller than the parameter warns; exactly the parameter passes.
+    """
+    if point_type == POINT_TYPE_R:
+        return None
+    hours = notification_hours(notification, inspection_date)
+    if hours is None:
+        return f"Ponto {point_type} sem registro da notificação ao cliente."
+    if hours < minimum_hours:
+        return f"Notificação ao cliente com antecedência menor que {minimum_hours} horas."
+    return None
+
+
+def covered_points(point_ids: Iterable[int | None]) -> int:
+    """How many distinct points already have at least one inspection."""
+    return len({point_id for point_id in point_ids if point_id is not None})
