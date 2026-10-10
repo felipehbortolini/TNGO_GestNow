@@ -1,4 +1,4 @@
-"""Oráculo do HSE (ISSUE-072 a ISSUE-074): o HHT, o histograma, as ocorrências e os estudos.
+"""Oráculo do HSE (ISSUE-072 a ISSUE-075): o HHT, o histograma, as ocorrências e os estudos.
 
 O histograma previsto de ``histogramaMaoDeObra`` é o HHT registrado de cada projeto e mês
 ajustado pelo fator da Curva S física (``calculations.histogram_factor``): o oráculo monta a
@@ -17,6 +17,13 @@ As análises de risco (ISSUE-074) são afirmadas no projeto 1 em 25/09/2026: os 
 (3 APR e 2 HAZOP), as 17 recomendações (8 abertas e 9 fechadas), as 3 atrasadas (abertas com o
 prazo anterior a 25/09/2026, como ``analiseCalculada`` do protótipo contava) e o indicador de
 fechadas ÷ emitidas em 52,9%.
+
+O painel (ISSUE-075) é afirmado no projeto 1 em 25/09/2026: o mês padrão é o último com HHT
+(2026-09) e o acumulado vai de 2026-01 a 2026-09; a TF fecha em 0,00 e a TRIF do mês em 6,80 e
+do acumulado em 8,88 (7 registráveis), a pirâmide acumulada em 0/16/31/190/1.240, os dias sem
+afastamento em 263 (sem LTI, desde o início do projeto em 05/01/2026), as ações HSE no prazo em
+50,0% (1 das 2 vencidas concluída no prazo) e a nota HSE sugerida da Alfa Montagens em 3
+(TRIF 11,01 contra 8,88 do projeto).
 """
 
 from __future__ import annotations
@@ -32,7 +39,7 @@ from src.carga import prototype_collection
 from src.core.auth import _user_of
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.hse import calculations, models, service, validation
+from src.modulos.hse import calculations, models, painel_service, service, validation
 from src.modulos.hse.calculations import CurvePoint
 from tests.oraculo import OracleContext, register_check
 
@@ -69,6 +76,20 @@ EXPECTED_RECOMMENDATIONS_CLOSED = 9
 EXPECTED_RECOMMENDATIONS_OVERDUE = 3
 EXPECTED_OVERDUE_DUE_DATES = [date(2026, 8, 20), date(2026, 9, 10), date(2026, 9, 20)]
 EXPECTED_RECOMMENDATIONS_CLOSED_PCT = Decimal("52.9")
+
+# O painel do projeto 1 em 25/09/2026 (ISSUE-075; divergências: nenhuma).
+EXPECTED_PANEL_MONTH = date(2026, 9, 1)
+EXPECTED_PANEL_WINDOW = (date(2026, 1, 1), date(2026, 9, 1))
+EXPECTED_MONTH_RATES = (Decimal("0.00"), Decimal("6.80"), Decimal("0.0"))
+EXPECTED_MONTH_PYRAMID = (0, 2, 5, 32, 189)
+EXPECTED_PANEL_RATES = (Decimal("0.00"), Decimal("8.88"), Decimal("0.0"))
+EXPECTED_PANEL_PYRAMID = (0, 16, 31, 190, 1240)
+EXPECTED_DAYS_WITHOUT_LEAVE = 263
+EXPECTED_EVOLUTION_POINTS = 9
+EXPECTED_AREA_TOP = ("Terraplenagem", 39)
+EXPECTED_COMPANY_TOP = ("Zeta Civil", 132)
+EXPECTED_ACTIONS_ON_TIME_PCT = Decimal("50.0")
+EXPECTED_COMPANY_NOTE = (3, Decimal("11.01"), Decimal("8.88"))
 
 
 def _project_id(context: OracleContext, code: str) -> int:
@@ -277,6 +298,59 @@ def _afirmar_analises_de_risco_do_projeto_1(context: OracleContext) -> None:
     assert hazop.participants == 4, "os 4 participantes do mock"
 
 
+def _afirmar_painel_hse(context: OracleContext) -> None:
+    scope = Scope(project_id=_project_id(context, PROJECT_CODE), source="url")
+    panel = painel_service.panel(
+        context.session,
+        user=_manager(context),
+        scope=scope,
+        reference_date=context.reference_date,
+        month=None,
+        pyramid_kind=None,
+    )
+    month = panel.month_indicators
+    accumulated = panel.accumulated_indicators
+    assert panel.month == EXPECTED_PANEL_MONTH, "o mês padrão é o último com HHT"
+    assert (panel.window_start, panel.window_end) == EXPECTED_PANEL_WINDOW, "a janela acumulada"
+    assert month is not None and accumulated is not None
+
+    assert (month.tf, month.trif, month.tg) == EXPECTED_MONTH_RATES, "as taxas do mês"
+    assert month.pyramid == EXPECTED_MONTH_PYRAMID, "a pirâmide do mês"
+    assert (accumulated.tf, accumulated.trif, accumulated.tg) == EXPECTED_PANEL_RATES, (
+        "as taxas do acumulado"
+    )
+    assert accumulated.pyramid == EXPECTED_PANEL_PYRAMID, "a pirâmide acumulada 0/16/31/190/1.240"
+    assert accumulated.days_without_leave == EXPECTED_DAYS_WITHOUT_LEAVE, (
+        "263 dias sem afastamento, desde o início do projeto em 05/01/2026"
+    )
+    assert len(panel.evolution) == EXPECTED_EVOLUTION_POINTS, "um ponto por mês com HHT"
+    assert (panel.by_area[0].name, panel.by_area[0].total) == EXPECTED_AREA_TOP, (
+        "a maior área do acumulado"
+    )
+    assert (panel.by_company[0].name, panel.by_company[0].total) == EXPECTED_COMPANY_TOP, (
+        "a maior empresa do acumulado"
+    )
+    assert accumulated.actions_on_time_pct == EXPECTED_ACTIONS_ON_TIME_PCT, (
+        "1 das 2 ações HSE vencidas concluída no prazo"
+    )
+
+    alfa = next(
+        option
+        for option in configuracoes.list_company_options(context.session)
+        if option.name == "Alfa Montagens"
+    )
+    note = painel_service.company_note_suggestion(
+        context.session,
+        company_id=alfa.id,
+        scope=scope,
+        reference_date=context.reference_date,
+    )
+    assert note is not None
+    assert (note.note, note.trif, note.project_trif) == EXPECTED_COMPANY_NOTE, (
+        "a nota HSE sugerida da Alfa Montagens"
+    )
+
+
 register_check("hse: hht registrado", _afirmar_hht_registrado)
 register_check(
     "hse: histograma de mão de obra do projeto 1 a 3", _afirmar_histograma_de_mao_de_obra
@@ -288,3 +362,4 @@ register_check(
 register_check(
     "hse: análises de risco do projeto 1 em 25/09/2026", _afirmar_analises_de_risco_do_projeto_1
 )
+register_check("hse: painel do projeto 1 em 25/09/2026", _afirmar_painel_hse)

@@ -302,3 +302,67 @@ def test_a_linha_traz_link_so_quando_o_tipo_de_origem_existe(
     assert links["Ata"].url == "/central-acoes/ata?codigo=TN-2026-0009"
     assert links["Risco"].url is None
     assert links["Risco"].reference == "RSK-X"
+
+
+# ── A leitura por origem ou grupo (o painel do HSE) ──────────────────────────
+
+
+def test_as_acoes_da_origem_ou_do_grupo_do_escopo(sessao: Session, cenario: Cenario) -> None:
+    origem = _criar(sessao, cenario, origin="HSE", origin_ref="OCR-TESTE-0001")
+    grupo = _criar(
+        sessao,
+        cenario,
+        origin="Ata",
+        origin_ref="TN-2026-0001",
+        group="HSE",
+    )
+    _criar(sessao, cenario, origin="Risco", origin_ref="RSK-X", group="Plano de resposta")
+    _criar(
+        sessao,
+        cenario,
+        origin="HSE",
+        origin_ref="OCR-TESTE-0002",
+        project_id=cenario.projeto_b.id,
+    )
+    _criar(
+        sessao,
+        cenario,
+        origin="Ata",
+        origin_ref="TN-2026-0002",
+        group="HSE",
+        kind="Informação",
+        planned_date=None,
+    )
+
+    achadas = service.actions_of_origin_or_group(
+        sessao,
+        user=cenario.gil,
+        scope=Scope(project_id=cenario.projeto_a.id, source="padrao"),
+        origin_kind="HSE",
+        group="HSE",
+        reference_date=REFERENCIA,
+    )
+
+    assert {record.id for record in achadas} == {origem.id, grupo.id}
+
+
+def test_as_acoes_da_origem_ou_do_grupo_do_portfolio(sessao: Session, cenario: Cenario) -> None:
+    do_a = _criar(sessao, cenario, origin="HSE", origin_ref="OCR-TESTE-0001")
+    do_b = _criar(
+        sessao,
+        cenario,
+        origin="HSE",
+        origin_ref="OCR-TESTE-0002",
+        project_id=cenario.projeto_b.id,
+    )
+
+    achadas = service.actions_of_origin_or_group(
+        sessao,
+        user=cenario.gil,
+        scope=PORTFOLIO,
+        origin_kind="HSE",
+        group="HSE",
+        reference_date=REFERENCIA,
+    )
+
+    assert {record.id for record in achadas} == {do_a.id, do_b.id}

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from datetime import date
+from decimal import Decimal
 from io import BytesIO
 from typing import Any
 from urllib.parse import unquote, urlencode
@@ -25,6 +26,7 @@ from sqlalchemy import select
 
 from src.core import auth, calendario, file_storage
 from src.core.models import Attachment
+from src.core.rbac import GeneralProfile
 from src.modulos.central_acoes.models import Action
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import calculations, routes, service
@@ -35,8 +37,16 @@ from src.modulos.financeiro.models import (
 )
 from src.modulos.governanca import lessons_models
 from src.modulos.governanca.lessons_models import Lesson
+from src.modulos.hse import service as hse_service
+from src.modulos.hse.validation import HoursInput, OccurrenceInput
 from tests.armazenamento_falso import ArmazenamentoEmMemoria
-from tests.financeiro.conftest import MANAGER_EMAIL, MEMBER_EMAIL, VIEWER_EMAIL, EacScenario
+from tests.financeiro.conftest import (
+    MANAGER_EMAIL,
+    MEMBER_EMAIL,
+    VIEWER_EMAIL,
+    EacScenario,
+    user_of,
+)
 from tests.html_tags import Tag, find_by_id, parse_tags
 from tests.identidades import cabecalho_do_principal, criar_empresa
 
@@ -569,3 +579,118 @@ def test_a_versao_imprimivel_das_avaliacoes_traz_o_mesmo_conteudo(cenario: EacSc
     assert "71" in body
     assert "B" in body
     assert "<script" not in body
+
+
+# ── A sugestão do HSE no critério HSE (ISSUE-075) ────────────────────────────
+
+
+def _gravar_hht(cenario: EacScenario, contract: Contract) -> None:
+    hse_service.save_hours(
+        cenario.session,
+        user=user_of(cenario.member, cenario.session, GeneralProfile.MEMBER),
+        data=HoursInput(
+            project_id=cenario.first.id,
+            month=date(2026, 9, 1),
+            company_id=contract.company_id,
+            headcount=10,
+            hours=Decimal("300000"),
+        ),
+        reference_date=HOJE,
+    )
+
+
+def _gravar_lesao_registravel(cenario: EacScenario, contract: Contract) -> None:
+    hse_service.save_occurrence(
+        cenario.session,
+        user=user_of(cenario.member, cenario.session, GeneralProfile.MEMBER),
+        data=OccurrenceInput(
+            project_id=cenario.first.id,
+            happened_on=date(2026, 9, 1),
+            happened_time="09:30",
+            area="Moagem 210",
+            company_id=contract.company_id,
+            kind="Trabalho restrito",
+            description="Pessoa em trabalho restrito após avaliação médica.",
+            role="Operador de moinho",
+            potential_p=3,
+            potential_i=4,
+            immediate_cause="Procedimento não seguido",
+            communication_hours=2,
+            real_gravity=2,
+            medical_notes="Trabalho restrito por 15 dias.",
+        ),
+        reference_date=HOJE,
+    )
+
+
+def test_o_formulario_pre_seleciona_a_nota_hse_sugerida(cenario: EacScenario) -> None:
+    _semear_parametros(cenario)
+    contract = _criar_contrato(cenario)
+    _gravar_hht(cenario, contract)
+    _gravar_lesao_registravel(cenario, contract)
+
+    response = routes.contrato_avaliacao_form(
+        _request(
+            "/api/financeiro/contrato/avaliacoes/nova",
+            target=FORM_TARGET,
+            **_ficha_params(cenario),
+        )
+    )
+
+    assert response.status_code == 200
+    campo = find_by_id(_tags(response), "contrato-avaliacao-hse")
+    assert campo is not None
+    assert campo.attrs["value"] == "4"
+    assert "Sugestão do HSE: nota 4 · TRIF da empresa 3,33 contra 3,33 do projeto" in _body(
+        response
+    )
+
+
+def test_o_formulario_sem_hht_mostra_o_aviso_e_nao_pre_seleciona(
+    cenario: EacScenario,
+) -> None:
+    _semear_parametros(cenario)
+    _criar_contrato(cenario)
+
+    response = routes.contrato_avaliacao_form(
+        _request(
+            "/api/financeiro/contrato/avaliacoes/nova",
+            target=FORM_TARGET,
+            **_ficha_params(cenario),
+        )
+    )
+
+    assert response.status_code == 200
+    campo = find_by_id(_tags(response), "contrato-avaliacao-hse")
+    assert campo is not None
+    assert campo.attrs["value"] == ""
+    assert "Sugestão do HSE: sem HHT registrado para a empresa no projeto." in _body(response)
+
+
+def test_o_422_preserva_a_nota_digitada_no_criterio_hse(cenario: EacScenario) -> None:
+    _semear_parametros(cenario)
+    contract = _criar_contrato(cenario)
+    _gravar_hht(cenario, contract)
+    _gravar_lesao_registravel(cenario, contract)
+
+    response = routes.contrato_avaliacao_create(
+        _request(
+            "/api/financeiro/contrato/avaliacoes",
+            email=MANAGER_EMAIL,
+            payload=_multipart(
+                {
+                    "periodo": "2026-08",
+                    "tipo": calculations.EVALUATION_KIND_MONTHLY,
+                    **_notas_do_form({**NOTES, "hse": 3, "prazo": 2}),
+                }
+            ),
+            target=FORM_TARGET,
+            **_ficha_params(cenario),
+        )
+    )
+
+    assert response.status_code == 422
+    campo = find_by_id(_tags(response), "contrato-avaliacao-hse")
+    assert campo is not None
+    assert campo.attrs["value"] == "3"
+    assert "exige anexo de evidência" in _body(response)
