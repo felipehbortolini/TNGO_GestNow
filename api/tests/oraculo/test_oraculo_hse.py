@@ -1,4 +1,4 @@
-"""Oráculo do HSE (ISSUE-072 e ISSUE-073): o HHT, o histograma de mão de obra e as ocorrências.
+"""Oráculo do HSE (ISSUE-072 a ISSUE-074): o HHT, o histograma, as ocorrências e os estudos.
 
 O histograma previsto de ``histogramaMaoDeObra`` é o HHT registrado de cada projeto e mês
 ajustado pelo fator da Curva S física (``calculations.histogram_factor``): o oráculo monta a
@@ -12,11 +12,18 @@ registrada em ``docs/DIVERGENCIAS-DO-PROTOTIPO.md``: o mock não guardava o ence
 protótipo contava 8, com o HiPo encerrado marcado como relatório vencido) e a pirâmide por
 nível (0, 16, 31 e 190, com 3 ambientais fora dela). A ocorrência HiPo OCR-TN-2026-0219 entra Em
 investigação com a investigação registrada e as duas ações da Central do mock.
+
+As análises de risco (ISSUE-074) são afirmadas no projeto 1 em 25/09/2026: os 5 estudos do mock
+(3 APR e 2 HAZOP), as 17 recomendações (8 abertas e 9 fechadas), as 3 atrasadas (abertas com o
+prazo anterior a 25/09/2026, como ``analiseCalculada`` do protótipo contava) e o indicador de
+fechadas ÷ emitidas em 52,9%.
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -52,6 +59,16 @@ EXPECTED_ENVIRONMENTAL = 3
 EXPECTED_INVESTIGATIONS = 233
 EXPECTED_HIPO_OCCURRENCE = "OCR-TN-2026-0219"
 EXPECTED_HIPO_ACTIONS = 2
+
+# As análises de risco do projeto 1 em 25/09/2026 (divergências: nenhuma).
+EXPECTED_ANALYSES = 5
+EXPECTED_ANALYSIS_TYPES = {"APR": 3, "HAZOP": 2}
+EXPECTED_RECOMMENDATIONS = 17
+EXPECTED_RECOMMENDATIONS_OPEN = 8
+EXPECTED_RECOMMENDATIONS_CLOSED = 9
+EXPECTED_RECOMMENDATIONS_OVERDUE = 3
+EXPECTED_OVERDUE_DUE_DATES = [date(2026, 8, 20), date(2026, 9, 10), date(2026, 9, 20)]
+EXPECTED_RECOMMENDATIONS_CLOSED_PCT = Decimal("52.9")
 
 
 def _project_id(context: OracleContext, code: str) -> int:
@@ -214,6 +231,52 @@ def _manager(context: OracleContext) -> Any:
     return _user_of(access)
 
 
+def _afirmar_analises_de_risco_do_projeto_1(context: OracleContext) -> None:
+    project_id = _project_id(context, PROJECT_CODE)
+    scope = Scope(project_id=project_id, source="url")
+    screen = service.analyses_screen(
+        context.session,
+        scope=scope,
+        filters=validation.AnalysisFilters(),
+        reference_date=context.reference_date,
+    )
+
+    assert screen.universe == EXPECTED_ANALYSES, "os 5 estudos do mock no projeto 1"
+    assert len(screen.rows) == EXPECTED_ANALYSES, "sem filtro, a lista inteira"
+    assert Counter(row.kind for row in screen.rows) == Counter(EXPECTED_ANALYSIS_TYPES), (
+        "3 APR e 2 HAZOP, como o mock"
+    )
+
+    summary = screen.summary
+    assert summary.open == EXPECTED_RECOMMENDATIONS_OPEN, "8 recomendações abertas"
+    assert summary.closed == EXPECTED_RECOMMENDATIONS_CLOSED, "9 recomendações fechadas"
+    assert summary.open + summary.closed == EXPECTED_RECOMMENDATIONS, "as 17 emitidas do mock"
+    assert summary.overdue == EXPECTED_RECOMMENDATIONS_OVERDUE, (
+        "3 abertas com o prazo anterior a 25/09/2026"
+    )
+    atrasadas = sorted(
+        line.due_date for row in screen.rows for line in row.recommendations if line.overdue
+    )
+    assert atrasadas == EXPECTED_OVERDUE_DUE_DATES, "os prazos vencidos do mock"
+
+    share = service.recommendation_share(context.session, scope=scope)
+    assert (share.closed, share.emitted) == (
+        EXPECTED_RECOMMENDATIONS_CLOSED,
+        EXPECTED_RECOMMENDATIONS,
+    ), "o indicador conta as recomendações do projeto"
+    assert share.pct == EXPECTED_RECOMMENDATIONS_CLOSED_PCT, "9 de 17 fecha em 52,9%"
+
+    # A HAZOP de 22/06/2026 é a maior do mock: 6 recomendações, 3 de cada situação.
+    hazop = next(row for row in screen.rows if row.code == "HAZOP-TN-2026-01")
+    assert (hazop.kind, hazop.open_count, hazop.closed_count, hazop.overdue_count) == (
+        "HAZOP",
+        3,
+        3,
+        1,
+    )
+    assert hazop.participants == 4, "os 4 participantes do mock"
+
+
 register_check("hse: hht registrado", _afirmar_hht_registrado)
 register_check(
     "hse: histograma de mão de obra do projeto 1 a 3", _afirmar_histograma_de_mao_de_obra
@@ -221,4 +284,7 @@ register_check(
 register_check("hse: ocorrências do projeto 1 em 25/09/2026", _afirmar_ocorrencias_do_projeto_1)
 register_check(
     "hse: investigações e ações da ocorrência HiPo", _afirmar_investigacoes_e_acoes_da_ocorrencia
+)
+register_check(
+    "hse: análises de risco do projeto 1 em 25/09/2026", _afirmar_analises_de_risco_do_projeto_1
 )

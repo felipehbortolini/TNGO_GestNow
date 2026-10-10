@@ -2,14 +2,14 @@
 
 O cenário vive na transação do teste: dois projetos, duas empresas contratadas e um colaborador
 de cada perfil (Admin, Gestor e Membro), com a versão 1 dos parâmetros. As identidades de partida
-são um HHT, um fechamento mensal e uma ocorrência completos, para os testes mudarem só o que
-importa.
+são um HHT, um fechamento mensal, uma ocorrência e um estudo de risco completos, para os testes
+mudarem só o que importa.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -18,12 +18,15 @@ from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Collaborator, Company, Project
 from src.modulos.hse.validation import (
+    AnalysisInput,
+    AnalysisRecommendationInput,
     ClosingInput,
     ClosureInput,
     CorrectiveActionInput,
     HoursInput,
     InvestigationInput,
     OccurrenceInput,
+    RecommendationClosureInput,
 )
 from tests.identidades import criar_colaborador, criar_empresa, criar_projeto
 
@@ -162,5 +165,34 @@ def encerramento_de(**campos: object) -> ClosureInput:
     base = ClosureInput(
         effectiveness="Inspeções diárias seguidas sem reincidência do desvio.",
         closed_on=REFERENCIA,
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def analise_de(cenario: Cenario, **campos: object) -> AnalysisInput:
+    """Um estudo de partida: APR hoje na Moagem 210, um participante e uma recomendação."""
+    base = AnalysisInput(
+        project_id=cenario.projeto.id,
+        kind="APR",
+        area="Moagem 210",
+        title="Içamento da carcaça do moinho",
+        held_on=REFERENCIA,
+        participant_ids=(cenario.gil.person_id,),
+        recommendations=(
+            AnalysisRecommendationInput(
+                description="Plano de rigging assinado por engenheiro habilitado.",
+                responsible_id=cenario.gil.person_id,
+                due_date=REFERENCIA + timedelta(days=10),
+            ),
+        ),
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def fechamento_de_recomendacao(**campos: object) -> RecommendationClosureInput:
+    """Um fechamento de partida: conclusão hoje, com a evidência do cenário."""
+    base = RecommendationClosureInput(
+        closed_on=REFERENCIA,
+        evidence="Lista de verificação assinada em campo.",
     )
     return replace(base, **campos)  # type: ignore[arg-type]
