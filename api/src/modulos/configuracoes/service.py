@@ -14,15 +14,17 @@ type and the value as text (lists use the index in the path).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.core import recording
+from src.core import audit, rbac, recording
 from src.core.errors import InvalidDataError
 from src.core.models import Client
 from src.modulos.configuracoes import forms, validation
@@ -1277,3 +1279,484 @@ def list_organizational_units(session: Session) -> list[RegisterOption]:
         .order_by(Unit.name, Unit.id)
     )
     return [RegisterOption(id=row.id, name=row.name) for row in session.execute(statement)]
+
+
+# ── Tela de Colaboradores (ISSUE-077) ────────────────────────────────────
+#
+# A tela mantém quem entra e o que faz (D7): perfil geral, vínculo e empresa,
+# e os papéis da Programação Semanal por projeto. O cadastro é a fonte de
+# verdade do acesso — o gate (``core.auth``) o lê a cada requisição, então a
+# mudança vale na requisição seguinte. O último Admin ativo não pode ser
+# removido nem rebaixado.
+
+PROFILE_OPTIONS: tuple[str, ...] = tuple(profile.value for profile in rbac.GeneralProfile)
+BOND_OPTIONS: tuple[str, ...] = tuple(bond.value for bond in rbac.Bond)
+SCHEDULE_ROLE_OPTIONS: tuple[str, ...] = tuple(role.value for role in rbac.ScheduleRole)
+
+_PROFILES = frozenset(PROFILE_OPTIONS)
+_BONDS = frozenset(BOND_OPTIONS)
+_SCHEDULE_ROLES = frozenset(SCHEDULE_ROLE_OPTIONS)
+
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+
+LAST_ADMIN_MESSAGE = "O último Admin não pode ser removido nem rebaixado."
+EMAIL_TAKEN_MESSAGE = "Já existe um acesso com este e-mail."
+EMAIL_OTHER_PERSON_MESSAGE = "Este e-mail já pertence a outra pessoa do cadastro."
+COLLABORATOR_NOT_FOUND = "Colaborador fora do cadastro."
+REVOKE_REFERENCED_MESSAGE = (
+    "Este colaborador já tem registros no GestNow: suspenda o acesso em vez de revogar, "
+    "para a trilha de auditoria não perder o autor."
+)
+
+
+@dataclass(frozen=True)
+class ScheduleRoleLine:
+    """Um papel da Programação Semanal de um colaborador: o projeto e o papel (D7)."""
+
+    project_id: int
+    project_code: str
+    role: str
+
+    @property
+    def label(self) -> str:
+        """``TN-001 · Fiscal``: como a lista e a exportação nomeiam o papel."""
+        return f"{self.project_code} · {self.role}"
+
+
+@dataclass(frozen=True)
+class CollaboratorRow:
+    """Um colaborador como a tela o lê: a pessoa, o acesso e os papéis por projeto."""
+
+    collaborator_id: int
+    person_id: int
+    name: str
+    email: str
+    role: str | None
+    company_id: int | None
+    company_name: str | None
+    general_profile: str
+    bond: str
+    active: bool
+    schedule_roles: tuple[ScheduleRoleLine, ...] = ()
+
+
+@dataclass(frozen=True)
+class CollaboratorOverview:
+    """O que a tela mostra: as linhas filtradas, a contagem por perfil e o total do cadastro."""
+
+    rows: tuple[CollaboratorRow, ...]
+    profile_counts: Mapping[str, int]
+    total: int
+
+
+def list_collaborators_overview(
+    session: Session, *, search: str = "", profile: str = "", bond: str = ""
+) -> CollaboratorOverview:
+    """As linhas da tela, já filtradas; a contagem por perfil é a do universo completo (KPIs).
+
+    A busca não diferencia maiúsculas de nome, e-mail, função e empresa; o
+    perfil e o vínculo filtram pelo valor exato. Os KPIs contam o universo
+    inteiro, como o app precedente: o filtro não muda a situação do cadastro.
+    """
+    rows = _all_collaborator_rows(session)
+    counts: dict[str, int] = dict.fromkeys(PROFILE_OPTIONS, 0)
+    for row in rows:
+        if row.general_profile in counts:
+            counts[row.general_profile] += 1
+    visible = tuple(row for row in rows if _matches_filters(row, search, profile, bond))
+    return CollaboratorOverview(rows=visible, profile_counts=counts, total=len(rows))
+
+
+def find_collaborator(session: Session, collaborator_id: int) -> CollaboratorRow | None:
+    """O colaborador com o id, com a empresa e os papéis: o que o modal de edição carrega."""
+    statement = (
+        select(Collaborator, Person, Company.name)
+        .join(Person, Person.id == Collaborator.person_id)
+        .outerjoin(Company, Company.id == Collaborator.company_id)
+        .where(Collaborator.id == collaborator_id)
+    )
+    found = session.execute(statement).first()
+    if found is None:
+        return None
+    colaborador, pessoa, empresa = found
+    lines = _schedule_role_lines(session, [colaborador.id])
+    return _collaborator_row(colaborador, pessoa, empresa, lines.get(colaborador.id, ()))
+
+
+def _all_collaborator_rows(session: Session) -> list[CollaboratorRow]:
+    statement = (
+        select(Collaborator, Person, Company.name)
+        .join(Person, Person.id == Collaborator.person_id)
+        .outerjoin(Company, Company.id == Collaborator.company_id)
+        .order_by(Person.name, Person.id)
+    )
+    rows = [tuple(row) for row in session.execute(statement)]
+    lines = _schedule_role_lines(session, [row[0].id for row in rows])
+    return [
+        _collaborator_row(colaborador, pessoa, empresa, lines.get(colaborador.id, ()))
+        for colaborador, pessoa, empresa in rows
+    ]
+
+
+def _collaborator_row(
+    colaborador: Collaborator,
+    pessoa: Person,
+    company_name: str | None,
+    schedule_roles: tuple[ScheduleRoleLine, ...],
+) -> CollaboratorRow:
+    return CollaboratorRow(
+        collaborator_id=colaborador.id,
+        person_id=pessoa.id,
+        name=pessoa.name,
+        email=pessoa.email,
+        role=pessoa.role,
+        company_id=colaborador.company_id,
+        company_name=company_name,
+        general_profile=colaborador.general_profile,
+        bond=colaborador.bond,
+        active=colaborador.active,
+        schedule_roles=schedule_roles,
+    )
+
+
+def _schedule_role_lines(
+    session: Session, collaborator_ids: Sequence[int]
+) -> dict[int, tuple[ScheduleRoleLine, ...]]:
+    """Os papéis dos colaboradores, por id, com o código do projeto e em ordem de código."""
+    if not collaborator_ids:
+        return {}
+    statement = (
+        select(
+            CollaboratorScheduleRole.collaborator_id,
+            CollaboratorScheduleRole.project_id,
+            Project.code,
+            CollaboratorScheduleRole.role,
+        )
+        .join(Project, Project.id == CollaboratorScheduleRole.project_id)
+        .where(CollaboratorScheduleRole.collaborator_id.in_(collaborator_ids))
+        .order_by(
+            CollaboratorScheduleRole.collaborator_id,
+            Project.code,
+            CollaboratorScheduleRole.role,
+        )
+    )
+    grouped: dict[int, list[ScheduleRoleLine]] = {}
+    for row in session.execute(statement):
+        grouped.setdefault(row.collaborator_id, []).append(
+            ScheduleRoleLine(project_id=row.project_id, project_code=row.code, role=row.role)
+        )
+    return {collaborator_id: tuple(lines) for collaborator_id, lines in grouped.items()}
+
+
+def _matches_filters(row: CollaboratorRow, search: str, profile: str, bond: str) -> bool:
+    if profile and row.general_profile != profile:
+        return False
+    if bond and row.bond != bond:
+        return False
+    if not search:
+        return True
+    needle = search.casefold()
+    values = (row.name, row.email, row.role or "", row.company_name or "")
+    return any(needle in value.casefold() for value in values)
+
+
+def save_collaborator(
+    session: Session,
+    *,
+    author_id: int,
+    collaborator_id: int | None,
+    name: str,
+    email: str,
+    role: str,
+    profile: str,
+    bond: str,
+    company_id: int | None,
+    active: bool,
+    roles: Sequence[tuple[int, str]],
+) -> Collaborator:
+    """Grava o acesso (novo ou existente), com a trilha, e substitui os papéis pelo enviado.
+
+    As regras do D7: nome obrigatório; e-mail com formato, normalizado para
+    minúsculas e único entre quem já tem acesso (o e-mail de uma pessoa sem
+    acesso reusa a pessoa); perfil e vínculo do vocabulário; empresa
+    obrigatória no vínculo Fornecedor e ignorada nos demais; projetos dos
+    papéis existentes e papel do vocabulário, sem repetição. O último Admin
+    ativo não pode ser desativado nem rebaixado. A falha de qualquer regra
+    levanta ``InvalidDataError`` com a mensagem de cada campo.
+    """
+    current = session.get(Collaborator, collaborator_id) if collaborator_id is not None else None
+    if collaborator_id is not None and current is None:
+        raise InvalidDataError({"geral": COLLABORATOR_NOT_FOUND})
+    name = name.strip()
+    email = email.strip().lower()
+    role = role.strip()
+    errors = _collaborator_errors(
+        session,
+        current=current,
+        name=name,
+        email=email,
+        profile=profile,
+        bond=bond,
+        company_id=company_id,
+        active=active,
+    )
+    wanted = _wanted_schedule_roles(session, roles, errors)
+    if errors:
+        raise InvalidDataError(errors)
+    if bond != rbac.Bond.SUPPLIER:
+        company_id = None
+
+    if current is None:
+        person = _write_person(
+            session,
+            author_id=author_id,
+            person_id=find_person_id_by_email(session, email) if email else None,
+            name=name,
+            email=email,
+            role=role,
+            company_id=company_id,
+        )
+        record = recording.create(
+            session,
+            user_id=author_id,
+            record=Collaborator(
+                person_id=person.id,
+                company_id=company_id,
+                general_profile=profile,
+                bond=bond,
+                active=active,
+            ),
+        )
+    else:
+        _write_person(
+            session,
+            author_id=author_id,
+            person_id=current.person_id,
+            name=name,
+            email=email,
+            role=role,
+            company_id=company_id,
+        )
+        recording.update(
+            session,
+            user_id=author_id,
+            record=current,
+            changes={
+                "general_profile": profile,
+                "bond": bond,
+                "company_id": company_id,
+                "active": active,
+            },
+            version=current.version,
+        )
+        record = current
+    _replace_schedule_roles(session, author_id=author_id, collaborator_id=record.id, wanted=wanted)
+    session.flush()
+    return record
+
+
+def revoke_collaborator(session: Session, *, author_id: int, collaborator_id: int) -> None:
+    """Apaga o acesso e os papéis, com a trilha; a pessoa permanece no cadastro de apoio.
+
+    O último Admin ativo não é revogado: a recusa volta no campo geral, porque
+    a revogação não tem campo. Quem dona das pessoas é o cadastro de apoio
+    (ISSUE-078); revogar só tira o acesso, e o gate deixa de achar o e-mail na
+    requisição seguinte. Quem já deixou trilha de auditoria (é autor de alguma
+    gravação) não é apagado, porque a trilha perde o autor: a recusa orienta a
+    suspender o acesso.
+    """
+    record = session.get(Collaborator, collaborator_id)
+    if record is None:
+        raise InvalidDataError({"geral": COLLABORATOR_NOT_FOUND})
+    if _is_last_active_admin(session, record):
+        raise InvalidDataError({"geral": LAST_ADMIN_MESSAGE})
+    try:
+        with session.begin_nested():
+            for row in session.scalars(
+                select(CollaboratorScheduleRole).where(
+                    CollaboratorScheduleRole.collaborator_id == collaborator_id
+                )
+            ).all():
+                before = audit.snapshot(row)
+                session.delete(row)
+                session.flush()
+                audit.deleted(
+                    session, user_id=author_id, entity=row.__tablename__, record=row, before=before
+                )
+            recording.delete(session, user_id=author_id, record=record, version=record.version)
+    except IntegrityError:
+        raise InvalidDataError({"geral": REVOKE_REFERENCED_MESSAGE}) from None
+
+
+def _write_person(
+    session: Session,
+    *,
+    author_id: int,
+    person_id: int | None,
+    name: str,
+    email: str,
+    role: str,
+    company_id: int | None,
+) -> Person:
+    """A pessoa do cadastro: cria, ou atualiza nome, função e empresa, com a trilha.
+
+    O e-mail não muda na edição (o formulário o bloqueia); na criação de um
+    acesso para pessoa que já existia sem acesso, ele já é o mesmo que a
+    tornou encontrada.
+    """
+    if person_id is None:
+        return recording.create(
+            session,
+            user_id=author_id,
+            record=Person(name=name, role=role or None, email=email, company_id=company_id),
+        )
+    person = session.get(Person, person_id)
+    if person is None:
+        raise InvalidDataError({"geral": "Pessoa fora do cadastro."})
+    recording.update(
+        session,
+        user_id=author_id,
+        record=person,
+        changes={"name": name, "role": role or None, "company_id": company_id},
+        version=person.version,
+    )
+    return person
+
+
+def _wanted_schedule_roles(
+    session: Session, roles: Sequence[tuple[int, str]], errors: dict[str, str]
+) -> list[tuple[int, str]]:
+    """Os pares (projeto, papel) válidos e sem repetição; preenche o erro do campo ``papeis``."""
+    wanted: list[tuple[int, str]] = []
+    seen: set[tuple[int, str]] = set()
+    for project_id, papel in roles:
+        pair = (project_id, papel)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        if session.get(Project, project_id) is None:
+            errors.setdefault("papeis", "Projeto fora do cadastro.")
+            continue
+        if papel not in _SCHEDULE_ROLES:
+            errors.setdefault("papeis", "Escolha um papel da Programação Semanal.")
+            continue
+        wanted.append(pair)
+    return wanted
+
+
+def _collaborator_errors(
+    session: Session,
+    *,
+    current: Collaborator | None,
+    name: str,
+    email: str,
+    profile: str,
+    bond: str,
+    company_id: int | None,
+    active: bool,
+) -> dict[str, str]:
+    """As regras do D7 por campo: o que a tela mostra sob o campo e no aviso do topo."""
+    errors: dict[str, str] = {}
+    if not name:
+        errors["nome"] = "Informe o nome completo."
+    if not _EMAIL.match(email):
+        errors["email"] = "Informe um e-mail corporativo válido."
+    if profile not in _PROFILES:
+        errors["perfil"] = "Escolha um perfil."
+    if bond not in _BONDS:
+        errors["vinculo"] = "Escolha o vínculo."
+    if bond == rbac.Bond.SUPPLIER:
+        if company_id is None:
+            errors["empresa"] = "Escolha a empresa da pessoa."
+        elif session.get(Company, company_id) is None:
+            errors["empresa"] = "Empresa fora do cadastro."
+    _email_errors(session, current=current, email=email, errors=errors)
+    _last_admin_errors(session, current=current, active=active, profile=profile, errors=errors)
+    return errors
+
+
+def _email_errors(
+    session: Session,
+    *,
+    current: Collaborator | None,
+    email: str,
+    errors: dict[str, str],
+) -> None:
+    """O e-mail de outra pessoa: recusa se ela já tem acesso; reusa a pessoa quando não tem."""
+    person_id = find_person_id_by_email(session, email) if email else None
+    if person_id is None or (current is not None and person_id == current.person_id):
+        return
+    if _has_access(session, person_id):
+        errors["email"] = EMAIL_TAKEN_MESSAGE
+    elif current is not None:
+        errors["email"] = EMAIL_OTHER_PERSON_MESSAGE
+
+
+def _last_admin_errors(
+    session: Session,
+    *,
+    current: Collaborator | None,
+    active: bool,
+    profile: str,
+    errors: dict[str, str],
+) -> None:
+    """O último Admin ativo não pode ser desativado nem rebaixado."""
+    if current is None or not _is_last_active_admin(session, current):
+        return
+    if not active:
+        errors["ativo"] = LAST_ADMIN_MESSAGE
+    elif profile != rbac.GeneralProfile.ADMIN:
+        errors["perfil"] = LAST_ADMIN_MESSAGE
+
+
+def _replace_schedule_roles(
+    session: Session, *, author_id: int, collaborator_id: int, wanted: Sequence[tuple[int, str]]
+) -> None:
+    """Os papéis passam a ser o conjunto enviado: o que sai e o que entra ficam na trilha."""
+    current = {
+        (row.project_id, row.role): row
+        for row in session.scalars(
+            select(CollaboratorScheduleRole).where(
+                CollaboratorScheduleRole.collaborator_id == collaborator_id
+            )
+        ).all()
+    }
+    for pair, row in current.items():
+        if pair in wanted:
+            continue
+        before = audit.snapshot(row)
+        session.delete(row)
+        session.flush()
+        audit.deleted(
+            session, user_id=author_id, entity=row.__tablename__, record=row, before=before
+        )
+    for project_id, papel in wanted:
+        if (project_id, papel) in current:
+            continue
+        recording.create(
+            session,
+            user_id=author_id,
+            record=CollaboratorScheduleRole(
+                collaborator_id=collaborator_id, project_id=project_id, role=papel
+            ),
+        )
+
+
+def _has_access(session: Session, person_id: int) -> bool:
+    statement = select(Collaborator.id).where(Collaborator.person_id == person_id).limit(1)
+    return session.scalar(statement) is not None
+
+
+def _is_last_active_admin(session: Session, collaborator: Collaborator) -> bool:
+    """Se o colaborador é o único Admin ativo: o que não pode ser removido nem rebaixado."""
+    if not collaborator.active or collaborator.general_profile != rbac.GeneralProfile.ADMIN:
+        return False
+    active_admins = session.scalar(
+        select(func.count())
+        .select_from(Collaborator)
+        .where(
+            Collaborator.active.is_(True),
+            Collaborator.general_profile == rbac.GeneralProfile.ADMIN,
+        )
+    )
+    return (active_admins or 0) <= 1
