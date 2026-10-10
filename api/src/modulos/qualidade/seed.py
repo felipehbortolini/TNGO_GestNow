@@ -1,4 +1,4 @@
-"""Parts of the Quality module in the demonstration load (ISSUE-068 and ISSUE-069, D6/Q15).
+"""Parts of the Quality module in the demonstration load (ISSUE-068, 069 and 070, D6/Q15).
 
 ``qualidade-rnc``: the 10 reports of the prototype (``rncs``: the six of ``mock-qualidade``
 and the four the portfolio mock adds for the other projects) enter through the facade
@@ -16,6 +16,13 @@ the load keeps the map ``(mock ITP, mock point) -> itp_ponto``; the inspections 
 copied point and type and the number of the report. The numbering of both series continues
 from the loaded codes when a person records a new one, because both are read from the codes
 in force (``service._next_itp_code`` and ``service._next_inspection_code``).
+
+``qualidade-auditorias``: the 8 audits of the prototype (``auditorias``, the five of
+``mock-qualidade`` and the three of ``mock-portfolio``) enter after the inspections, because
+the findings of a Não conformidade point to the RNC they opened (``rncRef`` resolved to the
+``rnc_id``). The order of the findings is the order of the mock; the audits carry the result
+and the counts the mock already had, and the numbering of the series continues from the
+loaded codes when a person plans a new one (``service._next_audit_code``).
 
 The corrective actions with origin ``RNC`` are seeded by the Central de Ações, whose part runs
 before this one; the numbering of each project continues after the highest loaded number, so
@@ -40,10 +47,19 @@ from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.governanca import lessons_service
 from src.modulos.qualidade import calculations, service
-from src.modulos.qualidade.models import Inspection, Itp, ItpPoint, ItpRevision, Rnc
+from src.modulos.qualidade.models import (
+    AuditFinding,
+    Inspection,
+    Itp,
+    ItpPoint,
+    ItpRevision,
+    QualityAudit,
+    Rnc,
+)
 
 PART_NAME = "qualidade-rnc"
 PART_INSPECOES = "qualidade-inspecoes"
+PART_AUDITORIAS = "qualidade-auditorias"
 HISTORY_HOUR = time(9, 0)
 
 
@@ -93,6 +109,13 @@ def load_inspecoes(session: Session, reference_date: date) -> None:
     lookups = _lookups(session, reference_date)
     points = _load_itps(session, lookups)
     _load_inspections(session, lookups, points)
+
+
+def load_auditorias(session: Session, reference_date: date) -> None:
+    """Write the audits of the prototype, after the reports their findings point to."""
+    lookups = _lookups(session, reference_date)
+    for source in prototype_collection("auditorias"):
+        _load_audit(session, lookups, source)
 
 
 def _lookups(session: Session, reference_date: date) -> _Lookups:
@@ -281,6 +304,41 @@ def _load_inspections(
         recording.create(session, user_id=lookups.user.id, record=inspection)
 
 
+def _load_audit(session: Session, lookups: _Lookups, source: Mapping[str, Any]) -> None:
+    """One audit of the mock, with the findings and the RNC each Não conformidade opened."""
+    company = lookups.companies_by_id[source["auditadoId"]]
+    audit = QualityAudit(
+        project_id=lookups.projects[source["projetoId"]],
+        company_id=lookups.companies[company],
+        auditor_id=lookups.person(source["auditorId"]),
+        code=source["codigo"],
+        audit_type=source["tipo"],
+        auditee=None,
+        scope=source["escopo"],
+        audit_date=lookups.shifted(source["data"]),
+        situation=source["situacao"],
+        performed_on=lookups.maybe_shifted(source.get("realizadaEm")),
+        items_verified=source.get("itensVerificados"),
+        items_conforming=source.get("itensConformes"),
+        criterion=source["criterio"],
+        summary=None,
+    )
+    recording.create(session, user_id=lookups.user.id, record=audit)
+    for order, finding in enumerate(source.get("constatacoes") or [], start=1):
+        recording.create(
+            session,
+            user_id=lookups.user.id,
+            record=AuditFinding(
+                audit_id=audit.id,
+                rnc_id=_rnc_id(session, finding.get("rncRef")),
+                order=order,
+                finding_type=finding["tipo"],
+                description=finding["descricao"],
+                requirement=(finding.get("requisito") or "").strip(),
+            ),
+        )
+
+
 def _rnc_id(session: Session, code: str | None) -> int | None:
     if not code:
         return None
@@ -293,3 +351,4 @@ def _rnc_id(session: Session, code: str | None) -> int | None:
 
 register(PART_NAME, load)
 register(PART_INSPECOES, load_inspecoes)
+register(PART_AUDITORIAS, load_auditorias)

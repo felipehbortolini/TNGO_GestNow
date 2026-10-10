@@ -125,6 +125,7 @@ PARTS = [
     "programacao_semanal",
     "qualidade-rnc",
     "qualidade-inspecoes",
+    "qualidade-auditorias",
     "riscos",
     "financeiro-contratos-fluxos",
     "suprimentos-fornecedores",
