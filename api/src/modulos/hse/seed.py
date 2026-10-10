@@ -1,4 +1,4 @@
-"""Partes do HSE na carga de demonstração (ISSUE-072 e ISSUE-073, D6/Q15).
+"""Partes do HSE na carga de demonstração (ISSUE-072, ISSUE-073 e ISSUE-074, D6/Q15).
 
 ``hse``: o HHT de cada mês e empresa (``hht``) e o fechamento mensal da segurança proativa
 (``hseMensal``) entram pela fachada (``service.save_hours`` e ``service.save_closing``), com os
@@ -15,6 +15,13 @@ com a eficácia. O dado restrito entra com o que o mock tem (sem nome, por LGPD:
 função e empresa); o prazo de cada ocorrência é o vigente na data da carga (D5b). A numeração de
 cada projeto continua do maior código carregado, então a primeira ocorrência que uma pessoa
 registra não colide com a demonstração.
+
+``hse-analises-risco`` (registrada depois de ``hse-ocorrencias``): os 8 estudos de
+``analisesRisco`` (projetos 1 a 3), com os participantes (o id do protótipo vira a pessoa do
+cadastro pelo e-mail) e as recomendações do mock. As datas são deslocadas por ``shift_date``; a
+recomendação já Fechada recebe a data de conclusão no próprio prazo (o mock não guardava a data,
+dentro do prazo de cada uma). A numeração de cada projeto continua do maior código carregado,
+por tipo (``apr`` e ``hazop``).
 """
 
 from __future__ import annotations
@@ -38,6 +45,7 @@ from src.modulos.hse.validation import ClosingInput, HoursInput
 
 PART_NAME = "hse"
 PART_OCORRENCIAS = "hse-ocorrencias"
+PART_ANALISES = "hse-analises-risco"
 INVESTIGATION_METHOD_DEFAULT = "5 porquês"
 CLOSING_EFICACIA = "Ações corretivas concluídas e verificadas no acompanhamento de campo."
 CLOSING_OFFSET_DAYS = 20
@@ -112,6 +120,18 @@ def _companies_by_mock_id(session: Session) -> dict[int, int]:
     return {
         company["id"]: ids_by_name[company["nome"]] for company in prototype_collection("empresas")
     }
+
+
+def _people_by_mock_id(session: Session) -> dict[int, int]:
+    """O id de cada pessoa do protótipo no banco, pelo e-mail."""
+    people: dict[int, int] = {}
+    for person in prototype_collection("pessoas"):
+        found = configuracoes.find_person_id_by_email(session, person["email"])
+        if found is None:
+            message = f"A pessoa {person['email']!r} da carga do HSE não está no cadastro."
+            raise LookupError(message)
+        people[person["id"]] = found
+    return people
 
 
 def _month(label: str, reference_date: date) -> date:
@@ -274,5 +294,85 @@ def _start_occurrence_numbering(session: Session) -> None:
             numbering.start_after(session, project=project, kind="ocorrencia", last_number=last)
 
 
+def load_analises_risco(session: Session, reference_date: date) -> None:
+    """Escreve os estudos de APR/HAZOP do protótipo, com participantes e recomendações."""
+    user = _admin(session)
+    projects = _projects_by_mock_id(session)
+    people = _people_by_mock_id(session)
+    for source in prototype_collection("analisesRisco"):
+        _analysis(
+            session,
+            source,
+            user=user,
+            projects=projects,
+            people=people,
+            reference_date=reference_date,
+        )
+    _start_analysis_numbering(session)
+
+
+def _analysis(
+    session: Session,
+    source: Mapping[str, Any],
+    *,
+    user: User,
+    projects: Mapping[int, int],
+    people: Mapping[int, int],
+    reference_date: date,
+) -> None:
+    record = models.RiskAnalysis(
+        project_id=projects[source["projetoId"]],
+        code=source["codigo"],
+        kind=source["tipo"],
+        area=source["area"],
+        title=source["titulo"],
+        held_on=shift_date(date.fromisoformat(source["data"]), reference_date),
+    )
+    recording.create(session, user_id=user.id, record=record)
+    for person_id in source["participantesIds"]:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=models.RiskAnalysisParticipant(
+                analysis_id=record.id, person_id=people[person_id]
+            ),
+        )
+    for position, item in enumerate(source["recomendacoes"], start=1):
+        due_date = shift_date(date.fromisoformat(item["prazo"]), reference_date)
+        closed = item["situacao"] == models.RECOMMENDATION_CLOSED
+        recording.create(
+            session,
+            user_id=user.id,
+            record=models.RiskAnalysisRecommendation(
+                analysis_id=record.id,
+                responsible_id=people[item["responsavelId"]],
+                position=position,
+                description=item["descricao"],
+                due_date=due_date,
+                situation=item["situacao"],
+                closed_on=due_date if closed else None,
+                evidence=None,
+            ),
+        )
+
+
+def _start_analysis_numbering(session: Session) -> None:
+    """Continua a série de cada tipo de estudo depois do maior código carregado do projeto."""
+    rows = session.execute(
+        select(models.RiskAnalysis.project_id, models.RiskAnalysis.kind, models.RiskAnalysis.code)
+    ).all()
+    last: dict[tuple[int, str], int] = {}
+    for project_id, kind, code in rows:
+        suffix = code.rpartition("-")[2]
+        if suffix.isdigit():
+            key = (project_id, service.ANALYSIS_NUMBERING_KINDS[kind])
+            last[key] = max(last.get(key, 0), int(suffix))
+    for (project_id, numbering_kind), number in sorted(last.items()):
+        project = configuracoes.find_project(session, project_id)
+        if project is not None:
+            numbering.start_after(session, project=project, kind=numbering_kind, last_number=number)
+
+
 register(PART_NAME, load)
 register(PART_OCORRENCIAS, load_ocorrencias)
+register(PART_ANALISES, load_analises_risco)

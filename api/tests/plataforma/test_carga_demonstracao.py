@@ -60,6 +60,11 @@ from src.modulos.financeiro.models import (
     ReserveMovement,
 )
 from src.modulos.governanca.models import ChangeRequest
+from src.modulos.hse.models import (
+    RiskAnalysis,
+    RiskAnalysisParticipant,
+    RiskAnalysisRecommendation,
+)
 from src.modulos.planejamento import calculations
 from src.modulos.planejamento import service as planejamento
 from src.modulos.planejamento.models import (
@@ -117,6 +122,7 @@ PARTS = [
     "financeiro-contratos-avaliacoes",
     "hse",
     "hse-ocorrencias",
+    "hse-analises-risco",
     "planejamento",
     "planejamento-eap",
     "planejamento-curva",
@@ -377,6 +383,47 @@ def test_carga_grava_a_eap_do_mock(db_session: Session) -> None:
         "2.1.1",
         "3.2.1",
     ]
+
+
+def test_carga_grava_as_analises_de_risco_do_mock(db_session: Session) -> None:
+    """A parte ``hse-analises-risco``: os 8 estudos do mock, com participantes e recomendações.
+
+    O mock de ``analisesRisco`` traz 5 estudos no projeto 1, 2 no projeto 2 e 1 no projeto 3,
+    com 24 participantes e 25 recomendações; a HAZOP do projeto 1 é a maior, com 6
+    recomendações. As datas entram deslocadas pela âncora (sem deslocamento na âncora).
+    """
+    run_demonstration(db_session, reference_date=DEMO_ANCHOR)
+
+    assert _count(db_session, RiskAnalysis) == 8
+    assert _count(db_session, RiskAnalysisParticipant) == 24
+    assert _count(db_session, RiskAnalysisRecommendation) == 25
+
+    analysis = db_session.scalars(
+        select(RiskAnalysis).where(RiskAnalysis.code == "HAZOP-TN-2026-01")
+    ).one()
+    project = db_session.scalars(select(Project).where(Project.id == analysis.project_id)).one()
+    assert project.code == "TN-2026-014"
+    assert (analysis.kind, analysis.area, analysis.held_on) == (
+        "HAZOP",
+        "Flotação 310",
+        date(2026, 6, 22),
+    )
+    recommendations = db_session.scalars(
+        select(RiskAnalysisRecommendation)
+        .where(RiskAnalysisRecommendation.analysis_id == analysis.id)
+        .order_by(RiskAnalysisRecommendation.position)
+    ).all()
+    assert [(row.position, row.situation) for row in recommendations] == [
+        (1, "Fechada"),
+        (2, "Fechada"),
+        (3, "Aberta"),
+        (4, "Aberta"),
+        (5, "Fechada"),
+        (6, "Aberta"),
+    ]
+    assert recommendations[0].closed_on == date(2026, 8, 15), (
+        "a recomendação fechada do mock recebe a conclusão no próprio prazo"
+    )
 
 
 def test_oraculo_da_curva_s_fisica_com_a_data_deslocada(db_session: Session) -> None:
