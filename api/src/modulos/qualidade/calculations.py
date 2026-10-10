@@ -221,3 +221,53 @@ def notification_warning(
 def covered_points(point_ids: Iterable[int | None]) -> int:
     """How many distinct points already have at least one inspection."""
     return len({point_id for point_id in point_ids if point_id is not None})
+
+
+# ── Auditorias (ISSUE-070) ───────────────────────────────────────────────────────────────────
+
+AUDIT_PLANNED = "Planejada"
+AUDIT_DONE = "Realizada"
+AUDIT_SITUATIONS: tuple[str, ...] = (AUDIT_PLANNED, AUDIT_DONE)
+AUDIT_FILTER_OVERDUE = "Atrasada"
+AUDIT_TYPES: tuple[str, ...] = ("Contratada", "Fornecedor", "Interna")
+
+FINDING_NC = "Não conformidade"
+FINDING_OBSERVATION = "Observação"
+FINDING_IMPROVEMENT = "Oportunidade de melhoria"
+FINDING_TYPES: tuple[str, ...] = (FINDING_NC, FINDING_OBSERVATION, FINDING_IMPROVEMENT)
+
+
+def audit_overdue(situation: str, planned_on: date, reference_date: date) -> bool:
+    """Whether the audit is late: still planned with the date before the reference."""
+    return situation == AUDIT_PLANNED and planned_on < reference_date
+
+
+def audit_days_overdue(situation: str, planned_on: date, reference_date: date) -> int:
+    """How many days the planned date is late; zero when it is not."""
+    if not audit_overdue(situation, planned_on, reference_date):
+        return 0
+    return (reference_date - planned_on).days
+
+
+def audit_conformity_rate(items_conforming: int, items_verified: int) -> Decimal | None:
+    """The share of conforming items of an audit (or of the performed audits), half up."""
+    if not items_verified:
+        return None
+    rate = Decimal(items_conforming) / Decimal(items_verified) * 100
+    return rate.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def audit_program_adherence(audits_done: int, audits_due: int) -> Decimal | None:
+    """The share of the programme already performed among the audits due by the reference."""
+    if not audits_due:
+        return None
+    rate = Decimal(audits_done) / Decimal(audits_due) * 100
+    return rate.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def finding_type_counts(finding_types: Iterable[str]) -> dict[str, int]:
+    """How many findings of each type, in the order of the vocabulary (NC, Obs. and OM)."""
+    counts = dict.fromkeys(FINDING_TYPES, 0)
+    for finding_type in finding_types:
+        counts[finding_type] = counts.get(finding_type, 0) + 1
+    return counts

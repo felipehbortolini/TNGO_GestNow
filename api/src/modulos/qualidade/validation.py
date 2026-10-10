@@ -1,4 +1,4 @@
-"""Input validation of the Quality module: the RNC (ISSUE-068) and the ITP (ISSUE-069).
+"""Input validation of the Quality module: the RNC, the ITP and the audits.
 
 The checks are pure and return one message per field, in a dict that is empty when everything
 holds up; the facade turns it into one ``InvalidDataError`` (422), so the rule holds for the
@@ -16,9 +16,14 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from src.modulos.qualidade.calculations import (
+    AUDIT_FILTER_OVERDUE,
+    AUDIT_SITUATIONS,
+    AUDIT_TYPES,
     DEFAULT_POINT_RESPONSIBLE,
     DISPOSITIONS,
     DISPOSITIONS_WITH_CONCESSION,
+    FINDING_NC,
+    FINDING_TYPES,
     INSPECTION_RESULTS,
     METHODS,
     ORIGINS,
@@ -638,3 +643,216 @@ def parse_filters(params: Mapping[str, str]) -> RncFilters:
         company_id=parse_id(params.get("empresa")),
         page=parse_id(params.get("pagina")) or 1,
     )
+
+
+# ── Auditorias (ISSUE-070) ───────────────────────────────────────────────────────────────────
+
+MIN_AUDIT_SCOPE = 5
+MIN_AUDIT_CRITERION = 3
+MIN_RESCHEDULE_JUSTIFICATION = 10
+MIN_FINDING_DESCRIPTION = 10
+MIN_FINDING_REQUIREMENT = 3
+MAX_AUDIT_SCOPE = 160
+MAX_AUDIT_CRITERION = 160
+MAX_RESCHEDULE_JUSTIFICATION = 300
+MAX_FINDING_DESCRIPTION = 400
+MAX_FINDING_REQUIREMENT = 80
+MAX_AUDIT_SUMMARY = 600
+MAX_FINDINGS = 30
+MAX_AUDIT_ITEMS = 500
+
+CHOOSE_AUDIT_TYPE = "Escolha o tipo de auditoria."
+CHOOSE_AUDITEE = "Escolha a empresa ou a área auditada."
+AUDIT_SCOPE_SHORT = "Informe o escopo (mínimo de 5 caracteres)."
+AUDIT_CRITERION_SHORT = "Informe os critérios (normas, procedimentos, contrato)."
+AUDIT_DATE_REQUIRED = "Informe a data planejada."
+AUDIT_DATE_PAST = "A data planejada não pode ser anterior à referência."
+RESCHEDULE_DATE_PAST = "A nova data não pode ser anterior à referência."
+RESCHEDULE_JUSTIFICATION_SHORT = "Reprogramação exige justificativa (mínimo de 10 caracteres)."
+CHOOSE_LEAD_AUDITOR = "Escolha o auditor líder."
+RESULT_DATE_REQUIRED = "Informe a data de realização."
+ITEMS_VERIFIED_REQUIRED = "Informe os itens verificados (1 ou mais)."
+ITEMS_CONFORMING_RANGE = "Itens conformes entre zero e o total verificado."
+CHOOSE_FINDING_TYPE = "Constatação {position}: escolha o tipo."
+FINDING_DESCRIPTION_SHORT = "Constatação {position}: descreva (mínimo de 10 caracteres)."
+FINDING_REQUIREMENT_SHORT = "Constatação {position}: informe o requisito não atendido."
+FINDING_DISCIPLINE_REQUIRED = "Constatação {position}: escolha a disciplina da RNC."
+FINDING_SEVERITY_REQUIRED = "Constatação {position}: escolha a severidade da RNC."
+TOO_MANY_NC = "Há mais não conformidades ({ncs}) que itens não conformes ({missing})."
+
+
+@dataclass(frozen=True)
+class AuditFilters:
+    """The filters of the audit programme: what the query string of the screen says."""
+
+    search: str = ""
+    situation: str = ""
+    audit_type: str = ""
+
+
+@dataclass(frozen=True)
+class AuditFindingInput:
+    """One finding of the result form: the type, the description and the requirement."""
+
+    finding_type: str
+    description: str
+    requirement: str = ""
+    discipline: str = ""
+    severity: str = ""
+
+
+@dataclass(frozen=True)
+class AuditInput:
+    """What the planning form sends: the identification, the date and the justification."""
+
+    project_id: int | None
+    audit_type: str
+    auditee_id: int | None
+    lead_auditor_id: int | None
+    scope: str
+    criterion: str
+    audit_date: date | None
+    justification: str = ""
+    version: int | str | None = None
+
+
+@dataclass(frozen=True)
+class AuditResultInput:
+    """What the result form sends: the items, the conclusion and the findings."""
+
+    performed_on: date | None
+    items_verified: int | None
+    items_conforming: int | None
+    summary: str = ""
+    findings: tuple[AuditFindingInput, ...] = ()
+    version: int | str | None = None
+
+
+def audit_problems(
+    data: AuditInput,
+    *,
+    reference_date: date,
+    auditee_known: bool,
+    auditor_known: bool,
+    original_date: date | None = None,
+) -> dict[str, str]:
+    """One message per field of the planning (or reschedule) that does not hold up.
+
+    A new audit cannot be planned in the past; a reschedule only of a planned audit, never to
+    the past, and always with the justification (minimum of 10 characters).
+    """
+    problems: dict[str, str] = {}
+    if data.audit_type not in AUDIT_TYPES:
+        problems["tipo"] = CHOOSE_AUDIT_TYPE
+    if data.auditee_id is None or not auditee_known:
+        problems["auditadoId"] = CHOOSE_AUDITEE
+    if len((data.scope or "").strip()) < MIN_AUDIT_SCOPE:
+        problems["escopo"] = AUDIT_SCOPE_SHORT
+    if len((data.criterion or "").strip()) < MIN_AUDIT_CRITERION:
+        problems["criterio"] = AUDIT_CRITERION_SHORT
+    problems.update(
+        audit_date_problems(data, reference_date=reference_date, original_date=original_date)
+    )
+    if data.lead_auditor_id is None or not auditor_known:
+        problems["auditorId"] = CHOOSE_LEAD_AUDITOR
+    return problems
+
+
+def audit_date_problems(
+    data: AuditInput, *, reference_date: date, original_date: date | None
+) -> dict[str, str]:
+    """The date of the planning: past refused when new; the reschedule demands the justification."""
+    if data.audit_date is None:
+        return {"data": AUDIT_DATE_REQUIRED}
+    if original_date is None:
+        return {"data": AUDIT_DATE_PAST} if data.audit_date < reference_date else {}
+    if data.audit_date == original_date:
+        return {}
+    problems: dict[str, str] = {}
+    if data.audit_date < reference_date:
+        problems["data"] = RESCHEDULE_DATE_PAST
+    if len((data.justification or "").strip()) < MIN_RESCHEDULE_JUSTIFICATION:
+        problems["justificativa"] = RESCHEDULE_JUSTIFICATION_SHORT
+    return problems
+
+
+def audit_result_problems(
+    data: AuditResultInput, *, reference_date: date, discipline_names: Sequence[str]
+) -> dict[str, str]:
+    """One message per field of the result that does not hold up, findings included.
+
+    No more non-conformities than non-conforming items: each Não conformidade opens one RNC.
+    """
+    problems: dict[str, str] = {}
+    if data.performed_on is None:
+        problems["data"] = RESULT_DATE_REQUIRED
+    elif data.performed_on > reference_date:
+        problems["data"] = DATE_FUTURE
+    if data.items_verified is None or data.items_verified < 1:
+        problems["itensVerificados"] = ITEMS_VERIFIED_REQUIRED
+    if (
+        data.items_conforming is None
+        or data.items_conforming < 0
+        or (data.items_verified is not None and data.items_conforming > data.items_verified)
+    ):
+        problems["itensConformes"] = ITEMS_CONFORMING_RANGE
+    problems.update(finding_problems(data.findings, discipline_names=discipline_names))
+    if (
+        data.items_verified is not None
+        and data.items_verified >= 1
+        and data.items_conforming is not None
+        and 0 <= data.items_conforming <= data.items_verified
+    ):
+        non_conformities = sum(1 for finding in data.findings if finding.finding_type == FINDING_NC)
+        missing = data.items_verified - data.items_conforming
+        if non_conformities > missing:
+            problems.setdefault(
+                "itensConformes",
+                TOO_MANY_NC.format(ncs=non_conformities, missing=missing),
+            )
+    return problems
+
+
+def finding_problems(
+    findings: Sequence[AuditFindingInput], *, discipline_names: Sequence[str]
+) -> dict[str, str]:
+    """One message per finding that does not hold up, numbered as the prototype did."""
+    problems: dict[str, str] = {}
+    for position, finding in enumerate(findings, start=1):
+        if finding.finding_type not in FINDING_TYPES:
+            problems.setdefault("constatacoes", CHOOSE_FINDING_TYPE.format(position=position))
+        if len((finding.description or "").strip()) < MIN_FINDING_DESCRIPTION:
+            problems.setdefault("constatacoes", FINDING_DESCRIPTION_SHORT.format(position=position))
+        if finding.finding_type == FINDING_NC:
+            if len((finding.requirement or "").strip()) < MIN_FINDING_REQUIREMENT:
+                problems.setdefault(
+                    "constatacoes", FINDING_REQUIREMENT_SHORT.format(position=position)
+                )
+            if finding.discipline not in discipline_names:
+                problems.setdefault(
+                    "constatacoes", FINDING_DISCIPLINE_REQUIRED.format(position=position)
+                )
+            if finding.severity not in SEVERITIES:
+                problems.setdefault(
+                    "constatacoes", FINDING_SEVERITY_REQUIRED.format(position=position)
+                )
+    return problems
+
+
+def parse_audit_filters(params: Mapping[str, str]) -> AuditFilters:
+    """Read the filters of the programme from the query string; invalid values are ignored."""
+    situation = (params.get("situacao") or "").strip()
+    audit_type = (params.get("tipo") or "").strip()
+    return AuditFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH],
+        situation=situation if situation in (*AUDIT_SITUATIONS, AUDIT_FILTER_OVERDUE) else "",
+        audit_type=audit_type if audit_type in AUDIT_TYPES else "",
+    )
+
+
+def parse_count(raw: str | None) -> int | None:
+    """A whole number from zero up from the request, or ``None`` when it is not one."""
+    text = (raw or "").strip()
+    if not text.isdigit() or len(text) > MAX_ID_DIGITS:
+        return None
+    return int(text)

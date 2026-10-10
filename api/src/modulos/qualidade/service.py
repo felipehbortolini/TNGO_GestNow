@@ -1,4 +1,4 @@
-"""Business facade of the Quality module: the non-conformity report (ISSUE-068).
+"""Business facade of the Quality module: the RNC, the ITP and the audits.
 
 The RNC follows the prototype's flow: Aberta, Em análise de causa, Ação corretiva,
 Verificação de eficácia, Encerrada; Cancelada only before the corrective action. The deadline
@@ -8,12 +8,18 @@ the report (D9), in the same transaction; closing with an effective verification
 optional lesson in Rascunho through the facade of Governança, and the id is kept in
 ``rnc.licao_id``. Nothing here reads the clock: the routes pass the reference date.
 
+The audit programme (ISSUE-070) is planned, rescheduled with justification and performed; each
+finding of the type Não conformidade opens the RNC through ``open_rnc``, with origin
+``Auditoria`` and the number of the audit (D9), in the same transaction.
+
 Public API (stable; a change needs an issue of its own):
 
-* reading: ``list_rncs``, ``rnc_summary``, ``find_rnc``, ``rnc_sheet``, ``parameters``;
+* reading: ``list_rncs``, ``rnc_summary``, ``find_rnc``, ``rnc_sheet``, ``parameters``,
+  ``list_audits``, ``audit_summary``, ``find_audit``, ``audit_sheet``;
 * writing: ``open_rnc``, ``assign_analysis``, ``record_analysis``, ``add_actions``,
-  ``send_to_verification``, ``verify_effectiveness``, ``cancel_rnc``, ``update_cost`` and
-  ``record_rnc`` (a report that already exists, the demonstration load);
+  ``send_to_verification``, ``verify_effectiveness``, ``cancel_rnc``, ``update_cost``,
+  ``record_rnc`` (a report that already exists, the demonstration load), ``create_audit``,
+  ``save_audit`` (reprogramação) and ``record_result``;
 * the seams of other modules: ``read_rnc_origin`` (attachments) and the origin check of the
   lessons of Governança.
 """
@@ -44,10 +50,22 @@ from src.modulos.governanca import lessons_models as lessons
 from src.modulos.governanca import lessons_service
 from src.modulos.governanca.lessons_validation import DraftInput
 from src.modulos.qualidade import calculations, validation
-from src.modulos.qualidade.models import Inspection, Itp, ItpPoint, ItpRevision, Rnc
+from src.modulos.qualidade.models import (
+    AuditFinding,
+    AuditReschedule,
+    Inspection,
+    Itp,
+    ItpPoint,
+    ItpRevision,
+    QualityAudit,
+    Rnc,
+)
 from src.modulos.qualidade.validation import (
     ActionInput,
     AnalysisInput,
+    AuditFilters,
+    AuditInput,
+    AuditResultInput,
     CancellationInput,
     CostInput,
     OpeningInput,
@@ -1881,6 +1899,543 @@ def _next_itp_code(
 def _discipline_name(session: Session, discipline_id: int) -> str:
     names = configuracoes.discipline_names_by_id(session)
     return names.get(discipline_id, "")
+
+
+# ── Auditorias (ISSUE-070) ───────────────────────────────────────────────────────────────────
+
+AUDIT_PREFIX = "AUD"
+AUDIT_DIGITS = 2
+AUDIT_NOT_FOUND_MESSAGE = "Auditoria não encontrada."
+AUDIT_NOT_PLANNED_MESSAGE = "Só a auditoria planejada pode ser reprogramada."
+AUDIT_RESULT_ALREADY_MESSAGE = "O resultado desta auditoria já foi registrado."
+AUDIT_CONTAINMENT = "Contenção a definir pelo auditado em até 48 horas da auditoria {code}."
+ORIGIN_KIND_AUDIT = "Auditoria"
+
+
+@dataclass(frozen=True)
+class AuditFindingLine:
+    """One finding of the audit, with the RNC it opened when it is a Não conformidade."""
+
+    id: int
+    order: int
+    finding_type: str
+    description: str
+    requirement: str
+    rnc_id: int | None
+    rnc_code: str
+    rnc_situation: str
+    rnc_active: bool
+
+
+@dataclass(frozen=True)
+class AuditRescheduleLine:
+    """One justified reschedule of the audit, as the ficha writes it."""
+
+    previous_date: date
+    new_date: date
+    justification: str
+    author_name: str
+    registered_on: date | None
+
+
+@dataclass(frozen=True)
+class AuditLine:
+    """One audit as the screens read it: the record and everything calculated from it."""
+
+    id: int
+    project_id: int
+    project_code: str
+    code: str
+    audit_type: str
+    auditee_id: int
+    auditee_name: str
+    lead_auditor_id: int
+    lead_auditor_name: str
+    scope: str
+    criterion: str
+    audit_date: date
+    situation: str
+    performed_on: date | None
+    items_verified: int | None
+    items_conforming: int | None
+    summary: str | None
+    version: int
+    overdue: bool
+    days_overdue: int
+    conformity_pct: Decimal | None
+    finding_counts: Mapping[str, int]
+    open_nc: int
+    findings: tuple[AuditFindingLine, ...]
+    reschedules: tuple[AuditRescheduleLine, ...]
+
+    @property
+    def non_conformities(self) -> int:
+        """How many findings of the type Não conformidade the audit has."""
+        return self.finding_counts.get(calculations.FINDING_NC, 0)
+
+    @property
+    def baseline_date(self) -> date:
+        """The date of the programme before any reschedule (the first 'from'), or the date."""
+        return self.reschedules[0].previous_date if self.reschedules else self.audit_date
+
+
+@dataclass(frozen=True)
+class AuditSummary:
+    """The KPIs of the screen for the scope, without filters (what the oracle reads)."""
+
+    due: int
+    done: int
+    adherence: Decimal | None
+    overdue: int
+    verified_items: int
+    conforming_items: int
+    conformity: Decimal | None
+    nc: int
+    open_nc: int
+    next_audit: AuditLine | None
+
+
+@dataclass(frozen=True)
+class AuditListing:
+    """What the programme shows for a filter: the lines and the KPIs of the scope."""
+
+    lines: tuple[AuditLine, ...]
+    summary: AuditSummary
+
+    @property
+    def total(self) -> int:
+        """How many audits the filter holds."""
+        return len(self.lines)
+
+
+@dataclass(frozen=True)
+class AuditResult:
+    """What saving an audit answers: the number and whether the date was rescheduled."""
+
+    code: str
+    rescheduled: bool
+
+
+@dataclass(frozen=True)
+class AuditOutcome:
+    """What recording the result answers: the number and the RNCs opened by the findings."""
+
+    code: str
+    rnc_codes: tuple[str, ...]
+
+
+def list_audits(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    filters: AuditFilters,
+    reference_date: date,
+) -> AuditListing:
+    """The programme of the scope for the filters, in the prototype's order (date, code)."""
+    rbac.require_module(user, MODULE)
+    universe = _audit_lines(session, project_id=scope.project_id, reference_date=reference_date)
+    shown = [
+        line
+        for line in universe
+        if _matches_audit(line, filters) and _matches_audit_situation(line, filters.situation)
+    ]
+    return AuditListing(lines=tuple(shown), summary=_audit_summary(universe, reference_date))
+
+
+def audit_summary(
+    session: Session, *, user: User, scope: Scope, reference_date: date
+) -> AuditSummary:
+    """The KPIs of the scope, without filters (what the oracle reads)."""
+    rbac.require_module(user, MODULE)
+    return _audit_summary(
+        _audit_lines(session, project_id=scope.project_id, reference_date=reference_date),
+        reference_date,
+    )
+
+
+def find_audit(
+    session: Session, *, user: User, code: str, reference_date: date
+) -> AuditLine | None:
+    """The audit with the number, with its findings and reschedules, or ``None``."""
+    rbac.require_module(user, MODULE)
+    audit = _audit_by_code(session, code)
+    if audit is None:
+        return None
+    lines = _build_audit_lines(session, [audit], reference_date=reference_date)
+    return lines[0] if lines else None
+
+
+def audit_sheet(
+    session: Session, *, user: User, code: str, reference_date: date
+) -> AuditLine | None:
+    """The ficha of one audit: the line already carries the findings and the reschedules."""
+    return find_audit(session, user=user, code=code, reference_date=reference_date)
+
+
+def create_audit(
+    session: Session, *, user: User, data: AuditInput, reference_date: date
+) -> AuditResult:
+    """Plan the audit: the code follows the project's pattern and the date cannot be past."""
+    rbac.require(user, Permission.WRITE)
+    project = (
+        configuracoes.find_project(session, data.project_id)
+        if data.project_id is not None
+        else None
+    )
+    known_companies = {item.id for item in configuracoes.list_company_options(session)}
+    problems = validation.audit_problems(
+        data,
+        reference_date=reference_date,
+        auditee_known=data.auditee_id is not None and data.auditee_id in known_companies,
+        auditor_known=_auditor_known(session, data.lead_auditor_id),
+        original_date=None,
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    project_ok = cast(configuracoes.ProjectDetail, project)
+    audit = QualityAudit(
+        project_id=project_ok.id,
+        company_id=cast(int, data.auditee_id),
+        auditor_id=cast(int, data.lead_auditor_id),
+        code=_next_audit_code(session, project_ok, reference_date),
+        audit_type=data.audit_type,
+        auditee=None,
+        scope=data.scope.strip(),
+        audit_date=cast(date, data.audit_date),
+        situation=calculations.AUDIT_PLANNED,
+        performed_on=None,
+        items_verified=None,
+        items_conforming=None,
+        criterion=data.criterion.strip(),
+        summary=None,
+    )
+    recording.create(session, user_id=user.id, record=audit)
+    return AuditResult(code=audit.code, rescheduled=False)
+
+
+def save_audit(
+    session: Session, *, user: User, code: str, data: AuditInput, reference_date: date
+) -> AuditResult:
+    """Edit a planned audit; a changed date demands the justification and leaves the fact."""
+    rbac.require(user, Permission.WRITE)
+    audit = _audit_or_refuse(session, code)
+    if audit.situation != calculations.AUDIT_PLANNED:
+        raise InvalidDataError(AUDIT_NOT_PLANNED_MESSAGE)
+    known_companies = {item.id for item in configuracoes.list_company_options(session)}
+    problems = validation.audit_problems(
+        data,
+        reference_date=reference_date,
+        auditee_known=data.auditee_id is not None and data.auditee_id in known_companies,
+        auditor_known=_auditor_known(session, data.lead_auditor_id),
+        original_date=audit.audit_date,
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    audit_date = cast(date, data.audit_date)
+    previous = audit.audit_date
+    recording.update(
+        session,
+        user_id=user.id,
+        record=audit,
+        changes={
+            "audit_type": data.audit_type,
+            "company_id": cast(int, data.auditee_id),
+            "scope": data.scope.strip(),
+            "criterion": data.criterion.strip(),
+            "audit_date": audit_date,
+            "auditor_id": cast(int, data.lead_auditor_id),
+        },
+        version=data.version or audit.version,
+    )
+    date_changed = audit_date != previous
+    if date_changed:
+        recording.create(
+            session,
+            user_id=user.id,
+            record=AuditReschedule(
+                audit_id=audit.id,
+                author_id=user.person_id,
+                previous_date=previous,
+                new_date=audit_date,
+                justification=data.justification.strip(),
+            ),
+        )
+    return AuditResult(code=audit.code, rescheduled=date_changed)
+
+
+def record_result(
+    session: Session, *, user: User, code: str, data: AuditResultInput, reference_date: date
+) -> AuditOutcome:
+    """Record the result of a planned audit; each Não conformidade opens the RNC here (D9)."""
+    rbac.require(user, Permission.WRITE)
+    audit = _audit_or_refuse(session, code)
+    if audit.situation != calculations.AUDIT_PLANNED:
+        raise InvalidDataError(AUDIT_RESULT_ALREADY_MESSAGE)
+    problems = validation.audit_result_problems(
+        data,
+        reference_date=reference_date,
+        discipline_names=configuracoes.list_discipline_names(session),
+    )
+    if problems:
+        raise InvalidDataError(problems)
+    performed_on = cast(date, data.performed_on)
+    opened: list[str] = []
+    for position, finding in enumerate(data.findings, start=1):
+        rnc_id: int | None = None
+        if finding.finding_type == calculations.FINDING_NC:
+            description = finding.description.strip()
+            requirement = (finding.requirement or "").strip()
+            opened_rnc = open_rnc(
+                session,
+                user=user,
+                data=OpeningInput(
+                    project_id=audit.project_id,
+                    rnc_date=performed_on,
+                    origin=ORIGIN_KIND_AUDIT,
+                    origin_ref=audit.code,
+                    discipline=finding.discipline,
+                    company_id=audit.company_id,
+                    severity=finding.severity,
+                    description=f"{description} Requisito: {requirement}.",
+                    containment=AUDIT_CONTAINMENT.format(code=audit.code),
+                ),
+                reference_date=reference_date,
+            )
+            opened.append(opened_rnc.code)
+            rnc_id = _rnc_id(session, opened_rnc.code)
+        recording.create(
+            session,
+            user_id=user.id,
+            record=AuditFinding(
+                audit_id=audit.id,
+                rnc_id=rnc_id,
+                order=position,
+                finding_type=finding.finding_type,
+                description=finding.description.strip(),
+                requirement=(finding.requirement or "").strip(),
+            ),
+        )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=audit,
+        changes={
+            "situation": calculations.AUDIT_DONE,
+            "performed_on": performed_on,
+            "items_verified": cast(int, data.items_verified),
+            "items_conforming": cast(int, data.items_conforming),
+            "summary": (data.summary or "").strip() or None,
+        },
+        version=data.version or audit.version,
+    )
+    return AuditOutcome(code=audit.code, rnc_codes=tuple(opened))
+
+
+def _audit_lines(
+    session: Session, *, project_id: int | None, reference_date: date
+) -> list[AuditLine]:
+    statement = select(QualityAudit).order_by(QualityAudit.audit_date, QualityAudit.code)
+    if project_id is not None:
+        statement = statement.where(QualityAudit.project_id == project_id)
+    audits = list(session.scalars(statement).all())
+    return _build_audit_lines(session, audits, reference_date=reference_date)
+
+
+def _build_audit_lines(
+    session: Session, audits: Sequence[QualityAudit], *, reference_date: date
+) -> list[AuditLine]:
+    if not audits:
+        return []
+    audit_ids = [record.id for record in audits]
+    findings = list(
+        session.scalars(
+            select(AuditFinding)
+            .where(AuditFinding.audit_id.in_(audit_ids))
+            .order_by(AuditFinding.audit_id, AuditFinding.order)
+        ).all()
+    )
+    reschedules = list(
+        session.scalars(
+            select(AuditReschedule)
+            .where(AuditReschedule.audit_id.in_(audit_ids))
+            .order_by(AuditReschedule.audit_id, AuditReschedule.id)
+        ).all()
+    )
+    rnc_ids = {finding.rnc_id for finding in findings if finding.rnc_id is not None}
+    rnc_info: dict[int, tuple[str, str]] = {}
+    if rnc_ids:
+        for rnc in session.scalars(select(Rnc).where(Rnc.id.in_(rnc_ids))).all():
+            rnc_info[rnc.id] = (rnc.code, rnc.situation)
+    person_ids = {record.auditor_id for record in audits}
+    person_ids.update(reschedule.author_id for reschedule in reschedules)
+    people = configuracoes.find_people(session, person_ids)
+    companies = configuracoes.list_company_names(session)
+    projects = {item.id: item.code for item in configuracoes.list_project_details(session)}
+    findings_by_audit: dict[int, list[AuditFinding]] = {}
+    for finding in findings:
+        findings_by_audit.setdefault(finding.audit_id, []).append(finding)
+    reschedules_by_audit: dict[int, list[AuditReschedule]] = {}
+    for reschedule in reschedules:
+        reschedules_by_audit.setdefault(reschedule.audit_id, []).append(reschedule)
+    lines: list[AuditLine] = []
+    for record in audits:
+        finding_lines: list[AuditFindingLine] = []
+        open_nc = 0
+        for finding in findings_by_audit.get(record.id, []):
+            rnc_code, rnc_situation = rnc_info.get(finding.rnc_id or 0, ("", ""))
+            rnc_active = bool(rnc_code) and calculations.is_active(rnc_situation)
+            if rnc_active and finding.finding_type == calculations.FINDING_NC:
+                open_nc += 1
+            finding_lines.append(
+                AuditFindingLine(
+                    id=finding.id,
+                    order=finding.order,
+                    finding_type=finding.finding_type,
+                    description=finding.description,
+                    requirement=finding.requirement,
+                    rnc_id=finding.rnc_id,
+                    rnc_code=rnc_code,
+                    rnc_situation=rnc_situation,
+                    rnc_active=rnc_active,
+                )
+            )
+        reschedule_lines = tuple(
+            AuditRescheduleLine(
+                previous_date=reschedule.previous_date,
+                new_date=reschedule.new_date,
+                justification=reschedule.justification,
+                author_name=people[reschedule.author_id].name
+                if reschedule.author_id in people
+                else "",
+                registered_on=calendario.in_product_timezone(reschedule.registered_at).date(),
+            )
+            for reschedule in reschedules_by_audit.get(record.id, [])
+        )
+        lines.append(
+            AuditLine(
+                id=record.id,
+                project_id=record.project_id,
+                project_code=projects.get(record.project_id, ""),
+                code=record.code,
+                audit_type=record.audit_type,
+                auditee_id=record.company_id,
+                auditee_name=companies.get(record.company_id, ""),
+                lead_auditor_id=record.auditor_id,
+                lead_auditor_name=people[record.auditor_id].name
+                if record.auditor_id in people
+                else "",
+                scope=record.scope,
+                criterion=record.criterion,
+                audit_date=record.audit_date,
+                situation=record.situation,
+                performed_on=record.performed_on,
+                items_verified=record.items_verified,
+                items_conforming=record.items_conforming,
+                summary=record.summary,
+                version=record.version,
+                overdue=calculations.audit_overdue(
+                    record.situation, record.audit_date, reference_date
+                ),
+                days_overdue=calculations.audit_days_overdue(
+                    record.situation, record.audit_date, reference_date
+                ),
+                conformity_pct=calculations.audit_conformity_rate(
+                    record.items_conforming or 0, record.items_verified or 0
+                ),
+                finding_counts=calculations.finding_type_counts(
+                    finding.finding_type for finding in finding_lines
+                ),
+                open_nc=open_nc,
+                findings=tuple(finding_lines),
+                reschedules=reschedule_lines,
+            )
+        )
+    return lines
+
+
+def _audit_summary(universe: Sequence[AuditLine], reference_date: date) -> AuditSummary:
+    due = [line for line in universe if line.audit_date <= reference_date]
+    done = [line for line in due if line.situation == calculations.AUDIT_DONE]
+    performed = [line for line in universe if line.situation == calculations.AUDIT_DONE]
+    verified = sum(line.items_verified or 0 for line in performed)
+    conforming = sum(line.items_conforming or 0 for line in performed)
+    return AuditSummary(
+        due=len(due),
+        done=len(done),
+        adherence=calculations.audit_program_adherence(len(done), len(due)),
+        overdue=sum(1 for line in universe if line.overdue),
+        verified_items=verified,
+        conforming_items=conforming,
+        conformity=calculations.audit_conformity_rate(conforming, verified),
+        nc=sum(line.non_conformities for line in universe),
+        open_nc=sum(line.open_nc for line in universe),
+        next_audit=next(
+            (
+                line
+                for line in universe
+                if line.situation == calculations.AUDIT_PLANNED
+                and line.audit_date >= reference_date
+            ),
+            None,
+        ),
+    )
+
+
+def _matches_audit(line: AuditLine, filters: AuditFilters) -> bool:
+    if filters.audit_type and line.audit_type != filters.audit_type:
+        return False
+    if filters.search:
+        wanted = _normalize(filters.search)
+        haystack = " ".join((line.code, line.scope, line.auditee_name))
+        return wanted in _normalize(haystack)
+    return True
+
+
+def _matches_audit_situation(line: AuditLine, situation: str) -> bool:
+    if situation == calculations.AUDIT_FILTER_OVERDUE:
+        return line.overdue
+    if situation:
+        return line.situation == situation
+    return True
+
+
+def _audit_by_code(session: Session, code: str) -> QualityAudit | None:
+    return session.scalars(select(QualityAudit).where(QualityAudit.code == code)).one_or_none()
+
+
+def _audit_or_refuse(session: Session, code: str) -> QualityAudit:
+    audit = _audit_by_code(session, code)
+    if audit is None:
+        raise InvalidDataError(AUDIT_NOT_FOUND_MESSAGE)
+    return audit
+
+
+def _auditor_known(session: Session, person_id: int | None) -> bool:
+    if person_id is None:
+        return False
+    return person_id in configuracoes.find_people(session, [person_id])
+
+
+def _next_audit_code(
+    session: Session, project: configuracoes.ProjectDetail, reference_date: date
+) -> str:
+    """The next number of the audit series of the project (``AUD-TN-2026-01``), two digits.
+
+    The prototype computed it over the existing codes of the project and the pattern of the
+    ata (``padraoAta``); the same rule here, over the unique codes of the table.
+    """
+    pattern = project.ata_pattern or f"TN-{reference_date.year}"
+    prefix = f"{AUDIT_PREFIX}-{pattern}-"
+    codes: Sequence[str] = session.scalars(
+        select(QualityAudit.code).where(QualityAudit.project_id == project.id)
+    ).all()
+    counters = [
+        int(code[len(prefix) :])
+        for code in codes
+        if code.startswith(prefix) and code[len(prefix) :].isdigit()
+    ]
+    return f"{prefix}{max(counters, default=0) + 1:0{AUDIT_DIGITS}d}"
 
 
 # ── Integrações (D9, D5a) ────────────────────────────────────────────────────────────────────
