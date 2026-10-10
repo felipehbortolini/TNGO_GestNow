@@ -1642,6 +1642,7 @@ erDiagram
         integer itens_verificados
         integer itens_conformes
         text criterio
+        text resumo
         integer versao
     }
     auditoria_constatacao {
@@ -1671,7 +1672,11 @@ gravado no diligenciamento aponta `pedido_id`. A `notificacao` da inspeção é 
 data em que o cliente foi convocado no ponto W (e no H), acrescentada na
 ISSUE-069 para a fronteira da antecedência mínima (`notificacaoClienteHoras`); o
 ponto de ITP é opcional na inspeção porque o FAT grava a inspeção sem ponto,
-identificado pelo `pedido_id`.
+identificado pelo `pedido_id`. O `resumo` da auditoria é a conclusão do
+resultado, acrescentado na ISSUE-070 (o formulário do protótipo o coleta e a
+ficha o exibe, e o diagrama não o tinha); o `auditado` textual é o registro
+livre do auditado quando não for empresa do cadastro, e a empresa auditada é
+`empresa_id`.
 
 ### 12. 07 HSE
 
@@ -2064,7 +2069,7 @@ fachada, não por coluna.
 | Tabela | O que guarda | Dono |
 |---|---|---|
 | `rnc` | Não conformidade (código, origem e referência, disciplina, empresa, descrição, severidade, contenção, responsável, disposição, concessão do cliente, método, causa raiz, prazos, verificação de eficácia, lição e custo da não qualidade). Reincidência, aprovação em inspeções e conformidade são calculadas. UK: projeto + código. | qualidade |
-| `auditoria_qualidade` | Programa de auditorias (tipo, auditado, escopo, data, situação, realização, itens verificados e conformes e critério). Atraso é calculado pela data de hoje. Nome próprio para não confundir com `auditoria`, a trilha. UK: projeto + código. | qualidade |
+| `auditoria_qualidade` | Programa de auditorias (tipo, auditado, escopo, data, situação, realização, itens verificados e conformes, critério e o resumo — a conclusão). Atraso é calculado pela data de hoje. Nome próprio para não confundir com `auditoria`, a trilha. UK: projeto + código. | qualidade |
 | `auditoria_constatacao` | Constatação da auditoria (tipo, descrição, requisito) e a RNC aberta quando for não conformidade; não pode haver mais NC que itens não conformes. Sem `versao` própria: entra com o resultado. | qualidade |
 | `auditoria_reprogramacao` | Reprogramação da auditoria (data anterior, nova data, autor e justificativa). Fato imutável, sem `versao`. | qualidade |
 | `itp` | Plano de inspeção e testes por disciplina (código, título e empresa). UK: projeto + código. | qualidade |

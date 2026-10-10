@@ -1,4 +1,4 @@
-"""Persistence model of the Quality module: the RNC (ISSUE-068) and the ITP (ISSUE-069).
+"""Persistence model of the Quality module: the RNC, the ITP and the audits.
 
 Class and attribute names are English (D1); the table and the columns are Portuguese
 snake_case (D5), exactly as in ``docs/MODELO-DE-DADOS.md``. Situation, deadline, overdue,
@@ -12,20 +12,29 @@ each revision (``itp_ponto``); the inspection (``inspecao``) records one point a
 the moment — the point and its type are copied into the row. The FAT of the procurement
 diligence writes an inspection without a point of ITP, identified by ``pedido_id``; the
 notification of the client (the W point) is the ``notificacao`` column added with the rule.
+
+The audit programme (ISSUE-070) is ``auditoria_qualidade`` with its findings
+(``auditoria_constatacao``) and the justified reschedules (``auditoria_reprogramacao``). Each
+finding of the type Não conformidade keeps the ``rnc_id`` it opened, in the same transaction
+(D9); the overdue of a planned audit and the conformity rate are calculated on every read.
+The ``auditado`` text column is the free record of the auditee when it is not a company of
+the register; the audited company itself is ``empresa_id``.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Integer,
     Text,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -144,3 +153,58 @@ class Inspection(Base):
     version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
 
     __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+
+class QualityAudit(Base):
+    """Uma auditoria do programa: o escopo, os critérios, o auditado e o resultado."""
+
+    __tablename__ = "auditoria_qualidade"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column("projeto_id", ForeignKey("projeto.id"))
+    company_id: Mapped[int] = mapped_column("empresa_id", ForeignKey("empresa.id"))
+    auditor_id: Mapped[int] = mapped_column("auditor_id", ForeignKey("pessoa.id"))
+    code: Mapped[str] = mapped_column("codigo", Text)
+    audit_type: Mapped[str] = mapped_column("tipo", Text)
+    auditee: Mapped[str | None] = mapped_column("auditado", Text)
+    scope: Mapped[str] = mapped_column("escopo", Text)
+    audit_date: Mapped[date] = mapped_column("data", Date)
+    situation: Mapped[str] = mapped_column("situacao", Text)
+    performed_on: Mapped[date | None] = mapped_column("realizada_em", Date)
+    items_verified: Mapped[int | None] = mapped_column("itens_verificados", Integer)
+    items_conforming: Mapped[int | None] = mapped_column("itens_conformes", Integer)
+    criterion: Mapped[str] = mapped_column("criterio", Text)
+    summary: Mapped[str | None] = mapped_column("resumo", Text)
+    version: Mapped[int] = mapped_column("versao", Integer, server_default=VERSION_SERVER_DEFAULT)
+
+    __table_args__ = (UniqueConstraint("projeto_id", "codigo"),)
+
+
+class AuditFinding(Base):
+    """Uma constatação da auditoria; a Não conformidade guarda a RNC que abriu."""
+
+    __tablename__ = "auditoria_constatacao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    audit_id: Mapped[int] = mapped_column("auditoria_id", ForeignKey("auditoria_qualidade.id"))
+    rnc_id: Mapped[int | None] = mapped_column("rnc_id", ForeignKey("rnc.id"))
+    order: Mapped[int] = mapped_column("ordem", Integer)
+    finding_type: Mapped[str] = mapped_column("tipo", Text)
+    description: Mapped[str] = mapped_column("descricao", Text)
+    requirement: Mapped[str] = mapped_column("requisito", Text)
+
+
+class AuditReschedule(Base):
+    """Uma reprogramação justificada da auditoria: fato imutável, com autor e momento."""
+
+    __tablename__ = "auditoria_reprogramacao"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    audit_id: Mapped[int] = mapped_column("auditoria_id", ForeignKey("auditoria_qualidade.id"))
+    author_id: Mapped[int] = mapped_column("autor_id", ForeignKey("pessoa.id"))
+    previous_date: Mapped[date] = mapped_column("data_anterior", Date)
+    new_date: Mapped[date] = mapped_column("data_nova", Date)
+    justification: Mapped[str] = mapped_column("justificativa", Text)
+    registered_at: Mapped[datetime] = mapped_column(
+        "registrada_em", DateTime(timezone=True), server_default=func.now()
+    )
