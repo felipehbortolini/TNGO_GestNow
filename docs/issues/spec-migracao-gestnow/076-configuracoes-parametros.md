@@ -67,3 +67,47 @@ Nenhuma.
 ## Notas
 
 Fonte: `parametros.html` e `js/pages/configuracoes/parametros.js`, `GI.api.parametros`, `salvarParametros` e `historicoParametros`; README, seção 7.4.
+
+## Registro de execução
+
+Fatia entregue em 10/10/2026: a tela **Configurações > Parâmetros**, sobre a camada de
+versionamento da ISSUE-007 (nada de esquema novo; **sem migração**). O `forms.py` novo é o porte
+de `grupos(p)` e do `exibir(c, v)` do protótipo: os **10 grupos da tela** sobre os 14 grupos de
+parâmetros (`GROUP_SOURCES` — Planejamento agrega punch + produtividade + eap; Governança agrega
+mudanças + lições; Contratadas agrega a avaliação + claims), com os campos construídos **dos
+valores vigentes** (critérios e classes, alçadas e pesos dos marcos, probabilidades, modelos de
+etapas da EAP, critérios do portfólio), o caminho da folha como identidade (o id no formulário
+troca os pontos por `__`), a digitação tipada (número, inteiro quando o vigente é inteiro, moeda
+em reais → centavos, select pelas opções) e o `parse_group_form`, que devolve os payloads por
+grupo de origem, os campos mudados e os erros por caminho — inclusive a recusa da troca da escala
+sem o `confirmar_escala`. A fachada ganhou a leitura da tela (`parameter_overview`: grupos
+filtrados no servidor, linhas já formatadas, versão vigente de cada grupo de origem com autor,
+vigência e justificativa) e o **histórico** (`parameter_history`: versões desc com as alterações
+contra a versão anterior do MESMO grupo, o selo Vigente pela data de referência e a primeira
+versão de cada grupo sem alterações). As rotas (`parameters_*`, `Access(module="configuracoes")`
+— só Gestor e Admin; nomes únicos no app) desenham a tela (filtro pela query `busca`/`modulo`),
+o modal de edição, o modal do histórico (o Ver é um GET do mesmo fragmento com `grupo` e
+`versao`), e a gravação cria a versão **só dos grupos de origem que mudaram**, num savepoint da
+transação, com vigência de hoje e autor; a recusa volta no formulário com 422 (o erro de um
+campo sob o campo, o de um bloco no topo; "Nenhum valor foi alterado." quando nada mudou) e o
+sucesso devolve a tela com o toast "Versão N gravada: X parâmetros alterados." e fecha o modal.
+O `export.py` monta o documento das duas tabelas do protótipo (Parâmetros vigentes:
+Grupo/Parâmetro/Valor/Módulo; Histórico de versões com a coluna Grupo), sem a coluna Projeto
+porque os parâmetros são globais, e o Excel e o PDF saem pelos mecanismos genéricos. O trio foi
+reescrito no padrão das telas com modal (cinco estados, filtros pela query, `TN.modal`). Os 20
+testes novos (`test_parametros_rotas.py`, com o conftest reusando o cenário dos riscos): 403 para
+Membro e Visualizador, filtros no servidor, modal com os campos vigentes, gravações (sem
+justificativa, sem alteração, não numérico por campo, bloco inválido, versão só do grupo que
+mudou, autor e vigência) e a troca da escala de riscos — sem confirmação recusa; com confirmação
+grava e a severidade do risco P5×I4 muda de crítico para alto na ficha seguinte. Divergências
+registradas: o versionamento por grupo (o protótipo versionava o conjunto inteiro) e o filtro no
+servidor com o grupo Anexos na tela. `ruff check`, `ruff format --check` e `ty check` limpos; as
+rodadas do fechamento (configurações, plataforma e riscos — 1.146 testes cada, duas vezes)
+passam; a porta de qualidade, 5/5. Defeito corrigido pelo principal: o botão do histórico usava o
+ícone `history`, que não existe em `app/ds/icons.js` — trocado por `clock`, o padrão das telas de
+histórico.
+
+- DECISAO: versionamento por grupo na tela | o card mostra a versão mais recente entre os grupos e o histórico compara cada versão com a anterior do MESMO grupo; um grupo da tela agrega vários grupos de parâmetros e a gravação cria versão só dos grupos de origem cujos valores mudaram | modelo "uma linha por grupo e versão" (D5, ISSUE-007), ISSUE-076
+- DECISAO: confirmação da troca de escala | o formulário do grupo Riscos traz o campo `confirmar_escala` e o servidor recusa a gravação sem ele (422), no lugar do modal de confirmação do protótipo | ISSUE-076
+- DECISAO: filtro da tela | busca e módulo recarregam o fragmento pela query e o servidor re-renderiza (o protótipo filtrava localmente) | D6/D11, ISSUE-076
+- DECISAO: grupo Anexos na tela | entra com o limite editável e os tipos aceitos somente leitura (o protótipo não o mostrava; o GestNow o versiona) | D5a, ISSUE-076
