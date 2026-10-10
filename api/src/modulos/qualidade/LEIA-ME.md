@@ -1,10 +1,9 @@
 # Gestão da Qualidade
 
 Módulo `qualidade`. Registra não conformidades (RNC), inspeções/ITP e auditorias, com controle
-de tratamento e eficácia. A ISSUE-068 entrega a tela **Não conformidades (RNC)** e a ISSUE-069,
-a tela **Inspeções e ITP** (com o FAT do diligenciamento ligado); o Painel (ISSUE-071) e as
-Auditorias (ISSUE-070) entram nas issues seguintes e, nesta fatia, os trios delas continuam
-vazios.
+de tratamento e eficácia. A ISSUE-068 entrega a tela **Não conformidades (RNC)**, a ISSUE-069 a
+tela **Inspeções e ITP** (com o FAT do diligenciamento ligado) e a ISSUE-070 a tela
+**Auditorias**; o Painel (ISSUE-071) entra na issue seguinte.
 
 ## Telas
 
@@ -13,7 +12,7 @@ vazios.
 | Não conformidades (RNC) | Filtros (busca, situação, severidade, disciplina e origem), cinco KPIs, lista com a próxima etapa e as ações, ficha em modal (contenção, causa raiz, disposição e concessão, verificação, ações da Central, evidências e histórico) e os formulários do fluxo | Entregue na ISSUE-068 |
 | Painel da qualidade | RNC, inspeções, auditorias, Pareto, custo e pauta | Previsto para a ISSUE-071 |
 | Inspeções e ITP | Planos com pontos H/W/R (filtros por busca, ITP, resultado e tipo), cinco KPIs, ficha do ITP com os pontos, novo ITP, nova revisão, aprovação do cliente e registro de inspeção | Entregue na ISSUE-069 |
-| Auditorias | Programa, resultado, constatações e reprogramação | Previsto para a ISSUE-070 |
+| Auditorias | Programa (filtros por busca, situação e tipo), cinco KPIs, ficha com constatações e reprogramações, planejar/reprogramar (justificativa obrigatória ao mudar a data) e registrar o resultado (cada Não conformidade abre RNC) | Entregue na ISSUE-070 |
 
 ## Trios das telas
 
@@ -36,6 +35,9 @@ os formulários abrem no modal do Design System, no alvo `rnc-modal-corpo`. Depo
 gravação, o fragmento da lista traz um marcador oculto que reabre a ficha com o estado novo. O
 JS das Inspeções e ITP segue o mesmo padrão: a lista no alvo `inspecoes-conteudo` e a ficha do
 ITP e os formulários no alvo `inspecoes-modal-corpo` (`api/src/modulos/qualidade/inspecoes_routes.py`).
+O JS das Auditorias repete o padrão: a lista no alvo `auditorias-conteudo` e a ficha, o
+formulário de planejar/reprogramar e o do resultado no alvo `auditorias-modal-corpo`
+(`api/src/modulos/qualidade/auditorias_routes.py`).
 
 ## Rotas
 
@@ -62,6 +64,12 @@ e permissão) e desenham fragmentos; as exportações usam os mecanismos genéri
 | `inspecoes/itp/{codigo}/revisao` | GET/POST | Nova revisão (volta a pedir a aprovação; não retira ponto com inspeção) | Membro |
 | `inspecoes/itp/{codigo}/aprovacao` | GET/POST | Aprovação do cliente da revisão vigente | Gestor |
 | `inspecoes/inspecao` | GET/POST | Registrar inspeção em ponto de ITP aprovado (no Portfólio pede o projeto antes) | Membro |
+| `auditorias` | GET | A lista do programa (`busca`, `situacao`, `tipo`) | Ver |
+| `auditorias/excel` e `auditorias/imprimivel` | GET | Excel e PDF do mesmo filtro (KPIs + tabela) | Ver |
+| `auditorias/{codigo}/ficha` | GET | A ficha, com as constatações e as reprogramações | Ver |
+| `auditorias/nova` | GET/POST | Planejar a auditoria (no Portfólio pede o projeto antes) | Membro |
+| `auditorias/{codigo}/reprogramacao` | GET/POST | Reprogramar (só Planejada; mudar a data exige justificativa) | Membro |
+| `auditorias/{codigo}/resultado` | GET/POST | Registrar o resultado; cada Não conformidade abre a RNC | Membro |
 
 ## Fórmulas e nomes no código
 
@@ -84,6 +92,11 @@ e permissão) e desenham fragmentos; as exportações usam os mecanismos genéri
 | Código do ITP | `ITP-<padrão do projeto>-<sigla da disciplina>-NN`, dois dígitos, sequência do projeto e do prefixo (o protótipo não usava a sequência travada) | `service._next_itp_code` |
 | Código da inspeção | Série global `INS-<ano>-NNNN`, quatro dígitos, pelo maior número existente | `service._next_inspection_code` (`numbering.next_series_number`) |
 | Conformidade em auditorias | Itens conformes divididos pelos itens verificados | `calculations.audit_conformity_rate` (ISSUE-070) |
+| Auditoria atrasada | Planejada com a data **anterior** à referência (a fronteira: o dia planejado ainda não atrasa); os dias de atraso saem da mesma conta | `calculations.audit_overdue`, `audit_days_overdue` |
+| Aderência ao programa de auditorias | Auditorias realizadas divididas pelas previstas até a data de referência (data ≤ referência); vazio devolve `·` | `calculations.audit_program_adherence` |
+| Contagens por tipo de constatação | NC, Observação e Oportunidade de melhoria, na ordem do vocabulário; NC em aberto conta a RNC ativa (situação fora de Encerrada e Cancelada) | `calculations.finding_type_counts`, `service._build_audit_lines` |
+| Código da auditoria | `AUD-<padrão da ata do projeto>-NN`, dois dígitos, pelo maior código do projeto (o protótipo também contava os códigos) | `service._next_audit_code` |
+| Contenção da RNC da NC | `"Contenção a definir pelo auditado em até 48 horas da auditoria <AUD>."`, gravada quando a constatação abre a RNC | `service.AUDIT_CONTAINMENT` (`record_result`) |
 
 ## Fluxos
 
@@ -119,6 +132,23 @@ aprovada conclui o marco e a reprovada não conclui e exige a nova previsão do 
 Permissões do ITP: ver a lista e a ficha, qualquer perfil; criar ITP, nova revisão e inspeção,
 Membro; aprovar o cliente, Gestor; o Fornecedor não alcança o módulo (403).
 
+Auditorias: o programa (Contratada, Fornecedor ou Interna) nasce com o escopo, os critérios, o
+auditado, o auditor líder e a data; a data vencida sem resultado é **atrasada**. A
+**reprogramação** só vale na auditoria **Planejada**, exige a **justificativa** (mínimo de 10
+caracteres) quando a data muda e fica registrada em `auditoria_reprogramacao` com o autor e o
+momento; a trilha de auditoria guarda o antes e o depois da edição. O **resultado** (só na
+Planejada) grava a data de realização (até a referência), os itens verificados e conformes
+(conformes entre zero e o verificado) e as constatações (Não conformidade, Observação e
+Oportunidade de melhoria; descrição mínima de 10 caracteres, e a NC exige requisito, disciplina
+e severidade). **Cada Não conformidade abre a RNC** (origem `Auditoria`, referência o número da
+auditoria, empresa o auditado, descrição `<descrição> Requisito: <requisito>.`, contenção
+padrão da auditoria) na mesma transação, e o vínculo fica em `auditoria_constatacao.rnc_id`;
+**não pode haver mais NC que itens não conformes** ("Há mais não conformidades (n) que itens
+não conformes (m)."). A RNC da constatação mostra a situação lida da própria RNC.
+
+Permissões da Auditoria: ver a lista e a ficha, qualquer perfil; planejar, reprogramar e
+registrar o resultado, Membro; o Fornecedor não alcança o módulo (403).
+
 ## Integrações
 
 * **Central de Ações (saída):** as ações corretivas nascem pela fachada da Central
@@ -138,8 +168,10 @@ Membro; aprovar o cliente, Gestor; o Fornecedor não alcança o módulo (403).
   (`record_fat_inspection`), na transação da atualização do marco (D9); a inspeção não tem
   ponto de ITP e é identificada pelo `pedido_id`; a reprovação não abre RNC (o FAT reprovado
   apenas não conclui o marco e exige a nova previsão do reteste).
-* **Auditorias (entrada futura):** a constatação Não conformidade abrirá a RNC com origem
-  `Auditoria` na ISSUE-070.
+* **Auditorias → RNC (ISSUE-070):** a constatação Não conformidade abre a RNC pela própria
+  fachada (`record_result` chama `open_rnc`), na mesma transação, com origem `Auditoria` e
+  referência o número da auditoria; o vínculo é a FK `auditoria_constatacao.rnc_id` (D9), e a
+  ficha da auditoria linka a RNC pelo `origin_links` (`qualidade/rnc?busca=<código>`).
 
 ## Parâmetros
 
@@ -155,11 +187,12 @@ Grupo `qualidade` em Configurações > Parâmetros, versionado: `prazoTratamento
 |---|---|
 | Rotas e fragmentos da RNC | `routes.py` e `api/src/templates/qualidade/rnc*.html` |
 | Rotas e fragmentos das Inspeções e ITP | `inspecoes_routes.py` e `api/src/templates/qualidade/inspecoes*.html` |
-| Transições, permissões e integrações (RNC, ITP e o FAT) | `service.py` |
-| Fórmulas da RNC, do ITP e da inspeção | `calculations.py` |
+| Rotas e fragmentos das Auditorias | `auditorias_routes.py` e `api/src/templates/qualidade/auditorias*.html` |
+| Transições, permissões e integrações (RNC, ITP, FAT e auditorias) | `service.py` |
+| Fórmulas da RNC, do ITP, da inspeção e da auditoria | `calculations.py` |
 | Validações e mensagens do formulário | `validation.py` |
 | Exportação (Excel e PDF) | `export.py` |
-| Persistência | `models.py`; entidades `rnc`, `itp`, `itp_revisao`, `itp_ponto` e `inspecao` em `docs/MODELO-DE-DADOS.md` |
-| Carga de demonstração | `seed.py` (partes `qualidade-rnc` e `qualidade-inspecoes`) |
+| Persistência | `models.py`; entidades `rnc`, `itp`, `itp_revisao`, `itp_ponto`, `inspecao`, `auditoria_qualidade`, `auditoria_constatacao` e `auditoria_reprogramacao` em `docs/MODELO-DE-DADOS.md` |
+| Carga de demonstração | `seed.py` (partes `qualidade-rnc`, `qualidade-inspecoes` e `qualidade-auditorias`) |
 | Tela, estilo e comportamento | `app/_views/qualidade/` e `app/paginas/qualidade/` |
 | Testes | `api/tests/qualidade/` e `api/tests/oraculo/test_oraculo_qualidade.py` |
