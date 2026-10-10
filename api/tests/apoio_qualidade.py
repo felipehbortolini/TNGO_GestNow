@@ -1,10 +1,11 @@
-"""Apoio dos testes da Qualidade: o cenário da RNC e do ITP (projetos, pessoas e cadastros).
+"""Apoio dos testes da Qualidade: o cenário da RNC, do ITP e da auditoria (cadastros).
 
 O cenário vive na transação do teste: dois projetos, um colaborador de cada perfil (Admin,
 Gestor, Membro e Visualizador), a versão 1 dos parâmetros (o grupo Qualidade traz os prazos, a
-espera da verificação e a antecedência da notificação), uma disciplina e uma empresa do
-cadastro. As entradas de partida são uma abertura, uma análise e uma verificação completas, e
-o ITP com os seus pontos, para os testes mudarem só o que importa.
+espera da verificação, a antecedência da notificação e a meta da conformidade), uma disciplina
+e uma empresa do cadastro. As entradas de partida são uma abertura, uma análise e uma
+verificação completas, o ITP com os seus pontos e a auditoria com o resultado, para os testes
+mudarem só o que importa.
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ from src.modulos.qualidade.service import ItpLine
 from src.modulos.qualidade.validation import (
     ActionInput,
     AnalysisInput,
+    AuditFindingInput,
+    AuditInput,
+    AuditResultInput,
     InspectionInput,
     ItpApprovalInput,
     ItpInput,
@@ -204,3 +208,39 @@ def itp_aprovado(sessao: Session, cenario: Cenario, **campos: object) -> ItpLine
         message = f"ITP {criado.code} não encontrado depois de criado."
         raise LookupError(message)
     return linha
+
+
+def nova_auditoria(cenario: Cenario, **campos: object) -> AuditInput:
+    """Uma auditoria de partida: Contratada, no projeto e na empresa do cenário, dez dias à frente."""
+    base = AuditInput(
+        project_id=cenario.projeto.id,
+        audit_type="Contratada",
+        auditee_id=cenario.empresa.id,
+        lead_auditor_id=cenario.mario.person_id,
+        scope="Controle tecnológico do concreto",
+        criterion="ET-CIV-001 e NBR 12655",
+        audit_date=REFERENCIA + timedelta(days=10),
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def nova_constatacao(**campos: object) -> AuditFindingInput:
+    """Uma constatação de partida: Não conformidade com o requisito, a disciplina e a severidade."""
+    base = AuditFindingInput(
+        finding_type="Não conformidade",
+        description="Ensaios de abatimento sem registro em 3 caminhões.",
+        requirement="NBR 12655, 6.2",
+        discipline=DISCIPLINA,
+        severity="Maior",
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def resultado_auditoria(**campos: object) -> AuditResultInput:
+    """Um resultado de partida: 40 itens verificados, 36 conformes, sem constatações."""
+    base = AuditResultInput(
+        performed_on=REFERENCIA,
+        items_verified=40,
+        items_conforming=36,
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
