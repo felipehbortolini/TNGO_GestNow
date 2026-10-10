@@ -1,0 +1,37 @@
+{% extends "base_fragment.html" %}
+{#
+  O bloco restrito da ocorrência (LGPD, Q35): nome, gravidade real, dias perdidos e debitados,
+  CAT e descrição médica. Só chega aqui quem tem VIEW_RESTRICTED (Gestor e Admin); qualquer outro
+  recebe 403 do servidor. O Membro preenche no registro e não lê de volta.
+
+  Espera: restrito (name, real_gravity, days_lost, days_charged, cat, medical_notes, suggests_hipo)
+  e gravidades.
+#}
+{% macro campo(rotulo, conteudo) %}
+<div class="field">
+  <span class="field__label">{{ rotulo }}</span>
+  <div>{{ conteudo if conteudo not in (None, '') else '·' }}</div>
+</div>
+{% endmacro %}
+
+{% block fragment %}
+<div class="aviso aviso--info mb-16" role="note">
+  <span class="ocorrencias__restrito-titulo">
+    <span x-init="$el.innerHTML = window.icon('lock', 14)" aria-hidden="true"></span>
+    Campo de acesso restrito (LGPD): Membro preenche, Gestor e Admin leem — inclusive os anexos.
+  </span>
+</div>
+<div class="fgrid">
+  {{ campo('Nome', restrito.name) }}
+  {% set gravidade = (gravidades | selectattr('0', 'equalto', restrito.real_gravity | string) | list) %}
+  {{ campo('Gravidade real', gravidade[0][1] if gravidade else none) }}
+  {{ campo('Dias perdidos', restrito.days_lost) }}
+  {{ campo('Dias debitados', restrito.days_charged) }}
+  {{ campo('Comunicação legal (CAT)', 'Aplicável' if restrito.cat else 'Não aplicável') }}
+  {{ campo('Descrição médica', restrito.medical_notes) }}
+</div>
+{% if restrito.suggests_hipo %}
+<p class="hint mt-16">O impacto potencial registrado supera a gravidade real: avalie marcar a
+  ocorrência como alto potencial (HiPo).</p>
+{% endif %}
+{% endblock %}

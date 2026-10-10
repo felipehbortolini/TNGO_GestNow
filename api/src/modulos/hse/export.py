@@ -2,9 +2,11 @@
 
 What a screen shows is what leaves: the HHT screen exports its four indicators with their
 reference, the HHT table and the labour histogram; the screen Inspeções e observações exports its
-four indicators and the four lists (monthly closings, inspections, observations and DDS). In the
-Portfólio every table opens with ``Projeto`` (HU-016). The name of the person observed leaves only
-for who may read it (Q35).
+four indicators and the four lists (monthly closings, inspections, observations and DDS); the
+screen Ocorrências exports its four indicators and the list, with the same columns the prototype
+exported. In the Portfólio every table opens with ``Projeto`` (HU-016). The name of the person
+observed leaves only for who may read it (Q35); the restricted data of an occurrence never
+leaves, because the list does not carry it.
 """
 
 from __future__ import annotations
@@ -32,9 +34,12 @@ from src.modulos.hse.calculations import ProactiveSummary
 
 HOURS_TITLE = "Horas trabalhadas (HHT)"
 PROACTIVE_TITLE = "Inspeções, observações e DDS"
+OCCURRENCES_TITLE = "Ocorrências HSE"
 HOURS_FILE = "hht-hse"
 PROACTIVE_FILE = "inspecoes-hse"
+OCCURRENCES_FILE = "ocorrencias-hse"
 NONE = "·"
+WITHIN_DEADLINE = "no prazo"
 
 
 def hours_document(
@@ -345,3 +350,124 @@ def _talk_table(rows: Sequence[service.TalkRow]) -> Table:
             for line in rows
         ),
     )
+
+
+def occurrences_document(
+    screen: service.OccurrenceScreen,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """The document of the occurrence screen: its four indicators and the list, as it is shown."""
+    return Document(
+        title=OCCURRENCES_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        kpis=_occurrence_kpis(screen),
+        tables=(_occurrence_table(screen.rows),),
+    )
+
+
+def _occurrence_kpis(screen: service.OccurrenceScreen) -> tuple[Kpi, ...]:
+    summary = screen.summary
+    deadlines = screen.deadlines
+    limits = (
+        f"Limites: {deadlines.communication_hours} h, "
+        f"{deadlines.investigation_hours} h e {deadlines.report_days} dias"
+    )
+    return (
+        Kpi(
+            "Ocorrências no projeto",
+            summary.total,
+            f"Referência: de {screen.universe} registradas",
+            ValueKind.INTEGER,
+            tone=Tone.NEUTRAL,
+            status="Pelo filtro em tela",
+        ),
+        Kpi(
+            "Em aberto",
+            summary.open_count,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.open_count else Tone.OK,
+            status="Não encerradas",
+        ),
+        Kpi(
+            "Alto potencial (HiPo) em aberto",
+            summary.hipo_open,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.hipo_open else Tone.OK,
+            status="HiPo sem encerramento",
+        ),
+        Kpi(
+            "Fora do prazo",
+            summary.overdue,
+            "Esperado: 0",
+            ValueKind.INTEGER,
+            tone=Tone.WARN if summary.overdue else Tone.OK,
+            status=f"Comunicação, investigação ou relatório · {limits}",
+        ),
+    )
+
+
+def _occurrence_table(rows: Sequence[service.OccurrenceRow]) -> Table:
+    return Table(
+        title="Ocorrências",
+        columns=(
+            Column("Nº", width=18),
+            Column("Data / hora", width=18),
+            Column("Área", width=22),
+            Column("Empresa", width=24),
+            Column("Tipo / nível", width=26),
+            Column("Potencial", width=22),
+            Column("Situação", width=16),
+            Column("Prazos", width=34),
+        ),
+        rows=tuple(
+            row(
+                line.code,
+                line.moment_text,
+                line.area,
+                line.company_name,
+                _type_text(line),
+                _potential_text(line),
+                line.situation,
+                _deadlines_text(line),
+                project=line.project_label,
+            )
+            for line in rows
+        ),
+    )
+
+
+def _type_text(line: service.OccurrenceRow) -> str:
+    if line.level is None:
+        return line.kind
+    return f"{line.kind} ({line.level_name})"
+
+
+def _potential_text(line: service.OccurrenceRow) -> str:
+    if line.environmental:
+        return line.environmental_severity or NONE
+    if line.band is None:
+        return NONE
+    return f"{line.band.name} (P{line.potential_p} x I{line.potential_i})"
+
+
+def _deadlines_text(line: service.OccurrenceRow) -> str:
+    badges: list[str] = []
+    if line.communication_overdue:
+        badges.append("Comunicação fora do prazo")
+    if line.investigation_late == "fora":
+        badges.append("Investigação fora do prazo")
+    elif line.investigation_late == "vencido":
+        badges.append("Investigação vencida")
+    if line.report_required:
+        if line.report_late == "fora":
+            badges.append("Relatório final fora do prazo")
+        elif line.report_late == "vencido":
+            badges.append("Relatório final vencido")
+    return "; ".join(badges) if badges else WITHIN_DEADLINE

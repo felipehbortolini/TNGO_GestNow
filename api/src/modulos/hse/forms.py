@@ -17,9 +17,13 @@ from src.modulos.hse.models import SafetyInspectionItem
 from src.modulos.hse.validation import (
     ChecklistItemInput,
     ClosingInput,
+    ClosureInput,
+    CorrectiveActionInput,
     HoursInput,
     InspectionInput,
+    InvestigationInput,
     ObservationInput,
+    OccurrenceInput,
     TalkInput,
 )
 
@@ -178,6 +182,80 @@ def parse_talk(form: Mapping[str, str], *, project_id: int) -> TalkInput:
         participants=validation.parse_count(form.get("participantes")),
         company_id=_opt_id(form, "empresa"),
         version=form.get("versao"),
+    )
+
+
+# ── Ocorrências (ISSUE-073) ──────────────────────────────────────────────────────────────────
+
+CHECKED = "1"
+
+
+def _checked(form: Mapping[str, str], name: str) -> bool:
+    return _text(form, name) == CHECKED
+
+
+def _count_or_zero(form: Mapping[str, str], name: str) -> int | None:
+    """A count field that may be absent (a hidden field of the form): absent is zero."""
+    raw = form.get(name)
+    if raw is None or not raw.strip():
+        return 0
+    return validation.parse_count(raw)
+
+
+def parse_occurrence(form: Mapping[str, str], *, project_id: int) -> OccurrenceInput:
+    """The new occurrence form, with the restricted data the Membro fills in (Q35)."""
+    return OccurrenceInput(
+        project_id=project_id,
+        happened_on=validation.parse_date(form.get("data")),
+        happened_time=_text(form, "hora"),
+        area=_text(form, "area"),
+        company_id=_opt_id(form, "empresa"),
+        kind=_text(form, "tipo"),
+        subtype=_text(form, "subtipo"),
+        environmental_severity=_text(form, "severidade"),
+        description=_text(form, "descricao"),
+        role=_text(form, "funcao"),
+        people_involved=_count_or_zero(form, "pessoas"),
+        potential_p=validation.parse_count(form.get("potencial_p")),
+        potential_i=validation.parse_count(form.get("potencial_i")),
+        hipo=_checked(form, "hipo"),
+        immediate_cause=_text(form, "causa_imediata"),
+        communication_hours=validation.parse_count(form.get("comunicacao")),
+        name=_text(form, "nome"),
+        real_gravity=validation.parse_count(form.get("gravidade")),
+        days_lost=_count_or_zero(form, "dias_perdidos"),
+        days_charged=_count_or_zero(form, "dias_debitados"),
+        cat=_checked(form, "cat"),
+        medical_notes=_text(form, "descricao_medica"),
+    )
+
+
+def parse_investigation(form: Mapping[str, str]) -> InvestigationInput:
+    """The investigation form: method, root cause and date."""
+    return InvestigationInput(
+        method=_text(form, "metodo"),
+        root_cause=_text(form, "causa_raiz"),
+        investigated_on=validation.parse_date(form.get("data")),
+    )
+
+
+def parse_corrective_action(form: Mapping[str, str]) -> CorrectiveActionInput:
+    """The corrective action form: subject, description, responsible and planned date."""
+    return CorrectiveActionInput(
+        subject=_text(form, "assunto"),
+        description=_text(form, "descricao"),
+        responsible_id=_opt_id(form, "responsavel"),
+        planned_date=validation.parse_date(form.get("prevista")),
+    )
+
+
+def parse_closure(form: Mapping[str, str]) -> ClosureInput:
+    """The closing form: the effectiveness, the date and the draft lesson of a HiPo."""
+    return ClosureInput(
+        effectiveness=_text(form, "eficacia"),
+        closed_on=validation.parse_date(form.get("data")),
+        lesson_title=_text(form, "titulo"),
+        lesson_recommendation=_text(form, "recomendacao"),
     )
 
 

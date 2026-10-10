@@ -1,0 +1,72 @@
+{% extends "base_fragment.html" %}
+{#
+  Encerrar a ocorrência (ISSUE-073, Gestor): a verificação de eficácia e a data. Exige as ações
+  corretivas concluídas; um HiPo exige a lição, que nasce em Rascunho na Governança (origem HSE)
+  na mesma transação. O 422 devolve este formulário preenchido; o 403 da segregação volta no modal.
+
+  Espera: linha, valores, erros, erros_gerais, referencia, evento, acoes_abertas e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<form method="post" action="/api/hse/ocorrencias/{{ linha.code }}/encerrar"
+  x-target="ocorrencias-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Encerrando...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+
+  {% if acoes_abertas %}
+  <div class="aviso aviso--warn mb-16" role="note">
+    <span>{{ acoes_abertas }} {{ 'ação corretiva em aberto' if acoes_abertas == 1 else 'ações corretivas em aberto' }}.
+      Conclua-as na Central antes de encerrar.</span>
+  </div>
+  {% endif %}
+
+  {% if linha.hipo %}
+  <div class="aviso aviso--warn mb-16" role="note">
+    <span>Ocorrência de alto potencial (HiPo): a lição aprendida é obrigatória e nasce em
+      Rascunho na Governança, com origem HSE.</span>
+  </div>
+  {% endif %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="en-eficacia">Verificação de eficácia</label>
+      <textarea id="en-eficacia" name="eficacia" rows="3" maxlength="600"
+        class="input{% if erros.get('eficacia') %} input--erro{% endif %}" required
+        placeholder="Inspeções seguintes, indicadores ou auditoria que comprovam que o problema acabou">{{ valores.get('eficacia') or '' }}</textarea>
+      {{ erro(erros, 'eficacia') }}
+    </div>
+    <div class="field">
+      <label for="en-data">Data do encerramento</label>
+      <input id="en-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
+      {{ erro(erros, 'data') }}
+    </div>
+    {% if linha.hipo %}
+    <div class="field field--full">
+      <label for="en-titulo">Título da lição</label>
+      <input id="en-titulo" name="titulo" type="text" class="input{% if erros.get('titulo') %} input--erro{% endif %}"
+        maxlength="150" value="{{ valores.get('titulo') or '' }}" required />
+      {{ erro(erros, 'titulo') }}
+    </div>
+    <div class="field field--full">
+      <label for="en-recomendacao">Recomendação da lição</label>
+      <textarea id="en-recomendacao" name="recomendacao" rows="3" maxlength="1000"
+        class="input{% if erros.get('recomendacao') %} input--erro{% endif %}" required>{{ valores.get('recomendacao') or '' }}</textarea>
+      {{ erro(erros, 'recomendacao') }}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Encerrar</button>
+  </div>
+</form>
+{% endblock %}

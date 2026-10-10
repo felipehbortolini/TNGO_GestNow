@@ -1,0 +1,61 @@
+{% extends "base_fragment.html" %}
+{#
+  Ação corretiva da ocorrência (ISSUE-073): assunto, descrição, responsável e data prevista. A
+  ação nasce na Central de Ações com origem HSE e o código da ocorrência (D9); o link de volta
+  distingue a ocorrência do estudo de risco. O 422 devolve este formulário preenchido.
+
+  Espera: linha, valores, erros, erros_gerais, pessoas, referencia e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span class="field__erro" id="erro-{{ nome }}" role="alert">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+
+{% block fragment %}
+<form method="post" action="/api/hse/ocorrencias/{{ linha.code }}/acoes"
+  x-target="ocorrencias-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Criando a ação...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for mensagem in erros_gerais %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
+  {% endfor %}
+
+  <p class="hint mb-16">Esta ação nasce vinculada à ocorrência (origem HSE) e aparece na Central de Ações.</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="ac-assunto">Assunto</label>
+      <input id="ac-assunto" name="assunto" type="text" class="input{% if erros.get('assunto') %} input--erro{% endif %}"
+        maxlength="255" value="{{ valores.get('assunto') or '' }}" required />
+      {{ erro(erros, 'assunto') }}
+    </div>
+    <div class="field field--full">
+      <label for="ac-descricao">Descrição</label>
+      <textarea id="ac-descricao" name="descricao" rows="3" maxlength="300"
+        class="input{% if erros.get('descricao') %} input--erro{% endif %}">{{ valores.get('descricao') or '' }}</textarea>
+      {{ erro(erros, 'descricao') }}
+    </div>
+    <div class="field">
+      <label for="ac-responsavel">Responsável</label>
+      <select id="ac-responsavel" name="responsavel" class="input{% if erros.get('responsavel') %} input--erro{% endif %}" required>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'responsavel') }}
+    </div>
+    <div class="field">
+      <label for="ac-prevista">Data prevista</label>
+      <input id="ac-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}"
+        min="{{ referencia }}" value="{{ valores.get('prevista') or '' }}" required />
+      {{ erro(erros, 'prevista') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Criar ação corretiva</button>
+  </div>
+</form>
+{% endblock %}

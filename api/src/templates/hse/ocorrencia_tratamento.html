@@ -1,0 +1,22 @@
+{% extends "base_fragment.html" %}
+{#
+  Iniciar o tratamento da ocorrência (ISSUE-073): a confirmação do passo, como o protótipo pedia.
+  O servidor confere o degrau do fluxo (só de Ações definidas) e atualiza a lista ao gravar.
+
+  Espera: linha e consulta.
+#}
+{% block fragment %}
+<form method="post" action="/api/hse/ocorrencias/{{ linha.code }}/tratamento"
+  x-target="ocorrencias-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Iniciando o tratamento...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  <p class="mb-16">Confirma o início do tratamento da ocorrência <b>{{ linha.code }}</b>?</p>
+  <p class="hint mb-16">A ocorrência passa para Em tratamento; o encerramento exige as ações
+    corretivas da Central concluídas e a verificação de eficácia (Gestor).</p>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Iniciar tratamento</button>
+  </div>
+</form>
+{% endblock %}

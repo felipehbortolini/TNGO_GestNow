@@ -8,9 +8,69 @@
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-073.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--hse-ocorrencias .ocorrencias__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--hse-ocorrencias .ocorrencias__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__filtros {
+  flex-wrap: wrap;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__barra {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.pagina--hse-ocorrencias .ocorrencias__barra-acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.8125rem;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__tipo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.pagina--hse-ocorrencias .ocorrencias__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-title);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pagina--hse-ocorrencias .ocorrencias__paginas {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}

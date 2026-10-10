@@ -359,6 +359,14 @@ max-complexity = 10
 # mesma coisa com mais indireção.
 "src/modulos/qualidade/auditorias_routes.py" = ["PLR0913"]
 
+# `_screen_response` e `_new_form`, nas rotas das Ocorrências, recebem a requisição,
+# a sessão e o contexto além do que a resposta precisa imprimir (os filtros, a página,
+# o aviso e a ficha a reabrir), todos KEYWORD-ONLY depois do `*` — o contrato da tela e
+# dos formulários do fluxo (ISSUE-073), como as rotas da RNC e das Inspeções acima. A
+# regra existe para argumento posicional, onde a ordem se erra na chamada; reduzir
+# significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/hse/ocorrencias_routes.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

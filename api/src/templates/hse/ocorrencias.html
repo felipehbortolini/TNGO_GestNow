@@ -1,0 +1,199 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Ocorrências (ISSUE-073): os quatro indicadores, os filtros e a lista com as ações do
+  fluxo em cada linha. O fragmento é um só e se pede de novo, com os filtros na consulta, a cada
+  clique; a busca e os seletores são um formulário GET com x-target no próprio fragmento. As ações
+  e o botão Nova ocorrência abrem o modal pelo JS da página (ocorrencias.js); depois de uma
+  gravação o fragmento traz o marcador oculto que reabre a ficha.
+
+  Espera: kpis, linhas, total, pagina, pagina_total, link_anterior, link_proximo, consulta,
+  url_excel, url_pdf, filtros, tem_filtro, situacoes, tipos, pode_gravar, pode_gerir, portfolio,
+  abrir_ficha e os formatadores (numero, data).
+#}
+{% set pill_da_situacao = {
+  'Registrada': 'pill--neutral', 'Em investigação': 'pill--warn', 'Ações definidas': 'pill--fix',
+  'Em tratamento': 'pill--fix', 'Encerrada': 'pill--ok'
+} %}
+{% set pill_do_nivel = {1: 'pill--erro', 2: 'pill--warn', 3: 'pill--neutral', 4: 'pill--fix'} %}
+{% set pill_da_faixa = {
+  'baixo': 'pill--ok', 'moderado': 'pill--warn', 'alto': 'pill--erro', 'critico': 'pill--erro'
+} %}
+
+{% macro kpi(cartao) %}
+<div class="kpi kpi--estatico kpi--{{ cartao.tom }}">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icone }}', 16)" aria-hidden="true"></span>
+  <span class="ocorrencias__kpi-texto">
+    <span class="kpi__label">{{ cartao.rotulo }}</span>
+    <span class="hint">{{ cartao.referencia }}</span>
+    {% if cartao.rodape %}<span class="hint">{{ cartao.rodape }}</span>{% endif %}
+  </span>
+  <span class="kpi__value">{{ cartao.valor }}</span>
+</div>
+{% endmacro %}
+
+{% macro botao_modal(url, titulo, subtitulo, icone, rotulo) %}
+<button type="button" class="btn btn--ghost btn--sm" data-ocorrencias-modal-url="{{ url }}"
+  data-ocorrencias-modal-titulo="{{ titulo }}" data-ocorrencias-modal-subtitulo="{{ subtitulo }}"
+  {% if not rotulo %}title="{{ titulo }}" aria-label="{{ titulo }}"{% endif %}>
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 14)" aria-hidden="true"></span>{% if rotulo %} {{ rotulo }}{% endif %}
+</button>
+{% endmacro %}
+
+{% macro acoes_da_linha(linha) %}
+<div class="ocorrencias__acoes">
+  {{ botao_modal('/api/hse/ocorrencias/' ~ linha.code ~ '/ficha?' ~ consulta, 'Ocorrência ' ~ linha.code, linha.kind ~ ' · ' ~ linha.area, 'eye', '') }}
+  {% if linha.situation == 'Registrada' and pode_gravar %}
+  {{ botao_modal('/api/hse/ocorrencias/' ~ linha.code ~ '/investigar?' ~ consulta, 'Investigar ocorrência · ' ~ linha.code, linha.kind ~ ' · ' ~ linha.area, 'file', 'Investigar') }}
+  {% endif %}
+  {% if linha.situation in ('Em investigação', 'Ações definidas') and pode_gravar %}
+  {{ botao_modal('/api/hse/ocorrencias/' ~ linha.code ~ '/acoes?' ~ consulta, 'Ação corretiva · ' ~ linha.code, linha.kind ~ ' · ' ~ linha.area, 'add', 'Ação') }}
+  {% endif %}
+  {% if linha.situation == 'Ações definidas' and pode_gravar %}
+  {{ botao_modal('/api/hse/ocorrencias/' ~ linha.code ~ '/tratamento?' ~ consulta, 'Iniciar tratamento · ' ~ linha.code, linha.kind ~ ' · ' ~ linha.area, 'play', 'Iniciar tratamento') }}
+  {% endif %}
+  {% if linha.situation == 'Em tratamento' and pode_gerir %}
+  {{ botao_modal('/api/hse/ocorrencias/' ~ linha.code ~ '/encerrar?' ~ consulta, 'Encerrar ocorrência · ' ~ linha.code, linha.kind ~ ' · ' ~ linha.area, 'checkCircle', 'Encerrar') }}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% block fragment %}
+{% if abrir_ficha %}
+<span hidden data-ocorrencias-abrir-ficha="{{ abrir_ficha }}"
+  x-init="TN.paginas['hse/ocorrencias'].abrirFicha($el)"></span>
+{% endif %}
+
+<div class="kpis ocorrencias__kpis" style="--kpis-colunas: 4">
+  {% for cartao in kpis %}{{ kpi(cartao) }}{% endfor %}
+</div>
+
+<div class="card">
+  <div class="card__body">
+    <form class="toolbar ocorrencias__filtros" method="get" action="/api/hse/ocorrencias" x-target="{{ target_id }}" role="search">
+      <div class="toolbar__search input-icon">
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>
+        <label class="sr-only" for="{{ target_id }}-busca">Buscar ocorrências</label>
+        <input id="{{ target_id }}-busca" class="input input--pill" type="search" name="busca"
+          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar por número, área ou descrição" />
+      </div>
+      <select class="input" name="situacao" aria-label="Situação" @change="$el.form.requestSubmit()">
+        <option value="">Situação: todas</option>
+        {% for situacao in situacoes %}
+        <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
+        {% endfor %}
+      </select>
+      <select class="input" name="tipo" aria-label="Tipo" @change="$el.form.requestSubmit()">
+        <option value="">Tipo: todos</option>
+        {% for tipo in tipos %}
+        <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ tipo }}</option>
+        {% endfor %}
+      </select>
+      <label class="ocorrencias__opcao">
+        <input type="checkbox" name="hipo" value="1"{% if filtros.hipo %} checked{% endif %}
+          @change="$el.form.requestSubmit()" />
+        Só alto potencial (HiPo)
+      </label>
+      <button type="submit" class="btn btn--secondary btn--sm">
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
+      </button>
+      {% if tem_filtro %}
+      <a class="btn btn--ghost btn--sm" href="/api/hse/ocorrencias" x-target="{{ target_id }}">Limpar filtros</a>
+      {% endif %}
+    </form>
+
+    <div class="toolbar ocorrencias__barra">
+      <span class="hint" role="status">
+        {{ total }} {{ 'ocorrência encontrada' if total == 1 else 'ocorrências encontradas' }}
+        · nível 5 (desvios) vem do consolidado mensal
+      </span>
+      <span class="ocorrencias__barra-acoes">
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        {% if pode_gravar %}
+        <button type="button" class="btn btn--primary btn--sm" data-tn-incluir="nova"
+          data-ocorrencias-modal-url="/api/hse/ocorrencias/nova?consulta={{ consulta }}"
+          data-ocorrencias-modal-titulo="Nova ocorrência"
+          data-ocorrencias-modal-subtitulo="Fluxo: Registrada, Em investigação, Ações definidas, Em tratamento, Encerrada"
+          data-ocorrencias-modal-largura="920">
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Nova ocorrência
+        </button>
+        {% endif %}
+      </span>
+    </div>
+
+    {% if not total %}
+    <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">
+        {% if tem_filtro %}Nenhuma ocorrência encontrada com os filtros atuais{% else %}Ainda não há ocorrências registradas{% endif %}
+      </h2>
+      <p>
+        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
+        {% else %}Registre a primeira ocorrência com data, área, tipo e o potencial (P x I).{% endif %}
+      </p>
+    </div>
+    {% else %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Ocorrências do projeto</caption>
+        <thead><tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Nº</th><th scope="col">Data / hora</th><th scope="col">Área</th>
+          <th scope="col">Empresa</th><th scope="col">Tipo / nível</th><th scope="col">Potencial</th>
+          <th scope="col">Situação</th><th scope="col">Prazos</th>
+          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+        </tr></thead>
+        <tbody>
+          {% for linha in linhas %}
+          <tr>
+            {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_label }}</span></td>{% endif %}
+            <td class="nowrap"><button type="button" class="ocorrencias__link"
+              data-ocorrencias-modal-url="/api/hse/ocorrencias/{{ linha.code }}/ficha?{{ consulta }}"
+              data-ocorrencias-modal-titulo="Ocorrência {{ linha.code }}"
+              data-ocorrencias-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}">{{ linha.code }}</button></td>
+            <td class="nowrap">{{ linha.moment_text }}</td>
+            <td>{{ linha.area }}</td>
+            <td>{{ linha.company_name }}</td>
+            <td>
+              <span class="ocorrencias__tipo">
+                <b>{{ linha.kind }}</b>
+                {% if linha.environmental %}
+                <span class="pill pill--neutral">Ambiental</span>
+                {% else %}
+                <span class="pill {{ pill_do_nivel.get(linha.level, 'pill--neutral') }}">N{{ linha.level }} · {{ linha.level_name }}</span>
+                {% endif %}
+                {% if linha.hipo %}<span class="pill pill--erro">HiPo</span>{% endif %}
+              </span>
+            </td>
+            <td>
+              {% if linha.environmental %}
+              <span class="pill pill--neutral">{{ linha.environmental_severity or '·' }}</span>
+              {% elif linha.band %}
+              <span class="pill {{ pill_da_faixa.get(linha.band.id, 'pill--neutral') }}"><b>{{ linha.band.score }}</b> {{ linha.band.name }}</span>
+              <small class="muted">P{{ linha.potential_p }} x I{{ linha.potential_i }}</small>
+              {% else %}<span class="muted">·</span>{% endif %}
+            </td>
+            <td><span class="pill {{ pill_da_situacao.get(linha.situation, 'pill--neutral') }}">{{ linha.situation }}</span></td>
+            <td>
+              {% if linha.communication_overdue %}<span class="pill pill--erro">Comunicação fora do prazo</span>{% endif %}
+              {% if linha.investigation_late == 'vencido' %}<span class="pill pill--erro">Investigação vencida</span>
+              {% elif linha.investigation_late == 'fora' %}<span class="pill pill--erro">Investigação fora do prazo</span>{% endif %}
+              {% if linha.report_late == 'vencido' %}<span class="pill pill--erro">Relatório final vencido</span>
+              {% elif linha.report_late == 'fora' %}<span class="pill pill--erro">Relatório fora do prazo</span>{% endif %}
+              {% if not linha.overdue %}<span class="hint">no prazo</span>{% endif %}
+            </td>
+            <td>{{ acoes_da_linha(linha) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="ocorrencias__paginas" aria-label="Páginas da tabela">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+      <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
