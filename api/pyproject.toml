@@ -155,8 +155,10 @@ max-complexity = 10
 # assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste informa só o que
 # importa para o caso (ISSUE-076). A regra existe para argumento posicional, onde a ordem
 # se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
-# mais indireção.
+# mais indireção. O `_requisicao` de test_colaboradores_rotas.py segue o mesmo contrato
+# (ISSUE-077).
 "tests/configuracoes/test_parametros_rotas.py" = ["PLR0913"]
+"tests/configuracoes/test_colaboradores_rotas.py" = ["PLR0913"]
 
 # `register_document` e `acervo_document` têm 6 parâmetros, e é assim de propósito:
 # depois do `*` são todos KEYWORD-ONLY (panel, scope, projects, filters, today). A
