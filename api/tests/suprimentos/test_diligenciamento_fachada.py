@@ -19,6 +19,7 @@ from src.core.errors import AccessDeniedError, InvalidDataError
 from src.core.models import AuditEntry
 from src.core.scope import Scope
 from src.modulos.central_acoes.models import Action
+from src.modulos.qualidade.models import Inspection
 from src.modulos.suprimentos import service, validation
 from src.modulos.suprimentos.models import (
     DeliveryReceipt,
@@ -69,13 +70,14 @@ def _realizar(
     position: int,
     quando: date,
 ) -> service.OrderSave:
+    extra = {"result": "Aprovado"} if position == 4 else {}
     return service.update_order_milestone(
         sessao,
         user=cenario.ana,
         scope=_scope(cenario),
         order_id=cenario.pedido.id,
         data=validation.MilestoneInput(
-            index=position, kind=validation.MILESTONE_DONE, realized=quando
+            index=position, kind=validation.MILESTONE_DONE, realized=quando, **extra
         ),
         reference_date=REFERENCIA,
     )
@@ -278,6 +280,146 @@ def test_a_previsao_sem_cascata_nao_mexe_nos_seguintes(
     marcos = _milestones(sessao, cenario)
     assert marcos[0].forecast_date == date(2026, 9, 26)
     assert [marco.forecast_date for marco in marcos[1:]] == original[1:]
+
+
+# ── O FAT (ISSUE-069) ────────────────────────────────────────────────────────────────────────
+
+
+def _realizar_fat(
+    sessao: Session,
+    cenario: CenarioDiligenciamento,
+    *,
+    quando: date,
+    resultado: str,
+    previsao: date | None = None,
+) -> service.OrderSave:
+    return service.update_order_milestone(
+        sessao,
+        user=cenario.ana,
+        scope=_scope(cenario),
+        order_id=cenario.pedido.id,
+        data=validation.MilestoneInput(
+            index=4,
+            kind=validation.MILESTONE_DONE,
+            realized=quando,
+            forecast=previsao,
+            result=resultado,
+        ),
+        reference_date=REFERENCIA,
+    )
+
+
+def _inspecoes(sessao: Session) -> list[Inspection]:
+    return list(sessao.scalars(select(Inspection).order_by(Inspection.id)))
+
+
+def test_o_fat_exige_o_resultado(sessao: Session, cenario: CenarioDiligenciamento) -> None:
+    _realizar(sessao, cenario, 1, date(2026, 9, 20))
+    _realizar(sessao, cenario, 2, date(2026, 9, 21))
+    _realizar(sessao, cenario, 3, date(2026, 9, 22))
+
+    with pytest.raises(InvalidDataError) as recusa:
+        _realizar_fat(sessao, cenario, quando=date(2026, 9, 23), resultado="")
+
+    assert any(
+        "Informe o resultado da inspeção em fábrica." in msg for msg in recusa.value.messages()
+    )
+    assert _inspecoes(sessao) == []
+    assert _milestones(sessao, cenario)[3].real_date is None
+
+
+def test_o_fat_aprovado_conclui_o_marco_e_grava_a_inspecao(
+    sessao: Session, cenario: CenarioDiligenciamento
+) -> None:
+    _realizar(sessao, cenario, 1, date(2026, 9, 20))
+    _realizar(sessao, cenario, 2, date(2026, 9, 21))
+    _realizar(sessao, cenario, 3, date(2026, 9, 22))
+
+    _realizar_fat(sessao, cenario, quando=date(2026, 9, 23), resultado="Aprovado")
+
+    marcos = _milestones(sessao, cenario)
+    assert marcos[3].real_date == date(2026, 9, 23)
+    assert marcos[3].forecast_date == date(2026, 9, 23)
+    inspecao = _inspecoes(sessao)[0]
+    assert inspecao.order_id == cenario.pedido.id
+    assert inspecao.point == "Inspeção em fábrica (FAT) PED-2026-0001"
+    assert inspecao.point_type == "H"
+    assert inspecao.company_id == cenario.fornecedores[0].id, "a empresa é a do fornecedor"
+    assert inspecao.inspector_id == cenario.ana.person_id, "sem inspetor, quem gravou"
+    assert inspecao.result == "Aprovado"
+    textos = [linha["texto"] for linha in _historico(sessao, cenario)]
+    assert any(texto.startswith(f"FAT aprovado ({inspecao.code}).") for texto in textos)
+
+
+def test_o_fat_reprovado_nao_conclui_e_exige_a_previsao_do_reteste(
+    sessao: Session, cenario: CenarioDiligenciamento
+) -> None:
+    _realizar(sessao, cenario, 1, date(2026, 9, 20))
+    _realizar(sessao, cenario, 2, date(2026, 9, 21))
+    _realizar(sessao, cenario, 3, date(2026, 9, 22))
+
+    with pytest.raises(InvalidDataError) as recusa:
+        _realizar_fat(sessao, cenario, quando=date(2026, 9, 23), resultado="Reprovado")
+
+    assert any(
+        "FAT reprovado: informe a nova previsão do reteste." in msg
+        for msg in recusa.value.messages()
+    )
+    assert _inspecoes(sessao) == [], "a recusa não deixa inspeção pela metade"
+    assert _milestones(sessao, cenario)[3].real_date is None
+
+
+def test_o_fat_reprovado_grava_a_inspecao_e_reprograma_o_reteste(
+    sessao: Session, cenario: CenarioDiligenciamento
+) -> None:
+    _realizar(sessao, cenario, 1, date(2026, 9, 20))
+    _realizar(sessao, cenario, 2, date(2026, 9, 21))
+    _realizar(sessao, cenario, 3, date(2026, 9, 22))
+    original = [marco.forecast_date for marco in _milestones(sessao, cenario)]
+
+    _realizar_fat(
+        sessao,
+        cenario,
+        quando=date(2026, 9, 23),
+        resultado="Reprovado",
+        previsao=date(2026, 10, 20),
+    )
+
+    marcos = _milestones(sessao, cenario)
+    assert marcos[3].real_date is None, "o FAT reprovado não conclui o marco"
+    assert marcos[3].forecast_date == date(2026, 10, 20)
+    delta = date(2026, 10, 20) - original[3]
+    assert marcos[4].forecast_date == original[4] + delta, "a cascata desloca os seguintes"
+    inspecao = _inspecoes(sessao)[0]
+    assert inspecao.result == "Reprovado"
+    assert inspecao.order_id == cenario.pedido.id
+    textos = [linha["texto"] for linha in _historico(sessao, cenario)]
+    assert any(
+        texto.startswith(f"FAT reprovado ({inspecao.code}); reteste previsto.") for texto in textos
+    )
+
+
+def test_o_visualizador_nao_realiza_o_fat(sessao: Session, cenario: CenarioDiligenciamento) -> None:
+    _realizar(sessao, cenario, 1, date(2026, 9, 20))
+    _realizar(sessao, cenario, 2, date(2026, 9, 21))
+    _realizar(sessao, cenario, 3, date(2026, 9, 22))
+
+    with pytest.raises(AccessDeniedError):
+        service.update_order_milestone(
+            sessao,
+            user=cenario.vitor,
+            scope=_scope(cenario),
+            order_id=cenario.pedido.id,
+            data=validation.MilestoneInput(
+                index=4,
+                kind=validation.MILESTONE_DONE,
+                realized=date(2026, 9, 23),
+                result="Aprovado",
+            ),
+            reference_date=REFERENCIA,
+        )
+
+    assert _inspecoes(sessao) == []
 
 
 # ── Recebimento ──────────────────────────────────────────────────────────────────────────────

@@ -137,12 +137,13 @@ def _scope(cenario: CenarioDiligenciamento) -> Scope:
 def _realizar(
     sessao: Session, cenario: CenarioDiligenciamento, position: int, quando: date
 ) -> None:
+    extra = {"result": "Aprovado"} if position == 4 else {}
     service.update_order_milestone(
         sessao,
         user=cenario.ana,
         scope=_scope(cenario),
         order_id=cenario.pedido.id,
-        data=validation.MilestoneInput(index=position, kind="realizado", realized=quando),
+        data=validation.MilestoneInput(index=position, kind="realizado", realized=quando, **extra),
         reference_date=REFERENCIA,
     )
 
@@ -212,6 +213,8 @@ def test_o_formulario_do_marco_lista_os_pendentes(cenario: CenarioDiligenciament
     assert "Nova previsão" in corpo
     assert "Aprovação de documentos" in corpo
     assert "Entrega" in corpo
+    assert "Resultado da inspeção em fábrica" in corpo, "os campos do FAT (ISSUE-069)"
+    assert "Inspetor" in corpo
 
 
 def test_o_post_do_marco_sem_o_anterior_devolve_o_formulario(
@@ -254,6 +257,41 @@ def test_o_post_do_marco_grava_e_atualiza_a_tela(
     assert resposta.status_code == 200
     assert _milestone(sessao, cenario, 1).real_date == date(2026, 9, 20)
     assert 'id="diligenciamento-conteudo"' in resposta.get_body().decode()
+
+
+def test_o_post_do_fat_reprovado_sem_reteste_devolve_o_formulario(
+    sessao: Session, cenario: CenarioDiligenciamento
+) -> None:
+    for position, quando in ((1, "2026-09-20"), (2, "2026-09-21"), (3, "2026-09-22")):
+        routes.order_milestone_save(
+            _post(
+                cenario,
+                "marco",
+                marco=str(position),
+                tipo="realizado",
+                realizada=quando,
+                comentario="",
+                consulta="",
+            )
+        )
+
+    resposta = routes.order_milestone_save(
+        _post(
+            cenario,
+            "marco",
+            marco="4",
+            tipo="realizado",
+            realizada="2026-09-23",
+            resultado="Reprovado",
+            comentario="",
+            consulta="",
+        )
+    )
+
+    assert resposta.status_code == 422
+    corpo = resposta.get_body().decode()
+    assert "FAT reprovado: informe a nova previsão do reteste." in corpo
+    assert _milestone(sessao, cenario, 4).real_date is None
 
 
 def test_o_post_da_acao_cria_e_nao_duplica(

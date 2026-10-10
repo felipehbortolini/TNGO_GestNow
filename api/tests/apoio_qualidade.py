@@ -1,9 +1,10 @@
-"""Apoio dos testes da Qualidade: o cenário da RNC (projetos, pessoas, parâmetros e cadastros).
+"""Apoio dos testes da Qualidade: o cenário da RNC e do ITP (projetos, pessoas e cadastros).
 
 O cenário vive na transação do teste: dois projetos, um colaborador de cada perfil (Admin,
-Gestor, Membro e Visualizador), a versão 1 dos parâmetros (o grupo Qualidade traz os prazos e a
-espera da verificação), uma disciplina e uma empresa do cadastro. As entradas de partida são uma
-abertura, uma análise e uma verificação completas, para os testes mudarem só o que importa.
+Gestor, Membro e Visualizador), a versão 1 dos parâmetros (o grupo Qualidade traz os prazos, a
+espera da verificação e a antecedência da notificação), uma disciplina e uma empresa do
+cadastro. As entradas de partida são uma abertura, uma análise e uma verificação completas, e
+o ITP com os seus pontos, para os testes mudarem só o que importa.
 """
 
 from __future__ import annotations
@@ -16,9 +17,15 @@ from sqlalchemy.orm import Session
 from src.core.rbac import Bond, GeneralProfile, User
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Collaborator, Company, Discipline, Project
+from src.modulos.qualidade import service
+from src.modulos.qualidade.service import ItpLine
 from src.modulos.qualidade.validation import (
     ActionInput,
     AnalysisInput,
+    InspectionInput,
+    ItpApprovalInput,
+    ItpInput,
+    ItpPointInput,
     OpeningInput,
     VerificationInput,
 )
@@ -138,3 +145,62 @@ def nova_verificacao(**campos: object) -> VerificationInput:
         checked_on=REFERENCIA,
     )
     return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def novo_itp(cenario: Cenario, **campos: object) -> ItpInput:
+    """Um ITP de partida: dois pontos (H e W) na disciplina e na empresa do cenário."""
+    base = ItpInput(
+        project_id=cenario.projeto.id,
+        title="Montagem de equipamentos rotativos",
+        discipline=DISCIPLINA,
+        company_id=cenario.empresa.id,
+        points=(
+            ItpPointInput(
+                activity="Nivelamento da base do moinho",
+                point_type="H",
+                criterion="Desvio máximo de 0,05 mm/m",
+                reference="Manual do fabricante",
+            ),
+            ItpPointInput(
+                activity="Alinhamento de acoplamentos",
+                point_type="W",
+                criterion="Desalinhamento até 0,05 mm",
+                reference="Manual do fabricante",
+            ),
+        ),
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def nova_inspecao(**campos: object) -> InspectionInput:
+    """Uma inspeção de partida: aprovada, na data de referência, no ponto informado."""
+    base = InspectionInput(
+        project_id=None,
+        itp_id=None,
+        point_id=None,
+        inspection_date=REFERENCIA,
+        inspector_id=None,
+        result="Aprovado",
+    )
+    return replace(base, **campos)  # type: ignore[arg-type]
+
+
+def itp_aprovado(sessao: Session, cenario: Cenario, **campos: object) -> ItpLine:
+    """Cria o ITP do cenário, registra a aprovação do cliente e devolve a linha vigente."""
+    criado = service.create_itp(
+        sessao, user=cenario.mario, data=novo_itp(cenario, **campos), reference_date=REFERENCIA
+    )
+    service.approve_itp(
+        sessao,
+        user=cenario.gil,
+        code=criado.code,
+        data=ItpApprovalInput(reference="Carta MQS-QUA-0012", approval_date=REFERENCIA),
+        reference_date=REFERENCIA,
+    )
+    linha = service.itp_sheet(
+        sessao, user=cenario.mario, code=criado.code, reference_date=REFERENCIA
+    )
+    if linha is None:
+        message = f"ITP {criado.code} não encontrado depois de criado."
+        raise LookupError(message)
+    return linha
