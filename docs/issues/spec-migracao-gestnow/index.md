@@ -94,7 +94,7 @@ vem primeiro.
 | ISSUE-065 | Ficha do risco: plano de resposta, revisões, encerramento e reabertura | 6 | task | done | ready-for-agent | ISSUE-064, ISSUE-019, ISSUE-023, ISSUE-027 | [ISSUE-065](./065-ficha-do-risco-plano-revisoes-e-encerramento.md) |
 | ISSUE-066 | Matriz P x I e painel de riscos | 6 | task | done | ready-for-agent | ISSUE-065 | [ISSUE-066](./066-matriz-pxi-e-painel-de-riscos.md) |
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | 6 | task | done | ready-for-agent | ISSUE-066, ISSUE-061, ISSUE-033, ISSUE-027, ISSUE-041 | [ISSUE-067](./067-integracoes-que-chegam-aos-riscos.md) |
-| ISSUE-068 | Não conformidades (RNC) | 7 | task | proposed | ready-for-agent | ISSUE-019, ISSUE-027 | [ISSUE-068](./068-nao-conformidades-rnc.md) |
+| ISSUE-068 | Não conformidades (RNC) | 7 | task | done | ready-for-agent | ISSUE-019, ISSUE-027 | [ISSUE-068](./068-nao-conformidades-rnc.md) |
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | 7 | task | proposed | ready-for-agent | ISSUE-068, ISSUE-061 | [ISSUE-069](./069-inspecoes-itp-e-fat.md) |
 | ISSUE-070 | Auditorias | 7 | task | proposed | ready-for-agent | ISSUE-068 | [ISSUE-070](./070-auditorias.md) |
 | ISSUE-071 | Painel da qualidade | 7 | task | proposed | ready-for-agent | ISSUE-069, ISSUE-070 | [ISSUE-071](./071-painel-da-qualidade.md) |
