@@ -2,15 +2,16 @@
 
 Módulo `qualidade`. Registra não conformidades (RNC), inspeções/ITP e auditorias, com controle
 de tratamento e eficácia. A ISSUE-068 entrega a tela **Não conformidades (RNC)**, a ISSUE-069 a
-tela **Inspeções e ITP** (com o FAT do diligenciamento ligado) e a ISSUE-070 a tela
-**Auditorias**; o Painel (ISSUE-071) entra na issue seguinte.
+tela **Inspeções e ITP** (com o FAT do diligenciamento ligado), a ISSUE-070 a tela
+**Auditorias** e a ISSUE-071 o **Painel da qualidade** (com os indicadores que o Início
+consome).
 
 ## Telas
 
 | Tela | Conteúdo | Situação |
 |---|---|---|
 | Não conformidades (RNC) | Filtros (busca, situação, severidade, disciplina e origem), cinco KPIs, lista com a próxima etapa e as ações, ficha em modal (contenção, causa raiz, disposição e concessão, verificação, ações da Central, evidências e histórico) e os formulários do fluxo | Entregue na ISSUE-068 |
-| Painel da qualidade | RNC, inspeções, auditorias, Pareto, custo e pauta | Previsto para a ISSUE-071 |
+| Painel da qualidade | Cinco KPIs, alerta de auditorias atrasadas, RNC por mês, aprovação em inspeções com a meta, Pareto por disciplina, RNC por origem, pauta de tratamento e desempenho por empresa | Entregue na ISSUE-071 |
 | Inspeções e ITP | Planos com pontos H/W/R (filtros por busca, ITP, resultado e tipo), cinco KPIs, ficha do ITP com os pontos, novo ITP, nova revisão, aprovação do cliente e registro de inspeção | Entregue na ISSUE-069 |
 | Auditorias | Programa (filtros por busca, situação e tipo), cinco KPIs, ficha com constatações e reprogramações, planejar/reprogramar (justificativa obrigatória ao mudar a data) e registrar o resultado (cada Não conformidade abre RNC) | Entregue na ISSUE-070 |
 
@@ -37,7 +38,10 @@ JS das Inspeções e ITP segue o mesmo padrão: a lista no alvo `inspecoes-conte
 ITP e os formulários no alvo `inspecoes-modal-corpo` (`api/src/modulos/qualidade/inspecoes_routes.py`).
 O JS das Auditorias repete o padrão: a lista no alvo `auditorias-conteudo` e a ficha, o
 formulário de planejar/reprogramar e o do resultado no alvo `auditorias-modal-corpo`
-(`api/src/modulos/qualidade/auditorias_routes.py`).
+(`api/src/modulos/qualidade/auditorias_routes.py`). O JS do Painel carrega o fragmento no alvo
+`painel-conteudo`; o vazio de origem vem do servidor (o marcador `data-situacao`) e erro/sem
+permissão saem do `ajax:error`, como no painel dos riscos
+(`api/src/modulos/qualidade/painel_routes.py`).
 
 ## Rotas
 
@@ -46,6 +50,8 @@ e permissão) e desenham fragmentos; as exportações usam os mecanismos genéri
 
 | Rota | Método | Uso | Permissão |
 |---|---|---|---|
+| `painel` | GET | O painel do escopo (KPIs, alerta, quatro gráficos e as duas tabelas) | Ver |
+| `painel/excel` e `painel/imprimivel` | GET | Excel e PDF do painel (KPIs, números dos gráficos e as duas tabelas) | Ver |
 | `rnc` | GET | A lista (`busca`, `situacao`, `severidade`, `disciplina`, `origem`, `empresa`, `pagina`) | Ver |
 | `rnc/excel` e `rnc/imprimivel` | GET | Excel e PDF do mesmo filtro (KPIs + tabela) | Ver |
 | `rnc/{codigo}/ficha` | GET | A ficha, com as ações da Central, as evidências e o histórico | Ver |
@@ -97,6 +103,13 @@ e permissão) e desenham fragmentos; as exportações usam os mecanismos genéri
 | Contagens por tipo de constatação | NC, Observação e Oportunidade de melhoria, na ordem do vocabulário; NC em aberto conta a RNC ativa (situação fora de Encerrada e Cancelada) | `calculations.finding_type_counts`, `service._build_audit_lines` |
 | Código da auditoria | `AUD-<padrão da ata do projeto>-NN`, dois dígitos, pelo maior código do projeto (o protótipo também contava os códigos) | `service._next_audit_code` |
 | Contenção da RNC da NC | `"Contenção a definir pelo auditado em até 48 horas da auditoria <AUD>."`, gravada quando a constatação abre a RNC | `service.AUDIT_CONTAINMENT` (`record_result`) |
+| Indicadores do painel | Os números do protótipo (RNC abertas, encerradas, vencidas, verificações vencidas, críticas, tempo médio, eficácia, inspeções, aprovação e meta, conformidade e meta, auditorias realizadas e previstas, aderência, atrasadas, NC de auditoria, ITP, sem aprovação e custo); a ISSUE-079 (Início) consome a mesma função | `painel_service.quality_indicators` |
+| Eficácia na 1ª verificação | RNC encerradas **sem reincidência** divididas pelas encerradas; a reincidência vem da trilha (D5b); vazio devolve `·` | `calculations.first_time_effectiveness_pct` |
+| Série dos 6 meses | Aberturas, encerramentos, em aberto e inspeções de cada mês, com a aprovação do mês; os seis meses terminam no mês da data de referência | `painel_service.quality_series` |
+| Pareto por disciplina e RNC por origem | RNC não canceladas agrupadas, em ordem decrescente de total (empate pelo custo), com o percentual e o acumulado; o visual Pareto date da quantidade | `painel_service._group_lines` |
+| Desempenho por empresa | Inspeções e reprovações das inspeções, RNC e custo das não canceladas; aprovação = (inspeções − reprovadas) ÷ inspeções (sem inspeção, `·`); ordem por RNC desc e custo desc | `painel_service._company_lines` |
+| Pauta de tratamento | RNC com prazo vencido, verificação vencida, severidade crítica ativa ou concessão pendente, com os motivos do protótipo e ordem pelo atraso desc | `painel_service._agenda` |
+| Limite do tratamento | A faixa `"X a Y dias"` do menor ao maior `prazoTratamentoDias` vigente | `painel_service.treatment_limit_days` |
 
 ## Fluxos
 
@@ -149,6 +162,20 @@ não conformes (m)."). A RNC da constatação mostra a situação lida da própr
 Permissões da Auditoria: ver a lista e a ficha, qualquer perfil; planejar, reprogramar e
 registrar o resultado, Membro; o Fornecedor não alcança o módulo (403).
 
+Painel (ISSUE-071): é uma leitura calculada de tudo o que já existe (D6) — KPIs, série dos seis
+meses, Pareto por disciplina, RNC por origem, desempenho por empresa, pauta de tratamento e o
+alerta de auditorias atrasadas —, sem gravação nem tabela nova. As metades e as metas vêm dos
+parâmetros vigentes; as RNC canceladas ficam fora das agregações (o custo da não qualidade soma
+todas, como no protótipo). A ordem do Pareto é total desc e, no empate, custo desc; a da pauta é
+atraso desc; a das empresas é RNC desc e custo desc. No Portfólio a pauta abre com a coluna
+Projeto (também nas exportações) e a tabela de empresas continua agregada por empresa, sem a
+coluna. Os quatro gráficos saem da biblioteca do Design System (D11): Curva S Barra e Linha
+(barras de aberturas e encerramentos por mês), Linhas Múltiplas (aprovação mensal com a meta
+tracejada), Pareto (disciplina) e Comparativo de Barras (origem); o visual do protótipo é
+registrado em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`. O Excel e o PDF levam os KPIs, os números de
+cada gráfico em tabela e as duas tabelas. O botão "Análise do período" do protótipo chega na
+ISSUE-082. Permissão: ver, qualquer perfil; o Fornecedor não alcança o módulo (403).
+
 ## Integrações
 
 * **Central de Ações (saída):** as ações corretivas nascem pela fachada da Central
@@ -188,6 +215,8 @@ Grupo `qualidade` em Configurações > Parâmetros, versionado: `prazoTratamento
 | Rotas e fragmentos da RNC | `routes.py` e `api/src/templates/qualidade/rnc*.html` |
 | Rotas e fragmentos das Inspeções e ITP | `inspecoes_routes.py` e `api/src/templates/qualidade/inspecoes*.html` |
 | Rotas e fragmentos das Auditorias | `auditorias_routes.py` e `api/src/templates/qualidade/auditorias*.html` |
+| Rotas, KPIs e gráficos do Painel | `painel_routes.py` e `api/src/templates/qualidade/painel.html` |
+| Indicadores e agregações do Painel (o Início consome os indicadores) | `painel_service.py` |
 | Transições, permissões e integrações (RNC, ITP, FAT e auditorias) | `service.py` |
 | Fórmulas da RNC, do ITP, da inspeção e da auditoria | `calculations.py` |
 | Validações e mensagens do formulário | `validation.py` |
