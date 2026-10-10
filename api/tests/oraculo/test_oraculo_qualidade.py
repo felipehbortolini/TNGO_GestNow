@@ -1,4 +1,4 @@
-"""Oráculo da Qualidade (ISSUE-068, 069 e 070): as RNC, as inspeções e as auditorias.
+"""Oráculo da Qualidade (ISSUE-068, 069, 070 e 071): as RNC, as inspeções, as auditorias e o painel.
 
 Valores obtidos executando o fluxo do protótipo sobre ``mock-qualidade.js`` e
 ``mock-portfolio.js``: o projeto 1 (TN-2026-014) tem 4 RNC abertas — 0002 (em verificação de
@@ -11,6 +11,18 @@ projeto 1 tem 5 do programa (2 realizadas e 3 planejadas, com a AUD-TN-2026-05 a
 15/09/2026), conformidade de 90,0% na AUD-TN-2026-01 e 82,9% na AUD-TN-2026-02, aderência ao
 programa de 66,7% e as constatações ligando a AUD-TN-2026-01 à RNC-TN-2026-0001 (encerrada) e
 a AUD-TN-2026-02 à RNC-TN-2026-0005 (ativa).
+
+No painel (ISSUE-071), pela mesma execução do protótipo: tempo médio de tratamento de 31 dias
+(49 da 0001 e 12 da 0003), eficácia de primeira de 100,0% (nenhuma reincidência no mock),
+aprovação em inspeções de 85,0% contra a meta de 95%, conformidade em auditorias de 86,7%
+contra a meta de 90%, aderência de 66,7% (2 de 3), custo da não qualidade de R$ 56.700,00
+(1.850.000 + 420.000 + 3.400.000 centavos) e a série de abril a setembro de 2026 fechando com
+3 aberturas, 1 encerramento, 4 em aberto, 11 inspeções e 90,9% de aprovação. O Pareto por
+disciplina vem Mecânica 3, Civil 2 e Tubulação 1 (acumulado 50,0 / 83,3 / 100,0); as origens
+vêm Inspeção, Fornecedor, Auditoria e Processo; as empresas vêm Alfa Montagens (12 inspeções,
+2 reprovadas, 2 RNC, R$ 34.000,00 e 83,3%), Zeta Civil (8, 1, 2, R$ 22.700,00 e 87,5%) e as
+duas com RNC e sem inspeção; a pauta tem só a RNC-TN-2026-0004, com 8 dias de atraso; e o
+alerta traz a AUD-TN-2026-05.
 """
 
 from __future__ import annotations
@@ -25,7 +37,7 @@ from src.core.rbac import Bond, GeneralProfile, User
 from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Project
-from src.modulos.qualidade import service
+from src.modulos.qualidade import painel_service, service
 from src.modulos.qualidade.validation import AuditFilters, InspectionFilters, ItpFilters
 from tests.oraculo import OracleContext, register_check
 
@@ -229,6 +241,91 @@ def _afirmar_auditorias_do_projeto_1(context: OracleContext) -> None:
     assert [linha.code for linha in atrasadas.lines] == [EXPECTED_AUDIT_OVERDUE]
 
 
+def _afirmar_painel_do_projeto_1(context: OracleContext) -> None:
+    project_id = _project_id(context)
+    user = _admin(context)
+    scope = Scope(project_id=project_id, source="padrao")
+    panel = painel_service.quality_panel(
+        context.session, user=user, scope=scope, reference_date=context.reference_date
+    )
+    indicators = panel.indicators
+
+    assert indicators == painel_service.quality_indicators(
+        context.session, user=user, scope=scope, reference_date=context.reference_date
+    ), "os indicadores do painel são os que o Início vai ler"
+    assert (indicators.open_rncs, indicators.closed_rncs) == (4, 2)
+    assert (indicators.overdue_rncs, indicators.overdue_verifications) == (1, 0)
+    assert indicators.critical_open_rncs == 0
+    assert indicators.average_treatment_days == 31, "49 dias da 0001 e 12 da 0003"
+    assert indicators.first_time_effectiveness_pct == Decimal("100.0")
+    assert (indicators.inspections, indicators.rejected_inspections) == (20, 3)
+    assert indicators.inspection_approval_pct == Decimal("85.0")
+    assert indicators.inspection_approval_target_pct == Decimal("95")
+    assert indicators.audit_conformity_pct == Decimal("86.7")
+    assert indicators.audit_conformity_target_pct == Decimal("90")
+    assert (indicators.audits_done, indicators.audits_due) == (2, 3)
+    assert indicators.audit_program_adherence_pct == Decimal("66.7")
+    assert indicators.overdue_audits == 1
+    assert indicators.open_audit_nonconformities == 1
+    assert (indicators.itps, indicators.itps_without_approval) == (5, 1)
+    assert indicators.non_quality_cost_cents == 5_670_000
+
+    assert [point.month for point in panel.series] == [
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+    ]
+    september = panel.series[-1]
+    assert (september.opened, september.closed, september.open) == (3, 1, 4)
+    assert (september.inspections, september.approval_pct) == (11, Decimal("90.9"))
+
+    assert [line.name for line in panel.by_discipline] == ["Mecânica", "Civil", "Tubulação"]
+    assert [line.total for line in panel.by_discipline] == [3, 2, 1]
+    assert [line.pct for line in panel.by_discipline] == [
+        Decimal("50.0"),
+        Decimal("33.3"),
+        Decimal("16.7"),
+    ]
+    assert [line.accumulated_pct for line in panel.by_discipline] == [
+        Decimal("50.0"),
+        Decimal("83.3"),
+        Decimal("100.0"),
+    ]
+    assert [line.name for line in panel.by_origin] == [
+        "Inspeção",
+        "Fornecedor",
+        "Auditoria",
+        "Processo",
+    ]
+
+    companies = {line.company_name: line for line in panel.by_company}
+    assert [line.company_name for line in panel.by_company] == [
+        "Alfa Montagens",
+        "Zeta Civil",
+        "Gama Válvulas",
+        "Épsilon Engenharia",
+    ]
+    alfa = companies["Alfa Montagens"]
+    assert (alfa.inspections, alfa.rejected, alfa.rncs, alfa.cost_cents) == (12, 2, 2, 3_400_000)
+    assert alfa.approval_pct == Decimal("83.3")
+    zeta = companies["Zeta Civil"]
+    assert (zeta.inspections, zeta.rejected, zeta.rncs) == (8, 1, 2)
+    assert zeta.approval_pct == Decimal("87.5")
+    assert companies["Gama Válvulas"].approval_pct is None
+
+    assert [entry.line.code for entry in panel.agenda] == ["RNC-TN-2026-0004"]
+    assert panel.agenda[0].line.days_overdue == 8
+    assert panel.agenda[0].reasons == ("prazo de tratamento vencido há 8 dias",)
+
+    assert [audit.code for audit in panel.overdue_audits] == ["AUD-TN-2026-05"]
+    atrasada = panel.overdue_audits[0]
+    assert atrasada.scope == "Gestão de mudanças de engenharia e revisões de desenho"
+    assert atrasada.audit_date == date(2026, 9, 15)
+
+
 register_check(
     "qualidade: as 4 RNC abertas do projeto 1 em 25/09/2026", _afirmar_rncs_abertas_do_projeto_1
 )
@@ -239,3 +336,4 @@ register_check(
 register_check(
     "qualidade: as 5 auditorias do projeto 1 em 25/09/2026", _afirmar_auditorias_do_projeto_1
 )
+register_check("qualidade: o painel do projeto 1 em 25/09/2026", _afirmar_painel_do_projeto_1)
