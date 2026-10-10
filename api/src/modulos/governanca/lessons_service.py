@@ -437,6 +437,21 @@ def lesson_id_by_code(session: Session, code: str) -> int | None:
     return None if lesson is None else lesson.id
 
 
+def code_of_origin(session: Session, *, origin: str, reference: str) -> str | None:
+    """O código da lição de um registro de origem, para o dono mostrar o vínculo (D9).
+
+    A lição criada por outro módulo é ligada por ``origem`` + ``origem_ref``; o módulo dono
+    pergunta aqui em vez de ler ``licao`` (D5). Havendo mais de uma, vale a mais recente.
+    """
+    statement = (
+        select(Lesson.code)
+        .where(Lesson.origin == origin, Lesson.origin_ref == reference)
+        .order_by(Lesson.id.desc())
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
 def edit_form(session: Session, *, user: User, code: str) -> LessonForm:
     """The form of a draft lesson filled with what it holds, for who may edit it (403 or 422 else)."""
     lesson = _editable_lesson(session, user=user, code=code, only_draft=ONLY_DRAFT_EDITED)

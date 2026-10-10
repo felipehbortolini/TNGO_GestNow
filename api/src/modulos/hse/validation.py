@@ -1,4 +1,5 @@
-"""Input validation for the HSE module: HHT, monthly closing, inspections, observations, DDS.
+"""Input validation for the HSE module: HHT, monthly closing, inspections, observations, DDS
+and the occurrence with its investigation and its closing (ISSUE-073).
 
 The shapes the facade receives and the checks of what a person types. The checks are pure and
 return the message by field of the form; the facade turns them into one ``InvalidDataError``, so
@@ -12,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from src.modulos.hse import calculations
+from src.modulos.hse import calculations, models
 
 MAX_ID_DIGITS = 18
 MAX_HEADCOUNT = 5000
@@ -335,4 +336,284 @@ def talk_problems(
             data.participants, MAX_PARTICIPANTS, what="o número de participantes"
         ),
     }
+    return {name: message for name, message in found.items() if message}
+
+
+# ── Ocorrências (ISSUE-073) ──────────────────────────────────────────────────────────────────
+
+MAX_OCCURRENCE_AREA = 80
+MAX_OCCURRENCE_ROLE = 60
+MAX_OCCURRENCE_DESCRIPTION = 500
+MAX_MEDICAL_NOTES = 500
+MAX_PEOPLE_INVOLVED = 20
+MAX_COMMUNICATION_HOURS = 200
+MAX_DAYS_LOST = 365
+MIN_OCCURRENCE_DESCRIPTION = 10
+MAX_SEARCH_LENGTH = 120
+MIN_EFFECTIVENESS = 10
+MAX_EFFECTIVENESS = 600
+
+# The types whose occurrence asks for the role of the involved person (without the name, Q35).
+TYPES_WITH_ROLE = (
+    "Fatalidade",
+    "Acidente com afastamento",
+    "Trabalho restrito",
+    "Tratamento médico",
+    "Primeiros socorros",
+)
+# The types whose occurrence asks for the days lost and charged (the lost-time injuries).
+TYPES_WITH_DAYS = ("Fatalidade", "Acidente com afastamento")
+
+# The immediate causes the form offers (the prototype's list); the rule only requires one.
+IMMEDIATE_CAUSES = (
+    "Procedimento não seguido",
+    "Condição insegura do local",
+    "Falha de planejamento da tarefa",
+    "EPI inadequado",
+    "Falta de sinalização",
+    "Equipamento sem inspeção",
+    "Outra",
+)
+
+OCCURRENCE_DATE_REQUIRED = "Informe a data e a hora."
+TIME_FORMAT = "Use o formato HH:MM (ex.: 14:30)."
+OCCURRENCE_AREA_REQUIRED = "Informe a área ou o local."
+KIND_REQUIRED = "Escolha o tipo de ocorrência."
+SUBTYPE_REQUIRED = "Escolha o subtipo ambiental."
+SEVERITY_REQUIRED = "Escolha a severidade."
+OCCURRENCE_DESCRIPTION_REQUIRED = "Descreva o ocorrido (mínimo de 10 caracteres)."
+CAUSE_REQUIRED = "Escolha a causa imediata."
+POTENTIAL_REQUIRED = "Informe a probabilidade e o impacto potenciais."
+GRAVITY_REQUIRED = "Informe a gravidade real observada."
+ROLE_REQUIRED = "Informe a função da pessoa envolvida (sem nome, por LGPD)."
+METHOD_REQUIRED = "Escolha o método de investigação."
+ROOT_CAUSE_REQUIRED = "Descreva a causa raiz (mínimo de 10 caracteres)."
+INVESTIGATION_DATE_REQUIRED = "Informe a data da investigação."
+DATE_BEFORE_EVENT = "A data não pode ser anterior à do evento."
+ACTIONS_REQUIRED = "Inclua ao menos uma ação corretiva."
+EFFECTIVENESS_REQUIRED = "Registre a verificação de eficácia (mínimo de 10 caracteres)."
+
+
+@dataclass(frozen=True)
+class OccurrenceInput:
+    """Uma ocorrência como a pessoa registra: o evento, a classificação e o dado restrito (Q35)."""
+
+    project_id: int
+    happened_on: date | None
+    happened_time: str
+    area: str
+    company_id: int | None
+    kind: str
+    subtype: str = ""
+    environmental_severity: str = ""
+    description: str = ""
+    role: str = ""
+    people_involved: int | None = 0
+    potential_p: int | None = None
+    potential_i: int | None = None
+    hipo: bool = False
+    immediate_cause: str = ""
+    communication_hours: int | None = None
+    name: str = ""
+    real_gravity: int | None = None
+    days_lost: int | None = 0
+    days_charged: int | None = 0
+    cat: bool = False
+    medical_notes: str = ""
+
+
+@dataclass(frozen=True)
+class InvestigationInput:
+    """Uma investigação: método, causa raiz e data."""
+
+    method: str
+    root_cause: str
+    investigated_on: date | None
+
+
+@dataclass(frozen=True)
+class CorrectiveActionInput:
+    """Uma ação corretiva do modal: assunto, descrição, responsável e data prevista."""
+
+    subject: str
+    responsible_id: int | None
+    planned_date: date | None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ClosureInput:
+    """O encerramento: a verificação de eficácia, a data e o rascunho da lição (HiPo)."""
+
+    effectiveness: str
+    closed_on: date | None
+    lesson_title: str = ""
+    lesson_recommendation: str = ""
+
+
+@dataclass(frozen=True)
+class OccurrenceFilters:
+    """Os filtros da lista de ocorrências: busca, situação, tipo e só HiPo."""
+
+    search: str = ""
+    situation: str = ""
+    kind: str = ""
+    hipo: bool = False
+
+
+def parse_time(raw: str | None) -> tuple[int, int] | None:
+    """A time as ``HH:MM`` typed in the form, or ``None`` when it is not a real time."""
+    text = (raw or "").strip()
+    if len(text) != 5 or text[2] != ":":
+        return None
+    hours, minutes = text[:2], text[3:]
+    if not (hours.isascii() and hours.isdigit() and minutes.isascii() and minutes.isdigit()):
+        return None
+    value = (int(hours), int(minutes))
+    return value if value[0] <= 23 and value[1] <= 59 else None
+
+
+def parse_filters(params: Mapping[str, str]) -> OccurrenceFilters:
+    """Os filtros da lista a partir da query string; valor desconhecido é ignorado."""
+    situation = (params.get("situacao") or "").strip()
+    kind = (params.get("tipo") or "").strip()
+    return OccurrenceFilters(
+        search=(params.get("busca") or "").strip()[:MAX_SEARCH_LENGTH],
+        situation=situation if situation in models.OCCURRENCE_SITUATIONS else "",
+        kind=kind if kind in models.OCCURRENCE_TYPES else "",
+        hipo=(params.get("hipo") or "").strip() in ("1", "true", "sim"),
+    )
+
+
+def _limit_problem(
+    text: str, limit: int, *, required_message: str | None, minimum: int = 0
+) -> str | None:
+    size = len(text.strip())
+    if size == 0 or (minimum and size < minimum):
+        return required_message
+    return f"Aceita até {limit} caracteres." if size > limit else None
+
+
+def _level_problem(value: int | None, message: str) -> str | None:
+    return None if value is not None and 1 <= value <= 5 else message
+
+
+def occurrence_problems(
+    data: OccurrenceInput, choices: RegisterChoices, *, reference_date: date
+) -> dict[str, str]:
+    """As mensagens de uma nova ocorrência por campo, como o protótipo as escreve."""
+    environmental = data.kind == "Ambiental"
+    found: dict[str, str | None] = {
+        "data": day_problem(data.happened_on, reference_date),
+        "hora": (
+            None
+            if not data.happened_time.strip()
+            else TIME_FORMAT
+            if parse_time(data.happened_time) is None
+            else None
+        ),
+        "area": _limit_problem(
+            data.area, MAX_OCCURRENCE_AREA, required_message=OCCURRENCE_AREA_REQUIRED
+        ),
+        "empresa": company_problem(data.company_id, choices, required=True),
+        "tipo": None if data.kind in models.OCCURRENCE_TYPES else KIND_REQUIRED,
+        "comunicacao": count_problem(
+            data.communication_hours, MAX_COMMUNICATION_HOURS, what="as horas até a comunicação"
+        ),
+    }
+    if not data.happened_time.strip() and found["data"] is None:
+        found["hora"] = OCCURRENCE_DATE_REQUIRED
+    if environmental:
+        found["subtipo"] = (
+            None if data.subtype in models.ENVIRONMENTAL_SUBTYPES else SUBTYPE_REQUIRED
+        )
+        found["severidade"] = (
+            None
+            if data.environmental_severity in models.ENVIRONMENTAL_SEVERITIES
+            else SEVERITY_REQUIRED
+        )
+    else:
+        found["descricao"] = _limit_problem(
+            data.description,
+            MAX_OCCURRENCE_DESCRIPTION,
+            required_message=OCCURRENCE_DESCRIPTION_REQUIRED,
+            minimum=MIN_OCCURRENCE_DESCRIPTION,
+        )
+        found["causa_imediata"] = None if data.immediate_cause.strip() else CAUSE_REQUIRED
+        found["potencial"] = (
+            None
+            if _level_problem(data.potential_p, POTENTIAL_REQUIRED) is None
+            and _level_problem(data.potential_i, POTENTIAL_REQUIRED) is None
+            else POTENTIAL_REQUIRED
+        )
+        found["gravidade"] = _level_problem(data.real_gravity, GRAVITY_REQUIRED)
+        if data.kind in TYPES_WITH_ROLE:
+            found["funcao"] = _limit_problem(
+                data.role, MAX_OCCURRENCE_ROLE, required_message=ROLE_REQUIRED
+            )
+        found["pessoas"] = count_problem(
+            data.people_involved, MAX_PEOPLE_INVOLVED, what="o número de pessoas envolvidas"
+        )
+        if data.kind in TYPES_WITH_DAYS:
+            found["dias_perdidos"] = count_problem(
+                data.days_lost, MAX_DAYS_LOST, what="os dias perdidos"
+            )
+            found["dias_debitados"] = count_problem(
+                data.days_charged, MAX_DAYS_LOST, what="os dias debitados"
+            )
+    found["medica"] = _limit_problem(data.medical_notes, MAX_MEDICAL_NOTES, required_message=None)
+    return {name: message for name, message in found.items() if message}
+
+
+def investigation_problems(
+    data: InvestigationInput, *, event_date: date, reference_date: date
+) -> dict[str, str]:
+    """As mensagens de uma investigação por campo, como o protótipo as escreve."""
+    found: dict[str, str | None] = {
+        "metodo": None if data.method in models.INVESTIGATION_METHODS else METHOD_REQUIRED,
+        "causa_raiz": _limit_problem(
+            data.root_cause,
+            MAX_OCCURRENCE_DESCRIPTION,
+            required_message=ROOT_CAUSE_REQUIRED,
+            minimum=MIN_OCCURRENCE_DESCRIPTION,
+        ),
+        "data": day_problem(data.investigated_on, reference_date),
+    }
+    if (
+        found["data"] is None
+        and data.investigated_on is not None
+        and data.investigated_on < event_date
+    ):
+        found["data"] = DATE_BEFORE_EVENT
+    return {name: message for name, message in found.items() if message}
+
+
+def corrective_action_problems(
+    data: CorrectiveActionInput, choices: RegisterChoices
+) -> dict[str, str]:
+    """As mensagens de uma ação corretiva por campo."""
+    found = {
+        "assunto": None if data.subject.strip() else "Informe o assunto.",
+        "responsavel": person_problem(data.responsible_id, choices, required=True),
+        "prevista": None if data.planned_date is not None else "Informe a data prevista.",
+        "descricao": _limit_problem(data.description, MAX_TEXT, required_message=None),
+    }
+    return {name: message for name, message in found.items() if message}
+
+
+def closure_problems(
+    data: ClosureInput, *, event_date: date, reference_date: date
+) -> dict[str, str]:
+    """As mensagens do encerramento: a eficácia verificada e a data (≤ hoje e ≥ evento)."""
+    found: dict[str, str | None] = {
+        "eficacia": _limit_problem(
+            data.effectiveness,
+            MAX_EFFECTIVENESS,
+            required_message=EFFECTIVENESS_REQUIRED,
+            minimum=MIN_EFFECTIVENESS,
+        ),
+        "data": day_problem(data.closed_on, reference_date),
+    }
+    if found["data"] is None and data.closed_on is not None and data.closed_on < event_date:
+        found["data"] = DATE_BEFORE_EVENT
     return {name: message for name, message in found.items() if message}

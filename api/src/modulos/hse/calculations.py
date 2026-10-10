@@ -1,4 +1,5 @@
-"""Pure calculations for the HSE module: HHT summary, proactive rates and the labour histogram.
+"""Pure calculations for the HSE module: HHT summary, proactive rates, the labour histogram
+and the occurrence (potential band, pyramid level, HiPo and the legal deadlines).
 
 Every rule is one function with its business name, and the reference date is always an argument:
 nothing here reads the clock (D6). A month is the first day of the civil month; its label is
@@ -10,8 +11,10 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+
+from src.modulos.hse.models import OCCURRENCE_TYPE_LEVELS
 
 PERCENT = Decimal(100)
 TEN_THOUSAND = Decimal(10000)
@@ -324,3 +327,125 @@ def summarize_proactive(
             proactive_target(deviations_per_ten_thousand, closed_hours) if has_hours else None
         ),
     )
+
+
+# ── Ocorrências (ISSUE-073) ──────────────────────────────────────────────────────────────────
+
+# The bands of the potential matrix of the occurrence (P x I, 1 to 5 each): the same names and
+# colours of the risk bands, but a matrix of its own, independent of the active risk scale.
+POTENTIAL_BANDS: tuple[tuple[int, str, str], ...] = (
+    (15, "critico", "Crítico"),
+    (10, "alto", "Alto"),
+    (5, "moderado", "Moderado"),
+    (1, "baixo", "Baixo"),
+)
+HOURS_IN_A_DAY = 24
+# The initial deadlines of the occurrence, when the parameter group has nothing to say: the same
+# values the prototype's ``mock-config`` carried.
+DEFAULT_COMMUNICATION_HOURS = 24
+DEFAULT_INVESTIGATION_HOURS = 48
+DEFAULT_REPORT_DAYS = 30
+# The names of the pyramid levels, from the prototype (level 5 is the monthly consolidated).
+PYRAMID_LEVEL_NAMES: tuple[str, ...] = (
+    "Lesão grave",
+    "Lesão leve",
+    "Dano material",
+    "Quase acidente",
+    "Desvio",
+)
+
+
+@dataclass(frozen=True)
+class PotentialBand:
+    """The band of the potential (P x I) of an occurrence: the code, the name and the score."""
+
+    id: str
+    name: str
+    score: int
+
+
+def potential_band(potential_p: int, potential_i: int) -> PotentialBand:
+    """Faixa do potencial: ``Critico`` from 15, ``Alto`` from 10, ``Moderado`` from 5, else ``Baixo``."""
+    score = int(potential_p) * int(potential_i)
+    for minimum, band_id, name in POTENTIAL_BANDS:
+        if score >= minimum:
+            return PotentialBand(id=band_id, name=name, score=score)
+    return PotentialBand(id="baixo", name="Baixo", score=score)
+
+
+def pyramid_level(kind: str) -> int | None:
+    """Nível da pirâmide de um tipo: 1 a 4 pelo tipo; ``None`` for Ambiental (out of the pyramid)."""
+    return OCCURRENCE_TYPE_LEVELS.get(kind)
+
+
+def pyramid_level_name(level: int | None) -> str:
+    """O nome do nível da pirâmide (``Lesão leve`` no nível 2); vazio sem nível."""
+    if level is None or not 1 <= level <= len(PYRAMID_LEVEL_NAMES):
+        return ""
+    return PYRAMID_LEVEL_NAMES[level - 1]
+
+
+def is_high_potential(real_gravity: int | None, potential_impact: int | None) -> bool:
+    """HiPo: a consequência potencial além da gravidade real observada (o glossário).
+
+    Sem gravidade ou sem impacto registrados não há classificação (``False``); a marcação na
+    ocorrência continua sendo do registro, e esta regra só indica o potencial observado.
+    """
+    if real_gravity is None or potential_impact is None:
+        return False
+    return potential_impact > real_gravity
+
+
+def communication_overdue(communication_hours: int | None, deadline_hours: int) -> bool:
+    """Comunicação fora do prazo: as horas até a comunicação acima do prazo gravado na ocorrência."""
+    return communication_hours is not None and communication_hours > deadline_hours
+
+
+def investigation_deadline_days(deadline_hours: int) -> int:
+    """O prazo preliminar de investigação em dias: as horas arredondadas para cima.
+
+    O protótipo contava em dias, porque a data da investigação não tem hora; a fronteira do
+    prazo em horas é a do dia inteiro que fecha a contagem (``48 h`` = 2 dias).
+    """
+    return math.ceil(deadline_hours / HOURS_IN_A_DAY)
+
+
+def investigation_overdue(event_date: date, recorded_on: date, deadline_hours: int) -> bool:
+    """Investigação fora do prazo: a data registrada além do prazo preliminar contado do evento."""
+    return (recorded_on - event_date).days > investigation_deadline_days(deadline_hours)
+
+
+def investigation_pending_overdue(
+    event_date: date, reference_date: date, deadline_hours: int
+) -> bool:
+    """Investigação vencida: a ocorrência ainda está Registrada e o prazo preliminar já passou."""
+    return (reference_date - event_date).days > investigation_deadline_days(deadline_hours)
+
+
+def report_deadline(event_date: date, deadline_days: int) -> date:
+    """O prazo do relatório final: a data do evento mais os dias do prazo gravado."""
+    return event_date + timedelta(days=deadline_days)
+
+
+def report_required(level: int | None, *, hipo: bool) -> bool:
+    """O relatório final é exigido das LTI (nível 1) e das ocorrências de alto potencial (HiPo)."""
+    return level == 1 or hipo
+
+
+def report_overdue(
+    closed_on: date | None, *, event_date: date, deadline_days: int, reference_date: date
+) -> bool:
+    """Relatório final fora do prazo: encerrado depois do limite, ou em aberto com o limite vencido."""
+    limit = report_deadline(event_date, deadline_days)
+    if closed_on is not None:
+        return closed_on > limit
+    return reference_date > limit
+
+
+@dataclass(frozen=True)
+class DeadlinePolicy:
+    """Os prazos vigentes que a ocorrência grava no registro (D5b)."""
+
+    communication_hours: int
+    investigation_hours: int
+    report_days: int

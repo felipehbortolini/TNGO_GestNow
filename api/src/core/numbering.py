@@ -38,6 +38,7 @@ KINDS: dict[str, tuple[str, int]] = {
     "risco": ("{risco}", 4),
     "punch": ("{punch}", 4),
     "rnc": ("RNC-{ata}", 4),
+    "ocorrencia": ("OCR-{ata}", 4),
     "claim": ("CLM-{ata}", 4),
     "eot": ("EOT-{ata}", 4),
     "licao": ("LA-{ata}", 4),

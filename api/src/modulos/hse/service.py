@@ -1,4 +1,5 @@
-"""Business facade of the HSE module: HHT, monthly closing, inspections, observations and DDS.
+"""Business facade of the HSE module: HHT, monthly closing, inspections, observations, DDS
+and the occurrence with its investigation, its restricted data and its closing (ISSUE-073).
 
 Every write goes through ``core.recording`` (trail, version and transaction together); a module
 never reads these tables, it uses the functions below (D9, ISSUE-072).
@@ -11,7 +12,15 @@ never reads these tables, it uses the functions below (D9, ISSUE-072).
   from the HHT and the physical S curve, calculated here and read by the HHT screen and by the
   disbursement schedule;
 * ``register_curve_reader``: the module that owns the physical S curve (the EAP) says where to
-  read it; without a reader every month keeps the factor 1.
+  read it; without a reader every month keeps the factor 1;
+* ``save_occurrence``: the occurrence registers with the deadlines in force **recorded on the
+  row** (D5b) and the restricted data (nome e dados médicos) in the same transaction (Q35);
+  ``record_investigation``, ``define_corrective_actions``, ``start_treatment`` and
+  ``close_occurrence`` walk the flow Registrada → Em investigação → Ações definidas → Em
+  tratamento → Encerrada. The corrective actions are written in the Central in the same
+  transaction (origin ``HSE``, D9) and a closed HiPo opens its lesson in Rascunho through the
+  facade of Governança (D9). The restricted data and the attachments never leave to whom does
+  not hold ``Permission.VIEW_RESTRICTED`` (Q35).
 
 The name of the person observed in an observation is personal data: only a manager or an admin
 reads it (``Permission.VIEW_RESTRICTED``, Q35); the others see the record without the name.
@@ -23,20 +32,28 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from src.core import rbac, recording
+from src.core import attachment_origins, audit, calendario, numbering, origin_links, rbac, recording
+from src.core.attachment_origins import OriginRecord, OriginType
 from src.core.errors import InvalidDataError
 from src.core.export_document import project_label
+from src.core.models import AuditEntry
 from src.core.rbac import Permission, User
 from src.core.scope import Scope
+from src.modulos.central_acoes import service as actions
+from src.modulos.central_acoes.calculations import ActionStatus
+from src.modulos.central_acoes.validation import NewAction
 from src.modulos.configuracoes import service as configuracoes
-from src.modulos.hse import calculations, validation
+from src.modulos.governanca import lessons_models as lessons
+from src.modulos.governanca import lessons_service
+from src.modulos.governanca.lessons_validation import DraftInput
+from src.modulos.hse import calculations, models, validation
 from src.modulos.hse.calculations import (
     ClosingLine,
     CurvePoint,
@@ -49,6 +66,9 @@ from src.modulos.hse.calculations import (
 from src.modulos.hse.models import (
     BehaviorObservation,
     MonthlyClosing,
+    Occurrence,
+    OccurrenceInvestigation,
+    OccurrenceRestricted,
     SafetyInspection,
     SafetyInspectionItem,
     SafetyTalk,
@@ -896,3 +916,848 @@ def count_records(session: Session, *, scope: Scope) -> dict[str, int]:
         "dds": count(SafetyTalk),
         "mensal": count(MonthlyClosing),
     }
+
+
+# ── Ocorrências (ISSUE-073) ──────────────────────────────────────────────────────────────────
+
+OCCURRENCE_ENTITY = "ocorrencia"
+OCCURRENCE_HISTORY_ENTITY = "ocorrencia.historico"
+OCCURRENCE_ORIGIN = "HSE"
+ACTION_GROUP = "Ação corretiva"
+
+OCCURRENCE_NOT_FOUND_MESSAGE = "Ocorrência não encontrada."
+ALREADY_INVESTIGATED_MESSAGE = "Esta ocorrência já foi investigada."
+INVESTIGATE_FIRST_MESSAGE = "Investigue a ocorrência antes de definir as ações."
+ALREADY_CLOSED_MESSAGE = "Ocorrência já encerrada."
+TREATMENT_FIRST_MESSAGE = "Só é possível encerrar depois de iniciado o tratamento."
+ACTIONS_FIRST_MESSAGE = "Defina as ações corretivas antes de iniciar o tratamento."
+OPEN_ACTIONS_MESSAGE = "Existem {count} ações corretivas em aberto. Conclua-as antes de encerrar."
+COMMUNICATION_LATE_MESSAGE = "Comunicação registrada fora do prazo de {hours} horas."
+
+OPEN_STATUSES = (ActionStatus.IN_PROGRESS, ActionStatus.OVERDUE)
+
+
+def deadlines_in_force(session: Session, *, reference_date: date) -> calculations.DeadlinePolicy:
+    """Os prazos de comunicação, investigação e relatório vigentes na data (grupo ``hse``).
+
+    Eles são gravados na ocorrência no registro (D5b): mudar o parâmetro depois muda o próximo
+    registro, nunca o prazo de uma ocorrência que já existe.
+    """
+    values = configuracoes.current_group(
+        session, group=PARAMETER_GROUP, reference_date=reference_date
+    )
+    deadlines = values.get("prazos", {})
+    return calculations.DeadlinePolicy(
+        communication_hours=_positive_int(
+            deadlines.get("comunicacaoHoras"), calculations.DEFAULT_COMMUNICATION_HOURS
+        ),
+        investigation_hours=_positive_int(
+            deadlines.get("investigacaoPreliminarHoras"),
+            calculations.DEFAULT_INVESTIGATION_HOURS,
+        ),
+        report_days=_positive_int(
+            deadlines.get("relatorioFinalDias"), calculations.DEFAULT_REPORT_DAYS
+        ),
+    )
+
+
+def _positive_int(value: object, default: int) -> int:
+    try:
+        parsed = int(cast(Any, value))
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _event_date(occurrence: Occurrence) -> date:
+    """A data do evento no fuso do produto: a base dos prazos."""
+    return calendario.in_product_timezone(occurrence.happened_at).date()
+
+
+def _moment(day: date, time_text: str) -> datetime | None:
+    """A data e a hora digitadas como o instante local do produto, ou ``None`` quando inválida."""
+    parsed = validation.parse_time(time_text)
+    if parsed is None:
+        return None
+    return datetime.combine(day, time(parsed[0], parsed[1]), tzinfo=calendario.PRODUCT_TIMEZONE)
+
+
+def occurrence_by_code(session: Session, code: str) -> Occurrence | None:
+    """A ocorrência pelo código, ou ``None``: o que o registro de anexos e os links perguntam."""
+    return session.scalars(select(Occurrence).where(Occurrence.code == code)).one_or_none()
+
+
+def _occurrence_or_refuse(session: Session, code: str) -> Occurrence:
+    occurrence = occurrence_by_code(session, code)
+    if occurrence is None:
+        raise InvalidDataError(OCCURRENCE_NOT_FOUND_MESSAGE)
+    return occurrence
+
+
+def _role_of(data: validation.OccurrenceInput, *, environmental: bool) -> str | None:
+    """A função da pessoa envolvida: só dos tipos que a pedem e nunca do ambiental (sem nome, Q35)."""
+    if environmental or data.kind not in validation.TYPES_WITH_ROLE:
+        return None
+    return data.role.strip() or None
+
+
+@dataclass(frozen=True)
+class OccurrenceSave:
+    """O que o registro devolveu: o código e os avisos que a tela mostra como toast."""
+
+    code: str
+    avisos: tuple[str, ...]
+
+
+def save_occurrence(
+    session: Session,
+    *,
+    user: User,
+    data: validation.OccurrenceInput,
+    reference_date: date,
+) -> OccurrenceSave:
+    """Registra a ocorrência com o prazo vigente gravado e o restrito na mesma transação.
+
+    O nível 5 (desvios) não tem registro individual: vem do consolidado mensal. O tipo Ambiental
+    não tem gravidade real, potencial nem HiPo; a severidade é própria. O nome e os dados médicos
+    entram em ``ocorrencia_restrito`` (Q35): o Membro preenche e só Gestor e Admin leem de volta.
+    """
+    rbac.require(user, Permission.WRITE)
+    _require_project(session, data.project_id)
+    problems = validation.occurrence_problems(
+        data, register_choices(session), reference_date=reference_date
+    )
+    if problems or data.happened_on is None:
+        raise InvalidDataError(problems)
+    happened_at = _moment(data.happened_on, data.happened_time)
+    if happened_at is None:
+        raise InvalidDataError({"hora": validation.TIME_FORMAT})
+    project = configuracoes.find_project(session, data.project_id)
+    if project is None:
+        raise InvalidDataError(UNKNOWN_PROJECT_MESSAGE)
+    deadlines = deadlines_in_force(session, reference_date=reference_date)
+    environmental = data.kind == "Ambiental"
+    code = numbering.next_number(
+        session, project=project, kind="ocorrencia", reference_date=reference_date
+    )
+    record = Occurrence(
+        project_id=data.project_id,
+        company_id=data.company_id,
+        code=code,
+        happened_at=happened_at,
+        kind=data.kind,
+        subtype=data.subtype.strip() if environmental else None,
+        area=data.area.strip(),
+        place=None,
+        description="" if environmental else data.description.strip(),
+        role=_role_of(data, environmental=environmental),
+        people_involved=0 if environmental else (data.people_involved or 0),
+        potential_p=None if environmental else data.potential_p,
+        potential_i=None if environmental else data.potential_i,
+        hipo=bool(data.hipo and not environmental),
+        environmental=environmental,
+        environmental_severity=data.environmental_severity.strip() if environmental else None,
+        immediate_cause=None if environmental else data.immediate_cause.strip(),
+        communication_hours=cast(int, data.communication_hours),
+        communication_deadline_hours=deadlines.communication_hours,
+        investigation_deadline_hours=deadlines.investigation_hours,
+        report_deadline_days=deadlines.report_days,
+        situation=models.SITUATION_REGISTERED,
+    )
+    recording.create(session, user_id=user.id, record=record)
+    recording.create(
+        session,
+        user_id=user.id,
+        record=OccurrenceRestricted(
+            occurrence_id=record.id,
+            name=data.name.strip() or None,
+            real_gravity=None if environmental else data.real_gravity,
+            days_lost=((data.days_lost or 0) if data.kind in validation.TYPES_WITH_DAYS else 0),
+            days_charged=(
+                (data.days_charged or 0) if data.kind in validation.TYPES_WITH_DAYS else 0
+            ),
+            cat=bool(data.cat and data.kind in validation.TYPES_WITH_ROLE),
+            medical_notes=data.medical_notes.strip() or None,
+        ),
+    )
+    _append_history(session, user=user, occurrence=record, text="Ocorrência registrada.")
+    avisos: list[str] = []
+    if calculations.communication_overdue(
+        record.communication_hours, record.communication_deadline_hours
+    ):
+        avisos.append(COMMUNICATION_LATE_MESSAGE.format(hours=record.communication_deadline_hours))
+    return OccurrenceSave(code=code, avisos=tuple(avisos))
+
+
+@dataclass(frozen=True)
+class InvestigationSave:
+    """O que a investigação devolveu: o código e se ela passou do prazo preliminar."""
+
+    code: str
+    late: bool
+
+
+def record_investigation(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    data: validation.InvestigationInput,
+    reference_date: date,
+) -> InvestigationSave:
+    """Registra a investigação preliminar (fato) e move a ocorrência para Em investigação."""
+    rbac.require(user, Permission.WRITE)
+    occurrence = _occurrence_or_refuse(session, code)
+    if occurrence.situation != models.SITUATION_REGISTERED:
+        raise InvalidDataError(ALREADY_INVESTIGATED_MESSAGE)
+    event_date = _event_date(occurrence)
+    problems = validation.investigation_problems(
+        data, event_date=event_date, reference_date=reference_date
+    )
+    if problems or data.investigated_on is None:
+        raise InvalidDataError(problems)
+    recording.create(
+        session,
+        user_id=user.id,
+        record=OccurrenceInvestigation(
+            occurrence_id=occurrence.id,
+            responsible_id=user.person_id,
+            method=data.method,
+            root_cause=data.root_cause.strip(),
+            investigated_on=data.investigated_on,
+        ),
+    )
+    late = calculations.investigation_overdue(
+        event_date, data.investigated_on, occurrence.investigation_deadline_hours
+    )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=occurrence,
+        changes={"situation": models.SITUATION_INVESTIGATING},
+        version=occurrence.version,
+    )
+    text = (
+        f"Investigação registrada ({data.method}). "
+        f"Causa raiz: {data.root_cause.strip().rstrip('.')}"
+    )
+    if late:
+        text += " · fora do prazo preliminar"
+    _append_history(session, user=user, occurrence=occurrence, text=f"{text}.")
+    return InvestigationSave(code=code, late=late)
+
+
+def define_corrective_actions(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    actions_input: Sequence[validation.CorrectiveActionInput],
+    reference_date: date,
+) -> int:
+    """Cria as ações corretivas na Central (origem ``HSE``) e move para Ações definidas."""
+    rbac.require(user, Permission.WRITE)
+    occurrence = _occurrence_or_refuse(session, code)
+    if occurrence.situation == models.SITUATION_REGISTERED:
+        raise InvalidDataError(INVESTIGATE_FIRST_MESSAGE)
+    if occurrence.situation == models.SITUATION_CLOSED:
+        raise InvalidDataError(ALREADY_CLOSED_MESSAGE)
+    if not actions_input:
+        raise InvalidDataError({"acoes": validation.ACTIONS_REQUIRED})
+    choices = register_choices(session)
+    problems: dict[str, str] = {}
+    for index, item in enumerate(actions_input, start=1):
+        found = validation.corrective_action_problems(item, choices)
+        if len(actions_input) > 1:
+            found = {
+                key: f"Ação {index}: {message[0].lower()}{message[1:]}"
+                for key, message in found.items()
+            }
+        problems.update(found)
+    if problems:
+        raise InvalidDataError(problems)
+    for item in actions_input:
+        sequence = actions.next_origin_item(
+            session, origin_kind=OCCURRENCE_ORIGIN, reference=occurrence.code
+        )
+        actions.create_action(
+            session,
+            user=user,
+            new=NewAction(
+                project_id=occurrence.project_id,
+                origin=OCCURRENCE_ORIGIN,
+                origin_ref=occurrence.code,
+                subject=item.subject.strip(),
+                description=(item.description or "").strip() or None,
+                requester_id=user.person_id,
+                responsible_id=cast(int, item.responsible_id),
+                planned_date=item.planned_date,
+                group=ACTION_GROUP,
+                item=sequence,
+            ),
+            reference_date=reference_date,
+        )
+    if occurrence.situation == models.SITUATION_INVESTIGATING:
+        recording.update(
+            session,
+            user_id=user.id,
+            record=occurrence,
+            changes={"situation": models.SITUATION_ACTIONS},
+            version=occurrence.version,
+        )
+    count = len(actions_input)
+    _append_history(
+        session,
+        user=user,
+        occurrence=occurrence,
+        text=f"{count} ação(ões) corretiva(s) criada(s) na Central.",
+    )
+    return count
+
+
+def start_treatment(session: Session, *, user: User, code: str) -> None:
+    """Move a ocorrência para Em tratamento, depois das ações definidas."""
+    rbac.require(user, Permission.WRITE)
+    occurrence = _occurrence_or_refuse(session, code)
+    if occurrence.situation != models.SITUATION_ACTIONS:
+        raise InvalidDataError(ACTIONS_FIRST_MESSAGE)
+    recording.update(
+        session,
+        user_id=user.id,
+        record=occurrence,
+        changes={"situation": models.SITUATION_TREATING},
+        version=occurrence.version,
+    )
+    _append_history(session, user=user, occurrence=occurrence, text="Tratamento iniciado.")
+
+
+@dataclass(frozen=True)
+class ClosingSave:
+    """O que o encerramento devolveu: o código, o relatório fora do prazo e a lição do HiPo."""
+
+    code: str
+    report_late: bool
+    lesson_code: str | None
+
+
+def close_occurrence(
+    session: Session,
+    *,
+    user: User,
+    code: str,
+    data: validation.ClosureInput,
+    reference_date: date,
+) -> ClosingSave:
+    """Encerra a ocorrência com a eficácia verificada; exige as ações corretivas concluídas.
+
+    Um HiPo encerrado exige a lição e a abre em Rascunho pela fachada de Governança, na mesma
+    transação (D9), com origem ``HSE`` e o código da ocorrência.
+    """
+    rbac.require(user, Permission.MANAGE)
+    occurrence = _occurrence_or_refuse(session, code)
+    if occurrence.situation == models.SITUATION_CLOSED:
+        raise InvalidDataError(ALREADY_CLOSED_MESSAGE)
+    if occurrence.situation != models.SITUATION_TREATING:
+        raise InvalidDataError(TREATMENT_FIRST_MESSAGE)
+    open_actions = _open_actions(
+        session, user=user, occurrence=occurrence, reference_date=reference_date
+    )
+    if open_actions:
+        raise InvalidDataError(OPEN_ACTIONS_MESSAGE.format(count=open_actions))
+    event_date = _event_date(occurrence)
+    problems = validation.closure_problems(
+        data, event_date=event_date, reference_date=reference_date
+    )
+    if problems or data.closed_on is None:
+        raise InvalidDataError(problems)
+    lesson_code = None
+    if occurrence.hipo:
+        lesson_code = _write_lesson(
+            session, user=user, occurrence=occurrence, data=data, reference_date=reference_date
+        )
+    recording.update(
+        session,
+        user_id=user.id,
+        record=occurrence,
+        changes={
+            "situation": models.SITUATION_CLOSED,
+            "closed_on": data.closed_on,
+            "effectiveness": data.effectiveness.strip(),
+        },
+        version=occurrence.version,
+    )
+    report_late = calculations.report_overdue(
+        data.closed_on,
+        event_date=event_date,
+        deadline_days=occurrence.report_deadline_days,
+        reference_date=reference_date,
+    )
+    text = f"Ocorrência encerrada. Eficácia: {data.effectiveness.strip()}"
+    if lesson_code:
+        text += f" Lição {lesson_code} criada em Rascunho."
+    _append_history(session, user=user, occurrence=occurrence, text=f"{text.rstrip('.')}.")
+    return ClosingSave(code=code, report_late=report_late, lesson_code=lesson_code)
+
+
+def _open_actions(
+    session: Session, *, user: User, occurrence: Occurrence, reference_date: date
+) -> int:
+    records = actions.actions_of_origin(
+        session,
+        user=user,
+        origin_kind=OCCURRENCE_ORIGIN,
+        reference=occurrence.code,
+        reference_date=reference_date,
+    )
+    return sum(1 for record in records if record.status in OPEN_STATUSES)
+
+
+def _write_lesson(
+    session: Session,
+    *,
+    user: User,
+    occurrence: Occurrence,
+    data: validation.ClosureInput,
+    reference_date: date,
+) -> str:
+    """A lição obrigatória do HiPo encerrado, em Rascunho, pela fachada de Governança (D9)."""
+    created = lessons_service.create_draft_lesson(
+        session,
+        user=user,
+        project_id=occurrence.project_id,
+        draft=DraftInput(
+            title=data.lesson_title.strip(),
+            kind="A evitar",
+            phase="Construção",
+            area="SMS",
+            origin=lessons.ORIGIN_HSE,
+            origin_ref=occurrence.code,
+            what_happened=occurrence.description or occurrence.area,
+            cause=_root_cause_of(session, occurrence.id),
+            recommendation=data.lesson_recommendation.strip(),
+            keywords=("HSE", "ocorrência", "HiPo"),
+        ),
+        reference_date=reference_date,
+    )
+    return created.code
+
+
+def _root_cause_of(session: Session, occurrence_id: int) -> str:
+    statement = (
+        select(OccurrenceInvestigation.root_cause)
+        .where(OccurrenceInvestigation.occurrence_id == occurrence_id)
+        .order_by(OccurrenceInvestigation.id.desc())
+        .limit(1)
+    )
+    return session.scalar(statement) or ""
+
+
+# ── A leitura das ocorrências ────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class OccurrenceRow:
+    """Uma ocorrência como a lista e a ficha a mostram, com os prazos já julgados."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    happened_at: datetime
+    area: str
+    company_id: int | None
+    company_name: str
+    kind: str
+    level: int | None
+    level_name: str
+    band: calculations.PotentialBand | None
+    potential_p: int | None
+    potential_i: int | None
+    environmental: bool
+    environmental_severity: str | None
+    subtype: str | None
+    hipo: bool
+    role: str | None
+    people_involved: int
+    description: str
+    immediate_cause: str | None
+    situation: str
+    communication_hours: int
+    communication_overdue: bool
+    investigation_deadline_hours: int
+    investigation_late: str | None
+    report_required: bool
+    report_deadline_days: int
+    report_late: str | None
+    closed_on: date | None
+    effectiveness: str | None
+    version: int
+
+    @property
+    def moment_text(self) -> str:
+        """``25/09/2026 09:25``: a data e a hora do evento no fuso do produto."""
+        moment = calendario.in_product_timezone(self.happened_at)
+        return moment.strftime("%d/%m/%Y %H:%M")
+
+    @property
+    def overdue(self) -> bool:
+        """Fora do prazo: comunicação, investigação ou relatório final."""
+        return (
+            self.communication_overdue
+            or self.investigation_late is not None
+            or self.report_late is not None
+        )
+
+
+@dataclass(frozen=True)
+class OccurrenceSummary:
+    """Os indicadores da tela: total, em aberto, HiPo em aberto e fora do prazo."""
+
+    total: int
+    open_count: int
+    hipo_open: int
+    overdue: int
+
+
+@dataclass(frozen=True)
+class OccurrenceScreen:
+    """O que a lista mostra: as linhas do filtro, os indicadores, o universo e os prazos vigentes."""
+
+    rows: tuple[OccurrenceRow, ...]
+    summary: OccurrenceSummary
+    universe: int
+    deadlines: calculations.DeadlinePolicy
+
+
+def summarize_occurrences(rows: Sequence[OccurrenceRow]) -> OccurrenceSummary:
+    """Total, em aberto, HiPo em aberto e fora do prazo do conjunto recebido."""
+    open_rows = [row for row in rows if row.situation != models.SITUATION_CLOSED]
+    return OccurrenceSummary(
+        total=len(rows),
+        open_count=len(open_rows),
+        hipo_open=sum(1 for row in open_rows if row.hipo),
+        overdue=sum(1 for row in rows if row.overdue),
+    )
+
+
+def _matches(record: Occurrence, filters: validation.OccurrenceFilters) -> bool:
+    if filters.situation and record.situation != filters.situation:
+        return False
+    if filters.kind and record.kind != filters.kind:
+        return False
+    if filters.hipo and not record.hipo:
+        return False
+    if filters.search:
+        wanted = _plain(filters.search)
+        haystack = _plain(" ".join((record.code, record.area, record.description or "")))
+        return wanted in haystack
+    return True
+
+
+def _investigations_of(
+    session: Session, occurrence_ids: Sequence[int]
+) -> dict[int, OccurrenceInvestigation]:
+    if not occurrence_ids:
+        return {}
+    statement = (
+        select(OccurrenceInvestigation)
+        .where(OccurrenceInvestigation.occurrence_id.in_(occurrence_ids))
+        .order_by(OccurrenceInvestigation.id)
+    )
+    return {row.occurrence_id: row for row in session.scalars(statement)}
+
+
+def _occurrence_row(
+    record: Occurrence,
+    investigation: OccurrenceInvestigation | None,
+    names: Names,
+    reference_date: date,
+) -> OccurrenceRow:
+    level = calculations.pyramid_level(record.kind)
+    band = None
+    if record.potential_p is not None and record.potential_i is not None:
+        band = calculations.potential_band(record.potential_p, record.potential_i)
+    event_date = _event_date(record)
+    investigation_late: str | None = None
+    if investigation is not None:
+        if calculations.investigation_overdue(
+            event_date, investigation.investigated_on, record.investigation_deadline_hours
+        ):
+            investigation_late = "fora"
+    elif (
+        record.situation == models.SITUATION_REGISTERED
+        and calculations.investigation_pending_overdue(
+            event_date, reference_date, record.investigation_deadline_hours
+        )
+    ):
+        investigation_late = "vencido"
+    report_required = calculations.report_required(level, hipo=record.hipo)
+    report_late: str | None = None
+    if report_required and calculations.report_overdue(
+        record.closed_on,
+        event_date=event_date,
+        deadline_days=record.report_deadline_days,
+        reference_date=reference_date,
+    ):
+        report_late = "fora" if record.closed_on is not None else "vencido"
+    return OccurrenceRow(
+        id=record.id,
+        project_id=record.project_id,
+        project_label=names.project(record.project_id),
+        code=record.code,
+        happened_at=record.happened_at,
+        area=record.area,
+        company_id=record.company_id,
+        company_name=names.company(record.company_id),
+        kind=record.kind,
+        level=level,
+        level_name=calculations.pyramid_level_name(level) if level else "Ambiental",
+        band=band,
+        potential_p=record.potential_p,
+        potential_i=record.potential_i,
+        environmental=record.environmental,
+        environmental_severity=record.environmental_severity,
+        subtype=record.subtype,
+        hipo=record.hipo,
+        role=record.role,
+        people_involved=record.people_involved,
+        description=record.description,
+        immediate_cause=record.immediate_cause,
+        situation=record.situation,
+        communication_hours=record.communication_hours,
+        communication_overdue=calculations.communication_overdue(
+            record.communication_hours, record.communication_deadline_hours
+        ),
+        investigation_deadline_hours=record.investigation_deadline_hours,
+        investigation_late=investigation_late,
+        report_required=report_required,
+        report_deadline_days=record.report_deadline_days,
+        report_late=report_late,
+        closed_on=record.closed_on,
+        effectiveness=record.effectiveness,
+        version=record.version,
+    )
+
+
+def occurrences_screen(
+    session: Session,
+    *,
+    scope: Scope,
+    filters: validation.OccurrenceFilters,
+    reference_date: date,
+) -> OccurrenceScreen:
+    """A tela de ocorrências: as linhas do filtro, os indicadores e os prazos vigentes."""
+    names = names_of(session)
+    statement = _scoped(select(Occurrence), Occurrence, scope).order_by(
+        Occurrence.happened_at.desc(), Occurrence.id.desc()
+    )
+    records = list(session.scalars(statement))
+    investigations = _investigations_of(session, [record.id for record in records])
+    rows = tuple(
+        _occurrence_row(record, investigations.get(record.id), names, reference_date)
+        for record in records
+        if _matches(record, filters)
+    )
+    return OccurrenceScreen(
+        rows=rows,
+        summary=summarize_occurrences(rows),
+        universe=len(records),
+        deadlines=deadlines_in_force(session, reference_date=reference_date),
+    )
+
+
+@dataclass(frozen=True)
+class InvestigationRow:
+    """A investigação como a ficha a mostra."""
+
+    method: str
+    root_cause: str
+    investigated_on: date
+    responsible_name: str
+
+
+@dataclass(frozen=True)
+class HistoryLine:
+    """Uma linha rica do histórico da ocorrência (a trilha da entidade ``ocorrencia.historico``)."""
+
+    moment: datetime
+    author_name: str
+    text: str
+
+
+@dataclass(frozen=True)
+class OccurrenceSheet:
+    """A ficha da ocorrência: a linha, a investigação, as ações da Central, o histórico e a lição."""
+
+    line: OccurrenceRow
+    investigation: InvestigationRow | None
+    actions: tuple[actions.ActionRecord, ...]
+    history: tuple[HistoryLine, ...]
+    lesson_code: str | None
+
+    @property
+    def open_actions(self) -> int:
+        """Quantas ações corretivas da Central continuam abertas."""
+        return sum(1 for record in self.actions if record.status in OPEN_STATUSES)
+
+
+def occurrence_sheet(
+    session: Session, *, user: User, code: str, reference_date: date
+) -> OccurrenceSheet | None:
+    """A ficha da ocorrência (sem o dado restrito, que tem a rota própria da Q35)."""
+    record = occurrence_by_code(session, code)
+    if record is None:
+        return None
+    names = names_of(session)
+    investigation = session.scalars(
+        select(OccurrenceInvestigation)
+        .where(OccurrenceInvestigation.occurrence_id == record.id)
+        .order_by(OccurrenceInvestigation.id.desc())
+        .limit(1)
+    ).first()
+    rows = actions.actions_of_origin(
+        session,
+        user=user,
+        origin_kind=OCCURRENCE_ORIGIN,
+        reference=record.code,
+        reference_date=reference_date,
+    )
+    return OccurrenceSheet(
+        line=_occurrence_row(record, investigation, names, reference_date),
+        investigation=(
+            InvestigationRow(
+                method=investigation.method,
+                root_cause=investigation.root_cause,
+                investigated_on=investigation.investigated_on,
+                responsible_name=names.person(investigation.responsible_id),
+            )
+            if investigation is not None
+            else None
+        ),
+        actions=rows,
+        history=_history_of(session, record.id),
+        lesson_code=lessons_service.code_of_origin(
+            session, origin=lessons.ORIGIN_HSE, reference=record.code
+        ),
+    )
+
+
+def _history_of(session: Session, occurrence_id: int) -> tuple[HistoryLine, ...]:
+    """As linhas ricas do histórico: a trilha da entidade ``ocorrencia.historico`` (D5b)."""
+    statement = (
+        select(AuditEntry)
+        .where(
+            AuditEntry.entity == OCCURRENCE_HISTORY_ENTITY,
+            AuditEntry.record_id == occurrence_id,
+        )
+        .order_by(AuditEntry.occurred_at.desc(), AuditEntry.id.desc())
+    )
+    lines: list[HistoryLine] = []
+    for entry in session.scalars(statement):
+        text = str((entry.after or {}).get("texto") or "")
+        if not text:
+            continue
+        lines.append(
+            HistoryLine(
+                moment=calendario.in_product_timezone(entry.occurred_at),
+                author_name=audit.author_name(session, entry.user_id),
+                text=text,
+            )
+        )
+    return tuple(lines)
+
+
+def _append_history(
+    session: Session,
+    *,
+    user: User,
+    occurrence: Occurrence,
+    text: str,
+    moment: datetime | None = None,
+) -> None:
+    """A linha rica do histórico: ela não tem coluna, então anda na trilha de auditoria (D5b)."""
+    audit.append(
+        session,
+        audit.TrailLine(
+            user_id=user.id,
+            entity=OCCURRENCE_HISTORY_ENTITY,
+            record_id=occurrence.id,
+            action=audit.CREATED,
+            after={"data": _event_date(occurrence).isoformat(), "texto": text},
+            project_id=occurrence.project_id,
+            occurred_at=moment,
+        ),
+    )
+
+
+@dataclass(frozen=True)
+class RestrictedRow:
+    """O dado restrito da ocorrência (Q35): nome e dados médicos, só para Gestor e Admin."""
+
+    name: str | None
+    real_gravity: int | None
+    days_lost: int
+    days_charged: int
+    cat: bool
+    medical_notes: str | None
+    suggests_hipo: bool
+
+
+def restricted_view(session: Session, *, user: User, code: str) -> RestrictedRow | None:
+    """O bloco restrito da ficha; exige ``VIEW_RESTRICTED`` (403 para os demais, Q35)."""
+    rbac.require(user, Permission.VIEW_RESTRICTED)
+    record = occurrence_by_code(session, code)
+    if record is None:
+        return None
+    row = session.scalars(
+        select(OccurrenceRestricted).where(OccurrenceRestricted.occurrence_id == record.id)
+    ).one_or_none()
+    if row is None:
+        return None
+    return RestrictedRow(
+        name=row.name,
+        real_gravity=row.real_gravity,
+        days_lost=row.days_lost,
+        days_charged=row.days_charged,
+        cat=row.cat,
+        medical_notes=row.medical_notes,
+        suggests_hipo=not record.hipo
+        and calculations.is_high_potential(row.real_gravity, record.potential_i),
+    )
+
+
+# ── Integrações (D9, D5a) ────────────────────────────────────────────────────────────────────
+
+
+def read_occurrence_origin(session: Session, *, user: User, record_id: int) -> OriginRecord | None:
+    """A leitura dos anexos de uma ocorrência: restrita, porque carregam dado pessoal (Q35).
+
+    Quem grava ainda envia (a rota de envio só pede ``WRITE``); listar e baixar exige
+    ``VIEW_RESTRICTED``, que a plataforma confere com o ``restricted`` devolvido aqui.
+    """
+    occurrence = session.get(Occurrence, record_id)
+    if occurrence is None:
+        return None
+    rbac.require_module(user, MODULE)
+    return OriginRecord(project_id=occurrence.project_id, restricted=True)
+
+
+def _occurrence_exists(session: Session, reference: str) -> bool:
+    """A ocorrência que uma lição de Governança aponta, pelo código (D9)."""
+    return session.scalar(select(Occurrence.id).where(Occurrence.code == reference)) is not None
+
+
+origin_links.register(
+    origin_links.OriginLinkType(
+        kind=OCCURRENCE_ORIGIN,
+        build=lambda reference: origin_links.link_to_screen(
+            "hse/ocorrencias", busca=reference.reference
+        ),
+    )
+)
+
+attachment_origins.register(
+    OriginType(table=OCCURRENCE_ENTITY, module=MODULE, read=read_occurrence_origin)
+)
+
+lessons_service.register_origin(lessons.ORIGIN_HSE, _occurrence_exists)
