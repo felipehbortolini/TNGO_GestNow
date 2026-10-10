@@ -1,0 +1,249 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Inspeções e ITP (ISSUE-069): os cinco KPIs, a tabela dos planos de inspeção e testes,
+  os filtros e a lista dos registros de inspeção com as páginas. O fragmento é um só e se pede
+  de novo, com os filtros na consulta, a cada clique: filtro, página e busca são um formulário
+  GET com x-target no próprio fragmento. O modal carrega os fragmentos pelo JS da página
+  (inspecoes.js): a ficha do ITP e os formulários de novo ITP, nova revisão, aprovação do
+  cliente e registro de inspeção.
+
+  Espera: itps, listagem, resumo, filtros, meta, kpis, consulta, parametro_consulta, url_excel,
+  url_pdf, portfolio, pode_gravar, pode_gerir, resultados, tipos_ponto, link_limpar,
+  link_anterior, link_proximo, pagina_inicial, pagina_final, tem_filtro, avisos e formatar_data.
+#}
+{% set pill_do_resultado = {'Aprovado': 'pill--ok', 'Aprovado com ressalva': 'pill--warn', 'Reprovado': 'pill--erro'} %}
+{% set pill_do_tipo = {'H': 'pill--erro', 'W': 'pill--fix', 'R': 'pill--neutral'} %}
+{% set nome_do_tipo = {'H': 'Espera (H)', 'W': 'Testemunho (W)', 'R': 'Registro (R)'} %}
+
+{% macro kpi(cartao) %}
+<div class="kpi kpi--{{ cartao.tone }} kpi--estatico">
+  <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>
+  <span class="inspecoes__kpi-texto">
+    <span class="kpi__label">{{ cartao.label }}</span>
+    <span class="hint">{{ cartao.reference }}</span>
+    {% if cartao.footer %}<span class="hint">{{ cartao.footer }}</span>{% endif %}
+  </span>
+  <span class="kpi__value">{{ cartao.value }}{% if cartao.unit %}<small class="inspecoes__kpi-unidade"> {{ cartao.unit }}</small>{% endif %}</span>
+</div>
+{% endmacro %}
+
+{% macro botao_formulario(url, titulo, rotulo, icone, fechar=False) %}
+<button type="button" class="btn btn--ghost btn--sm" data-inspecoes-formulario title="{{ titulo }}"
+  {% if fechar %}data-inspecoes-fechar="1"{% endif %}
+  data-inspecoes-url="{{ url }}" data-inspecoes-titulo="{{ titulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 14)" aria-hidden="true"></span>{% if rotulo %}{{ rotulo }}{% endif %}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+{% set sufixo = ('?' ~ parametro_consulta) if parametro_consulta else '' %}
+{% if avisos %}
+<div class="aviso aviso--warn mb-16" role="alert">
+  <span>
+    {% for aviso in avisos %}{{ aviso }}{% if not loop.last %}<br />{% endif %}{% endfor %}
+  </span>
+</div>
+{% endif %}
+
+<div class="kpis inspecoes__kpis" style="--kpis-colunas: 5">
+  {% for cartao in kpis %}{{ kpi(cartao) }}{% endfor %}
+</div>
+
+<section class="card card--flush inspecoes__card" aria-labelledby="t-itps">
+  <div class="card__header">
+    <div>
+      <h2 class="card__title" id="t-itps">Planos de inspeção e testes (ITP)</h2>
+      <p class="card__subtitle">
+        {{ itps.total }} {{ 'plano' if itps.total == 1 else 'planos' }}
+        · H = espera obrigatória; W = testemunho do cliente; R = revisão de registros
+      </p>
+    </div>
+    {% if pode_gravar %}
+    <div class="inspecoes__barra-acoes">
+      <button type="button" class="btn btn--secondary btn--sm" data-inspecoes-formulario
+        data-inspecoes-url="/api/qualidade/inspecoes/itp/novo{{ sufixo }}" data-inspecoes-titulo="Novo plano de inspeção e testes (ITP)">
+        <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Novo ITP
+      </button>
+    </div>
+    {% endif %}
+  </div>
+  {% if itps.total == 0 %}
+  <div class="card__body">
+    <p class="hint">Nenhum ITP cadastrado{% if portfolio %} no escopo{% endif %}.</p>
+  </div>
+  {% else %}
+  <div class="tbl-wrap">
+    <table class="tbl inspecoes__tabela">
+      <caption class="sr-only">Planos de inspeção e testes</caption>
+      <thead>
+        <tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">ITP</th>
+          <th scope="col">Título</th>
+          <th scope="col">Pontos</th>
+          <th scope="col">Inspeções e aprovação</th>
+          <th scope="col">Cliente</th>
+          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in itps.lines %}
+        <tr>
+          {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_code }}</span></td>{% endif %}
+          <td class="nowrap">
+            <a href="#" data-itp-ficha="{{ linha.code }}" title="Ver pontos"><b>{{ linha.code }}</b></a>
+            <br /><span class="hint">Rev {{ linha.revision }}</span>
+          </td>
+          <td>
+            <span class="fw-600">{{ linha.title }}</span>
+            <br /><span class="hint">{{ linha.discipline }} · {{ linha.company_name }}</span>
+          </td>
+          <td class="nowrap">
+            {{ linha.total_points }}
+            <br /><span class="hint">H {{ linha.point_type_counts.H }} · W {{ linha.point_type_counts.W }} · R {{ linha.point_type_counts.R }}</span>
+          </td>
+          <td class="nowrap">
+            {{ linha.inspections }}
+            {% if linha.approval_pct is not none %}
+            <br /><span class="hint{% if linha.approval_pct < meta %} inspecoes__abaixo{% endif %}">{{ linha.approval_pct | round(1) | replace('.', ',') }}% aprovadas</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if linha.approved_by_client %}
+            <span class="pill pill--ok">Aprovado</span>
+            {% else %}
+            <span class="pill pill--warn">Pendente</span>
+            {% endif %}
+          </td>
+          <td class="inspecoes__acoes nowrap">
+            <button type="button" class="iconbtn" data-itp-ficha="{{ linha.code }}" title="Ver pontos" aria-label="Ver pontos do {{ linha.code }}">
+              <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
+            </button>
+            {% if pode_gerir and not linha.approved_by_client %}
+            {{ botao_formulario('/api/qualidade/inspecoes/itp/' ~ linha.code ~ '/aprovacao' ~ sufixo, 'Aprovação do cliente · ' ~ linha.code, 'Aprovar', 'checkCircle') }}
+            {% endif %}
+            {% if pode_gravar %}
+            {{ botao_formulario('/api/qualidade/inspecoes/itp/' ~ linha.code ~ '/revisao' ~ sufixo, 'Nova revisão · ' ~ linha.code, '', 'refresh') }}
+            {% endif %}
+            {% if pode_gravar and linha.approved_by_client %}
+            {{ botao_formulario('/api/qualidade/inspecoes/inspecao?projeto=' ~ linha.project_id ~ '&itp=' ~ linha.id ~ (('&' ~ parametro_consulta) if parametro_consulta else ''), 'Registrar inspeção', '', 'taskList') }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<form class="toolbar inspecoes__filtros" method="get" action="/api/qualidade/inspecoes" x-target="{{ target_id }}" role="search">
+  <label class="sr-only" for="{{ target_id }}-busca">Buscar inspeção</label>
+  <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ filtros.search }}"
+    maxlength="120" placeholder="Buscar registro, ponto, ITP ou RNC..." />
+  <select class="input" name="itp" aria-label="ITP" @change="$el.form.requestSubmit()">
+    <option value="">ITP: todos</option>
+    {% for linha in itps.lines %}
+    <option value="{{ linha.id }}"{% if filtros.itp_id == linha.id %} selected{% endif %}>{{ linha.code }} · {{ linha.title }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="resultado" aria-label="Resultado" @change="$el.form.requestSubmit()">
+    <option value="">Resultado: todos</option>
+    {% for resultado in resultados %}
+    <option value="{{ resultado }}"{% if filtros.result == resultado %} selected{% endif %}>{{ resultado }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="tipo" aria-label="Tipo de ponto" @change="$el.form.requestSubmit()">
+    <option value="">Tipo de ponto: todos</option>
+    {% for tipo in tipos_ponto %}
+    <option value="{{ tipo }}"{% if filtros.point_type == tipo %} selected{% endif %}>{{ nome_do_tipo[tipo] }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn--secondary btn--sm">
+    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
+  </button>
+  {% if tem_filtro %}
+  <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+  {% endif %}
+</form>
+
+<section class="card card--flush" aria-labelledby="t-inspecoes">
+  <div class="card__header">
+    <div>
+      <h2 class="card__title" id="t-inspecoes">Registros de inspeção</h2>
+      <p class="card__subtitle">
+        {{ listagem.total }} {{ 'registro encontrado' if listagem.total == 1 else 'registros encontrados' }}
+        · reprovação abre RNC automaticamente
+      </p>
+    </div>
+    <div class="inspecoes__barra-acoes">
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      {% if pode_gravar %}
+      <button type="button" class="btn btn--primary btn--sm" data-inspecoes-formulario
+        data-inspecoes-url="/api/qualidade/inspecoes/inspecao{{ sufixo }}" data-inspecoes-titulo="Registrar inspeção">
+        <span x-init="$el.innerHTML = window.icon('taskList', 14)" aria-hidden="true"></span> Registrar inspeção
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% if listagem.total == 0 %}
+  <div class="card__body">
+    <p class="hint">Nenhum registro encontrado.</p>
+  </div>
+  {% else %}
+  <div class="tbl-wrap">
+    <table class="tbl inspecoes__tabela">
+      <caption class="sr-only">Registros de inspeção</caption>
+      <thead>
+        <tr>
+          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          <th scope="col">Nº</th>
+          <th scope="col">Data</th>
+          <th scope="col">Ponto</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Inspetor</th>
+          <th scope="col">Resultado</th>
+          <th scope="col">RNC</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in listagem.page_lines %}
+        <tr class="{{ 'inspecoes__linha--alerta' if linha.result == 'Reprovado' else '' }}">
+          {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_code }}</span></td>{% endif %}
+          <td class="nowrap">{{ linha.code }}</td>
+          <td class="nowrap">{{ formatar_data(linha.inspection_date) }}</td>
+          <td>
+            <span class="fw-600">{{ linha.point }}</span>
+            <br /><span class="hint">{{ (linha.itp_code or linha.itp_title) }}{% if linha.company_name %} · {{ linha.company_name }}{% endif %}</span>
+          </td>
+          <td><span class="pill {{ pill_do_tipo.get(linha.point_type, 'pill--neutral') }}" title="{{ nome_do_tipo.get(linha.point_type, linha.point_type) }}">{{ linha.point_type }}</span></td>
+          <td>{{ linha.inspector_name }}</td>
+          <td>
+            <span class="pill {{ pill_do_resultado.get(linha.result, 'pill--neutral') }}">{{ linha.result }}</span>
+            {% if linha.observation %}<br /><span class="hint">{{ linha.observation }}</span>{% endif %}
+          </td>
+          <td class="nowrap">
+            {% if linha.rnc_code %}
+            <a href="{{ link_rnc(linha.rnc_code) }}" data-tn-tela>{{ linha.rnc_code }}</a>
+            <br /><span class="hint">{{ linha.rnc_situation }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav class="inspecoes__paginas" aria-label="Páginas da lista">
+    <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
+    {% if link_anterior %}
+    <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+    {% endif %}
+    <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
+    {% if link_proximo %}
+    <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

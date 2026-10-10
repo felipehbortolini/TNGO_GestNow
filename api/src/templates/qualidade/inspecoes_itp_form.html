@@ -1,0 +1,129 @@
+{% extends "base_fragment.html" %}
+{#
+  Novo ITP (revisão 0) e nova revisão (ISSUE-069): título, disciplina, empresa executante e os
+  pontos de inspeção (atividade, tipo H/W/R, quem executa/inspeciona, critério e documento de
+  referência). A nova revisão abre preenchida com a revisão vigente, volta a pedir a aprovação
+  do cliente e não pode retirar ponto que já tem inspeção. O 422 devolve este formulário
+  preenchido com a mensagem sob cada campo; o sucesso atualiza a lista atrás do modal.
+
+  Espera: projeto, projeto_id, codigo, valores, erros, visiveis, disciplinas, empresas,
+  responsaveis, tipos_ponto, max_pontos, consulta e notificacao_horas.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post"
+  action="{% if codigo %}/api/qualidade/inspecoes/itp/{{ codigo }}/revisao{% else %}/api/qualidade/inspecoes/itp/novo{% endif %}"
+  x-target="inspecoes-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Salvando o ITP..."
+  x-data="{ pontos: {{ visiveis }} }">
+  <input type="hidden" name="projeto" value="{{ projeto_id }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if codigo %}<input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />{% endif %}
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>H = ponto de espera (a atividade seguinte só é liberada com o registro aprovado);
+      W = testemunho (cliente notificado com {{ notificacao_horas }} horas de antecedência);
+      R = revisão de registros. Inspeção só em ITP aprovado pelo cliente.</span>
+  </div>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="itp-titulo">Título</label>
+      <input id="itp-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}"
+        maxlength="120" required value="{{ valores.get('titulo') or '' }}"
+        {% if erros.get('titulo') %}aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
+      {{ erro(erros, 'titulo') }}
+    </div>
+    <div class="field">
+      <span class="field__label">Projeto</span>
+      <p class="body-txt fw-600">{{ projeto.code }} · {{ projeto.name if projeto else '' }}</p>
+    </div>
+    <div class="field">
+      <span class="field__label">Revisão</span>
+      <p class="body-txt">{% if codigo %}nova revisão (volta a pedir a aprovação do cliente){% else %}0 (a primeira){% endif %}</p>
+    </div>
+    <div class="field">
+      <label for="itp-disciplina">Disciplina</label>
+      <select id="itp-disciplina" name="disciplina" class="input{% if erros.get('disciplina') %} input--erro{% endif %}" required
+        {% if erros.get('disciplina') %}aria-invalid="true" aria-describedby="erro-disciplina"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for disciplina in disciplinas %}
+        <option value="{{ disciplina }}"{% if valores.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'disciplina') }}
+    </div>
+    <div class="field">
+      <label for="itp-empresa">Empresa executante</label>
+      <select id="itp-empresa" name="empresaId" class="input{% if erros.get('empresaId') %} input--erro{% endif %}" required
+        {% if erros.get('empresaId') %}aria-invalid="true" aria-describedby="erro-empresaId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}"{% if valores.get('empresaId') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'empresaId') }}
+    </div>
+  </div>
+
+  <fieldset class="inspecoes__pontos-form">
+    <legend>Pontos de inspeção</legend>
+    {% if erros.get('pontos') %}
+    <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['pontos'] }}</span></div>
+    {% endif %}
+    {% for posicao in range(1, max_pontos + 1) %}
+    <div class="fgrid inspecoes__ponto-bloco" x-show="pontos >= {{ posicao }}">
+      <div class="field field--full">
+        <label for="itp-ponto{{ posicao }}-atividade">Ponto {{ posicao }} · atividade</label>
+        <input id="itp-ponto{{ posicao }}-atividade" name="ponto{{ posicao }}_atividade" class="input" maxlength="120"
+          value="{{ valores.get('ponto' ~ posicao ~ '_atividade') or '' }}" />
+      </div>
+      <div class="field">
+        <label for="itp-ponto{{ posicao }}-tipo">Tipo</label>
+        <select id="itp-ponto{{ posicao }}-tipo" name="ponto{{ posicao }}_tipo" class="input">
+          <option value="">Escolha...</option>
+          <option value="H"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'H' %} selected{% endif %}>H · espera</option>
+          <option value="W"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'W' %} selected{% endif %}>W · testemunho</option>
+          <option value="R"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'R' %} selected{% endif %}>R · revisão de registro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="itp-ponto{{ posicao }}-responsavel">Executa / inspeciona</label>
+        <select id="itp-ponto{{ posicao }}-responsavel" name="ponto{{ posicao }}_responsavel" class="input">
+          {% for responsavel in responsaveis %}
+          <option value="{{ responsavel }}"{% if valores.get('ponto' ~ posicao ~ '_responsavel') == responsavel %} selected{% endif %}>{{ responsavel }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field--full">
+        <label for="itp-ponto{{ posicao }}-criterio">Critério de aceitação</label>
+        <input id="itp-ponto{{ posicao }}-criterio" name="ponto{{ posicao }}_criterio" class="input" maxlength="160"
+          value="{{ valores.get('ponto' ~ posicao ~ '_criterio') or '' }}" />
+      </div>
+      <div class="field">
+        <label for="itp-ponto{{ posicao }}-referencia">Documento de referência</label>
+        <input id="itp-ponto{{ posicao }}-referencia" name="ponto{{ posicao }}_referencia" class="input" maxlength="60"
+          value="{{ valores.get('ponto' ~ posicao ~ '_referencia') or '' }}" />
+      </div>
+    </div>
+    {% endfor %}
+    <button type="button" class="btn btn--secondary btn--sm" x-show="pontos < {{ max_pontos }}"
+      @click="pontos = Math.min(pontos + 1, {{ max_pontos }})">
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar ponto
+    </button>
+  </fieldset>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">{% if codigo %}Salvar revisão{% else %}Criar ITP{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

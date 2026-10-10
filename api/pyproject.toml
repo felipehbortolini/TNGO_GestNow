@@ -343,6 +343,14 @@ max-complexity = 10
 "src/modulos/qualidade/routes.py" = ["PLR0913"]
 "src/modulos/qualidade/export.py" = ["PLR0913"]
 
+# `_screen` e `_inspection_fragment`, nas rotas de Inspeções e ITP, recebem a
+# requisição, a sessão e o contexto além do que a resposta precisa imprimir,
+# todos KEYWORD-ONLY depois do `*` — o contrato da tela e do formulário de
+# inspeção (ISSUE-069), como as rotas da RNC acima. A regra existe para
+# argumento posicional, onde a ordem se erra na chamada; reduzir significaria
+# criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/qualidade/inspecoes_routes.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

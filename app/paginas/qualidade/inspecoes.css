@@ -3,14 +3,96 @@
 
    Planos de inspeção e testes com pontos H, W e R, e os registros por ponto.
 
-   Escopo: tudo que morar aqui começa por .pagina--qualidade-inspecoes, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-069.
+   Escopo: o que vive na tela começa por .pagina--qualidade-inspecoes, a classe da raiz da
+   view, para não vazar entre telas. O conteúdo dos modais mora fora da raiz da view (o
+   Design System os anexa ao fim do <body>), como no precedente de Central de Ações: ali o
+   seletor começa por .modal. Só tokens do Design System: nenhum valor de cor, espaçamento,
+   raio ou sombra escrito direto. O que se repetir em três telas sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--qualidade-inspecoes .inspecoes__kpis {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__kpi-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pagina--qualidade-inspecoes .inspecoes__kpi-unidade {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__card {
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__barra-acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.pagina--qualidade-inspecoes .inspecoes__filtros {
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__tabela td {
+  vertical-align: top;
+}
+
+.pagina--qualidade-inspecoes .inspecoes__acoes {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+
+.pagina--qualidade-inspecoes .inspecoes__linha--alerta {
+  background: var(--erro-50);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__abaixo {
+  color: var(--erro-700);
+}
+
+.pagina--qualidade-inspecoes .inspecoes__paginas {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+}
+
+.modal .inspecoes__pontos-form {
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.modal .inspecoes__pontos-form legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-title);
+  padding: 0 var(--space-xs);
+}
+
+.modal .inspecoes__ponto-bloco {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--neutro-100);
+  margin-top: var(--space-sm);
+}
+
+.modal .inspecoes__ficha .section-title {
+  margin-top: var(--space-lg);
+}
+
+.modal .inspecoes__sem-itp .modal__actions {
+  justify-content: flex-end;
+}

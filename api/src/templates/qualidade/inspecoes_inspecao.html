@@ -1,0 +1,151 @@
+{% extends "base_fragment.html" %}
+{#
+  Registrar inspeção (ISSUE-069): o ITP aprovado pelo cliente, o ponto, a data, o inspetor, a
+  notificação ao cliente (H e W), o resultado e — na ressalva ou na reprovação — a observação;
+  a reprovação abre a RNC com a severidade e a contenção do próprio registro. A inspeção só
+  acontece em ITP aprovado. Trocar o ITP pede o formulário de novo com os pontos dele. O 422
+  devolve este formulário preenchido; o sucesso atualiza a lista atrás do modal.
+
+  Espera: projeto_id, valores, erros, itps, itp, pontos, pessoas, resultados, severidades,
+  tipos_ponto, referencia, consulta, url_inspecao e notificacao_horas.
+#}
+{% set nome_do_tipo = {'H': 'Espera (H)', 'W': 'Testemunho (W)', 'R': 'Registro (R)'} %}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+{% if not itps %}
+<div class="inspecoes__sem-itp">
+  {% if erros.get('itpId') or erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('itpId') or erros.get('geral') }}</span></div>
+  {% endif %}
+  <div class="aviso aviso--warn mb-16" role="alert">
+    <span>Nenhum ITP aprovado pelo cliente neste projeto.</span>
+  </div>
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Fechar</button>
+  </div>
+</div>
+{% else %}
+<form method="post" action="/api/qualidade/inspecoes/inspecao"
+  x-target="inspecoes-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a inspeção..."
+  x-data="{ resultado: $el.dataset.resultado, pontoInfo: '' }"
+  data-resultado="{{ valores.get('resultado') or '' }}">
+  <input type="hidden" name="projeto" value="{{ projeto_id }}" />
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% for chave in ['geral', 'versao'] %}
+  {% if erros.get(chave) %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="insp-itp">ITP</label>
+      <select id="insp-itp" name="itpId" class="input{% if erros.get('itpId') %} input--erro{% endif %}" required
+        {% if erros.get('itpId') %}aria-invalid="true" aria-describedby="erro-itpId"{% endif %}
+        @change="
+          const u = new URL('{{ url_inspecao }}', window.location.origin);
+          u.searchParams.set('projeto', '{{ projeto_id }}');
+          u.searchParams.set('itp', $event.target.value);
+          {% if consulta %}u.searchParams.set('consulta', '{{ consulta }}');{% endif %}
+          $ajax(u.pathname + u.search, { target: '{{ target_id }}' })">
+        {% for linha in itps %}
+        <option value="{{ linha.id }}"{% if itp is not none and linha.id == itp.id %} selected{% endif %}>{{ linha.code }} · {{ linha.title }} (Rev {{ linha.revision }})</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'itpId') }}
+    </div>
+    <div class="field field--full">
+      <label for="insp-ponto">Ponto do ITP</label>
+      <select id="insp-ponto" name="pontoId" class="input{% if erros.get('pontoId') %} input--erro{% endif %}" required
+        {% if erros.get('pontoId') %}aria-invalid="true" aria-describedby="erro-pontoId"{% endif %}
+        @change="pontoInfo = $event.target.selectedOptions[0] ? ($event.target.selectedOptions[0].dataset.info || '') : ''"
+        x-init="pontoInfo = $el.selectedOptions[0] ? ($el.selectedOptions[0].dataset.info || '') : ''">
+        <option value="">Selecione...</option>
+        {% for ponto in pontos %}
+        <option value="{{ ponto.id }}" data-info="{{ nome_do_tipo.get(ponto.point_type, ponto.point_type) }} · Critério: {{ ponto.criterion }}{% if ponto.reference %} · {{ ponto.reference }}{% endif %}"
+          {% if valores.get('pontoId') == ponto.id | string %} selected{% endif %}>{{ ponto.order }}. {{ ponto.activity }} ({{ ponto.point_type }})</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'pontoId') }}
+      <span class="hint" x-text="pontoInfo"></span>
+    </div>
+    <div class="field">
+      <label for="insp-data">Data da inspeção</label>
+      <input id="insp-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+    <div class="field">
+      <label for="insp-inspetor">Inspetor</label>
+      <select id="insp-inspetor" name="inspetorId" class="input{% if erros.get('inspetorId') %} input--erro{% endif %}" required
+        {% if erros.get('inspetorId') %}aria-invalid="true" aria-describedby="erro-inspetorId"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('inspetorId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'inspetorId') }}
+    </div>
+    <div class="field">
+      <label for="insp-notificacao">Notificação ao cliente</label>
+      <input id="insp-notificacao" name="notificacao" type="date" class="input{% if erros.get('notificacao') %} input--erro{% endif %}"
+        max="{{ referencia }}" value="{{ valores.get('notificacao') or '' }}"
+        {% if erros.get('notificacao') %}aria-invalid="true" aria-describedby="erro-notificacao"{% endif %} />
+      <span class="hint">Pontos H e W: data em que o cliente foi convocado (antecedência mínima de {{ notificacao_horas }} h).</span>
+      {{ erro(erros, 'notificacao') }}
+    </div>
+    <div class="field">
+      <label for="insp-resultado">Resultado</label>
+      <select id="insp-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}" required
+        @change="resultado = $event.target.value"
+        {% if erros.get('resultado') %}aria-invalid="true" aria-describedby="erro-resultado"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for opcao in resultados %}
+        <option value="{{ opcao }}"{% if valores.get('resultado') == opcao %} selected{% endif %}>{{ opcao }}{% if opcao == 'Reprovado' %} — abre RNC{% endif %}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'resultado') }}
+    </div>
+    <div class="field field--full" x-show="resultado && resultado !== 'Aprovado'">
+      <label for="insp-observacao">Ressalva ou motivo da reprovação</label>
+      <textarea id="insp-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}"
+        rows="2" maxlength="500"
+        {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
+      {{ erro(erros, 'observacao') }}
+    </div>
+    <div class="field" x-show="resultado === 'Reprovado'">
+      <label for="insp-severidade">Severidade da RNC</label>
+      <select id="insp-severidade" name="severidade" class="input{% if erros.get('severidade') %} input--erro{% endif %}"
+        {% if erros.get('severidade') %}aria-invalid="true" aria-describedby="erro-severidade"{% endif %}>
+        <option value="">Escolha...</option>
+        {% for severidade in severidades %}
+        <option value="{{ severidade }}"{% if valores.get('severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
+        {% endfor %}
+      </select>
+      {{ erro(erros, 'severidade') }}
+    </div>
+    <div class="field field--full" x-show="resultado === 'Reprovado'">
+      <label for="insp-contencao">Contenção imediata</label>
+      <textarea id="insp-contencao" name="contencao" class="input{% if erros.get('contencao') %} input--erro{% endif %}"
+        rows="2" maxlength="400" placeholder="Bloqueio, segregação, identificação ou suspensão da atividade"
+        {% if erros.get('contencao') %}aria-invalid="true" aria-describedby="erro-contencao"{% endif %}>{{ valores.get('contencao') or '' }}</textarea>
+      {{ erro(erros, 'contencao') }}
+    </div>
+  </div>
+
+  <div class="aviso aviso--info mb-16" role="note">
+    <span>A reprovação abre a RNC com a severidade e a contenção informadas, na mesma transação.</span>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

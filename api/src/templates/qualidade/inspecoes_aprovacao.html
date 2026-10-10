@@ -1,0 +1,50 @@
+{% extends "base_fragment.html" %}
+{#
+  Aprovação do cliente da revisão vigente do ITP (ISSUE-069): o documento e a data. Registrar a
+  aprovação exige Gestor (a rota e a fachada recusam com 403). Uma vez por revisão; a nova
+  revisão do ITP volta a pedir a aprovação. O 422 devolve este formulário preenchido.
+
+  Espera: itp, valores, erros e consulta.
+#}
+{% macro erro(erros, nome) %}
+{% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
+{% endmacro %}
+{% block fragment %}
+<form method="post" action="/api/qualidade/inspecoes/itp/{{ itp.code }}/aprovacao"
+  x-target="inspecoes-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
+  @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
+  data-tn-loading="Registrando a aprovação...">
+  <input type="hidden" name="consulta" value="{{ consulta }}" />
+  {% if erros.get('geral') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
+  {% endif %}
+  {% if erros.get('itp') %}
+  <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['itp'] }}</span></div>
+  {% endif %}
+
+  <p class="hint mb-16">{{ itp.title }} · Rev {{ itp.revision }} · {{ itp.total_points }} pontos</p>
+
+  <div class="fgrid">
+    <div class="field field--full">
+      <label for="itp-aprovacao-referencia">Documento de aprovação</label>
+      <input id="itp-aprovacao-referencia" name="referencia" class="input{% if erros.get('referencia') %} input--erro{% endif %}"
+        maxlength="120" required value="{{ valores.get('referencia') or '' }}"
+        placeholder="Ex.: carta, comentário de revisão ou ata"
+        {% if erros.get('referencia') %}aria-invalid="true" aria-describedby="erro-referencia"{% endif %} />
+      {{ erro(erros, 'referencia') }}
+    </div>
+    <div class="field">
+      <label for="itp-aprovacao-data">Data</label>
+      <input id="itp-aprovacao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
+        required value="{{ valores.get('data') or '' }}"
+        {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
+      {{ erro(erros, 'data') }}
+    </div>
+  </div>
+
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
+    <button type="submit" class="btn btn--primary">Registrar aprovação</button>
+  </div>
+</form>
+{% endblock %}

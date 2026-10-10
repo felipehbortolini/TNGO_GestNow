@@ -1,0 +1,83 @@
+{% extends "base_fragment.html" %}
+{#
+  A ficha do ITP (ISSUE-069): o projeto, a disciplina, o executante, a revisão e a aprovação do
+  cliente, e os pontos da revisão vigente (Nº, atividade, tipo, critério, referência e quem
+  executa/inspeciona). Os botões abrem a nova revisão, a aprovação e o registro de inspeção no
+  lugar desta ficha; depois de gravar, a lista recarrega atrás do modal.
+
+  Espera: itp, pode_gravar, pode_gerir e formatar_data.
+#}
+{% set pill_do_tipo = {'H': 'pill--erro', 'W': 'pill--fix', 'R': 'pill--neutral'} %}
+{% set nome_do_tipo = {'H': 'Espera (H)', 'W': 'Testemunho (W)', 'R': 'Registro (R)'} %}
+
+{% macro campo(rotulo, conteudo) %}
+<div class="field">
+  <span class="field__label">{{ rotulo }}</span>
+  <div>{{ conteudo if conteudo else '·' }}</div>
+</div>
+{% endmacro %}
+
+{% macro botao(url, titulo, rotulo, icone) %}
+<button type="button" class="btn btn--secondary btn--sm" data-inspecoes-formulario data-inspecoes-fechar="1"
+  data-inspecoes-url="{{ url }}" data-inspecoes-titulo="{{ titulo }}">
+  <span x-init="$el.innerHTML = window.icon('{{ icone }}', 14)" aria-hidden="true"></span> {{ rotulo }}
+</button>
+{% endmacro %}
+
+{% block fragment %}
+<div class="inspecoes__ficha">
+  <div class="toolbar mb-16">
+    {% if pode_gerir and not itp.approved_by_client %}
+      {{ botao('/api/qualidade/inspecoes/itp/' ~ itp.code ~ '/aprovacao', 'Aprovação do cliente · ' ~ itp.code, 'Aprovar', 'checkCircle') }}
+    {% endif %}
+    {% if pode_gravar %}
+      {{ botao('/api/qualidade/inspecoes/itp/' ~ itp.code ~ '/revisao', 'Nova revisão · ' ~ itp.code, 'Nova revisão', 'refresh') }}
+    {% endif %}
+    {% if pode_gravar and itp.approved_by_client %}
+      {{ botao('/api/qualidade/inspecoes/inspecao?projeto=' ~ itp.project_id ~ '&itp=' ~ itp.id, 'Registrar inspeção', 'Registrar inspeção', 'taskList') }}
+    {% endif %}
+  </div>
+
+  <div class="fgrid mb-16">
+    {{ campo('Projeto', itp.project_code) }}
+    {{ campo('Disciplina', itp.discipline) }}
+    {{ campo('Executante', itp.company_name) }}
+    {{ campo('Revisão', 'Rev ' ~ itp.revision ~ ' · ' ~ formatar_data(itp.revision_date)) }}
+    {{ campo('Aprovação do cliente', ('<span class="pill pill--ok">Aprovado</span> ' ~ itp.approval_reference) if itp.approved_by_client else '<span class="pill pill--warn">Pendente</span>') }}
+    {{ campo('Inspeções', itp.inspections ~ ((' · ' ~ (itp.approval_pct | round(1) | replace('.', ',')) ~ '% aprovadas') if itp.approval_pct is not none else '')) }}
+  </div>
+
+  <h3 class="section-title">Pontos da revisão vigente</h3>
+  {% if itp.points %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <caption class="sr-only">Pontos do ITP</caption>
+      <thead>
+        <tr>
+          <th scope="col">Nº</th>
+          <th scope="col">Atividade</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Critério de aceitação</th>
+          <th scope="col">Referência</th>
+          <th scope="col">Executa / inspeciona</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ponto in itp.points %}
+        <tr>
+          <td class="nowrap">{{ ponto.order }}</td>
+          <td>{{ ponto.activity }}</td>
+          <td><span class="pill {{ pill_do_tipo.get(ponto.point_type, 'pill--neutral') }}" title="{{ nome_do_tipo.get(ponto.point_type, ponto.point_type) }}">{{ ponto.point_type }}</span></td>
+          <td>{{ ponto.criterion }}</td>
+          <td>{{ ponto.reference }}</td>
+          <td>{{ ponto.responsible }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="hint">Nenhum ponto na revisão vigente.</p>
+  {% endif %}
+</div>
+{% endblock %}
