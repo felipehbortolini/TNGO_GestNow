@@ -123,6 +123,7 @@ PARTS = [
     "planejamento-campo",
     "planejamento-punch",
     "programacao_semanal",
+    "qualidade-rnc",
     "riscos",
     "financeiro-contratos-fluxos",
     "suprimentos-fornecedores",
