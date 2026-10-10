@@ -2,13 +2,19 @@
 
 Módulo `configuracoes`. Mantém colaboradores, cadastros de apoio e parâmetros gerais versionados. A configuração específica de janelas da Programação Semanal fica no submódulo `programacao_semanal`, uma por projeto (D10).
 
-## Telas previstas
+## Telas
 
 | Tela | Conteúdo | Issue |
 |---|---|---|
-| Parâmetros | Grupos, versão vigente, edição justificada e histórico antes/depois | ISSUE-076 |
-| Colaboradores | Perfil geral, papéis da Programação Semanal por projeto, vínculo e empresa | ISSUE-077 |
-| Cadastros de apoio | Projetos, empresas, pessoas, sistemas, unidades e locais | ISSUE-078 |
+| Parâmetros | Grupos por módulo com os valores vigentes, edição por grupo com justificativa, versões e histórico antes/depois (entregue) | ISSUE-076 |
+| Colaboradores | Perfil geral, papéis da Programação Semanal por projeto, vínculo e empresa (prevista) | ISSUE-077 |
+| Cadastros de apoio | Projetos, empresas, pessoas, sistemas, unidades e locais (prevista) | ISSUE-078 |
+
+## A tela de Parâmetros (ISSUE-076)
+
+A tela mostra o card da versão vigente (a mais recente entre os grupos), a busca e o filtro por módulo (formulário GET que re-renderiza o fragmento; o filtro é do servidor) e os grupos por módulo (Avaliação de contratadas, Financeiro, Suprimentos, Riscos, Qualidade, HSE, Planejamento, Governança, Portfólio e Anexos) com a tabela de parâmetro × valor vigente e o botão Editar. Só Gestor e Admin alcançam a tela e gravam (`rbac.MODULE_PERMISSION`). Os metadados dos grupos e campos — o porte de `grupos(p)` e `exibir(c, v)` do protótipo, com as listas dinâmicas (critérios e classes da avaliação, alçadas e pesos dos marcos, probabilidades dos riscos, modelos de etapas da EAP, critérios do portfólio) — ficam em `forms.py` e são construídos a partir dos valores vigentes.
+
+O **Editar** abre o modal do grupo com os campos vigentes (selects com as opções, números com min/max/passo, alçadas em reais, a nota mínima da última classe e os tipos aceitos de Anexos somente leitura) e a justificativa obrigatória (mínimo de 10 caracteres, como o protótipo). Um grupo da tela agrega um ou mais grupos de parâmetros (ex.: Planejamento = punch + produtividade + eap); a gravação cria a nova versão **só dos grupos de origem cujos valores mudaram**, com vigência de hoje e autor, e recusa com 422 "Nenhum valor foi alterado." quando nada mudou. A validação é a da ISSUE-007 (uma mensagem por campo/bloco; o erro de um campo aparece sob o campo e o de um bloco no topo do formulário). A troca da escala de riscos exige o campo `confirmar_escala`: sem ele a gravação é recusada, porque muda a contagem de riscos críticos em todo o sistema. O **Histórico de versões** mostra todas as versões de todos os grupos, da mais recente para a mais antiga, com o selo Vigente na versão vigente de cada grupo e o número de alterações; o Ver abre o antes/depois da versão contra a anterior do MESMO grupo (a primeira versão de cada grupo não tem alterações).
 
 ## Trios das telas
 
@@ -32,6 +38,16 @@ Prefixo: `/api/configuracoes/`.
 
 Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
 
+### Rotas da tela de Parâmetros (ISSUE-076)
+
+| Rota | Uso |
+|---|---|
+| `GET /api/configuracoes/parametros` | A tela (busca e módulo por query; o servidor filtra e re-renderiza) |
+| `GET /api/configuracoes/parametros/excel` e `.../imprimivel` | Os dois exports, com as tabelas de parâmetros vigentes e do histórico (D12) |
+| `GET /api/configuracoes/parametros/{grupo}/editar` | O corpo do modal de edição, com os campos vigentes do grupo |
+| `POST /api/configuracoes/parametros/{grupo}` | Grava a nova versão (uma por grupo de origem que mudou) e devolve a tela; a recusa volta no formulário (422) |
+| `GET /api/configuracoes/parametros/historico` | O corpo do modal do histórico; `grupo` e `versao` na query abrem o antes/depois da versão |
+
 ## Fórmulas e nomes no código
 
 Este módulo não calcula indicadores de negócio. A validação da edição de parâmetros é uma regra de entrada, não um KPI:
@@ -48,6 +64,12 @@ Este módulo não calcula indicadores de negócio. A validação da edição de 
 | Colaborador de um e-mail | O colaborador do e-mail, ativo ou não, sem diferenciar maiúsculas; `None` quando o e-mail não está no cadastro (a pessoa vê o acesso negado) | `service.find_access_by_email` |
 | Colaborador de um id | O colaborador do id, ativo ou não, ou `None` | `service.find_access` |
 | Colaboradores ativos | Os ativos, por id: as pessoas que o seletor de perfil da demonstração oferece | `service.list_active_access` |
+| Grupo da tela | Metadados de um grupo da tela (módulo, onde, nota e campos) construídos dos valores vigentes; o caminho de um campo é o da folha no payload (`riscos.probabilidades.0.mediaPct`) e o id no formulário troca os pontos por `__` | `forms.group_forms`, `forms.ParameterGroupForm`, `forms.ParameterField` |
+| Leitura de um valor | O valor de um caminho com índice (`suprimentos.alcadas.0.ate`) e a sua exibição: select pelo texto da opção, moeda por extenso, número com 0 casas quando inteiro e 2 quando não, mais a unidade, `·` para vazio | `forms.value_at`, `forms.exibir`, `forms.input_text` |
+| Gravação por grupo | Lê o formulário do grupo, compara com os valores vigentes e devolve os payloads por grupo de origem, os campos que mudaram e os erros por caminho; a troca da escala de riscos exige `confirmar_escala` | `forms.parse_group_form`, `forms.ParsedGroupForm` |
+| Visão da tela | Os grupos da tela com os valores vigentes (filtrados pela busca e pelo módulo), a versão mais recente entre os grupos e o total de versões | `service.parameter_overview`, `service.ParameterOverview`, `service.GroupView` |
+| Histórico de versões | As versões registradas, da mais recente para a mais antiga, com autor, vigência e justificativa, e as alterações contra a versão anterior do MESMO grupo (o GestNow versiona por grupo) | `service.parameter_history`, `service.HistoryEntry`, `service.VersionChange` |
+| Documento da tela | As duas tabelas do protótipo (Parâmetros vigentes: Grupo/Parâmetro/Valor/Módulo; Histórico de versões: Versão/Grupo/Vigência/Alterada por/Justificativa/Alterações), sem a coluna Projeto porque os parâmetros são globais | `export.parametros_document` |
 
 O calendário da plataforma (data de hoje, semana ISO, períodos, parcial e corte) fica em `src/core/calendario.py` e é o único leitor do relógio; toda fórmula recebe a data de referência como argumento (D6).
 
@@ -57,11 +79,13 @@ As fórmulas dos domínios permanecem nas `calculations.py` dos módulos donos; 
 
 Alterar parâmetro exige justificativa e cria nova versão com vigência, autor, antes e depois. Colaboradores são cadastrados com um perfil geral e, quando aplicável, papéis por projeto na Programação Semanal. Cadastros de apoio não são duplicados dentro dos módulos consumidores.
 
+Na tela Parâmetros, o Editar abre o modal do grupo; a gravação cria a nova versão com vigência de hoje e autor **só para os grupos de origem cujos valores mudaram** (um grupo da tela agrega um ou mais grupos de parâmetros), e nenhum valor alterado é recusado com 422. A troca da escala de riscos pede a confirmação `confirmar_escala`, porque muda a contagem de riscos críticos em todo o sistema. O Histórico mostra todas as versões, com o selo Vigente na vigente de cada grupo, e o Ver abre o antes/depois da versão contra a anterior do mesmo grupo.
+
 O **cadastro de Colaboradores é a fonte de verdade do acesso** (D7): a cada requisição o gate (`core.auth`) procura o e-mail do principal do Static Web Apps aqui, e e-mail fora do cadastro ou de colaborador desativado vê o acesso negado. Uma mudança no cadastro vale na requisição seguinte da pessoa, porque nada do acesso fica guardado fora dele. Configurações só aparece para Gestor e Admin e a tela Colaboradores é só do Admin (`rbac.MODULE_PERMISSION` e `rbac.SCREEN_PERMISSION`); a tela e as gravações do cadastro chegam na ISSUE-077.
 
 ## Integrações
 
-É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados. A carga de demonstração (`api/src/carga/`) grava estes cadastros e chama `seed_initial_parameters`; o preparo de produção grava só o primeiro Admin e a versão 1.
+É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`: pesos e prazos valem para registros novos e critérios de exibição (base das taxas, referência da pirâmide, escala de severidade, faixas do mapa de calor) recalculam as telas na hora. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados. A carga de demonstração (`api/src/carga/`) grava estes cadastros e chama `seed_initial_parameters`; o preparo de produção grava só o primeiro Admin e a versão 1.
 
 ## Parâmetros
 
@@ -73,16 +97,17 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` |
-| Versionamento e cadastros | `service.py` (parâmetros: leitura por data, gravação validada e semeadura) |
+| Rotas | `routes.py` (tela, modal, gravação, histórico e exports de parâmetros) |
+| Metadados dos grupos e campos da tela | `forms.py` (porte de `grupos(p)`, `exibir(c, v)` e do diff por caminho) |
+| Versionamento e cadastros | `service.py` (parâmetros: leitura por data, visão da tela, histórico de versões, gravação validada e semeadura) |
 | Acesso do colaborador lido pelo gate | `service.py` (`find_access_by_email`, `find_access`, `list_active_access`); quem decide e o que cada perfil pode: `src/core/auth.py` e `src/core/rbac.py` |
 | Calendário da plataforma | `src/core/calendario.py` (data de hoje, semana ISO, períodos, parcial e corte) |
 | Derivação própria | Não há KPI próprio; cálculos permanecem nos módulos consumidores |
 | Regras de entrada | `validation.py` (uma função por regra; o registro `_RULES` liga a regra ao campo) |
-| Exportação | `export.py` |
+| Exportação | `export.py` (`parametros_document`) |
 | Persistência | `models.py`; projeto e cadastros de apoio criados pela revisão `0001_plataforma` (ISSUE-005); plataforma em `src/core/models.py` |
-| Fragmentos | `api/src/templates/configuracoes/` |
+| Fragmentos | `api/src/templates/configuracoes/` (`parametros.html`, `parametros_form.html` e `parametros_historico.html`) |
 | Tela, estilo e comportamento | `app/_views/configuracoes/` e `app/paginas/configuracoes/` |
-| Testes | `api/tests/configuracoes/` (fachada e regras; `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
+| Testes | `api/tests/configuracoes/` (fachada e regras; `test_parametros_rotas.py` para a tela de Parâmetros e `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
 
-As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. As ISSUE-076 a ISSUE-078 completam este documento com rotas, telas e os testes de acesso.
+As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. A ISSUE-076 entregou a tela de Parâmetros; as ISSUE-077 e ISSUE-078 completam este documento com as telas de Colaboradores e Cadastros.
