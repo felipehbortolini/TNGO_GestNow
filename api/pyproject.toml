@@ -384,6 +384,19 @@ max-complexity = 10
 # reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/hse/seed.py" = ["PLR0913"]
 
+# `actions_of_origin_or_group`, na fachada da Central, recebe a origem e o grupo além do
+# usuário, do escopo e da data, todos KEYWORD-ONLY depois do `*` — a leitura que o painel do
+# HSE pede (origem ``HSE`` ou grupo ``HSE``), no padrão da `count_actions_of_origin`
+# (ISSUE-075). A regra existe para argumento posicional, onde a ordem se erra na chamada;
+# reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/central_acoes/service.py" = ["PLR0913"]
+
+# `panel`, na fachada do painel do HSE, recebe o usuário, o escopo, a data, o mês escolhido e a
+# referência pedida, todos KEYWORD-ONLY depois do `*` — o contrato da tela do painel
+# (ISSUE-075) que a rota chama. A regra existe para argumento posicional, onde a ordem se erra
+# na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/hse/painel_service.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

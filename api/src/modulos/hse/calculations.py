@@ -501,3 +501,300 @@ def closed_recommendations_pct(closed: int, emitted: int) -> Decimal | None:
     indicador (``None``).
     """
     return rate_percent(closed, emitted)
+
+
+# ── Painel HSE (ISSUE-075) ───────────────────────────────────────────────────────────────────
+
+# Os tipos que contam como lesão com afastamento (LTI) e como lesão registrável, como a
+# ``REGISTRAVEIS`` do protótipo (a fatalidade conta nos dois).
+LTI_KINDS: tuple[str, ...] = ("Fatalidade", "Acidente com afastamento")
+REGISTRABLE_KINDS: tuple[str, ...] = (*LTI_KINDS, "Trabalho restrito", "Tratamento médico")
+# A linha de período nomeia a norma da base: a NBR 14280 usa um milhão de HHT e a OSHA, 200 mil.
+NBR_BASE = 1_000_000
+DEFAULT_RATE_BASE = NBR_BASE
+# Os identificadores dos níveis da pirâmide no gráfico ``piramide-seguranca``, do vértice à base,
+# e os seus rótulos plurais (a faixa mostra a contagem do nível): o vocabulário do painel.
+PYRAMID_LEVEL_IDS: tuple[str, ...] = ("grave", "leve", "dano", "quase", "desvio")
+PYRAMID_CHART_LABELS: tuple[str, ...] = (
+    "Lesões graves",
+    "Lesões leves",
+    "Danos materiais",
+    "Quase acidentes",
+    "Desvios",
+)
+PYRAMID_LEVEL_ROLES: tuple[str, ...] = ("erro", "atencao", "alerta", "info", "marca")
+
+
+def pyramid_chart_label(level: int | None) -> str:
+    """O rótulo plural do nível no gráfico do painel (``Lesões graves``); vazio sem nível."""
+    if level is None or not 1 <= level <= len(PYRAMID_CHART_LABELS):
+        return ""
+    return PYRAMID_CHART_LABELS[level - 1]
+
+
+def rate_hse(events: int, hours: Decimal, base: int) -> Decimal | None:
+    """Taxa HSE: eventos x base ÷ HHT; ``None`` sem HHT (a tela mostra ``·``).
+
+    É a ``taxaHSE`` do protótipo, sem arredondamento: quem formata decide as casas (duas para a
+    TF e a TRIF, uma para a TG).
+    """
+    if hours <= 0:
+        return None
+    return Decimal(events) * Decimal(base) / hours
+
+
+def rate_base_name(base: int) -> str:
+    """O nome da norma da base das taxas: ``NBR 14280`` ou ``OSHA``, como o protótipo a nomeia."""
+    return "NBR 14280" if base == NBR_BASE else "OSHA"
+
+
+def quantize_half_up(value: Decimal | None, digits: int) -> Decimal | None:
+    """O número com as casas da tela, meio para cima; ``None`` continua ``None``."""
+    if value is None:
+        return None
+    return value.quantize(Decimal(1).scaleb(-digits), rounding=ROUND_HALF_UP)
+
+
+def days_without_leave(
+    last_lti: date | None, project_start: date | None, reference_date: date
+) -> int | None:
+    """Dias sem afastamento: da última LTI (ou do início do projeto) à data de referência.
+
+    Sem LTI registrada a contagem começa no início do projeto (ou da carteira), desde a
+    mobilização; sem as duas datas não há contagem (``None``) e nunca é negativa.
+    """
+    start = last_lti or project_start
+    if start is None:
+        return None
+    return max(0, (reference_date - start).days)
+
+
+def ratio_one_decimal(part: int, whole: int) -> Decimal | None:
+    """A razão ``part ÷ whole`` com uma casa; sem denominador não há razão (``None``)."""
+    if whole <= 0:
+        return None
+    return quantize_half_up(Decimal(part) / Decimal(whole), 1)
+
+
+def almost_miss_report(almost_misses: int, registrable: int) -> Decimal | None:
+    """Relato de quase acidentes: quase acidentes por lesão registrável, uma casa.
+
+    É o ``relatoQuaseAcidente`` do protótipo; sem lesão registrável não há indicador.
+    """
+    return ratio_one_decimal(almost_misses, registrable)
+
+
+@dataclass(frozen=True)
+class PyramidTerm:
+    """Um termo da referência da pirâmide: os níveis que ele cobre e o seu valor."""
+
+    levels: tuple[str, ...]
+    value: int
+
+
+@dataclass(frozen=True)
+class PyramidReference:
+    """A referência da pirâmide (Bird ou Heinrich) como o gráfico e o KPI a esperam."""
+
+    kind: str
+    name: str
+    terms: tuple[PyramidTerm, ...]
+    note: str
+    almost_miss_ratio: Decimal
+
+    def chart(self) -> dict[str, object]:
+        """O ``referencia`` do ``data-dados`` da pirâmide dupla (biblioteca de gráficos)."""
+        return {
+            "nome": self.name,
+            "termos": [{"niveis": list(term.levels), "valor": term.value} for term in self.terms],
+            "nota": self.note,
+        }
+
+
+# A referência da proporção das pirâmides (parametrizada): Bird 1:10:30:600 e Heinrich 1:29:300,
+# com o último termo somando os níveis 3 e 4. O valor de referência do relato de quase acidentes
+# é o quase ÷ lesões, na leitura de cada uma (Bird 600/11 e Heinrich 300/30).
+PYRAMID_REFERENCES: dict[str, PyramidReference] = {
+    "bird": PyramidReference(
+        kind="bird",
+        name="Bird",
+        terms=(
+            PyramidTerm(("grave",), 1),
+            PyramidTerm(("leve",), 10),
+            PyramidTerm(("dano",), 30),
+            PyramidTerm(("quase",), 600),
+        ),
+        note="",
+        almost_miss_ratio=quantize_half_up(Decimal(600) / Decimal(11), 1) or Decimal(0),
+    ),
+    "heinrich": PyramidReference(
+        kind="heinrich",
+        name="Heinrich",
+        terms=(
+            PyramidTerm(("grave",), 1),
+            PyramidTerm(("leve",), 29),
+            PyramidTerm(("dano", "quase"), 300),
+        ),
+        note="níveis 3 e 4 somados",
+        almost_miss_ratio=Decimal(300) / Decimal(30),
+    ),
+}
+
+
+def pyramid_reference(kind: str | None) -> PyramidReference:
+    """A referência da pirâmide pelo código do parâmetro (``bird``/``heinrich``); Bird sem ele."""
+    return PYRAMID_REFERENCES.get((kind or "").strip().lower(), PYRAMID_REFERENCES["bird"])
+
+
+@dataclass(frozen=True)
+class OccurrenceFact:
+    """Uma ocorrência como os indicadores do painel a leem: o dia, o tipo, a área e os dias."""
+
+    day: date
+    kind: str
+    area: str
+    company_id: int | None
+    environmental: bool
+    hipo: bool
+    days_lost: int
+    days_charged: int
+
+
+@dataclass(frozen=True)
+class ActionDueLine:
+    """Uma ação de HSE como o painel a lê: o prazo em vigor e a data de conclusão."""
+
+    due_date: date | None
+    completed_on: date | None
+
+
+def actions_on_time(facts: Sequence[ActionDueLine], reference_date: date) -> tuple[int, int]:
+    """As ações vencidas e as concluídas dentro do prazo, como o ``acoesNoPrazoPct``.
+
+    Vencida é a ação com o prazo em vigor até a data de referência; no prazo é a vencida
+    concluída até o próprio prazo. A ação sem prazo em vigor não conta.
+    """
+    due = [fact for fact in facts if fact.due_date is not None and fact.due_date <= reference_date]
+    on_time = sum(
+        1
+        for fact in due
+        if fact.completed_on is not None
+        and fact.due_date is not None
+        and fact.completed_on <= fact.due_date
+    )
+    return (len(due), on_time)
+
+
+def suggested_hse_note(
+    company_trif: Decimal | None, project_trif: Decimal | None, lti: int
+) -> int | None:
+    """A nota HSE sugerida de uma empresa, de 1 a 5, a partir da TRIF (decisão do dono).
+
+    Sem TRIF da empresa (sem HHT na janela) não há sugestão. A TRIF da empresa é comparada com
+    a do projeto: 5 quando ela é zero; 4 quando não passa da do projeto; 3 até o dobro; 2 até o
+    quádruplo; 1 acima (projeto zerado com empresa acima de zero cai em 1). Uma LTI na janela
+    limita a nota a 2: acidente com afastamento nunca sai de "Fraco" ou melhor. A comparação usa
+    as TRIF arredondadas como a tela as mostra, para a nota nunca contradizer o número lido.
+    """
+    if company_trif is None:
+        return None
+    if company_trif == 0:
+        note = 5
+    elif project_trif is not None and company_trif <= project_trif:
+        note = 4
+    elif project_trif is not None and company_trif <= project_trif * 2:
+        note = 3
+    elif project_trif is not None and company_trif <= project_trif * 4:
+        note = 2
+    else:
+        note = 1
+    return min(note, 2) if lti > 0 else note
+
+
+@dataclass(frozen=True)
+class HseWindow:
+    """Os fatos de uma janela do painel: o que os indicadores calculam e o contexto da conta."""
+
+    facts: Sequence[OccurrenceFact]
+    closings: Sequence[ClosingLine]
+    actions: Sequence[ActionDueLine]
+    hours: Decimal
+    deviations: int
+    base: int
+    recommendations_pct: Decimal | None
+    reference_date: date
+    last_lti: date | None = None
+    project_start: date | None = None
+
+
+@dataclass(frozen=True)
+class HseIndicators:
+    """Os indicadores de uma janela: as taxas, a pirâmide, os proativos e o acumulado."""
+
+    hours: Decimal
+    lti: int
+    registrable: int
+    tf: Decimal | None
+    trif: Decimal | None
+    tg: Decimal | None
+    hipo: int
+    environmental: int
+    pyramid: tuple[int, ...]
+    almost_miss_report: Decimal | None
+    dds_pct: Decimal | None
+    conformity_pct: Decimal | None
+    observations_per_10k: Decimal | None
+    recommendations_pct: Decimal | None
+    actions_on_time_pct: Decimal | None
+    days_without_leave: int | None
+
+
+def summarize_window(window: HseWindow) -> HseIndicators:
+    """Os indicadores do painel de uma janela, com os arredondamentos do protótipo.
+
+    As taxas saem com duas casas (a gravidade, uma), os percentuais com uma e o relato de quase
+    acidentes com uma; sem denominador o indicador é ``None`` (a tela mostra ``·``). O nível 5
+    da pirâmide (desvios) vem do consolidado mensal, fora das ocorrências.
+    """
+    considered = [fact for fact in window.facts if not fact.environmental]
+    lti = sum(1 for fact in considered if fact.kind in LTI_KINDS)
+    registrable = sum(1 for fact in considered if fact.kind in REGISTRABLE_KINDS)
+    days = sum(fact.days_lost + fact.days_charged for fact in considered)
+    levels = [0, 0, 0, 0, 0]
+    for fact in considered:
+        level = pyramid_level(fact.kind)
+        if level is not None:
+            levels[level - 1] += 1
+    levels[4] = window.deviations
+    due, on_time = actions_on_time(window.actions, window.reference_date)
+    observations = sum(line.observations for line in window.closings)
+    return HseIndicators(
+        hours=window.hours,
+        lti=lti,
+        registrable=registrable,
+        tf=quantize_half_up(rate_hse(lti, window.hours, window.base), 2),
+        trif=quantize_half_up(rate_hse(registrable, window.hours, window.base), 2),
+        tg=quantize_half_up(rate_hse(days, window.hours, window.base), 1),
+        hipo=sum(1 for fact in considered if fact.hipo),
+        environmental=sum(1 for fact in window.facts if fact.environmental),
+        pyramid=tuple(levels),
+        almost_miss_report=almost_miss_report(levels[3], registrable),
+        dds_pct=rate_percent(
+            sum(line.held_dds for line in window.closings),
+            sum(line.planned_dds for line in window.closings),
+        ),
+        conformity_pct=rate_percent(
+            sum(line.conforming_items for line in window.closings),
+            sum(line.inspected_items for line in window.closings),
+        ),
+        observations_per_10k=(
+            quantize_half_up(Decimal(observations) * TEN_THOUSAND / window.hours, 1)
+            if window.hours > 0
+            else None
+        ),
+        recommendations_pct=window.recommendations_pct,
+        actions_on_time_pct=rate_percent(on_time, due),
+        days_without_leave=days_without_leave(
+            window.last_lti, window.project_start, window.reference_date
+        ),
+    )

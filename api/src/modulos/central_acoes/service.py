@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from src.core import attachment_origins, audit, origin_links, rbac, recording
@@ -534,6 +534,32 @@ def actions_of_origin(
     return tuple(
         _record_of(action, reference_date) for action in _actions_of_origin(session, origin)
     )
+
+
+def actions_of_origin_or_group(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    origin_kind: str,
+    group: str,
+    reference_date: date,
+) -> tuple[ActionRecord, ...]:
+    """As ações do escopo (nunca informações) da origem **ou** do grupo informado.
+
+    O painel do HSE pede a origem ``HSE`` (as ações corretivas das ocorrências e as
+    recomendações dos estudos) e o grupo ``HSE`` (as ações que vêm das atas): as duas famílias
+    contam juntas. Nenhum módulo lê a tabela ``acao`` (D9) — a leitura vive aqui.
+    """
+    rbac.require_module(user, MODULE)
+    statement = (
+        select(Action)
+        .where(Action.kind == ACTION, or_(Action.origin == origin_kind, Action.group == group))
+        .order_by(Action.id)
+    )
+    if scope.project_id is not None:
+        statement = statement.where(Action.project_id == scope.project_id)
+    return tuple(_record_of(action, reference_date) for action in session.scalars(statement))
 
 
 def next_origin_item(session: Session, *, origin_kind: str, reference: str) -> str:
