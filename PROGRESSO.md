@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 70 de 93 -->
+<!-- Progresso da migração: 71 de 93 -->
 
 # Progresso da migração
 
-**70 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 10/10/2026 04:26 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**71 de 93 issues concluídas** (última fechada: ISSUE-072). Atualizado em 10/10/2026 05:09 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 70 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 072 |
-| na fila | 23 | 070, 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 71 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 072 |
+| na fila | 22 | 071, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -82,13 +82,13 @@
 | ISSUE-067 | Integrações que chegam aos Riscos: risco sugerido do diligenciamento, claim, lição aplicada e cobertura da contingência | `df6c9e1` |
 | ISSUE-068 | Não conformidades (RNC) | `2bd97f3` |
 | ISSUE-069 | Inspeções e ITP, com o FAT do diligenciamento | `da1e9b3` |
+| ISSUE-070 | Auditorias | `6921b06` |
 | ISSUE-072 | HHT, inspeções de segurança, observações e DDS | `adaa947` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-070 | Auditorias | na fila | ISSUE-068 |
 | ISSUE-071 | Painel da qualidade | na fila | ISSUE-069, ISSUE-070 |
 | ISSUE-073 | Ocorrências com investigação, prazos legais e dados restritos (LGPD) | na fila | ISSUE-072, ISSUE-019, ISSUE-027 |
 | ISSUE-074 | Análises de risco APR e HAZOP | na fila | ISSUE-019 |
