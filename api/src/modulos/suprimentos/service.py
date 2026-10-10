@@ -102,6 +102,7 @@ from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.configuracoes.models import Company
 from src.modulos.financeiro import service as financeiro
+from src.modulos.qualidade import service as qualidade
 from src.modulos.suprimentos import calculations, validation
 from src.modulos.suprimentos.models import (
     DeliveryReceipt,
@@ -3809,7 +3810,10 @@ def update_order_milestone(
 
     The realization demands the previous milestone done and a date up to the reference; the
     forecast may not fall in the past and may drag the following milestones by the same amount
-    of days (the cascade of the prototype). A negative slack opens the diligence action in the
+    of days (the cascade of the prototype). On the Inspeção / FAT milestone the realization
+    records the inspection in the 06 Qualidade through its facade, in the same transaction
+    (D9); an approved FAT completes the milestone, a rejected one does not and demands the new
+    forecast of the retest (ISSUE-069). A negative slack opens the diligence action in the
     Central, once (the guard is in ``_open_diligence_action``).
     """
     rbac.require(user, Permission.WRITE)
@@ -3818,7 +3822,9 @@ def update_order_milestone(
     problems = _milestone_problems(rows, data, reference_date=reference_date)
     if problems:
         raise InvalidDataError(problems)
-    text = _apply_milestone(session, user=user, rows=rows, data=data)
+    text = _apply_milestone(
+        session, user=user, order=order, rows=rows, data=data, reference_date=reference_date
+    )
     _write_order_forecast(session, user=user, order=order, value=rows[-1].forecast_date)
     comment = data.comment.strip()
     _append_order_history(
@@ -3849,6 +3855,7 @@ def _milestone_problems(
             is_delivery=data.index == len(rows),
             previous_name=previous.name if previous is not None else "",
             previous_real=previous.real_date if previous is not None else None,
+            is_inspection=data.index == calculations.INSPECTION_POSITION,
         ),
     )
 
@@ -3857,8 +3864,10 @@ def _apply_milestone(
     session: Session,
     *,
     user: User,
+    order: PurchaseOrder,
     rows: Sequence[PurchaseOrderMilestone],
     data: MilestoneInput,
+    reference_date: date,
 ) -> str:
     """Write the milestone and, in a reprogramming, drag the following ones; the feed text."""
     index = data.index
@@ -3869,6 +3878,30 @@ def _apply_milestone(
         realized = data.realized
         if realized is None:
             raise InvalidDataError({"realizada": validation.PLAN_DATE_REQUIRED})
+        if index == calculations.INSPECTION_POSITION:
+            inspection = qualidade.record_fat_inspection(
+                session,
+                user=user,
+                project_id=order.project_id,
+                order_id=order.id,
+                order_number=order.number,
+                supplier_company_id=order.company_id,
+                result=data.result,
+                inspected_on=realized,
+                inspector_id=data.inspector_id,
+                reference_date=reference_date,
+            )
+            if data.result == "Reprovado":
+                _apply_forecast(session, user=user, rows=rows, index=index, data=data)
+                return f"FAT reprovado ({inspection.code}); reteste previsto. "
+            recording.update(
+                session,
+                user_id=user.id,
+                record=row,
+                changes={"real_date": realized, "forecast_date": realized},
+                version=row.version,
+            )
+            return f"FAT aprovado ({inspection.code}). "
         recording.update(
             session,
             user_id=user.id,
@@ -3877,6 +3910,19 @@ def _apply_milestone(
             version=row.version,
         )
         return f"{row.name} realizado. "
+    return _apply_forecast(session, user=user, rows=rows, index=index, data=data)
+
+
+def _apply_forecast(
+    session: Session,
+    *,
+    user: User,
+    rows: Sequence[PurchaseOrderMilestone],
+    index: int,
+    data: MilestoneInput,
+) -> str:
+    """Write the forecast of the milestone and drag the following ones; the feed text."""
+    row = rows[index - 1]
     forecast = data.forecast
     if forecast is None:
         raise InvalidDataError({"previsao": validation.PLAN_DATE_REQUIRED})

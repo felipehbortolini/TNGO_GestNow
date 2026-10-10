@@ -1,13 +1,15 @@
 {% extends "base_fragment.html" %}
 {#
-  Atualizar marco (ISSUE-061): o marco pendente, o que registrar (marco realizado ou nova
-  previsão), a data, a reprogramação em cascata dos marcos seguintes e o comentário do
-  diligenciamento. A realização exige o marco anterior realizado e data até a referência; a
-  previsão não fica no passado. O resultado da inspeção em fábrica (FAT) e o registro no 06
-  Qualidade são da ISSUE-069 e não entram aqui. O 422 devolve este formulário preenchido com a
-  mensagem sob cada campo; o sucesso atualiza a tela atrás do modal.
+  Atualizar marco (ISSUE-061, FAT na ISSUE-069): o marco pendente, o que registrar (marco
+  realizado ou nova previsão), a data, a reprogramação em cascata dos marcos seguintes e o
+  comentário do diligenciamento. A realização exige o marco anterior realizado e data até a
+  referência; a previsão não fica no passado. No marco Inspeção / FAT a realização pede o
+  resultado da inspeção (Aprovado/Reprovado) e o inspetor: o aprovado conclui o marco e grava
+  a inspeção no 06 Qualidade; o reprovado não conclui e exige a nova previsão do reteste. O
+  422 devolve este formulário preenchido com a mensagem sob cada campo; o sucesso atualiza a
+  tela atrás do modal.
 
-  Espera: valores, erros, linha, consulta, referencia, formatar_data e pill_do_marco.
+  Espera: valores, erros, linha, pessoas, consulta, referencia, formatar_data e pill_do_marco.
 #}
 {% macro campo_erro(erros, nome) %}
 {% if erros.get(nome) %}<span id="erro-{{ nome }}" class="field__erro">{{ erros[nome] }}</span>{% endif %}
@@ -16,10 +18,15 @@
 {% block fragment %}
 {% set pendentes = linha.milestones | rejectattr('done') | list %}
 {% set proximo = pendentes[0].position if pendentes else '' %}
+{% set fat = (linha.milestones | selectattr('name', 'equalto', 'Inspeção / FAT') | list | first) %}
+{% set posicao_fat = fat.position if fat else 0 %}
 <form id="pedido-marco-form" method="post" action="/api/suprimentos/diligenciamento/{{ linha.id }}/marco"
   x-target="diligenciamento-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
-  x-data="{ tipo: '{{ valores.get('tipo') or 'previsao' }}' }"
+  x-data="{ tipo: $el.dataset.tipo, marco: $el.dataset.marco, resultado: $el.dataset.resultado }"
+  data-tipo="{{ valores.get('tipo') or 'previsao' }}"
+  data-marco="{{ valores.get('marco') or proximo }}"
+  data-resultado="{{ valores.get('resultado') or '' }}"
   data-tn-loading="Salvando o marco...">
   <input type="hidden" name="consulta" value="{{ valores.get('consulta') or consulta }}" />
   {% for chave in ['geral', 'versao'] %}
@@ -38,6 +45,7 @@
     <div class="field field--full">
       <label for="marco-marco">Marco</label>
       <select id="marco-marco" name="marco" class="input{% if erros.get('marco') %} input--erro{% endif %}" required
+        x-model="marco"
         {% if erros.get('marco') %}aria-invalid="true" aria-describedby="erro-marco"{% endif %}>
         {% for marco in pendentes %}
         <option value="{{ marco.position }}"
@@ -67,17 +75,42 @@
       {{ campo_erro(erros, 'realizada') }}
     </div>
 
-    <div class="field" x-show="tipo === 'previsao'">
+    <div class="field" x-show="tipo === 'realizado' && marco === '{{ posicao_fat }}'">
+      <label for="marco-resultado">Resultado da inspeção em fábrica</label>
+      <select id="marco-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}"
+        x-model="resultado"
+        {% if erros.get('resultado') %}aria-invalid="true" aria-describedby="erro-resultado"{% endif %}>
+        <option value="">Escolha...</option>
+        <option value="Aprovado"{% if valores.get('resultado') == 'Aprovado' %} selected{% endif %}>Aprovado</option>
+        <option value="Reprovado"{% if valores.get('resultado') == 'Reprovado' %} selected{% endif %}>Reprovado</option>
+      </select>
+      <span class="hint">Gera o registro de inspeção no 06 Qualidade.</span>
+      {{ campo_erro(erros, 'resultado') }}
+    </div>
+
+    <div class="field" x-show="tipo === 'realizado' && marco === '{{ posicao_fat }}'">
+      <label for="marco-inspetor">Inspetor</label>
+      <select id="marco-inspetor" name="inspetorId" class="input{% if erros.get('inspetorId') %} input--erro{% endif %}"
+        {% if erros.get('inspetorId') %}aria-invalid="true" aria-describedby="erro-inspetorId"{% endif %}>
+        <option value="">O responsável pela requisição</option>
+        {% for pessoa in pessoas %}
+        <option value="{{ pessoa.id }}"{% if valores.get('inspetorId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
+        {% endfor %}
+      </select>
+      {{ campo_erro(erros, 'inspetorId') }}
+    </div>
+
+    <div class="field" x-show="tipo === 'previsao' || (marco === '{{ posicao_fat }}' && resultado === 'Reprovado')">
       <label for="marco-previsao">Nova previsão</label>
       <input id="marco-previsao" name="previsao" type="date"
         class="input{% if erros.get('previsao') %} input--erro{% endif %}"
         value="{{ valores.get('previsao') or '' }}"
         {% if erros.get('previsao') %}aria-invalid="true" aria-describedby="erro-previsao"{% endif %} />
-      <span class="hint">A previsão não fica no passado.</span>
+      <span class="hint">A previsão não fica no passado; no FAT reprovado é a nova previsão do reteste.</span>
       {{ campo_erro(erros, 'previsao') }}
     </div>
 
-    <div class="field field--full" x-show="tipo === 'previsao'">
+    <div class="field field--full" x-show="tipo === 'previsao' || (marco === '{{ posicao_fat }}' && resultado === 'Reprovado')">
       <label class="check" for="marco-cascata">
         <input id="marco-cascata" type="checkbox" name="cascata" value="1"
           {% if valores.get('cascata') in (None, '', '1') %}checked{% endif %} />

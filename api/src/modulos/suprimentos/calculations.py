@@ -485,6 +485,10 @@ MANUFACTURING_MILESTONES: tuple[tuple[str, Decimal], ...] = (
     ("Entrega", Decimal("1")),
 )
 
+# The FAT milestone (the fourth, one-based) is the one that records the inspection in the 06
+# and, rejected, does not complete: it demands the new forecast of the retest (ISSUE-069).
+INSPECTION_POSITION = 4
+
 PURCHASE_ORDER_PREFIX = "PED"
 PURCHASE_CONTRACT_PREFIX = "CT"
 

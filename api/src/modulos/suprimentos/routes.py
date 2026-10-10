@@ -3007,7 +3007,7 @@ def _milestone_form(
     status_code: int = 200,
 ) -> func.HttpResponse:
     """The modal body of Atualizar marco, filled in, for the GET and for a refusal."""
-    del session, context
+    del context
     consulta = (values.get("consulta") or req.params.get("consulta") or "").strip()
     return AlpineAjaxResponse(
         template_name=ORDER_MILESTONE_TEMPLATE,
@@ -3015,6 +3015,7 @@ def _milestone_form(
             "valores": dict(values),
             "erros": dict(errors),
             "linha": line,
+            "pessoas": configuracoes.list_person_options(session),
             "consulta": consulta,
             "referencia": calendario.today().isoformat(),
             "formatar_data": _format_date,
@@ -3093,6 +3094,8 @@ def _milestone_input(form: Mapping[str, str]) -> MilestoneInput:
         forecast=validation.parse_date(form.get("previsao")),
         cascade=validation.parse_flag(form.get("cascata")),
         comment=form.get("comentario", ""),
+        result=(form.get("resultado") or "").strip(),
+        inspector_id=validation.parse_id(form.get("inspetorId")),
     )
 
 

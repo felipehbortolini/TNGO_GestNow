@@ -361,7 +361,12 @@ class OrderFilters:
 
 @dataclass(frozen=True)
 class MilestoneInput:
-    """What the form of Atualizar marco sends: the milestone, the kind and its dates."""
+    """What the form of Atualizar marco sends: the milestone, the kind and its dates.
+
+    On the Inspeção / FAT milestone the realization also sends the result of the inspection
+    (Aprovado or Reprovado) and the inspector; a rejection demands the new forecast of the
+    retest (ISSUE-069).
+    """
 
     index: int | None
     kind: str
@@ -369,6 +374,8 @@ class MilestoneInput:
     forecast: date | None = None
     cascade: bool = True
     comment: str = ""
+    result: str = ""
+    inspector_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1122,6 +1129,7 @@ class MilestoneContext:
     is_delivery: bool
     previous_name: str
     previous_real: date | None
+    is_inspection: bool = False
 
 
 def milestone_problems(data: MilestoneInput, context: MilestoneContext) -> dict[str, str]:
@@ -1129,7 +1137,9 @@ def milestone_problems(data: MilestoneInput, context: MilestoneContext) -> dict[
 
     The check of the stage and of the previous milestone, of the date against the reference and
     of the forecast that may not fall in the past, as the prototype refused them; the delivery
-    milestone only completes through the receipt.
+    milestone only completes through the receipt. The Inspeção / FAT milestone demands the
+    result of the inspection, and a rejection does not complete the milestone: it demands the
+    new forecast of the retest (ISSUE-069).
     """
     if data.index is None:
         return {"marco": MILESTONE_REQUIRED}
@@ -1140,6 +1150,8 @@ def milestone_problems(data: MilestoneInput, context: MilestoneContext) -> dict[
         if data.kind == MILESTONE_DONE
         else _forecast_problems(data, context)
     )
+    if not problems and data.kind == MILESTONE_DONE and context.is_inspection:
+        problems = _inspection_problems(data, context)
     if len(data.comment.strip()) > MAX_ORDER_COMMENT:
         problems["comentario"] = COMMENT_TOO_LONG
     return problems
@@ -1168,6 +1180,22 @@ def _forecast_problems(data: MilestoneInput, context: MilestoneContext) -> dict[
         return {"previsao": PLAN_DATE_REQUIRED}
     if data.forecast < context.reference_date:
         return {"previsao": FORECAST_IN_PAST}
+    return {}
+
+
+FAT_RESULTS: tuple[str, ...] = ("Aprovado", "Reprovado")
+FAT_RESULT_REQUIRED = "Informe o resultado da inspeção em fábrica."
+FAT_RETEST_REQUIRED = "FAT reprovado: informe a nova previsão do reteste."
+
+
+def _inspection_problems(data: MilestoneInput, context: MilestoneContext) -> dict[str, str]:
+    """The FAT: the result of the inspection, and the retest forecast when it is rejected."""
+    if data.result not in FAT_RESULTS:
+        return {"resultado": FAT_RESULT_REQUIRED}
+    if data.result == "Reprovado" and (
+        data.forecast is None or data.forecast < context.reference_date
+    ):
+        return {"previsao": FAT_RETEST_REQUIRED}
     return {}
 
 
