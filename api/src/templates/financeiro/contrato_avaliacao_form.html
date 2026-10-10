@@ -5,8 +5,13 @@
   evidência, obrigatório quando alguma nota for 1 ou 2. A gravação devolve a aba atualizada e o
   formulário fechado; o 422 volta aqui, com o que a pessoa digitou e a mensagem no campo.
 
+  No critério HSE (ISSUE-075) o formulário mostra a nota sugerida pelo painel do HSE (a TRIF da
+  empresa contra a do projeto) e a pré-seleciona quando o campo está novo; o avaliador pode
+  trocá-la — a nota gravada é a que ele confirmar.
+
   Espera: ficha (ContractView), valores, erros, mensagem, criterios, tipos, campo_arquivo,
-  campo_evidencia, limite_mb, tipos_arquivo, aceitos, limite_plano e os alvos.
+  campo_evidencia, limite_mb, tipos_arquivo, aceitos, limite_plano, sugestao_hse,
+  sugestoes, sugestao_hse_texto e os alvos.
 #}
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
@@ -55,8 +60,11 @@
             <input id="contrato-avaliacao-{{ criterio.id }}" name="{{ criterio.id }}" type="number"
               min="1" max="5" step="1" data-nota
               class="input{{ ' input--erro' if erros.get(criterio.id) else '' }}"
-              value="{{ valores.get(criterio.id) or '' }}" required
+              value="{{ valores.get(criterio.id) or sugestoes.get(criterio.id, '') }}" required
               {% if erros.get(criterio.id) %}aria-invalid="true" aria-describedby="contrato-avaliacao-{{ criterio.id }}-erro"{% endif %} />
+            {% if criterio.id == 'hse' %}
+            <span class="hint" data-sugestao-hse>{{ sugestao_hse_texto }}</span>
+            {% endif %}
             {% if erros.get(criterio.id) %}<span class="field__erro" id="contrato-avaliacao-{{ criterio.id }}-erro">{{ erros.get(criterio.id) }}</span>{% endif %}
           </div>
           {% endfor %}

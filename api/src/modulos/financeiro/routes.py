@@ -136,6 +136,7 @@ from src.modulos.configuracoes import service as configuracoes
 from src.modulos.financeiro import calculations, export, importers, service, validation
 from src.modulos.financeiro.calculations import LEAF_LEVEL, PORTFOLIO_MAIN_LEVEL, TreeRow
 from src.modulos.financeiro.service import EacFilters, EacView, ItemForm
+from src.modulos.hse import painel_service as hse_painel
 
 bp = func.Blueprint()
 
@@ -3394,6 +3395,7 @@ def _contrato_avaliacao_form_context(
     session: Session, view: service.ContractView, state: FormState
 ) -> dict[str, object]:
     limits = attachments.current_limits(session, reference_date=calendario.today())
+    sugestao = _sugestao_hse(session, view)
     return {
         "ficha": view,
         "valores": state.values,
@@ -3407,9 +3409,42 @@ def _contrato_avaliacao_form_context(
         "tipos_arquivo": ", ".join(limits.types),
         "aceitos": ",".join(f".{extension}" for extension in limits.extensions),
         "limite_plano": int(_avaliacao_parametros(session)["notaExigePlano"]),
+        "sugestao_hse": sugestao,
+        "sugestoes": {"hse": str(sugestao.note)} if sugestao is not None else {},
+        "sugestao_hse_texto": _sugestao_hse_texto(sugestao),
         "alvo_formulario": CONTRACT_FORM_TARGET,
         "alvo_avaliacoes": CONTRACT_EVALUATIONS_TARGET,
     }
+
+
+def _sugestao_hse(session: Session, view: service.ContractView) -> hse_painel.CompanyHseNote | None:
+    """A nota HSE sugerida da empresa do contrato, na janela do projeto dele (ISSUE-075).
+
+    O painel do HSE calcula a nota de 1 a 5 pela TRIF da empresa contra a do projeto; o
+    formulário a exibe e a pré-seleciona no critério HSE, e o avaliador pode trocá-la — a nota
+    gravada é a que ele confirmar.
+    """
+    return hse_painel.company_note_suggestion(
+        session,
+        company_id=view.company_id,
+        scope=Scope(project_id=view.project_id, source="url"),
+        reference_date=calendario.today(),
+    )
+
+
+def _sugestao_hse_texto(sugestao: hse_painel.CompanyHseNote | None) -> str:
+    """``Sugestão do HSE: nota 3 · TRIF da empresa 11,01 contra 8,88 do projeto``."""
+    if sugestao is None:
+        return "Sugestão do HSE: sem HHT registrado para a empresa no projeto."
+    return (
+        f"Sugestão do HSE: nota {sugestao.note}"
+        f" · TRIF da empresa {_two_decimals(sugestao.trif)}"
+        f" contra {_two_decimals(sugestao.project_trif)} do projeto"
+    )
+
+
+def _two_decimals(value: Decimal) -> str:
+    return format_value(ValueKind.DECIMAL, value, 2)
 
 
 def _avaliacao_parametros(session: Session) -> dict[str, Any]:

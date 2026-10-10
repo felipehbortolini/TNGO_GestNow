@@ -2324,6 +2324,7 @@ class ContractView:
     project_id: int
     number: str
     company: str
+    company_id: int
     object: str
     modality: str
     eac_code: str
@@ -2399,6 +2400,7 @@ def contract_detail(session: Session, *, user: User, contract_id: int) -> Contra
         project_id=contract.project_id,
         number=contract.number,
         company=companies.get(contract.company_id, ""),
+        company_id=contract.company_id,
         object=contract.object,
         modality=contract.modality,
         eac_code=codes.get(contract.eac_item_id or 0, ""),
