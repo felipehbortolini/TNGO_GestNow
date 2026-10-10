@@ -1,6 +1,6 @@
-"""Rotas da tela Parâmetros do sistema (ISSUE-076, D6, D14).
+"""Rotas das telas de Configurações: Parâmetros do sistema (ISSUE-076) e Colaboradores (ISSUE-077).
 
-Prefixo ``/api/configuracoes/parametros``. A tela é um fragmento
+**Parâmetros** (``/api/configuracoes/parametros``): a tela é um fragmento
 (``parametros-conteudo``): o card da versão vigente, a barra com a busca e o
 filtro por módulo e os grupos por módulo com a tabela de parâmetro x valor
 vigente e o botão Editar. O filtro é um GET do próprio fragmento com o estado na
@@ -16,15 +16,32 @@ confirmação no próprio formulário (o campo ``confirmar_escala``).
 * ``POST parametros/{grupo}``                          grava a nova versão (uma por grupo de origem que mudou);
 * ``GET  parametros/historico``                        o corpo do modal do histórico (o detalhe por ``grupo`` e ``versao``).
 
-Só Gestor e Admin alcançam o módulo (``rbac.MODULE_PERMISSION``); as regras são
-de ``service`` e ``forms``, e as rotas só leem a requisição, chamam e desenham.
+**Colaboradores** (``/api/configuracoes/colaboradores``, só Admin): a tela é um
+fragmento (``colaboradores-conteudo``) com os avisos, os KPIs por perfil, a
+barra de filtros (busca, perfil e vínculo por query — o servidor filtra) e a
+lista de quem tem acesso, com Editar e Revogar. O modal abre em
+``colaboradores-modal-corpo``: um GET desenha o corpo do novo acesso ou da
+edição, um POST grava e devolve a tela atualizada (o modal fecha no sucesso), e
+uma recusa (422, 403) devolve o formulário preenchido com a mensagem no campo.
+A revogação confirma no cliente e volta como a tela com o toast.
+
+* ``GET  colaboradores``                                  a tela (busca, perfil e vínculo por query);
+* ``GET  colaboradores/excel`` e ``colaboradores/imprimivel`` os dois exports;
+* ``GET  colaboradores/novo`` e ``colaboradores/{id}/editar`` o corpo do modal;
+* ``POST colaboradores`` e ``colaboradores/{id}``         cria e atualiza o acesso;
+* ``POST colaboradores/{id}/revogar``                     apaga o acesso (a pessoa permanece no cadastro).
+
+Só Gestor e Admin alcançam o módulo (``rbac.MODULE_PERMISSION``) e só o Admin
+alcança Colaboradores (``rbac.SCREEN_PERMISSION``, aqui pedido como
+``Permission.ADMINISTER``); as regras são de ``service``, e as rotas só leem a
+requisição, chamam e desenham.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Any
+from typing import Any, TypedDict
 from urllib.parse import parse_qsl, urlencode
 
 import azure.functions as func
@@ -42,7 +59,13 @@ from src.core.export_document import Document, ValueKind, format_value
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
-from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.core.routing import (
+    Access,
+    ErrorRenderer,
+    RequestContext,
+    file_route,
+    fragment_route,
+)
 from src.modulos.configuracoes import export, forms, service
 from src.modulos.configuracoes.models import ParameterVersion
 
@@ -50,6 +73,7 @@ bp = func.Blueprint()
 
 MODULE = "configuracoes"
 ACCESS = Access(module=MODULE)
+COLLABORATORS_ACCESS = Access(module=MODULE, permission=Permission.ADMINISTER)
 
 CONTENT_TARGET = "parametros-conteudo"
 MODAL_TARGET = "parametros-modal-corpo"
@@ -60,6 +84,13 @@ SCREEN_TEMPLATE = "configuracoes/parametros.html"
 FORM_TEMPLATE = "configuracoes/parametros_form.html"
 HISTORY_TEMPLATE = "configuracoes/parametros_historico.html"
 
+COLLABORATORS_ROUTE = "/api/configuracoes/colaboradores"
+COLLABORATORS_CONTENT_TARGET = "colaboradores-conteudo"
+COLLABORATORS_MODAL_TARGET = "colaboradores-modal-corpo"
+
+COLLABORATORS_SCREEN_TEMPLATE = "configuracoes/colaboradores.html"
+COLLABORATORS_FORM_TEMPLATE = "configuracoes/colaboradores_form.html"
+
 
 def _status(error: DomainError) -> int:
     if isinstance(error, AccessDeniedError):
@@ -67,18 +98,31 @@ def _status(error: DomainError) -> int:
     return 409 if isinstance(error, VersionConflictError) else 422
 
 
-def _modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
-    """A recusa dentro do modal: a mensagem no corpo do modal, onde a pessoa está olhando."""
-    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
-    return AlpineAjaxResponse(
-        template_name="comum/erro.html",
-        context={"mensagens": messages},
-        request=req,
-        target_id=MODAL_TARGET,
-        status_code=_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
-        toast_tipo="erro",
-    )
+def _modal_error_em(target_id: str) -> ErrorRenderer:
+    """A recusa dentro de um modal: a mensagem no corpo daquele modal, onde a pessoa está olhando.
+
+    Cada tela tem o seu alvo de modal (``parametros-modal-corpo``,
+    ``colaboradores-modal-corpo``), e a resposta precisa voltar para o modal que
+    fez a pergunta.
+    """
+
+    def render(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
+        messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+        return AlpineAjaxResponse(
+            template_name="comum/erro.html",
+            context={"mensagens": messages},
+            request=req,
+            target_id=target_id,
+            status_code=_status(error),
+            toast=messages[0] if messages else "Não foi possível concluir.",
+            toast_tipo="erro",
+        )
+
+    return render
+
+
+_modal_error = _modal_error_em(MODAL_TARGET)
+_collaborator_modal_error = _modal_error_em(COLLABORATORS_MODAL_TARGET)
 
 
 def _field_errors(error: DomainError) -> Mapping[str, str]:
@@ -389,4 +433,369 @@ def parameters_history(
         },
         request=req,
         target_id=MODAL_TARGET,
+    )
+
+
+# ── Tela de Colaboradores (ISSUE-077) ────────────────────────────────────
+#
+# Só o Admin chega aqui (``Permission.ADMINISTER``): é a tela que concede e
+# revoga o acesso. A lista e o formulário são fragmentos; o filtro é um GET com
+# o estado na query e o modal de novo/editar carrega o corpo por GET, como o
+# módulo já faz na tela de Parâmetros. A revogação volta como a tela com o
+# toast: a recusa do último Admin não pode esvaziar a lista, então a tela é
+# re-renderizada com o motivo no toast (o formulário de revogação não existe
+# no DOM).
+
+
+class _CollaboratorFilters(TypedDict):
+    """Os filtros da tela que o formulário carregou de volta (``busca=...&vinculo=Timenow``)."""
+
+    search: str
+    profile: str
+    bond: str
+
+
+def _route_int(req: func.HttpRequest, name: str) -> int:
+    raw = (req.route_params.get(name) or "").strip()
+    return int(raw) if raw.isdecimal() else 0
+
+
+def _collaborator_query_state(consulta: str) -> _CollaboratorFilters:
+    state = dict(parse_qsl(consulta))
+    return _CollaboratorFilters(
+        search=(state.get("busca") or "").strip(),
+        profile=(state.get("perfil") or "").strip(),
+        bond=(state.get("vinculo") or "").strip(),
+    )
+
+
+def _collaborator_screen_response(
+    req: func.HttpRequest,
+    session: Session,
+    *,
+    search: str = "",
+    profile: str = "",
+    bond: str = "",
+    notice: str | None = None,
+    status_code: int = 200,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A tela de Colaboradores: os KPIs, os filtros e a lista, já filtrada pelo servidor."""
+    overview = service.list_collaborators_overview(
+        session, search=search, profile=profile, bond=bond
+    )
+    state = {
+        key: value
+        for key, value in {"busca": search, "perfil": profile, "vinculo": bond}.items()
+        if value
+    }
+    return AlpineAjaxResponse(
+        template_name=COLLABORATORS_SCREEN_TEMPLATE,
+        context={
+            "visao": overview,
+            "busca": search,
+            "perfil": profile,
+            "vinculo": bond,
+            "perfis": service.PROFILE_OPTIONS,
+            "vinculos": service.BOND_OPTIONS,
+            "consulta": urlencode(state),
+            "url_tela": COLLABORATORS_ROUTE,
+            "url_excel": f"{COLLABORATORS_ROUTE}/excel",
+            "url_pdf": f"{COLLABORATORS_ROUTE}/imprimivel",
+            "url_novo": f"{COLLABORATORS_ROUTE}/novo",
+            "situacao": (
+                "vazio-filtro" if (search or profile or bond) and not overview.rows else "conteudo"
+            ),
+            **_helpers(),
+        },
+        request=req,
+        target_id=COLLABORATORS_CONTENT_TARGET,
+        status_code=status_code,
+        toast=notice,
+        toast_tipo=toast_tipo,
+    )
+
+
+def _collaborator_form_values(form: Mapping[str, Any]) -> dict[str, Any]:
+    """O que a pessoa digitou no formulário, como a fachada e o template o leem."""
+    return {
+        "nome": (form.get("nome") or "").strip(),
+        "email": (form.get("email") or "").strip(),
+        "funcao": (form.get("funcao") or "").strip(),
+        "perfil": (form.get("perfil") or "").strip(),
+        "vinculo": (form.get("vinculo") or "").strip(),
+        "empresa": (form.get("empresa") or "").strip(),
+        "ativo": (form.get("ativo") or "") == "sim",
+    }
+
+
+def _values_of(registro: service.CollaboratorRow) -> dict[str, Any]:
+    return {
+        "nome": registro.name,
+        "email": registro.email,
+        "funcao": registro.role or "",
+        "perfil": registro.general_profile,
+        "vinculo": registro.bond,
+        "empresa": str(registro.company_id) if registro.company_id is not None else "",
+        "ativo": registro.active,
+    }
+
+
+def _company_id(raw: Any) -> int | None:
+    text = str(raw or "").strip()
+    return int(text) if text.isdecimal() else None
+
+
+def _posted_roles(form: Any) -> list[tuple[int, str]]:
+    """Os pares ``(projeto_id, papel)`` dos campos repetidos ``papeis`` (``"<id>:<papel>"``)."""
+    roles: list[tuple[int, str]] = []
+    for raw in form.getlist("papeis"):
+        project, _, papel = str(raw).partition(":")
+        roles.append((int(project) if project.strip().isdecimal() else 0, papel.strip()))
+    return roles
+
+
+def _roles_data(roles: Sequence[tuple[int, str]]) -> list[dict[str, Any]]:
+    """Os pares que o editor do modal lê de ``data-papeis`` (JSON no atributo)."""
+    return [{"projeto_id": project_id, "papel": papel} for project_id, papel in roles]
+
+
+def _projects_data(session: Session) -> list[dict[str, Any]]:
+    return [
+        {"id": project.id, "label": f"{project.code} · {project.name}"}
+        for project in service.list_projects(session)
+    ]
+
+
+def _collaborator_form_response(
+    req: func.HttpRequest,
+    session: Session,
+    *,
+    registro: service.CollaboratorRow | None,
+    values: Mapping[str, Any],
+    roles: Sequence[tuple[int, str]],
+    errors: Mapping[str, str],
+    status_code: int,
+    consulta: str,
+) -> func.HttpResponse:
+    """O corpo do modal: os campos (do registro, do digitado ou vazios) e os papéis por projeto."""
+    editando = registro is not None
+    messages = [message for message in errors.values() if message]
+    return AlpineAjaxResponse(
+        template_name=COLLABORATORS_FORM_TEMPLATE,
+        context={
+            "registro": registro,
+            "editando": editando,
+            "valores": values,
+            "papeis_dados": _roles_data(roles),
+            "projetos_dados": _projects_data(session),
+            "papeis_rotulos": list(service.SCHEDULE_ROLE_OPTIONS),
+            "perfis": service.PROFILE_OPTIONS,
+            "vinculos": service.BOND_OPTIONS,
+            "empresas": service.list_company_options(session),
+            "erros": dict(errors),
+            "erros_gerais": [message for key, message in errors.items() if key == "geral"],
+            "consulta": consulta,
+            "url_acao": (
+                f"{COLLABORATORS_ROUTE}/{registro.collaborator_id}"
+                if editando
+                else COLLABORATORS_ROUTE
+            ),
+        },
+        request=req,
+        target_id=COLLABORATORS_MODAL_TARGET,
+        status_code=status_code,
+        toast=messages[0] if messages else None,
+        toast_tipo="erro",
+    )
+
+
+def _collaborator_write(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    collaborator_id: int | None,
+) -> func.HttpResponse:
+    """Grava o acesso pela fachada: o sucesso devolve a tela, a recusa devolve o formulário."""
+    form = req.form
+    consulta = form.get("consulta", "")
+    values = _collaborator_form_values(form)
+    roles = _posted_roles(form)
+    try:
+        with session.begin_nested():
+            service.save_collaborator(
+                session,
+                author_id=context.user.id,
+                collaborator_id=collaborator_id,
+                name=values["nome"],
+                email=values["email"],
+                role=values["funcao"],
+                profile=values["perfil"],
+                bond=values["vinculo"],
+                company_id=_company_id(values["empresa"]),
+                active=values["ativo"],
+                roles=roles,
+            )
+    except InvalidDataError as error:
+        registro = service.find_collaborator(session, collaborator_id) if collaborator_id else None
+        return _collaborator_form_response(
+            req,
+            session,
+            registro=registro,
+            values=values,
+            roles=roles,
+            errors=_field_errors(error),
+            status_code=422,
+            consulta=consulta,
+        )
+    return _collaborator_screen_response(
+        req,
+        session,
+        **_collaborator_query_state(consulta),
+        notice=f"Acesso de {values['nome']} {'liberado' if collaborator_id is None else 'atualizado'}.",
+    )
+
+
+def _collaborator_document(session: Session, context: RequestContext) -> Document:
+    """O documento dos exports: a lista inteira, sem o filtro da tela."""
+    return export.colaboradores_document(
+        rows=service.list_collaborators_overview(session).rows,
+        scope=context.scope,
+        projects=service.list_projects(session),
+        today=calendario.today(),
+    )
+
+
+@bp.route(route="configuracoes/colaboradores", methods=["GET"])
+@fragment_route(access=COLLABORATORS_ACCESS)
+def collaborators_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A tela: os avisos, os KPIs por perfil, os filtros e a lista de quem tem acesso."""
+    del context
+    return _collaborator_screen_response(
+        req,
+        session,
+        search=(req.params.get("busca") or "").strip(),
+        profile=(req.params.get("perfil") or "").strip(),
+        bond=(req.params.get("vinculo") or "").strip(),
+    )
+
+
+@bp.route(route="configuracoes/colaboradores/excel", methods=["GET"])
+@file_route(access=COLLABORATORS_ACCESS)
+def collaborators_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da tela: a lista de quem tem acesso."""
+    del req
+    return excel_response(_collaborator_document(session, context))
+
+
+@bp.route(route="configuracoes/colaboradores/imprimivel", methods=["GET"])
+@fragment_route(access=COLLABORATORS_ACCESS)
+def collaborators_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível do mesmo documento: o que o botão PDF monta e imprime."""
+    return printable_response(_collaborator_document(session, context), req)
+
+
+@bp.route(route="configuracoes/colaboradores/novo", methods=["GET"])
+@fragment_route(access=COLLABORATORS_ACCESS, on_error=_collaborator_modal_error)
+def collaborators_new_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O corpo do modal de novo acesso: os campos vazios e a seção de papéis."""
+    del context
+    return _collaborator_form_response(
+        req,
+        session,
+        registro=None,
+        values={},
+        roles=[],
+        errors={},
+        status_code=200,
+        consulta=req.params.get("consulta", ""),
+    )
+
+
+@bp.route(route="configuracoes/colaboradores/{id}/editar", methods=["GET"])
+@fragment_route(access=COLLABORATORS_ACCESS, on_error=_collaborator_modal_error)
+def collaborators_edit_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O corpo do modal de edição: os campos do colaborador e os papéis atuais."""
+    del context
+    registro = service.find_collaborator(session, _route_int(req, "id"))
+    if registro is None:
+        raise InvalidDataError({"geral": service.COLLABORATOR_NOT_FOUND})
+    return _collaborator_form_response(
+        req,
+        session,
+        registro=registro,
+        values=_values_of(registro),
+        roles=[(line.project_id, line.role) for line in registro.schedule_roles],
+        errors={},
+        status_code=200,
+        consulta=req.params.get("consulta", ""),
+    )
+
+
+@bp.route(route="configuracoes/colaboradores", methods=["POST"])
+@fragment_route(access=COLLABORATORS_ACCESS, on_error=_collaborator_modal_error)
+def collaborators_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cria um acesso: o sucesso devolve a tela (o modal fecha) e a recusa volta no formulário."""
+    return _collaborator_write(req, session, context, collaborator_id=None)
+
+
+@bp.route(route="configuracoes/colaboradores/{id}", methods=["POST"])
+@fragment_route(access=COLLABORATORS_ACCESS, on_error=_collaborator_modal_error)
+def collaborators_update(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Atualiza um acesso: o sucesso devolve a tela (o modal fecha) e a recusa volta no formulário."""
+    return _collaborator_write(req, session, context, collaborator_id=_route_int(req, "id"))
+
+
+@bp.route(route="configuracoes/colaboradores/{id}/revogar", methods=["POST"])
+@fragment_route(access=COLLABORATORS_ACCESS)
+def collaborators_revoke(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Revoga o acesso: a recusa do último Admin volta na própria tela, com o motivo no toast."""
+    consulta = req.form.get("consulta", "")
+    registro = service.find_collaborator(session, _route_int(req, "id"))
+    if registro is None:
+        return _collaborator_screen_response(
+            req,
+            session,
+            **_collaborator_query_state(consulta),
+            notice=service.COLLABORATOR_NOT_FOUND,
+            status_code=422,
+            toast_tipo="erro",
+        )
+    try:
+        with session.begin_nested():
+            service.revoke_collaborator(
+                session, author_id=context.user.id, collaborator_id=registro.collaborator_id
+            )
+    except InvalidDataError as error:
+        messages = error.messages()
+        return _collaborator_screen_response(
+            req,
+            session,
+            **_collaborator_query_state(consulta),
+            notice=messages[0] if messages else "Não foi possível revogar o acesso.",
+            status_code=422,
+            toast_tipo="erro",
+        )
+    return _collaborator_screen_response(
+        req,
+        session,
+        **_collaborator_query_state(consulta),
+        notice=f"Acesso de {registro.email} revogado.",
     )

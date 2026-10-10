@@ -1,16 +1,58 @@
 /* ============================================================
    colaboradores.css — Estilo da tela Colaboradores (configuracoes/colaboradores)
 
-   Perfil geral, papéis da Programação Semanal por projeto, vínculo e empresa.
+   Quem entra no GestNow: perfil geral, vínculo, empresa e os papéis da Programação Semanal por
+   projeto.
 
    Escopo: tudo que morar aqui começa por .pagina--configuracoes-colaboradores, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-077.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--configuracoes-colaboradores .colaboradores__filtros {
+  flex-wrap: wrap;
+}
+
+.pagina--configuracoes-colaboradores .colaboradores__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.pagina--configuracoes-colaboradores .colaboradores__papeis-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.pagina--configuracoes-colaboradores .colaboradores__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pagina--configuracoes-colaboradores .colaboradores__papeis {
+  margin-top: var(--space-lg);
+}
+
+.pagina--configuracoes-colaboradores .colaboradores__papel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  margin-top: var(--space-sm);
+}
+
+@media (max-width: 1100px) {
+  .pagina--configuracoes-colaboradores .colaboradores__papel {
+    grid-template-columns: 1fr;
+  }
+}

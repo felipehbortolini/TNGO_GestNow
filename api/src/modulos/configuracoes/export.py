@@ -1,11 +1,14 @@
-"""Exportações da tela Parâmetros (ISSUE-076, D12).
+"""Exportações das telas de Configurações (ISSUE-076 e ISSUE-077, D12).
 
-O mesmo documento alimenta o Excel e a versão imprimível (o PDF do navegador):
-as duas tabelas do protótipo — Parâmetros vigentes (Grupo/Parâmetro/Valor/Módulo)
-e Histórico de versões (Versão/Grupo/Vigência/Alterada por/Justificativa/
-Alterações, com a coluna Grupo que o versionamento por grupo acrescentou). Os
-parâmetros são globais, não de um projeto: as tabelas saem sem a coluna Projeto
-mesmo no Portfólio.
+O mesmo documento alimenta o Excel e a versão imprimível (o PDF do navegador).
+
+* **Parâmetros:** as duas tabelas do protótipo — Parâmetros vigentes
+  (Grupo/Parâmetro/Valor/Módulo) e Histórico de versões (Versão/Grupo/Vigência/
+  Alterada por/Justificativa/Alterações, com a coluna Grupo que o versionamento
+  por grupo acrescentou). Os parâmetros são globais, não de um projeto.
+* **Colaboradores:** a lista de quem tem acesso (Pessoa/E-mail/Função/Perfil/
+  Vínculo/Empresa/Situação/Papéis na Programação Semanal), sem a coluna Projeto
+  porque o cadastro de acesso não pertence a um projeto.
 """
 
 from __future__ import annotations
@@ -14,9 +17,12 @@ from collections.abc import Sequence
 from datetime import date
 
 from src.core.export_document import (
+    Cell,
     Column,
     Document,
+    Row,
     Table,
+    Tone,
     ValueKind,
     describe_scope,
     format_value,
@@ -25,6 +31,7 @@ from src.core.export_document import (
 from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.configuracoes.service import (
+    CollaboratorRow,
     GroupView,
     HistoryEntry,
     ParameterOverview,
@@ -35,6 +42,22 @@ CURRENT_TABLE = "Parâmetros vigentes"
 HISTORY_TABLE = "Histórico de versões"
 NOT_RECORDED = "·"
 INITIAL_JUSTIFICATION = "Versão inicial"
+
+COLLABORATORS_TITLE = "Colaboradores"
+COLLABORATORS_TABLE = "Quem tem acesso hoje"
+ACTIVE_TEXT = "Ativo"
+SUSPENDED_TEXT = "Suspenso"
+
+COLLABORATORS_COLUMNS = (
+    Column("Pessoa", width=28),
+    Column("E-mail", width=30),
+    Column("Função", width=22),
+    Column("Perfil", width=14),
+    Column("Vínculo", width=12),
+    Column("Empresa", width=24),
+    Column("Situação", width=12),
+    Column("Papéis na Programação Semanal", width=44),
+)
 
 CURRENT_COLUMNS = (
     Column("Grupo", width=26),
@@ -110,6 +133,53 @@ def _history_table(history: Sequence[HistoryEntry]) -> Table:
 def _period(entry: HistoryEntry) -> str:
     """A vigência de uma versão: ``dd/mm/aaaa em diante`` (o GestNow não guarda a vigência fim)."""
     return f"{_date(entry.effective_from)} em diante"
+
+
+def colaboradores_document(
+    *,
+    rows: Sequence[CollaboratorRow],
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """O documento da tela de Colaboradores: a lista de quem tem acesso, com os papéis por projeto."""
+    return Document(
+        title=COLLABORATORS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        context=(("Pessoas no cadastro", str(len(rows))),),
+        tables=(
+            Table(
+                title=COLLABORATORS_TABLE,
+                columns=COLLABORATORS_COLUMNS,
+                rows=tuple(_collaborator_row(registro) for registro in rows),
+                per_project=False,
+            ),
+        ),
+    )
+
+
+def _collaborator_row(registro: CollaboratorRow) -> Row:
+    return row(
+        registro.name,
+        registro.email,
+        registro.role or NOT_RECORDED,
+        registro.general_profile,
+        registro.bond,
+        registro.company_name or NOT_RECORDED,
+        _situation(registro),
+        _schedule_roles_text(registro),
+    )
+
+
+def _situation(registro: CollaboratorRow) -> Cell:
+    return Cell(ACTIVE_TEXT, Tone.OK) if registro.active else Cell(SUSPENDED_TEXT, Tone.NEUTRAL)
+
+
+def _schedule_roles_text(registro: CollaboratorRow) -> str:
+    if not registro.schedule_roles:
+        return NOT_RECORDED
+    return " · ".join(line.label for line in registro.schedule_roles)
 
 
 def _date(value: date) -> str:
