@@ -326,6 +326,23 @@ max-complexity = 10
 # indireção.
 "src/modulos/riscos/panel_service.py" = ["PLR0913"]
 
+# `_line_of`, da fachada da Qualidade, monta a linha da RNC com o que foi lido
+# em volta (disciplina, empresa, projeto, pessoas, ações da Central e
+# reincidências), e é assim de propósito: depois do `*` são todos KEYWORD-ONLY,
+# o contrato da listagem e da ficha da RNC (ISSUE-068). `build_document`, no
+# export, recebe a listagem, os filtros, o escopo, os projetos, a data e a
+# espera da verificação, todos KEYWORD-ONLY, porque o documento precisa do
+# contexto inteiro da tela. `_assign_fragment`, `_analysis_fragment`,
+# `_action_fragment`, `_effectiveness_fragment`, `_cancellation_fragment` e
+# `_cost_fragment`, nas rotas, recebem a requisição, a sessão e o estado do
+# formulário além do que a resposta precisa imprimir, também todos KEYWORD-ONLY
+# depois do `*`. A regra existe para argumento posicional, onde a ordem se erra
+# na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
+# mais indireção.
+"src/modulos/qualidade/service.py" = ["PLR0913"]
+"src/modulos/qualidade/routes.py" = ["PLR0913"]
+"src/modulos/qualidade/export.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
