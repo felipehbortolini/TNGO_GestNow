@@ -77,3 +77,37 @@ Nenhuma.
 ## Notas
 
 Fonte: `rnc.html`, `js/pages/qualidade/rnc.js` e `qualidade.js`, `mock-qualidade`; README, "Regras (06 Gestão da Qualidade)". A lição passa a aceitar a origem RNC.
+
+## Registro de execução
+
+Fatia entregue em 09/10/2026: a migração `m068` cria a tabela `rnc` conforme
+`docs/MODELO-DE-DADOS.md` (FKs de projeto, disciplina, empresa, responsável, abertura, eficácia
+e lição; UK projeto + código; CHECKs de situação, origem, severidade, disposição e método) e
+sobe/desce/sobe num banco vazio. A fachada (`service.py`) cobre o fluxo inteiro: abertura com a
+contenção obrigatória e o prazo da severidade (parâmetro), atribuição e registro da análise
+criando ao menos uma ação corretiva na Central com origem `RNC` e link de volta
+(`origin_links.register`), concessão obrigatória para Reparo e Usar como está, envio para a
+verificação recusado com ação aberta e previsto para `verificacaoEficaciaDias` à frente,
+verificação do Gestor com segregação de quem respondeu pela análise (403), encerramento que
+abre a lição opcional em Rascunho pela fachada da Governança gravando `rnc.licao_id`, volta
+para Ação corretiva quando ineficaz (reincidência contada da trilha), cancelamento só antes da
+ação corretiva e custo da não qualidade atualizável na RNC ativa — tudo na mesma transação
+(D9). As rotas e os fragmentos seguem D14, com a ficha em modal, as evidências na porta
+genérica de anexos (D5a) e Excel/PDF pelos mecanismos genéricos (D12); o trio da tela
+(view/CSS/JS) registra `TN.paginas["qualidade/rnc"]`. Os parâmetros do grupo `qualidade` já
+estavam vigentes em Configurações com as validações do README (prazos crescentes de 1 a 180
+dias, espera de 0 a 180, metas de 0 a 100% e antecedência de 0 a 240 h); a fatia os cobre com
+testes. A carga `qualidade-rnc` traz os relatórios convertidos do protótipo (10: os 6 do
+`mock-qualidade` e os 4 do `mock-portfolio`) com as datas deslocadas e a numeração de cada
+projeto continuando depois do maior número; o oráculo afirma as **4 RNC abertas do projeto 1 em
+25/09/2026** (0002, 0004, 0005 e 0006), com os números, as severidades e os prazos do mock, e a
+0004 vencida. As divergências do protótipo desta fatia estão registradas em
+`docs/DIVERGENCIAS-DO-PROTOTIPO.md` ("pendente de aceite").
+
+- DECISAO: reincidência pela trilha | o MODELO não tem coluna e o protótipo incrementava um contador; a contagem sai das transições de `auditoria` da entidade `rnc` que voltam de Verificação de eficácia para Ação corretiva (só a verificação ineficaz faz isso, então atualizações seguintes não contam de novo), em `calculations.recurrence_count` | D5b, ISSUE-068
+- DECISAO: evidências da abertura na ficha | o upload genérico pertence a um registro gravado; o formulário de abertura grava a RNC e as evidências entram na ficha, com o registro de origem `rnc` | D5a, ISSUE-068
+- DECISAO: carga com os 10 relatórios convertidos | `prototype_collection("rncs")` reúne os 6 de `mock-qualidade` e os 4 de `mock-portfolio`; a numeração de cada projeto continua depois do maior número (`numbering.start_after`) para a primeira RNC nova não colidir | D6, ISSUE-068
+- DECISAO: verificação prevista da data de referência | a prevista é a data de referência da requisição + `verificacaoEficaciaDias` (o protótipo usava a referência), como o parâmetro manda | D6, ISSUE-068
+- DECISAO: prazo gravado na carga | usa o prazo do mock convertido (o protótipo já o calculava de data + severidade); a abertura em runtime calcula pelo parâmetro vigente | D6, ISSUE-068
+- DECISAO: botões de Gestor por permissão | cancelar e verificar a eficácia só aparecem para Gestor e o servidor recusa com 403; a segregação usa `rbac.require_segregation` com o responsável pela análise | D7, ISSUE-068
+
