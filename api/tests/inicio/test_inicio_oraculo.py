@@ -1,4 +1,4 @@
-"""Oráculo do Início (ISSUE-079): os números do protótipo em 25/09/2026.
+"""Oráculo do Início (ISSUE-079 e ISSUE-080): os números do protótipo em 25/09/2026.
 
 Na demonstração com a data injetada, o projeto 1 (TN-2026-014) tem os números do cenário do
 HANDOVER: 8 ações atrasadas, SPI 0,94, CPI 0,96, 3 pedidos críticos, 2 riscos críticos, 4 RNC
@@ -8,6 +8,10 @@ prazo (56 dias entre evento e notificação), a RNC-TN-2026-0004 com o prazo de 
 o RSK-TN-2026-0003 com a revisão vencida, os três sistemas bloqueados por item A e a ocorrência
 de alto potencial (HiPo) do mês. No Portfólio os consolidados somam 14 ações atrasadas, 4 pedidos
 críticos, 4 riscos críticos, 7 RNC abertas e 5 mudanças aguardando comitê.
+
+A carteira do Portfólio traz os pesos do protótipo — fábrica 55,36%, caldeira 29,34% e torre
+15,30%, fechados em 100,00% — e cada linha repete os números do Início do projeto (SPI, CPI,
+pedidos, riscos e ações). A prévia com os critérios vigentes devolve os mesmos pesos.
 """
 
 from __future__ import annotations
@@ -15,8 +19,14 @@ from __future__ import annotations
 from decimal import Decimal
 
 from src.core.scope import Scope
-from src.modulos.inicio import service
+from src.modulos.inicio import calculations, service
 from tests.inicio.conftest import Demonstracao
+
+CARTEIRA_EXPECTED = (
+    ("TN-2026-014", Decimal("55.36")),
+    ("TN-2026-021", Decimal("29.34")),
+    ("TN-2026-027", Decimal("15.30")),
+)
 
 PROJECT_EXPECTED = {
     "acoes": 8,
@@ -99,3 +109,51 @@ def test_oraculo_do_inicio_do_portfolio(demonstracao: Demonstracao) -> None:
     assert kpis["mudancas"].footer == "R$ 1,4 mi aprovados (2,0% do orçamento da carteira)"
     assert visao.budget_cents == 7_020_000_000, "44,6 + 18,2 + 7,4 mi"
     assert str(visao.expected_end_date) == "2027-06-30", "o término mais distante"
+
+
+def test_oraculo_da_carteira_do_portfolio(demonstracao: Demonstracao) -> None:
+    visao = service.home_overview(
+        demonstracao.session,
+        user=demonstracao.admin,
+        scope=Scope(project_id=None, source="padrao"),
+        reference_date=demonstracao.reference_date,
+    )
+
+    assert [(row.code, row.weight) for row in visao.portfolio_rows] == list(CARTEIRA_EXPECTED)
+    assert sum(row.weight for row in visao.portfolio_rows) == Decimal("100.00")
+    assert visao.portfolio_totals is not None
+    assert visao.portfolio_totals.budget_cents == 7_020_000_000, "a soma dos orçamentos vigentes"
+
+    fabrica = visao.portfolio_rows[0]
+    assert fabrica.overdue_actions == 8
+    assert fabrica.spi == Decimal("0.94")
+    assert fabrica.cpi == Decimal("0.96")
+    assert fabrica.critical_orders == 3
+    assert fabrica.critical_risks == 2
+    assert fabrica.health == "warn", "SPI 0,94 e CPI 0,96 ficam na atenção"
+    assert fabrica.health_label == "Atenção"
+
+    for row in visao.portfolio_rows:
+        assert row.health == calculations.health_band(row.spi, row.cpi)
+        assert row.health in {"ok", "warn", "erro"}
+
+
+def test_oraculo_da_previa_com_os_criterios_vigentes(demonstracao: Demonstracao) -> None:
+    session = demonstracao.session
+    reference_date = demonstracao.reference_date
+    view = service.ponderation_view(session, user=demonstracao.admin, reference_date=reference_date)
+    preview = service.ponderation_preview(
+        session,
+        user=demonstracao.admin,
+        criteria={
+            criterion.id: calculations.input_number(criterion.weight) for criterion in view.criteria
+        },
+        grades={
+            project.project_id: {key: str(value) for key, value in project.grades.items()}
+            for project in view.projects
+        },
+        reference_date=reference_date,
+    )
+
+    assert {row.code: row.weight for row in preview.rows} == dict(CARTEIRA_EXPECTED)
+    assert sum(row.weight for row in preview.rows) == Decimal("100.00")
