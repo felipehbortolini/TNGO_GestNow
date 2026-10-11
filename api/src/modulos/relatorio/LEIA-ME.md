@@ -1,6 +1,6 @@
 # Relatório Gerencial
 
-Módulo `relatorio`. Consolida dados dos módulos em relatórios semanais ou mensais, por projeto ou Portfólio. O modal de emissão é iniciado no Início; as folhas, exportação e impressão pertencem a este módulo. A **Análise do período** (ISSUE-081/ISSUE-082) vive aqui: o texto executivo por módulo (02 a 07), tipo e período, de projeto ou do Portfólio, com os desvios negativos detectados no servidor e o comentário obrigatório de cada um nos módulos 02, 03, 04 e 06. O **Relatório gerencial** (ISSUE-083 a ISSUE-085) são as folhas A4: Planejamento em duas, Financeiro, Suprimentos, Riscos, Qualidade e HSE, e — só no Portfólio, como a primeira folha — a Carteira de projetos.
+Módulo `relatorio`. Consolida dados dos módulos em relatórios semanais ou mensais, por projeto ou Portfólio. O modal de emissão é iniciado no Início; as folhas e a exportação pertencem a este módulo, e a impressão é a do navegador, pela tela. A **Análise do período** (ISSUE-081/ISSUE-082) vive aqui: o texto executivo por módulo (02 a 07), tipo e período, de projeto ou do Portfólio, com os desvios negativos detectados no servidor e o comentário obrigatório de cada um nos módulos 02, 03, 04 e 06. O **Relatório gerencial** (ISSUE-083 a ISSUE-085) são as folhas A4: Planejamento em duas, Financeiro, Suprimentos, Riscos, Qualidade e HSE, e — só no Portfólio, como a primeira folha — a Carteira de projetos; o **Excel** do relatório é a exportação da ISSUE-086.
 
 ## Telas previstas
 
@@ -11,7 +11,7 @@ Módulo `relatorio`. Consolida dados dos módulos em relatórios semanais ou men
 | Relatório gerencial | Folhas de Planejamento e dados do período | ISSUE-083 |
 | Folhas Financeiro e Suprimentos | Indicadores, análises e projeção financeira | ISSUE-084 |
 | Folhas Riscos, Qualidade, HSE e Carteira | Indicadores e consolidados por seção | ISSUE-085 |
-| Excel e impressão/PDF | Exportação do relatório e alteração do período | ISSUE-086 |
+| Excel do relatório e Alterar período | Planilha das folhas, das análises e dos desvios (a impressão é a do navegador, pela tela) e reabertura do modal com as escolhas atuais | ISSUE-086 |
 
 ## Trios das telas
 
@@ -38,8 +38,7 @@ Prefixo: `/api/relatorio/`.
 | `analise/excluir` | Exclui (Gestor) e responde `data-analise-excluida` (POST) | ISSUE-081 |
 | `gerencial` | As folhas do relatório no escopo do request (`?projeto=portfolio|<id>`), no corte do período (`tipo`, `periodo`, `secoes`; sem eles, 422 com a mensagem do formulário) | ISSUE-083 a ISSUE-085 |
 | `gerencial/emissao` | O modal de emissão: escopo, tipo, período, situação de relatos e análises e seções (GET abre; POST redesenha com o que foi trocado) | ISSUE-083 |
-| `gerencial/excel` | Baixar planilha do relatório | ISSUE-086 |
-| `gerencial/impressao` | Obter folha imprimível para PDF do navegador | ISSUE-086 |
+| `gerencial/excel` | Baixa a planilha do relatório (indicadores e tabelas das folhas, análises do período e desvios com comentários), como o botão Excel da barra; rota de arquivo, sem o gate do Alpine, e a recusa sai em texto simples | ISSUE-086 |
 
 Todas as rotas da análise pedem `Access(module="relatorio", permission=Permission.WRITE)`, exceto `analise/excluir`, que pede `Permission.MANAGE`; a fachada repete a permissão. As duas rotas do relatório gerencial (`gerencial` e `gerencial/emissao`) são `Access(module="relatorio")` (READ): o Visualizador vê as folhas e a situação que o modal mostra. No Portfólio a análise nasce com projeto nulo, sobre os números consolidados, e a faixa de períodos vai do início mais antigo da carteira; ela não se mistura com a do projeto (a UK com `NULLS NOT DISTINCT` separa as duas).
 
@@ -87,7 +86,7 @@ Passo 1: tipo (Semanal ou Mensal, registros distintos) e período (do início do
 
 Selecionar semanal/mensal, projeto/Portfólio, período e seções → consultar se relatos/análises estão registrados → montar folhas no corte → exportar Excel ou abrir a versão imprimível e acionar a impressão do navegador. Período em andamento é marcado como parcial. A 083 lê as análises daqui.
 
-**Relatório gerencial (ISSUE-083):** o botão **Emitir relatório** da tela — ou `?relatorio=1` no endereço — abre o modal; trocar o escopo, o tipo ou o período o redesenha pelo servidor, que recomputa a situação real do relato (por projeto, no Portfólio) e da análise de cada módulo, com o link para registrar. **Emitir** leva o formulário de agora para `/relatorio/gerencial?projeto=&tipo=&periodo=&secoes=`, que carrega as folhas no alvo `gerencial-conteudo` (o `?projeto=` é o escopo do request). As folhas saem no corte do período: a **1** com a posição do corte (previsto, real, SPI e o SPI anterior, avanço do período, término pela tendência x linha de base e desvio acumulado), a produtividade da janela de semanas (SPI de quantidades, FP, aderência, pessoas trabalhando, utilização e HH paralisadas, com as metas vigentes e as empresas em alerta), a Curva S física mensal do dono, as barras do avanço por período (8 semanas ou 6 meses até o corte) e o avanço por área (por projeto, no Portfólio); a **2** com a análise do período (texto e desvios negativos com o comentário de cada um; sem comentário, "Comentário pendente") e o relato (atividades do período e do próximo, pontos de atenção com o risco atrelado), com o aviso e o link quando falta análise ou relato. No Portfólio a folha 2 traz os relatos dos projetos e os pontos de atenção de todos, com a análise da carteira. A impressão é a do navegador: A4 na horizontal, uma folha por página (a página nomeada `@page relatorio-gerencial`, sem margem — a margem está dentro da folha), a navegação fora pelo mecanismo do DS e a fonte da folha que passar da altura útil encaixada até 6,4 pt. Excel e "Alterar período" chegam na ISSUE-086.
+**Relatório gerencial (ISSUE-083):** o botão **Emitir relatório** da tela — ou `?relatorio=1` no endereço — abre o modal; trocar o escopo, o tipo ou o período o redesenha pelo servidor, que recomputa a situação real do relato (por projeto, no Portfólio) e da análise de cada módulo, com o link para registrar. **Emitir** leva o formulário de agora para `/relatorio/gerencial?projeto=&tipo=&periodo=&secoes=`, que carrega as folhas no alvo `gerencial-conteudo` (o `?projeto=` é o escopo do request). As folhas saem no corte do período: a **1** com a posição do corte (previsto, real, SPI e o SPI anterior, avanço do período, término pela tendência x linha de base e desvio acumulado), a produtividade da janela de semanas (SPI de quantidades, FP, aderência, pessoas trabalhando, utilização e HH paralisadas, com as metas vigentes e as empresas em alerta), a Curva S física mensal do dono, as barras do avanço por período (8 semanas ou 6 meses até o corte) e o avanço por área (por projeto, no Portfólio); a **2** com a análise do período (texto e desvios negativos com o comentário de cada um; sem comentário, "Comentário pendente") e o relato (atividades do período e do próximo, pontos de atenção com o risco atrelado), com o aviso e o link quando falta análise ou relato. No Portfólio a folha 2 traz os relatos dos projetos e os pontos de atenção de todos, com a análise da carteira. A impressão é a do navegador: A4 na horizontal, uma folha por página (a página nomeada `@page relatorio-gerencial`, sem margem — a margem está dentro da folha), a navegação fora pelo mecanismo do DS e a fonte da folha que passar da altura útil encaixada até 6,4 pt. O **Excel** baixa a planilha do relatório e o **Alterar período** reabre o modal de emissão com as escolhas atuais (ISSUE-086).
 
 **Folhas Financeiro e Suprimentos (ISSUE-084):** a folha **Financeiro** sai no mês de competência do custo — no Mensal o próprio mês e no Semanal o último fechado —, com os KPIs da tela de custos no mesmo corte (BAC, realizado acumulado e do mês, valor agregado com EV e PV, CPI e SPI de custo, projeção no término com o VAC na família de cor da faixa e contingência consumida), a Curva S financeira do dono com a tendência partindo do realizado do mês (sem dado posterior ao período) e o valor agregado dos últimos seis meses; à direita vão a análise do período e a EAC por pacote (nível 1, R$ mil, mapa de calor do dono; no Portfólio, por projeto). Sem fechamento até o fim do período, a folha mostra o aviso do protótipo, só com a análise. A folha **Suprimentos** sai no corte com os KPIs do painel (aderência ao plano com a meta vigente, pacotes adjudicados, saving, OTD, pedidos críticos com a etiqueta LLI e pedidos emitidos contra a linha de base), a curva de contratação do dono e os pedidos críticos (até 4) ao lado da análise; abaixo, os marcos de pedido realizados no período e as adjudicações e entregas previstas no horizonte (até 5 cada; as 4 semanas seguintes no semanal e o mês seguinte no mensal), todos com o desvio contra o plano ou o contrato. No Portfólio as duas folhas saem consolidadas e os eventos de suprimentos trazem o código do projeto.
 
@@ -105,6 +104,31 @@ Tipo e granularidade do período: semana ISO (segunda a domingo) ou mês civil; 
 
 O `seed.py` tem duas partes, cada uma pinada aos seus módulos. A parte `relatorio-analises` (ISSUE-081) lê as 22 análises do protótipo dos módulos 02, 03 e 04 — inclusive as seis do Portfólio (`projeto_id` nulo) — e a parte `relatorio-analises-050607` (ISSUE-082) lê as 18 dos módulos 05, 06 e 07 (12 de projeto e 6 do Portfólio, a maioria sem desvios, como no mock); juntas são os 40 registros. As duas deslocam os períodos em períodos inteiros e os carimbos em dias (`shift_date`) e gravam pela fachada, com a trilha. O mock das análises tem chaves de desvio que o motor do próprio protótipo não produz (projetos 2 e 3 e o Portfólio); a detecção segue o motor e a divergência está em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`.
 
+## Excel do relatório (ISSUE-086)
+
+O botão **Excel** da barra das folhas baixa a planilha do relatório pela porta canônica da
+exportação (D12, ISSUE-017): a tela monta um único `export.build_document` com o que as folhas
+mostram e o `core.excel` o vira o `.xlsx`. A resposta é a rota `gerencial/excel` — rota de
+arquivo (`file_route`), sem o gate do Alpine, porque o link é aberto pelo navegador; uma
+recusa sai em texto simples com o status. O documento tem:
+
+* a aba **Resumo** com os indicadores de todas as folhas presentes, prefixados pela folha
+  (`Planejamento · SPI físico`), com a referência de gestão e o tom da situação;
+* uma aba por tabela exibida nas folhas (Projetos da carteira, Critérios de ponderação,
+  Avanço por área/projeto, Relatos dos projetos, Valor agregado mês a mês, EAC por
+  pacote/projeto, Pedidos críticos, Principais riscos, Inspeções reprovadas, Pauta de
+  tratamento...), com colunas tipadas: dinheiro em centavos, percentuais em pontos, índices
+  como números e datas como datas de verdade, para ordenar, filtrar e somar;
+* **Análises do período**: uma linha por folha com a análise (módulo, tipo, período, texto e
+  quando foi atualizada); e **Desvios negativos e comentários**: uma linha por desvio
+  detectado, com o comentário gravado ou "Comentário pendente".
+
+As tabelas saem com `per_project=False` porque as linhas já trazem o código do projeto onde a
+folha mistura projetos; o dinheiro chega ao leitor em reais inteiros (D12), nunca em milhares.
+A impressão **não** passa por aqui: é a do navegador, pela tela (ISSUE-083), com as folhas A4
+na horizontal e a fonte encaixada. O botão **Alterar período** reabre o modal de emissão com as
+escolhas atuais — o mesmo caminho do botão Emitir relatório.
+
 ## Onde mexer
 
 | Alteração | Arquivo ou pasta |
@@ -116,9 +140,9 @@ O `seed.py` tem duas partes, cada uma pinada aos seus módulos. A parte `relator
 | Persistência de entidades próprias | `models.py` (`analise_periodo`, `analise_periodo_desvio`); entidades em `docs/MODELO-DE-DADOS.md` |
 | Fragmentos | `api/src/templates/relatorio/` (`analise_periodo.html`, `analise_formulario.html`, `analise_salvo.html`, `analise_excluido.html`; `folhas.html`, `folha_planejamento_kpis.html`, `folha_planejamento_relato.html`, `folha_financeiro.html`, `folha_suprimentos.html`, `folha_riscos.html`, `folha_qualidade.html`, `folha_hse.html`, `folha_carteira.html`, `_folha.html`, `_analise_periodo.html`; `emissao.html`, `emissao_relato.html`, `emissao_analises.html`) |
 | Comportamento e estilo do modal da análise | `app/paginas/relatorio/analise.js` e `analise.css` (carregados pelo shell; os botões vivem nas views dos módulos 02 a 07) |
-| Tela, estilo e comportamento | `app/_views/relatorio/` e `app/paginas/relatorio/` (`gerencial.html`, `gerencial.css`, `gerencial.js`: modal de emissão, carga das folhas, encaixe da fonte e impressão; a matriz P x I da folha Riscos e os selos das faixas estão em `gerencial.css`) |
+| Tela, estilo e comportamento | `app/_views/relatorio/` e `app/paginas/relatorio/` (`gerencial.html`, `gerencial.css`, `gerencial.js`: modal de emissão, carga das folhas, encaixe da fonte, impressão e os botões da barra — Excel e Alterar período; a matriz P x I da folha Riscos e os selos das faixas estão em `gerencial.css`) |
 | Carga de demonstração | `seed.py` |
 | Testes | `api/tests/relatorio/` |
-| Excel/impressão | `export.py` (Excel, ISSUE-086; a impressão do relatório é a do navegador, pela tela) |
+| Excel | `export.py` (`build_document`; a impressão do relatório é a do navegador, pela tela) |
 
-As folhas de Riscos, Qualidade, HSE e Carteira entraram na ISSUE-085; a ISSUE-086 completa este documento com a exportação Excel e a troca de período.
+As folhas de Riscos, Qualidade, HSE e Carteira entraram na ISSUE-085; a ISSUE-086 fechou o módulo com a exportação Excel e a troca de período. A impressão do relatório é a do navegador, pela tela (ISSUE-083).
