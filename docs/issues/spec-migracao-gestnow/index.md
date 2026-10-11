@@ -104,7 +104,7 @@ vem primeiro.
 | ISSUE-075 | Painel HSE | 7 | task | done | ready-for-agent | ISSUE-072, ISSUE-073, ISSUE-074, ISSUE-034 | [ISSUE-075](./075-painel-hse.md) |
 | ISSUE-076 | Parâmetros: edição por grupo com justificativa, versões e histórico | 7 | task | done | ready-for-agent | ISSUE-066 | [ISSUE-076](./076-configuracoes-parametros.md) |
 | ISSUE-077 | Colaboradores: perfil geral, papéis na Programação Semanal por projeto, vínculo e empresa | 7 | task | done | ready-for-agent | ISSUE-054 | [ISSUE-077](./077-configuracoes-colaboradores.md) |
-| ISSUE-078 | Cadastros de apoio: empresas, pessoas, projetos, sistemas, unidades e locais | 7 | task | proposed | ready-for-agent | ISSUE-054 | [ISSUE-078](./078-configuracoes-cadastros-de-apoio.md) |
+| ISSUE-078 | Cadastros de apoio: empresas, pessoas, projetos, sistemas, unidades e locais | 7 | task | done | ready-for-agent | ISSUE-054 | [ISSUE-078](./078-configuracoes-cadastros-de-apoio.md) |
 | ISSUE-079 | Início do projeto: indicador-chave por módulo e pontos de atenção | 8 | task | proposed | ready-for-agent | ISSUE-020, ISSUE-026, ISSUE-035, ISSUE-040, ISSUE-042, ISSUE-050, ISSUE-063, ISSUE-066, ISSUE-071, ISSUE-075 | [ISSUE-079](./079-inicio-do-projeto.md) |
 | ISSUE-080 | Início no Portfólio: carteira de projetos e edição da ponderação | 8 | task | proposed | ready-for-agent | ISSUE-079 | [ISSUE-080](./080-inicio-no-portfolio-e-ponderacao.md) |
 | ISSUE-081 | Análise do período de 02, 03 e 04, com desvios negativos e comentários obrigatórios | 8 | task | proposed | ready-for-agent | ISSUE-040, ISSUE-042, ISSUE-044, ISSUE-048, ISSUE-063 | [ISSUE-081](./081-analise-do-periodo-02-03-04.md) |
