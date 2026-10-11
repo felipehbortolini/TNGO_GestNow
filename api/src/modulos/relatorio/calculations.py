@@ -108,6 +108,11 @@ def format_pp(value: Decimal | None) -> str:
     return _pp(value)
 
 
+def format_percent_signed(value: Decimal | None) -> str:
+    """O percentual com sinal de mais quando positivo (``+5,5%``); nulo vira ``·``."""
+    return "·" if value is None else f"{_signed(value, 1)}%"
+
+
 def format_month(value: date | None) -> str:
     """O formatador de mês que o template usa (``set/26``)."""
     return _mes_curto(value)
@@ -116,6 +121,25 @@ def format_month(value: date | None) -> str:
 def format_money(value: int | None) -> str:
     """O formatador de dinheiro que o template usa (``R$ 1.234,56``)."""
     return _dinheiro(value)
+
+
+def format_thousands(value: int | None) -> str:
+    """O dinheiro em R$ mil que as tabelas do relatório usam (``44.600``); nulo vira ``·``."""
+    if value is None:
+        return "·"
+    mil = (Decimal(value) / Decimal(100000)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+    return f"{mil:,}".replace(",", ".")
+
+
+def format_money_thousands(value: int | None) -> str:
+    """O dinheiro em R$ mil com a unidade (``R$ 44.600 mil``); nulo vira ``·``.
+
+    É o formato dos rodapés dos KPIs das folhas Financeiro e Suprimentos: os valores são
+    grandes demais para o reais por extenso e o ``R$`` fica explícito no rótulo.
+    """
+    if value is None:
+        return "·"
+    return f"R$ {format_thousands(value)} mil"
 
 
 def format_number(value: int | None) -> str:
@@ -881,6 +905,24 @@ def report_period_cutoff(kind: str, period: str, reference_date: date) -> date |
 def is_partial_period(kind: str, period: str, reference_date: date) -> bool:
     """Se o período ainda está em andamento na data de referência (sai marcado parcial)."""
     return calendario.is_partial(kind, period, reference_date)
+
+
+def report_horizon(kind: str, period: str) -> tuple[date, date] | None:
+    """O horizonte dos previstos de suprimentos: do dia seguinte ao fim do período em diante.
+
+    No Semanal são as 4 semanas seguintes ao fim do período (28 dias, até o domingo da quarta
+    semana); no Mensal é o mês seguinte inteiro, como o lookahead do protótipo. Rótulo inválido
+    não tem horizonte.
+    """
+    bounds = calendario.period_bounds(kind, period)
+    if bounds is None:
+        return None
+    end = bounds[1]
+    if kind == calendario.WEEKLY:
+        return calendario.add_days(end, 1), calendario.add_days(end, 28)
+    following = calendario.add_periods(calendario.MONTHLY, period, 1)
+    next_bounds = calendario.period_bounds(calendario.MONTHLY, following) if following else None
+    return calendario.add_days(end, 1), next_bounds[1] if next_bounds else end
 
 
 @dataclass(frozen=True)

@@ -20,5 +20,11 @@
   {% include "relatorio/folha_planejamento_kpis.html" %}
   {% include "relatorio/folha_planejamento_relato.html" %}
   {% endif %}
+  {% if visao.financeiro %}
+  {% include "relatorio/folha_financeiro.html" %}
+  {% endif %}
+  {% if visao.suprimentos %}
+  {% include "relatorio/folha_suprimentos.html" %}
+  {% endif %}
 </div>
 {% endblock %}

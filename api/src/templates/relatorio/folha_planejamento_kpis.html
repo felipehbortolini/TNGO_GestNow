@@ -5,19 +5,9 @@
   (SPI de quantidades, FP, aderência, pessoas trabalhando, utilização e HH paralisadas, com as
   metas vigentes e as empresas em alerta), a Curva S física mensal do dono e as barras do
   avanço por período (8 semanas ou 6 meses até o corte), com o avanço por área (ou por projeto,
-  no Portfólio). Os números vêm das fachadas donas no corte; nada é recalculado aqui.
+  no Portfólio). Os números vêm das fachadas donas no corte; nada é recalculado aqui. O KPI e a
+  cor do índice são os macros compartilhados de `_folha.html`.
 #}
-{% macro cor_indice(valor) %}{{ 'info' if valor is none else 'success' if valor >= 1 else 'warning' if valor >= 0.95 else 'danger' }}{% endmacro %}
-
-{% macro kpi(rotulo, valor, cor, unidade='', esperado_rotulo='', esperado_valor='', rodape='', rodape_negativo=False) %}
-<div class="rel-kpi rel-kpi--{{ cor }}">
-  <span class="rel-kpi__rotulo">{{ rotulo }}</span>
-  <span class="rel-kpi__valor">{{ valor }}{% if unidade %}<small>{{ unidade }}</small>{% endif %}</span>
-  <span class="rel-kpi__esperado">{% if esperado_rotulo %}<span>{{ esperado_rotulo }} <b>{{ esperado_valor }}</b></span>{% endif %}</span>
-  <span class="rel-kpi__rodape">{% if rodape_negativo %}<span class="rel-negativo">{{ rodape }}</span>{% elif rodape %}{{ rodape }}{% else %}&nbsp;{% endif %}</span>
-</div>
-{% endmacro %}
-
 {% set p = visao.planning %}
 {% set sem = visao.kind == 'Semanal' %}
 {% set prod = p.figures.productivity %}
@@ -31,23 +21,23 @@
     <div class="rel-alerta">Sem Curva S cadastrada no escopo.</div>
     {% else %}
     <div class="rel-kpis">
-      {{ kpi('Avanço previsto (acumulado)', formatar_pct(p.figures.predicted), 'previsto', '', 'Linha de base', formatar_data(visao.cut)) }}
-      {{ kpi('Avanço real (acumulado)', formatar_pct(p.figures.actual), 'real', '', 'Previsto', formatar_pct(p.figures.predicted), 'desvio ' ~ formatar_pp(p.figures.deviation_pp), p.figures.deviation_pp < 0) }}
-      {{ kpi('SPI físico', formatar_indice(p.figures.spi), cor_indice(p.figures.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'período anterior ' ~ formatar_indice(p.figures.previous_spi) if p.figures.previous_spi is not none else 'real ÷ previsto') }}
-      {{ kpi('Avanço na ' ~ ('semana' if sem else 'mês'), formatar_num1(av_real), 'info' if av_desvio is none else ('success' if av_desvio >= 0 else 'danger'), 'p.p.', 'Previsto', formatar_num1(av_prev) ~ ' p.p.', ('desvio ' ~ formatar_pp(av_desvio)) if av_desvio is not none else '', av_desvio is not none and av_desvio < 0) }}
-      {{ kpi('Término pela tendência', formatar_mes(p.figures.trend_finish), 'danger' if p.figures.trend_finish and p.figures.baseline_finish and p.figures.trend_finish > p.figures.baseline_finish else 'success', '', 'Linha de base', formatar_mes(p.figures.baseline_finish)) }}
-      {{ kpi('Desvio acumulado', formatar_pp(p.figures.deviation_pp), 'danger' if p.figures.deviation_pp < 0 else 'success', 'p.p.', 'Meta', '≥ 0', 'faixas −' ~ formatar_num0(p.deviation_bands[0]) ~ ' e −' ~ formatar_num0(p.deviation_bands[1]) ~ ' p.p.') }}
+      {{ folha.kpi('Avanço previsto (acumulado)', formatar_pct(p.figures.predicted), 'previsto', '', 'Linha de base', formatar_data(visao.cut)) }}
+      {{ folha.kpi('Avanço real (acumulado)', formatar_pct(p.figures.actual), 'real', '', 'Previsto', formatar_pct(p.figures.predicted), 'desvio ' ~ formatar_pp(p.figures.deviation_pp), p.figures.deviation_pp < 0) }}
+      {{ folha.kpi('SPI físico', formatar_indice(p.figures.spi), folha.cor_indice(p.figures.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'período anterior ' ~ formatar_indice(p.figures.previous_spi) if p.figures.previous_spi is not none else 'real ÷ previsto') }}
+      {{ folha.kpi('Avanço na ' ~ ('semana' if sem else 'mês'), formatar_num1(av_real), 'info' if av_desvio is none else ('success' if av_desvio >= 0 else 'danger'), 'p.p.', 'Previsto', formatar_num1(av_prev) ~ ' p.p.', ('desvio ' ~ formatar_pp(av_desvio)) if av_desvio is not none else '', av_desvio is not none and av_desvio < 0) }}
+      {{ folha.kpi('Término pela tendência', formatar_mes(p.figures.trend_finish), 'danger' if p.figures.trend_finish and p.figures.baseline_finish and p.figures.trend_finish > p.figures.baseline_finish else 'success', '', 'Linha de base', formatar_mes(p.figures.baseline_finish)) }}
+      {{ folha.kpi('Desvio acumulado', formatar_pp(p.figures.deviation_pp), 'danger' if p.figures.deviation_pp < 0 else 'success', 'p.p.', 'Meta', '≥ 0', 'faixas −' ~ formatar_num0(p.deviation_bands[0]) ~ ' e −' ~ formatar_num0(p.deviation_bands[1]) ~ ' p.p.') }}
     </div>
 
     {% if prod %}
     <h3 class="rel-bloco__titulo">Produtividade <small>últimas {{ prod.weeks }} semanas até {{ p.week_label }}{% if prod.alert_companies %} · empresas em alerta: {{ prod.alert_companies | join(', ') }}{% endif %}</small></h3>
     <div class="rel-kpis">
-      {{ kpi('SPI de quantidades', formatar_indice(prod.spi), (prod.bands.spi if prod.bands else none) or cor_indice(prod.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'horas ganhas ÷ planejadas') }}
-      {{ kpi('Fator de produtividade (FP)', formatar_indice(prod.pf_window), (prod.bands.pf if prod.bands else none) or 'info', '', 'Meta', '≤ ' ~ formatar_indice(prod.meta_pf), 'HH aprop. ÷ ganhas') }}
-      {{ kpi('Aderência semanal', formatar_pct(prod.adherence), (prod.bands.adherence if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_adherence) ~ '%', 'real ÷ LB') }}
-      {{ kpi('Pessoas trabalhando', formatar_pct(prod.working_pct), (prod.bands.working if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_working) ~ '%', 'amostragem') }}
-      {{ kpi('Utilização da jornada', formatar_pct(prod.utilization), (prod.bands.utilization if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_utilization) ~ '%', 'horas efetivas') }}
-      {{ kpi('HH paralisadas', formatar_pct(prod.stoppage_share), 'warning' if prod.stoppage_share is not none and prod.stoppage_share > 5 else 'success', '', 'Limite', '≤ 5%', formatar_num0(prod.stoppage_hours) ~ ' HH na janela') }}
+      {{ folha.kpi('SPI de quantidades', formatar_indice(prod.spi), (prod.bands.spi if prod.bands else none) or folha.cor_indice(prod.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'horas ganhas ÷ planejadas') }}
+      {{ folha.kpi('Fator de produtividade (FP)', formatar_indice(prod.pf_window), (prod.bands.pf if prod.bands else none) or 'info', '', 'Meta', '≤ ' ~ formatar_indice(prod.meta_pf), 'HH aprop. ÷ ganhas') }}
+      {{ folha.kpi('Aderência semanal', formatar_pct(prod.adherence), (prod.bands.adherence if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_adherence) ~ '%', 'real ÷ LB') }}
+      {{ folha.kpi('Pessoas trabalhando', formatar_pct(prod.working_pct), (prod.bands.working if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_working) ~ '%', 'amostragem') }}
+      {{ folha.kpi('Utilização da jornada', formatar_pct(prod.utilization), (prod.bands.utilization if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_utilization) ~ '%', 'horas efetivas') }}
+      {{ folha.kpi('HH paralisadas', formatar_pct(prod.stoppage_share), 'warning' if prod.stoppage_share is not none and prod.stoppage_share > 5 else 'success', '', 'Limite', '≤ 5%', formatar_num0(prod.stoppage_hours) ~ ' HH na janela') }}
     </div>
     {% endif %}
 

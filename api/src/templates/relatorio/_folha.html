@@ -1,7 +1,8 @@
 {#
-  Macros da folha A4 do relatório gerencial (ISSUE-083): o cabeçalho com a marca, o título, o
-  período (parcial quando for o caso) e o projeto, a faixa da seção e o rodapé com a nota e a
-  página. Importado `with context` pelas folhas, que precisam dos formatadores do contexto.
+  Macros das folhas A4 do relatório gerencial (ISSUE-083, estendidas na ISSUE-084): o cabeçalho
+  com a marca, o título, o período (parcial quando for o caso) e o projeto, a faixa da seção e o
+  rodapé com a nota e a página; o KPI e a cor de um índice, compartilhados pelas folhas.
+  Importado `with context` pelas folhas, que precisam dos formatadores do contexto.
 #}
 {% macro cabecalho(visao, secao, sub) %}
 <header class="rel-folha__cabecalho">
@@ -24,4 +25,15 @@
   <span>{{ nota }}</span>
   <span data-pagina></span>
 </footer>
+{% endmacro %}
+
+{% macro cor_indice(valor) %}{{ 'info' if valor is none else 'success' if valor >= 1 else 'warning' if valor >= 0.95 else 'danger' }}{% endmacro %}
+
+{% macro kpi(rotulo, valor, cor, unidade='', esperado_rotulo='', esperado_valor='', rodape='', rodape_negativo=False, rodape_html=none) %}
+<div class="rel-kpi rel-kpi--{{ cor }}">
+  <span class="rel-kpi__rotulo">{{ rotulo }}</span>
+  <span class="rel-kpi__valor">{{ valor }}{% if unidade %}<small>{{ unidade }}</small>{% endif %}</span>
+  <span class="rel-kpi__esperado">{% if esperado_rotulo %}<span>{{ esperado_rotulo }} <b>{{ esperado_valor }}</b></span>{% endif %}</span>
+  <span class="rel-kpi__rodape">{% if rodape_html %}{{ rodape_html }}{% elif rodape_negativo %}<span class="rel-negativo">{{ rodape }}</span>{% elif rodape %}{{ rodape }}{% else %}&nbsp;{% endif %}</span>
+</div>
 {% endmacro %}

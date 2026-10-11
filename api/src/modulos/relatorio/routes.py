@@ -327,6 +327,7 @@ def _sheets_context(view: service.ReportSheets) -> dict[str, Any]:
     return {
         "visao": view,
         "formatar_pct": calculations.format_percent,
+        "formatar_pct_sinal": calculations.format_percent_signed,
         "formatar_indice": calculations.format_index,
         "formatar_pp": calculations.format_pp,
         "formatar_mes": calculations.format_month,
@@ -334,6 +335,8 @@ def _sheets_context(view: service.ReportSheets) -> dict[str, Any]:
         "formatar_num": calculations.format_number,
         "formatar_num0": calculations.format_number0,
         "formatar_num1": calculations.format_number1,
+        "formatar_mil": calculations.format_thousands,
+        "formatar_moeda_mil": calculations.format_money_thousands,
     }
 
 

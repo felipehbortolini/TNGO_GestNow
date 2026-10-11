@@ -19,7 +19,11 @@ analysis (read without WRITE, so a Visualizador sees it) — and ``report_view``
 sheets. The cut is ``calculations.report_period_cutoff`` (the end of the period, limited to
 the reference date) and the sheet of Planning reuses the same reading as the analysis: the
 position, the productivity, the owner's curve, the bars of the advance per period and the
-areas. The links the modal offers point at the screens that register each piece.
+areas. The links the modal offers point at the screens that register each piece. The
+ISSUE-084 adds the Financeiro sheet — the cost KPIs in the competence month, the owner's
+financial curve with the trend of that very month and the EAC by package — and the
+Suprimentos sheet — the panel KPIs at the cut, the contracting curve, the milestones done in
+the period and the adjudications and deliveries of the horizon.
 """
 
 from __future__ import annotations
@@ -65,8 +69,12 @@ DEVIATION_REQUIRED: Mapping[str, bool] = {
     "hse": False,
 }
 
-# As seções que o relatório já implementa, na ordem do modal; cresce nas ISSUE-084/ISSUE-085.
-REPORT_SECTIONS: tuple[tuple[str, str], ...] = (("planejamento", "Planejamento (2 páginas)"),)
+# As seções que o relatório já implementa, na ordem do modal; cresce na ISSUE-085.
+REPORT_SECTIONS: tuple[tuple[str, str], ...] = (
+    ("planejamento", "Planejamento (2 páginas)"),
+    ("financeiro", "Financeiro (1 página)"),
+    ("suprimentos", "Suprimentos (1 página)"),
+)
 
 # A tela de cada módulo onde a análise do período é registrada: o endereço que o modal oferece.
 REPORT_ANALYSIS_SCREENS: Mapping[str, str] = {
@@ -975,6 +983,135 @@ class ProjectRelatoSheet:
 
 
 @dataclass(frozen=True)
+class CostPackageRow:
+    """Uma linha da EAC por pacote na folha Financeiro, com a faixa do desvio do dono."""
+
+    code: str
+    description: str
+    project_code: str
+    current_cents: int
+    committed_cents: int
+    actual_cents: int
+    projection_cents: int
+    deviation_cents: int
+    deviation_percent: Decimal | None
+    band_tone: str
+    band_label: str
+
+
+@dataclass(frozen=True)
+class CostValueMonth:
+    """Um mês do valor agregado da folha Financeiro: o mês e os valores que a tabela mostra."""
+
+    month: date
+    pv_cents: int
+    ev_cents: int
+    ac_cents: int
+    cpi: Decimal | None
+    spi: Decimal | None
+
+
+@dataclass(frozen=True)
+class FinanceiroSheet:
+    """A folha Financeiro: os KPIs de custo, a curva com a tendência, o valor agregado e a EAC.
+
+    O mês é o de competência (no semanal, o último fechado até o fim do período) e a curva é a do
+    dono lida nele: a tendência parte do realizado do próprio mês, sem dado posterior. ``empty``
+    é o aviso do protótipo — sem fechamento até o fim do período a folha mostra só a análise.
+    """
+
+    analysis: AnalysisView
+    analysis_url: str
+    empty: bool
+    month: date
+    month_current: bool
+    is_portfolio: bool
+    budget_cents: int = 0
+    actual_cents: int = 0
+    actual_month_cents: int = 0
+    planned_month_cents: int = 0
+    ev_cents: int = 0
+    pv_cents: int = 0
+    cpi: Decimal | None = None
+    spi: Decimal | None = None
+    previous_cpi: Decimal | None = None
+    projection_cents: int | None = None
+    vac_cents: int | None = None
+    band_tone: str = "neutro"
+    band_label: str = ""
+    contingency_pct: Decimal | None = None
+    contingency_consumed_cents: int = 0
+    contingency_total_cents: int = 0
+    eac_trend_cents: int | None = None
+    curve_chart: Mapping[str, Any] = field(default_factory=dict)
+    history: tuple[CostValueMonth, ...] = ()
+    packages: tuple[CostPackageRow, ...] = ()
+    total: CostPackageRow | None = None
+
+
+@dataclass(frozen=True)
+class ProcurementCriticalRow:
+    """Um pedido crítico da folha Suprimentos: o número, o item, o ROS, a previsão e a folga."""
+
+    number: str
+    description: str
+    project_code: str
+    ros: date | None
+    forecast: date
+    slack_days: int | None
+    lli: bool = False
+
+
+@dataclass(frozen=True)
+class ProcurementEventRow:
+    """Um evento de suprimentos na folha: a data, o tipo, o pedido ou pacote e o desvio."""
+
+    date: date
+    kind: str
+    code: str
+    description: str
+    project_code: str
+    deviation_days: int | None
+
+
+@dataclass(frozen=True)
+class ProcurementSheet:
+    """A folha Suprimentos: os KPIs do painel, a curva de contratação, os críticos e o horizonte.
+
+    Os eventos são os marcos de pedido realizados dentro do período e os previstos são as
+    adjudicações e entregas do horizonte (4 semanas seguintes no semanal, o mês seguinte no
+    mensal), ambos com o desvio contra o plano.
+    """
+
+    analysis: AnalysisView
+    analysis_url: str
+    is_portfolio: bool
+    adherence_pct: Decimal | None
+    adherence_target: int
+    adjudicated: int
+    planned: int
+    packages_total: int
+    adjudicated_cents: int
+    saving_cents: int
+    saving_pct: Decimal | None
+    otd_pct: Decimal | None
+    otd_target: int
+    delivered: int
+    delivered_on_time: int
+    critical: int
+    warning: int
+    emitted: int
+    emitted_planned: int
+    criticals: tuple[ProcurementCriticalRow, ...]
+    events: tuple[ProcurementEventRow, ...]
+    forecasts: tuple[ProcurementEventRow, ...]
+    horizon_start: date
+    horizon_end: date
+    weekly: bool
+    curve_chart: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
 class ReportSheets:
     """As folhas do relatório: o cabeçalho do escopo e do período e o que cada seção traz."""
 
@@ -991,6 +1128,8 @@ class ReportSheets:
     sections: tuple[str, ...]
     is_portfolio: bool
     planning: PlanningSheet | None
+    financeiro: FinanceiroSheet | None
+    suprimentos: ProcurementSheet | None
     analysis: AnalysisView | None
     analysis_url: str
     relato: Any | None
@@ -1025,6 +1164,8 @@ def report_view(
     if cut is None:
         raise InvalidDataError({validation.FIELD_PERIOD: validation.CHOOSE_MESSAGE})
     planning = None
+    financeiro = None
+    suprimentos = None
     analysis = None
     analysis_url = ""
     relato = None
@@ -1057,6 +1198,20 @@ def report_view(
         else:
             relato = _find_report(session, user=user, scope=scope, kind=kind, period=period)
             relato_url = _relato_url(kind, period)
+    if "financeiro" in chosen:
+        financeiro = _financeiro_sheet(
+            session, user=user, scope=scope, kind=kind, period=period, reference_date=reference_date
+        )
+    if "suprimentos" in chosen:
+        suprimentos = _procurement_sheet(
+            session,
+            user=user,
+            scope=scope,
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+            cut=cut,
+        )
     return ReportSheets(
         scope=scope.parameter,
         scope_label=_scope_label(session, scope),
@@ -1071,6 +1226,8 @@ def report_view(
         sections=chosen,
         is_portfolio=scope.is_portfolio,
         planning=planning,
+        financeiro=financeiro,
+        suprimentos=suprimentos,
         analysis=analysis,
         analysis_url=analysis_url,
         relato=relato,
@@ -1297,6 +1454,317 @@ def _find_report(
     from src.modulos.planejamento import service as planejamento
 
     return planejamento.find_report(session, user=user, scope=scope, kind=kind, period=period)
+
+
+# ── Relatório gerencial: a folha Financeiro (ISSUE-084) ────────────────────
+
+# Quantos meses o valor agregado mês a mês da folha mostra, terminando no mês de competência.
+VALUE_MONTHS = 6
+
+
+def _financeiro_sheet(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    kind: str,
+    period: str,
+    reference_date: date,
+) -> FinanceiroSheet:
+    """A folha Financeiro montada no mês de competência, pela leitura do dono (D9).
+
+    Os números são os mesmos da tela de KPIs de custo no mesmo corte: ``cost_kpis_overview`` no
+    mês de competência (no semanal, o último mês fechado). A curva vem de
+    ``financial_curve_overview`` lida no próprio mês — a tendência do dono já sai calculada a
+    partir do realizado dele, sem dado posterior ao período — e a EAC por pacote é a leitura do
+    mapa de controle no mês, com as faixas de calor que o dono calcula dos parâmetros vigentes.
+    Sem fechamento até o fim do período, a folha sai no aviso do protótipo, só com a análise.
+    """
+    from src.modulos.financeiro import export as financial_export
+    from src.modulos.financeiro import service as financeiro
+
+    month = calculations.competence_month(kind, period)
+    overview = financeiro.cost_kpis_overview(session, scope=scope, reference_date=month)
+    analysis = _analysis_reading(
+        session,
+        user=user,
+        scope=scope,
+        module="financeiro",
+        kind=kind,
+        period=period,
+        reference_date=reference_date,
+    )
+    analysis_url = _analysis_url("financeiro", kind, period, scope)
+    if overview.actual is None:
+        return FinanceiroSheet(
+            analysis=analysis,
+            analysis_url=analysis_url,
+            empty=True,
+            month=month,
+            month_current=False,
+            is_portfolio=scope.is_portfolio,
+        )
+    curve = financeiro.financial_curve_overview(session, scope=scope, reference_date=month)
+    mapa = financeiro.mapa_controle(session, scope=scope, reference_date=month)
+    actual = overview.actual
+    previous_cents = overview.previous.ac_cents if overview.previous is not None else 0
+    return FinanceiroSheet(
+        analysis=analysis,
+        analysis_url=analysis_url,
+        empty=False,
+        month=month,
+        month_current=_is_cut_month(curve, month),
+        is_portfolio=scope.is_portfolio,
+        budget_cents=overview.budget_cents,
+        actual_cents=actual.ac_cents,
+        actual_month_cents=actual.ac_cents - previous_cents,
+        planned_month_cents=_planned_month_cents(curve, month),
+        ev_cents=actual.ev_cents,
+        pv_cents=actual.pv_cents,
+        cpi=actual.cpi,
+        spi=actual.spi,
+        previous_cpi=overview.previous.cpi if overview.previous is not None else None,
+        projection_cents=overview.projection_cents,
+        vac_cents=overview.vac_cents,
+        band_tone=mapa.total.band.tone,
+        band_label=mapa.total.band.label,
+        contingency_pct=overview.contingency_pct,
+        contingency_consumed_cents=overview.contingency_consumed_cents,
+        contingency_total_cents=overview.contingency_total_cents,
+        eac_trend_cents=curve.kpis.trend_cents if curve.kpis is not None else None,
+        curve_chart={} if curve.is_empty else financial_export.curva_financeira_chart(curve),
+        history=tuple(
+            CostValueMonth(
+                month=row.month,
+                pv_cents=row.pv_cents,
+                ev_cents=row.ev_cents,
+                ac_cents=row.ac_cents,
+                cpi=row.cpi,
+                spi=row.spi,
+            )
+            for row in overview.history[-VALUE_MONTHS:]
+        ),
+        packages=tuple(_cost_package_row(row) for row in mapa.rows if row.level == 1),
+        total=_cost_package_row(mapa.total),
+    )
+
+
+def _is_cut_month(curve: Any, month: date) -> bool:
+    """Se o mês de competência é o mês do corte da curva do dono (o mês ainda em andamento)."""
+    index = curve.series.cut_index
+    return index >= 0 and curve.series.months[index] == month
+
+
+def _planned_month_cents(curve: Any, month: date) -> int:
+    """O planejado do mês na curva do dono: a diferença para o mês anterior (o primeiro vale o seu)."""
+    months = curve.series.months
+    if month not in months:
+        return 0
+    index = months.index(month)
+    previous = curve.series.planned[index - 1] if index > 0 else 0
+    return curve.series.planned[index] - previous
+
+
+def _cost_package_row(row: Any) -> CostPackageRow:
+    """Uma linha do mapa de controle como a folha Financeiro a lê."""
+    return CostPackageRow(
+        code=row.code,
+        description=row.description,
+        project_code=_project_code(row.project_label),
+        current_cents=row.current_cents,
+        committed_cents=row.committed_cents,
+        actual_cents=row.actual_cents,
+        projection_cents=row.projection_cents,
+        deviation_cents=row.deviation_cents,
+        deviation_percent=row.deviation_percent,
+        band_tone=row.band.tone,
+        band_label=row.band.label,
+    )
+
+
+# ── Relatório gerencial: a folha Suprimentos (ISSUE-084) ───────────────────
+
+
+def _procurement_sheet(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    kind: str,
+    period: str,
+    reference_date: date,
+    cut: date,
+) -> ProcurementSheet:
+    """A folha Suprimentos montada no corte, pelas fachadas do dono (D9).
+
+    Os KPIs são os do painel de suprimentos no corte; a curva de contratação é a do painel. Os
+    marcos realizados são os marcos de pedido com real dentro do período, todos com o desvio
+    (a 081 só lista os atrasados). Os previstos são as adjudicações do plano ainda não
+    adjudicadas e as entregas dos pedidos ainda não entregues dentro do horizonte do tipo.
+    """
+    from src.modulos.suprimentos import export as procurement_export
+    from src.modulos.suprimentos import service as suprimentos
+    from src.modulos.suprimentos import validation as procurement_validation
+
+    panel = suprimentos.list_panel(session, user=user, scope=scope, reference_date=cut)
+    listing = suprimentos.list_orders(
+        session,
+        user=user,
+        scope=scope,
+        filters=procurement_validation.OrderFilters(
+            situation=procurement_validation.ORDER_SITUATION_ALL
+        ),
+        reference_date=cut,
+    )
+    packages = suprimentos.list_packages(
+        session,
+        user=user,
+        scope=scope,
+        filters=procurement_validation.PackageFilters(),
+        reference_date=cut,
+    )
+    analysis = _analysis_reading(
+        session,
+        user=user,
+        scope=scope,
+        module="suprimentos",
+        kind=kind,
+        period=period,
+        reference_date=reference_date,
+    )
+    bounds = calendario.period_bounds(kind, period)
+    first = bounds[0] if bounds is not None else cut
+    horizon = calculations.report_horizon(kind, period)
+    summary = panel.summary
+    criticals = sorted(
+        (line for line in listing.lines if line.critical),
+        key=lambda line: (line.slack_days or 0, line.number),
+    )
+    return ProcurementSheet(
+        analysis=analysis,
+        analysis_url=_analysis_url("suprimentos", kind, period, scope),
+        is_portfolio=scope.is_portfolio,
+        adherence_pct=summary.adherence_pct,
+        adherence_target=summary.adherence_target,
+        adjudicated=summary.adjudicated_until_reference,
+        planned=summary.planned_until_reference,
+        packages_total=summary.packages,
+        adjudicated_cents=summary.adjudicated_cents,
+        saving_cents=summary.saving_cents,
+        saving_pct=summary.saving_pct,
+        otd_pct=summary.orders.otd,
+        otd_target=summary.otd_target,
+        delivered=summary.orders.delivered,
+        delivered_on_time=summary.orders.delivered_on_time,
+        critical=summary.orders.critical,
+        warning=summary.orders.warning,
+        emitted=sum(1 for line in listing.lines if line.emission <= cut),
+        emitted_planned=sum(
+            1 for line in packages.lines if line.plan_order is not None and line.plan_order <= cut
+        ),
+        criticals=tuple(_critical_row(line) for line in criticals),
+        events=_executed_events(listing.lines, first=first, cut=cut),
+        forecasts=_forecast_events(
+            packages.lines,
+            listing.lines,
+            start=horizon[0] if horizon is not None else cut,
+            end=horizon[1] if horizon is not None else cut,
+        ),
+        horizon_start=horizon[0] if horizon is not None else cut,
+        horizon_end=horizon[1] if horizon is not None else cut,
+        weekly=kind == calendario.WEEKLY,
+        curve_chart=procurement_export.panel_contracting_chart(panel),
+    )
+
+
+def _critical_row(line: Any) -> ProcurementCriticalRow:
+    """Um pedido crítico como a folha Suprimentos o lê."""
+    return ProcurementCriticalRow(
+        number=line.number,
+        description=line.description,
+        project_code=_project_code(line.project_label),
+        ros=line.ros,
+        forecast=line.forecast,
+        slack_days=line.slack_days,
+        lli=line.lli,
+    )
+
+
+def _executed_events(
+    lines: Sequence[Any], *, first: date, cut: date
+) -> tuple[ProcurementEventRow, ...]:
+    """Os marcos de pedido realizados dentro do período, com o desvio contra a linha de base."""
+    rows: list[ProcurementEventRow] = []
+    for line in lines:
+        for milestone in line.milestones:
+            if milestone.real is None or not first <= milestone.real <= cut:
+                continue
+            rows.append(
+                ProcurementEventRow(
+                    date=milestone.real,
+                    kind=milestone.name,
+                    code=line.number,
+                    description=line.description,
+                    project_code=_project_code(line.project_label),
+                    deviation_days=milestone.deviation_days,
+                )
+            )
+    rows.sort(key=lambda row: (row.date, row.code))
+    return tuple(rows)
+
+
+def _forecast_events(
+    packages: Sequence[Any],
+    orders: Sequence[Any],
+    *,
+    start: date,
+    end: date,
+) -> tuple[ProcurementEventRow, ...]:
+    """As adjudicações e entregas previstas no horizonte, com o desvio contra o plano ou o contrato.
+
+    A adjudicação prevista é a do pacote ainda não adjudicado, na previsão do dono ou, sem ela,
+    na linha de base; a entrega prevista é a do pedido ainda não entregue.
+    """
+    rows: list[ProcurementEventRow] = []
+    for line in packages:
+        adjudication = line.adjudication
+        if adjudication is None or adjudication.real is not None:
+            continue
+        forecast = adjudication.forecast or adjudication.plan
+        if forecast is None or not start <= forecast <= end:
+            continue
+        rows.append(
+            ProcurementEventRow(
+                date=forecast,
+                kind="Adjudicação",
+                code=line.code,
+                description=line.scope,
+                project_code=_project_code(line.project_label),
+                deviation_days=(
+                    None if adjudication.plan is None else (forecast - adjudication.plan).days
+                ),
+            )
+        )
+    for line in orders:
+        if line.delivered or not start <= line.forecast <= end:
+            continue
+        rows.append(
+            ProcurementEventRow(
+                date=line.forecast,
+                kind="Entrega",
+                code=line.number,
+                description=line.description,
+                project_code=_project_code(line.project_label),
+                deviation_days=line.contractual_delay_days,
+            )
+        )
+    rows.sort(key=lambda row: (row.date, row.code))
+    return tuple(rows)
+
+
+def _project_code(label: str | None) -> str:
+    """O código do projeto no rótulo ``COD · Nome`` do dono; vazio quando não há rótulo."""
+    return "" if not label else label.split(" · ", 1)[0]
 
 
 # ── Coleta dos dados (fachadas donas) ──────────────────────────────────────

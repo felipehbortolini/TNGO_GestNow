@@ -1,0 +1,111 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha Financeiro (ISSUE-084): os KPIs de custo no mês de competência (BAC, realizado
+  acumulado e do mês, valor agregado com EV e PV, CPI, projeção no término com o VAC na família
+  de cor da faixa do dono e contingência consumida), a Curva S financeira do dono com a linha
+  de tendência calculada no próprio mês e o valor agregado dos últimos seis meses à esquerda; à
+  direita, a análise do período e a EAC por pacote (nível 1, R$ mil, com a faixa de calor do
+  dono). Sem fechamento até o fim do período, a folha sai no aviso do protótipo, só com a
+  análise. No Portfólio a tabela é a EAC por projeto. Nada é recalculado aqui: os números vêm
+  de `cost_kpis_overview`, `financial_curve_overview` e `mapa_controle` no mês de competência.
+#}
+{% set f = visao.financeiro %}
+{% set analise = f.analysis %}
+{% set analise_url = f.analysis_url %}
+<section class="rel-folha" aria-label="Financeiro">
+  {{ folha.cabecalho(visao, 'Financeiro', 'competência ' ~ formatar_mes(f.month)) }}
+  <div class="rel-folha__corpo">
+    {% if f.empty %}
+    <div class="rel-alerta">Sem fechamento mensal de custos até o fim do período. O primeiro fechamento disponível é posterior ao período escolhido.</div>
+    {% else %}
+    {% set sobrecusto = f.vac_cents is not none and f.vac_cents < 0 %}
+    {% set vac_texto = ('+' if sobrecusto else '−') ~ formatar_moeda_mil(f.vac_cents | abs) if f.vac_cents is not none else '' %}
+    {% set vac_html %}<span class="rel-heat rel-heat--{{ f.band_tone }}" title="{{ f.band_label }}">{{ vac_texto }}</span> x orçamento{% endset %}
+    <div class="rel-kpis">
+      {{ folha.kpi('Orçamento vigente (BAC)', formatar_mil(f.budget_cents), 'previsto', 'R$ mil', '', '', 'EAC revisão vigente') }}
+      {{ folha.kpi('Realizado acumulado', formatar_mil(f.actual_cents), 'real', 'R$ mil', 'Previsto', formatar_moeda_mil(f.pv_cents), formatar_moeda_mil(f.actual_month_cents) ~ ' no mês · plan. ' ~ formatar_moeda_mil(f.planned_month_cents)) }}
+      {{ folha.kpi('Valor agregado (EV)', formatar_mil(f.ev_cents), 'real', 'R$ mil', 'Previsto', formatar_moeda_mil(f.pv_cents), 'planejado (PV)') }}
+      {{ folha.kpi('CPI', formatar_indice(f.cpi), folha.cor_indice(f.cpi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'mês anterior ' ~ formatar_indice(f.previous_cpi) ~ ' · SPI ' ~ formatar_indice(f.spi)) }}
+      {{ folha.kpi('Projeção no término', formatar_mil(f.projection_cents), 'danger' if sobrecusto else 'success', 'R$ mil', 'Orçado', formatar_moeda_mil(f.budget_cents), rodape_html=vac_html) }}
+      {{ folha.kpi('Contingência consumida', formatar_pct(f.contingency_pct), 'info', '', '', '', formatar_moeda_mil(f.contingency_consumed_cents) ~ ' de ' ~ formatar_moeda_mil(f.contingency_total_cents)) }}
+    </div>
+
+    <div class="rel-grade rel-grade--45-55">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Curva S financeira <small>acumulado até {{ formatar_mes(f.month) }}{% if f.eac_trend_cents is not none %} · tendência pelo CPI: EAC {{ formatar_moeda_mil(f.eac_trend_cents) }}{% endif %}</small></h3>
+        <div class="rel-grafico rel-grafico--m" data-grafico="curva-s-linha" data-dados='{{ f.curve_chart | tojson }}'></div>
+        <h3 class="rel-bloco__titulo">Valor agregado mês a mês <small>R$ mil</small></h3>
+        {% if f.history %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Valor agregado mês a mês</caption>
+          <thead>
+            <tr>
+              <th scope="col">Mês</th>
+              <th scope="col" class="num">Planejado (PV)</th>
+              <th scope="col" class="num">Agregado (EV)</th>
+              <th scope="col" class="num">Real (AC)</th>
+              <th scope="col" class="num">CPI</th>
+              <th scope="col" class="num">SPI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in f.history %}
+            <tr>
+              <td>{{ formatar_mes(linha.month) }}</td>
+              <td class="num">{{ formatar_mil(linha.pv_cents) }}</td>
+              <td class="num">{{ formatar_mil(linha.ev_cents) }}</td>
+              <td class="num">{{ formatar_mil(linha.ac_cents) }}</td>
+              <td class="num">{% if linha.cpi is not none and linha.cpi < 1 %}<span class="rel-negativo">{{ formatar_indice(linha.cpi) }}</span>{% else %}{{ formatar_indice(linha.cpi) }}{% endif %}</td>
+              <td class="num">{% if linha.spi is not none and linha.spi < 1 %}<span class="rel-negativo">{{ formatar_indice(linha.spi) }}</span>{% else %}{{ formatar_indice(linha.spi) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="rel-vazio">Sem histórico de valor agregado.</p>
+        {% endif %}
+      </div>
+      <div class="rel-bloco">
+        {% include "relatorio/_analise_periodo.html" %}
+        <h3 class="rel-bloco__titulo">{{ 'EAC por projeto' if f.is_portfolio else 'EAC por pacote' }} <small>R$ mil · desvio = projeção x orçado (posição atual)</small></h3>
+        <table class="rel-tabela">
+          <caption class="sr-only">{{ 'EAC por projeto' if f.is_portfolio else 'EAC por pacote' }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{{ 'Projeto' if f.is_portfolio else 'Pacote' }}</th>
+              <th scope="col" class="num">Orçado</th>
+              <th scope="col" class="num">Comprometido</th>
+              <th scope="col" class="num">Realizado</th>
+              <th scope="col" class="num">Projeção</th>
+              <th scope="col" class="num">Desvio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in f.packages %}
+            <tr>
+              <td>{% if not f.is_portfolio and linha.code %}<b>{{ linha.code }}</b> {% endif %}{{ linha.description }}</td>
+              <td class="num">{{ formatar_mil(linha.current_cents) }}</td>
+              <td class="num">{{ formatar_mil(linha.committed_cents) }}</td>
+              <td class="num">{{ formatar_mil(linha.actual_cents) }}</td>
+              <td class="num">{{ formatar_mil(linha.projection_cents) }}</td>
+              <td class="num"><span class="rel-heat rel-heat--{{ linha.band_tone }}" title="{{ linha.band_label }}">{{ formatar_pct_sinal(linha.deviation_percent) }}</span></td>
+            </tr>
+            {% endfor %}
+            {% if f.total %}
+            <tr class="rel-total">
+              <td>{{ 'Total da carteira' if f.is_portfolio else 'Total do projeto' }}</td>
+              <td class="num">{{ formatar_mil(f.total.current_cents) }}</td>
+              <td class="num">{{ formatar_mil(f.total.committed_cents) }}</td>
+              <td class="num">{{ formatar_mil(f.total.actual_cents) }}</td>
+              <td class="num">{{ formatar_mil(f.total.projection_cents) }}</td>
+              <td class="num"><span class="rel-heat rel-heat--{{ f.total.band_tone }}" title="{{ f.total.band_label }}">{{ formatar_pct_sinal(f.total.deviation_percent) }}</span></td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {{ folha.rodape('Custos apurados por mês' if f.empty else 'Fechamento de ' ~ formatar_mes(f.month) ~ (', no semanal, o último mês fechado' if visao.kind == 'Semanal' else '') ~ (', mês em andamento' if f.month_current else '') ~ ' · tendência: EAC = BAC ÷ CPI, pelo perfil do planejado') }}
+</section>

@@ -1,0 +1,129 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha Suprimentos (ISSUE-084): os KPIs do painel no corte (aderência ao plano, pacotes
+  adjudicados, saving, OTD, pedidos críticos e emitidos até o corte), a curva de contratação do
+  dono e os pedidos críticos (até 4) ao lado da análise do período; abaixo, os marcos realizados
+  no período e as adjudicações e entregas previstas no horizonte (até 5 cada; 4 semanas
+  seguintes no semanal, o mês seguinte no mensal). Nada é recalculado aqui: os números vêm de
+  `list_panel`, `list_orders` e `list_packages` no corte. No Portfólio os eventos trazem o
+  código do projeto.
+#}
+{% set s = visao.suprimentos %}
+{% set analise = s.analysis %}
+{% set analise_url = s.analysis_url %}
+<section class="rel-folha" aria-label="Suprimentos">
+  {{ folha.cabecalho(visao, 'Suprimentos', 'corte ' ~ formatar_data(visao.cut)) }}
+  <div class="rel-folha__corpo">
+    <div class="rel-kpis">
+      {{ folha.kpi('Aderência ao plano de compras', formatar_pct(s.adherence_pct), 'info' if s.adherence_pct is none else ('success' if s.adherence_pct >= s.adherence_target else 'warning'), '', 'Meta', '≥ ' ~ formatar_num(s.adherence_target) ~ '%', formatar_num(s.adjudicated) ~ ' de ' ~ formatar_num(s.planned) ~ ' previstos até o corte') }}
+      {{ folha.kpi('Pacotes adjudicados', formatar_num(s.adjudicated), 'real', 'de ' ~ formatar_num(s.packages_total), 'Previsto', formatar_num(s.planned), formatar_moeda_mil(s.adjudicated_cents) ~ ' adjudicados') }}
+      {{ folha.kpi('Saving', formatar_pct(s.saving_pct), 'success', '', 'Meta', '≥ 0%', formatar_moeda_mil(s.saving_cents) ~ ' sobre a estimativa') }}
+      {{ folha.kpi('Entregas no prazo (OTD)', formatar_pct(s.otd_pct), 'info' if s.otd_pct is none else ('success' if s.otd_pct >= s.otd_target else 'warning'), '', 'Meta', '≥ ' ~ formatar_num(s.otd_target) ~ '%', formatar_num(s.delivered_on_time) ~ ' de ' ~ formatar_num(s.delivered) ~ ' entregas até o corte') }}
+      {{ folha.kpi('Pedidos críticos', formatar_num(s.critical), 'danger' if s.critical else 'success', '', 'Esperado', '0', 'folga negativa · ' ~ formatar_num(s.warning) ~ ' em atenção') }}
+      {{ folha.kpi('Pedidos emitidos', formatar_num(s.emitted), 'real', '', 'Linha de base', formatar_num(s.emitted_planned), 'até o corte') }}
+    </div>
+
+    <div class="rel-grade rel-grade--45-55">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Curva de contratação <small>pacotes adjudicados, acumulado</small></h3>
+        <div class="rel-grafico rel-grafico--p" data-grafico="curva-s-linha" data-dados='{{ s.curve_chart | tojson }}'></div>
+        <h3 class="rel-bloco__titulo">Pedidos críticos <small>posição na data de referência</small></h3>
+        {% if s.criticals %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Pedidos críticos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Pedido</th>
+              <th scope="col">Item</th>
+              <th scope="col">ROS</th>
+              <th scope="col">Previsão</th>
+              <th scope="col" class="num">Folga</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in s.criticals[:4] %}
+            <tr>
+              <td>{{ linha.number }}{% if linha.lli %} <span class="pill pill--neutral">LLI</span>{% endif %}</td>
+              <td>{% if s.is_portfolio %}<b>{{ linha.project_code }}</b> · {% endif %}{{ linha.description }}</td>
+              <td>{{ formatar_data(linha.ros) }}</td>
+              <td>{{ formatar_data(linha.forecast) }}</td>
+              <td class="num"><span class="rel-negativo">{{ formatar_num(linha.slack_days) }} d</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if s.criticals | length > 4 %}<span class="rel-mais">+ {{ s.criticals | length - 4 }} no módulo</span>{% endif %}
+        {% else %}
+        <p class="rel-vazio">Nenhum pedido com folga negativa.</p>
+        {% endif %}
+      </div>
+      {% include "relatorio/_analise_periodo.html" %}
+    </div>
+
+    <div class="rel-grade rel-grade--50-50">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Realizado no período <small>desvio x linha de base</small></h3>
+        {% if s.events %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Marcos realizados no período</caption>
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Marco</th>
+              <th scope="col">Pedido / pacote</th>
+              <th scope="col">Item</th>
+              <th scope="col" class="num">Desvio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in s.events[:5] %}
+            <tr>
+              <td>{{ formatar_data(linha.date) }}</td>
+              <td>{{ linha.kind }}</td>
+              <td>{{ linha.code }}</td>
+              <td>{% if s.is_portfolio %}<b>{{ linha.project_code }}</b> · {% endif %}{{ linha.description }}</td>
+              <td class="num">{% if linha.deviation_days is none %}·{% else %}<span class="{{ 'rel-negativo' if linha.deviation_days > 0 }}">{{ '+' if linha.deviation_days > 0 }}{{ formatar_num(linha.deviation_days) }} d</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if s.events | length > 5 %}<span class="rel-mais">+ {{ s.events | length - 5 }} no módulo</span>{% endif %}
+        {% else %}
+        <p class="rel-vazio">Nenhum marco de suprimentos realizado no período.</p>
+        {% endif %}
+      </div>
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">{{ 'Previsto nas próximas 4 semanas' if s.weekly else 'Previsto no próximo mês' }} <small>{{ formatar_data(s.horizon_start) }} a {{ formatar_data(s.horizon_end) }} · desvio x plano ou contrato</small></h3>
+        {% if s.forecasts %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Adjudicações e entregas previstas</caption>
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Marco</th>
+              <th scope="col">Pedido / pacote</th>
+              <th scope="col">Item</th>
+              <th scope="col" class="num">Desvio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in s.forecasts[:5] %}
+            <tr>
+              <td>{{ formatar_data(linha.date) }}</td>
+              <td>{{ linha.kind }}</td>
+              <td>{{ linha.code }}</td>
+              <td>{% if s.is_portfolio %}<b>{{ linha.project_code }}</b> · {% endif %}{{ linha.description }}</td>
+              <td class="num">{% if linha.deviation_days is none %}·{% else %}<span class="{{ 'rel-negativo' if linha.deviation_days > 0 }}">{{ '+' if linha.deviation_days > 0 }}{{ formatar_num(linha.deviation_days) }} d</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if s.forecasts | length > 5 %}<span class="rel-mais">+ {{ s.forecasts | length - 5 }} no módulo</span>{% endif %}
+        {% else %}
+        <p class="rel-vazio">Nenhuma adjudicação ou entrega prevista no horizonte.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {{ folha.rodape('Eventos por data até o corte; pedidos críticos na data de referência') }}
+</section>
