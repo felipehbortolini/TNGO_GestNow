@@ -2648,6 +2648,54 @@ def _replace_project_grades(
         )
 
 
+def replace_portfolio_grades(
+    session: Session,
+    *,
+    version: ParameterVersion,
+    grades: Mapping[int, Mapping[str, int]],
+    author_id: int,
+) -> None:
+    """As notas da carteira passam a ser as enviadas, na versão dada do grupo portfolio.
+
+    A ponderação do Início (ISSUE-080) cria a versão nova por
+    ``save_parameter_group`` — que copia as notas da anterior — e substitui, na
+    sequência, as notas digitadas por projeto e critério. O que sai e o que
+    entra ficam na trilha, como a edição das notas de um projeto: linhas filhas,
+    sem ``versao`` própria; nota igual à da versão não gera trilha.
+    """
+    current = {
+        (row.project_id, row.criterion): row
+        for row in session.scalars(
+            select(PortfolioWeight).where(PortfolioWeight.version_id == version.id)
+        ).all()
+    }
+    for (project_id, criterion), row in current.items():
+        wanted = grades.get(project_id, {}).get(criterion)
+        if wanted is None or wanted == row.grade:
+            continue
+        before = audit.snapshot(row)
+        session.delete(row)
+        session.flush()
+        audit.deleted(
+            session, user_id=author_id, entity=row.__tablename__, record=row, before=before
+        )
+    for project_id, criteria in grades.items():
+        for criterion, grade in criteria.items():
+            row = current.get((project_id, criterion))
+            if row is not None and row.grade == grade:
+                continue
+            recording.create(
+                session,
+                user_id=author_id,
+                record=PortfolioWeight(
+                    version_id=version.id,
+                    project_id=project_id,
+                    criterion=criterion,
+                    grade=grade,
+                ),
+            )
+
+
 def _new_project_settings(session: Session, *, author_id: int, project_id: int) -> None:
     """O projeto nasce com a configuração padrão da Programação Semanal (ISSUE-054)."""
     from src.modulos.programacao_semanal import service as programacao

@@ -17,6 +17,16 @@ from src.core.export_document import ValueKind, format_value
 # Limiares de leitura do SPI e do CPI (home.js do protótipo).
 ATTENTION_INDEX = Decimal("0.95")
 
+# As faixas da situação da carteira (ISSUE-080, home.js): SPI e CPI têm as suas.
+SPI_ATTENTION = Decimal("0.95")
+SPI_CRITICAL = Decimal("0.90")
+CPI_ATTENTION = Decimal("0.98")
+CPI_CRITICAL = Decimal("0.93")
+
+# A ordem do pior para o melhor e o rótulo que a tela imprime.
+HEALTH_ORDER: dict[str, int] = {"ok": 0, "warn": 1, "erro": 2}
+HEALTH_LABELS: dict[str, str] = {"ok": "Em dia", "warn": "Atenção", "erro": "Crítico"}
+
 _BILLION = Decimal(1_000_000_000)
 _MILLION = Decimal(1_000_000)
 _THOUSAND = Decimal(1_000)
@@ -98,6 +108,45 @@ def plural(count: int, singular: str, plural_text: str | None = None) -> str:
     """``1 dia``, ``2 dias``: a contagem com o substantivo no número certo."""
     noun = singular if count == 1 else (plural_text or f"{singular}s")
     return f"{integer_text(count)} {noun}"
+
+
+def index_band(value: Decimal | None, attention: Decimal, critical: Decimal) -> str | None:
+    """A faixa de um índice: ``ok`` no plano, ``warn`` na atenção, ``erro`` abaixo dela."""
+    if value is None:
+        return None
+    if value >= attention:
+        return "ok"
+    return "warn" if value >= critical else "erro"
+
+
+def health_band(spi: Decimal | None, cpi: Decimal | None) -> str | None:
+    """A situação do projeto: o pior entre o SPI e o CPI, pelas faixas do protótipo.
+
+    O SPI vale no plano a partir de 0,95 e é crítico abaixo de 0,90; o CPI, a
+    partir de 0,98 e abaixo de 0,93. Sem um dos índices, vale o outro; sem os
+    dois, não há situação.
+    """
+    bands = [
+        band
+        for band in (
+            index_band(spi, SPI_ATTENTION, SPI_CRITICAL),
+            index_band(cpi, CPI_ATTENTION, CPI_CRITICAL),
+        )
+        if band is not None
+    ]
+    if not bands:
+        return None
+    return max(bands, key=HEALTH_ORDER.__getitem__)
+
+
+def health_label(health: str | None) -> str:
+    """``Em dia``, ``Atenção`` ou ``Crítico``: o rótulo da situação (vazio sem ela)."""
+    return HEALTH_LABELS.get(health or "", "")
+
+
+def input_number(value: Decimal) -> str:
+    """``60``, ``25.5``, ``0.1``: o número no campo do formulário, sem zeros à direita."""
+    return format(value.normalize(), "f")
 
 
 def _one_decimal(value: Decimal) -> str:

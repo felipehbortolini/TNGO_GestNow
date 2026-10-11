@@ -1,40 +1,50 @@
-"""Fachada do Início (ISSUE-079, D6, D9): o resumo consolidado do projeto ou do Portfólio.
+"""Fachada do Início (ISSUE-079 e ISSUE-080, D6, D9): o resumo do projeto ou do Portfólio.
 
-O Início é uma leitura: cada indicador-chave, cada ponto de atenção e cada selo
-dos cards sai da fachada do módulo dono, com a data de referência injetada —
-nenhuma fórmula de dono é duplicada e nenhuma tabela alheia é lida (D9). A
-fachada monta os textos que a tela lê (``HomeKpi``, ``HomeAttention`` e
-``HomeCard``) e devolve tudo em ``HomeOverview``; o fragmento só desenha.
+O Início é uma leitura: cada indicador-chave, cada ponto de atenção, cada selo
+dos cards e cada linha da carteira sai da fachada do módulo dono, com a data de
+referência injetada — nenhuma fórmula de dono é duplicada e nenhuma tabela
+alheia é lida (D9). A fachada monta os textos que a tela lê (``HomeKpi``,
+``HomeAttention``, ``HomeCard`` e ``PortfolioRow``) e devolve tudo em
+``HomeOverview``; o fragmento só desenha.
 
 O escopo é o do request (D8): no projeto valem os indicadores dele; no
-Portfólio, os consolidados, com o código do projeto nos pontos de atenção. A
-tabela Carteira de projetos e a edição da ponderação pertencem à ISSUE-080 e
-não entram aqui.
+Portfólio, os consolidados, com o código do projeto nos pontos de atenção, a
+carteira de projetos (ISSUE-080) e a ponderação editável pelo Gestor ou Admin.
+
+Todo registro pertence a um projeto: as linhas da carteira leem os donos por
+projeto (``Scope(project_id=...)``) e os totais reusam as leituras consolidadas
+que os indicadores já fizeram. A gravação da ponderação cria uma versão nova do
+grupo ``portfolio`` dos parâmetros e substitui as notas dela, numa transação só.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
 from src.core import navigation, rbac
+from src.core.errors import InvalidDataError
 from src.core.export_document import ValueKind
-from src.core.rbac import User
+from src.core.rbac import Permission, User
 from src.core.scope import Scope
 from src.modulos.central_acoes import service as central_acoes
 from src.modulos.central_acoes.calculations import StatusCounts, StatusFilter
 from src.modulos.central_acoes.validation import ActionFilters
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.configuracoes import validation as configuracoes_validation
+from src.modulos.configuracoes.models import ParameterVersion
 from src.modulos.configuracoes.service import ProjectSummary
+from src.modulos.financeiro import calculations as financeiro_calculations
 from src.modulos.financeiro import service as financeiro
 from src.modulos.governanca import service as governanca
 from src.modulos.hse import painel_service as hse_painel
-from src.modulos.inicio import calculations
+from src.modulos.inicio import calculations, validation
 from src.modulos.planejamento import service as planejamento
 from src.modulos.qualidade import painel_service as qualidade_painel
 from src.modulos.qualidade import service as qualidade
@@ -176,12 +186,120 @@ class HomeCard:
 
 
 @dataclass(frozen=True)
+class PortfolioRow:
+    """Uma linha da carteira de projetos: o projeto, o peso e os indicadores do Início dele.
+
+    Cada número sai da mesma fachada dona que o Início do projeto lê, no mesmo
+    corte (D9): o peso de ``financeiro.portfolio_weights``; o BAC, o CPI, a
+    projeção e o VAC de ``cost_kpis_overview``; o previsto, o real, o SPI e os
+    términos de ``planning_kpis_overview``; os riscos no topo de ``risk_panel``;
+    os pedidos críticos de ``list_panel`` e as ações atrasadas de
+    ``count_by_status``. ``health`` é o pior entre o SPI e o CPI.
+    """
+
+    project_id: int
+    code: str
+    name: str
+    weight: Decimal
+    budget_cents: int
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    cpi: Decimal | None
+    projection_cents: int | None
+    vac_cents: int | None
+    baseline_finish: date | None
+    trend_finish: date | None
+    critical_risks: int
+    critical_orders: int
+    overdue_actions: int
+    health: str | None
+
+    @property
+    def health_label(self) -> str:
+        """``Em dia``, ``Atenção`` ou ``Crítico``: o rótulo da situação."""
+        return calculations.health_label(self.health)
+
+
+@dataclass(frozen=True)
+class PortfolioTotals:
+    """O rodapé da carteira: as somas em reais e os índices consolidados do Portfólio."""
+
+    project_count: int
+    budget_cents: int
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    cpi: Decimal | None
+    projection_cents: int | None
+    vac_cents: int | None
+    baseline_finish: date | None
+    trend_finish: date | None
+    critical_risks: int
+    critical_orders: int
+    overdue_actions: int
+
+
+@dataclass(frozen=True)
+class PonderationCriterionView:
+    """Um critério da ponderação vigente: o que o modal edita e lê."""
+
+    id: str
+    name: str
+    source: str
+    weight: Decimal
+
+
+@dataclass(frozen=True)
+class PonderationProjectView:
+    """Um projeto da ponderação: o código, o peso atual na carteira e as notas vigentes."""
+
+    project_id: int
+    code: str
+    name: str
+    weight: Decimal
+    grades: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class PonderationView:
+    """O modal da ponderação: os critérios e as notas vigentes, os pesos atuais e quem pode salvar."""
+
+    reference_date: date
+    criteria: tuple[PonderationCriterionView, ...]
+    grade_minimum: int
+    grade_maximum: int
+    weights_total: Decimal
+    projects: tuple[PonderationProjectView, ...]
+    can_save: bool
+
+
+@dataclass(frozen=True)
+class PonderationPreviewRow:
+    """O peso que um projeto teria com os critérios e as notas digitados."""
+
+    project_id: int
+    code: str
+    weight: Decimal
+
+
+@dataclass(frozen=True)
+class PonderationPreview:
+    """A prévia da ponderação: os pesos resultantes, calculados sem gravar."""
+
+    rows: tuple[PonderationPreviewRow, ...]
+
+
+@dataclass(frozen=True)
 class HomeOverview:
-    """O resumo do Início: o contexto, os oito indicadores, a atenção e os oito cards.
+    """O resumo do Início: o contexto, os oito indicadores, a atenção, a carteira e os cards.
 
     ``budget_cents`` e ``expected_end_date`` são o orçamento e o término do escopo:
     os do projeto ou, no Portfólio, a soma dos orçamentos e o término mais distante
-    (a mesma leitura do protótipo).
+    (a mesma leitura do protótipo). ``portfolio_rows``, ``portfolio_totals`` e
+    ``portfolio_note`` só existem no Portfólio (ISSUE-080).
     """
 
     reference_date: date
@@ -194,6 +312,9 @@ class HomeOverview:
     kpis: tuple[HomeKpi, ...]
     attention: tuple[HomeAttention, ...]
     cards: tuple[HomeCard, ...]
+    portfolio_rows: tuple[PortfolioRow, ...] = ()
+    portfolio_totals: PortfolioTotals | None = None
+    portfolio_note: str = ""
 
     @property
     def is_empty(self) -> bool:
@@ -231,6 +352,15 @@ def home_overview(
         return _empty_overview(scope=scope, reference_date=reference_date)
     owners = _read_owners(session, user=user, scope=scope, reference_date=reference_date)
     codes = {project.id: project.code for project in projects}
+    portfolio_rows: tuple[PortfolioRow, ...] = ()
+    portfolio_totals: PortfolioTotals | None = None
+    portfolio_note = ""
+    if scope.is_portfolio:
+        portfolio_rows = _portfolio_rows(
+            session, user=user, projects=projects, reference_date=reference_date
+        )
+        portfolio_totals = _portfolio_totals(owners, rows=portfolio_rows)
+        portfolio_note = _portfolio_note(session, reference_date=reference_date)
     return HomeOverview(
         reference_date=reference_date,
         is_portfolio=scope.is_portfolio,
@@ -242,6 +372,9 @@ def home_overview(
         kpis=_kpis(owners),
         attention=_attention(owners, scope=scope, codes=codes),
         cards=_cards(owners),
+        portfolio_rows=portfolio_rows,
+        portfolio_totals=portfolio_totals,
+        portfolio_note=portfolio_note,
     )
 
 
@@ -546,6 +679,346 @@ def _index_status(value: Decimal | None) -> str:
     if value >= 1:
         return "Dentro da meta"
     return "Atenção" if value >= calculations.ATTENTION_INDEX else "Abaixo da meta"
+
+
+# ── A carteira de projetos (ISSUE-080) ───────────────────────────────────
+
+
+def _portfolio_rows(
+    session: Session,
+    *,
+    user: User,
+    projects: list[ProjectSummary],
+    reference_date: date,
+) -> tuple[PortfolioRow, ...]:
+    """As linhas da carteira, uma por projeto, lidas das fachadas donas no mesmo corte.
+
+    O peso sai de uma leitura só da ponderação; cada projeto é lido no seu
+    escopo, como o Início dele, e a linha junta os dois lados: prazo
+    (``planning_kpis_overview``) e custo (``cost_kpis_overview``). A ordem é a
+    do protótipo: do maior peso para o menor.
+    """
+    weights = financeiro.portfolio_weights(session, reference_date=reference_date)
+    rows: list[PortfolioRow] = []
+    for project in projects:
+        scope = Scope(project_id=project.id, source="url")
+        planning = planejamento.planning_kpis_overview(
+            session, scope=scope, reference_date=reference_date
+        )
+        cost = financeiro.cost_kpis_overview(session, scope=scope, reference_date=reference_date)
+        risks = riscos_painel.risk_panel(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        supply = suprimentos.list_panel(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        actions = central_acoes.count_by_status(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        weight = weights.get(project.id)
+        cpi = None if cost.indicators is None else cost.indicators.cpi
+        rows.append(
+            PortfolioRow(
+                project_id=project.id,
+                code=project.code,
+                name=project.name,
+                weight=Decimal(0) if weight is None else weight.weight,
+                budget_cents=cost.budget_cents,
+                predicted=planning.indicators.predicted,
+                actual=planning.indicators.actual,
+                deviation_pp=planning.indicators.deviation_pp,
+                spi=planning.indicators.spi,
+                cpi=cpi,
+                projection_cents=cost.projection_cents,
+                vac_cents=cost.vac_cents,
+                baseline_finish=planning.indicators.baseline_finish,
+                trend_finish=planning.indicators.trend_finish,
+                critical_risks=risks.summary.top.total,
+                critical_orders=supply.summary.orders.critical,
+                overdue_actions=actions.overdue,
+                health=calculations.health_band(planning.indicators.spi, cpi),
+            )
+        )
+    return tuple(sorted(rows, key=lambda row: row.weight, reverse=True))
+
+
+def _portfolio_totals(owners: _Owners, *, rows: tuple[PortfolioRow, ...]) -> PortfolioTotals:
+    """O rodapé da carteira: as somas em reais e os índices consolidados do Portfólio.
+
+    Os totais não releem nada: o Portfólio já leu os consolidados para os
+    indicadores — a soma do BAC, da projeção e do VAC, o previsto, o real, o SPI
+    e o CPI da carteira e as contagens de riscos, pedidos e ações.
+    """
+    indicators = owners.planning.indicators
+    cost = owners.cost
+    return PortfolioTotals(
+        project_count=len(rows),
+        budget_cents=cost.budget_cents,
+        predicted=indicators.predicted,
+        actual=indicators.actual,
+        deviation_pp=indicators.deviation_pp,
+        spi=indicators.spi,
+        cpi=None if cost.indicators is None else cost.indicators.cpi,
+        projection_cents=cost.projection_cents,
+        vac_cents=cost.vac_cents,
+        baseline_finish=indicators.baseline_finish,
+        trend_finish=indicators.trend_finish,
+        critical_risks=owners.risks.summary.top.total,
+        critical_orders=owners.supply.summary.orders.critical,
+        overdue_actions=owners.actions.overdue,
+    )
+
+
+def _portfolio_note(session: Session, *, reference_date: date) -> str:
+    """``Peso na carteira pela ponderação composta: Valor ... 60% · ...`` (protótipo)."""
+    criteria = _criteria_views(session, reference_date=reference_date)
+    if not criteria:
+        return ""
+    summary = " · ".join(
+        f"{criterion.name} {calculations.input_number(criterion.weight)}%" for criterion in criteria
+    )
+    return f"Peso na carteira pela ponderação composta: {summary}. Posição na data de referência."
+
+
+# ── A ponderação da carteira (ISSUE-080) ─────────────────────────────────
+
+
+def ponderation_view(session: Session, *, user: User, reference_date: date) -> PonderationView:
+    """O modal da ponderação: os critérios e as notas vigentes, com os pesos atuais da carteira.
+
+    A leitura é a do Início: quem vê a tela abre o modal; quem pode gravar é o
+    Gestor ou o Admin (``can_save``), e a prévia e a gravação exigem
+    ``Permission.MANAGE`` na rota e na fachada.
+    """
+    rbac.require_module(user, MODULE)
+    projects = configuracoes.list_projects(session)
+    group = configuracoes.current_group(session, group="portfolio", reference_date=reference_date)
+    criteria = _criteria_views(session, reference_date=reference_date)
+    grades = configuracoes.portfolio_grades(session, reference_date=reference_date)
+    weights = financeiro.portfolio_weights(session, reference_date=reference_date)
+    minimum, maximum = _grade_bounds(group)
+    return PonderationView(
+        reference_date=reference_date,
+        criteria=criteria,
+        grade_minimum=minimum,
+        grade_maximum=maximum,
+        weights_total=sum((criterion.weight for criterion in criteria), Decimal(0)),
+        projects=tuple(
+            PonderationProjectView(
+                project_id=project.id,
+                code=project.code,
+                name=project.name,
+                weight=weights[project.id].weight if project.id in weights else Decimal(0),
+                grades=dict(grades.get(project.id, {})),
+            )
+            for project in projects
+        ),
+        can_save=rbac.can(user, Permission.MANAGE),
+    )
+
+
+def ponderation_preview(
+    session: Session,
+    *,
+    user: User,
+    criteria: Mapping[str, str],
+    grades: Mapping[int, Mapping[str, str]],
+    reference_date: date,
+) -> PonderationPreview:
+    """A prévia dos pesos com os valores digitados, sem gravar nada.
+
+    Chama a fórmula do dono (``financeiro.calculations.portfolio_weights``) com
+    os orçamentos vigentes da carteira (``financeiro.service.current_budgets``);
+    um campo vazio ou inválido vale zero, como o protótipo calculava na tela.
+    """
+    rbac.require(user, Permission.MANAGE)
+    views = _criteria_views(session, reference_date=reference_date)
+    projects = configuracoes.list_projects(session)
+    budgets = financeiro.current_budgets(session)
+    inputs = [
+        financeiro_calculations.WeightInput(
+            project_id=project.id,
+            budget_cents=budgets.get(project.id, 0),
+            grades={
+                criterion.id: validation.parse_grade(
+                    grades.get(project.id, {}).get(criterion.id, "")
+                )
+                or 0
+                for criterion in views
+                if criterion.source == "nota"
+            },
+        )
+        for project in projects
+    ]
+    weights = financeiro_calculations.portfolio_weights(inputs, _preview_criteria(views, criteria))
+    return PonderationPreview(
+        rows=tuple(
+            PonderationPreviewRow(
+                project_id=project.id,
+                code=project.code,
+                weight=weights[project.id].weight if project.id in weights else Decimal(0),
+            )
+            for project in projects
+        )
+    )
+
+
+def save_ponderation(
+    session: Session,
+    *,
+    user: User,
+    criteria: Mapping[str, str],
+    grades: Mapping[int, Mapping[str, str]],
+    justification: str,
+    reference_date: date,
+) -> ParameterVersion:
+    """Grava a ponderação: valida, cria a versão nova do grupo portfolio e substitui as notas.
+
+    A defesa em profundidade repete o ``Permission.MANAGE`` da rota (Gestor ou
+    Admin; Membro recebe 403). O grupo inteiro vigente vai com os critérios
+    trocados e a justificativa; a versão nova nasce com as notas da anterior
+    (``save_parameter_group``) e a substituição grava as digitadas, com a
+    trilha. Toda recusa é mensagem por campo (``InvalidDataError``, 422).
+    """
+    rbac.require(user, Permission.MANAGE)
+    projects = configuracoes.list_projects(session)
+    group = configuracoes.current_group(session, group="portfolio", reference_date=reference_date)
+    views = _criteria_views(session, reference_date=reference_date)
+    minimum, maximum = _grade_bounds(group)
+    errors = _justification_errors(justification)
+    payloads, weight_errors = _posted_weight_payloads(group, views, criteria)
+    errors.update(weight_errors)
+    if not weight_errors and payloads:
+        message = configuracoes_validation.portfolio_weights_error({"criterios": payloads})
+        if message:
+            errors[validation.weight_field(views[0].id)] = message
+    posted_grades, grade_errors = _posted_grade_payloads(
+        projects, views, grades, minimum=minimum, maximum=maximum
+    )
+    errors.update(grade_errors)
+    if errors:
+        raise InvalidDataError(errors)
+    version = configuracoes.save_parameter_group(
+        session,
+        author_id=user.id,
+        group="portfolio",
+        values={**group, "criterios": payloads},
+        effective_from=reference_date,
+        justification=justification,
+    )
+    configuracoes.replace_portfolio_grades(
+        session, version=version, grades=posted_grades, author_id=user.id
+    )
+    return version
+
+
+def _criteria_views(
+    session: Session, *, reference_date: date
+) -> tuple[PonderationCriterionView, ...]:
+    """Os critérios da versão vigente do grupo portfolio: id, nome, fonte e peso."""
+    group = configuracoes.current_group(session, group="portfolio", reference_date=reference_date)
+    configured = group.get("criterios") or []
+    return tuple(
+        PonderationCriterionView(
+            id=str(item["id"]),
+            name=str(item.get("nome") or item["id"]),
+            source=str(item.get("fonte", "nota")),
+            weight=Decimal(str(item.get("peso", 0))),
+        )
+        for item in configured
+        if isinstance(item, Mapping) and item.get("id")
+    )
+
+
+def _grade_bounds(group: Mapping[str, Any]) -> tuple[int, int]:
+    """A faixa de notas do grupo vigente: ``notaMinima`` e ``notaMaxima`` (1 a 5)."""
+    return _int_or(group.get("notaMinima"), 1), _int_or(group.get("notaMaxima"), 5)
+
+
+def _int_or(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _preview_criteria(
+    views: tuple[PonderationCriterionView, ...], posted: Mapping[str, str]
+) -> list[financeiro_calculations.WeightCriterion]:
+    """Os critérios digitados como o dono os calcula; campo vazio ou inválido vale zero."""
+    return [
+        financeiro_calculations.WeightCriterion(
+            id=view.id,
+            weight=validation.parse_weight(posted.get(view.id, "")) or Decimal(0),
+            source=view.source,
+        )
+        for view in views
+    ]
+
+
+def _posted_weight_payloads(
+    group: Mapping[str, Any],
+    views: tuple[PonderationCriterionView, ...],
+    posted: Mapping[str, str],
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Os critérios vigentes com o peso digitado e os erros por campo quando o peso não vale."""
+    configured = {
+        str(item["id"]): item
+        for item in group.get("criterios") or []
+        if isinstance(item, Mapping) and item.get("id")
+    }
+    payloads: list[dict[str, Any]] = []
+    errors: dict[str, str] = {}
+    for view in views:
+        payload = dict(
+            configured.get(view.id, {"id": view.id, "nome": view.name, "fonte": view.source})
+        )
+        value = validation.parse_weight(posted.get(view.id, ""))
+        if value is None or not validation.WEIGHT_MIN <= value <= validation.WEIGHT_MAX:
+            errors[validation.weight_field(view.id)] = validation.WEIGHT_RANGE_MESSAGE
+        else:
+            payload["peso"] = _weight_payload(value)
+        payloads.append(payload)
+    return payloads, errors
+
+
+def _weight_payload(value: Decimal) -> int | float:
+    """O peso como o grupo o guarda: inteiro quando não tem casas (``60``), senão decimal."""
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value)
+
+
+def _posted_grade_payloads(
+    projects: list[ProjectSummary],
+    views: tuple[PonderationCriterionView, ...],
+    grades: Mapping[int, Mapping[str, str]],
+    *,
+    minimum: int,
+    maximum: int,
+) -> tuple[dict[int, dict[str, int]], dict[str, str]]:
+    """As notas digitadas por projeto e critério de fonte nota e os erros por campo."""
+    note_criteria = [view for view in views if view.source == "nota"]
+    payloads: dict[int, dict[str, int]] = {}
+    errors: dict[str, str] = {}
+    for project in projects:
+        posted = grades.get(project.id, {})
+        values: dict[str, int] = {}
+        for criterion in note_criteria:
+            value = validation.parse_grade(posted.get(criterion.id, ""))
+            if value is None or not minimum <= value <= maximum:
+                errors[validation.grade_field(project.id, criterion.id)] = validation.grade_message(
+                    minimum, maximum
+                )
+                continue
+            values[criterion.id] = value
+        payloads[project.id] = values
+    return payloads, errors
+
+
+def _justification_errors(justification: str) -> dict[str, str]:
+    message = validation.justification_error(justification)
+    return {} if message is None else {validation.JUSTIFICATION_FIELD: message}
 
 
 # ── Os pontos de atenção ─────────────────────────────────────────────────

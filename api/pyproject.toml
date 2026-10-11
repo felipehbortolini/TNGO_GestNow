@@ -424,6 +424,14 @@ max-complexity = 10
 # na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/hse/painel_service.py" = ["PLR0913"]
 
+# `save_ponderation`, na fachada do Início, recebe o usuário, os critérios, as notas, a
+# justificativa e a data de referência além da sessão, todos KEYWORD-ONLY depois do `*` — o
+# contrato da gravação da ponderação da carteira (ISSUE-080) que a rota chama; `ponderation_view`
+# e `ponderation_preview` seguem o mesmo desenho. A regra existe para argumento posicional, onde a
+# ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais
+# indireção.
+"src/modulos/inicio/service.py" = ["PLR0913"]
+
 # `analysis_options`, `analysis_view`, `_view_of`, `_assemble`, `_edit` e `_collect`, na fachada
 # da Análise do período, recebem o usuário, o escopo, o módulo, o tipo, o período, as figuras e
 # o registro além da sessão, todos KEYWORD-ONLY depois do `*` — o contrato da leitura e da
@@ -434,6 +442,14 @@ max-complexity = 10
 # um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/relatorio/service.py" = ["PLR0913"]
 "src/modulos/relatorio/routes.py" = ["PLR0913"]
+
+# `_requisicao`, em tests/inicio/test_inicio_rotas.py, monta a requisição com o caminho, o
+# colaborador, os parâmetros, o alvo, o método e o corpo, todos KEYWORD-ONLY depois do `*` — o
+# mesmo contrato dos helpers dos testes de configurações; a ISSUE-080 acrescentou o método e o
+# corpo para a prévia e a gravação da ponderação. A regra existe para argumento posicional, onde
+# a ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com
+# mais indireção.
+"tests/inicio/test_inicio_rotas.py" = ["PLR0913"]
 
 # `_gravar` e `_salvar`, em tests/relatorio/test_analise_servico.py, montam o pedido da análise
 # com o módulo, o tipo, o período, o texto, os comentários, o id e a versão opcionais, e é assim
