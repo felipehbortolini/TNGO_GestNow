@@ -1,0 +1,68 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha HSE (ISSUE-085): os KPIs do mês no corte (TF, TRIF, TG, HiPo e os dias sem afastamento)
+  com o acumulado no rodapé e, no semanal, as ocorrências da semana no lugar do HHT (no mensal,
+  o HHT previsto do histograma de mão de obra do dono); os indicadores proativos no acumulado do
+  primeiro mês com HHT; à esquerda a pirâmide de segurança mês x acumulado com a referência dos
+  parâmetros e à direita a análise e a evolução mensal de TF e TRIF. Nada é recalculado aqui: o
+  painel, o histograma e a tela de ocorrências do dono entregam os números; a evolução e a
+  pirâmide reusam os `data-dados` do painel. Sem HHT no escopo, a folha sai só com a análise.
+#}
+{% set h = visao.hse %}
+{% set analise = h.analysis %}
+{% set analise_url = h.analysis_url %}
+{% set m = h.month_indicators %}
+{% set a = h.accumulated %}
+<section class="rel-folha" aria-label="HSE">
+  {{ folha.cabecalho(visao, 'HSE', 'mês de ' ~ formatar_mes(h.month) ~ (' (parcial)' if h.partial_month else '')) }}
+  <div class="rel-folha__corpo">
+    {% if h.empty %}
+    <div class="rel-alerta">Sem HHT registrado no escopo. Registre as horas trabalhadas e os fechamentos mensais no 07 HSE para a folha mostrar as taxas e a pirâmide.</div>
+    {% else %}
+    <div class="rel-kpis">
+      {{ folha.kpi('Taxa de frequência (TF)', formatar_num2(m.tf), 'danger' if m.lti else 'success', '', 'Esperado', formatar_num2(0), 'no mês · acumulado ' ~ formatar_num2(a.tf)) }}
+      {{ folha.kpi('Lesões registráveis (TRIF)', formatar_num2(m.trif), 'warning' if m.registrable else 'success', '', 'Esperado', formatar_num2(0), 'no mês · acumulado ' ~ formatar_num2(a.trif)) }}
+      {{ folha.kpi('Taxa de gravidade (TG)', formatar_num1(m.tg), 'info', '', 'Esperado', formatar_num1(0), 'no mês · acumulado ' ~ formatar_num1(a.tg)) }}
+      {{ folha.kpi('Alto potencial (HiPo)', formatar_num(m.hipo), 'danger' if m.hipo else 'success', '', 'Esperado', '0', 'no mês · ' ~ formatar_num(a.hipo) ~ ' no acumulado') }}
+      {{ folha.kpi('Dias sem afastamento', formatar_num(a.days_without_leave), 'info', '', 'Esperado', formatar_num(h.days_expected), 'no corte · desde ' ~ formatar_data(h.days_since)) }}
+      {% if h.weekly %}
+      {% set quase = h.occurrence_levels[3] if h.occurrence_levels | length > 3 else 0 %}
+      {{ folha.kpi('Ocorrências na semana', formatar_num(h.occurrences), 'danger' if h.hipo_period else 'info', '', 'Referência', 'de ' ~ formatar_num(h.month_occurrences) ~ ' no mês', formatar_num(quase) ~ ' ' ~ ('quase acidente' if quase == 1 else 'quase acidentes')) }}
+      {% else %}
+      {{ folha.kpi('HHT no mês', formatar_num(m.hours), 'info', '', 'Previsto', formatar_num(h.hours_expected), formatar_num(a.hours) ~ ' HHT no acumulado') }}
+      {% endif %}
+    </div>
+
+    <h3 class="rel-bloco__titulo">Indicadores proativos <small>acumulado de {{ formatar_mes(h.first_month) }} a {{ formatar_mes(h.month) }}</small></h3>
+    <div class="rel-kpis">
+      {{ folha.kpi('DDS realizados', formatar_pct(a.dds_pct), 'info', '', 'Meta', '100%', 'no mês ' ~ formatar_pct(m.dds_pct)) }}
+      {{ folha.kpi('Conformidade em inspeções', formatar_pct(a.conformity_pct), 'info', '', 'Esperado', '100%', 'no mês ' ~ formatar_pct(m.conformity_pct)) }}
+      {{ folha.kpi('Observações / 10 mil HHT', formatar_num1(a.observations_per_10k), 'info', '', 'Meta', '≥ ' ~ formatar_num(h.observations_target), 'abordagens comportamentais') }}
+      {{ folha.kpi('Relato de quase acidentes', formatar_num1(a.almost_miss_report), 'info', '', 'Referência', formatar_num1(h.reference_ratio), 'por lesão registrável') }}
+      {{ folha.kpi('Recomendações fechadas', formatar_pct(a.recommendations_pct), 'info', '', 'Esperado', '100%', 'APR e HAZOP') }}
+      {{ folha.kpi('Incidentes ambientais', formatar_num(a.environmental), 'warning' if a.environmental else 'success', '', 'Esperado', '0', formatar_num(m.environmental) ~ ' no mês') }}
+    </div>
+
+    <div class="rel-grade rel-grade--40-60">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Pirâmide de segurança <small>mês x acumulado</small></h3>
+        <div class="rel-grafico rel-grafico--m" data-grafico="piramide-seguranca" data-dados='{{ h.pyramid_chart | tojson }}'></div>
+      </div>
+      <div class="rel-bloco">
+        {% include "relatorio/_analise_periodo.html" %}
+        <h3 class="rel-bloco__titulo">Evolução mensal <small>TF e TRIF</small></h3>
+        <div class="rel-grafico rel-grafico--p" data-grafico="linhas-multiplas" data-dados='{{ h.evolution_chart | tojson }}'></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% if h.empty %}
+  {{ folha.rodape('07 HSE') }}
+  {% else %}
+  {% set nota = 'Taxas por ' ~ formatar_num(h.base) ~ ' HHT (' ~ h.base_name ~ ') · base mensal (HHT por mês)' %}
+  {% if h.weekly %}
+  {% set nota = nota ~ '; semanal: mês de ' ~ formatar_mes(h.month) ~ (' até a data de referência' if h.partial_month else '') ~ ' e ocorrências da semana' %}
+  {% endif %}
+  {{ folha.rodape(nota) }}
+  {% endif %}
+</section>

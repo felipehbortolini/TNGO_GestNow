@@ -1,0 +1,93 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha Qualidade (ISSUE-085): os KPIs de RNC no corte (abertas com as críticas e as vencidas da
+  posição, as do período e o custo acumulado), a aprovação em inspeções e a conformidade em
+  auditorias do período contra as metas vigentes do grupo `qualidade` e a disciplina com mais
+  RNC; à esquerda a série de RNC por mês (terminando no mês do corte) e as inspeções reprovadas
+  do período, à direita a análise e a pauta de tratamento na data de referência. Nada é
+  recalculado aqui: `list_rncs`, `list_inspections`, `list_audits` e `quality_panel` no corte,
+  com a pauta do painel na data de referência. No Portfólio os códigos já trazem o projeto.
+#}
+{% set q = visao.qualidade %}
+{% set analise = q.analysis %}
+{% set analise_url = q.analysis_url %}
+<section class="rel-folha" aria-label="Qualidade">
+  {{ folha.cabecalho(visao, 'Qualidade', 'corte ' ~ formatar_data(visao.cut)) }}
+  <div class="rel-folha__corpo">
+    <div class="rel-kpis">
+      {{ folha.kpi('RNC em aberto no corte', formatar_num(q.open_at_cut), 'danger' if q.critical_at_cut or q.overdue_at_reference else ('warning' if q.open_at_cut else 'success'), '', 'Esperado', '0', formatar_num(q.critical_at_cut) ~ ' críticas · ' ~ formatar_num(q.overdue_at_reference) ~ ' vencidas') }}
+      {{ folha.kpi('RNC abertas no período', formatar_num(q.opened_period), 'warning' if q.opened_period else 'success', '', 'Esperado', '0', formatar_num(q.closed_period) ~ ' encerradas no período') }}
+      {{ folha.kpi('Aprovação em inspeções', formatar_pct(q.approval_pct), 'info' if q.approval_pct is none else ('success' if q.approval_meta is not none and q.approval_pct >= q.approval_meta else 'warning'), '', 'Meta', '≥ ' ~ formatar_num0(q.approval_meta or 0) ~ '%', formatar_num(q.rejected | length) ~ ' reprovadas em ' ~ formatar_num(q.inspections) ~ ' inspeções') }}
+      {{ folha.kpi('Conformidade em auditorias', formatar_pct(q.conformity_pct), 'info' if q.conformity_pct is none else ('success' if q.conformity_meta is not none and q.conformity_pct >= q.conformity_meta else 'warning'), '', 'Meta', '≥ ' ~ formatar_num0(q.conformity_meta or 0) ~ '%', formatar_num(q.audits_period) ~ ' auditorias no período · ' ~ formatar_num(q.late_audits) ~ ' atrasadas') }}
+      {{ folha.kpi('Custo da não qualidade', formatar_moeda(q.cost_accumulated_cents), 'danger' if q.cost_accumulated_cents else 'success', '', 'Esperado', formatar_moeda(0), formatar_moeda(q.cost_period_cents) ~ ' em RNC do período') }}
+      {{ folha.kpi('Disciplina com mais RNC', q.discipline[0].name if q.discipline else '·', 'info', '', 'Referência', 'de ' ~ formatar_num(q.discipline_total) ~ ' RNCs', (formatar_num(q.discipline[0].total) ~ ' RNC · ' ~ formatar_pct(q.discipline[0].pct) ~ ' do total') if q.discipline else '') }}
+    </div>
+
+    <div class="rel-grade rel-grade--40-60">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">RNC por mês <small>abertas e encerradas</small></h3>
+        <div class="rel-grafico rel-grafico--p" data-grafico="curva-s-barra-linha" data-dados='{{ q.series_chart | tojson }}'></div>
+        <h3 class="rel-bloco__titulo">Inspeções reprovadas no período</h3>
+        {% if q.rejected %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Inspeções reprovadas no período</caption>
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Ponto</th>
+              <th scope="col">Empresa</th>
+              <th scope="col">RNC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in q.rejected[:5] %}
+            <tr>
+              <td>{{ formatar_data(linha.date) }}</td>
+              <td>{{ linha.point }}{% if linha.itp_code %} ({{ linha.itp_code }}){% endif %}</td>
+              <td>{{ linha.company_name }}</td>
+              <td>{{ linha.rnc_code or '·' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if q.rejected | length > 5 %}<span class="rel-mais">+ {{ q.rejected | length - 5 }} no módulo</span>{% endif %}
+        {% else %}
+        <p class="rel-vazio">Nenhuma inspeção reprovada no período.</p>
+        {% endif %}
+      </div>
+      <div class="rel-bloco">
+        {% include "relatorio/_analise_periodo.html" %}
+        <h3 class="rel-bloco__titulo">Pauta de tratamento <small>posição na data de referência</small></h3>
+        {% if q.agenda %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Pauta de tratamento</caption>
+          <thead>
+            <tr>
+              <th scope="col">RNC</th>
+              <th scope="col">Não conformidade</th>
+              <th scope="col">Severidade</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in q.agenda[:5] %}
+            <tr>
+              <td>{{ linha.code }}</td>
+              <td>{{ linha.description }}</td>
+              <td>{{ linha.severity }}</td>
+              <td>{{ linha.situation }}</td>
+              <td><span class="rel-negativo">{{ linha.reasons | join('; ') }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if q.agenda | length > 5 %}<span class="rel-mais">+ {{ q.agenda | length - 5 }} no módulo</span>{% endif %}
+        {% else %}
+        <p class="rel-vazio">Nenhuma RNC fora do prazo, crítica ou com concessão pendente.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {{ folha.rodape('RNC e inspeções por data até o corte; pauta e auditorias atrasadas na data de referência') }}
+</section>

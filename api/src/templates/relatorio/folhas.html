@@ -2,7 +2,8 @@
 {#
   As folhas do relatório gerencial (ISSUE-083): o cabeçalho da tela — fora do papel, com o
   escopo, o período e o aviso de parcial — e a pilha de folhas A4 na horizontal, uma por
-  seção. O encaixe da fonte e a numeração das páginas são do comportamento da tela
+  seção. A Carteira de projetos (ISSUE-085) entra sozinha no Portfólio, como a primeira folha.
+  O encaixe da fonte e a numeração das páginas são do comportamento da tela
   (app/paginas/relatorio/gerencial.js).
 
   Espera: visao (service.ReportSheets) e os formatadores.
@@ -16,6 +17,9 @@
 </div>
 
 <div class="rel-folhas">
+  {% if visao.carteira %}
+  {% include "relatorio/folha_carteira.html" %}
+  {% endif %}
   {% if visao.planning %}
   {% include "relatorio/folha_planejamento_kpis.html" %}
   {% include "relatorio/folha_planejamento_relato.html" %}
@@ -25,6 +29,15 @@
   {% endif %}
   {% if visao.suprimentos %}
   {% include "relatorio/folha_suprimentos.html" %}
+  {% endif %}
+  {% if visao.riscos %}
+  {% include "relatorio/folha_riscos.html" %}
+  {% endif %}
+  {% if visao.qualidade %}
+  {% include "relatorio/folha_qualidade.html" %}
+  {% endif %}
+  {% if visao.hse %}
+  {% include "relatorio/folha_hse.html" %}
   {% endif %}
 </div>
 {% endblock %}

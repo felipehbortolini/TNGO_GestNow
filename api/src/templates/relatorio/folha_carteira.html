@@ -1,0 +1,119 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha Carteira de projetos (ISSUE-085), só no Portfólio e sempre a primeira: os KPIs da
+  carteira na data de referência (projetos, orçamento com a linha de base, avanço ponderado,
+  SPI e CPI com as faixas do Início e a projeção no término com o VAC), a tabela por projeto
+  (R$ mil, com peso, índices, projeção, término, riscos críticos, pedidos críticos, ações
+  atrasadas e situação) e a Curva S física ponderada da carteira com os critérios de ponderação
+  vigentes. Os números são os da tela Início no mesmo corte: por projeto saem de
+  `planning_kpis_overview`, `cost_kpis_overview`, `risk_panel`, `list_panel` e
+  `count_by_status`; os totais, das leituras consolidadas do Portfólio.
+#}
+{% set c = visao.carteira %}
+{% set sobre = c.vac_cents is not none and c.vac_cents < 0 %}
+{% set vac_html %}<span class="{{ 'rel-negativo' if sobre else 'rel-economia' }}">{% if c.vac_cents is none %}·{% else %}{{ '+' if sobre else '−' }}{{ formatar_moeda_compacta(c.vac_cents | abs) }}{% endif %}</span> x orçamento{% endset %}
+<section class="rel-folha" aria-label="Carteira de projetos">
+  {{ folha.cabecalho(visao, 'Carteira de projetos', 'posição em ' ~ formatar_data(c.reference_date)) }}
+  <div class="rel-folha__corpo">
+    <div class="rel-kpis">
+      {{ folha.kpi('Projetos na carteira', formatar_num(c.project_count), 'info', '', 'Referência', 'de ' ~ formatar_num(c.project_count) ~ ' cadastrados', 'ponderação composta configurável') }}
+      {{ folha.kpi('Orçamento da carteira (BAC)', formatar_mil(c.budget_cents), 'previsto', 'R$ mil', 'Linha de base', formatar_moeda_mil(c.budget_baseline_cents), 'soma das EAC vigentes') }}
+      {{ folha.kpi('Avanço ponderado', formatar_pct(c.actual), 'real', '', 'Previsto', formatar_pct(c.predicted), 'desvio ' ~ formatar_pp(c.deviation_pp), c.deviation_pp < 0) }}
+      {{ folha.kpi('SPI físico ponderado', formatar_indice(c.spi), c.spi_tone, '', 'Meta', '≥ ' ~ formatar_indice(1), 'término ' ~ formatar_mes(c.trend_finish) ~ ' x LB ' ~ formatar_mes(c.baseline_finish)) }}
+      {{ folha.kpi('CPI da carteira', formatar_indice(c.cpi), c.cpi_tone, '', 'Meta', '≥ ' ~ formatar_indice(1), 'EV ÷ AC somados dos projetos') }}
+      {{ folha.kpi('Projeção no término', formatar_mil(c.projection_cents), 'danger' if sobre else 'success', 'R$ mil', 'Orçado', formatar_moeda_mil(c.budget_cents), rodape_html=vac_html) }}
+    </div>
+
+    <div class="rel-bloco">
+      <h3 class="rel-bloco__titulo">Projetos da carteira <small>R$ mil · posição na data de referência · peso = relevância na carteira</small></h3>
+      <table class="rel-tabela">
+        <caption class="sr-only">Projetos da carteira</caption>
+        <thead>
+          <tr>
+            <th scope="col">Projeto</th>
+            <th scope="col" class="num">Peso</th>
+            <th scope="col" class="num">BAC</th>
+            <th scope="col" class="num">Previsto</th>
+            <th scope="col" class="num">Real</th>
+            <th scope="col" class="num">SPI</th>
+            <th scope="col" class="num">CPI</th>
+            <th scope="col" class="num">Projeção</th>
+            <th scope="col">Término LB / tendência</th>
+            <th scope="col" class="num">Riscos críticos</th>
+            <th scope="col" class="num">Pedidos críticos</th>
+            <th scope="col" class="num">Ações atrasadas</th>
+            <th scope="col">Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in c.projects %}
+          <tr>
+            <td><b>{{ linha.code }}</b> · {{ linha.name }}</td>
+            <td class="num">{{ formatar_pct(linha.weight) }}</td>
+            <td class="num">{{ formatar_mil(linha.budget_cents) }}</td>
+            <td class="num">{{ formatar_pct(linha.predicted) }}</td>
+            <td class="num">{{ formatar_pct(linha.actual) }}</td>
+            <td class="num"><span class="{{ 'rel-negativo' if linha.spi is not none and linha.spi < 1 }}">{{ formatar_indice(linha.spi) }}</span></td>
+            <td class="num"><span class="{{ 'rel-negativo' if linha.cpi is not none and linha.cpi < 1 }}">{{ formatar_indice(linha.cpi) }}</span></td>
+            <td class="num">{{ formatar_mil(linha.projection_cents) }}<br /><span class="{{ 'rel-negativo' if linha.vac_cents is not none and linha.vac_cents < 0 else 'rel-economia' }}">{% if linha.vac_cents is none %}·{% else %}{{ '+' if linha.vac_cents < 0 else '−' }}{{ formatar_mil(linha.vac_cents | abs) }}{% endif %}</span></td>
+            <td>{{ formatar_mes(linha.baseline_finish) }} / <span class="{{ 'rel-negativo' if linha.trend_finish and linha.baseline_finish and linha.trend_finish > linha.baseline_finish }}">{{ formatar_mes(linha.trend_finish) }}</span></td>
+            <td class="num">{{ formatar_num(linha.critical_risks) }}</td>
+            <td class="num">{{ formatar_num(linha.critical_orders) }}</td>
+            <td class="num">{{ formatar_num(linha.overdue_actions) }}</td>
+            <td>{% if linha.health %}<span class="pill pill--{{ linha.health }}">{{ linha.health_label }}</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+          <tr class="rel-total">
+            <td>Total da carteira</td>
+            <td class="num">100,00%</td>
+            <td class="num">{{ formatar_mil(c.budget_cents) }}</td>
+            <td class="num">{{ formatar_pct(c.predicted) }}</td>
+            <td class="num">{{ formatar_pct(c.actual) }}</td>
+            <td class="num"><span class="{{ 'rel-negativo' if c.spi is not none and c.spi < 1 }}">{{ formatar_indice(c.spi) }}</span></td>
+            <td class="num"><span class="{{ 'rel-negativo' if c.cpi is not none and c.cpi < 1 }}">{{ formatar_indice(c.cpi) }}</span></td>
+            <td class="num">{{ formatar_mil(c.projection_cents) }}<br /><span class="{{ 'rel-negativo' if sobre else 'rel-economia' }}">{% if c.vac_cents is none %}·{% else %}{{ '+' if sobre else '−' }}{{ formatar_mil(c.vac_cents | abs) }}{% endif %}</span></td>
+            <td>{{ formatar_mes(c.baseline_finish) }} / <span class="{{ 'rel-negativo' if c.trend_finish and c.baseline_finish and c.trend_finish > c.baseline_finish }}">{{ formatar_mes(c.trend_finish) }}</span></td>
+            <td class="num">{{ formatar_num(c.critical_risks) }}</td>
+            <td class="num">{{ formatar_num(c.critical_orders) }}</td>
+            <td class="num">{{ formatar_num(c.overdue_actions) }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rel-grade rel-grade--60-40">
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Curva S física da carteira <small>média ponderada pelos pesos dos projetos</small></h3>
+        <div class="rel-grafico rel-grafico--m" data-grafico="curva-s-linha" data-dados='{{ c.curve_chart | tojson }}'></div>
+      </div>
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Critérios de ponderação <small>peso do projeto = soma ponderada dos critérios, normalizada a 100%</small></h3>
+        {% if c.criteria %}
+        <table class="rel-tabela">
+          <caption class="sr-only">Critérios de ponderação</caption>
+          <thead>
+            <tr>
+              <th scope="col">Critério</th>
+              <th scope="col" class="num">Peso</th>
+              <th scope="col">Fonte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for criterio in c.criteria %}
+            <tr>
+              <td>{{ criterio.name }}</td>
+              <td class="num">{{ formatar_num0(criterio.weight) }}%</td>
+              <td>{{ 'orçamento vigente (EAC)' if criterio.source == 'orcamento' else 'nota de 1 a 5 por projeto' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="rel-vazio">Ponderação não configurada.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {{ folha.rodape('Posição na data de referência (a folha de Planejamento mostra o corte do período); SPI físico ponderado pelos pesos; custo somado em R$') }}
+</section>
