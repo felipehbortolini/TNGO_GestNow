@@ -33,9 +33,13 @@ FIELD_PERIOD = "periodo"
 
 FIELD_TEXT = "analise"
 
+FIELD_SECTIONS = "secoes"
+
 MODULE_MESSAGE = "Módulo inválido."
 
 CHOOSE_MESSAGE = "Escolha o tipo e o período."
+
+SECTION_MESSAGE = "Escolha ao menos uma seção."
 
 TEXT_SHORT_MESSAGE = (
     "A análise deve ter ao menos 150 caracteres: panorama, desempenho dos períodos "

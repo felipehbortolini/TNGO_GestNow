@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -48,6 +48,11 @@ def _signed(value: Decimal | int, places: int) -> str:
     """O número com sinal de mais quando positivo: ``+1,2`` ou ``-3,9``."""
     prefix = "+" if Decimal(value) > ZERO else ""
     return prefix + _plain(value, places)
+
+
+def _round_one(value: Decimal) -> Decimal:
+    """O valor com uma casa, como o dono arredonda as séries da curva."""
+    return Decimal(value).quantize(ONE_PLACE, rounding=ROUND_HALF_UP)
 
 
 def _pct(value: Decimal | None, places: int = 1) -> str:
@@ -118,6 +123,25 @@ def format_number(value: int | None) -> str:
     return "·" if value is None else f"{int(value)}"
 
 
+def format_number0(value: Decimal | None) -> str:
+    """O formatador de quantidade sem casas que a folha usa (``481``); nulo vira ``·``."""
+    return "·" if value is None else _plain(value, 0)
+
+
+def format_number1(value: Decimal | None) -> str:
+    """O formatador de quantidade com uma casa que a folha usa (``11,5``); nulo vira ``·``."""
+    return "·" if value is None else _plain(value, 1)
+
+
+def format_date(value: date | datetime | None) -> str:
+    """A data que o template mostra (``21/09/2026``); um instante passa pelo fuso do produto."""
+    if value is None:
+        return "·"
+    if isinstance(value, datetime):
+        value = calendario.in_product_timezone(value).date()
+    return f"{value:%d/%m/%Y}"
+
+
 def format_number2(value: Decimal | None) -> str:
     """O formatador das taxas do HSE que o template usa: duas casas fixas (``6,80``)."""
     return "·" if value is None else _plain(value, 2)
@@ -145,7 +169,12 @@ class ProductivityItem:
 
 @dataclass(frozen=True)
 class ProductivityFigure:
-    """Os indicadores de produtividade no corte, com as metas vigentes e a janela de semanas."""
+    """Os indicadores de produtividade no corte, com as metas vigentes e a janela de semanas.
+
+    ``stoppage_hours`` e ``stoppage_share`` são as HH paralisadas da janela e a sua fatia das
+    HH disponíveis; ``alert_companies`` são as empresas com indicador em alerta e ``bands`` as
+    faixas (success, warning ou danger) de cada indicador — a folha 1 do relatório as usa.
+    """
 
     spi: Decimal | None
     pf_window: Decimal | None
@@ -157,6 +186,10 @@ class ProductivityFigure:
     meta_working: Decimal
     meta_utilization: Decimal
     weeks: int
+    stoppage_hours: Decimal | None = None
+    stoppage_share: Decimal | None = None
+    alert_companies: tuple[str, ...] = ()
+    bands: planning_calculations.PerformanceBands | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +207,16 @@ class PlanningFigures:
     baseline_finish: date | None
     areas: tuple[AreaFigure, ...]
     productivity: ProductivityFigure | None
+
+    @property
+    def predicted_period(self) -> Decimal:
+        """O previsto do período: o avanço esperado entre a posição anterior e o corte."""
+        return self.predicted - self.previous_predicted
+
+    @property
+    def actual_period(self) -> Decimal:
+        """O real do período: o avanço medido entre a posição anterior e o corte."""
+        return self.actual - self.previous_actual
 
 
 @dataclass(frozen=True)
@@ -330,8 +373,8 @@ def planning_deviations(figures: PlanningFigures) -> tuple[Deviation, ...]:
                 },
             )
         )
-    real_period = figures.actual - figures.previous_actual
-    predicted_period = figures.predicted - figures.previous_predicted
+    real_period = figures.actual_period
+    predicted_period = figures.predicted_period
     if real_period < predicted_period:
         deviations.append(
             Deviation(
@@ -819,6 +862,137 @@ def analysis_summary(
     """Os indicadores do período que o resumo do formulário mostra, por módulo."""
     builder = _SUMMARY_BUILDERS.get((module, type(figures)))
     return () if builder is None else builder(figures)
+
+
+# ── Motor de corte do relatório gerencial (ISSUE-083) ──────────────────────
+
+# Quantas barras o avanço por período mostra: 8 semanas ou 6 meses até o corte.
+BAR_PERIODS: Mapping[str, int] = {calendario.WEEKLY: 8, calendario.MONTHLY: 6}
+
+
+def report_period_cutoff(kind: str, period: str, reference_date: date) -> date | None:
+    """O corte do relatório: o fim do período limitado à data de referência.
+
+    É o corte que todas as folhas usam — o período em andamento vale até a referência.
+    """
+    return calendario.cut_date(kind, period, reference_date)
+
+
+def is_partial_period(kind: str, period: str, reference_date: date) -> bool:
+    """Se o período ainda está em andamento na data de referência (sai marcado parcial)."""
+    return calendario.is_partial(kind, period, reference_date)
+
+
+@dataclass(frozen=True)
+class PeriodBar:
+    """Uma barra do avanço por período: o período, o rótulo curto e o incremento em p.p."""
+
+    period: str
+    label: str
+    predicted: Decimal | None
+    actual: Decimal | None
+
+
+def bar_periods(
+    kind: str, period: str, *, reference_date: date, project_start: date | None
+) -> tuple[str, ...]:
+    """Os períodos das barras do avanço: as últimas 8 semanas ou 6 meses até o corte.
+
+    Só entram períodos do projeto — os anteriores ao início ficam de fora —, em ordem de
+    calendário. Sem corte válido (rótulo de período inválido), não há barras.
+    """
+    size = BAR_PERIODS.get(kind)
+    if size is None:
+        return ()
+    cut = report_period_cutoff(kind, period, reference_date)
+    if cut is None:
+        return ()
+    last = calendario.period_of(kind, cut)
+    first = calendario.period_of(kind, project_start) if project_start is not None else None
+    periods: list[str] = []
+    label: str | None = last
+    while label is not None and len(periods) < size and (first is None or label >= first):
+        periods.append(label)
+        label = calendario.add_periods(kind, label, -1)
+    return tuple(reversed(periods))
+
+
+def period_bars(
+    kind: str,
+    periods: Sequence[str],
+    cumulative: Sequence[tuple[str, Decimal | None, Decimal | None]],
+) -> tuple[PeriodBar, ...]:
+    """As barras do avanço por período: o incremento entre um ponto acumulado e o anterior.
+
+    ``cumulative`` são os pontos do dono — o rótulo do período e o previsto e o real
+    acumulados, em ordem de calendário —, e a barra é a diferença entre o ponto do período e
+    o do anterior, como o protótipo lia a série. O real da barra só existe quando os dois
+    pontos têm real; o ponto anterior que não veio vale zero (o primeiro período do projeto).
+    """
+    points = {label: (predicted, actual) for label, predicted, actual in cumulative}
+    bars: list[PeriodBar] = []
+    for label in periods:
+        predicted, actual = points.get(label, (None, None))
+        earlier = calendario.add_periods(kind, label, -1)
+        previous = points.get(earlier) if earlier is not None else None
+        previous_predicted = (
+            previous[0] if previous is not None and previous[0] is not None else ZERO
+        )
+        previous_actual = previous[1] if previous is not None and previous[1] is not None else ZERO
+        bars.append(
+            PeriodBar(
+                period=label,
+                label=planning_calculations.short_period_name(kind, label),
+                predicted=(
+                    None if predicted is None else _round_one(predicted - previous_predicted)
+                ),
+                actual=None if actual is None else _round_one(actual - previous_actual),
+            )
+        )
+    return tuple(bars)
+
+
+@dataclass(frozen=True)
+class ChartReading:
+    """A leitura da curva do dono num dia: o previsto e o real acumulados e os índices."""
+
+    predicted: Decimal
+    actual: Decimal | None
+    deviation_pp: Decimal | None
+    spi: Decimal | None
+
+
+def chart_reading(periods: Sequence[Mapping[str, Any]], *, day: date) -> ChartReading:
+    """A posição acumulada de um dia na leitura semanal do dono (o gráfico da Curva S).
+
+    As semanas do gráfico trazem o previsto interpolado dentro do mês congelado e o real
+    medido até o fim da semana; a semana do dia é a que o contém e fora do intervalo valem
+    zero (antes do primeiro ponto) ou o último ponto. É a regra do relatório no semanal — no
+    mensal vale o ponto do mês da série, como nas telas.
+    """
+    if not periods:
+        return ChartReading(predicted=ZERO, actual=None, deviation_pp=None, spi=None)
+    year, week, _ = day.isocalendar()
+    chosen: Mapping[str, Any] | None = None
+    for item in periods:
+        if (int(item["ano"]), int(item["semana"])) <= (year, week):
+            chosen = item
+        else:
+            break
+    if chosen is None:
+        return ChartReading(predicted=ZERO, actual=None, deviation_pp=None, spi=None)
+    values = chosen.get("valores", {})
+    base = values.get("linha_base")
+    realized = values.get("realizado")
+    predicted = ZERO if base is None else _round_one(Decimal(str(base)))
+    actual = None if realized is None else _round_one(Decimal(str(realized)))
+    deviation = None if actual is None else _round_one(actual - predicted)
+    spi = (
+        None
+        if actual is None or predicted <= ZERO
+        else (actual / predicted).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    )
+    return ChartReading(predicted=predicted, actual=actual, deviation_pp=deviation, spi=spi)
 
 
 # ── Períodos e termos ──────────────────────────────────────────────────────

@@ -441,6 +441,17 @@ max-complexity = 10
 # o caso (ISSUE-081), como os helpers de montagem dos demais testes.
 "tests/relatorio/test_analise_servico.py" = ["PLR0913"]
 
+# `_chamar_rota` e `_chamar`, em tests/relatorio/test_relatorio_rotas.py, e `_status`, em
+# tests/relatorio/test_relatorio_servico.py, montam a requisição e a leitura do relatório
+# gerencial com o alvo, os parâmetros, o corpo, o perfil, o escopo, o tipo, o período e as
+# seções opcionais, e é assim de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste
+# informa só o que importa para o caso (ISSUE-083), como os helpers dos demais testes. O
+# ARG001 é a fixture `sessao_das_rotas` de `test_folhas_do_projeto_1_na_demonstracao`: o teste
+# não lê o valor, mas é ela que faz a rota usar a transação do teste (o mesmo contrato dos
+# testes da análise, que a usam na leitura).
+"tests/relatorio/test_relatorio_rotas.py" = ["PLR0913", "ARG001"]
+"tests/relatorio/test_relatorio_servico.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

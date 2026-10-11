@@ -14,6 +14,16 @@ telas dos módulos 02, 03 e 04 e é feito de fragmentos:
   Membro) e responde a marca que fecha o modal;
 * ``POST analise/excluir`` exclui (403 abaixo de Gestor) e responde a marca da exclusão.
 
+Relatório gerencial (ISSUE-083, D12), prefix ``/api/relatorio/gerencial``:
+
+* ``GET  gerencial?tipo=&periodo=&secoes=`` desenha as folhas do relatório no escopo do request
+  (``?projeto=portfolio|<id>``); tipo ou período inválidos respondem 422 com a mensagem do
+  formulário;
+* ``GET  gerencial/emissao`` abre o modal de emissão e ``POST gerencial/emissao`` o redesenha
+  com o escopo, o tipo e o período trocados, com a situação real de relatos e análises.
+
+As duas rotas são READ: o Visualizador vê o relatório e a situação que o modal mostra.
+
 The routes read the request and draw the answer; every rule is in the facade.
 """
 
@@ -49,6 +59,18 @@ FORM_TEMPLATE = "relatorio/analise_formulario.html"
 SAVED_TEMPLATE = "relatorio/analise_salvo.html"
 
 DELETED_TEMPLATE = "relatorio/analise_excluido.html"
+
+REPORT_ROUTE = "relatorio/gerencial"
+
+REPORT_TARGET = "gerencial-conteudo"
+
+REPORT_MODAL_TARGET = "relatorio-modal"
+
+REPORT_PAGE_CLASS = "pagina--relatorio-gerencial"
+
+SHEETS_TEMPLATE = "relatorio/folhas.html"
+
+EMISSION_TEMPLATE = "relatorio/emissao.html"
 
 READ_ACCESS = Access(module=service.MODULE)
 
@@ -233,6 +255,86 @@ def analysis_delete(
         root_class=ANALYSIS_PAGE_CLASS,
         toast=DELETED_MESSAGE,
     )
+
+
+# ── O relatório gerencial (ISSUE-083) ──────────────────────────────────────
+
+
+@bp.route(route=REPORT_ROUTE, methods=["GET"])
+@fragment_route(access=READ_ACCESS)
+def report_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """As folhas do relatório para o escopo do request, o tipo, o período e as seções."""
+    params = req.params
+    view = service.report_view(
+        session,
+        user=context.user,
+        scope=context.scope,
+        kind=(params.get("tipo") or "").strip(),
+        period=(params.get("periodo") or "").strip(),
+        sections=_sections_of(req),
+        reference_date=calendario.today(),
+    )
+    return AlpineAjaxResponse(
+        template_name=SHEETS_TEMPLATE,
+        context=_sheets_context(view),
+        request=req,
+        target_id=REPORT_TARGET,
+        root_class=REPORT_PAGE_CLASS,
+    )
+
+
+@bp.route(route=f"{REPORT_ROUTE}/emissao", methods=["GET", "POST"])
+@fragment_route(access=READ_ACCESS)
+def report_emission(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O modal de emissão: o escopo, o tipo, o período e a situação de relatos e análises."""
+    values = _values_of(req)
+    scope = service.report_scope(
+        session, fallback=context.scope, requested=values.get("escopo", "")
+    )
+    view = service.report_status(
+        session,
+        user=context.user,
+        scope=scope,
+        kind=(values.get("tipo") or "").strip(),
+        period=(values.get("periodo") or "").strip(),
+        reference_date=calendario.today(),
+        sections=_sections_of(req),
+    )
+    return AlpineAjaxResponse(
+        template_name=EMISSION_TEMPLATE,
+        context={"visao": view},
+        request=req,
+        target_id=REPORT_MODAL_TARGET,
+        root_class=REPORT_PAGE_CLASS,
+    )
+
+
+def _sections_of(req: func.HttpRequest) -> tuple[str, ...]:
+    """As seções pedidas: os checkboxes do POST ou o ``secoes`` em csv do endereço."""
+    if req.method == "POST":
+        return tuple(part.strip() for part in req.form.getlist("secoes") if part.strip())
+    return tuple(
+        part.strip() for part in (req.params.get("secoes") or "").split(",") if part.strip()
+    )
+
+
+def _sheets_context(view: service.ReportSheets) -> dict[str, Any]:
+    """O que as folhas precisam: a visão e os formatadores, como nos fragmentos da análise."""
+    return {
+        "visao": view,
+        "formatar_pct": calculations.format_percent,
+        "formatar_indice": calculations.format_index,
+        "formatar_pp": calculations.format_pp,
+        "formatar_mes": calculations.format_month,
+        "formatar_data": calculations.format_date,
+        "formatar_num": calculations.format_number,
+        "formatar_num0": calculations.format_number0,
+        "formatar_num1": calculations.format_number1,
+    }
 
 
 # ── Respostas ──────────────────────────────────────────────────────────────
