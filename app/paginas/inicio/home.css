@@ -1,16 +1,141 @@
 /* ============================================================
    home.css — Estilo da tela Início (inicio/home)
 
-   Resumo do projeto e da carteira de projetos: um indicador-chave por módulo e os pontos de atenção.
+   Indicadores-chave por módulo, pontos de atenção e cards dos módulos (ISSUE-079).
 
    Escopo: tudo que morar aqui começa por .pagina--inicio-home, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
-
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-079 e ISSUE-080.
+   view, para não vazar entre telas. Só tokens do Design System: nenhum valor de
+   cor, espaçamento, raio ou sombra escrito direto. O que se repetir em três telas
+   sobe para ds/patterns.css.
 
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+/* Barra de contexto: as etiquetas do escopo à esquerda, a exportação à direita. */
+.pagina--inicio-home .home__contexto {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-lg); flex-wrap: wrap; margin-bottom: var(--space-xl);
+}
+.pagina--inicio-home .home__etiquetas { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.pagina--inicio-home .home__etiqueta {
+  display: inline-flex; align-items: center;
+  padding: var(--space-xs) 10px;
+  border-radius: var(--r-sm);
+  background: var(--frio-50); color: var(--frio-700);
+  font-size: 12px; font-weight: 600;
+}
+.pagina--inicio-home .home__etiqueta--escopo {
+  background: var(--verde-50); color: var(--verde-700);
+}
+.pagina--inicio-home .home__exportacoes { display: flex; gap: var(--space-sm); flex: none; }
+
+/* Indicadores: quatro colunas no desktop (o .kpis do DS reduz a duas e a uma). */
+.pagina--inicio-home .home__kpis { --kpis-colunas: 4; }
+.pagina--inicio-home .home__kpi {
+  flex-direction: column; align-items: stretch; gap: var(--space-xs);
+}
+.pagina--inicio-home .home__kpi-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-sm);
+}
+.pagina--inicio-home .home__kpi-modulo {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--text-secondary);
+  text-align: right;
+}
+.pagina--inicio-home .home__kpi-valor {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-sm); flex-wrap: wrap;
+}
+.pagina--inicio-home .home__kpi .kpi__value { margin-left: 0; font-size: 28px; }
+.pagina--inicio-home .home__kpi-rodape {
+  font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere;
+}
+
+/* Pontos de atenção: a lista com o nível sinalizado pelo ícone e pela borda. */
+.pagina--inicio-home .home__atencao { margin-bottom: var(--space-xl); }
+.pagina--inicio-home .home__lista { list-style: none; margin: 0; padding: 0; }
+.pagina--inicio-home .home__atencao-item {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--neutro-100);
+  border-left: 3px solid var(--neutro-300);
+}
+.pagina--inicio-home .home__atencao-item:last-child { border-bottom: none; }
+.pagina--inicio-home .home__atencao-item--danger {
+  border-left-color: var(--erro-500); background: var(--erro-50);
+}
+.pagina--inicio-home .home__atencao-item--warning {
+  border-left-color: var(--warn-500); background: var(--warn-50);
+}
+.pagina--inicio-home .home__atencao-icone {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--branco); color: var(--text-secondary);
+}
+.pagina--inicio-home .home__atencao-item--danger .home__atencao-icone { color: var(--erro-700); }
+.pagina--inicio-home .home__atencao-item--warning .home__atencao-icone { color: var(--warn-700); }
+.pagina--inicio-home .home__atencao-texto {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
+.pagina--inicio-home .home__atencao-titulo {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.pagina--inicio-home .home__atencao-detalhe {
+  font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere;
+}
+.pagina--inicio-home .home__atencao-vazio-icone { color: var(--ok-500); }
+
+/* Cards dos módulos: quatro colunas com o acento do módulo no traço superior. */
+.pagina--inicio-home .home__modulos-sec { margin-top: var(--space-xl); }
+.pagina--inicio-home .home__modulos-sec .h-card4 { margin-bottom: var(--space-lg); }
+.pagina--inicio-home .home__modulos {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-lg);
+}
+.pagina--inicio-home .home__modulo {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  color: inherit; text-decoration: none;
+  transition: box-shadow .15s, border-color .15s, transform .15s;
+}
+.pagina--inicio-home .home__modulo::before {
+  content: ""; position: absolute; inset: 0 0 auto 0;
+  height: 4px; background: var(--home-acento, var(--verde-500));
+}
+.pagina--inicio-home .home__modulo:hover {
+  box-shadow: var(--shadow-hover); border-color: var(--verde-500);
+  transform: translateY(-1px);
+}
+.pagina--inicio-home .home__modulo-icone {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: var(--r-md);
+  background: var(--frio-50); color: var(--home-acento, var(--verde-500));
+}
+.pagina--inicio-home .home__modulo-titulo { margin: 0; }
+.pagina--inicio-home .home__modulo-texto {
+  margin: 0; font-size: 12px; color: var(--text-secondary);
+}
+.pagina--inicio-home .home__modulo-selos {
+  display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: auto;
+}
+
+/* O acento de cada módulo (os mesmos traços da navegação, nos tokens do DS). */
+.pagina--inicio-home .home__modulo--central_acoes { --home-acento: var(--verde-500); }
+.pagina--inicio-home .home__modulo--planejamento { --home-acento: var(--frio-500); }
+.pagina--inicio-home .home__modulo--financeiro { --home-acento: var(--azul-500); }
+.pagina--inicio-home .home__modulo--suprimentos { --home-acento: var(--azul-800); }
+.pagina--inicio-home .home__modulo--riscos { --home-acento: var(--laranja-500); }
+.pagina--inicio-home .home__modulo--qualidade { --home-acento: var(--roxo-500); }
+.pagina--inicio-home .home__modulo--hse { --home-acento: var(--bege-500); }
+.pagina--inicio-home .home__modulo--governanca { --home-acento: var(--neutro-400); }
+
+@media (max-width: 1100px) {
+  .pagina--inicio-home .home__modulos { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 760px) {
+  .pagina--inicio-home .home__modulos { grid-template-columns: 1fr; }
+  .pagina--inicio-home .home__contexto { flex-direction: column; }
+}

@@ -1,0 +1,126 @@
+{#-
+  O Início (ISSUE-079): o contexto do projeto ou do Portfólio em etiquetas na barra
+  da página, com a exportação à direita; os oito indicadores-chave clicáveis, cada
+  um com a referência de gestão; os pontos de atenção calculados; e os cards dos oito
+  módulos com os selos calculados. Todos os números saem prontos da fachada do módulo
+  dono (D9): aqui não se calcula nada. Os ícones vêm de window.icon e as exportações
+  usam data-tn-excel e data-tn-pdf (D12). O vazio de origem é este bloco; carregando,
+  erro e sem-permissão são da view.
+
+  Espera: visao, url_excel, url_pdf, formatar_data e formatar_moeda.
+-#}
+{% extends "base_fragment.html" %}
+
+{% block fragment %}
+<div class="home__contexto">
+  <div class="home__etiquetas">
+    {% if visao.is_portfolio %}
+    <span class="home__etiqueta home__etiqueta--escopo">
+      Portfólio de projetos · {{ visao.project_count }} {{ 'projeto' if visao.project_count == 1 else 'projetos' }}
+    </span>
+    {% elif visao.project %}
+    <span class="home__etiqueta home__etiqueta--escopo">{{ visao.project.label }}</span>
+    {% endif %}
+    <span class="home__etiqueta">Data de referência {{ formatar_data(visao.reference_date) }}</span>
+    {% if visao.budget_cents is not none %}
+    <span class="home__etiqueta">Orçamento {{ formatar_moeda(visao.budget_cents) }}</span>
+    {% endif %}
+    {% if visao.expected_end_date is not none %}
+    <span class="home__etiqueta">Término previsto {{ formatar_data(visao.expected_end_date) }}</span>
+    {% endif %}
+  </div>
+  <div class="home__exportacoes">
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  </div>
+</div>
+
+{% if visao.is_empty %}
+<div class="card">
+  <div class="card__body">
+    <div class="empty" data-estado="vazio-origem">
+      <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
+      <h2 class="h-card4">Nenhum projeto cadastrado</h2>
+      <p>O Início é montado a partir dos projetos e dos módulos donos; cadastre o primeiro projeto em Configurações.</p>
+      <a class="btn btn--primary" href="/configuracoes/parametros" data-tn-tela>Abrir Configurações</a>
+    </div>
+  </div>
+</div>
+{% else %}
+<section aria-labelledby="home-t-indicadores">
+  <h2 class="sr-only" id="home-t-indicadores">Indicadores-chave por módulo</h2>
+  <div class="kpis home__kpis">
+    {% for kpi in visao.kpis %}
+    <a class="kpi kpi--{{ kpi.tone }} home__kpi" href="{{ kpi.url }}" data-tn-tela>
+      <span class="home__kpi-topo">
+        <span class="kpi__icone home__kpi-icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 18)" aria-hidden="true"></span>
+        <span class="home__kpi-modulo">{{ kpi.module_label }}</span>
+      </span>
+      <span class="kpi__label">{{ kpi.label }}</span>
+      <span class="home__kpi-valor">
+        <span class="kpi__value">{{ kpi.value }}</span>
+        {% if kpi.badge %}<span class="pill pill--erro">{{ kpi.badge }}</span>{% endif %}
+      </span>
+      <span class="hint">{{ kpi.reference }}</span>
+      {% if kpi.footer %}<span class="home__kpi-rodape">{{ kpi.footer }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card home__atencao" aria-labelledby="home-t-atencao">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="home-t-atencao">Pontos de atenção</h2>
+      <span class="hint">Calculados na data de referência; o clique abre a tela dona do dado.</span>
+    </div>
+    {% if visao.attention %}
+    <span class="pill pill--neutral">{{ visao.attention | length }} {{ 'item' if visao.attention | length == 1 else 'itens' }}</span>
+    {% endif %}
+  </div>
+  {% if not visao.attention %}
+  <div class="card__body">
+    <div class="empty" data-estado="vazio-filtro">
+      <span class="home__atencao-vazio-icone" x-init="$el.innerHTML = window.icon('checkCircle', 32)" aria-hidden="true"></span>
+      <p>Nenhum ponto de atenção na data de referência.</p>
+    </div>
+  </div>
+  {% else %}
+  <ul class="home__lista">
+    {% for item in visao.attention %}
+    <li class="home__atencao-item home__atencao-item--{{ item.level }}">
+      <span class="home__atencao-icone" x-init="$el.innerHTML = window.icon('{{ 'warning' if item.level == 'danger' else 'info' }}', 18)" aria-hidden="true"></span>
+      <div class="home__atencao-texto">
+        <span class="home__atencao-titulo">{{ item.title }}</span>
+        <span class="home__atencao-detalhe">{{ item.detail }}</span>
+      </div>
+      <a class="btn btn--ghost btn--icon btn--sm" href="{{ item.url }}" data-tn-tela aria-label="Abrir: {{ item.title }}">
+        <span x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="home__modulos-sec" aria-labelledby="home-t-modulos">
+  <h2 class="h-card4" id="home-t-modulos">Módulos</h2>
+  <div class="home__modulos">
+    {% for card in visao.cards %}
+    <a class="card home__modulo home__modulo--{{ card.module }}" href="{{ card.url }}" data-tn-tela>
+      <div class="home__modulo-topo">
+        <span class="home__modulo-icone" x-init="$el.innerHTML = window.icon('{{ card.icon }}', 24)" aria-hidden="true"></span>
+      </div>
+      <h3 class="h-card5 home__modulo-titulo">{{ card.title }}</h3>
+      <p class="home__modulo-texto">{{ card.description }}</p>
+      <div class="home__modulo-selos">
+        {% for selo in card.badges %}
+        <span class="pill pill--{{ 'fix' if selo.tone == 'info' else selo.tone }}">{{ selo.text }}</span>
+        {% endfor %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
