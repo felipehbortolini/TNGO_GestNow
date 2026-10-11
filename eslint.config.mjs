@@ -191,6 +191,14 @@ export default [
     files: ["app/ds/print.css"],
     rules: { "css/no-invalid-at-rules": "off" },
   },
+  {
+    // Mesmo caso do print.css acima: `@page relatorio-gerencial` usa os
+    // descritores `size` e `margin`, válidos para @page, e a regra ainda não
+    // os conhece. A página nomeada é o que impede o `margin: 0` da folha A4
+    // do relatório de mexer no @page do imprimível genérico.
+    files: ["app/paginas/relatorio/gerencial.css"],
+    rules: { "css/no-invalid-at-rules": "off" },
+  },
 
   // ─────────────────────────────────────────────────────────────────────
   // HTML

@@ -1,16 +1,334 @@
 /* ============================================================
    gerencial.css — Estilo da tela Relatório gerencial (relatorio/gerencial)
 
-   Relatório semanal ou mensal em folhas por módulo, com impressão, Excel e troca de período.
+   Folhas A4 na horizontal (297×210 mm), uma por seção, com a fonte que a tela encaixa
+   (--rel-fs, de 8,6 pt até 6,4 pt, por app/paginas/relatorio/gerencial.js). As classes rel-*
+   são próprias da folha: .folha é a do imprimível genérico (D12) e as duas não se misturam.
 
-   Escopo: tudo que morar aqui começa por .pagina--relatorio-gerencial, a classe da raiz da
-   view, para não vazar entre telas. Só tokens do Design System: nenhum valor
-   de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
-   três telas sobe para ds/patterns.css.
+   Escopo: tudo começa por .pagina--relatorio-gerencial — a classe da raiz da view, que o
+   fragmento das folhas e o do modal também levam (root_class da resposta). Só tokens do
+   Design System: nenhuma cor, sombra, raio ou espaço escrito direto. As medidas do papel (mm)
+   e os tamanhos de fonte do relatório (pt) são o que o DS ainda não tinha, como em
+   ds/print.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com as ISSUE-083 a ISSUE-086.
-
-   Carrega pelo shell (app/index.html), nunca pela view. Ver
-   docs/CONTRATO-VISUAL.md.
+   Carrega pelo shell (app/index.html), nunca pela view. Ver docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+/* ---------- Cabeçalho da tela (não imprime) ---------- */
+.pagina--relatorio-gerencial .rel-barra {
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+  background: var(--neutro-50);
+}
+.pagina--relatorio-gerencial .rel-barra__titulo { margin: 0; }
+.pagina--relatorio-gerencial .rel-barra__titulo b {
+  display: block;
+  font-family: var(--font-label);
+  color: var(--brand-title);
+}
+.pagina--relatorio-gerencial .rel-barra__titulo span { font-size: 12px; color: var(--text-secondary); }
+
+/* ---------- Pilha de folhas ---------- */
+.pagina--relatorio-gerencial .rel-folhas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--space-lg);
+  border-radius: var(--r-md);
+  background: var(--neutro-50);
+  overflow-x: auto;
+}
+
+/* ---------- Folha ---------- */
+.pagina--relatorio-gerencial .rel-folha {
+  --rel-fs: 8.6pt;
+  position: relative;
+  box-sizing: border-box;
+  width: 297mm;
+  height: 210mm;
+  padding: 8mm 10mm 7mm;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--branco);
+  color: var(--text-primary);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-hover);
+  font-family: var(--font);
+  font-size: var(--rel-fs);
+  line-height: 1.35;
+}
+.pagina--relatorio-gerencial .rel-folha__cabecalho {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 0.4mm solid var(--borda);
+}
+.pagina--relatorio-gerencial .rel-folha__logo { display: block; height: 8mm; width: auto; }
+.pagina--relatorio-gerencial .rel-folha__titulo b {
+  display: block;
+  font-family: var(--font-label);
+  font-size: 13pt;
+  line-height: 1.15;
+  color: var(--brand-title);
+}
+.pagina--relatorio-gerencial .rel-folha__titulo span { display: block; font-size: 8.5pt; color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-folha__projeto { text-align: right; font-size: 8pt; color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-folha__projeto b { display: block; font-size: 9pt; color: var(--text-primary); }
+.pagina--relatorio-gerencial .rel-folha__secao {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  margin: 3mm 0 2.5mm;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 11pt;
+  color: var(--brand-title);
+}
+.pagina--relatorio-gerencial .rel-folha__secao::before {
+  content: "";
+  width: 1.4mm;
+  height: 5.5mm;
+  border-radius: 1mm;
+  background: var(--verde-500);
+}
+.pagina--relatorio-gerencial .rel-folha__secao small {
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: 8pt;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-folha__corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  overflow: hidden;
+}
+.pagina--relatorio-gerencial .rel-folha__rodape {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  padding-top: 2mm;
+  margin-top: 2mm;
+  border-top: 0.3mm solid var(--borda);
+  font-size: 7pt;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-folha__rodape span:nth-child(2) { flex: 1; text-align: center; }
+
+/* ---------- Indicadores ---------- */
+.pagina--relatorio-gerencial .rel-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2.5mm;
+}
+.pagina--relatorio-gerencial .rel-kpi {
+  --kpi-cor: var(--neutro-400);
+  min-width: 0;
+  padding: 2mm 2.5mm;
+  border: 0.3mm solid var(--borda);
+  border-left: 1.2mm solid var(--kpi-cor);
+  border-radius: 1.5mm;
+}
+.pagina--relatorio-gerencial .rel-kpi--previsto { --kpi-cor: var(--azul-500); }
+.pagina--relatorio-gerencial .rel-kpi--real { --kpi-cor: var(--verde-500); }
+.pagina--relatorio-gerencial .rel-kpi--success { --kpi-cor: var(--ok-500); }
+.pagina--relatorio-gerencial .rel-kpi--warning,
+.pagina--relatorio-gerencial .rel-kpi--danger { --kpi-cor: var(--erro-500); }
+.pagina--relatorio-gerencial .rel-kpi--info { --kpi-cor: var(--neutro-400); }
+.pagina--relatorio-gerencial .rel-kpi--previsto .rel-kpi__valor,
+.pagina--relatorio-gerencial .rel-kpi--real .rel-kpi__valor,
+.pagina--relatorio-gerencial .rel-kpi--warning .rel-kpi__valor,
+.pagina--relatorio-gerencial .rel-kpi--danger .rel-kpi__valor { color: var(--kpi-cor); }
+.pagina--relatorio-gerencial .rel-kpi__rotulo {
+  display: block;
+  font-size: 7.5pt;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pagina--relatorio-gerencial .rel-kpi__valor {
+  display: block;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 15pt;
+  line-height: 1.2;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.pagina--relatorio-gerencial .rel-kpi__valor small {
+  margin-left: 0.6mm;
+  font-size: 8pt;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-kpi__esperado,
+.pagina--relatorio-gerencial .rel-kpi__rodape {
+  display: block;
+  font-size: 7pt;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pagina--relatorio-gerencial .rel-kpi__esperado b { color: var(--text-primary); font-weight: 600; }
+.pagina--relatorio-gerencial .rel-kpi__esperado span + span { margin-left: 2mm; }
+
+/* ---------- Composição da folha ---------- */
+.pagina--relatorio-gerencial .rel-grade { display: grid; gap: 4mm; min-height: 0; }
+.pagina--relatorio-gerencial .rel-grade--60-40 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.pagina--relatorio-gerencial .rel-grade--55-45 { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+.pagina--relatorio-gerencial .rel-bloco { min-width: 0; display: flex; flex-direction: column; gap: 1.5mm; }
+.pagina--relatorio-gerencial .rel-bloco__titulo {
+  margin: 0;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 9pt;
+  color: var(--brand-title);
+}
+.pagina--relatorio-gerencial .rel-bloco__titulo small {
+  margin-left: 1.5mm;
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: 7.5pt;
+  color: var(--text-secondary);
+}
+
+/* ---------- Gráficos ---------- */
+.pagina--relatorio-gerencial .rel-grafico { position: relative; width: 100%; }
+.pagina--relatorio-gerencial .rel-grafico--c { --graf-altura: 86mm; }
+.pagina--relatorio-gerencial .rel-grafico--p { --graf-altura: 46mm; }
+.pagina--relatorio-gerencial .rel-folha .graf__legenda { font-size: 7.5pt; }
+
+/* ---------- Tabelas, listas e avisos ---------- */
+.pagina--relatorio-gerencial .rel-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+  table-layout: auto;
+}
+.pagina--relatorio-gerencial .rel-tabela th {
+  padding: 1.2mm 1.6mm;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--neutro-50);
+  border-bottom: 0.3mm solid var(--neutro-300);
+  white-space: nowrap;
+}
+.pagina--relatorio-gerencial .rel-tabela td {
+  padding: 1.1mm 1.6mm;
+  vertical-align: top;
+  border-bottom: 0.2mm solid var(--borda);
+}
+.pagina--relatorio-gerencial .rel-tabela .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pagina--relatorio-gerencial .rel-tabela--desvios td:first-child { width: 42%; }
+.pagina--relatorio-gerencial .rel-tabela--desvios td { line-height: 1.3; }
+.pagina--relatorio-gerencial .rel-lista { margin: 0; padding-left: 4.5mm; display: grid; gap: 0.8mm; }
+.pagina--relatorio-gerencial .rel-lista li { line-height: 1.35; }
+.pagina--relatorio-gerencial .rel-vazio { margin: 0; padding: 2mm 0; font-size: 8pt; color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-negativo { color: var(--erro-700); font-weight: 600; }
+.pagina--relatorio-gerencial .rel-alerta {
+  padding: 2mm 3mm;
+  border: 0.3mm solid var(--warn-500);
+  border-radius: 1.5mm;
+  background: var(--warn-50);
+  color: var(--warn-800);
+  font-size: 8.5pt;
+}
+
+/* ---------- Análise do período ---------- */
+.pagina--relatorio-gerencial .rel-bloco--analise { gap: 1.2mm; }
+.pagina--relatorio-gerencial .rel-analise { padding: 0.4mm 0 0.4mm 2.5mm; border-left: 0.8mm solid var(--verde-500); }
+.pagina--relatorio-gerencial .rel-analise p { margin: 0 0 1mm; line-height: 1.38; }
+.pagina--relatorio-gerencial .rel-analise p:last-child { margin-bottom: 0; }
+
+/* ---------- Modal de emissão ---------- */
+.pagina--relatorio-gerencial .rel-emissao { display: flex; flex-direction: column; gap: var(--space-lg); }
+.pagina--relatorio-gerencial .rel-emissao__grupo {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.pagina--relatorio-gerencial .rel-emissao__legenda {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-emissao__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  margin-top: var(--space-xs);
+}
+.pagina--relatorio-gerencial .rel-emissao__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.pagina--relatorio-gerencial .rel-emissao__bloco { display: flex; flex-direction: column; gap: var(--space-xs); }
+.pagina--relatorio-gerencial .rel-emissao__rotulo {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-situacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pagina--relatorio-gerencial .rel-situacao__linha { margin: 0; }
+
+/* ---------- Impressão ----------
+   A folha é a página: A4 na horizontal sem margem (a margem está dentro da folha). O @page
+   leva o nome "relatorio-gerencial" para não mexer no @page do imprimível genérico
+   (ds/print.css, 10 mm): a tela do relatório monta as folhas inteiras, e as outras telas
+   continuam com a margem do papel. A navegação sai pelo shell.css; o cabeçalho da tela, pelo
+   bloco de impressão do DS — aqui só sai o que é da tela do relatório. */
+@page relatorio-gerencial { size: A4 landscape; margin: 0; }
+.pagina--relatorio-gerencial { page: relatorio-gerencial; }
+
+@media print {
+  .pagina--relatorio-gerencial .page-head { display: none; }
+  .pagina--relatorio-gerencial .rel-folhas {
+    display: block;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    overflow: visible;
+  }
+  .pagina--relatorio-gerencial .rel-folha {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+  .pagina--relatorio-gerencial .rel-folha:last-child { break-after: auto; }
+  .pagina--relatorio-gerencial * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
