@@ -260,6 +260,60 @@
 .pagina--relatorio-gerencial .rel-heat--erro { background: var(--erro-50); color: var(--erro-700); }
 .pagina--relatorio-gerencial .rel-heat--ok { background: var(--ok-50); color: var(--ok-800); }
 .pagina--relatorio-gerencial .rel-heat--neutro { background: var(--neutro-100); color: var(--text-secondary); }
+
+/* A matriz P x I da folha Riscos (ISSUE-085): a grade 5x5 com o eixo da probabilidade e as
+   cores das faixas que o dono calcula (ok, alerta, atenção e erro). O texto da célula é o
+   ``2A``, ``1O`` ou ``1A · 2O``; a vazia fica com a cor da faixa e sem número. */
+.pagina--relatorio-gerencial .rel-matriz {
+  display: grid;
+  grid-template-columns: 5mm repeat(5, minmax(0, 1fr));
+  gap: 0.8mm;
+  font-size: 7.5pt;
+}
+.pagina--relatorio-gerencial .rel-matriz__eixo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.pagina--relatorio-gerencial .rel-matriz__cel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7.5mm;
+  padding: 0.6mm;
+  border-radius: 1mm;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pagina--relatorio-gerencial .rel-matriz__cel--ok { background: var(--ok-500); color: var(--branco); }
+.pagina--relatorio-gerencial .rel-matriz__cel--alerta { background: var(--warn-500); color: var(--warn-800); }
+.pagina--relatorio-gerencial .rel-matriz__cel--atencao { background: var(--laranja-500); color: var(--branco); }
+.pagina--relatorio-gerencial .rel-matriz__cel--erro { background: var(--erro-500); color: var(--branco); }
+.pagina--relatorio-gerencial .rel-matriz__cel--neutro { background: var(--neutro-100); color: var(--text-primary); }
+.pagina--relatorio-gerencial .rel-matriz__rotulo-x {
+  grid-column: 2 / -1;
+  text-align: center;
+  font-size: 7pt;
+  color: var(--text-secondary);
+}
+
+/* O selo da faixa de severidade dos principais riscos e o espelho da economia (VAC positivo)
+   da folha Carteira. */
+.pagina--relatorio-gerencial .rel-sev {
+  display: inline-block;
+  padding: 0.4mm 1.4mm;
+  border-radius: 1mm;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pagina--relatorio-gerencial .rel-sev--ok { background: var(--ok-50); color: var(--ok-800); }
+.pagina--relatorio-gerencial .rel-sev--alerta { background: var(--warn-50); color: var(--warn-800); }
+.pagina--relatorio-gerencial .rel-sev--atencao { background: var(--laranja-500); color: var(--branco); }
+.pagina--relatorio-gerencial .rel-sev--erro { background: var(--erro-50); color: var(--erro-700); }
+.pagina--relatorio-gerencial .rel-sev--neutro { background: var(--neutro-100); color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-economia { color: var(--ok-800); font-weight: 600; }
 .pagina--relatorio-gerencial .rel-alerta {
   padding: 2mm 3mm;
   border: 0.3mm solid var(--warn-500);
