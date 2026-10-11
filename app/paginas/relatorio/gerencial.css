@@ -187,6 +187,8 @@
 .pagina--relatorio-gerencial .rel-grade { display: grid; gap: 4mm; min-height: 0; }
 .pagina--relatorio-gerencial .rel-grade--60-40 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 .pagina--relatorio-gerencial .rel-grade--55-45 { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+.pagina--relatorio-gerencial .rel-grade--45-55 { grid-template-columns: minmax(0, 9fr) minmax(0, 11fr); }
+.pagina--relatorio-gerencial .rel-grade--50-50 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pagina--relatorio-gerencial .rel-bloco { min-width: 0; display: flex; flex-direction: column; gap: 1.5mm; }
 .pagina--relatorio-gerencial .rel-bloco__titulo {
   margin: 0;
@@ -206,6 +208,7 @@
 /* ---------- Gráficos ---------- */
 .pagina--relatorio-gerencial .rel-grafico { position: relative; width: 100%; }
 .pagina--relatorio-gerencial .rel-grafico--c { --graf-altura: 86mm; }
+.pagina--relatorio-gerencial .rel-grafico--m { --graf-altura: 62mm; }
 .pagina--relatorio-gerencial .rel-grafico--p { --graf-altura: 46mm; }
 .pagina--relatorio-gerencial .rel-folha .graf__legenda { font-size: 7.5pt; }
 
@@ -241,6 +244,22 @@
 .pagina--relatorio-gerencial .rel-lista li { line-height: 1.35; }
 .pagina--relatorio-gerencial .rel-vazio { margin: 0; padding: 2mm 0; font-size: 8pt; color: var(--text-secondary); }
 .pagina--relatorio-gerencial .rel-negativo { color: var(--erro-700); font-weight: 600; }
+.pagina--relatorio-gerencial .rel-mais { margin-top: 0.6mm; font-size: 7.5pt; color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-total td {
+  font-weight: 600;
+  border-top: 0.3mm solid var(--neutro-300);
+}
+
+/* A faixa de calor do desvio da EAC: os tons que o dono calcula dos parâmetros vigentes. */
+.pagina--relatorio-gerencial .rel-heat {
+  display: inline-block;
+  padding: 0.4mm 1.4mm;
+  border-radius: 1mm;
+  font-weight: 600;
+}
+.pagina--relatorio-gerencial .rel-heat--erro { background: var(--erro-50); color: var(--erro-700); }
+.pagina--relatorio-gerencial .rel-heat--ok { background: var(--ok-50); color: var(--ok-800); }
+.pagina--relatorio-gerencial .rel-heat--neutro { background: var(--neutro-100); color: var(--text-secondary); }
 .pagina--relatorio-gerencial .rel-alerta {
   padding: 2mm 3mm;
   border: 0.3mm solid var(--warn-500);
