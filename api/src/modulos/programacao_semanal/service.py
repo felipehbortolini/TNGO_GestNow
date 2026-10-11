@@ -1092,6 +1092,20 @@ def ensure_settings(session: Session, *, author_id: int, project_id: int) -> Sch
     return row
 
 
+def remove_settings(session: Session, *, author_id: int, project_id: int) -> None:
+    """Apaga a configuração da programação do projeto, com a trilha (ISSUE-078).
+
+    O cadastro de projetos é de Configurações: quando um projeto é excluído, a
+    linha de ``programacao_configuracao`` — que a chave estrangeira guardaria —
+    sai junto, pela fachada dona. Um projeto que ainda lê os padrões do app não
+    tem linha e nada acontece.
+    """
+    row = repository.settings_of(session, project_id)
+    if row is None:
+        return
+    recording.delete(session, user_id=author_id, record=row, version=row.version)
+
+
 def save_parameters(
     session: Session,
     *,

@@ -15,7 +15,7 @@ type and the value as text (lists use the index in the path).
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from src.core import audit, rbac, recording
 from src.core.errors import InvalidDataError
 from src.core.models import Client
+from src.core.money import format_brl
 from src.modulos.configuracoes import forms, validation
 from src.modulos.configuracoes.models import (
     Collaborator,
@@ -39,6 +40,7 @@ from src.modulos.configuracoes.models import (
     Person,
     PortfolioWeight,
     Project,
+    System,
     Unit,
 )
 
@@ -714,7 +716,43 @@ def _create_version(
             )
         )
     session.flush()
+    if group == "portfolio":
+        _copy_portfolio_weights(session, version=version)
     return version
+
+
+def _copy_portfolio_weights(session: Session, *, version: ParameterVersion) -> None:
+    """A nova versão do grupo portfolio nasce com as notas da anterior (ISSUE-078).
+
+    As notas dos projetos vivem dentro da versão (D8); sem a cópia, gravar os
+    pesos do portfólio na tela de Parâmetros zeraria a ponderação de todos os
+    projetos. As linhas são filhas da versão: a trilha da versão nova já
+    registra a criação, e a cópia não entra na trilha linha a linha.
+    """
+    previous = session.scalars(
+        select(ParameterVersion)
+        .where(
+            ParameterVersion.group == version.group,
+            ParameterVersion.version < version.version,
+        )
+        .order_by(ParameterVersion.version.desc())
+        .limit(1)
+    ).first()
+    if previous is None:
+        return
+    rows = session.scalars(
+        select(PortfolioWeight).where(PortfolioWeight.version_id == previous.id)
+    ).all()
+    for row in rows:
+        session.add(
+            PortfolioWeight(
+                version_id=version.id,
+                project_id=row.project_id,
+                criterion=row.criterion,
+                grade=row.grade,
+            )
+        )
+    session.flush()
 
 
 def _has_version(session: Session, group: str) -> bool:
@@ -1760,3 +1798,1287 @@ def _is_last_active_admin(session: Session, collaborator: Collaborator) -> bool:
         )
     )
     return (active_admins or 0) <= 1
+
+
+# ── Tela de Cadastros (ISSUE-078) ────────────────────────────────────────
+#
+# A tela mantém os cadastros de apoio que alimentam os formulários (D5):
+# empresas, pessoas, projetos, sistemas, unidades, locais e disciplinas. A
+# gravação valida aqui, com uma mensagem por campo; a exclusão é recusada
+# quando o registro está em uso, primeiro pelas referências do próprio módulo
+# (com a contagem) e depois pela chave estrangeira do banco (o nome da tabela
+# sai da mensagem do erro). O projeto novo nasce com a configuração padrão da
+# Programação Semanal (``ensure_settings``) e as notas de ponderação vivem na
+# versão vigente do grupo ``portfolio``, como as dos demais projetos.
+
+REGISTER_KINDS: tuple[str, ...] = (
+    "empresa",
+    "pessoa",
+    "projeto",
+    "sistema",
+    "unidade",
+    "local",
+    "disciplina",
+)
+
+REGISTER_LABELS: dict[str, str] = {
+    "empresa": "Empresa",
+    "pessoa": "Pessoa",
+    "projeto": "Projeto",
+    "sistema": "Sistema",
+    "unidade": "Unidade",
+    "local": "Local",
+    "disciplina": "Disciplina",
+}
+
+REGISTER_NOT_FOUND = "Cadastro de apoio desconhecido."
+REGISTER_RECORD_NOT_FOUND = "Registro fora do cadastro."
+
+COMPANY_KINDS: tuple[str, ...] = ("Contratada", "Fornecedor", "Gerenciadora")
+UNIT_KINDS: tuple[str, ...] = ("medida", ORGANIZATIONAL_UNIT_KIND)
+
+_REGISTER_MODELS: dict[str, Any] = {
+    "empresa": Company,
+    "pessoa": Person,
+    "projeto": Project,
+    "sistema": System,
+    "unidade": Unit,
+    "local": Location,
+    "disciplina": Discipline,
+}
+
+# O rótulo, em português, da tabela que uma chave estrangeira cita: é o que a
+# mensagem de exclusão recusada mostra no lugar do nome técnico. As tabelas que
+# não estão aqui caem na mensagem genérica.
+_USED_BY_LABELS: dict[str, str] = {
+    "acao": "ação",
+    "acao_replanejamento": "replanejamento de ação",
+    "amostragem": "amostragem do trabalho",
+    "amostragem_motivo": "amostragem do trabalho",
+    "analise_risco": "análise de risco",
+    "analise_risco_participante": "análise de risco",
+    "analise_risco_recomendacao": "análise de risco",
+    "anexo": "anexo",
+    "ata": "ata",
+    "ata_empresa": "ata",
+    "ata_participante": "ata",
+    "auditoria_constatacao": "auditoria da qualidade",
+    "auditoria_qualidade": "auditoria da qualidade",
+    "auditoria_reprogramacao": "reprogramação de auditoria",
+    "colaborador": "colaborador",
+    "colaborador_papel_programacao": "papel na Programação Semanal",
+    "contrato": "contrato",
+    "contrato_aditivo": "contrato",
+    "contrato_avaliacao": "avaliação de contrato",
+    "contrato_avaliacao_criterio": "avaliação de contrato",
+    "contrato_claim": "contrato",
+    "contrato_extensao_prazo": "contrato",
+    "contrato_marco_pagamento": "contrato",
+    "contrato_medicao": "contrato",
+    "curva_financeira_mes": "revisão da Curva S financeira",
+    "curva_financeira_revisao": "revisão da Curva S financeira",
+    "curva_fisica_mes": "revisão da Curva S física",
+    "curva_fisica_revisao": "revisão da Curva S física",
+    "custo_erp": "custo do ERP",
+    "eac_item": "item da EAC",
+    "eac_projecao": "projeção no término",
+    "eac_remanejamento": "remanejamento da EAC",
+    "eac_revisao": "revisão da EAC",
+    "eac_revisao_item": "revisão da EAC",
+    "eap_desdobramento": "desdobramento da EAP",
+    "eap_item": "item da EAP",
+    "eap_item_etapa": "item da EAP",
+    "eap_medicao": "medição da EAP",
+    "eap_revisao": "revisão da EAP",
+    "eap_revisao_item": "revisão da EAP",
+    "fornecedor": "fornecedor",
+    "fornecedor_categoria": "fornecedor",
+    "fornecedor_documento": "fornecedor",
+    "fornecedor_historico": "fornecedor",
+    "hht": "registro de HHT",
+    "hse_dds": "DDS do HSE",
+    "hse_inspecao": "inspeção do HSE",
+    "hse_inspecao_item": "inspeção do HSE",
+    "hse_mensal": "fechamento mensal do HSE",
+    "hse_observacao": "observação do HSE",
+    "inspecao": "inspeção",
+    "itp": "ITP",
+    "itp_ponto": "ITP",
+    "itp_revisao": "ITP",
+    "jornada_campo": "jornada de campo",
+    "licao": "lição aprendida",
+    "licao_aplicacao": "lição aprendida",
+    "licao_historico": "lição aprendida",
+    "licao_palavra_chave": "lição aprendida",
+    "lookahead": "lookahead (6WLA)",
+    "lookahead_restricao": "restrição do lookahead",
+    "lookahead_semana": "semana do lookahead",
+    "mudanca": "solicitação de mudança",
+    "mudanca_analise": "análise de mudança",
+    "mudanca_decisao": "decisão de mudança",
+    "mudanca_decisao_participante": "decisão de mudança",
+    "mudanca_impacto": "análise de impacto",
+    "mudanca_impacto_eac_item": "análise de impacto",
+    "mudanca_remanejamento": "remanejamento de mudança",
+    "notificacao": "notificação",
+    "ocorrencia": "ocorrência",
+    "ocorrencia_investigacao": "ocorrência",
+    "ocorrencia_restrito": "ocorrência",
+    "pacote_compra": "pacote de compra",
+    "pacote_compra_marco": "pacote de compra",
+    "paralisacao": "paralisação",
+    "parametro_valor": "versão de parâmetros",
+    "parametro_versao": "versão de parâmetros",
+    "pedido": "pedido de compra",
+    "pedido_marco": "pedido de compra",
+    "portfolio_ponderacao": "nota de ponderação",
+    "processo_compra": "processo de compra",
+    "processo_convidado": "processo de compra",
+    "processo_negociacao": "processo de compra",
+    "processo_proposta": "processo de compra",
+    "produtividade_apontamento": "apontamento de produtividade",
+    "produtividade_distribuicao": "distribuição de produtividade",
+    "produtividade_item": "item de produtividade",
+    "produtividade_revisao": "revisão de produtividade",
+    "programacao_atividade": "atividade da Programação Semanal",
+    "programacao_configuracao": "configuração da Programação Semanal",
+    "programacao_dia": "atividade da Programação Semanal",
+    "programacao_janela": "janela da Programação Semanal",
+    "programacao_janela_dia": "janela da Programação Semanal",
+    "programacao_janela_semana": "janela da Programação Semanal",
+    "programacao_liberacao_extra": "janela da Programação Semanal",
+    "programacao_pedido_alteracao": "pedido de alteração da Programação Semanal",
+    "punch_item": "item da punch list",
+    "recebimento": "recebimento",
+    "relato": "relato de campo",
+    "relato_atividade": "relato de campo",
+    "relato_ponto": "relato de campo",
+    "reserva": "reserva",
+    "reserva_movimento": "movimento de reserva",
+    "risco": "risco",
+    "risco_avaliacao": "risco",
+    "risco_plano_aprovacao": "risco",
+    "risco_revisao": "risco",
+    "rnc": "RNC",
+    "sequencia_numeracao": "sequência de numeração",
+}
+
+_ON_TABLE = re.compile(r'on table "([^"]+)"')
+
+
+@dataclass(frozen=True)
+class CompanyRegisterRow:
+    """Uma empresa da tela: o nome e o tipo."""
+
+    id: int
+    name: str
+    kind: str | None
+
+
+@dataclass(frozen=True)
+class PersonRegisterRow:
+    """Uma pessoa da tela: nome, função, empresa e e-mail."""
+
+    id: int
+    name: str
+    role: str | None
+    company_name: str | None
+    email: str
+
+
+@dataclass(frozen=True)
+class GradeLine:
+    """Uma nota de ponderação do projeto: o nome do critério e a nota (1 a 5)."""
+
+    criterion: str
+    grade: int
+
+    @property
+    def label(self) -> str:
+        """``Criticidade estratégica: 4``: como a tela e a exportação a imprimem."""
+        return f"{self.criterion}: {self.grade}"
+
+
+@dataclass(frozen=True)
+class ProjectRegisterRow:
+    """Um projeto da tela: identidade, cliente, gerente, orçamento, datas e notas."""
+
+    id: int
+    code: str
+    name: str
+    client_name: str
+    manager_name: str
+    budget_cents: int | None
+    start_date: date | None
+    expected_end_date: date | None
+    grades: tuple[GradeLine, ...] = ()
+
+    @property
+    def grades_text(self) -> str:
+        """As notas numa linha, para a exportação (``Estratégico: 4 · Complexidade: 3``)."""
+        return " · ".join(line.label for line in self.grades)
+
+
+@dataclass(frozen=True)
+class SystemRegisterRow:
+    """Um sistema da tela: o projeto, o código, o nome e a área."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    name: str
+    area: str | None
+
+
+@dataclass(frozen=True)
+class UnitRegisterRow:
+    """Uma unidade da tela: o tipo, o código e o nome."""
+
+    id: int
+    kind: str
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
+class LocationRegisterRow:
+    """Um local da tela: o projeto, o código e o nome."""
+
+    id: int
+    project_id: int
+    project_label: str
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
+class DisciplineRegisterRow:
+    """Uma disciplina da tela: o nome."""
+
+    id: int
+    name: str
+
+
+@dataclass(frozen=True)
+class RegistersOverview:
+    """Os sete cadastros da tela, na ordem dos cartões."""
+
+    companies: tuple[CompanyRegisterRow, ...]
+    people: tuple[PersonRegisterRow, ...]
+    projects: tuple[ProjectRegisterRow, ...]
+    systems: tuple[SystemRegisterRow, ...]
+    units: tuple[UnitRegisterRow, ...]
+    locations: tuple[LocationRegisterRow, ...]
+    disciplines: tuple[DisciplineRegisterRow, ...]
+
+    @property
+    def total(self) -> int:
+        """O total de registros dos sete cadastros (a linha da barra de exportações)."""
+        return sum(
+            len(rows)
+            for rows in (
+                self.companies,
+                self.people,
+                self.projects,
+                self.systems,
+                self.units,
+                self.locations,
+                self.disciplines,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class AppetiteOption:
+    """Uma faixa de apetite a risco da escala vigente: o id gravado e o nome lido."""
+
+    value: str
+    name: str
+
+
+@dataclass(frozen=True)
+class GradeCriterion:
+    """Um critério de nota da carteira vigente: id, nome e a faixa de notas (D8)."""
+
+    id: str
+    name: str
+    minimum: int
+    maximum: int
+
+    @property
+    def field_name(self) -> str:
+        """O nome do campo da nota no formulário (``nota_estrategico``)."""
+        return f"nota_{self.id}"
+
+
+@dataclass(frozen=True)
+class RegisterFormOptions:
+    """As listas dos formulários da tela: empresas, pessoas, projetos, apetite e notas."""
+
+    companies: tuple[RegisterOption, ...]
+    people: tuple[RegisterOption, ...]
+    projects: tuple[ProjectSummary, ...]
+    appetites: tuple[AppetiteOption, ...]
+    criteria: tuple[GradeCriterion, ...]
+    company_kinds: tuple[str, ...]
+    unit_kinds: tuple[str, ...]
+
+
+def registers_overview(session: Session, *, reference_date: date) -> RegistersOverview:
+    """Os sete cadastros da tela, com a empresa, o projeto e o gerente de cada linha."""
+    return RegistersOverview(
+        companies=_company_rows(session),
+        people=_person_rows(session),
+        projects=_project_rows(session, reference_date=reference_date),
+        systems=_system_rows(session),
+        units=_unit_rows(session),
+        locations=_location_rows(session),
+        disciplines=_discipline_rows(session),
+    )
+
+
+def _company_rows(session: Session) -> tuple[CompanyRegisterRow, ...]:
+    statement = select(Company.id, Company.name, Company.kind).order_by(Company.name, Company.id)
+    return tuple(
+        CompanyRegisterRow(id=row.id, name=row.name, kind=row.kind)
+        for row in session.execute(statement)
+    )
+
+
+def _person_rows(session: Session) -> tuple[PersonRegisterRow, ...]:
+    statement = (
+        select(
+            Person.id,
+            Person.name,
+            Person.role,
+            Person.email,
+            Company.name.label("empresa"),
+        )
+        .outerjoin(Company, Company.id == Person.company_id)
+        .order_by(Person.name, Person.id)
+    )
+    return tuple(
+        PersonRegisterRow(
+            id=row.id,
+            name=row.name,
+            role=row.role,
+            company_name=row.empresa,
+            email=row.email,
+        )
+        for row in session.execute(statement)
+    )
+
+
+def _project_rows(session: Session, *, reference_date: date) -> tuple[ProjectRegisterRow, ...]:
+    statement = (
+        select(Project, Client.name.label("cliente"), Person.name.label("gerente"))
+        .join(Client, Client.id == Project.client_id)
+        .join(Person, Person.id == Project.manager_id)
+        .order_by(Project.code)
+    )
+    grades_by_project = portfolio_grades(session, reference_date=reference_date)
+    criteria = _grade_criteria(session, reference_date=reference_date)
+    rows: list[ProjectRegisterRow] = []
+    for project, client_name, manager_name in session.execute(statement):
+        grades = grades_by_project.get(project.id, {})
+        rows.append(
+            ProjectRegisterRow(
+                id=project.id,
+                code=project.code,
+                name=project.name,
+                client_name=client_name,
+                manager_name=manager_name,
+                budget_cents=project.budget_cents,
+                start_date=project.start_date,
+                expected_end_date=project.expected_end_date,
+                grades=tuple(
+                    GradeLine(criterion=criterion.name, grade=grades[criterion.id])
+                    for criterion in criteria
+                    if criterion.id in grades
+                ),
+            )
+        )
+    return tuple(rows)
+
+
+def _system_rows(session: Session) -> tuple[SystemRegisterRow, ...]:
+    statement = (
+        select(System, Project.code.label("codigo"), Project.name.label("nome"))
+        .join(Project, Project.id == System.project_id)
+        .order_by(Project.code, System.code)
+    )
+    return tuple(
+        SystemRegisterRow(
+            id=system.id,
+            project_id=system.project_id,
+            project_label=f"{project_code} · {project_name}",
+            code=system.code,
+            name=system.name,
+            area=system.area,
+        )
+        for system, project_code, project_name in session.execute(statement)
+    )
+
+
+def _unit_rows(session: Session) -> tuple[UnitRegisterRow, ...]:
+    statement = select(Unit.id, Unit.kind, Unit.code, Unit.name).order_by(
+        Unit.kind, Unit.code, Unit.id
+    )
+    return tuple(
+        UnitRegisterRow(id=row.id, kind=row.kind, code=row.code, name=row.name)
+        for row in session.execute(statement)
+    )
+
+
+def _location_rows(session: Session) -> tuple[LocationRegisterRow, ...]:
+    statement = (
+        select(Location, Project.code.label("codigo"), Project.name.label("nome"))
+        .join(Project, Project.id == Location.project_id)
+        .order_by(Project.code, Location.code)
+    )
+    return tuple(
+        LocationRegisterRow(
+            id=location.id,
+            project_id=location.project_id,
+            project_label=f"{project_code} · {project_name}",
+            code=location.code,
+            name=location.name,
+        )
+        for location, project_code, project_name in session.execute(statement)
+    )
+
+
+def _discipline_rows(session: Session) -> tuple[DisciplineRegisterRow, ...]:
+    statement = select(Discipline.id, Discipline.name).order_by(Discipline.name, Discipline.id)
+    return tuple(
+        DisciplineRegisterRow(id=row.id, name=row.name) for row in session.execute(statement)
+    )
+
+
+def register_form_options(session: Session, *, reference_date: date) -> RegisterFormOptions:
+    """O que os formulários da tela oferecem, dos cadastros e da versão vigente dos parâmetros."""
+    return RegisterFormOptions(
+        companies=tuple(list_company_options(session)),
+        people=tuple(list_person_options(session)),
+        projects=tuple(list_projects(session)),
+        appetites=_appetite_options(session, reference_date),
+        criteria=_grade_criteria(session, reference_date),
+        company_kinds=COMPANY_KINDS,
+        unit_kinds=UNIT_KINDS,
+    )
+
+
+def register_form_values(
+    session: Session, kind: str, register_id: int, *, reference_date: date
+) -> dict[str, Any] | None:
+    """O registro como o formulário de edição o carrega, ou ``None`` fora do cadastro."""
+    record = _register_record(session, kind, register_id)
+    if record is None:
+        return None
+    values: dict[str, Any]
+    if kind == "empresa":
+        values = {"nome": record.name, "tipo": record.kind or ""}
+    elif kind == "pessoa":
+        values = {
+            "nome": record.name,
+            "funcao": record.role or "",
+            "empresa": str(record.company_id) if record.company_id is not None else "",
+            "email": record.email,
+        }
+    elif kind == "projeto":
+        values = _project_values(session, record, reference_date=reference_date)
+    elif kind == "sistema":
+        values = {
+            "projeto": str(record.project_id),
+            "codigo": record.code,
+            "nome": record.name,
+            "area": record.area or "",
+        }
+    elif kind == "unidade":
+        values = {"tipo": record.kind, "codigo": record.code, "nome": record.name}
+    elif kind == "local":
+        values = {"projeto": str(record.project_id), "codigo": record.code, "nome": record.name}
+    else:
+        values = {"nome": record.name}
+    return values
+
+
+def _project_values(session: Session, project: Any, *, reference_date: date) -> dict[str, Any]:
+    client = session.get(Client, project.client_id)
+    grades = portfolio_grades(session, reference_date=reference_date).get(project.id, {})
+    values: dict[str, Any] = {
+        "codigo": project.code,
+        "nome": project.name,
+        "cliente_nome": client.name if client is not None else "",
+        "cliente_sigla": (client.acronym or "") if client is not None else "",
+        "gerente": str(project.manager_id),
+        "pep": project.pep or "",
+        "apetite": project.risk_appetite or "",
+        "inicio": project.start_date.isoformat() if project.start_date is not None else "",
+        "termino_previsto": (
+            project.expected_end_date.isoformat() if project.expected_end_date is not None else ""
+        ),
+        "orcamento": (format_brl(project.budget_cents) if project.budget_cents is not None else ""),
+        "padrao_ata": project.ata_pattern or "",
+        "padrao_risco": project.risk_pattern or "",
+        "padrao_punch": project.punch_pattern or "",
+    }
+    for criterion, grade in grades.items():
+        values[f"nota_{criterion}"] = str(grade)
+    return values
+
+
+def save_register(
+    session: Session,
+    *,
+    kind: str,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    """Grava um cadastro de apoio (novo ou existente), com validação e trilha.
+
+    Devolve o rótulo do registro (nome, ou o código no projeto) para o aviso da
+    tela; a falha de qualquer regra levanta ``InvalidDataError`` com a mensagem
+    de cada campo. O projeto novo chama ``ensure_settings`` da Programação
+    Semanal e as notas de ponderação entram na versão vigente do portfólio.
+    """
+    saver = _REGISTER_SAVERS.get(kind)
+    if saver is None:
+        raise InvalidDataError({"geral": REGISTER_NOT_FOUND})
+    return saver(
+        session,
+        author_id=author_id,
+        register_id=register_id,
+        form=form,
+        reference_date=reference_date,
+    )
+
+
+def _save_company(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "empresa", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    name = (form.get("nome") or "").strip()
+    kind = (form.get("tipo") or "").strip()
+    errors: dict[str, str] = {}
+    if not name:
+        errors["nome"] = "Informe o nome da empresa."
+    elif _company_name_taken(session, name, ignore_id=register_id):
+        errors["nome"] = "Já existe uma empresa com este nome."
+    if kind not in COMPANY_KINDS:
+        errors["tipo"] = "Escolha o tipo da empresa."
+    if errors:
+        raise InvalidDataError(errors)
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Company(name=name, kind=kind))
+    else:
+        recording.update(
+            session,
+            user_id=author_id,
+            record=record,
+            changes={"name": name, "kind": kind},
+            version=record.version,
+        )
+    session.flush()
+    return str(record.name)
+
+
+def _save_person(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "pessoa", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    name = (form.get("nome") or "").strip()
+    role = (form.get("funcao") or "").strip()
+    email = (form.get("email") or "").strip().lower()
+    company_text = (form.get("empresa") or "").strip()
+    company_id = _int_of(company_text)
+    errors: dict[str, str] = {}
+    if not name:
+        errors["nome"] = "Informe o nome da pessoa."
+    if not _EMAIL.match(email):
+        errors["email"] = "Informe um e-mail válido."
+    elif _person_email_taken(session, email, ignore_id=register_id):
+        errors["email"] = "Já existe uma pessoa com este e-mail."
+    if company_text and (company_id is None or session.get(Company, company_id) is None):
+        errors["empresa"] = "Empresa fora do cadastro."
+    if errors:
+        raise InvalidDataError(errors)
+    changes = {
+        "name": name,
+        "role": role or None,
+        "email": email,
+        "company_id": company_id,
+    }
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Person(**changes))
+    else:
+        recording.update(
+            session, user_id=author_id, record=record, changes=changes, version=record.version
+        )
+    session.flush()
+    return str(record.name)
+
+
+def _save_project(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    record = _register_record(session, "projeto", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    data, errors = _validate_project(
+        session, register_id=register_id, form=form, reference_date=reference_date
+    )
+    if errors:
+        raise InvalidDataError(errors)
+    client = _find_client(session, data.client_name)
+    if client is None:
+        client = recording.create(
+            session,
+            user_id=author_id,
+            record=Client(name=data.client_name, acronym=data.client_sigla or None, active=True),
+        )
+    changes = {
+        "client_id": client.id,
+        "manager_id": data.manager_id,
+        "code": data.code,
+        "name": data.name,
+        "pep": data.pep,
+        "ata_pattern": data.ata_pattern,
+        "risk_pattern": data.risk_pattern,
+        "punch_pattern": data.punch_pattern,
+        "risk_appetite": data.appetite,
+        "start_date": data.start,
+        "expected_end_date": data.end,
+        "budget_cents": data.budget_cents,
+    }
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Project(**changes))
+        _new_project_settings(session, author_id=author_id, project_id=record.id)
+    else:
+        recording.update(
+            session, user_id=author_id, record=record, changes=changes, version=record.version
+        )
+    _replace_project_grades(
+        session,
+        author_id=author_id,
+        project_id=record.id,
+        grades=data.grades,
+        reference_date=reference_date,
+    )
+    session.flush()
+    return str(record.code)
+
+
+@dataclass(frozen=True)
+class _ProjectData:
+    """O projeto validado, pronto para a gravação."""
+
+    code: str
+    name: str
+    client_name: str
+    client_sigla: str
+    manager_id: int
+    pep: str | None
+    appetite: str | None
+    start: date | None
+    end: date | None
+    budget_cents: int | None
+    ata_pattern: str | None
+    risk_pattern: str | None
+    punch_pattern: str | None
+    grades: Mapping[str, int]
+
+
+def _validate_project(
+    session: Session, *, register_id: int | None, form: Mapping[str, Any], reference_date: date
+) -> tuple[_ProjectData, dict[str, str]]:
+    """As regras do projeto por campo: código único, cliente, gerente, datas, orçamento e notas."""
+    errors: dict[str, str] = {}
+    code = (form.get("codigo") or "").strip()
+    name = (form.get("nome") or "").strip()
+    client_name = (form.get("cliente_nome") or "").strip()
+    client_sigla = (form.get("cliente_sigla") or "").strip()
+    manager_id = _int_of(form.get("gerente"))
+    appetite = (form.get("apetite") or "").strip()
+    if not code:
+        errors["codigo"] = "Informe o código do projeto."
+    elif _project_code_taken(session, code, ignore_id=register_id):
+        errors["codigo"] = "Já existe um projeto com este código."
+    if not name:
+        errors["nome"] = "Informe o nome do projeto."
+    if not client_name:
+        errors["cliente"] = "Informe o cliente do projeto."
+    elif _find_client(session, client_name) is None and not client_sigla:
+        errors["cliente"] = "Informe a sigla do cliente novo."
+    if manager_id is None or session.get(Person, manager_id) is None:
+        errors["gerente"] = "Escolha o gerente do projeto."
+    if appetite and all(
+        option.value != appetite for option in _appetite_options(session, reference_date)
+    ):
+        errors["apetite"] = "Escolha um apetite da escala vigente."
+    start = _date_or_error(form.get("inicio"), "inicio", errors)
+    end = _date_or_error(form.get("termino_previsto"), "termino_previsto", errors)
+    if start is not None and end is not None and end < start:
+        errors["termino"] = "O término não pode ser anterior ao início."
+    budget_text = (form.get("orcamento") or "").strip()
+    budget_cents = forms.parse_money(budget_text)
+    if budget_text and budget_cents is None:
+        errors["orcamento"] = "Informe um valor em reais (ex.: 1.234,56)."
+    grades = _posted_grades(form, _grade_criteria(session, reference_date), errors)
+    data = _ProjectData(
+        code=code,
+        name=name,
+        client_name=client_name,
+        client_sigla=client_sigla,
+        manager_id=manager_id or 0,
+        pep=(form.get("pep") or "").strip() or None,
+        appetite=appetite or None,
+        start=start,
+        end=end,
+        budget_cents=budget_cents,
+        ata_pattern=(form.get("padrao_ata") or "").strip() or None,
+        risk_pattern=(form.get("padrao_risco") or "").strip() or None,
+        punch_pattern=(form.get("padrao_punch") or "").strip() or None,
+        grades=grades,
+    )
+    return data, errors
+
+
+def _date_or_error(raw: Any, field: str, errors: dict[str, str]) -> date | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        errors[field] = "Informe uma data válida."
+        return None
+
+
+def _posted_grades(
+    form: Mapping[str, Any], criteria: Sequence[GradeCriterion], errors: dict[str, str]
+) -> dict[str, int]:
+    """As notas digitadas por critério; campo vazio não grava nota, fora da faixa é recusado."""
+    grades: dict[str, int] = {}
+    for criterion in criteria:
+        text = str(form.get(criterion.field_name) or "").strip()
+        if not text:
+            continue
+        value = _int_of(text)
+        if value is None or not criterion.minimum <= value <= criterion.maximum:
+            errors[criterion.field_name] = (
+                f"Informe uma nota de {criterion.minimum} a {criterion.maximum}."
+            )
+            continue
+        grades[criterion.id] = value
+    return grades
+
+
+def _replace_project_grades(
+    session: Session,
+    *,
+    author_id: int,
+    project_id: int,
+    grades: Mapping[str, int],
+    reference_date: date,
+) -> None:
+    """As notas do projeto passam a ser as enviadas, na versão vigente do grupo portfolio.
+
+    As notas vivem dentro da versão (D8); sem versão vigente (antes da primeira
+    semeadura) nada é gravado. O que sai e o que entra ficam na trilha, como os
+    papéis da Programação Semanal: linhas filhas, sem ``versao`` própria.
+    """
+    version = current_version(session, group="portfolio", reference_date=reference_date)
+    if version is None:
+        return
+    current = {
+        row.criterion: row
+        for row in session.scalars(
+            select(PortfolioWeight).where(
+                PortfolioWeight.version_id == version.id,
+                PortfolioWeight.project_id == project_id,
+            )
+        ).all()
+    }
+    for criterion, row in current.items():
+        if grades.get(criterion) == row.grade:
+            continue
+        before = audit.snapshot(row)
+        session.delete(row)
+        session.flush()
+        audit.deleted(
+            session, user_id=author_id, entity=row.__tablename__, record=row, before=before
+        )
+    for criterion, grade in grades.items():
+        if criterion in current and current[criterion].grade == grade:
+            continue
+        recording.create(
+            session,
+            user_id=author_id,
+            record=PortfolioWeight(
+                version_id=version.id,
+                project_id=project_id,
+                criterion=criterion,
+                grade=grade,
+            ),
+        )
+
+
+def _new_project_settings(session: Session, *, author_id: int, project_id: int) -> None:
+    """O projeto nasce com a configuração padrão da Programação Semanal (ISSUE-054)."""
+    from src.modulos.programacao_semanal import service as programacao
+
+    programacao.ensure_settings(session, author_id=author_id, project_id=project_id)
+
+
+def _remove_schedule_settings(session: Session, *, author_id: int, project_id: int) -> None:
+    """Apaga a configuração da Programação Semanal do projeto, pela fachada dona (D10)."""
+    from src.modulos.programacao_semanal import service as programacao
+
+    programacao.remove_settings(session, author_id=author_id, project_id=project_id)
+
+
+def _save_system(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "sistema", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    project_id = _int_of(form.get("projeto"))
+    code = (form.get("codigo") or "").strip()
+    name = (form.get("nome") or "").strip()
+    area = (form.get("area") or "").strip()
+    errors: dict[str, str] = {}
+    if project_id is None or session.get(Project, project_id) is None:
+        errors["projeto"] = "Escolha o projeto."
+    if not code:
+        errors["codigo"] = "Informe o código do sistema."
+    elif project_id is not None and _system_code_taken(
+        session, project_id=project_id, code=code, ignore_id=register_id
+    ):
+        errors["codigo"] = "Já existe um sistema com este código neste projeto."
+    if not name:
+        errors["nome"] = "Informe o nome do sistema."
+    if errors:
+        raise InvalidDataError(errors)
+    changes = {"project_id": project_id, "code": code, "name": name, "area": area or None}
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=System(**changes))
+    else:
+        recording.update(
+            session, user_id=author_id, record=record, changes=changes, version=record.version
+        )
+    session.flush()
+    return str(record.name)
+
+
+def _save_unit(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "unidade", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    kind = (form.get("tipo") or "").strip()
+    code = (form.get("codigo") or "").strip()
+    name = (form.get("nome") or "").strip()
+    errors: dict[str, str] = {}
+    if kind not in UNIT_KINDS:
+        errors["tipo"] = "Escolha o tipo da unidade."
+    if not code:
+        errors["codigo"] = "Informe o código da unidade."
+    elif kind in UNIT_KINDS and _unit_code_taken(
+        session, kind=kind, code=code, ignore_id=register_id
+    ):
+        errors["codigo"] = "Já existe uma unidade com este código neste tipo."
+    if not name:
+        errors["nome"] = "Informe o nome da unidade."
+    if errors:
+        raise InvalidDataError(errors)
+    changes = {"kind": kind, "code": code, "name": name}
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Unit(**changes))
+    else:
+        recording.update(
+            session, user_id=author_id, record=record, changes=changes, version=record.version
+        )
+    session.flush()
+    return str(record.name)
+
+
+def _save_location(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "local", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    project_id = _int_of(form.get("projeto"))
+    code = (form.get("codigo") or "").strip()
+    name = (form.get("nome") or "").strip()
+    errors: dict[str, str] = {}
+    if project_id is None or session.get(Project, project_id) is None:
+        errors["projeto"] = "Escolha o projeto."
+    if not code:
+        errors["codigo"] = "Informe o código do local."
+    elif project_id is not None and _location_code_taken(
+        session, project_id=project_id, code=code, ignore_id=register_id
+    ):
+        errors["codigo"] = "Já existe um local com este código neste projeto."
+    if not name:
+        errors["nome"] = "Informe o nome do local."
+    if errors:
+        raise InvalidDataError(errors)
+    changes = {"project_id": project_id, "code": code, "name": name}
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Location(**changes))
+    else:
+        recording.update(
+            session, user_id=author_id, record=record, changes=changes, version=record.version
+        )
+    session.flush()
+    return str(record.name)
+
+
+def _save_discipline(
+    session: Session,
+    *,
+    author_id: int,
+    register_id: int | None,
+    form: Mapping[str, Any],
+    reference_date: date,
+) -> str:
+    del reference_date
+    record = _register_record(session, "disciplina", register_id)
+    if register_id is not None and record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    name = (form.get("nome") or "").strip()
+    errors: dict[str, str] = {}
+    if not name:
+        errors["nome"] = "Informe o nome da disciplina."
+    elif _discipline_name_taken(session, name, ignore_id=register_id):
+        errors["nome"] = "Já existe uma disciplina com este nome."
+    if errors:
+        raise InvalidDataError(errors)
+    if record is None:
+        record = recording.create(session, user_id=author_id, record=Discipline(name=name))
+    else:
+        recording.update(
+            session,
+            user_id=author_id,
+            record=record,
+            changes={"name": name},
+            version=record.version,
+        )
+    session.flush()
+    return str(record.name)
+
+
+# As fachadas de gravação de cada tipo, pelo contrato uniforme do ``save_register``.
+_REGISTER_SAVERS: dict[str, Callable[..., str]] = {
+    "empresa": _save_company,
+    "pessoa": _save_person,
+    "projeto": _save_project,
+    "sistema": _save_system,
+    "unidade": _save_unit,
+    "local": _save_location,
+    "disciplina": _save_discipline,
+}
+
+
+def delete_register(session: Session, *, kind: str, author_id: int, register_id: int) -> str:
+    """Exclui um cadastro de apoio, com a trilha, e devolve o rótulo do registro.
+
+    A exclusão é recusada com ``InvalidDataError`` quando o registro está em uso:
+    as referências do próprio módulo são contadas antes (a mensagem diz quantas
+    são); as demais vêm da chave estrangeira do banco, dentro do savepoint, e a
+    tabela é lida da mensagem do erro. No projeto, a configuração da Programação
+    Semanal sai antes pela fachada dona; a recusa desfaz tudo com o rollback.
+    """
+    if kind not in REGISTER_KINDS:
+        raise InvalidDataError({"geral": REGISTER_NOT_FOUND})
+    record = _register_record(session, kind, register_id)
+    if record is None:
+        raise InvalidDataError({"geral": REGISTER_RECORD_NOT_FOUND})
+    label = _register_label(kind, record)
+    in_use = _register_in_use(session, kind, register_id, label)
+    if in_use is not None:
+        raise InvalidDataError({"geral": in_use})
+    if kind == "projeto":
+        _remove_schedule_settings(session, author_id=author_id, project_id=register_id)
+    try:
+        with session.begin_nested():
+            recording.delete(session, user_id=author_id, record=record, version=record.version)
+    except IntegrityError as error:
+        raise InvalidDataError({"geral": _fk_in_use_message(label, error)}) from None
+    return label
+
+
+def _register_record(session: Session, kind: str, register_id: int | None) -> Any:
+    if register_id is None:
+        return None
+    model = _REGISTER_MODELS.get(kind)
+    return session.get(model, register_id) if model is not None else None
+
+
+def _register_label(kind: str, record: Any) -> str:
+    return str(record.code) if kind == "projeto" else str(record.name)
+
+
+@dataclass(frozen=True)
+class _UseCheck:
+    """Uma referência do próprio módulo que impede a exclusão de um cadastro."""
+
+    model: Any
+    column: Any
+    singular: str
+    plural: str
+
+
+_MODULE_USE_CHECKS: dict[str, tuple[_UseCheck, ...]] = {
+    "empresa": (
+        _UseCheck(Person, Person.company_id, "pessoa do cadastro", "pessoas do cadastro"),
+        _UseCheck(Collaborator, Collaborator.company_id, "colaborador", "colaboradores"),
+    ),
+    "pessoa": (
+        _UseCheck(Collaborator, Collaborator.person_id, "colaborador", "colaboradores"),
+        _UseCheck(
+            Project,
+            Project.manager_id,
+            "projeto em que é gerente",
+            "projetos em que é gerente",
+        ),
+    ),
+    "projeto": (
+        _UseCheck(System, System.project_id, "sistema", "sistemas"),
+        _UseCheck(
+            CollaboratorScheduleRole,
+            CollaboratorScheduleRole.project_id,
+            "papel na Programação Semanal",
+            "papéis na Programação Semanal",
+        ),
+        _UseCheck(
+            PortfolioWeight,
+            PortfolioWeight.project_id,
+            "nota de ponderação",
+            "notas de ponderação",
+        ),
+    ),
+}
+
+
+def _register_in_use(session: Session, kind: str, register_id: int, label: str) -> str | None:
+    """A primeira referência do próprio módulo, com a contagem; ``None`` quando não há."""
+    for check in _MODULE_USE_CHECKS.get(kind, ()):
+        count = (
+            session.scalar(
+                select(func.count()).select_from(check.model).where(check.column == register_id)
+            )
+            or 0
+        )
+        if count == 0:
+            continue
+        what = check.singular if count == 1 else check.plural
+        return f"“{label}” está em uso por {count} {what} e não pode ser excluído."
+    return None
+
+
+def _fk_in_use_message(label: str, error: IntegrityError) -> str:
+    """A recusa pela chave estrangeira, com o rótulo da tabela que bloqueou a exclusão.
+
+    A trilha de auditoria tem mensagem própria: ela é o registro do projeto que o
+    próprio cadastro deixou ao gravar, e a mensagem genérica de "registros de"
+    não diria o que a pessoa precisa ouvir.
+    """
+    table = _fk_table(error)
+    if table == "auditoria":
+        return f"“{label}” está em uso pela trilha de auditoria e não pode ser excluído."
+    what = _USED_BY_LABELS.get(table) if table is not None else None
+    if what is None:
+        return f"“{label}” está em uso no sistema e não pode ser excluído."
+    return f"“{label}” está em uso por registros de {what} e não pode ser excluído."
+
+
+def _fk_table(error: IntegrityError) -> str | None:
+    """A tabela que barrou a exclusão: o diagnóstico da violação ou a última citação do erro.
+
+    A mensagem do banco começa pela tabela excluída (``update or delete on table
+    "unidade"``) e só depois cita a que guarda a chave estrangeira
+    (``on table "eap_item"``); o diagnóstico do psycopg traz a tabela certa de
+    imediato e a última citação cobre um driver sem diagnóstico.
+    """
+    diag = getattr(error.orig, "diag", None)
+    name = getattr(diag, "table_name", None)
+    if name:
+        return str(name)
+    text = str(error.orig if error.orig is not None else error)
+    found = _ON_TABLE.findall(text)
+    return found[-1] if found else None
+
+
+def _int_of(raw: Any) -> int | None:
+    text = str(raw or "").strip()
+    return int(text) if text.isdecimal() else None
+
+
+def _company_name_taken(session: Session, name: str, *, ignore_id: int | None) -> bool:
+    wanted = name.strip().casefold()
+    statement = select(Company.id, Company.name)
+    return any(
+        row.id != ignore_id and row.name.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _person_email_taken(session: Session, email: str, *, ignore_id: int | None) -> bool:
+    wanted = email.strip().casefold()
+    statement = select(Person.id, Person.email)
+    return any(
+        row.id != ignore_id and row.email.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _project_code_taken(session: Session, code: str, *, ignore_id: int | None) -> bool:
+    wanted = code.strip().casefold()
+    statement = select(Project.id, Project.code)
+    return any(
+        row.id != ignore_id and row.code.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _discipline_name_taken(session: Session, name: str, *, ignore_id: int | None) -> bool:
+    wanted = name.strip().casefold()
+    statement = select(Discipline.id, Discipline.name)
+    return any(
+        row.id != ignore_id and row.name.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _system_code_taken(
+    session: Session, *, project_id: int, code: str, ignore_id: int | None
+) -> bool:
+    statement = select(System.id, System.code).where(System.project_id == project_id)
+    wanted = code.strip().casefold()
+    return any(
+        row.id != ignore_id and row.code.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _location_code_taken(
+    session: Session, *, project_id: int, code: str, ignore_id: int | None
+) -> bool:
+    statement = select(Location.id, Location.code).where(Location.project_id == project_id)
+    wanted = code.strip().casefold()
+    return any(
+        row.id != ignore_id and row.code.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _unit_code_taken(session: Session, *, kind: str, code: str, ignore_id: int | None) -> bool:
+    statement = select(Unit.id, Unit.code).where(Unit.kind == kind)
+    wanted = code.strip().casefold()
+    return any(
+        row.id != ignore_id and row.code.strip().casefold() == wanted
+        for row in session.execute(statement)
+    )
+
+
+def _find_client(session: Session, name: str) -> Client | None:
+    """O cliente do nome, sem diferenciar maiúsculas (o projeto o reusa), ou ``None``."""
+    wanted = name.strip().casefold()
+    for client in session.scalars(select(Client).order_by(Client.id)):
+        if client.name.strip().casefold() == wanted:
+            return client
+    return None
+
+
+def _appetite_options(session: Session, reference_date: date) -> tuple[AppetiteOption, ...]:
+    """As faixas de apetite a risco da escala vigente, na ordem do parâmetro."""
+    options: list[AppetiteOption] = []
+    for faixa in _appetite_bands(session, reference_date):
+        value = str(faixa.get("id") or "").strip()
+        if not value:
+            continue
+        options.append(AppetiteOption(value=value, name=str(faixa.get("nome") or value)))
+    return tuple(options)
+
+
+def _appetite_bands(session: Session, reference_date: date) -> tuple[Mapping[str, Any], ...]:
+    """As faixas da escala de riscos vigente: o apetite do projeto escolhe uma delas."""
+    values = current_group(session, group="riscos", reference_date=reference_date)
+    escalas = values.get("escalas")
+    active = values.get("escalaAtiva")
+    if not isinstance(escalas, Mapping) or not isinstance(active, str):
+        return ()
+    escala = escalas.get(active)
+    if not isinstance(escala, Mapping):
+        return ()
+    faixas = escala.get("faixas")
+    if not isinstance(faixas, list):
+        return ()
+    return tuple(faixa for faixa in faixas if isinstance(faixa, Mapping))
+
+
+def _grade_criteria(session: Session, reference_date: date) -> tuple[GradeCriterion, ...]:
+    """Os critérios de nota da carteira vigente, com a faixa de notas (D8)."""
+    values = current_group(session, group="portfolio", reference_date=reference_date)
+    criteria = values.get("criterios")
+    if not isinstance(criteria, list):
+        return ()
+    minimum = _int_of(values.get("notaMinima")) or 1
+    maximum = _int_of(values.get("notaMaxima")) or 5
+    return tuple(
+        GradeCriterion(
+            id=str(item["id"]),
+            name=str(item.get("nome") or item["id"]),
+            minimum=minimum,
+            maximum=maximum,
+        )
+        for item in criteria
+        if isinstance(item, Mapping) and item.get("fonte") == "nota" and item.get("id")
+    )
