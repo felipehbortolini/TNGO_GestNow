@@ -16,6 +16,10 @@
 
 /* ---------- Cabeçalho da tela (não imprime) ---------- */
 .pagina--relatorio-gerencial .rel-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-lg);
   border: 1px solid var(--borda);
@@ -29,6 +33,12 @@
   color: var(--brand-title);
 }
 .pagina--relatorio-gerencial .rel-barra__titulo span { font-size: 12px; color: var(--text-secondary); }
+.pagina--relatorio-gerencial .rel-barra__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
 
 /* ---------- Pilha de folhas ---------- */
 .pagina--relatorio-gerencial .rel-folhas {

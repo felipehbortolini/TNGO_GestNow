@@ -10,6 +10,7 @@
                 ?relatorio=1 — a tela abre o modal de emissão
      modal      o corpo do modal busca o fragmento em /api/relatorio/gerencial/emissao; trocar
                 o escopo, o tipo ou o período redesenha o modal pelo servidor
+     alterar    o botão Alterar período da barra reabre o modal com as escolhas atuais
      emitir     o botão Emitir lê o formulário de agora e navega para a tela com
                 ?projeto=&tipo=&periodo=&secoes=; a navegação fecha o modal (ajax:sent)
      encaixe    depois de renderizar, a fonte da folha que passar da altura útil é reduzida
@@ -139,12 +140,13 @@
   function aoClicar(evento) {
     if (!raizDaTela() || !evento.target.closest) return;
     const botao = evento.target.closest(
-      "[data-relatorio-abrir], [data-relatorio-emitir], [data-relatorio-fechar], [data-relatorio-imprimir]"
+      "[data-relatorio-abrir], [data-relatorio-alterar], [data-relatorio-emitir], [data-relatorio-fechar], [data-relatorio-imprimir]"
     );
     if (!botao) return;
     evento.preventDefault();
-    if (botao.hasAttribute("data-relatorio-abrir")) abrirModal();
-    else if (botao.hasAttribute("data-relatorio-emitir")) emitir();
+    if (botao.hasAttribute("data-relatorio-abrir") || botao.hasAttribute("data-relatorio-alterar")) {
+      abrirModal();
+    } else if (botao.hasAttribute("data-relatorio-emitir")) emitir();
     else if (botao.hasAttribute("data-relatorio-fechar")) fecharModal();
     else window.print();
   }

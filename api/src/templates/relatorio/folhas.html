@@ -3,8 +3,9 @@
   As folhas do relatório gerencial (ISSUE-083): o cabeçalho da tela — fora do papel, com o
   escopo, o período e o aviso de parcial — e a pilha de folhas A4 na horizontal, uma por
   seção. A Carteira de projetos (ISSUE-085) entra sozinha no Portfólio, como a primeira folha.
-  O encaixe da fonte e a numeração das páginas são do comportamento da tela
-  (app/paginas/relatorio/gerencial.js).
+  A barra leva o Alterar período e o Excel do relatório (ISSUE-086); a impressão é a do
+  navegador, pelo botão da tela. O encaixe da fonte e a numeração das páginas são do
+  comportamento da tela (app/paginas/relatorio/gerencial.js).
 
   Espera: visao (service.ReportSheets) e os formatadores.
 #}
@@ -14,6 +15,11 @@
     <b>Relatório gerencial {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</b>
     <span>{{ visao.scope_label }} · {{ visao.period_label }}{% if visao.in_progress %} · parcial, dados até {{ formatar_data(visao.cut) }}{% endif %}</span>
   </p>
+  <div class="rel-barra__acoes">
+    <button type="button" class="btn btn--ghost" data-relatorio-alterar>Alterar período</button>
+    <button type="button" class="btn btn--ghost"
+      data-tn-excel="/api/relatorio/gerencial/excel?tipo={{ visao.kind }}&periodo={{ visao.period }}&secoes={{ visao.sections | join(',') }}">Excel</button>
+  </div>
 </div>
 
 <div class="rel-folhas">
