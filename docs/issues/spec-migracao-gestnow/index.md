@@ -108,7 +108,7 @@ vem primeiro.
 | ISSUE-079 | Início do projeto: indicador-chave por módulo e pontos de atenção | 8 | task | proposed | ready-for-agent | ISSUE-020, ISSUE-026, ISSUE-035, ISSUE-040, ISSUE-042, ISSUE-050, ISSUE-063, ISSUE-066, ISSUE-071, ISSUE-075 | [ISSUE-079](./079-inicio-do-projeto.md) |
 | ISSUE-080 | Início no Portfólio: carteira de projetos e edição da ponderação | 8 | task | proposed | ready-for-agent | ISSUE-079 | [ISSUE-080](./080-inicio-no-portfolio-e-ponderacao.md) |
 | ISSUE-081 | Análise do período de 02, 03 e 04, com desvios negativos e comentários obrigatórios | 8 | task | done | ready-for-agent | ISSUE-040, ISSUE-042, ISSUE-044, ISSUE-048, ISSUE-063 | [ISSUE-081](./081-analise-do-periodo-02-03-04.md) |
-| ISSUE-082 | Análise do período de 05, 06, 07 e do Portfólio | 8 | task | proposed | ready-for-agent | ISSUE-081, ISSUE-066, ISSUE-071, ISSUE-075 | [ISSUE-082](./082-analise-do-periodo-05-06-07-e-portfolio.md) |
+| ISSUE-082 | Análise do período de 05, 06, 07 e do Portfólio | 8 | task | done | ready-for-agent | ISSUE-081, ISSUE-066, ISSUE-071, ISSUE-075 | [ISSUE-082](./082-analise-do-periodo-05-06-07-e-portfolio.md) |
 | ISSUE-083 | Relatório gerencial: modal, motor de corte e folhas de Planejamento | 8 | task | proposed | ready-for-agent | ISSUE-082, ISSUE-044 | [ISSUE-083](./083-relatorio-gerencial-modal-corte-e-planejamento.md) |
 | ISSUE-084 | Relatório: folhas Financeiro (com a linha de tendência) e Suprimentos | 8 | task | proposed | ready-for-agent | ISSUE-083 | [ISSUE-084](./084-relatorio-financeiro-e-suprimentos.md) |
 | ISSUE-085 | Relatório: folhas Riscos, Qualidade, HSE e Carteira de projetos | 8 | task | proposed | ready-for-agent | ISSUE-084, ISSUE-080 | [ISSUE-085](./085-relatorio-riscos-qualidade-hse-e-carteira.md) |
