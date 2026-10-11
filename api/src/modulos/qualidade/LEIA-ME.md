@@ -173,8 +173,11 @@ coluna. Os quatro gráficos saem da biblioteca do Design System (D11): Curva S B
 (barras de aberturas e encerramentos por mês), Linhas Múltiplas (aprovação mensal com a meta
 tracejada), Pareto (disciplina) e Comparativo de Barras (origem); o visual do protótipo é
 registrado em `docs/DIVERGENCIAS-DO-PROTOTIPO.md`. O Excel e o PDF levam os KPIs, os números de
-cada gráfico em tabela e as duas tabelas. O botão "Análise do período" do protótipo chega na
-ISSUE-082. Permissão: ver, qualquer perfil; o Fornecedor não alcança o módulo (403).
+cada gráfico em tabela e as duas tabelas. O botão "Análise do período" abriu na ISSUE-082: ele
+abre o modal do módulo `relatorio` (`/api/relatorio/analise/...`), com o resumo do módulo no
+corte, os desvios detectados sem comentário obrigatório (RNC com prazo de tratamento vencido,
+aprovação em inspeções e conformidade em auditorias abaixo da meta e auditorias atrasadas) e a
+análise do Portfólio. Permissão: ver, qualquer perfil; o Fornecedor não alcança o módulo (403).
 
 ## Integrações
 

@@ -152,7 +152,9 @@ a ameaça ativa ao fim de cada mês entrando pelo evento mais recente até a dat
 dos riscos ativos com motivo (`pauta_reasons`), o mais pesado primeiro. O envio da pauta
 (`send_risk_agenda`) pertence a um projeto, vai para o gerente do cadastro pela porta de
 notificação (tipo `pauta_riscos`) e fica na trilha como `simulado` enquanto o envio real está
-desligado.
+desligado. O botão "Análise do período" abriu na ISSUE-082: ele abre o modal do módulo
+`relatorio` (`/api/relatorio/analise/...`), com o resumo do painel no corte e a análise do
+Portfólio; só o texto é obrigatório, sem desvios detectados.
 
 ## Integrações (D9)
 

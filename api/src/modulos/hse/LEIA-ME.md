@@ -237,5 +237,7 @@ cada leitura — trocar o parâmetro recalcula na hora.
 
 O painel consome o indicador de recomendações fechadas ÷ emitidas por
 `service.recommendation_share` e as ações de HSE pela fachada da Central; a nota sugerida é lida
-pelo formulário da avaliação de desempenho do Financeiro (03). O botão "Análise do período" do
-protótipo fica para a ISSUE-082.
+pelo formulário da avaliação de desempenho do Financeiro (03). O botão "Análise do período"
+abriu na ISSUE-082: ele abre o modal do módulo `relatorio` (`/api/relatorio/analise/...`), com o
+resumo do mês e do acumulado, as ocorrências do período e a análise do Portfólio; só o texto é
+obrigatório, sem desvios detectados.
