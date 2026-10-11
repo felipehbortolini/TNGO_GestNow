@@ -8,7 +8,7 @@ Módulo `configuracoes`. Mantém colaboradores, cadastros de apoio e parâmetros
 |---|---|---|
 | Parâmetros | Grupos por módulo com os valores vigentes, edição por grupo com justificativa, versões e histórico antes/depois (entregue) | ISSUE-076 |
 | Colaboradores | Quem entra e o que faz: perfil geral, vínculo, empresa e os papéis da Programação Semanal por projeto; busca, filtros, Excel e PDF (entregue) | ISSUE-077 |
-| Cadastros de apoio | Projetos, empresas, pessoas, sistemas, unidades e locais (prevista) | ISSUE-078 |
+| Cadastros de apoio | Empresas, pessoas, projetos (com cliente, orçamento, padrões e notas de ponderação), sistemas, unidades, locais e disciplinas; exclusão em uso recusada com a mensagem; Excel e PDF (entregue) | ISSUE-078 |
 
 ## A tela de Parâmetros (ISSUE-076)
 
@@ -23,6 +23,18 @@ A tela mostra os dois avisos do precedente (o app de Programação Semanal): "Es
 O formulário tem nome, e-mail (bloqueado na edição — é por ele que o login reconhece a pessoa), função, perfil geral, vínculo, a empresa (que só aparece no vínculo Fornecedor, por `x-show`) e a situação Ativo/Suspenso. A seção **Papéis na Programação Semanal** lista os papéis atuais com remover e permite adicionar por projeto + papel; o editor do trio lê os projetos, os papéis e os rótulos de `data-*` e posta um campo repetido `papeis` por linha, com valor `"<projeto_id>:<papel>"` (a rota lê com `req.form.getlist("papeis")`). Os papéis são substituídos pelo conjunto enviado: o que sai e o que entra ficam na trilha, e a UK (colaborador + projeto + papel) não duplica.
 
 Regras da gravação (`service.save_collaborator`): nome obrigatório; e-mail com formato (`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`), normalizado para minúsculas e único entre quem já tem acesso — o e-mail de uma pessoa **sem** acesso reusa a pessoa; perfil em `GeneralProfile` e vínculo em `Bond`; empresa obrigatória no vínculo Fornecedor (e existente no cadastro; nos demais vínculos é ignorada/limpa); papéis de projeto existente e papel em `ScheduleRole`. A recusa levanta `InvalidDataError` com uma mensagem por campo (`nome`, `email`, `perfil`, `vinculo`, `empresa`, `papeis`, `ativo`) e a rota devolve o formulário preenchido com 422. O **último Admin ativo** não pode ser desativado nem rebaixado (422 no campo `ativo`/`perfil`, com a mensagem "O último Admin não pode ser removido nem rebaixado."), e a revogação dele também é recusada (422 no aviso do topo). A revogação apaga os papéis e o colaborador com a trilha; a **pessoa permanece no cadastro** (quem dona das pessoas é o cadastro de apoio, ISSUE-078), e o gate deixa de achar o e-mail na requisição seguinte. Quem já deixou trilha de auditoria (é autor de alguma gravação) não é apagado — a trilha perde o autor — e a recusa orienta suspender o acesso (`ativo = False`); o gate nega o acesso do mesmo jeito (a pessoa passa a ver o acesso negado na requisição seguinte).
+
+## A tela de Cadastros (ISSUE-078)
+
+A tela mostra **sete cartões**, um por cadastro de apoio que alimenta os formulários: Empresas (Nome, Tipo), Pessoas (Nome, Função, Empresa, E-mail), Projetos (Código, Nome, Cliente, Gerente, Orçamento, Início, Término e as notas de ponderação como selos), Sistemas (Projeto, Código, Nome, Área), Unidades (Tipo, Código, Nome), Locais (Projeto, Código, Nome) e Disciplinas (Nome). Cada cartão tem a contagem, o **Incluir** e **Editar/Excluir** por linha; a barra superior tem **Excel** e **PDF** pelos mecanismos genéricos do Design System. Só Gestor e Admin alcançam a tela e as gravações (`rbac.MODULE_PERMISSION["configuracoes"] = Permission.CONFIGURE`); Membro, Visualizador e Fornecedor recebem 403. Não há filtros nem KPIs: a lista é inteira.
+
+O corpo do modal (`cadastros-modal-corpo`) é desenhado pelo servidor por GET conforme o tipo (`/api/configuracoes/cadastros/{tipo}/novo` e `.../{id}/editar`); a gravação (POST) devolve a tela inteira (`cadastros-conteudo`) com o toast e o modal fecha pelo `@ajax:success`; a recusa volta no modal (422) com a mensagem sob cada campo, e a exclusão confirmada por `TN.confirmarExclusao` volta como a tela com o toast. Em **Sistemas** e **Locais** o projeto é campo do próprio formulário (pré-selecionado com o projeto do escopo quando a requisição está num projeto), e a lista mostra a coluna Projeto; no **Portfólio** o select oferece todos os projetos (`codigo · nome`).
+
+Validações da gravação (`service.save_register`, mensagem por campo): **empresa** com `nome` obrigatório e único sem diferenciar maiúsculas e `tipo` em Contratada/Fornecedor/Gerenciadora; **pessoa** com `nome` obrigatório, `email` obrigatório, com formato, normalizado para minúsculas e único, e `empresa` existente quando informada; **projeto** com `codigo` obrigatório e único, `nome`, `cliente_nome` obrigatório, `cliente_sigla` obrigatória só quando o cliente é novo, `gerente` existente, `apetite_risco` em uma das faixas da escala de riscos vigente, datas ISO com término não anterior ao início, `orcamento` em reais (`forms.parse_money`), padrões de numeração opcionais e as notas `nota_<criterio>` inteiras na faixa `notaMinima..notaMaxima` do grupo vigente; **sistema** e **local** com `projeto` existente e `codigo` único no projeto; **unidade** com `tipo` em medida/organizacional e `codigo` único no tipo; **disciplina** com `nome` único. Toda gravação passa por `recording` (create/update) com a trilha.
+
+O **cliente entra pelo formulário do projeto**: o servidor reusa o cliente existente pelo nome (sem diferenciar maiúsculas) ou cria um novo com a sigla; a **sigla só é obrigatória quando o cliente é novo**. O **projeto novo nasce com a configuração padrão da Programação Semanal** (`programacao_semanal.service.ensure_settings`, 60/75/15 e a regra de desvio ligada), e a edição do projeto **não** mexe nessa configuração. As **notas de ponderação** do projeto vivem na versão vigente do grupo `portfolio` (`portfolio_ponderacao`): a gravação do projeto substitui as notas dele na versão vigente, com trilha (o que sai e o que entra), e a nova versão do grupo criada pela tela de Parâmetros **copia as notas da versão anterior** (`service._copy_portfolio_weights`), senão a ponderação de todos os projetos zeraria.
+
+A **exclusão** é recusada quando o cadastro está em uso, com a mensagem de onde ele é usado. Primeiro as referências do próprio módulo, com a contagem: empresa ← `pessoa.empresa_id` e `colaborador.empresa_id`; pessoa ← `colaborador.pessoa_id` e `projeto.gerente_id`; projeto ← `sistema`, `colaborador_papel_programacao` e `portfolio_ponderacao`. Depois, a exclusão roda num savepoint e a chave estrangeira do banco decide: a tabela bloqueadora sai do diagnóstico da violação (ou da mensagem do banco) e vira o rótulo em português ("item da EAP", "contrato", "risco", "item da punch list", "ocorrência", "inspeção", "RNC", "pedido de compra"...), no mapa `_USED_BY_LABELS`; tabela sem rótulo cai em "está em uso no sistema". O **projeto** tem um degrau a mais: a configuração da Programação Semanal sai antes, pela fachada dona (`programacao_semanal.service.remove_settings`), e o toast explica a categoria do uso. Observação: a trilha de auditoria das gravações feitas no projeto (`auditoria.projeto_id`) impede a exclusão depois da primeira gravação — a trilha é só de inclusão (D5b) e o gatilho do banco recusa apagá-la; a mensagem diz "em uso pela trilha de auditoria".
 
 ## Trios das telas
 
@@ -42,9 +54,23 @@ Prefixo: `/api/configuracoes/`.
 |---|---|---|
 | `parametros` e `parametros/historico` | Consultar, versionar e auditar parâmetros | ISSUE-076 |
 | `colaboradores` | Administrar acesso, perfil, vínculo e papéis por projeto | ISSUE-077 |
-| `cadastros` | Manter entidades de apoio usadas nos formulários (prevista) | ISSUE-078 |
+| `cadastros` | Manter empresas, pessoas, projetos, sistemas, unidades, locais e disciplinas | ISSUE-078 |
 
 Os grupos são planejamento; cada issue fixa métodos e paths concretos conforme D14.
+
+### Rotas da tela de Cadastros (ISSUE-078)
+
+| Rota | Uso |
+|---|---|
+| `GET /api/configuracoes/cadastros` | A tela com os sete cartões |
+| `GET /api/configuracoes/cadastros/excel` e `.../imprimivel` | Os dois exports, com as sete tabelas (D12) |
+| `GET /api/configuracoes/cadastros/{tipo}/novo` | O corpo do modal de novo cadastro, conforme o tipo |
+| `GET /api/configuracoes/cadastros/{tipo}/{id}/editar` | O corpo do modal de edição, com o registro carregado |
+| `POST /api/configuracoes/cadastros/{tipo}` | Cria o cadastro e devolve a tela; a recusa volta no formulário (422) |
+| `POST /api/configuracoes/cadastros/{tipo}/{id}` | Atualiza o cadastro e devolve a tela; a recusa volta no formulário (422) |
+| `POST /api/configuracoes/cadastros/{tipo}/{id}/excluir` | Apaga o cadastro e devolve a tela com o toast; em uso, a recusa volta na própria tela (422) |
+
+O `{tipo}` é `empresa`, `pessoa`, `projeto`, `sistema`, `unidade`, `local` ou `disciplina` (`service.REGISTER_KINDS`).
 
 ### Rotas da tela de Colaboradores (ISSUE-077)
 
@@ -95,6 +121,14 @@ Este módulo não calcula indicadores de negócio. A validação da edição de 
 | Gravação do acesso | Cria (pessoa + colaborador) ou atualiza, com a trilha, e substitui os papéis pelo conjunto enviado; as regras do D7 mensagem por campo, o último Admin ativo recusado | `service.save_collaborator` |
 | Revogação do acesso | Apaga os papéis e o colaborador com a trilha (a pessoa permanece); recusa o último Admin e quem já deixou trilha de auditoria | `service.revoke_collaborator` |
 | Documento da tela de Colaboradores | A lista de quem tem acesso (Pessoa/E-mail/Função/Perfil/Vínculo/Empresa/Situação/Papéis na Programação Semanal), sem a coluna Projeto | `export.colaboradores_document` |
+| Linhas da tela de Cadastros | Os sete cadastros com a empresa, o projeto e o gerente de cada linha e um tipo de linha por cadastro; o total fecha a barra de exportações | `service.registers_overview`, `service.RegistersOverview` |
+| Registro de um cadastro (modal) | O cadastro como o formulário de edição o carrega, ou `None` fora do cadastro | `service.register_form_values` |
+| Listas dos formulários | Empresas, pessoas, projetos, os dois tipos de empresa e unidade, as faixas de apetite da escala vigente e os critérios de nota da carteira | `service.register_form_options`, `service.AppetiteOption`, `service.GradeCriterion` |
+| Gravação de um cadastro | Valida uma mensagem por campo (`InvalidDataError`) e grava com a trilha; o projeto novo chama `ensure_settings` e substitui as notas na versão vigente | `service.save_register` |
+| Exclusão de um cadastro | Recusa em uso (contagem do próprio módulo e chave estrangeira do banco, tabela → rótulo) e grava a trilha; no projeto, `remove_settings` sai antes | `service.delete_register`, `service._USED_BY_LABELS` |
+| Configuração da programação na exclusão | Apaga a linha de `programacao_configuracao` do projeto com a trilha, pela fachada dona | `programacao_semanal.service.remove_settings` |
+| Versão nova do portfólio | Copia as notas dos projetos da versão anterior para a nova, senão a ponderação da carteira zeraria (correção da ISSUE-076) | `service._copy_portfolio_weights` |
+| Documento da tela de Cadastros | As sete tabelas (empresas, pessoas, projetos, sistemas, unidades, locais e disciplinas), com as mesmas colunas da tela | `export.registers_document` |
 
 O calendário da plataforma (data de hoje, semana ISO, períodos, parcial e corte) fica em `src/core/calendario.py` e é o único leitor do relógio; toda fórmula recebe a data de referência como argumento (D6).
 
@@ -110,9 +144,11 @@ Na tela Colaboradores, o **Liberar acesso** e o **Editar** abrem o mesmo modal; 
 
 O **cadastro de Colaboradores é a fonte de verdade do acesso** (D7): a cada requisição o gate (`core.auth`) procura o e-mail do principal do Static Web Apps aqui, e e-mail fora do cadastro ou de colaborador desativado vê o acesso negado. Uma mudança no cadastro vale na requisição seguinte da pessoa, porque nada do acesso fica guardado fora dele. Configurações só aparece para Gestor e Admin e a tela Colaboradores é só do Admin (`rbac.MODULE_PERMISSION` e `rbac.SCREEN_PERMISSION`).
 
+Na tela Cadastros, cada cartão inclui e edita pelo mesmo modal, cujo corpo o servidor desenha por tipo; o projeto grava cliente, orçamento, padrões, apetite e notas numa transação só, e nasce com a configuração padrão da Programação Semanal. Excluir um cadastro em uso é recusado com a mensagem de onde ele é usado; um projeto que já gravou (deixou trilha) não sai do cadastro, porque a trilha é só de inclusão e aponta para ele.
+
 ## Integrações
 
-É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`: pesos e prazos valem para registros novos e critérios de exibição (base das taxas, referência da pirâmide, escala de severidade, faixas do mapa de calor) recalculam as telas na hora. O gate do acesso (`core.auth`) lê o cadastro de Colaboradores pela fachada (`service.find_access_by_email`, `service.find_access`, `service.list_active_access`), e a Programação Semanal lê os papéis por projeto em `registers.list_people_with_role` para os campos de Fiscal responsável e Encarregado — é a mesma tabela que a tela de Colaboradores grava. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados. A carga de demonstração (`api/src/carga/`) grava estes cadastros e chama `seed_initial_parameters`; o preparo de produção grava só o primeiro Admin e a versão 1.
+É fonte única de colaboradores, projetos, empresas, pessoas, sistemas, unidades e locais. Fachadas dos módulos consultam os parâmetros do grupo vigente com `service.current_group(session, group=..., reference_date=core.calendario.today())`: pesos e prazos valem para registros novos e critérios de exibição (base das taxas, referência da pirâmide, escala de severidade, faixas do mapa de calor) recalculam as telas na hora. O gate do acesso (`core.auth`) lê o cadastro de Colaboradores pela fachada (`service.find_access_by_email`, `service.find_access`, `service.list_active_access`), e a Programação Semanal lê os papéis por projeto em `registers.list_people_with_role` para os campos de Fiscal responsável e Encarregado — é a mesma tabela que a tela de Colaboradores grava. O **projeto** se integra com a Programação Semanal pelas fachadas donas: nasce com `ensure_settings` (os padrões do app) e, na exclusão, a linha de configuração sai por `remove_settings` antes do delete — o cadastro nunca escreve nas tabelas do outro módulo. A janela semanal e liberações extraordinárias são mantidas dentro de Programação Semanal; aqui ficam parâmetros gerais versionados. A carga de demonstração (`api/src/carga/`) grava estes cadastros e chama `seed_initial_parameters`; o preparo de produção grava só o primeiro Admin e a versão 1.
 
 ## Parâmetros
 
@@ -124,17 +160,18 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 
 | Alteração | Arquivo ou pasta |
 |---|---|
-| Rotas | `routes.py` (tela, modal, gravação, histórico e exports de parâmetros; tela, filtros, modal, gravação, revogação e exports de colaboradores) |
+| Rotas | `routes.py` (tela, modal, gravação, histórico e exports de parâmetros; tela, filtros, modal, gravação, revogação e exports de colaboradores; tela, modais por tipo, gravação, exclusão e exports de cadastros) |
 | Metadados dos grupos e campos da tela | `forms.py` (porte de `grupos(p)`, `exibir(c, v)` e do diff por caminho) |
-| Versionamento e cadastros | `service.py` (parâmetros: leitura por data, visão da tela, histórico de versões, gravação validada e semeadura; colaboradores: visão da tela, modal, gravação e revogação) |
+| Versionamento e cadastros | `service.py` (parâmetros: leitura por data, visão da tela, histórico de versões, gravação validada e semeadura; colaboradores: visão da tela, modal, gravação e revogação; cadastros: linhas, formulários, gravação, exclusão e notas do portfólio) |
 | Acesso do colaborador lido pelo gate | `service.py` (`find_access_by_email`, `find_access`, `list_active_access`); quem decide e o que cada perfil pode: `src/core/auth.py` e `src/core/rbac.py` |
 | Calendário da plataforma | `src/core/calendario.py` (data de hoje, semana ISO, períodos, parcial e corte) |
 | Derivação própria | Não há KPI próprio; a contagem por perfil da tela de Colaboradores é contagem do cadastro, e os cálculos de negócio permanecem nos módulos consumidores |
-| Regras de entrada | `validation.py` (uma função por regra; o registro `_RULES` liga a regra ao campo); a validação de Colaboradores mora em `service.save_collaborator` |
-| Exportação | `export.py` (`parametros_document` e `colaboradores_document`) |
+| Regras de entrada | `validation.py` (uma função por regra; o registro `_RULES` liga a regra ao campo); a validação de Colaboradores e de Cadastros mora em `service.py` |
+| Exportação | `export.py` (`parametros_document`, `colaboradores_document` e `registers_document`) |
 | Persistência | `models.py`; projeto e cadastros de apoio criados pela revisão `0001_plataforma` (ISSUE-005); plataforma em `src/core/models.py` |
-| Fragmentos | `api/src/templates/configuracoes/` (`parametros.html`, `parametros_form.html`, `parametros_historico.html`, `colaboradores.html` e `colaboradores_form.html`) |
+| Configuração da programação | `src/modulos/programacao_semanal/service.py` (`ensure_settings` no projeto novo e `remove_settings` na exclusão, como fachadas donas) |
+| Fragmentos | `api/src/templates/configuracoes/` (`parametros.html`, `parametros_form.html`, `parametros_historico.html`, `colaboradores.html`, `colaboradores_form.html`, `cadastros.html` e `cadastros_form.html`) |
 | Tela, estilo e comportamento | `app/_views/configuracoes/` e `app/paginas/configuracoes/` |
-| Testes | `api/tests/configuracoes/` (fachada e regras; `test_parametros_rotas.py` para a tela de Parâmetros, `test_colaboradores_rotas.py` para a tela de Colaboradores e `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
+| Testes | `api/tests/configuracoes/` (fachada e regras; `test_parametros_rotas.py` para a tela de Parâmetros, `test_colaboradores_rotas.py` para a de Colaboradores, `test_cadastros_rotas.py` para a de Cadastros e `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
 
 As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. A ISSUE-076 entregou a tela de Parâmetros e a ISSUE-077, a de Colaboradores; a ISSUE-078 completa este documento com a tela de Cadastros de apoio.

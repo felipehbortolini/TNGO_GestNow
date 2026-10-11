@@ -137,7 +137,8 @@ são os do GestNow, no módulo Configurações.
 | Termo de negócio | Nome no código |
 |---|---|
 | Parâmetros do projeto | `ScheduleSettingsForm` (form), `service.ScheduleParameters` (leitura), `service.save_parameters` (gravação) |
-| Padrões de um projeto novo | `service.ensure_settings` (linha com 60/75/15 e a regra de desvio ligada) |
+| Padrões de um projeto novo | `service.ensure_settings` (linha com 60/75/15 e a regra de desvio ligada; a criação de projeto do cadastro, ISSUE-078, chama esta função) |
+| Exclusão do projeto no cadastro | `service.remove_settings` (apaga a linha de configuração, com a trilha; chamada pela exclusão do projeto) |
 | Janela de uma empresa | `WindowForm` (form), `window_rules.Window` (domínio), `service.save_window` (gravação) |
 | Quem edita | `permissions.can_manage_settings` (Planejador no projeto ou Admin) |
 | Configuração do escopo | `service.configuration_of` (`ScheduleConfiguration` + `SettingsWindow`) |
