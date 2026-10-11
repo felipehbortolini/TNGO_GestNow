@@ -53,6 +53,45 @@
   font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere;
 }
 
+/* Carteira de projetos (ISSUE-080): a tabela com o rodapé dos totais, rolável no estreito. */
+.pagina--inicio-home .home__carteira { margin-bottom: var(--space-xl); }
+.pagina--inicio-home .home__carteira .card__head { flex-wrap: wrap; align-items: flex-start; }
+.pagina--inicio-home .home__carteira-tbl { min-width: 1100px; }
+.pagina--inicio-home .home__carteira-projeto { display: flex; flex-direction: column; gap: 2px; }
+.pagina--inicio-home .home__carteira-nome { font-size: 12px; color: var(--text-secondary); }
+.pagina--inicio-home .home__peso {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: var(--space-sm); min-width: 120px;
+}
+.pagina--inicio-home .home__peso-barra {
+  flex: 1; height: 6px; border-radius: 9999px;
+  background: var(--neutro-100); overflow: hidden;
+}
+.pagina--inicio-home .home__peso-barra > span { display: block; height: 100%; background: var(--verde-500); }
+.pagina--inicio-home .home__indice--ok { color: var(--ok-800); font-weight: 600; }
+.pagina--inicio-home .home__indice--warn { color: var(--warn-800); font-weight: 600; }
+.pagina--inicio-home .home__indice--erro { color: var(--erro-700); font-weight: 600; }
+.pagina--inicio-home .home__sobrecusto { color: var(--erro-700); }
+.pagina--inicio-home .home__atraso { color: var(--erro-700); font-weight: 600; }
+.pagina--inicio-home .home__carteira-tbl tfoot td {
+  padding: 12px 16px; border-top: 1px solid var(--borda); background: var(--neutro-50);
+}
+
+/* O modal da ponderação (o root do fragmento leva a classe da página, como o da análise). */
+.pagina--inicio-home .ponderacao { display: flex; flex-direction: column; gap: var(--space-lg); }
+.pagina--inicio-home .ponderacao__bloco {
+  display: flex; flex-direction: column; gap: var(--space-md);
+  margin: 0; padding: 0; border: none;
+}
+.pagina--inicio-home .ponderacao__projeto {
+  display: flex; flex-direction: column; gap: var(--space-sm);
+  padding: var(--space-md) 0; border-top: 1px solid var(--neutro-100);
+}
+.pagina--inicio-home .ponderacao__soma {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-sm); margin: 0;
+}
+.pagina--inicio-home #ponderacao-previa { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+
 /* Pontos de atenção: a lista com o nível sinalizado pelo ícone e pela borda. */
 .pagina--inicio-home .home__atencao { margin-bottom: var(--space-xl); }
 .pagina--inicio-home .home__lista { list-style: none; margin: 0; padding: 0; }
