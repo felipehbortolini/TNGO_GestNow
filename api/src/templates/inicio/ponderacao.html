@@ -1,0 +1,128 @@
+{% extends "base_fragment.html" %}
+{#-
+  O modal da ponderação da carteira (ISSUE-080): os pesos dos critérios (0 a 100,
+  soma 100), as notas dos projetos (1 a 5, por critério de fonte "nota") e a
+  justificativa obrigatória. O botão Prévia manda o formulário para a prévia (o
+  servidor devolve este mesmo fragmento com os pesos resultantes, sem gravar); o
+  Gravar manda para a gravação, que responde com data-ponderacao-salva e a
+  carteira atualizada. O form declara os dois alvos no sucesso e só o modal na
+  recusa (422 e qualquer erro), para a recusa não esvaziar a carteira (Alpine
+  AJAX esvazia o alvo que não vem na resposta).
+
+  Espera: visao, valores, previa, erros, mensagens, formatar_pct e formatar_num.
+-#}
+{% block fragment %}
+<form class="ponderacao" method="post" action="/api/inicio/ponderacao/gravar"
+  x-data="{ previa() { this.$ajax('/api/inicio/ponderacao/previa', { method: 'post', body: new FormData(this.$root), target: 'ponderacao-modal' }); } }"
+  x-target="ponderacao-modal carteira-conteudo" x-target.422="ponderacao-modal"
+  x-target.error="ponderacao-modal" novalidate>
+
+  <p class="hint">
+    Peso do projeto = soma de (peso do critério x participação do projeto no critério).
+    O critério de valor usa o orçamento vigente da EAC; os demais, a nota de
+    {{ visao.grade_minimum }} a {{ visao.grade_maximum }}. A alteração gera nova versão
+    dos parâmetros, com vigência a partir da data de referência
+    ({{ visao.reference_date.strftime('%d/%m/%Y') }}).
+  </p>
+
+  {% if not visao.can_save %}
+  <div class="aviso aviso--warn" role="note">
+    <span>Somente Gestor ou Admin altera a ponderação da carteira.</span>
+  </div>
+  {% endif %}
+
+  {% if mensagens %}
+  <div class="aviso aviso--erro" role="alert">
+    <strong>Não foi possível gravar a ponderação.</strong>
+    {% for mensagem in mensagens %}<span>{{ mensagem }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  <fieldset class="ponderacao__bloco">
+    <legend class="h-card5">Critérios</legend>
+    <div class="fgrid">
+      {% for criterio in visao.criteria %}
+      {% set campo_peso = 'peso_' ~ criterio.id %}
+      <div class="field">
+        <label for="peso-{{ criterio.id }}">Peso: {{ criterio.name }} (%)</label>
+        <input class="input{% if erros.get(campo_peso) %} input--erro{% endif %}" type="number"
+          id="peso-{{ criterio.id }}" name="{{ campo_peso }}" min="0" max="100" step="0.01"
+          inputmode="decimal" value="{{ valores.get(campo_peso, '') }}"
+          {% if erros.get(campo_peso) %}aria-invalid="true" aria-describedby="ponderacao-erro-{{ campo_peso }}"{% endif %} />
+        <span class="hint">
+          {% if criterio.source == 'orcamento' %}Participação do orçamento vigente (EAC) do projeto na carteira.
+          {% else %}Participação da nota do projeto ({{ visao.grade_minimum }} a {{ visao.grade_maximum }}).{% endif %}
+        </span>
+        {% if erros.get(campo_peso) %}
+        <span class="field__erro" id="ponderacao-erro-{{ campo_peso }}" role="alert">{{ erros[campo_peso] }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="ponderacao__soma">
+      Soma dos pesos: <b class="num" id="ponderacao-soma">{{ formatar_pct(visao.weights_total) }}</b>
+      <span class="hint">Deve fechar em 100%.</span>
+    </p>
+  </fieldset>
+
+  {% set criterios_nota = visao.criteria | selectattr('source', 'equalto', 'nota') | list %}
+  {% if criterios_nota %}
+  <fieldset class="ponderacao__bloco">
+    <legend class="h-card5">Notas dos projetos</legend>
+    {% for projeto in visao.projects %}
+    <div class="ponderacao__projeto">
+      <span class="fw-600">{{ projeto.code }} · {{ projeto.name }}</span>
+      <div class="fgrid">
+        {% for criterio in criterios_nota %}
+        {% set campo_nota = 'nota_' ~ projeto.project_id ~ '_' ~ criterio.id %}
+        <div class="field">
+          <label for="nota-{{ projeto.project_id }}-{{ criterio.id }}">{{ criterio.name }}</label>
+          <input class="input{% if erros.get(campo_nota) %} input--erro{% endif %}" type="number"
+            id="nota-{{ projeto.project_id }}-{{ criterio.id }}" name="{{ campo_nota }}"
+            min="{{ visao.grade_minimum }}" max="{{ visao.grade_maximum }}" step="1" inputmode="numeric"
+            value="{{ valores.get(campo_nota, '') }}"
+            {% if erros.get(campo_nota) %}aria-invalid="true" aria-describedby="ponderacao-erro-{{ campo_nota }}"{% endif %} />
+          {% if erros.get(campo_nota) %}
+          <span class="field__erro" id="ponderacao-erro-{{ campo_nota }}" role="alert">{{ erros[campo_nota] }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+
+  <div class="field">
+    <span class="fw-600">Pesos resultantes</span>
+    <div id="ponderacao-previa">
+      {% if previa %}
+      {% for linha in previa.rows %}
+      <span class="pill pill--neutral">{{ linha.code }} {{ formatar_pct(linha.weight, 2) }}</span>
+      {% endfor %}
+      {% elif visao.can_save %}
+      <span class="hint">Use Prévia para ver os pesos resultantes, sem gravar.</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="ponderacao-justificativa">Justificativa</label>
+    <textarea class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
+      id="ponderacao-justificativa" name="justificativa" rows="3" minlength="10" maxlength="300"
+      placeholder="Por que a ponderação mudou"
+      {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="ponderacao-erro-justificativa"{% endif %}>{{ valores.get('justificativa', '') }}</textarea>
+    <span class="hint">Mínimo de 10 caracteres.</span>
+    {% if erros.get('justificativa') %}
+    <span class="field__erro" id="ponderacao-erro-justificativa" role="alert">{{ erros['justificativa'] }}</span>
+    {% endif %}
+  </div>
+
+  {% if visao.can_save %}
+  <div class="modal__actions">
+    <button type="button" class="btn btn--secondary" @click="previa()">Prévia</button>
+    <button type="submit" class="btn btn--primary" data-tn-loading="Gravando a ponderação...">Gravar ponderação</button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

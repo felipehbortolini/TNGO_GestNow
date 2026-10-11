@@ -1,0 +1,111 @@
+{#-
+  A tabela da carteira de projetos e o rodapé "Portfólio" (ISSUE-080), parcial de
+  inicio/home.html e de inicio/ponderacao_salvo.html. Espera visao (HomeOverview),
+  formatar_pct, formatar_indice, formatar_moeda, formatar_data, formatar_num e
+  tom_indice (o tom do índice que a tela usa: 1,00 no plano, 0,95 atenção).
+
+  Cada número sai pronto da fachada (D9): aqui não se calcula nada.
+-#}
+<div class="tbl-wrap">
+  <table class="tbl home__carteira-tbl">
+    <caption class="sr-only">Carteira de projetos</caption>
+    <thead>
+      <tr>
+        <th scope="col">Projeto</th>
+        <th scope="col" class="td-num">Peso na carteira</th>
+        <th scope="col" class="td-num">Orçamento vigente</th>
+        <th scope="col" class="td-num">Avanço real x previsto</th>
+        <th scope="col" class="td-num">SPI</th>
+        <th scope="col" class="td-num">CPI</th>
+        <th scope="col" class="td-num">Projeção no término</th>
+        <th scope="col">Término pela tendência</th>
+        <th scope="col" class="td-num">Riscos no topo</th>
+        <th scope="col" class="td-num">Pedidos críticos</th>
+        <th scope="col" class="td-num">Ações atrasadas</th>
+        <th scope="col">Situação</th>
+        <th scope="col"><span class="sr-only">Abrir</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in visao.portfolio_rows %}
+      <tr>
+        <td class="home__carteira-projeto">
+          <b>{{ linha.code }}</b>
+          <span class="home__carteira-nome">{{ linha.name }}</span>
+        </td>
+        <td class="td-num">
+          <div class="home__peso">
+            <span class="home__peso-barra" role="img" aria-label="Peso {{ formatar_pct(linha.weight, 2) }}">
+              <span style="width: {{ linha.weight }}%"></span>
+            </span>
+            <span class="num">{{ formatar_pct(linha.weight, 2) }}</span>
+          </div>
+        </td>
+        <td class="td-num">{{ formatar_moeda(linha.budget_cents) }}</td>
+        <td class="td-num">
+          <span class="num">{{ formatar_pct(linha.actual) }}</span>
+          <span class="hint">x {{ formatar_pct(linha.predicted) }}</span>
+        </td>
+        <td class="td-num">
+          {% if linha.spi is not none %}<span class="num home__indice--{{ tom_indice(linha.spi) }}">{{ formatar_indice(linha.spi) }}</span>{% endif %}
+        </td>
+        <td class="td-num">
+          {% if linha.cpi is not none %}<span class="num home__indice--{{ tom_indice(linha.cpi) }}">{{ formatar_indice(linha.cpi) }}</span>{% endif %}
+        </td>
+        <td class="td-num">
+          {% if linha.projection_cents is not none %}
+          {{ formatar_moeda(linha.projection_cents) }}
+          {% if linha.vac_cents %}
+          <span class="hint {{ 'home__sobrecusto' if linha.vac_cents < 0 else '' }}">({{ '+' if linha.vac_cents < 0 else '−' }}{{ formatar_moeda(linha.vac_cents | abs) }})</span>
+          {% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% if linha.trend_finish %}
+          <span class="{{ 'home__atraso' if linha.baseline_finish and linha.trend_finish > linha.baseline_finish else '' }}">{{ formatar_data(linha.trend_finish) }}</span>
+          {% if linha.baseline_finish %}<span class="hint">LB {{ formatar_data(linha.baseline_finish) }}</span>{% endif %}
+          {% endif %}
+        </td>
+        <td class="td-num">{{ formatar_num(linha.critical_risks) }}</td>
+        <td class="td-num">{{ formatar_num(linha.critical_orders) }}</td>
+        <td class="td-num">{{ formatar_num(linha.overdue_actions) }}</td>
+        <td>
+          {% if linha.health %}<span class="pill pill--{{ linha.health }}">{{ linha.health_label }}</span>{% endif %}
+        </td>
+        <td>
+          <a class="btn btn--ghost btn--sm" href="/inicio/home?projeto={{ linha.project_id }}" data-tn-tela
+            aria-label="Abrir o projeto {{ linha.code }}">Abrir</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% if visao.portfolio_totals %}
+    <tfoot>
+      <tr>
+        <td><b>Portfólio</b></td>
+        <td class="td-num"><b class="num">100,00%</b></td>
+        <td class="td-num"><b>{{ formatar_moeda(visao.portfolio_totals.budget_cents) }}</b></td>
+        <td class="td-num">
+          <b class="num">{{ formatar_pct(visao.portfolio_totals.actual) }}</b>
+          <span class="hint">x {{ formatar_pct(visao.portfolio_totals.predicted) }}</span>
+        </td>
+        <td class="td-num">
+          {% if visao.portfolio_totals.spi is not none %}<b class="num home__indice--{{ tom_indice(visao.portfolio_totals.spi) }}">{{ formatar_indice(visao.portfolio_totals.spi) }}</b>{% endif %}
+        </td>
+        <td class="td-num">
+          {% if visao.portfolio_totals.cpi is not none %}<b class="num home__indice--{{ tom_indice(visao.portfolio_totals.cpi) }}">{{ formatar_indice(visao.portfolio_totals.cpi) }}</b>{% endif %}
+        </td>
+        <td class="td-num"><b>{{ formatar_moeda(visao.portfolio_totals.projection_cents) }}</b></td>
+        <td>
+          {% if visao.portfolio_totals.trend_finish %}<b>{{ formatar_data(visao.portfolio_totals.trend_finish) }}</b>{% endif %}
+        </td>
+        <td class="td-num"><b>{{ formatar_num(visao.portfolio_totals.critical_risks) }}</b></td>
+        <td class="td-num"><b>{{ formatar_num(visao.portfolio_totals.critical_orders) }}</b></td>
+        <td class="td-num"><b>{{ formatar_num(visao.portfolio_totals.overdue_actions) }}</b></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>

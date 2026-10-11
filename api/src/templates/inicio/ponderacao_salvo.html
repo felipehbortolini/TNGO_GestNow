@@ -1,0 +1,18 @@
+{% extends "base_fragment.html" %}
+{#-
+  A resposta da gravação da ponderação (ISSUE-080): raízes irmãs com os ids fixos
+  de propósito — a resposta se destina aos dois lugares que o formulário declarou
+  (docs/PADROES-DE-PAGINA.md, "Resposta que atualiza vários blocos"): o corpo do
+  modal, que fica só com a marca que o fecha (data-ponderacao-salva), e a
+  carteira de projetos atualizada. O toast de sucesso vai no cabeçalho da
+  resposta. Como em `programacao_semanal/salvo.html`, o bloco `root` é que
+  carrega as raízes; `target_id` não participa.
+-#}
+{% block root %}
+<div id="ponderacao-modal" class="pagina--inicio-home">
+  <span data-ponderacao-salva="sim" hidden></span>
+</div>
+<div id="carteira-conteudo">
+  {% include "inicio/_carteira.html" %}
+</div>
+{% endblock %}

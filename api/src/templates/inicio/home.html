@@ -7,7 +7,8 @@
   usam data-tn-excel e data-tn-pdf (D12). O vazio de origem é este bloco; carregando,
   erro e sem-permissão são da view.
 
-  Espera: visao, url_excel, url_pdf, formatar_data e formatar_moeda.
+  Espera: visao, pode_ponderar, url_excel, url_pdf, formatar_data, formatar_moeda,
+  formatar_pct, formatar_indice, formatar_num e tom_indice.
 -#}
 {% extends "base_fragment.html" %}
 
@@ -67,6 +68,29 @@
     {% endfor %}
   </div>
 </section>
+
+{# A carteira de projetos (ISSUE-080): só no Portfólio, entre os indicadores e a atenção. #}
+{% if visao.is_portfolio and visao.portfolio_rows %}
+<section class="card home__carteira" aria-labelledby="home-t-carteira">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4" id="home-t-carteira">Carteira de projetos</h2>
+      {% if visao.portfolio_note %}<span class="hint">{{ visao.portfolio_note }}</span>{% endif %}
+    </div>
+    {% if pode_ponderar %}
+    <button type="button" class="btn btn--secondary btn--sm" data-ponderacao>
+      <span x-init="$el.innerHTML = window.icon('gear', 16)" aria-hidden="true"></span>
+      Ponderação
+    </button>
+    {% endif %}
+  </div>
+  <div class="card__body">
+    <div id="carteira-conteudo">
+      {% include "inicio/_carteira.html" %}
+    </div>
+  </div>
+</section>
+{% endif %}
 
 <section class="card home__atencao" aria-labelledby="home-t-atencao">
   <div class="card__head">
