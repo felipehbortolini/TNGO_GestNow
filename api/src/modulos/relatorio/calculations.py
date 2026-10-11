@@ -19,6 +19,7 @@ from typing import Any
 
 from src.core import calendario
 from src.core.money import format_brl
+from src.modulos.inicio.calculations import compact_brl as _compact_brl
 from src.modulos.planejamento import calculations as planning_calculations
 from src.modulos.relatorio import validation
 
@@ -169,6 +170,38 @@ def format_date(value: date | datetime | None) -> str:
 def format_number2(value: Decimal | None) -> str:
     """O formatador das taxas do HSE que o template usa: duas casas fixas (``6,80``)."""
     return "·" if value is None else _plain(value, 2)
+
+
+def format_money_compact(cents: int | None) -> str:
+    """O dinheiro compacto dos cards (``R$ 96,5 mi``); nulo vira ``·``.
+
+    É a leitura do protótipo para o VAC e o limite da exposição, e reusa o formato do Início:
+    ``compact_brl`` é a mesma função que os cards da Home usam.
+    """
+    return "·" if cents is None else _compact_brl(cents)
+
+
+def matrix_cell_text(threats: int, opportunities: int) -> str:
+    """O texto de uma célula da matriz de riscos: ``2A``, ``1O`` ou ``1A · 2O``; vazia é vazia."""
+    parts = []
+    if threats:
+        parts.append(f"{threats}A")
+    if opportunities:
+        parts.append(f"{opportunities}O")
+    return " · ".join(parts)
+
+
+def risk_number(code: str, *, portfolio: bool) -> str:
+    """O código do risco como a folha o imprime: completo no Portfólio, ``RSK-0004`` no projeto.
+
+    A regra é do protótipo: no relatório de um projeto o prefixo do projeto sai (``RSK-TN-2026-``)
+    e o número fica ``RSK-0004``; no Portfólio, o código inteiro, porque há riscos de projetos
+    diferentes na mesma tabela.
+    """
+    if portfolio:
+        return code
+    prefix, _, number = code.rpartition("-")
+    return f"RSK-{number}" if prefix and number else code
 
 
 # ── Figuras de entrada ─────────────────────────────────────────────────────

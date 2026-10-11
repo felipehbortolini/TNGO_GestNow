@@ -335,8 +335,11 @@ def _sheets_context(view: service.ReportSheets) -> dict[str, Any]:
         "formatar_num": calculations.format_number,
         "formatar_num0": calculations.format_number0,
         "formatar_num1": calculations.format_number1,
+        "formatar_num2": calculations.format_number2,
         "formatar_mil": calculations.format_thousands,
+        "formatar_moeda": calculations.format_money,
         "formatar_moeda_mil": calculations.format_money_thousands,
+        "formatar_moeda_compacta": calculations.format_money_compact,
     }
 
 

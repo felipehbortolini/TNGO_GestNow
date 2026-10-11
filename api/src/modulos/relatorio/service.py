@@ -23,7 +23,15 @@ areas. The links the modal offers point at the screens that register each piece.
 ISSUE-084 adds the Financeiro sheet — the cost KPIs in the competence month, the owner's
 financial curve with the trend of that very month and the EAC by package — and the
 Suprimentos sheet — the panel KPIs at the cut, the contracting curve, the milestones done in
-the period and the adjudications and deliveries of the horizon.
+the period and the adjudications and deliveries of the horizon. The ISSUE-085 adds the Riscos
+sheet — the panel position at the cut, the residual matrix with the threats and opportunities
+per cell, the monthly exposure of the threats, the analysis and the top risks —, the Qualidade
+sheet — the RNC position at the cut and the pauta at the reference date, the period's
+inspections and audits against the owner's targets, the six-month series and the rejected
+inspections —, the HSE sheet — the month's and the accumulated indicators, the security
+pyramid, the evolution of TF and TRIF and the proactive indicators — and, in the Portfólio,
+the Carteira de projetos as the first folha: the weighted physical S curve, the ponderation
+criteria and the same reading of the Início's carteira, at the reference date.
 """
 
 from __future__ import annotations
@@ -44,6 +52,7 @@ from src.core.errors import InvalidDataError
 from src.core.rbac import Permission, User
 from src.core.scope import PORTFOLIO_PARAMETER, Scope
 from src.modulos.configuracoes import service as configuracoes
+from src.modulos.inicio import calculations as inicio_calculations
 from src.modulos.relatorio import calculations, validation
 from src.modulos.relatorio.models import Analysis, AnalysisDeviation
 
@@ -69,11 +78,15 @@ DEVIATION_REQUIRED: Mapping[str, bool] = {
     "hse": False,
 }
 
-# As seções que o relatório já implementa, na ordem do modal; cresce na ISSUE-085.
+# As seções que o relatório implementa, na ordem do modal. A Carteira de projetos não é uma
+# seção escolhível: no Portfólio ela entra sozinha, como a primeira folha (o protótipo).
 REPORT_SECTIONS: tuple[tuple[str, str], ...] = (
     ("planejamento", "Planejamento (2 páginas)"),
     ("financeiro", "Financeiro (1 página)"),
     ("suprimentos", "Suprimentos (1 página)"),
+    ("riscos", "Riscos (1 página)"),
+    ("qualidade", "Qualidade (1 página)"),
+    ("hse", "HSE (1 página)"),
 )
 
 # A tela de cada módulo onde a análise do período é registrada: o endereço que o modal oferece.
@@ -1111,6 +1124,299 @@ class ProcurementSheet:
     curve_chart: Mapping[str, Any]
 
 
+# ── Relatório gerencial: a folha Riscos (ISSUE-085) ────────────────────────
+
+# Quantos riscos principais a folha lista: a tabela do protótipo mostra cinco.
+TOP_RISKS = 5
+
+
+@dataclass(frozen=True)
+class RiskBandView:
+    """Uma faixa de severidade na folha: o nome, a contagem, a natureza e a meta."""
+
+    name: str
+    total: int
+    threats: int
+    opportunities: int
+    goal: int
+
+
+@dataclass(frozen=True)
+class RiskMatrixCellView:
+    """Uma célula da matriz residual: a posição, o tom da faixa e as contagens de A e O."""
+
+    probability: int
+    impact: int
+    tone: str
+    threats: int
+    opportunities: int
+
+    @property
+    def text(self) -> str:
+        """O texto da célula: ``2A``, ``1O``, ``1A · 2O`` ou vazio."""
+        return calculations.matrix_cell_text(self.threats, self.opportunities)
+
+
+@dataclass(frozen=True)
+class RiskTopRow:
+    """Um risco principal: o número, o título, o residual, a estratégia e a revisão."""
+
+    number: str
+    title: str
+    nature: str
+    score: int
+    severity: str
+    tone: str
+    strategy: str
+    owner_name: str
+    next_review: date | None
+    review_overdue: bool
+
+
+@dataclass(frozen=True)
+class RiskMonthPoint:
+    """Um mês da exposição: o mês, o score residual somado das ameaças e se é o corrente."""
+
+    month: str
+    score: int
+    current: bool
+
+
+@dataclass(frozen=True)
+class RiskSheet:
+    """A folha Riscos: o painel na data de referência, a matriz, a exposição e os principais.
+
+    Os KPIs, a matriz e os principais são a posição na data de referência; identificados e
+    encerrados saem do histórico, dentro do período; a exposição mensal vem reconstruída do
+    painel do dono. ``exposure_limit_cents`` é o saldo da reserva de contingência (o limite do
+    protótipo), lido do mapa de controle do Financeiro na mesma data.
+    """
+
+    analysis: AnalysisView
+    analysis_url: str
+    is_portfolio: bool
+    active: int
+    registered: int
+    threats: int
+    opportunities: int
+    top: RiskBandView
+    second: RiskBandView | None
+    exposure_cents: int
+    exposure_limit_cents: int | None
+    overdue_reviews: int
+    agenda: int
+    identified: int
+    closed: int
+    matrix: tuple[RiskMatrixCellView, ...]
+    evolution: tuple[RiskMonthPoint, ...]
+    evolution_chart: Mapping[str, Any]
+    principais: tuple[RiskTopRow, ...]
+
+
+# ── Relatório gerencial: a folha Qualidade (ISSUE-085) ─────────────────────
+
+# Quantas inspeções reprovadas e quantas RNC da pauta a folha lista; o protótipo mostra cinco.
+TOP_REJECTED = 5
+TOP_AGENDA = 5
+
+
+@dataclass(frozen=True)
+class QualityRejectedRow:
+    """Uma inspeção reprovada no período: a data, o ponto com o ITP, a empresa e a RNC."""
+
+    date: date
+    point: str
+    itp_code: str
+    company_name: str
+    rnc_code: str
+
+
+@dataclass(frozen=True)
+class QualityAgendaRow:
+    """Uma RNC da pauta de tratamento: a identificação, a severidade e os motivos do dono."""
+
+    code: str
+    description: str
+    severity: str
+    situation: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class QualityDisciplineRow:
+    """Uma disciplina do Pareto de RNC: o total e a fatia do total."""
+
+    name: str
+    total: int
+    pct: Decimal
+
+
+@dataclass(frozen=True)
+class QualitySeriesPoint:
+    """Um mês da série de RNC: as abertas, as encerradas e as inspeções do mês."""
+
+    month: str
+    opened: int
+    closed: int
+    open: int
+    inspections: int
+    approval_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class QualitySheet:
+    """A folha Qualidade: a posição no corte, o período, as metas, a série e a pauta.
+
+    A posição (em aberto e críticas) e o custo acumulado são do corte; as abertas, encerradas,
+    inspeções e auditorias realizadas são do período; a pauta e as auditorias atrasadas são a
+    posição na data de referência, como o rodapé da folha informa. A série de RNC termina no mês
+    do corte e a disciplina com mais RNC sai do painel do dono.
+    """
+
+    analysis: AnalysisView
+    analysis_url: str
+    is_portfolio: bool
+    open_at_cut: int
+    critical_at_cut: int
+    overdue_at_reference: int
+    opened_period: int
+    closed_period: int
+    approval_pct: Decimal | None
+    approval_meta: Decimal | None
+    rejected: tuple[QualityRejectedRow, ...]
+    inspections: int
+    conformity_pct: Decimal | None
+    conformity_meta: Decimal | None
+    audits_period: int
+    late_audits: int
+    cost_accumulated_cents: int
+    cost_period_cents: int
+    discipline: tuple[QualityDisciplineRow, ...]
+    discipline_total: int
+    series: tuple[QualitySeriesPoint, ...]
+    series_chart: Mapping[str, Any]
+    agenda: tuple[QualityAgendaRow, ...]
+
+
+# ── Relatório gerencial: a folha HSE (ISSUE-085) ───────────────────────────
+
+# Quantos meses a evolução de TF e TRIF da folha HSE mostra, terminando no mês do corte.
+HSE_EVOLUTION_MONTHS = 6
+
+
+@dataclass(frozen=True)
+class HseSheet:
+    """A folha HSE: o mês e o acumulado do dono, a pirâmide, a evolução e os proativos.
+
+    As taxas são as do painel do dono no mês do corte (no semanal, o mês parcial com as taxas
+    do mês inteiro até ele): ``month_indicators`` é o mês e ``accumulated_indicators`` vai do
+    primeiro mês com HHT até ele. No semanal a folha troca o KPI do HHT pelo das ocorrências da
+    semana, com os níveis da pirâmide do mês como referência; no mensal o HHT previsto vem do
+    histograma de mão de obra do próprio dono. ``empty`` é o escopo ainda sem HHT: só a análise.
+    """
+
+    analysis: AnalysisView
+    analysis_url: str
+    is_portfolio: bool
+    weekly: bool
+    empty: bool
+    month: date = date(1970, 1, 1)
+    partial_month: bool = False
+    base: int = 0
+    base_name: str = ""
+    reference_name: str = ""
+    reference_ratio: Decimal | None = None
+    observations_target: int = 0
+    month_indicators: Any = None
+    accumulated: Any = None
+    days_expected: int | None = None
+    days_since: date | None = None
+    occurrences: int = 0
+    occurrence_levels: tuple[int, ...] = ()
+    hipo_period: int = 0
+    month_occurrences: int = 0
+    hours_expected: int | None = None
+    first_month: date = date(1970, 1, 1)
+    pyramid_chart: Mapping[str, Any] = field(default_factory=dict)
+    evolution_chart: Mapping[str, Any] = field(default_factory=dict)
+
+
+# ── Relatório gerencial: a folha Carteira de projetos (ISSUE-085) ──────────
+
+
+@dataclass(frozen=True)
+class CarteiraProjectRow:
+    """Um projeto da carteira: o peso e os mesmos indicadores da tela Início, no mesmo corte."""
+
+    project_id: int
+    code: str
+    name: str
+    weight: Decimal
+    budget_cents: int
+    predicted: Decimal
+    actual: Decimal
+    spi: Decimal | None
+    cpi: Decimal | None
+    projection_cents: int | None
+    vac_cents: int | None
+    baseline_finish: date | None
+    trend_finish: date | None
+    critical_risks: int
+    critical_orders: int
+    overdue_actions: int
+    health: str | None
+
+    @property
+    def health_label(self) -> str:
+        """``Em dia``, ``Atenção`` ou ``Crítico``: o rótulo da situação (vazio sem ela)."""
+        return inicio_calculations.health_label(self.health)
+
+
+@dataclass(frozen=True)
+class CarteiraCriterionRow:
+    """Um critério da ponderação vigente: o nome, o peso e a fonte (orçamento ou nota)."""
+
+    id: str
+    name: str
+    source: str
+    weight: Decimal
+
+
+@dataclass(frozen=True)
+class CarteiraSheet:
+    """A folha Carteira de projetos, só no Portfólio: a posição na data de referência.
+
+    Como o protótipo, a folha é a primeira do relatório e lê o mesmo que o Início lê: o peso de
+    ``financeiro.portfolio_weights``; por projeto, o prazo (``planning_kpis_overview``) e o
+    custo (``cost_kpis_overview``) com a tendência da própria curva, os riscos no topo
+    (``risk_panel``), os pedidos críticos (``list_panel``) e as ações atrasadas
+    (``count_by_status``); e a Curva S física ponderada da carteira, com os critérios da
+    ponderação. Os totais reusam as leituras consolidadas do Portfólio.
+    """
+
+    reference_date: date
+    project_count: int
+    budget_cents: int
+    budget_baseline_cents: int | None
+    predicted: Decimal
+    actual: Decimal
+    deviation_pp: Decimal
+    spi: Decimal | None
+    spi_tone: str
+    cpi: Decimal | None
+    cpi_tone: str
+    projection_cents: int | None
+    vac_cents: int | None
+    baseline_finish: date | None
+    trend_finish: date | None
+    critical_risks: int
+    critical_orders: int
+    overdue_actions: int
+    projects: tuple[CarteiraProjectRow, ...]
+    criteria: tuple[CarteiraCriterionRow, ...]
+    curve_chart: Mapping[str, Any]
+
+
 @dataclass(frozen=True)
 class ReportSheets:
     """As folhas do relatório: o cabeçalho do escopo e do período e o que cada seção traz."""
@@ -1130,6 +1436,10 @@ class ReportSheets:
     planning: PlanningSheet | None
     financeiro: FinanceiroSheet | None
     suprimentos: ProcurementSheet | None
+    riscos: RiskSheet | None
+    qualidade: QualitySheet | None
+    hse: HseSheet | None
+    carteira: CarteiraSheet | None
     analysis: AnalysisView | None
     analysis_url: str
     relato: Any | None
@@ -1166,12 +1476,18 @@ def report_view(
     planning = None
     financeiro = None
     suprimentos = None
+    riscos = None
+    qualidade = None
+    hse = None
+    carteira = None
     analysis = None
     analysis_url = ""
     relato = None
     relato_url = ""
     project_relatos: tuple[ProjectRelatoSheet, ...] = ()
     relato_points: tuple[tuple[str, Any], ...] = ()
+    if scope.is_portfolio:
+        carteira = _carteira_sheet(session, user=user, reference_date=reference_date)
     if "planejamento" in chosen:
         planning = _planning_sheet(
             session,
@@ -1212,6 +1528,36 @@ def report_view(
             reference_date=reference_date,
             cut=cut,
         )
+    if "riscos" in chosen:
+        riscos = _risk_sheet(
+            session,
+            user=user,
+            scope=scope,
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+            cut=cut,
+        )
+    if "qualidade" in chosen:
+        qualidade = _quality_sheet(
+            session,
+            user=user,
+            scope=scope,
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+            cut=cut,
+        )
+    if "hse" in chosen:
+        hse = _hse_sheet(
+            session,
+            user=user,
+            scope=scope,
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+            cut=cut,
+        )
     return ReportSheets(
         scope=scope.parameter,
         scope_label=_scope_label(session, scope),
@@ -1228,6 +1574,10 @@ def report_view(
         planning=planning,
         financeiro=financeiro,
         suprimentos=suprimentos,
+        riscos=riscos,
+        qualidade=qualidade,
+        hse=hse,
+        carteira=carteira,
         analysis=analysis,
         analysis_url=analysis_url,
         relato=relato,
@@ -1765,6 +2115,578 @@ def _forecast_events(
 def _project_code(label: str | None) -> str:
     """O código do projeto no rótulo ``COD · Nome`` do dono; vazio quando não há rótulo."""
     return "" if not label else label.split(" · ", 1)[0]
+
+
+# ── Relatório gerencial: as folhas Riscos, Qualidade e HSE (ISSUE-085) ─────
+
+
+def _risk_sheet(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    kind: str,
+    period: str,
+    reference_date: date,
+    cut: date,
+) -> RiskSheet:
+    """A folha Riscos montada na data de referência, pelas fachadas do dono (D9).
+
+    O painel dá os KPIs (ativos, faixas com a meta, exposição, revisão vencida e a pauta), o
+    registro dá as naturezas, os identificados e os encerrados do período e os principais; a
+    matriz residual (com a inerente de quem não tem residual) vem do painel do dono. A posição
+    é a da data de referência (o rodapé da folha informa) e só os identificados e encerrados
+    usam o período. O limite da exposição é o saldo da reserva de contingência lido no mapa de
+    controle do Financeiro na mesma data.
+    """
+    from src.modulos.financeiro import service as financeiro
+    from src.modulos.riscos import panel_service
+    from src.modulos.riscos import service as riscos
+    from src.modulos.riscos import validation as risco_validation
+    from src.modulos.riscos.calculations import OPPORTUNITY
+
+    panel = panel_service.risk_panel(session, user=user, scope=scope, reference_date=reference_date)
+    summary = panel.summary
+    listing = riscos.list_risks(
+        session,
+        user=user,
+        scope=scope,
+        filters=risco_validation.RiskFilters(
+            situation=risco_validation.SITUATION_ALL, include_closed=True
+        ),
+        reference_date=reference_date,
+    )
+    matrix = panel_service.risk_matrix(
+        session,
+        user=user,
+        scope=scope,
+        assessment=risco_validation.RESIDUAL,
+        nature="",
+        reference_date=reference_date,
+    )
+    mapa = financeiro.mapa_controle(session, scope=scope, reference_date=reference_date)
+    bounds = calendario.period_bounds(kind, period)
+    first = bounds[0] if bounds is not None else cut
+    active = [line for line in listing.lines if line.active]
+    assessed = [(line, line.current) for line in active if line.current is not None]
+    assessed.sort(key=lambda pair: (-pair[1].score, -pair[0].vme_cents, pair[0].code))
+    tones = {style.band.id: style.tone for style in matrix.bands}
+    evolution = tuple(
+        RiskMonthPoint(month=point.month, score=point.score, current=point.current)
+        for point in panel.evolution
+    )
+    return RiskSheet(
+        analysis=_analysis_reading(
+            session,
+            user=user,
+            scope=scope,
+            module="riscos",
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+        ),
+        analysis_url=_analysis_url("riscos", kind, period, scope),
+        is_portfolio=scope.is_portfolio,
+        active=summary.active,
+        registered=summary.registered,
+        threats=sum(1 for line in active if line.nature != OPPORTUNITY),
+        opportunities=sum(1 for line in active if line.nature == OPPORTUNITY),
+        top=_risk_band_view(summary.top),
+        second=None if summary.second is None else _risk_band_view(summary.second),
+        exposure_cents=summary.exposure_cents,
+        exposure_limit_cents=(
+            mapa.reserves.contingency_balance_cents if mapa.reserves is not None else None
+        ),
+        overdue_reviews=len(summary.overdue),
+        agenda=len(panel.agenda),
+        identified=sum(1 for line in listing.lines if first <= line.identified_on <= cut),
+        closed=sum(
+            1
+            for line in listing.lines
+            if line.closing_date is not None and first <= line.closing_date <= cut
+        ),
+        matrix=tuple(
+            RiskMatrixCellView(
+                probability=cell.probability,
+                impact=cell.impact,
+                tone=tones.get(cell.severity.id, "neutro"),
+                threats=sum(1 for risk in cell.risks if risk.nature != OPPORTUNITY),
+                opportunities=sum(1 for risk in cell.risks if risk.nature == OPPORTUNITY),
+            )
+            for cell in matrix.cells
+        ),
+        evolution=evolution,
+        evolution_chart=_risk_evolution_chart(evolution),
+        principais=tuple(
+            RiskTopRow(
+                number=calculations.risk_number(line.code, portfolio=scope.is_portfolio),
+                title=line.title,
+                nature=line.nature,
+                score=view.score,
+                severity=view.severity.name,
+                tone=tones.get(view.severity.id, "neutro"),
+                strategy=line.strategy or "",
+                owner_name=line.owner_name,
+                next_review=line.next_review,
+                review_overdue=line.review_overdue,
+            )
+            for line, view in assessed[:TOP_RISKS]
+        ),
+    )
+
+
+def _risk_band_view(count: Any) -> RiskBandView:
+    """Uma faixa do resumo de riscos como a folha a lê."""
+    return RiskBandView(
+        name=count.band.name,
+        total=count.total,
+        threats=count.threats,
+        opportunities=count.opportunities,
+        goal=count.goal,
+    )
+
+
+def _risk_evolution_chart(points: Sequence[RiskMonthPoint]) -> Mapping[str, Any]:
+    """O ``data-dados`` da exposição mensal: o score residual somado das ameaças por mês."""
+    periods: list[dict[str, Any]] = []
+    for point in points:
+        year, month = _month_of(point.month)
+        periods.append(
+            {
+                "ano": year,
+                "mes": month,
+                "valores": {"score": float(point.score)},
+            }
+        )
+    return {
+        "titulo": "Exposição das ameaças",
+        "modo": "periodo",
+        "formato": "numero",
+        "casas": 0,
+        "series": [
+            {
+                "id": "score",
+                "rotulo": "Score residual somado",
+                "papel": "atencao",
+                "tipo": "valor",
+            }
+        ],
+        "periodos": periods,
+    }
+
+
+def _quality_sheet(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    kind: str,
+    period: str,
+    reference_date: date,
+    cut: date,
+) -> QualitySheet:
+    """A folha Qualidade montada no corte, pelas fachadas do dono (D9).
+
+    A posição no corte (em aberto, críticas e custo acumulado), o período (abertas, encerradas,
+    inspeções e auditorias realizadas e o custo do período) e a data de referência (a pauta e as
+    auditorias atrasadas) vêm do registro e do painel; a série de RNC termina no mês do corte e a
+    disciplina com mais RNC vem do painel do dono. As metas são as do grupo ``qualidade`` vigente.
+    """
+    from src.modulos.qualidade import calculations as quality_calculations
+    from src.modulos.qualidade import painel_service
+    from src.modulos.qualidade import service as qualidade
+    from src.modulos.qualidade import validation as quality_validation
+
+    parameters = qualidade.parameters(session, reference_date=cut)
+    rncs = qualidade.list_rncs(
+        session,
+        user=user,
+        scope=scope,
+        filters=quality_validation.RncFilters(situation=quality_validation.SITUATION_ALL),
+        reference_date=cut,
+    ).lines
+    inspections = qualidade.list_inspections(
+        session, user=user, scope=scope, filters=quality_validation.InspectionFilters()
+    ).lines
+    audits = qualidade.list_audits(
+        session,
+        user=user,
+        scope=scope,
+        filters=quality_validation.AuditFilters(),
+        reference_date=cut,
+    ).lines
+    panel = painel_service.quality_panel(
+        session, user=user, scope=scope, reference_date=reference_date
+    )
+    bounds = calendario.period_bounds(kind, period)
+    first = bounds[0] if bounds is not None else cut
+    in_period = [line for line in inspections if first <= line.inspection_date <= cut]
+    performed = [
+        line
+        for line in audits
+        if line.situation == quality_calculations.AUDIT_DONE
+        and first <= (line.performed_on or line.audit_date) <= cut
+    ]
+    series = tuple(
+        QualitySeriesPoint(
+            month=point.month,
+            opened=point.opened,
+            closed=point.closed,
+            open=point.open,
+            inspections=point.inspections,
+            approval_pct=point.approval_pct,
+        )
+        for point in painel_service.quality_series(rncs, inspections, reference_date=cut)
+    )
+    discipline = tuple(
+        QualityDisciplineRow(name=line.name, total=line.total, pct=line.pct)
+        for line in panel.by_discipline
+    )
+    open_at_cut = [
+        line
+        for line in rncs
+        if line.rnc_date <= cut
+        and (line.closing_date is None or line.closing_date > cut)
+        and line.situation != quality_calculations.SITUATION_CANCELLED
+    ]
+    return QualitySheet(
+        analysis=_analysis_reading(
+            session,
+            user=user,
+            scope=scope,
+            module="qualidade",
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+        ),
+        analysis_url=_analysis_url("qualidade", kind, period, scope),
+        is_portfolio=scope.is_portfolio,
+        open_at_cut=len(open_at_cut),
+        critical_at_cut=sum(
+            1 for line in open_at_cut if line.severity == quality_calculations.SEVERITIES[0]
+        ),
+        overdue_at_reference=sum(1 for entry in panel.agenda if entry.line.overdue),
+        opened_period=sum(
+            1
+            for line in rncs
+            if first <= line.rnc_date <= cut
+            and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        closed_period=sum(
+            1
+            for line in rncs
+            if line.situation == quality_calculations.SITUATION_CLOSED
+            and line.closing_date is not None
+            and first <= line.closing_date <= cut
+        ),
+        approval_pct=quality_calculations.inspection_approval_rate(
+            line.result for line in in_period
+        ),
+        approval_meta=_meta(parameters, "metaAprovacaoInspecaoPct"),
+        rejected=tuple(
+            QualityRejectedRow(
+                date=line.inspection_date,
+                point=line.point,
+                itp_code=line.itp_code,
+                company_name=line.company_name,
+                rnc_code=line.rnc_code,
+            )
+            for line in in_period
+            if line.result == quality_calculations.RESULT_REJECTED
+        ),
+        inspections=len(in_period),
+        conformity_pct=quality_calculations.audit_conformity_rate(
+            sum(line.items_conforming or 0 for line in performed),
+            sum(line.items_verified or 0 for line in performed),
+        ),
+        conformity_meta=_meta(parameters, "metaConformidadeAuditoriaPct"),
+        audits_period=len(performed),
+        late_audits=len(panel.overdue_audits),
+        cost_accumulated_cents=sum(
+            line.cost_cents
+            for line in rncs
+            if line.rnc_date <= cut and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        cost_period_cents=sum(
+            line.cost_cents
+            for line in rncs
+            if first <= line.rnc_date <= cut
+            and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        discipline=discipline,
+        discipline_total=sum(line.total for line in discipline),
+        series=series,
+        series_chart=_quality_series_chart(series),
+        agenda=tuple(
+            QualityAgendaRow(
+                code=entry.line.code,
+                description=entry.line.description,
+                severity=entry.line.severity,
+                situation=entry.line.situation,
+                reasons=entry.reasons,
+            )
+            for entry in panel.agenda
+        ),
+    )
+
+
+def _quality_series_chart(series: Sequence[QualitySeriesPoint]) -> Mapping[str, Any]:
+    """O ``data-dados`` das RNC por mês: as abertas e as encerradas de cada mês do corte."""
+    periods: list[dict[str, Any]] = []
+    for point in series:
+        year, month = _month_of(point.month)
+        periods.append(
+            {
+                "ano": year,
+                "mes": month,
+                "valores": {"abertas": point.opened, "encerradas": point.closed},
+            }
+        )
+    return {
+        "titulo": "RNC por mês",
+        "modo": "periodo",
+        "formato": "numero",
+        "casas": 0,
+        "series": [
+            {"id": "abertas", "rotulo": "Abertas", "papel": "atencao", "tipo": "valor"},
+            {"id": "encerradas", "rotulo": "Encerradas", "papel": "realizado", "tipo": "valor"},
+        ],
+        "periodos": periods,
+    }
+
+
+def _hse_sheet(
+    session: Session,
+    *,
+    user: User,
+    scope: Scope,
+    kind: str,
+    period: str,
+    reference_date: date,
+    cut: date,
+) -> HseSheet:
+    """A folha HSE montada no mês do corte, pelo painel do dono (D9).
+
+    O painel dá os indicadores do mês e do acumulado, a referência da pirâmide e a base das
+    taxas; o histograma de mão de obra do dono dá o HHT previsto do mês; as ocorrências da
+    semana (não ambientais) saem da tela de ocorrências do dono, com os níveis da pirâmide.
+    """
+    from src.modulos.hse import calculations as hse_calculations
+    from src.modulos.hse import painel_service
+    from src.modulos.hse import service as hse
+    from src.modulos.hse import validation as hse_validation
+
+    month = date(cut.year, cut.month, 1)
+    panel = painel_service.panel(
+        session,
+        user=user,
+        scope=scope,
+        reference_date=cut,
+        month=month,
+        pyramid_kind=None,
+    )
+    analysis = _analysis_reading(
+        session,
+        user=user,
+        scope=scope,
+        module="hse",
+        kind=kind,
+        period=period,
+        reference_date=reference_date,
+    )
+    analysis_url = _analysis_url("hse", kind, period, scope)
+    if (
+        panel.month is None
+        or panel.month_indicators is None
+        or panel.accumulated_indicators is None
+    ):
+        return HseSheet(
+            analysis=analysis,
+            analysis_url=analysis_url,
+            is_portfolio=scope.is_portfolio,
+            weekly=kind == calendario.WEEKLY,
+            empty=True,
+        )
+    bounds = calendario.period_bounds(kind, period)
+    first = bounds[0] if bounds is not None else cut
+    screen = hse.occurrences_screen(
+        session,
+        scope=scope,
+        filters=hse_validation.OccurrenceFilters(),
+        reference_date=cut,
+    )
+    period_rows = [
+        row
+        for row in screen.rows
+        if not row.environmental
+        and first <= calendario.in_product_timezone(row.happened_at).date() <= cut
+    ]
+    levels = [0, 0, 0, 0]
+    for row in period_rows:
+        if row.level is not None and 1 <= row.level <= len(levels):
+            levels[row.level - 1] += 1
+    histogram = hse.labour_histogram(session, scope=scope, reference_date=cut)
+    planned = hse_calculations.planned_labour(histogram, up_to=panel.month, only_month=True)
+    start = panel.project_start
+    evolution = replace(panel, evolution=panel.evolution[-HSE_EVOLUTION_MONTHS:])
+    return HseSheet(
+        analysis=analysis,
+        analysis_url=analysis_url,
+        is_portfolio=scope.is_portfolio,
+        weekly=kind == calendario.WEEKLY,
+        empty=False,
+        month=panel.month,
+        partial_month=panel.month == date(reference_date.year, reference_date.month, 1),
+        base=panel.base,
+        base_name=hse_calculations.rate_base_name(panel.base),
+        reference_name=panel.reference.name,
+        reference_ratio=panel.reference.almost_miss_ratio,
+        observations_target=panel.observations_target,
+        month_indicators=panel.month_indicators,
+        accumulated=panel.accumulated_indicators,
+        days_expected=None if start is None else max(0, (cut - start).days),
+        days_since=panel.last_lti or start,
+        occurrences=len(period_rows),
+        occurrence_levels=tuple(levels),
+        hipo_period=sum(1 for row in period_rows if row.hipo),
+        month_occurrences=sum(panel.month_indicators.pyramid[: len(levels)]),
+        hours_expected=None if planned is None else planned.hours,
+        first_month=panel.window_start or panel.month,
+        pyramid_chart=painel_service.pyramid_chart(panel),
+        evolution_chart=painel_service.evolution_chart(evolution),
+    )
+
+
+def _carteira_sheet(session: Session, *, user: User, reference_date: date) -> CarteiraSheet:
+    """A folha Carteira montada na data de referência, só no Portfólio (D9).
+
+    Espelha a leitura da carteira do Início (ISSUE-080): o peso de ``portfolio_weights``; por
+    projeto, o prazo (``planning_kpis_overview``) e o custo (``cost_kpis_overview``) com a
+    tendência da própria curva, os riscos no topo (``risk_panel``), os pedidos críticos
+    (``list_panel``) e as ações atrasadas (``count_by_status``). Os totais reusam as leituras
+    consolidadas do Portfólio e a situação usa as faixas do Início; a Curva S física é a
+    ponderada da carteira e os critérios vêm do grupo ``portfolio`` dos parâmetros vigentes.
+    """
+    from src.modulos.central_acoes import service as central_acoes
+    from src.modulos.financeiro import service as financeiro
+    from src.modulos.planejamento import service as planejamento
+    from src.modulos.riscos import panel_service as riscos_painel
+    from src.modulos.suprimentos import service as suprimentos
+
+    portfolio = Scope(project_id=None, source="url")
+    planning = planejamento.planning_kpis_overview(
+        session, scope=portfolio, reference_date=reference_date
+    )
+    cost = financeiro.cost_kpis_overview(session, scope=portfolio, reference_date=reference_date)
+    risks = riscos_painel.risk_panel(
+        session, user=user, scope=portfolio, reference_date=reference_date
+    )
+    supply = suprimentos.list_panel(
+        session, user=user, scope=portfolio, reference_date=reference_date
+    )
+    actions = central_acoes.count_by_status(
+        session, user=user, scope=portfolio, reference_date=reference_date
+    )
+    mapa = financeiro.mapa_controle(session, scope=portfolio, reference_date=reference_date)
+    weights = financeiro.portfolio_weights(session, reference_date=reference_date)
+    rows: list[CarteiraProjectRow] = []
+    for project in configuracoes.list_projects(session):
+        scope = Scope(project_id=project.id, source="url")
+        project_planning = planejamento.planning_kpis_overview(
+            session, scope=scope, reference_date=reference_date
+        )
+        project_cost = financeiro.cost_kpis_overview(
+            session, scope=scope, reference_date=reference_date
+        )
+        project_risks = riscos_painel.risk_panel(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        project_supply = suprimentos.list_panel(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        project_actions = central_acoes.count_by_status(
+            session, user=user, scope=scope, reference_date=reference_date
+        )
+        weight = weights.get(project.id)
+        cpi = None if project_cost.indicators is None else project_cost.indicators.cpi
+        rows.append(
+            CarteiraProjectRow(
+                project_id=project.id,
+                code=project.code,
+                name=project.name,
+                weight=Decimal(0) if weight is None else weight.weight,
+                budget_cents=project_cost.budget_cents,
+                predicted=project_planning.indicators.predicted,
+                actual=project_planning.indicators.actual,
+                spi=project_planning.indicators.spi,
+                cpi=cpi,
+                projection_cents=project_cost.projection_cents,
+                vac_cents=project_cost.vac_cents,
+                baseline_finish=project_planning.indicators.baseline_finish,
+                trend_finish=calculations.trend_finish(
+                    project_planning.curve.series.months, project_planning.curve.series.trend
+                ),
+                critical_risks=project_risks.summary.top.total,
+                critical_orders=project_supply.summary.orders.critical,
+                overdue_actions=project_actions.overdue,
+                health=inicio_calculations.health_band(project_planning.indicators.spi, cpi),
+            )
+        )
+    rows.sort(key=lambda row: row.weight, reverse=True)
+    group = configuracoes.current_group(session, group="portfolio", reference_date=reference_date)
+    criteria = tuple(
+        CarteiraCriterionRow(
+            id=str(item["id"]),
+            name=str(item.get("nome") or item["id"]),
+            source=str(item.get("fonte", "nota")),
+            weight=Decimal(str(item.get("peso", 0))),
+        )
+        for item in group.get("criterios") or []
+        if isinstance(item, Mapping) and item.get("id")
+    )
+    return CarteiraSheet(
+        reference_date=reference_date,
+        project_count=len(rows),
+        budget_cents=cost.budget_cents,
+        budget_baseline_cents=mapa.total.baseline_cents,
+        predicted=planning.indicators.predicted,
+        actual=planning.indicators.actual,
+        deviation_pp=planning.indicators.deviation_pp,
+        spi=planning.indicators.spi,
+        spi_tone=_carteira_tone(
+            planning.indicators.spi,
+            attention=inicio_calculations.SPI_ATTENTION,
+            critical=inicio_calculations.SPI_CRITICAL,
+        ),
+        cpi=None if cost.indicators is None else cost.indicators.cpi,
+        cpi_tone=_carteira_tone(
+            None if cost.indicators is None else cost.indicators.cpi,
+            attention=inicio_calculations.CPI_ATTENTION,
+            critical=inicio_calculations.CPI_CRITICAL,
+        ),
+        projection_cents=cost.projection_cents,
+        vac_cents=cost.vac_cents,
+        baseline_finish=planning.indicators.baseline_finish,
+        trend_finish=calculations.trend_finish(
+            planning.curve.series.months, planning.curve.series.trend
+        ),
+        critical_risks=risks.summary.top.total,
+        critical_orders=supply.summary.orders.critical,
+        overdue_actions=actions.overdue,
+        projects=tuple(rows),
+        criteria=criteria,
+        curve_chart=dict(planning.curve.chart),
+    )
+
+
+def _carteira_tone(value: Decimal | None, *, attention: Decimal, critical: Decimal) -> str:
+    """O tom do índice da carteira nas faixas do Início: ``success``, ``warning``, ``danger`` ou ``info``.
+
+    As faixas são as da tela Início (``inicio.calculations.index_band``): o SPI em 0,95 e 0,90 e
+    o CPI em 0,98 e 0,93, para o relatório mostrar a mesma situação da carteira do Início.
+    """
+    band = inicio_calculations.index_band(value, attention, critical)
+    return {"ok": "success", "warn": "warning", "erro": "danger"}.get(band or "", "info")
 
 
 # ── Coleta dos dados (fachadas donas) ──────────────────────────────────────
