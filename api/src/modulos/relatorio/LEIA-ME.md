@@ -36,11 +36,12 @@ Prefixo: `/api/relatorio/`.
 | `analise/copiar` | Copiar do período anterior: o texto do anterior, para revisão (POST) | ISSUE-081 |
 | `analise/gravar` | Grava a análise (422 por campo, 409 na versão vencida) e responde `data-analise-salvo` (POST) | ISSUE-081 |
 | `analise/excluir` | Exclui (Gestor) e responde `data-analise-excluida` (POST) | ISSUE-081 |
-| `gerencial` | Montar relatório por tipo, período, escopo e seções | ISSUE-083 a ISSUE-085 |
+| `gerencial` | As folhas do relatório no escopo do request (`?projeto=portfolio|<id>`), no corte do período (`tipo`, `periodo`, `secoes`; sem eles, 422 com a mensagem do formulário) | ISSUE-083 a ISSUE-085 |
+| `gerencial/emissao` | O modal de emissão: escopo, tipo, período, situação de relatos e análises e seções (GET abre; POST redesenha com o que foi trocado) | ISSUE-083 |
 | `gerencial/excel` | Baixar planilha do relatório | ISSUE-086 |
 | `gerencial/impressao` | Obter folha imprimível para PDF do navegador | ISSUE-086 |
 
-Todas as rotas da análise pedem `Access(module="relatorio", permission=Permission.WRITE)`, exceto `analise/excluir`, que pede `Permission.MANAGE`; a fachada repete a permissão. No Portfólio a análise nasce com projeto nulo, sobre os números consolidados, e a faixa de períodos vai do início mais antigo da carteira; ela não se mistura com a do projeto (a UK com `NULLS NOT DISTINCT` separa as duas).
+Todas as rotas da análise pedem `Access(module="relatorio", permission=Permission.WRITE)`, exceto `analise/excluir`, que pede `Permission.MANAGE`; a fachada repete a permissão. As duas rotas do relatório gerencial (`gerencial` e `gerencial/emissao`) são `Access(module="relatorio")` (READ): o Visualizador vê as folhas e a situação que o modal mostra. No Portfólio a análise nasce com projeto nulo, sobre os números consolidados, e a faixa de períodos vai do início mais antigo da carteira; ela não se mistura com a do projeto (a UK com `NULLS NOT DISTINCT` separa as duas).
 
 ## Fórmulas e nomes no código
 
@@ -57,8 +58,10 @@ Todas as rotas da análise pedem `Access(module="relatorio", permission=Permissi
 | Mês de competência do custo | No Mensal o próprio mês; no Semanal o último mês fechado até o fim do período | `calculations.competence_month` |
 | Término pela tendência | O primeiro mês da tendência que chega a 100%; sem chegar, o último mês com valor | `calculations.trend_finish` |
 | Limites | Texto de 150 a 2.500 caracteres (trim) e comentário de desvio de 20 a 600 | `validation.MIN_TEXT`, `MAX_TEXT`, `MIN_COMMENT`, `MAX_COMMENT` |
-| Corte do período | Fim do período limitado à data de referência | `calculations.report_period_cutoff` (ISSUE-083) |
-| Período parcial | Período selecionado ainda não terminou na data de referência | `calculations.is_partial_period` (ISSUE-083) |
+| Corte do período | Fim do período limitado à data de referência; é o corte de todas as folhas do relatório | `calculations.report_period_cutoff` |
+| Período parcial | Período que ainda contém a data de referência (sai marcado parcial, dados até a referência) | `calculations.is_partial_period` |
+| Barras do avanço por período | As últimas 8 semanas ou 6 meses até o corte, sem períodos anteriores ao início do projeto; a barra é o incremento entre os pontos acumulados do dono (no semanal, a semana do gráfico da curva; no mensal, o mês da série) | `calculations.bar_periods`, `calculations.period_bars` |
+| Situação do relatório no modal | Relato registrado ou pendente por escopo (projeto) ou por projeto (Portfólio), com o endereço que abre o relato; a análise de cada módulo com registrada, desvios sem comentário ou pendente | `service.report_status`, `service._analysis_status` |
 | Tendência financeira por desempenho | EAC calculada por CPI no mês do relatório, sem dados posteriores ao corte | Pertence a `financeiro.calculations.financial_eac_trend` |
 
 A detecção não duplica fórmula de dono: ela chama as fachadas públicas de Planejamento (`planning_kpis_overview`, `curva_fisica_overview`, `performance_overview`), Financeiro (`cost_kpis_overview`, `mapa_controle`) e Suprimentos (`list_panel`, `list_orders`) com a data de referência ajustada ao corte do período. No 05 chama o painel de riscos (`panel_service.risk_panel`) e o registro (`service.list_risks`); no 06, `qualidade.service.list_rncs`, `list_inspections` e `list_audits` mais as metas dos parâmetros; no 07, o painel HSE (`painel_service.panel`) e a tela de ocorrências (`service.occurrences_screen`). Em 05 e 07 não há detecção. Em inglês, o indicador é chamado Estimate at Completion na fonte; no produto o termo é **Projeção no término**, nunca EAC.
@@ -69,13 +72,15 @@ Passo 1: tipo (Semanal ou Mensal, registros distintos) e período (do início do
 
 Selecionar semanal/mensal, projeto/Portfólio, período e seções → consultar se relatos/análises estão registrados → montar folhas no corte → exportar Excel ou abrir a versão imprimível e acionar a impressão do navegador. Período em andamento é marcado como parcial. A 083 lê as análises daqui.
 
+**Relatório gerencial (ISSUE-083):** o botão **Emitir relatório** da tela — ou `?relatorio=1` no endereço — abre o modal; trocar o escopo, o tipo ou o período o redesenha pelo servidor, que recomputa a situação real do relato (por projeto, no Portfólio) e da análise de cada módulo, com o link para registrar. **Emitir** leva o formulário de agora para `/relatorio/gerencial?projeto=&tipo=&periodo=&secoes=`, que carrega as folhas no alvo `gerencial-conteudo` (o `?projeto=` é o escopo do request). As folhas saem no corte do período: a **1** com a posição do corte (previsto, real, SPI e o SPI anterior, avanço do período, término pela tendência x linha de base e desvio acumulado), a produtividade da janela de semanas (SPI de quantidades, FP, aderência, pessoas trabalhando, utilização e HH paralisadas, com as metas vigentes e as empresas em alerta), a Curva S física mensal do dono, as barras do avanço por período (8 semanas ou 6 meses até o corte) e o avanço por área (por projeto, no Portfólio); a **2** com a análise do período (texto e desvios negativos com o comentário de cada um; sem comentário, "Comentário pendente") e o relato (atividades do período e do próximo, pontos de atenção com o risco atrelado), com o aviso e o link quando falta análise ou relato. No Portfólio a folha 2 traz os relatos dos projetos e os pontos de atenção de todos, com a análise da carteira. A impressão é a do navegador: A4 na horizontal, uma folha por página (a página nomeada `@page relatorio-gerencial`, sem margem — a margem está dentro da folha), a navegação fora pelo mecanismo do DS e a fonte da folha que passar da altura útil encaixada até 6,4 pt. Excel e "Alterar período" chegam na ISSUE-086.
+
 ## Integrações
 
-Lê resumos das fachadas de Planejamento, Financeiro, Suprimentos, Riscos, Qualidade, HSE e Início/Portfólio, além de relatos e análises. O módulo não lê as tabelas alheias diretamente: a Análise do período (ISSUE-081/ISSUE-082) consome as fachadas públicas dos módulos donos, chamadas com o corte do período (no 05, `risk_panel` e `list_risks`; no 06, `list_rncs`, `list_inspections` e `list_audits` com as metas dos parâmetros; no 07, `panel` e `occurrences_screen`), e a fachada da Riscos sugere riscos (ISSUE-067). Exportação comum e impressão seguem a porta genérica da ISSUE-017.
+Lê resumos das fachadas de Planejamento, Financeiro, Suprimentos, Riscos, Qualidade, HSE e Início/Portfólio, além de relatos e análises. O módulo não lê as tabelas alheias diretamente: a Análise do período (ISSUE-081/ISSUE-082) consome as fachadas públicas dos módulos donos, chamadas com o corte do período (no 05, `risk_panel` e `list_risks`; no 06, `list_rncs`, `list_inspections` e `list_audits` com as metas dos parâmetros; no 07, `panel` e `occurrences_screen`), e a fachada da Riscos sugere riscos (ISSUE-067). O relatório gerencial lê o relato pela fachada do Planejamento (`find_report` no projeto; `list_reports` no Portfólio, uma vez, para a situação de cada projeto) e a análise pela mesma composição do passo 2 sem exigir WRITE (`service._analysis_reading`), porque a tela e o modal são READ — o Visualizador vê a situação que o modal mostra. Exportação comum e impressão seguem a porta genérica da ISSUE-017.
 
 ## Parâmetros
 
-Tipo e granularidade do período: semana ISO (segunda a domingo) ou mês civil; corte limitado à data de referência. A lista de seções depende do escopo selecionado. Metas exibidas pertencem aos módulos donos: a produtividade usa o grupo `produtividade` dos parâmetros vigentes; a qualidade, as metas de aprovação e conformidade do grupo `qualidade` (sem versão vigente no corte, valem os valores iniciais, como nos demais módulos).
+Tipo e granularidade do período: semana ISO (segunda a domingo) ou mês civil; corte limitado à data de referência. A lista de seções do Conteúdo é a de `service.REPORT_SECTIONS` — nesta fatia só Planejamento, em duas páginas; as folhas 3 a 7 e a Carteira chegam nas ISSUE-084/ISSUE-085. Metas exibidas pertencem aos módulos donos: a produtividade usa o grupo `produtividade` dos parâmetros vigentes; a qualidade, as metas de aprovação e conformidade do grupo `qualidade` (sem versão vigente no corte, valem os valores iniciais, como nos demais módulos).
 
 ## Carga de demonstração
 
@@ -86,15 +91,15 @@ O `seed.py` tem duas partes, cada uma pinada aos seus módulos. A parte `relator
 | Alteração | Arquivo ou pasta |
 |---|---|
 | Rotas | `routes.py` |
-| Composição, corte e permissões | `service.py` |
-| Detecção, textos e resumo | `calculations.py` |
+| Composição, corte e permissões | `service.py` (`report_status`, `report_view`, `report_scope` e os helpers das folhas) |
+| Detecção, textos, resumo, corte e barras | `calculations.py` |
 | Validação das opções e dos limites | `validation.py` |
 | Persistência de entidades próprias | `models.py` (`analise_periodo`, `analise_periodo_desvio`); entidades em `docs/MODELO-DE-DADOS.md` |
-| Fragmentos | `api/src/templates/relatorio/` (`analise_periodo.html`, `analise_formulario.html`, `analise_salvo.html`, `analise_excluido.html`) |
-| Comportamento e estilo do modal | `app/paginas/relatorio/analise.js` e `analise.css` (carregados pelo shell; os botões vivem nas views dos módulos 02 a 07) |
-| Tela, estilo e comportamento | `app/_views/relatorio/` e `app/paginas/relatorio/` |
+| Fragmentos | `api/src/templates/relatorio/` (`analise_periodo.html`, `analise_formulario.html`, `analise_salvo.html`, `analise_excluido.html`; `folhas.html`, `folha_planejamento_kpis.html`, `folha_planejamento_relato.html`, `_folha.html`, `_analise_periodo.html`; `emissao.html`, `emissao_relato.html`, `emissao_analises.html`) |
+| Comportamento e estilo do modal da análise | `app/paginas/relatorio/analise.js` e `analise.css` (carregados pelo shell; os botões vivem nas views dos módulos 02 a 07) |
+| Tela, estilo e comportamento | `app/_views/relatorio/` e `app/paginas/relatorio/` (`gerencial.html`, `gerencial.css`, `gerencial.js`: modal de emissão, carga das folhas, encaixe da fonte e impressão) |
 | Carga de demonstração | `seed.py` |
 | Testes | `api/tests/relatorio/` |
-| Excel/impressão | `export.py` |
+| Excel/impressão | `export.py` (Excel, ISSUE-086; a impressão do relatório é a do navegador, pela tela) |
 
-As ISSUE-083 a ISSUE-086 completam este documento e acrescentam testes de corte, parcialidade e exportação.
+As ISSUE-084 a ISSUE-086 completam este documento e acrescentam as folhas 3 a 7, a exportação e a troca de período.
