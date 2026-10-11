@@ -89,6 +89,13 @@ def test_modal_abre_para_visualizador_com_a_situacao_e_os_links(cenario: Cenario
     assert "Planejamento (2 páginas)" in texto
     assert "Financeiro (1 página)" in texto
     assert "Suprimentos (1 página)" in texto
+    assert "Riscos (1 página)" in texto
+    assert "Qualidade (1 página)" in texto
+    assert "HSE (1 página)" in texto
+    assert 'value="riscos" checked' in texto
+    assert 'value="qualidade" checked' in texto
+    assert 'value="hse" checked' in texto
+    assert "Carteira de projetos antes das demais" in texto
     assert "Portfólio (todos os projetos)" in texto
     assert "(padrão)" in texto
     assert "Pendente" in texto
@@ -183,7 +190,7 @@ def test_folhas_com_secao_nao_implementada_responde_422(cenario: Cenario) -> Non
         cenario,
         routes.report_screen,
         alvo=routes.REPORT_TARGET,
-        params={"tipo": WEEKLY, "periodo": _periodo(WEEKLY, -1), "secoes": "riscos"},
+        params={"tipo": WEEKLY, "periodo": _periodo(WEEKLY, -1), "secoes": "carteira"},
     )
 
     assert resposta.status_code == 422
@@ -304,3 +311,59 @@ def test_folhas_do_portfolio_na_demonstracao(
     assert "Relatos dos projetos" in texto
     assert "Pontos de atenção e riscos dos projetos" in texto
     assert "Avanço por projeto" in texto
+
+
+# ── As folhas Riscos, Qualidade, HSE e Carteira (ISSUE-085) ────────────────
+
+
+def test_folhas_de_riscos_qualidade_e_hse_do_projeto_1(
+    sessao_das_rotas: Session, demonstracao: Demonstracao
+) -> None:
+    resposta = _chamar_rota(
+        routes.report_screen,
+        colaborador_id=demonstracao.admin.id,
+        projeto_id=demonstracao.project_id,
+        alvo=routes.REPORT_TARGET,
+        params={"tipo": WEEKLY, "periodo": "2026-S38", "secoes": "riscos,qualidade,hse"},
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert texto.count('class="rel-folha"') == 3
+    assert 'aria-label="Riscos"' in texto
+    assert 'aria-label="Qualidade"' in texto
+    assert 'aria-label="HSE"' in texto
+    assert "Carteira de projetos" not in texto
+    assert "Matriz P x I" in texto
+    assert 'class="rel-matriz__cel rel-matriz__cel--erro" title="P4 x I4"' in texto
+    assert "RSK-0004" in texto
+    assert "RNC-TN-2026-0004" in texto
+    assert "Pirâmide de segurança" in texto
+    assert texto.count('data-grafico="curva-s-barra-linha"') == 2
+    assert 'data-grafico="piramide-seguranca"' in texto
+    assert 'data-grafico="linhas-multiplas"' in texto
+    assert "Comentário pendente" not in texto
+
+
+def test_folhas_do_portfolio_com_a_carteira_primeiro(
+    sessao_das_rotas: Session, demonstracao: Demonstracao
+) -> None:
+    resposta = _chamar_rota(
+        routes.report_screen,
+        colaborador_id=demonstracao.admin.id,
+        projeto_id=None,
+        alvo=routes.REPORT_TARGET,
+        params={"tipo": WEEKLY, "periodo": "2026-S38", "secoes": "riscos"},
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert texto.count('class="rel-folha"') == 2
+    assert texto.index('aria-label="Carteira de projetos"') < texto.index('aria-label="Riscos"')
+    assert "Total da carteira" in texto
+    assert "55,4%" in texto
+    assert "Valor financeiro (orçamento vigente)" in texto
+    assert "nota de 1 a 5 por projeto" in texto
+    assert 'data-grafico="curva-s-linha"' in texto
+    assert 'data-grafico="curva-s-barra-linha"' in texto
+    assert "RSK-CB-2026-0001" in texto

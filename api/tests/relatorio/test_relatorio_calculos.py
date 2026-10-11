@@ -93,6 +93,32 @@ def test_formatadores_das_folhas_em_mil_e_percentual_com_sinal() -> None:
     assert calculations.format_money_thousands(None) == "·"
 
 
+# ── Formatadores e textos das folhas Riscos, Qualidade, HSE e Carteira ─────
+
+
+def test_formatador_do_dinheiro_compacto() -> None:
+    assert calculations.format_money_compact(340000000) == "R$ 3,4 mi"
+    assert calculations.format_money_compact(160000000) == "R$ 1,6 mi"
+    assert calculations.format_money_compact(96500000) == "R$ 965 mil"
+    assert calculations.format_money_compact(5670000) == "R$ 56,7 mil"
+    assert calculations.format_money_compact(0) == "R$ 0"
+    assert calculations.format_money_compact(None) == "·"
+
+
+def test_texto_da_celula_da_matriz_de_riscos() -> None:
+    assert calculations.matrix_cell_text(0, 0) == ""
+    assert calculations.matrix_cell_text(2, 0) == "2A"
+    assert calculations.matrix_cell_text(0, 1) == "1O"
+    assert calculations.matrix_cell_text(1, 3) == "1A · 3O"
+
+
+def test_numero_do_risco_no_projeto_e_completo_no_portfolio() -> None:
+    assert calculations.risk_number("RSK-TN-2026-0004", portfolio=False) == "RSK-0004"
+    assert calculations.risk_number("RSK-TN-2026-0004", portfolio=True) == "RSK-TN-2026-0004"
+    assert calculations.risk_number("RSK-CB-2026-0001", portfolio=False) == "RSK-0001"
+    assert calculations.risk_number("avulso", portfolio=False) == "avulso"
+
+
 # ── Barras do avanço por período ───────────────────────────────────────────
 
 

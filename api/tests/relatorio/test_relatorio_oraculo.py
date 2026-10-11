@@ -1,4 +1,4 @@
-"""Oráculo do relatório gerencial (ISSUE-083/ISSUE-084): as folhas do projeto 1 em 2026-S38.
+"""Oráculo do relatório gerencial (ISSUE-083 a ISSUE-085): as folhas do projeto 1 em 2026-S38.
 
 Na demonstração, o corte da semana 38 é 20/09/2026 e as folhas do projeto 1 saem com a
 posição da leitura semanal do dono — o previsto interpolado dentro do mês (61,7%, contra 65,7%
@@ -10,6 +10,10 @@ competência (2026-08 no semanal): a folha Financeiro sai com os KPIs da tela (B
 22.434, AC 22.800, CPI 0,98, projeção 45.255 e VAC -655 mil) e a tendência partindo do realizado
 de agosto — sem dado posterior —, e a folha Suprimentos com o painel no corte (aderência 92,9%,
 13 de 14 adjudicados, saving 5,2%, OTD 66,7% e 3 pedidos críticos) e o horizonte de S39 a S42.
+A ISSUE-085 fecha as folhas 5 a 7 na posição da data de referência (25/09/2026): Riscos com 7
+ativos e a exposição de R$ 3,4 mi, Qualidade com 4 RNC abertas no corte e as 3 inspeções do
+período, HSE com as taxas do mês parcial e a pirâmide, e — no segundo teste — a Carteira de
+projetos do Portfólio com os pesos 55,36/29,34/15,30 e os consolidados da carteira.
 """
 
 from __future__ import annotations
@@ -47,7 +51,7 @@ def _afirmar_as_folhas(context: OracleContext) -> None:
         scope=Scope(project_id=project.id, source="url"),
         kind=calendario.WEEKLY,
         period="2026-S38",
-        sections=("planejamento", "financeiro", "suprimentos"),
+        sections=("planejamento", "financeiro", "suprimentos", "riscos", "qualidade", "hse"),
         reference_date=context.reference_date,
     )
 
@@ -89,6 +93,16 @@ def _afirmar_as_folhas(context: OracleContext) -> None:
     assert calculations.competence_month(calendario.WEEKLY, "2026-S38") == date(2026, 8, 1), (
         "custo apurado no ultimo mes fechado"
     )
+    _afirmar_financeiro(visao)
+    _afirmar_suprimentos(visao)
+    assert visao.carteira is None, "a carteira e so do Portfolio"
+    _afirmar_riscos(visao)
+    _afirmar_qualidade(visao)
+    _afirmar_hse(visao)
+
+
+def _afirmar_financeiro(visao: service.ReportSheets) -> None:
+    """A folha Financeiro no mes de competencia, com a tendencia partindo de agosto."""
     financeiro = visao.financeiro
     assert financeiro is not None and financeiro.empty is False, "folha financeira montada"
     assert financeiro.month == date(2026, 8, 1), "competencia de agosto"
@@ -125,6 +139,10 @@ def _afirmar_as_folhas(context: OracleContext) -> None:
         "faixas de calor da EAC por pacote"
     )
     assert financeiro.analysis.record is not None, "analise do financeiro registrada"
+
+
+def _afirmar_suprimentos(visao: service.ReportSheets) -> None:
+    """A folha Suprimentos no corte, com o horizonte de S39 a S42."""
     suprimentos = visao.suprimentos
     assert suprimentos is not None, "folha de suprimentos montada"
     assert (suprimentos.adherence_pct, suprimentos.otd_pct) == (D("92.9"), D("66.7")), (
@@ -142,7 +160,202 @@ def _afirmar_as_folhas(context: OracleContext) -> None:
     assert suprimentos.analysis.record is not None, "analise de suprimentos registrada"
 
 
+def _afirmar_riscos(visao: service.ReportSheets) -> None:
+    """A folha Riscos na data de referencia: 7 ativos, a matriz residual e os principais."""
+    riscos = visao.riscos
+    assert riscos is not None, "folha de riscos montada"
+    assert (riscos.active, riscos.registered) == (7, 9), "riscos ativos e cadastrados"
+    assert (riscos.threats, riscos.opportunities) == (6, 1), "ameacas e oportunidades ativas"
+    assert (riscos.top.name, riscos.top.total, riscos.top.goal) == ("Crítico", 2, 0), (
+        "faixa do topo com a meta"
+    )
+    assert riscos.second is not None
+    assert (riscos.second.name, riscos.second.total, riscos.second.goal) == ("Alto", 1, 1), (
+        "segunda faixa com a meta"
+    )
+    assert (riscos.exposure_cents, riscos.exposure_limit_cents) == (340000000, 160000000), (
+        "exposicao (VME) e o saldo da reserva de contingencia"
+    )
+    assert (riscos.overdue_reviews, riscos.agenda) == (1, 2), "revisao vencida e pauta"
+    assert (riscos.identified, riscos.closed) == (0, 0), "identificados e encerrados no periodo"
+    celulas = {(celula.probability, celula.impact): celula for celula in riscos.matrix}
+    assert len(celulas) == 25, "matriz 5 x 5"
+    assert (celulas[(4, 4)].text, celulas[(4, 4)].tone) == ("1O", "erro"), "celula P4 x I4"
+    assert celulas[(3, 4)].tone == "atencao", "tom da faixa alta"
+    assert sum(celula.threats + celula.opportunities for celula in riscos.matrix) == 7, (
+        "os sete ativos na matriz"
+    )
+    assert [ponto.score for ponto in riscos.evolution] == [45, 45, 57, 80, 72, 56], (
+        "exposicao mensal das ameacas"
+    )
+    assert [risco.number for risco in riscos.principais] == [
+        "RSK-0004",
+        "RSK-0003",
+        "RSK-0001",
+        "RSK-0006",
+        "RSK-0002",
+    ], "principais riscos pelo score residual, sem o prefixo do projeto"
+    assert riscos.principais[1].review_overdue is True, "revisao vencida marcada"
+
+
+def _afirmar_qualidade(visao: service.ReportSheets) -> None:
+    """A folha Qualidade no corte: a posicao, o periodo, a serie e a pauta na referencia."""
+    qualidade = visao.qualidade
+    assert qualidade is not None, "folha da qualidade montada"
+    assert (qualidade.open_at_cut, qualidade.critical_at_cut) == (4, 0), "RNC em aberto no corte"
+    assert qualidade.overdue_at_reference == 1, "RNC vencida na data de referencia"
+    assert (qualidade.opened_period, qualidade.closed_period) == (1, 0), "RNC do periodo"
+    assert (qualidade.approval_pct, qualidade.approval_meta) == (D("66.7"), D("95")), (
+        "aprovacao em inspecoes do periodo contra a meta"
+    )
+    assert qualidade.inspections == 3 and len(qualidade.rejected) == 1, "inspecoes do periodo"
+    assert qualidade.rejected[0].rnc_code == "RNC-TN-2026-0005", "reprovacao ligada a RNC"
+    assert (qualidade.conformity_pct, qualidade.conformity_meta) == (D("82.9"), D("90")), (
+        "conformidade em auditorias do periodo"
+    )
+    assert (qualidade.audits_period, qualidade.late_audits) == (1, 1), "auditorias do periodo"
+    assert (qualidade.cost_accumulated_cents, qualidade.cost_period_cents) == (5670000, 0), (
+        "custo da nao qualidade acumulado e do periodo"
+    )
+    assert [(linha.name, linha.total) for linha in qualidade.discipline] == [
+        ("Mecânica", 3),
+        ("Civil", 2),
+        ("Tubulação", 1),
+    ], "disciplinas do Pareto de RNC"
+    assert [entrada.code for entrada in qualidade.agenda] == ["RNC-TN-2026-0004"], (
+        "pauta de tratamento na data de referencia"
+    )
+    assert qualidade.agenda[0].reasons == ("prazo de tratamento vencido há 8 dias",), (
+        "motivo da pauta"
+    )
+
+
+def _afirmar_hse(visao: service.ReportSheets) -> None:
+    """A folha HSE no mes do corte: as taxas, a piramide, os dias e os proativos."""
+    hse = visao.hse
+    assert hse is not None and hse.empty is False, "folha HSE montada"
+    mes = hse.month_indicators
+    assert (mes.hours, mes.tf, mes.trif, mes.tg) == (
+        D("147150.00"),
+        D("0.00"),
+        D("6.80"),
+        D("0.0"),
+    ), "HHT e taxas do mes (setembro parcial)"
+    assert (mes.registrable, mes.lti, mes.hipo) == (1, 0, 1), "lesoes registraveis, LTI e HiPo"
+    assert mes.pyramid == (0, 2, 5, 32, 189), "piramide do mes"
+    acumulado = hse.accumulated
+    assert (acumulado.hours, acumulado.trif) == (D("788070.00"), D("8.88")), "HHT e TRIF acumuladas"
+    assert acumulado.pyramid == (0, 16, 31, 190, 1240), "piramide acumulada"
+    assert (acumulado.days_without_leave, hse.days_expected) == (258, 258), (
+        "dias sem afastamento no corte"
+    )
+    assert (hse.occurrences, hse.occurrence_levels) == (10, (0, 0, 2, 8)), "ocorrencias da semana"
+    assert (hse.month_occurrences, hse.hours_expected) == (39, 147200), (
+        "ocorrencias do mes e HHT previsto do histograma"
+    )
+    assert (
+        acumulado.dds_pct,
+        acumulado.conformity_pct,
+        acumulado.observations_per_10k,
+        acumulado.almost_miss_report,
+        acumulado.recommendations_pct,
+    ) == (D("94.1"), D("87.0"), D("41.0"), D("27.1"), D("52.9")), "indicadores proativos"
+    assert hse.analysis.record is not None, "analise do HSE registrada"
+
+
+def _afirmar_a_carteira(context: OracleContext) -> None:
+    """A folha Carteira do Portfólio na data de referência: a mesma leitura da tela Início."""
+    admin = next(
+        acesso
+        for acesso in configuracoes.list_active_access(context.session)
+        if acesso.general_profile == GeneralProfile.ADMIN
+    )
+    visao = service.report_view(
+        context.session,
+        user=_user_of(admin),
+        scope=Scope(project_id=None, source="url"),
+        kind=calendario.WEEKLY,
+        period="2026-S38",
+        sections=("riscos", "qualidade", "hse"),
+        reference_date=context.reference_date,
+    )
+
+    carteira = visao.carteira
+    assert carteira is not None, "a carteira entra sozinha no Portfolio"
+    assert carteira.project_count == 3, "projetos da carteira"
+    assert carteira.budget_cents == 7020000000, "BAC da carteira"
+    assert carteira.budget_baseline_cents == 7020000000, "linha de base da carteira"
+    assert (carteira.predicted, carteira.actual, carteira.deviation_pp) == (
+        D("52.0"),
+        D("48.9"),
+        D("-3.1"),
+    ), "avanco ponderado"
+    assert (carteira.spi, carteira.cpi) == (D("0.94"), D("0.97")), "indices da carteira"
+    assert (carteira.projection_cents, carteira.vac_cents) == (7116500000, -96500000), (
+        "projecao no termino e VAC"
+    )
+    assert (carteira.baseline_finish, carteira.trend_finish) == (
+        date(2027, 6, 1),
+        date(2027, 7, 1),
+    ), "termino da linha de base e pela tendencia"
+    assert (carteira.critical_risks, carteira.critical_orders, carteira.overdue_actions) == (
+        4,
+        4,
+        14,
+    ), "riscos, pedidos e acoes"
+    assert [(linha.code, linha.weight, linha.health) for linha in carteira.projects] == [
+        ("TN-2026-014", D("55.36"), "warn"),
+        ("TN-2026-021", D("29.34"), "erro"),
+        ("TN-2026-027", D("15.3"), "warn"),
+    ], "pesos e situacao por projeto"
+    assert carteira.projects[0].trend_finish == date(2027, 4, 1), "tendencia pelo projeto"
+    assert [(item.name, item.weight, item.source) for item in carteira.criteria] == [
+        ("Valor financeiro (orçamento vigente)", D("60"), "orcamento"),
+        ("Criticidade estratégica", D("25"), "nota"),
+        ("Complexidade e exposição a risco", D("15"), "nota"),
+    ], "criterios da ponderacao"
+    assert carteira.curve_chart["periodos"], "Curva S fisica ponderada"
+    riscos = visao.riscos
+    assert riscos is not None
+    assert (riscos.active, riscos.registered) == (16, 19), "riscos consolidados da carteira"
+    assert (riscos.top.total, riscos.second.total) == (4, 2), "faixas consolidadas"  # type: ignore[union-attr]
+    assert (riscos.exposure_cents, riscos.agenda) == (487000000, 5), "exposicao e pauta"
+    assert [risco.number for risco in riscos.principais] == [
+        "RSK-CB-2026-0001",
+        "RSK-TN-2026-0004",
+        "RSK-CB-2026-0004",
+        "RSK-TN-2026-0003",
+        "RSK-TN-2026-0001",
+    ], "no Portfolio o codigo completo"
+    qualidade = visao.qualidade
+    assert qualidade is not None
+    assert (qualidade.open_at_cut, qualidade.critical_at_cut) == (7, 1), "RNC consolidadas"
+    assert (qualidade.cost_accumulated_cents, qualidade.discipline_total) == (6920000, 10), (
+        "custo e disciplinas"
+    )
+    assert [entrada.code for entrada in qualidade.agenda] == [
+        "RNC-TN-2026-0004",
+        "RNC-CB-2026-0002",
+    ], "pauta consolidada"
+    hse = visao.hse
+    assert hse is not None
+    assert (hse.month_indicators.hours, hse.month_indicators.trif) == (
+        D("204266.00"),
+        D("9.79"),
+    ), "HHT e TRIF do mes consolidados"
+    assert hse.accumulated.pyramid == (0, 22, 39, 236, 1450), "piramide acumulada da carteira"
+    assert (hse.occurrences, hse.month_occurrences, hse.hours_expected) == (15, 55, 204300), (
+        "ocorrencias e HHT previsto da carteira"
+    )
+
+
 def test_oraculo_do_relatorio_gerencial(db_session: Session) -> None:
     context = harness.load_demonstration(db_session)
 
     _afirmar_as_folhas(context)
+
+
+def test_oraculo_da_carteira_do_portfolio(db_session: Session) -> None:
+    context = harness.load_demonstration(db_session)
+
+    _afirmar_a_carteira(context)
