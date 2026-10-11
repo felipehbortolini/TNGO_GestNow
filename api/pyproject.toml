@@ -160,6 +160,14 @@ max-complexity = 10
 "tests/configuracoes/test_parametros_rotas.py" = ["PLR0913"]
 "tests/configuracoes/test_colaboradores_rotas.py" = ["PLR0913"]
 
+# `_requisicao`, em tests/configuracoes/test_cadastros_rotas.py, segue o mesmo contrato
+# dos helpers acima (ISSUE-078): o método, o caminho, os parâmetros, a rota, o corpo, o
+# alvo e o cabeçalho, todos KEYWORD-ONLY depois do `*`, e cada teste informa só o que
+# importa para o caso. A regra existe para argumento posicional, onde a ordem se erra na
+# chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais
+# indireção.
+"tests/configuracoes/test_cadastros_rotas.py" = ["PLR0913"]
+
 # `register_document` e `acervo_document` têm 6 parâmetros, e é assim de propósito:
 # depois do `*` são todos KEYWORD-ONLY (panel, scope, projects, filters, today). A
 # regra do clean code existe para argumento posicional, onde a ordem se erra na

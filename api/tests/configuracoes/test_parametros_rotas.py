@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from src.core.auth import DEMO_COOKIE
 from src.core.rbac import User
 from src.modulos.configuracoes import forms, routes, service
+from src.modulos.configuracoes.models import PortfolioWeight
 from src.modulos.riscos import ficha_service
 from src.modulos.riscos import service as riscos_service
 from tests.apoio_riscos import REFERENCIA, Cenario, nova_avaliacao, novo_risco
@@ -389,6 +390,37 @@ def test_o_historico_marca_a_vigente_de_cada_grupo(sessao: Session, cenario: Cen
     texto = resposta.get_body().decode()
     assert "Versão inicial" in texto
     assert texto.count("Vigente") == len(service.PARAMETER_GROUPS)
+
+
+def test_a_nova_versao_do_portfolio_leva_as_notas_dos_projetos(
+    sessao: Session, cenario: Cenario
+) -> None:
+    versao = service.current_version(sessao, group="portfolio", reference_date=REFERENCIA)
+    assert versao is not None
+    sessao.add(
+        PortfolioWeight(
+            version_id=versao.id,
+            project_id=cenario.projeto.id,
+            criterion="estrategico",
+            grade=5,
+        )
+    )
+    sessao.flush()
+
+    corpo = _corpo_do_grupo(
+        sessao,
+        "portfolio",
+        portfolio__criterios__1__peso="30",
+        portfolio__criterios__2__peso="10",
+    )
+    resposta = _gravar(cenario, "portfolio", corpo)
+
+    assert resposta.status_code == 200
+    nova = service.current_version(sessao, group="portfolio", reference_date=REFERENCIA)
+    assert nova is not None and nova.version == 2
+    assert service.portfolio_grades(sessao, reference_date=REFERENCIA)[cenario.projeto.id] == {
+        "estrategico": 5
+    }
 
 
 # ── As exportações ───────────────────────────────────────────────────────────────────────────
