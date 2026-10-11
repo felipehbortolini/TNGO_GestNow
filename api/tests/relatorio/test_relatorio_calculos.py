@@ -1,9 +1,11 @@
-"""Cálculos do motor de corte do relatório gerencial (ISSUE-083): corte, parcial, competência e barras.
+"""Cálculos do motor de corte do relatório gerencial (ISSUE-083/ISSUE-084): corte, parcial,
+competência, barras, horizonte dos previstos e formatadores das folhas.
 
 O corte é o fim do período limitado à data de referência; o período em andamento sai marcado
 parcial. As barras do avanço por período são as últimas 8 semanas ou 6 meses até o corte, sem
 os períodos anteriores ao início do projeto, e cada barra é o incremento entre pontos
-acumulados. O mês de competência do custo é o último mês fechado no semanal.
+acumulados. O mês de competência do custo é o último mês fechado no semanal. O horizonte dos
+previstos de suprimentos são as 4 semanas seguintes no semanal e o mês seguinte no mensal.
 """
 
 from __future__ import annotations
@@ -55,6 +57,40 @@ def test_periodo_em_andamento_na_data_de_referencia() -> None:
 def test_mes_de_competencia_do_custo_no_semanal_e_o_ultimo_fechado() -> None:
     assert calculations.competence_month(SEMANA, "2026-S38") == date(2026, 8, 1)
     assert calculations.competence_month(MES, "2026-08") == date(2026, 8, 1)
+
+
+# ── Horizonte dos previstos de suprimentos (a folha 4) ─────────────────────
+
+
+def test_horizonte_do_semanal_sao_as_quatro_semanas_seguintes() -> None:
+    """De S39 a S42: do dia seguinte ao fim de S38 até o domingo da quarta semana."""
+    assert calculations.report_horizon(SEMANA, "2026-S38") == (
+        date(2026, 9, 21),
+        date(2026, 10, 18),
+    )
+
+
+def test_horizonte_do_mensal_e_o_mes_seguinte() -> None:
+    assert calculations.report_horizon(MES, "2026-08") == (date(2026, 9, 1), date(2026, 9, 30))
+    assert calculations.report_horizon(MES, "2026-12") == (date(2027, 1, 1), date(2027, 1, 31))
+
+
+def test_horizonte_de_rotulo_invalido_e_none() -> None:
+    assert calculations.report_horizon(SEMANA, "qualquer") is None
+
+
+# ── Formatadores das folhas Financeiro e Suprimentos ───────────────────────
+
+
+def test_formatadores_das_folhas_em_mil_e_percentual_com_sinal() -> None:
+    assert calculations.format_thousands(4460000000) == "44.600"
+    assert calculations.format_thousands(0) == "0"
+    assert calculations.format_money_thousands(65500000) == "R$ 655 mil"
+    assert calculations.format_percent_signed(D("5.5")) == "+5,5%"
+    assert calculations.format_percent_signed(D("-1.2")) == "-1,2%"
+    assert calculations.format_percent_signed(None) == "·"
+    assert calculations.format_thousands(None) == "·"
+    assert calculations.format_money_thousands(None) == "·"
 
 
 # ── Barras do avanço por período ───────────────────────────────────────────

@@ -87,6 +87,8 @@ def test_modal_abre_para_visualizador_com_a_situacao_e_os_links(cenario: Cenario
     assert "Relato do período (02 Planejamento)" in texto
     assert "Análise do período por módulo" in texto
     assert "Planejamento (2 páginas)" in texto
+    assert "Financeiro (1 página)" in texto
+    assert "Suprimentos (1 página)" in texto
     assert "Portfólio (todos os projetos)" in texto
     assert "(padrão)" in texto
     assert "Pendente" in texto
@@ -181,11 +183,67 @@ def test_folhas_com_secao_nao_implementada_responde_422(cenario: Cenario) -> Non
         cenario,
         routes.report_screen,
         alvo=routes.REPORT_TARGET,
-        params={"tipo": WEEKLY, "periodo": _periodo(WEEKLY, -1), "secoes": "financeiro"},
+        params={"tipo": WEEKLY, "periodo": _periodo(WEEKLY, -1), "secoes": "riscos"},
     )
 
     assert resposta.status_code == 422
     assert validation.SECTION_MESSAGE in _texto(resposta)
+
+
+def test_folhas_com_as_secoes_de_financeiro_e_suprimentos(cenario: Cenario) -> None:
+    resposta = _chamar(
+        cenario,
+        routes.report_screen,
+        "Visualizador",
+        alvo=routes.REPORT_TARGET,
+        params={
+            "tipo": WEEKLY,
+            "periodo": _periodo(WEEKLY, -1),
+            "secoes": "financeiro,suprimentos",
+        },
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert texto.count('class="rel-folha"') == 2
+    assert 'aria-label="Financeiro"' in texto
+    assert 'aria-label="Suprimentos"' in texto
+    assert "Sem fechamento mensal de custos até o fim do período." in texto
+    assert "Análise semanal do período não registrada." in texto
+    assert "Nenhum pedido com folga negativa." in texto
+    assert "Nenhum marco de suprimentos realizado no período." in texto
+
+
+def test_folhas_financeiro_e_suprimentos_do_projeto_1_na_demonstracao(
+    sessao_das_rotas: Session, demonstracao: Demonstracao
+) -> None:
+    resposta = _chamar_rota(
+        routes.report_screen,
+        colaborador_id=demonstracao.admin.id,
+        projeto_id=demonstracao.project_id,
+        alvo=routes.REPORT_TARGET,
+        params={
+            "tipo": WEEKLY,
+            "periodo": "2026-S38",
+            "secoes": "financeiro,suprimentos",
+        },
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert texto.count('class="rel-folha"') == 2
+    assert "Curva S financeira" in texto
+    assert "Valor agregado mês a mês" in texto
+    assert "EAC por pacote" in texto
+    assert 'class="rel-heat rel-heat--erro" title="Sobrecusto de 1% a 5%"' in texto
+    assert "+R$ 655 mil" in texto
+    assert "Curva de contratação" in texto
+    assert "Pedidos críticos" in texto
+    assert "Previsto nas próximas 4 semanas" in texto
+    assert "PED-2026-0002" in texto
+    assert "PC-14" in texto
+    assert texto.count('data-grafico="curva-s-linha"') == 2
+    assert "Comentário pendente" not in texto
 
 
 def test_folhas_do_portfolio(cenario: Cenario) -> None:

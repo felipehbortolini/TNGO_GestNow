@@ -139,7 +139,11 @@ def test_modal_abre_para_visualizador_com_os_padroes(cenario: Cenario) -> None:
     assert len(status.analyses) == 6
     assert {analise.situation for analise in status.analyses} == {"missing"}
     assert all(analise.url.startswith("/") for analise in status.analyses)
-    assert [secao.key for secao in status.sections] == ["planejamento"]
+    assert [secao.key for secao in status.sections] == [
+        "planejamento",
+        "financeiro",
+        "suprimentos",
+    ]
 
 
 def test_modal_mostra_o_relato_registrado_com_o_link(cenario: Cenario) -> None:
@@ -240,7 +244,7 @@ def test_folhas_do_projeto_1_no_corte_da_semana_38(demonstracao: Demonstracao) -
     assert visao.cut == date(2026, 9, 20)
     assert visao.in_progress is False
     assert visao.scope_label == "TN-2026-014 · Construção de uma nova fábrica"
-    assert visao.sections == ("planejamento",)
+    assert visao.sections == ("planejamento", "financeiro", "suprimentos")
     planejamento_folha = visao.planning
     assert planejamento_folha is not None
     assert planejamento_folha.empty is False
@@ -293,6 +297,149 @@ def test_folhas_do_mensal_do_projeto_1(demonstracao: Demonstracao) -> None:
     ]
     assert planejamento_folha.predicted_period == D("11.9")
     assert planejamento_folha.actual_period == D("11.3")
+
+
+# ── As folhas Financeiro e Suprimentos (ISSUE-084) ─────────────────────────
+
+
+def test_folha_financeira_do_projeto_1_no_mes_de_competencia(
+    demonstracao: Demonstracao,
+) -> None:
+    visao = _folhas(demonstracao, sections=("financeiro",))
+
+    folha = visao.financeiro
+    assert folha is not None
+    assert folha.empty is False
+    assert folha.month == date(2026, 8, 1)
+    assert folha.month_current is True
+    assert folha.is_portfolio is False
+    assert folha.budget_cents == 4460000000
+    assert folha.actual_cents == 2280000000
+    assert folha.actual_month_cents == 520000000
+    assert folha.planned_month_cents == 530740000
+    assert (folha.ev_cents, folha.pv_cents) == (2243380000, 2408400000)
+    assert (folha.cpi, folha.spi, folha.previous_cpi) == (D("0.98"), D("0.93"), D("0.99"))
+    assert (folha.projection_cents, folha.vac_cents) == (4525500000, -65500000)
+    assert (folha.band_tone, folha.band_label) == ("erro", "Sobrecusto de 1% a 5%")
+    assert folha.contingency_pct == D("20.0")
+    assert (folha.contingency_consumed_cents, folha.contingency_total_cents) == (
+        40000000,
+        200000000,
+    )
+    assert folha.eac_trend_cents == 4532803181
+    assert len(folha.history) == 6
+    assert folha.history[-1].month == date(2026, 8, 1)
+    assert [linha.code for linha in folha.packages] == ["1", "2", "3"]
+    assert [linha.band_tone for linha in folha.packages] == ["erro", "neutro", "erro"]
+    assert folha.total is not None
+    assert (folha.total.band_tone, folha.total.deviation_percent) == ("erro", D("1.5"))
+    assert folha.analysis.record is not None
+    assert folha.analysis_url == "/financeiro/kpis?analise=1&tipo=Semanal&periodo=2026-S38"
+
+
+def test_tendencia_da_folha_financeira_parte_do_realizado_de_agosto(
+    demonstracao: Demonstracao,
+) -> None:
+    """A curva da folha é a do dono no mês de competência: sem dado posterior a ele."""
+    visao = _folhas(demonstracao, sections=("financeiro",))
+
+    folha = visao.financeiro
+    assert folha is not None
+    periodos = folha.curve_chart["periodos"]
+    agosto = [(item["ano"], item["mes"]) for item in periodos].index((2026, 8))
+    valores = [item["valores"] for item in periodos]
+
+    assert valores[agosto]["realizado"] is not None
+    assert valores[agosto]["tendencia"] == valores[agosto]["realizado"]
+    assert all(item["realizado"] is None for item in valores[agosto + 1 :])
+    assert all(item["tendencia"] is not None for item in valores[agosto + 1 :])
+
+
+def test_folha_financeira_sem_fechamento_mostra_o_aviso(cenario: Cenario) -> None:
+    visao = service.report_view(
+        cenario.session,
+        user=cenario.visualizador,
+        scope=cenario.scope,
+        kind=WEEKLY,
+        period=_periodo(WEEKLY, -1),
+        sections=("financeiro",),
+        reference_date=calendario.today(),
+    )
+
+    folha = visao.financeiro
+    assert folha is not None
+    assert folha.empty is True
+    assert folha.packages == ()
+    assert folha.analysis.record is None
+    assert folha.analysis_url.startswith("/financeiro/kpis?analise=1")
+
+
+def test_folha_de_suprimentos_do_projeto_1_no_corte(demonstracao: Demonstracao) -> None:
+    visao = _folhas(demonstracao, sections=("suprimentos",))
+
+    folha = visao.suprimentos
+    assert folha is not None
+    assert folha.is_portfolio is False
+    assert (folha.adherence_pct, folha.adherence_target) == (D("92.9"), 90)
+    assert (folha.adjudicated, folha.planned, folha.packages_total) == (13, 14, 14)
+    assert folha.adjudicated_cents == 3900000000
+    assert (folha.saving_cents, folha.saving_pct) == (215000000, D("5.2"))
+    assert (folha.otd_pct, folha.otd_target) == (D("66.7"), 90)
+    assert (folha.delivered, folha.delivered_on_time) == (3, 2)
+    assert (folha.critical, folha.warning) == (3, 1)
+    assert (folha.emitted, folha.emitted_planned) == (10, 14)
+    assert [linha.number for linha in folha.criticals] == [
+        "PED-2026-0001",
+        "PED-2026-0002",
+        "PED-2026-0004",
+    ]
+    assert [(linha.code, linha.deviation_days) for linha in folha.events] == [("PED-2026-0002", 26)]
+    assert (folha.horizon_start, folha.horizon_end) == (date(2026, 9, 21), date(2026, 10, 18))
+    assert folha.weekly is True
+    assert [linha.code for linha in folha.forecasts] == [
+        "PED-2026-0007",
+        "PC-14",
+        "PED-2026-0009",
+        "PED-2026-0001",
+        "PED-2026-0002",
+        "PED-2026-0005",
+    ]
+    assert folha.forecasts[1].kind == "Adjudicação"
+    assert folha.forecasts[1].deviation_days == 17
+    assert folha.curve_chart["periodos"]
+    assert folha.analysis.record is not None
+    assert folha.analysis_url == "/suprimentos/painel?analise=1&tipo=Semanal&periodo=2026-S38"
+
+
+def test_folha_de_suprimentos_no_mensal_muda_o_horizonte(demonstracao: Demonstracao) -> None:
+    visao = _folhas(demonstracao, kind=MONTHLY, period="2026-08", sections=("suprimentos",))
+
+    folha = visao.suprimentos
+    assert folha is not None
+    assert (folha.horizon_start, folha.horizon_end) == (date(2026, 9, 1), date(2026, 9, 30))
+    assert folha.weekly is False
+    assert folha.forecasts == ()
+
+
+def test_folhas_do_portfolio_trazem_financeiro_e_suprimentos(
+    demonstracao: Demonstracao,
+) -> None:
+    visao = _folhas(demonstracao, scope=PORTFOLIO, sections=("financeiro", "suprimentos"))
+
+    financeiro_folha = visao.financeiro
+    assert financeiro_folha is not None
+    assert financeiro_folha.is_portfolio is True
+    assert [linha.project_code for linha in financeiro_folha.packages] == [
+        "TN-2026-014",
+        "TN-2026-021",
+        "TN-2026-027",
+    ]
+    assert financeiro_folha.total is not None
+    suprimentos_folha = visao.suprimentos
+    assert suprimentos_folha is not None
+    assert suprimentos_folha.is_portfolio is True
+    assert all(linha.project_code for linha in suprimentos_folha.forecasts)
+    assert suprimentos_folha.critical >= 3
 
 
 def test_folhas_do_portfolio_consolidam_os_relatos(demonstracao: Demonstracao) -> None:
@@ -350,7 +497,7 @@ def test_folhas_recusam_tipo_periodo_e_secao(cenario: Cenario) -> None:
             scope=cenario.scope,
             kind=WEEKLY,
             period=_periodo(WEEKLY),
-            sections=("financeiro",),
+            sections=("riscos",),
             reference_date=calendario.today(),
         )
 
