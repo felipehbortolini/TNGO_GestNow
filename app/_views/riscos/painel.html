@@ -7,6 +7,12 @@
         <h1 class="h-dash">Painel de riscos</h1>
         <p class="page-head__sub">Exposição, evolução do score residual e pauta de escalonamento.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="riscos">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
+      </div>
     </div>
 
     <!-- O vazio de origem vem do servidor, dentro do fragmento (api/src/templates/riscos/painel.html,

@@ -7,6 +7,12 @@
         <h1 class="h-dash">Painel HSE</h1>
         <p class="page-head__sub">Taxas reativas e proativas, pirâmides, dias sem afastamento e evolução.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="hse">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
+      </div>
     </div>
 
     <!-- O vazio de origem vem do servidor, dentro do fragmento (api/src/templates/hse/painel.html,

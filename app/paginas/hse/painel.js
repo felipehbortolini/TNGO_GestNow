@@ -86,6 +86,7 @@
     iniciar: function (raiz) {
       definirEstado(raiz, "carregando");
       ouvir();
+      if (window.TN.analise) window.TN.analise.abrirDoEndereco("hse");
       window.Alpine.$data(raiz).carregar();
     }
   };

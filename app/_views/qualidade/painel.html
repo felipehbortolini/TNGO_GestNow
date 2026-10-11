@@ -7,6 +7,12 @@
         <h1 class="h-dash">Painel da qualidade</h1>
         <p class="page-head__sub">RNC, inspeções, auditorias, Pareto, custo da não qualidade e pauta de tratamento.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="qualidade">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
+      </div>
     </div>
 
     <!-- O vazio de origem vem do servidor, dentro do fragmento (api/src/templates/qualidade/painel.html,
