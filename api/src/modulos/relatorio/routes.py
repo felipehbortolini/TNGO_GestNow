@@ -19,10 +19,14 @@ Relatório gerencial (ISSUE-083, D12), prefix ``/api/relatorio/gerencial``:
 * ``GET  gerencial?tipo=&periodo=&secoes=`` desenha as folhas do relatório no escopo do request
   (``?projeto=portfolio|<id>``); tipo ou período inválidos respondem 422 com a mensagem do
   formulário;
+* ``GET  gerencial/excel?tipo=&periodo=&secoes=`` baixa a planilha do mesmo relatório pela porta
+  canônica (D12): os indicadores das folhas, as tabelas e as análises do período; é rota de
+  arquivo, sem o gate do Alpine, e uma recusa sai em texto simples com o status;
 * ``GET  gerencial/emissao`` abre o modal de emissão e ``POST gerencial/emissao`` o redesenha
   com o escopo, o tipo e o período trocados, com a situação real de relatos e análises.
 
-As duas rotas são READ: o Visualizador vê o relatório e a situação que o modal mostra.
+As três rotas são READ: o Visualizador vê o relatório, baixa o Excel e vê a situação que o
+modal mostra.
 
 The routes read the request and draw the answer; every rule is in the facade.
 """
@@ -39,10 +43,11 @@ from sqlalchemy.orm import Session
 
 from src.core import calendario, rbac
 from src.core.errors import InvalidDataError, VersionConflictError
+from src.core.excel import excel_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
-from src.core.routing import Access, RequestContext, fragment_route
-from src.modulos.relatorio import calculations, service, validation
+from src.core.routing import Access, RequestContext, file_route, fragment_route
+from src.modulos.relatorio import calculations, export, service, validation
 
 bp = func.Blueprint()
 
@@ -61,6 +66,8 @@ SAVED_TEMPLATE = "relatorio/analise_salvo.html"
 DELETED_TEMPLATE = "relatorio/analise_excluido.html"
 
 REPORT_ROUTE = "relatorio/gerencial"
+
+REPORT_EXCEL_ROUTE = f"{REPORT_ROUTE}/excel"
 
 REPORT_TARGET = "gerencial-conteudo"
 
@@ -283,6 +290,26 @@ def report_screen(
         target_id=REPORT_TARGET,
         root_class=REPORT_PAGE_CLASS,
     )
+
+
+@bp.route(route=REPORT_EXCEL_ROUTE, methods=["GET"])
+@file_route(access=READ_ACCESS)
+def report_sheets_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A planilha do relatório: os indicadores das folhas, as tabelas e as análises do período."""
+    params = req.params
+    hoje = calendario.today()
+    view = service.report_view(
+        session,
+        user=context.user,
+        scope=context.scope,
+        kind=(params.get("tipo") or "").strip(),
+        period=(params.get("periodo") or "").strip(),
+        sections=_sections_of(req),
+        reference_date=hoje,
+    )
+    return excel_response(export.build_document(sheets=view, today=hoje))
 
 
 @bp.route(route=f"{REPORT_ROUTE}/emissao", methods=["GET", "POST"])
