@@ -62,6 +62,7 @@
       raiz.addEventListener("click", function (evento) {
         if (evento.target.closest("[data-painel-recarregar]")) carregar();
       });
+      if (window.TN.analise) window.TN.analise.abrirDoEndereco("suprimentos");
       carregar();
     }
   };

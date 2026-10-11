@@ -8,6 +8,10 @@
         <p class="page-head__sub">Atividades do período e do próximo período, com os pontos de atenção.</p>
       </div>
       <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="planejamento">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
         <button type="button" class="btn btn--secondary" id="relato-excel"
           data-tn-excel="/api/planejamento/relatos/excel">Excel</button>
         <button type="button" class="btn btn--secondary" id="relato-pdf"

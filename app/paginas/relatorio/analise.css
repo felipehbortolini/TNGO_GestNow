@@ -1,0 +1,109 @@
+/* ============================================================
+   analise.css — Estilo do modal Análise do período (relatorio/analise)
+
+   O modal abre de cinco telas dos módulos 02, 03 e 04 e o fragmento que o servidor devolve
+   traz a classe da raiz na própria raiz (root_class), então tudo aqui começa por
+   .pagina--relatorio-analise, para não vazar entre telas. Só tokens do Design System: nenhum
+   valor de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em três telas
+   sobe para ds/patterns.css.
+
+   Carrega pelo shell (app/index.html), nunca pela view. Ver docs/CONTRATO-VISUAL.md.
+   ============================================================ */
+
+.pagina--relatorio-analise .analise-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.pagina--relatorio-analise .analise-identificacao {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.pagina--relatorio-analise .analise-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.pagina--relatorio-analise .analise-legenda {
+  flex-basis: 100%;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pagina--relatorio-analise .analise-opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* ---------- Resumo: os indicadores do período, quatro por linha ---------- */
+.pagina--relatorio-analise .analise-resumo {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+
+.pagina--relatorio-analise .analise-resumo__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--branco);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-md);
+}
+
+.pagina--relatorio-analise .analise-resumo__item span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pagina--relatorio-analise .analise-resumo__item b {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ---------- Desvio: o ícone e a descrição numérica acima do comentário ---------- */
+.pagina--relatorio-analise .analise-desvio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--warn-50);
+  border-left: 3px solid var(--warn-500);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* ---------- Telas estreitas ---------- */
+@media (max-width: 1100px) {
+  .pagina--relatorio-analise .analise-resumo {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .pagina--relatorio-analise .analise-resumo {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta de uma análise gravada (ISSUE-081): o corpo do modal fica vazio e a marca
+  data-analise-salvo diz à tela para fechar o modal. A mensagem de sucesso vai no cabeçalho
+  de toast da resposta.
+#}
+{% block fragment %}
+<span data-analise-salvo="sim" hidden></span>
+{% endblock %}

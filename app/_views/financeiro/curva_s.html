@@ -8,6 +8,10 @@
         <p class="page-head__sub">Planejado, comprometido e realizado acumulados por mês.</p>
       </div>
       <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="financeiro">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
         <button type="button" class="btn btn--ghost" data-tn-excel="/api/financeiro/curva-s/excel">
           <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
           Excel

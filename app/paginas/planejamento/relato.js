@@ -232,6 +232,7 @@
       const periodo = parametro("periodo");
       if (parametro("abrir") === "1" && tipo && periodo) abrirDoEndereco(tipo, periodo);
       else if (acao === "nova") novo();
+      if (window.TN.analise) window.TN.analise.abrirDoEndereco("planejamento");
     }
   };
 })();

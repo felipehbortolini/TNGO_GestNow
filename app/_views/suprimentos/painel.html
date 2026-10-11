@@ -7,6 +7,12 @@
         <h1 class="h-dash">Painel de suprimentos</h1>
         <p class="page-head__sub">Indicadores, curva de contratação, avanço do MAS e pedidos críticos.</p>
       </div>
+      <div class="page-head__actions">
+        <button type="button" class="btn btn--ghost" data-analise="suprimentos">
+          <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
+          Análise do período
+        </button>
+      </div>
     </div>
 
     <!-- O vazio de origem vem do servidor, dentro do fragmento (api/src/templates/suprimentos/painel.html,

@@ -1,0 +1,49 @@
+{% extends "base_fragment.html" %}
+{#
+  Passo 1 da Análise do período (ISSUE-081): tipo e período. O servidor desenha a lista de
+  períodos do início do projeto ao corrente, o mais recente primeiro, com a situação de cada
+  um (análise registrada, em andamento ou pendente); o tipo trocado recarrega o passo.
+
+  Espera: visao (AnalysisPeriodsView), tipos e limites.
+#}
+{% block fragment %}
+<form class="analise-form" method="post" action="/api/relatorio/analise/formulario"
+  x-data x-target="analise-modal" novalidate>
+  <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
+  <input type="hidden" name="modulo" value="{{ visao.module }}" />
+
+  <p class="hint">Escolha o tipo e o período. Semanal e mensal são registros distintos; o texto alimenta a página do módulo no relatório gerencial (Início).</p>
+
+  <p class="analise-identificacao">
+    <span class="fw-600">{{ visao.module_label }}</span>
+    <span class="muted">{{ visao.project_label }}</span>
+  </p>
+
+  <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
+    formaction="/api/relatorio/analise/periodo"></button>
+  <fieldset class="analise-opcoes">
+    <legend class="analise-legenda">Tipo</legend>
+    {% for opcao in tipos %}
+    <label class="analise-opcao">
+      <input type="radio" name="tipo" value="{{ opcao }}" {{ 'checked' if opcao == visao.kind }}
+        @change="$el.form.requestSubmit($refs.recarregar)" />
+      <span>{{ opcao }}</span>
+      <span class="hint">{{ 'semana ISO, segunda a domingo' if opcao == 'Semanal' else 'mês civil' }}</span>
+    </label>
+    {% endfor %}
+  </fieldset>
+
+  <div class="field">
+    <label for="analise-periodo">Período</label>
+    <select class="input" id="analise-periodo" name="periodo">
+      {% for opcao in visao.options %}
+      <option value="{{ opcao.period }}"{{ ' selected' if opcao.period == visao.selected }}>{{ opcao.label }} ({{ 'análise registrada' if opcao.registered else 'em andamento' if opcao.in_progress else 'pendente' }})</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="modal__actions">
+    <button type="submit" class="btn btn--primary">Continuar</button>
+  </div>
+</form>
+{% endblock %}

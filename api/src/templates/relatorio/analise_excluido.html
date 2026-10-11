@@ -1,0 +1,9 @@
+{% extends "base_fragment.html" %}
+{#
+  Resposta de uma análise excluída (ISSUE-081): o corpo do modal fica vazio e a marca
+  data-analise-excluida diz à tela para fechar o modal. A mensagem vai no cabeçalho de toast
+  da resposta.
+#}
+{% block fragment %}
+<span data-analise-excluida="sim" hidden></span>
+{% endblock %}
