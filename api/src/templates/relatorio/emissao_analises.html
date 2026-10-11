@@ -1,0 +1,20 @@
+{#
+  A situação da análise do período de cada módulo no modal de emissão (ISSUE-083): registrada,
+  com desvios sem comentário ou pendente, com o link para a tela do módulo que a registra.
+
+  Espera: visao (service.ReportStatusView).
+#}
+<ul class="rel-situacao">
+  {% for analise in visao.analyses %}
+  <li>
+    {% if analise.situation == 'registered' %}
+    <span class="pill pill--ok">Registrada</span>
+    {% elif analise.situation == 'deviations' %}
+    <span class="pill pill--warn">{{ analise.pending }} desvio{{ 's' if analise.pending != 1 }} sem comentário</span>
+    {% else %}
+    <span class="pill pill--warn">Pendente</span>
+    {% endif %}
+    <span class="hint">{{ analise.label }}{% if analise.required and analise.deviations %} · {{ analise.deviations }} desvio{{ 's' if analise.deviations != 1 }} negativo{{ 's' if analise.deviations != 1 }}{% endif %} · <a href="{{ analise.url }}">{{ 'Ver ou editar' if analise.registered else 'Registrar' }}</a></span>
+  </li>
+  {% endfor %}
+</ul>

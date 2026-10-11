@@ -1,0 +1,24 @@
+{% extends "base_fragment.html" %}
+{#
+  As folhas do relatório gerencial (ISSUE-083): o cabeçalho da tela — fora do papel, com o
+  escopo, o período e o aviso de parcial — e a pilha de folhas A4 na horizontal, uma por
+  seção. O encaixe da fonte e a numeração das páginas são do comportamento da tela
+  (app/paginas/relatorio/gerencial.js).
+
+  Espera: visao (service.ReportSheets) e os formatadores.
+#}
+{% block fragment %}
+<div class="rel-barra nao-imprimir">
+  <p class="rel-barra__titulo">
+    <b>Relatório gerencial {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</b>
+    <span>{{ visao.scope_label }} · {{ visao.period_label }}{% if visao.in_progress %} · parcial, dados até {{ formatar_data(visao.cut) }}{% endif %}</span>
+  </p>
+</div>
+
+<div class="rel-folhas">
+  {% if visao.planning %}
+  {% include "relatorio/folha_planejamento_kpis.html" %}
+  {% include "relatorio/folha_planejamento_relato.html" %}
+  {% endif %}
+</div>
+{% endblock %}

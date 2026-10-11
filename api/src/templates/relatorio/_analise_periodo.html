@@ -1,0 +1,38 @@
+{#
+  Bloco da Análise do período de uma folha do relatório gerencial (ISSUE-083): o texto
+  executivo, a tabela de desvios negativos com o comentário de cada um (desvio sem comentário
+  aparece como "Comentário pendente" em laranja) e o aviso com o link quando não há análise
+  registrada. É o mesmo bloco de todas as folhas; as ISSUE-084/085 o incluem igual.
+
+  Espera: analise (service.AnalysisView) e analise_url (o endereço da tela que registra).
+#}
+<div class="rel-bloco rel-bloco--analise">
+  <h3 class="rel-bloco__titulo">Análise do período
+    <small>desvio e tendência{% if analise.record %} · atualizada em {{ formatar_data(analise.record.updated_at) }} por {{ analise.record.updated_by }}{% endif %}{% if analise.pending %} · <span class="rel-negativo">{{ analise.pending }} desvio{{ 's' if analise.pending != 1 }} sem comentário</span>{% endif %}</small>
+  </h3>
+  {% if analise.record %}
+  <div class="rel-analise">
+    {% for paragrafo in analise.record.text.splitlines() %}{% if paragrafo.strip() %}<p>{{ paragrafo.strip() }}</p>{% endif %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="rel-alerta"><b>Análise {{ analise.kind | lower }} do período não registrada.</b> Registre em {{ analise.module_label }} (botão Análise do período) <a href="{{ analise_url }}">(registrar agora)</a> e emita o relatório de novo.</div>
+  {% endif %}
+  {% if analise.deviations %}
+  <table class="rel-tabela rel-tabela--desvios">
+    <caption class="sr-only">Desvios negativos do período e comentários</caption>
+    <thead>
+      <tr><th scope="col">Desvio negativo</th><th scope="col">Comentário</th></tr>
+    </thead>
+    <tbody>
+      {% for desvio in analise.deviations %}
+      <tr>
+        <td><b>{{ desvio.indicator }}</b><br /><span class="rel-negativo">{{ desvio.description }}</span></td>
+        <td>{% if desvio.comment %}{{ desvio.comment }}{% else %}<span class="rel-negativo">{{ 'Comentário pendente' if analise.deviation_required else 'Sem comentário' }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif analise.deviation_required %}
+  <p class="rel-vazio">Nenhum desvio negativo no período.</p>
+  {% endif %}
+</div>

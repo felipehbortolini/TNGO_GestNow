@@ -1,0 +1,27 @@
+{#
+  Macros da folha A4 do relatório gerencial (ISSUE-083): o cabeçalho com a marca, o título, o
+  período (parcial quando for o caso) e o projeto, a faixa da seção e o rodapé com a nota e a
+  página. Importado `with context` pelas folhas, que precisam dos formatadores do contexto.
+#}
+{% macro cabecalho(visao, secao, sub) %}
+<header class="rel-folha__cabecalho">
+  <img class="rel-folha__logo" src="/ds/assets/favicon-timenow.png" alt="" />
+  <div class="rel-folha__titulo">
+    <b>Relatório gerencial {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</b>
+    <span>{{ visao.period_label }}{% if visao.in_progress %} · parcial, dados até {{ formatar_data(visao.cut) }}{% endif %}</span>
+  </div>
+  <div class="rel-folha__projeto">
+    <b>{{ visao.scope_label }}</b>
+    Emitido em {{ formatar_data(visao.reference_date) }} (data de referência) por {{ visao.emitted_by }}
+  </div>
+</header>
+<h2 class="rel-folha__secao">{{ secao }}{% if sub %} <small>{{ sub }}</small>{% endif %}</h2>
+{% endmacro %}
+
+{% macro rodape(nota) %}
+<footer class="rel-folha__rodape">
+  <span>Timenow GestNow</span>
+  <span>{{ nota }}</span>
+  <span data-pagina></span>
+</footer>
+{% endmacro %}

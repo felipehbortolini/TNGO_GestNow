@@ -1,0 +1,151 @@
+{% import "relatorio/_folha.html" as folha with context %}
+{#
+  Folha 2 do Planejamento (ISSUE-083): a análise do período (texto e desvios negativos com o
+  comentário de cada um) ao lado das atividades do período e do próximo, e abaixo os pontos de
+  atenção com o risco atrelado. Sem relato ou sem análise, a folha mostra o aviso com o link
+  para registrar. No Portfólio a folha traz os relatos dos projetos e os pontos de atenção de
+  todos eles, com a análise da carteira.
+#}
+{% set analise = visao.analysis %}
+{% set analise_url = visao.analysis_url %}
+{% if visao.is_portfolio %}
+{% set n_pontos = visao.relato_points | length %}
+{% set pendentes = visao.project_relatos | rejectattr('registered') | list | length %}
+{% else %}
+{% set n_pontos = visao.relato.points | length if visao.relato else 0 %}
+{% set pendentes = 0 %}
+{% endif %}
+{% if n_pontos == 1 %}
+{% set sub = '1 ponto de atenção' %}
+{% elif n_pontos %}
+{% set sub = n_pontos ~ ' pontos de atenção' %}
+{% else %}
+{% set sub = '' %}
+{% endif %}
+{% if visao.relato %}
+{% set nota = 'Relato atualizado em ' ~ formatar_data(visao.relato.updated_at) ~ ' por ' ~ visao.relato.updated_by ~ '; riscos sem vínculo com o 05' %}
+{% elif pendentes == 1 %}
+{% set nota = '1 relato pendente' %}
+{% elif pendentes %}
+{% set nota = pendentes ~ ' relatos pendentes' %}
+{% elif visao.is_portfolio %}
+{% set nota = 'Relatos de todos os projetos registrados' %}
+{% else %}
+{% set nota = 'Relato pendente' %}
+{% endif %}
+<section class="rel-folha" aria-label="Planejamento: análise e relato do período">
+  {{ folha.cabecalho(visao, 'Planejamento · Análise e relato do período', sub) }}
+  <div class="rel-folha__corpo">
+    {% if visao.is_portfolio %}
+    <div class="rel-grade rel-grade--55-45">
+      {% include "relatorio/_analise_periodo.html" %}
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Relatos dos projetos <small>{{ visao.period_label }} · atividades no relatório de cada projeto</small></h3>
+        <table class="rel-tabela">
+          <caption class="sr-only">Relatos dos projetos</caption>
+          <thead>
+            <tr>
+              <th scope="col">Projeto</th>
+              <th scope="col">Relato {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</th>
+              <th scope="col" class="num">Pontos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in visao.project_relatos %}
+            <tr>
+              <td><b>{{ linha.project_label }}</b></td>
+              <td>{% if linha.registered %}{{ linha.updated }}{% else %}<span class="rel-negativo">pendente</span> <a href="{{ linha.url }}">(registrar)</a>{% endif %}</td>
+              <td class="num">{{ formatar_num(linha.points | length) if linha.registered else '·' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="rel-bloco">
+      <h3 class="rel-bloco__titulo">Pontos de atenção e riscos dos projetos (ameaça e oportunidade)</h3>
+      {% if visao.relato_points %}
+      <table class="rel-tabela">
+        <caption class="sr-only">Pontos de atenção e riscos dos projetos</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="num">Nº</th>
+            <th scope="col">Projeto</th>
+            <th scope="col">Ponto de atenção</th>
+            <th scope="col">Risco</th>
+            <th scope="col">Descrição do risco</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for projeto, ponto in visao.relato_points[:8] %}
+          <tr>
+            <td class="num">{{ loop.index }}</td>
+            <td><b>{{ projeto }}</b></td>
+            <td>{{ ponto.description }}</td>
+            <td><span class="pill {{ 'pill--ok' if ponto.nature == 'Oportunidade' else 'pill--warn' }}">{{ ponto.nature }}</span></td>
+            <td>{{ ponto.risk }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="rel-vazio">Nenhum ponto de atenção registrado nos relatos do período.</p>
+      {% endif %}
+    </div>
+    {% elif visao.relato %}
+    <div class="rel-grade rel-grade--55-45">
+      {% include "relatorio/_analise_periodo.html" %}
+      <div class="rel-bloco">
+        <h3 class="rel-bloco__titulo">Atividades do período <small>{{ visao.period_label }}</small></h3>
+        {% if visao.relato.activities %}
+        <ul class="rel-lista">{% for linha in visao.relato.activities %}<li>{{ linha }}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="rel-vazio">Sem registro.</p>
+        {% endif %}
+        <h3 class="rel-bloco__titulo">Atividades do próximo período <small>{{ visao.relato.next_name }}</small></h3>
+        {% if visao.relato.next_activities %}
+        <ul class="rel-lista">{% for linha in visao.relato.next_activities %}<li>{{ linha }}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="rel-vazio">Sem registro.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="rel-bloco">
+      <h3 class="rel-bloco__titulo">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+      {% if visao.relato.points %}
+      <table class="rel-tabela">
+        <caption class="sr-only">Pontos de atenção e riscos</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="num">Nº</th>
+            <th scope="col">Ponto de atenção</th>
+            <th scope="col">Risco</th>
+            <th scope="col">Descrição do risco</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ponto in visao.relato.points %}
+          <tr>
+            <td class="num">{{ loop.index }}</td>
+            <td>{{ ponto.description }}</td>
+            <td><span class="pill {{ 'pill--ok' if ponto.nature == 'Oportunidade' else 'pill--warn' }}">{{ ponto.nature }}</span></td>
+            <td>{{ ponto.risk }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="rel-vazio">Nenhum ponto de atenção registrado no período.</p>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="rel-grade rel-grade--55-45">
+      {% include "relatorio/_analise_periodo.html" %}
+      <div class="rel-bloco">
+        <div class="rel-alerta"><b>Relato {{ visao.kind | lower }} do período não registrado.</b> Registre as atividades do período, as do próximo período e os pontos de atenção em 02 Planejamento &gt; Relato do período <a href="{{ visao.relato_url }}">(registrar agora)</a> e emita o relatório de novo.</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {{ folha.rodape(nota) }}
+</section>
