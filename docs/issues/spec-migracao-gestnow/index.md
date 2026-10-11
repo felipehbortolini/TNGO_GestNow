@@ -111,7 +111,7 @@ vem primeiro.
 | ISSUE-082 | Análise do período de 05, 06, 07 e do Portfólio | 8 | task | done | ready-for-agent | ISSUE-081, ISSUE-066, ISSUE-071, ISSUE-075 | [ISSUE-082](./082-analise-do-periodo-05-06-07-e-portfolio.md) |
 | ISSUE-083 | Relatório gerencial: modal, motor de corte e folhas de Planejamento | 8 | task | done | ready-for-agent | ISSUE-082, ISSUE-044 | [ISSUE-083](./083-relatorio-gerencial-modal-corte-e-planejamento.md) |
 | ISSUE-084 | Relatório: folhas Financeiro (com a linha de tendência) e Suprimentos | 8 | task | done | ready-for-agent | ISSUE-083 | [ISSUE-084](./084-relatorio-financeiro-e-suprimentos.md) |
-| ISSUE-085 | Relatório: folhas Riscos, Qualidade, HSE e Carteira de projetos | 8 | task | proposed | ready-for-agent | ISSUE-084, ISSUE-080 | [ISSUE-085](./085-relatorio-riscos-qualidade-hse-e-carteira.md) |
+| ISSUE-085 | Relatório: folhas Riscos, Qualidade, HSE e Carteira de projetos | 8 | task | done | ready-for-agent | ISSUE-084, ISSUE-080 | [ISSUE-085](./085-relatorio-riscos-qualidade-hse-e-carteira.md) |
 | ISSUE-086 | Relatório: Excel, Imprimir / PDF e Alterar período | 8 | task | proposed | ready-for-agent | ISSUE-085 | [ISSUE-086](./086-relatorio-excel-impressao-e-alterar-periodo.md) |
 | ISSUE-087 | Inglês, parte 1: catálogo no servidor, seletor PT / EN, shell, Início, Central, Governança e Financeiro | 9 | task | proposed | ready-for-agent | ISSUE-086, ISSUE-078 | [ISSUE-087](./087-ingles-parte-1.md) |
 | ISSUE-088 | Inglês, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, Configurações e relatório | 9 | task | proposed | ready-for-agent | ISSUE-087 | [ISSUE-088](./088-ingles-parte-2.md) |
