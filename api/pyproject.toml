@@ -424,6 +424,23 @@ max-complexity = 10
 # na chamada; reduzir significaria criar um objeto de opções, a mesma coisa com mais indireção.
 "src/modulos/hse/painel_service.py" = ["PLR0913"]
 
+# `analysis_options`, `analysis_view`, `_view_of`, `_assemble`, `_edit` e `_collect`, na fachada
+# da Análise do período, recebem o usuário, o escopo, o módulo, o tipo, o período, as figuras e
+# o registro além da sessão, todos KEYWORD-ONLY depois do `*` — o contrato da leitura e da
+# gravação da análise (ISSUE-081) que as rotas e o seed chamam. O mesmo vale para
+# `_form_response`, `_refilled` e `_form_context`, nas rotas: a requisição, a sessão, o
+# contexto, o estado, o texto, os comentários, os erros e o aviso, todos KEYWORD-ONLY. A regra
+# existe para argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar
+# um objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/relatorio/service.py" = ["PLR0913"]
+"src/modulos/relatorio/routes.py" = ["PLR0913"]
+
+# `_gravar` e `_salvar`, em tests/relatorio/test_analise_servico.py, montam o pedido da análise
+# com o módulo, o tipo, o período, o texto, os comentários, o id e a versão opcionais, e é assim
+# de propósito: depois do `*` são todos KEYWORD-ONLY, e cada teste informa só o que importa para
+# o caso (ISSUE-081), como os helpers de montagem dos demais testes.
+"tests/relatorio/test_analise_servico.py" = ["PLR0913"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 
