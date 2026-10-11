@@ -1,0 +1,342 @@
+{% extends "base_fragment.html" %}
+{#
+  A tela Cadastros de apoio (ISSUE-078): os sete cadastros que alimentam os formulários —
+  empresas, pessoas, projetos, sistemas, unidades, locais e disciplinas —, cada um num cartão
+  com a contagem, o botão Incluir, a tabela e Editar/Excluir por linha. O corpo do modal é do
+  servidor (cadastros_form.html) e o trio da tela o abre pelos data-cadastros-modal-url; a
+  exclusão confirma por TN.confirmarExclusao e volta como esta tela com o toast. Excel e PDF
+  saem pelos mecanismos genéricos (data-tn-excel e data-tn-pdf).
+
+  Espera: visao, url_tela, url_excel, url_pdf e data.
+#}
+{% macro incluir(url_tela, tipo, titulo, subtitulo) %}
+<button type="button" class="btn btn--primary btn--sm"
+  data-cadastros-modal-url="{{ url_tela }}/{{ tipo }}/novo"
+  data-cadastros-modal-titulo="{{ titulo }}"
+  data-cadastros-modal-subtitulo="{{ subtitulo }}">
+  <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>
+  Incluir
+</button>
+{% endmacro %}
+
+{% macro acoes(url_tela, tipo, id, nome, rotulo) %}
+<button type="button" class="iconbtn" title="Editar {{ rotulo | lower }}" aria-label="Editar {{ rotulo | lower }}"
+  data-cadastros-modal-url="{{ url_tela }}/{{ tipo }}/{{ id }}/editar"
+  data-cadastros-modal-titulo="Editar {{ rotulo | lower }}"
+  data-cadastros-modal-subtitulo="{{ rotulo }}: {{ nome }}"
+  x-init="$el.innerHTML = window.icon('edit', 16)"></button>
+<button type="button" class="iconbtn" title="Excluir {{ rotulo | lower }}" aria-label="Excluir {{ rotulo | lower }}"
+  data-cadastros-excluir-url="{{ url_tela }}/{{ tipo }}/{{ id }}/excluir"
+  data-cadastros-nome="{{ nome }}"
+  data-cadastros-rotulo="{{ rotulo }}"
+  x-init="$el.innerHTML = window.icon('trash', 16)"
+  @click="TN.confirmarExclusao({
+    title: 'Excluir ' + $el.dataset.cadastrosRotulo.toLowerCase(),
+    mensagem: 'A exclusão é recusada se o registro estiver em uso em algum módulo.',
+    labelConfirmar: 'Excluir',
+    rows: [{ label: $el.dataset.cadastrosRotulo, valor: $el.dataset.cadastrosNome }]
+  }).then(function (ok) {
+    if (ok) $ajax($el.dataset.cadastrosExcluirUrl, {
+      method: 'post',
+      target: 'cadastros-conteudo'
+    });
+  })"></button>
+{% endmacro %}
+{% block fragment %}
+<div class="toolbar cadastros__acoes mb-16" role="toolbar" aria-label="Exportações dos cadastros">
+  <span class="hint">{{ visao.total }} registro(s) nos sete cadastros de apoio.</span>
+  <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+  <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+</div>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Empresas</h2>
+      <span class="hint">{{ visao.companies | length }} empresa(s) · contratadas, fornecedores e gerenciadoras</span>
+    </div>
+    {{ incluir(url_tela, 'empresa', 'Nova empresa', 'A empresa entra nos formulários de contratos, suprimentos e programação') }}
+  </div>
+  <div class="card__body">
+    {% if visao.companies %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Empresas cadastradas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col">Tipo</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.companies %}
+          <tr>
+            <td class="fw-600">{{ linha.name }}</td>
+            <td>{{ linha.kind or '·' }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'empresa', linha.id, linha.name, 'Empresa') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Pessoas</h2>
+      <span class="hint">{{ visao.people | length }} pessoa(s) · gerentes de projeto, fiscais e contatos</span>
+    </div>
+    {{ incluir(url_tela, 'pessoa', 'Nova pessoa', 'A pessoa entra nos formulários de projetos, contratos e programação') }}
+  </div>
+  <div class="card__body">
+    {% if visao.people %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Pessoas cadastradas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col">Função</th>
+            <th scope="col">Empresa</th>
+            <th scope="col">E-mail</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.people %}
+          <tr>
+            <td class="fw-600">{{ linha.name }}</td>
+            <td>{{ linha.role or '·' }}</td>
+            <td>{{ linha.company_name or '·' }}</td>
+            <td>{{ linha.email }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'pessoa', linha.id, linha.name, 'Pessoa') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Projetos</h2>
+      <span class="hint">{{ visao.projects | length }} projeto(s) · identificação, cliente, gerente, orçamento e ponderação</span>
+    </div>
+    {{ incluir(url_tela, 'projeto', 'Novo projeto', 'O projeto nasce com a configuração padrão da Programação Semanal') }}
+  </div>
+  <div class="card__body">
+    {% if visao.projects %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Projetos cadastrados</caption>
+        <thead>
+          <tr>
+            <th scope="col">Código</th>
+            <th scope="col">Nome</th>
+            <th scope="col">Cliente</th>
+            <th scope="col">Gerente</th>
+            <th scope="col" class="td-num">Orçamento</th>
+            <th scope="col">Início</th>
+            <th scope="col">Término</th>
+            <th scope="col">Notas</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.projects %}
+          <tr>
+            <td class="fw-600">{{ linha.code }}</td>
+            <td>{{ linha.name }}</td>
+            <td>{{ linha.client_name }}</td>
+            <td>{{ linha.manager_name }}</td>
+            <td class="td-num">{{ linha.budget_cents | brl if linha.budget_cents is not none else '·' }}</td>
+            <td>{{ data(linha.start_date) or '·' }}</td>
+            <td>{{ data(linha.expected_end_date) or '·' }}</td>
+            <td>
+              {% if linha.grades %}
+              <div class="cadastros__notas">
+                {% for nota in linha.grades %}
+                <span class="pill pill--neutral">{{ nota.label }}</span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <span class="muted">·</span>
+              {% endif %}
+            </td>
+            <td class="td-center">{{ acoes(url_tela, 'projeto', linha.id, linha.code, 'Projeto') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Sistemas</h2>
+      <span class="hint">{{ visao.systems | length }} sistema(s) · a hierarquia da punch list, por projeto</span>
+    </div>
+    {{ incluir(url_tela, 'sistema', 'Novo sistema', 'O sistema pertence a um projeto: a punch list o usa como hierarquia') }}
+  </div>
+  <div class="card__body">
+    {% if visao.systems %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Sistemas cadastrados</caption>
+        <thead>
+          <tr>
+            <th scope="col">Projeto</th>
+            <th scope="col">Código</th>
+            <th scope="col">Nome</th>
+            <th scope="col">Área</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.systems %}
+          <tr>
+            <td>{{ linha.project_label }}</td>
+            <td class="fw-600">{{ linha.code }}</td>
+            <td>{{ linha.name }}</td>
+            <td>{{ linha.area or '·' }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'sistema', linha.id, linha.name, 'Sistema') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Unidades</h2>
+      <span class="hint">{{ visao.units | length }} unidade(s) · de medida (programação) e organizacionais (Central de Ações)</span>
+    </div>
+    {{ incluir(url_tela, 'unidade', 'Nova unidade', 'Medida vale para quantidades; organizacional, para a estrutura da Central de Ações') }}
+  </div>
+  <div class="card__body">
+    {% if visao.units %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Unidades cadastradas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tipo</th>
+            <th scope="col">Código</th>
+            <th scope="col">Nome</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.units %}
+          <tr>
+            <td>{{ linha.kind }}</td>
+            <td class="fw-600">{{ linha.code }}</td>
+            <td>{{ linha.name }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'unidade', linha.id, linha.name, 'Unidade') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Locais</h2>
+      <span class="hint">{{ visao.locations | length }} local(is) · onde a programação e a jornada de campo acontecem</span>
+    </div>
+    {{ incluir(url_tela, 'local', 'Novo local', 'O local pertence a um projeto e entra na programação e na jornada de campo') }}
+  </div>
+  <div class="card__body">
+    {% if visao.locations %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Locais cadastrados</caption>
+        <thead>
+          <tr>
+            <th scope="col">Projeto</th>
+            <th scope="col">Código</th>
+            <th scope="col">Nome</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.locations %}
+          <tr>
+            <td>{{ linha.project_label }}</td>
+            <td class="fw-600">{{ linha.code }}</td>
+            <td>{{ linha.name }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'local', linha.id, linha.name, 'Local') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card mb-16">
+  <div class="card__head">
+    <div>
+      <h2 class="h-card4">Disciplinas</h2>
+      <span class="hint">{{ visao.disciplines | length }} disciplina(s) · RNC, ITP, lições e punch list as usam</span>
+    </div>
+    {{ incluir(url_tela, 'disciplina', 'Nova disciplina', 'A disciplina entra nos formulários de qualidade, governança e punch list') }}
+  </div>
+  <div class="card__body">
+    {% if visao.disciplines %}
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <caption class="sr-only">Disciplinas cadastradas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Nome</th>
+            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linha in visao.disciplines %}
+          <tr>
+            <td class="fw-600">{{ linha.name }}</td>
+            <td class="td-center">{{ acoes(url_tela, 'disciplina', linha.id, linha.name, 'Disciplina') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

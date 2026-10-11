@@ -1,4 +1,4 @@
-"""Exportações das telas de Configurações (ISSUE-076 e ISSUE-077, D12).
+"""Exportações das telas de Configurações (ISSUE-076, ISSUE-077 e ISSUE-078, D12).
 
 O mesmo documento alimenta o Excel e a versão imprimível (o PDF do navegador).
 
@@ -9,6 +9,9 @@ O mesmo documento alimenta o Excel e a versão imprimível (o PDF do navegador).
 * **Colaboradores:** a lista de quem tem acesso (Pessoa/E-mail/Função/Perfil/
   Vínculo/Empresa/Situação/Papéis na Programação Semanal), sem a coluna Projeto
   porque o cadastro de acesso não pertence a um projeto.
+* **Cadastros de apoio:** as sete tabelas da tela (empresas, pessoas, projetos,
+  sistemas, unidades, locais e disciplinas), com as mesmas colunas da tela;
+  sistemas e locais trazem a coluna Projeto porque são por projeto.
 """
 
 from __future__ import annotations
@@ -32,9 +35,17 @@ from src.core.navigation_view import ProjectLike
 from src.core.scope import Scope
 from src.modulos.configuracoes.service import (
     CollaboratorRow,
+    CompanyRegisterRow,
+    DisciplineRegisterRow,
     GroupView,
     HistoryEntry,
+    LocationRegisterRow,
     ParameterOverview,
+    PersonRegisterRow,
+    ProjectRegisterRow,
+    RegistersOverview,
+    SystemRegisterRow,
+    UnitRegisterRow,
 )
 
 TITLE = "Parâmetros do sistema"
@@ -180,6 +191,168 @@ def _schedule_roles_text(registro: CollaboratorRow) -> str:
     if not registro.schedule_roles:
         return NOT_RECORDED
     return " · ".join(line.label for line in registro.schedule_roles)
+
+
+# ── Cadastros de apoio (ISSUE-078) ───────────────────────────────────────
+
+REGISTERS_TITLE = "Cadastros de apoio"
+REGISTERS_CONTEXT = "Registros"
+
+COMPANY_COLUMNS = (
+    Column("Nome", width=36),
+    Column("Tipo", width=16),
+)
+
+PERSON_COLUMNS = (
+    Column("Nome", width=28),
+    Column("Função", width=20),
+    Column("Empresa", width=24),
+    Column("E-mail", width=30),
+)
+
+PROJECT_COLUMNS = (
+    Column("Código", width=14),
+    Column("Nome", width=28),
+    Column("Cliente", width=20),
+    Column("Gerente", width=22),
+    Column("Orçamento", ValueKind.MONEY, width=18),
+    Column("Início", ValueKind.DATE, width=12),
+    Column("Término", ValueKind.DATE, width=12),
+    Column("Notas", width=24),
+)
+
+SYSTEM_COLUMNS = (
+    Column("Projeto", width=24),
+    Column("Código", width=14),
+    Column("Nome", width=28),
+    Column("Área", width=18),
+)
+
+UNIT_COLUMNS = (
+    Column("Tipo", width=14),
+    Column("Código", width=12),
+    Column("Nome", width=28),
+)
+
+LOCATION_COLUMNS = (
+    Column("Projeto", width=24),
+    Column("Código", width=14),
+    Column("Nome", width=28),
+)
+
+DISCIPLINE_COLUMNS = (Column("Nome", width=28),)
+
+
+def registers_document(
+    *,
+    overview: RegistersOverview,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+) -> Document:
+    """O documento da tela de Cadastros: as sete tabelas, com as mesmas colunas da tela.
+
+    Sistemas e locais trazem a coluna Projeto em qualquer escopo porque são por
+    projeto; as demais tabelas não abrem a coluna no Portfólio (``per_project``
+    falso): uma empresa não pertence a um projeto.
+    """
+    return Document(
+        title=REGISTERS_TITLE,
+        scope_label=describe_scope(scope, projects),
+        generated_on=today,
+        portfolio=scope.is_portfolio,
+        context=((REGISTERS_CONTEXT, str(overview.total)),),
+        tables=(
+            _companies_table(overview.companies),
+            _people_table(overview.people),
+            _projects_table(overview.projects),
+            _systems_table(overview.systems),
+            _units_table(overview.units),
+            _locations_table(overview.locations),
+            _disciplines_table(overview.disciplines),
+        ),
+    )
+
+
+def _companies_table(companies: Sequence[CompanyRegisterRow]) -> Table:
+    return Table(
+        title="Empresas",
+        columns=COMPANY_COLUMNS,
+        rows=tuple(row(item.name, item.kind or NOT_RECORDED) for item in companies),
+        per_project=False,
+    )
+
+
+def _people_table(people: Sequence[PersonRegisterRow]) -> Table:
+    return Table(
+        title="Pessoas",
+        columns=PERSON_COLUMNS,
+        rows=tuple(
+            row(item.name, item.role or NOT_RECORDED, item.company_name or NOT_RECORDED, item.email)
+            for item in people
+        ),
+        per_project=False,
+    )
+
+
+def _projects_table(projects: Sequence[ProjectRegisterRow]) -> Table:
+    return Table(
+        title="Projetos",
+        columns=PROJECT_COLUMNS,
+        rows=tuple(
+            row(
+                item.code,
+                item.name,
+                item.client_name,
+                item.manager_name,
+                item.budget_cents,
+                item.start_date,
+                item.expected_end_date,
+                item.grades_text or NOT_RECORDED,
+            )
+            for item in projects
+        ),
+        per_project=False,
+    )
+
+
+def _systems_table(systems: Sequence[SystemRegisterRow]) -> Table:
+    return Table(
+        title="Sistemas",
+        columns=SYSTEM_COLUMNS,
+        rows=tuple(
+            row(item.project_label, item.code, item.name, item.area or NOT_RECORDED)
+            for item in systems
+        ),
+        per_project=False,
+    )
+
+
+def _units_table(units: Sequence[UnitRegisterRow]) -> Table:
+    return Table(
+        title="Unidades",
+        columns=UNIT_COLUMNS,
+        rows=tuple(row(item.kind, item.code, item.name) for item in units),
+        per_project=False,
+    )
+
+
+def _locations_table(locations: Sequence[LocationRegisterRow]) -> Table:
+    return Table(
+        title="Locais",
+        columns=LOCATION_COLUMNS,
+        rows=tuple(row(item.project_label, item.code, item.name) for item in locations),
+        per_project=False,
+    )
+
+
+def _disciplines_table(disciplines: Sequence[DisciplineRegisterRow]) -> Table:
+    return Table(
+        title="Disciplinas",
+        columns=DISCIPLINE_COLUMNS,
+        rows=tuple(row(item.name) for item in disciplines),
+        per_project=False,
+    )
 
 
 def _date(value: date) -> str:

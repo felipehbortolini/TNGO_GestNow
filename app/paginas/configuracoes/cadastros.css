@@ -1,16 +1,30 @@
 /* ============================================================
    cadastros.css — Estilo da tela Cadastros de apoio (configuracoes/cadastros)
 
-   Projetos, empresas, pessoas, sistemas, unidades e locais.
+   Empresas, pessoas, projetos, sistemas, unidades, locais e disciplinas que alimentam os
+   formulários.
 
    Escopo: tudo que morar aqui começa por .pagina--configuracoes-cadastros, a classe da raiz da
    view, para não vazar entre telas. Só tokens do Design System: nenhum valor
    de cor, espaçamento, raio ou sombra escrito direto. O que se repetir em
    três telas sobe para ds/patterns.css.
 
-   Sem estilo próprio ainda: a tela usa os padrões do Design System. O estilo
-   próprio chega com a ISSUE-078.
-
    Carrega pelo shell (app/index.html), nunca pela view. Ver
    docs/CONTRATO-VISUAL.md.
    ============================================================ */
+
+.pagina--configuracoes-cadastros .cadastros__acoes {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pagina--configuracoes-cadastros .cadastros__notas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.pagina--configuracoes-cadastros .cadastros__notas .fgrid {
+  width: 100%;
+}

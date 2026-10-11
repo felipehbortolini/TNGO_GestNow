@@ -1,4 +1,4 @@
-"""Rotas das telas de Configurações: Parâmetros do sistema (ISSUE-076) e Colaboradores (ISSUE-077).
+"""Rotas das telas de Configurações: Parâmetros (ISSUE-076), Colaboradores (ISSUE-077) e Cadastros (ISSUE-078).
 
 **Parâmetros** (``/api/configuracoes/parametros``): a tela é um fragmento
 (``parametros-conteudo``): o card da versão vigente, a barra com a busca e o
@@ -30,6 +30,21 @@ A revogação confirma no cliente e volta como a tela com o toast.
 * ``GET  colaboradores/novo`` e ``colaboradores/{id}/editar`` o corpo do modal;
 * ``POST colaboradores`` e ``colaboradores/{id}``         cria e atualiza o acesso;
 * ``POST colaboradores/{id}/revogar``                     apaga o acesso (a pessoa permanece no cadastro).
+
+**Cadastros** (``/api/configuracoes/cadastros``, Gestor e Admin): a tela é um
+fragmento (``cadastros-conteudo``) com sete cartões — empresas, pessoas,
+projetos, sistemas, unidades, locais e disciplinas —, cada um com a contagem, o
+Incluir, a tabela e Editar/Excluir por linha. O corpo do modal
+(``cadastros-modal-corpo``) é desenhado por GET conforme o tipo; a gravação
+(POST) devolve a tela atualizada (o modal fecha no sucesso) e a recusa volta no
+formulário (422). A exclusão confirma no cliente e volta como a tela com o
+toast; um cadastro em uso é recusado com a mensagem de onde ele é usado.
+
+* ``GET  cadastros``                                      a tela com os sete cadastros;
+* ``GET  cadastros/excel`` e ``cadastros/imprimivel``     os dois exports;
+* ``GET  cadastros/{tipo}/novo`` e ``cadastros/{tipo}/{id}/editar`` o corpo do modal;
+* ``POST cadastros/{tipo}`` e ``cadastros/{tipo}/{id}``   cria e atualiza o cadastro;
+* ``POST cadastros/{tipo}/{id}/excluir``                  apaga o cadastro, ou recusa se está em uso.
 
 Só Gestor e Admin alcançam o módulo (``rbac.MODULE_PERMISSION``) e só o Admin
 alcança Colaboradores (``rbac.SCREEN_PERMISSION``, aqui pedido como
@@ -91,6 +106,13 @@ COLLABORATORS_MODAL_TARGET = "colaboradores-modal-corpo"
 COLLABORATORS_SCREEN_TEMPLATE = "configuracoes/colaboradores.html"
 COLLABORATORS_FORM_TEMPLATE = "configuracoes/colaboradores_form.html"
 
+REGISTERS_ROUTE = "/api/configuracoes/cadastros"
+REGISTERS_CONTENT_TARGET = "cadastros-conteudo"
+REGISTERS_MODAL_TARGET = "cadastros-modal-corpo"
+
+REGISTERS_SCREEN_TEMPLATE = "configuracoes/cadastros.html"
+REGISTERS_FORM_TEMPLATE = "configuracoes/cadastros_form.html"
+
 
 def _status(error: DomainError) -> int:
     if isinstance(error, AccessDeniedError):
@@ -123,6 +145,7 @@ def _modal_error_em(target_id: str) -> ErrorRenderer:
 
 _modal_error = _modal_error_em(MODAL_TARGET)
 _collaborator_modal_error = _modal_error_em(COLLABORATORS_MODAL_TARGET)
+_registers_modal_error = _modal_error_em(REGISTERS_MODAL_TARGET)
 
 
 def _field_errors(error: DomainError) -> Mapping[str, str]:
@@ -798,4 +821,260 @@ def collaborators_revoke(
         session,
         **_collaborator_query_state(consulta),
         notice=f"Acesso de {registro.email} revogado.",
+    )
+
+
+# ── Tela de Cadastros (ISSUE-078) ────────────────────────────────────────
+#
+# A tela mantém os sete cadastros de apoio (D5): empresas, pessoas, projetos,
+# sistemas, unidades, locais e disciplinas. O corpo do modal é desenhado pelo
+# servidor por GET conforme o tipo; a gravação (POST) devolve a tela inteira e
+# o modal fecha no sucesso, e a recusa (422) volta no modal com a mensagem de
+# cada campo. A exclusão confirma no cliente e volta como a tela com o toast:
+# um cadastro em uso não pode esvaziar a lista, então a tela é re-renderizada
+# com o motivo no toast de erro.
+
+
+def _register_kind(req: func.HttpRequest) -> str:
+    kind = (req.route_params.get("tipo") or "").strip()
+    if kind not in service.REGISTER_KINDS:
+        raise InvalidDataError({"geral": service.REGISTER_NOT_FOUND})
+    return kind
+
+
+def _register_defaults(kind: str, project_id: int | None) -> dict[str, str]:
+    """O projeto do escopo já vem escolhido no formulário de sistemas e locais."""
+    if kind in ("sistema", "local") and project_id is not None:
+        return {"projeto": str(project_id)}
+    return {}
+
+
+def _registers_screen_response(
+    req: func.HttpRequest,
+    session: Session,
+    *,
+    notice: str | None = None,
+    status_code: int = 200,
+    toast_tipo: str = "ok",
+) -> func.HttpResponse:
+    """A tela de Cadastros: os sete cartões com a contagem e as tabelas."""
+    overview = service.registers_overview(session, reference_date=calendario.today())
+    return AlpineAjaxResponse(
+        template_name=REGISTERS_SCREEN_TEMPLATE,
+        context={
+            "visao": overview,
+            "url_tela": REGISTERS_ROUTE,
+            "url_excel": f"{REGISTERS_ROUTE}/excel",
+            "url_pdf": f"{REGISTERS_ROUTE}/imprimivel",
+            **_helpers(),
+        },
+        request=req,
+        target_id=REGISTERS_CONTENT_TARGET,
+        status_code=status_code,
+        toast=notice,
+        toast_tipo=toast_tipo,
+    )
+
+
+def _registers_form_response(
+    req: func.HttpRequest,
+    session: Session,
+    *,
+    kind: str,
+    register_id: int | None,
+    values: Mapping[str, Any],
+    errors: Mapping[str, str],
+    status_code: int,
+) -> func.HttpResponse:
+    """O corpo do modal: os campos do tipo, as listas dos selects e os erros por campo."""
+    messages = [message for message in errors.values() if message]
+    return AlpineAjaxResponse(
+        template_name=REGISTERS_FORM_TEMPLATE,
+        context={
+            "tipo": kind,
+            "rotulo": service.REGISTER_LABELS[kind],
+            "editando": register_id is not None,
+            "valores": dict(values),
+            "opcoes": service.register_form_options(session, reference_date=calendario.today()),
+            "erros": {key: message for key, message in errors.items() if key != "geral"},
+            "erros_gerais": [message for key, message in errors.items() if key == "geral"],
+            "url_salvar": (
+                f"{REGISTERS_ROUTE}/{kind}/{register_id}"
+                if register_id is not None
+                else f"{REGISTERS_ROUTE}/{kind}"
+            ),
+        },
+        request=req,
+        target_id=REGISTERS_MODAL_TARGET,
+        status_code=status_code,
+        toast=messages[0] if messages else None,
+        toast_tipo="erro",
+    )
+
+
+def _registers_write(
+    req: func.HttpRequest,
+    session: Session,
+    context: RequestContext,
+    *,
+    kind: str,
+    register_id: int | None,
+) -> func.HttpResponse:
+    """Grava o cadastro: o sucesso devolve a tela (o modal fecha) e a recusa volta no formulário."""
+    try:
+        with session.begin_nested():
+            label = service.save_register(
+                session,
+                kind=kind,
+                author_id=context.user.id,
+                register_id=register_id,
+                form=req.form,
+                reference_date=calendario.today(),
+            )
+    except InvalidDataError as error:
+        return _registers_form_response(
+            req,
+            session,
+            kind=kind,
+            register_id=register_id,
+            values=req.form,
+            errors=_field_errors(error),
+            status_code=422,
+        )
+    return _registers_screen_response(
+        req,
+        session,
+        notice=f"Cadastro de {service.REGISTER_LABELS[kind].lower()} gravado: “{label}”.",
+    )
+
+
+def _registers_document(session: Session, context: RequestContext) -> Document:
+    """O documento dos exports: os sete cadastros, sem filtro."""
+    today = calendario.today()
+    return export.registers_document(
+        overview=service.registers_overview(session, reference_date=today),
+        scope=context.scope,
+        projects=service.list_projects(session),
+        today=today,
+    )
+
+
+@bp.route(route="configuracoes/cadastros", methods=["GET"])
+@fragment_route(access=ACCESS)
+def registers_screen(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A tela: os sete cadastros com a contagem, as tabelas e o Incluir/Editar/Excluir."""
+    del context
+    return _registers_screen_response(req, session)
+
+
+@bp.route(route="configuracoes/cadastros/excel", methods=["GET"])
+@file_route(access=ACCESS)
+def registers_excel(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O Excel da tela: as sete tabelas de cadastro."""
+    del req
+    return excel_response(_registers_document(session, context))
+
+
+@bp.route(route="configuracoes/cadastros/imprimivel", methods=["GET"])
+@fragment_route(access=ACCESS)
+def registers_printable(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """A versão imprimível do mesmo documento: o que o botão PDF monta e imprime."""
+    return printable_response(_registers_document(session, context), req)
+
+
+@bp.route(route="configuracoes/cadastros/{tipo}/novo", methods=["GET"])
+@fragment_route(access=ACCESS, on_error=_registers_modal_error)
+def registers_new_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O corpo do modal de novo cadastro, conforme o tipo."""
+    kind = _register_kind(req)
+    return _registers_form_response(
+        req,
+        session,
+        kind=kind,
+        register_id=None,
+        values=_register_defaults(kind, context.scope.project_id),
+        errors={},
+        status_code=200,
+    )
+
+
+@bp.route(route="configuracoes/cadastros/{tipo}/{id}/editar", methods=["GET"])
+@fragment_route(access=ACCESS, on_error=_registers_modal_error)
+def registers_edit_form(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """O corpo do modal de edição, com o registro carregado."""
+    del context
+    kind = _register_kind(req)
+    register_id = _route_int(req, "id")
+    values = service.register_form_values(
+        session, kind, register_id, reference_date=calendario.today()
+    )
+    if values is None:
+        raise InvalidDataError({"geral": service.REGISTER_RECORD_NOT_FOUND})
+    return _registers_form_response(
+        req,
+        session,
+        kind=kind,
+        register_id=register_id,
+        values=values,
+        errors={},
+        status_code=200,
+    )
+
+
+@bp.route(route="configuracoes/cadastros/{tipo}", methods=["POST"])
+@fragment_route(access=ACCESS, on_error=_registers_modal_error)
+def registers_save(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Cria um cadastro: o sucesso devolve a tela (o modal fecha) e a recusa volta no formulário."""
+    return _registers_write(req, session, context, kind=_register_kind(req), register_id=None)
+
+
+@bp.route(route="configuracoes/cadastros/{tipo}/{id}", methods=["POST"])
+@fragment_route(access=ACCESS, on_error=_registers_modal_error)
+def registers_update(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Atualiza um cadastro: o sucesso devolve a tela e a recusa volta no formulário."""
+    return _registers_write(
+        req, session, context, kind=_register_kind(req), register_id=_route_int(req, "id")
+    )
+
+
+@bp.route(route="configuracoes/cadastros/{tipo}/{id}/excluir", methods=["POST"])
+@fragment_route(access=ACCESS)
+def registers_delete(
+    req: func.HttpRequest, session: Session, context: RequestContext
+) -> func.HttpResponse:
+    """Exclui um cadastro: em uso, a recusa volta na própria tela, com o motivo no toast."""
+    kind = _register_kind(req)
+    register_id = _route_int(req, "id")
+    try:
+        with session.begin_nested():
+            label = service.delete_register(
+                session, kind=kind, author_id=context.user.id, register_id=register_id
+            )
+    except InvalidDataError as error:
+        messages = error.messages()
+        return _registers_screen_response(
+            req,
+            session,
+            notice=messages[0] if messages else "Não foi possível excluir o cadastro.",
+            status_code=422,
+            toast_tipo="erro",
+        )
+    return _registers_screen_response(
+        req,
+        session,
+        notice=f"Cadastro de {service.REGISTER_LABELS[kind].lower()} excluído: “{label}”.",
     )
