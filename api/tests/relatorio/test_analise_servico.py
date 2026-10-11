@@ -1,8 +1,8 @@
-"""Fachada da Análise do período (ISSUE-081): período, texto, comentários, pendência, cópia e perfis."""
+"""Fachada da Análise do período (ISSUE-081/ISSUE-082): período, texto, comentários, Portfólio e perfis."""
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -10,11 +10,12 @@ from sqlalchemy import select
 
 from src.core import calendario
 from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
-from src.core.scope import PROJECT_REQUIRED_MESSAGE, Scope
+from src.core.scope import Scope
 from src.modulos.planejamento.models import EapItem, EapMeasurement
 from src.modulos.planejamento.validation import MONTHLY, WEEKLY
 from src.modulos.relatorio import service, validation
 from src.modulos.relatorio.models import Analysis
+from tests.identidades import criar_projeto
 from tests.relatorio.conftest import Cenario, Demonstracao
 
 TEXTO = "Panorama, desempenho dos períodos anteriores, causas e tendência. " * 4
@@ -22,6 +23,8 @@ TEXTO = "Panorama, desempenho dos períodos anteriores, causas e tendência. " *
 TEXTO_ANTERIOR = "Texto do período anterior com panorama e tendência. " * 6
 
 COMENTARIO = "Causa, efeito e ação do desvio no período."
+
+PORTFOLIO = Scope(project_id=None, source="url")
 
 
 def _hoje() -> date:
@@ -43,11 +46,12 @@ def _gravar(
     analysis_id: int | None = None,
     version: str | None = None,
     user: object | None = None,
+    scope: Scope | None = None,
 ) -> service.AnalysisView:
     return service.save_analysis(
         cenario.session,
         user=user or cenario.membro,  # type: ignore[arg-type]
-        scope=cenario.scope,
+        scope=scope or cenario.scope,
         request=service.AnalysisRequest(
             module=module,
             kind=kind,
@@ -134,19 +138,132 @@ def test_modulo_invalido_e_recusado(cenario: Cenario) -> None:
     assert erros[validation.FIELD_MODULE] == validation.MODULE_MESSAGE
 
 
-def test_no_portfolio_o_projeto_e_exigido_antes_de_gravar(cenario: Cenario) -> None:
-    with pytest.raises(InvalidDataError) as erro:
-        service.save_analysis(
+# ── Portfólio (projeto nulo) ───────────────────────────────────────────────
+
+
+def test_portfolio_grava_com_projeto_nulo(cenario: Cenario) -> None:
+    salvo = _gravar(cenario, scope=PORTFOLIO)
+
+    assert salvo.record is not None
+    assert salvo.project_label == "Portfólio · 1 projeto"
+    assert (
+        service.analysis_record(
             cenario.session,
-            user=cenario.membro,
-            scope=Scope(project_id=None, source="url"),
-            request=service.AnalysisRequest(
-                module="planejamento", kind=WEEKLY, period=_periodo(WEEKLY)
-            ),
-            reference_date=_hoje(),
+            project_id=None,
+            module="planejamento",
+            kind=WEEKLY,
+            period=_periodo(WEEKLY),
+        )
+        is not None
+    )
+
+
+def test_analise_do_portfolio_e_do_projeto_coexistem(cenario: Cenario) -> None:
+    do_projeto = _gravar(cenario)
+    do_portfolio = _gravar(cenario, scope=PORTFOLIO)
+
+    assert do_projeto.record is not None and do_portfolio.record is not None
+    assert do_projeto.record.id != do_portfolio.record.id
+    assert (
+        service.analysis_record(
+            cenario.session,
+            project_id=cenario.project.id,
+            module="planejamento",
+            kind=WEEKLY,
+            period=_periodo(WEEKLY),
+        )
+        is not None
+    )
+    assert (
+        service.analysis_record(
+            cenario.session,
+            project_id=None,
+            module="planejamento",
+            kind=WEEKLY,
+            period=_periodo(WEEKLY),
+        )
+        is not None
+    )
+
+
+def test_exclusao_nao_mistura_portfolio_e_projeto(cenario: Cenario) -> None:
+    do_projeto = _gravar(cenario)
+    do_portfolio = _gravar(cenario, scope=PORTFOLIO)
+    assert do_projeto.record is not None and do_portfolio.record is not None
+
+    with pytest.raises(InvalidDataError):
+        service.delete_analysis(
+            cenario.session,
+            user=cenario.gestor,
+            scope=cenario.scope,
+            analysis_id=do_portfolio.record.id,
+            version=str(do_portfolio.record.version),
+        )
+    with pytest.raises(InvalidDataError):
+        service.delete_analysis(
+            cenario.session,
+            user=cenario.gestor,
+            scope=PORTFOLIO,
+            analysis_id=do_projeto.record.id,
+            version=str(do_projeto.record.version),
         )
 
-    assert erro.value.detail == PROJECT_REQUIRED_MESSAGE
+    excluido = service.delete_analysis(
+        cenario.session,
+        user=cenario.gestor,
+        scope=PORTFOLIO,
+        analysis_id=do_portfolio.record.id,
+        version=str(do_portfolio.record.version),
+    )
+
+    assert excluido.id == do_portfolio.record.id
+
+
+def test_portfolio_le_a_faixa_da_carteira_e_o_rotulo(cenario: Cenario) -> None:
+    antigo = criar_projeto(cenario.session, codigo="TN-ANALISE-000", nome="Projeto antigo")
+    antigo.start_date = _hoje() - timedelta(days=180)
+    cenario.session.flush()
+
+    visao = service.analysis_options(
+        cenario.session,
+        user=cenario.membro,
+        scope=PORTFOLIO,
+        module="planejamento",
+        kind=WEEKLY,
+        reference_date=_hoje(),
+    )
+
+    assert visao.project_label == "Portfólio · 2 projetos"
+    assert _periodo(WEEKLY, -10) in {option.period for option in visao.options}
+
+
+def test_portfolio_grava_periodo_anterior_ao_inicio_de_um_projeto(cenario: Cenario) -> None:
+    antigo = criar_projeto(cenario.session, codigo="TN-ANALISE-000", nome="Projeto antigo")
+    antigo.start_date = _hoje() - timedelta(days=180)
+    cenario.session.flush()
+
+    salvo = _gravar(cenario, scope=PORTFOLIO, period=_periodo(WEEKLY, -10))
+
+    assert salvo.record is not None
+
+
+def test_portfolio_recusa_periodo_anterior_ao_inicio_da_carteira(cenario: Cenario) -> None:
+    erros = _erros(cenario, scope=PORTFOLIO, period=_periodo(WEEKLY, -30))
+
+    assert erros[validation.FIELD_PERIOD] == "O período é anterior ao início do projeto."
+
+
+# ── Regras por módulo ──────────────────────────────────────────────────────
+
+
+def test_riscos_e_hse_gravam_so_com_texto_e_sem_desvios(cenario: Cenario) -> None:
+    riscos = _gravar(cenario, module="riscos")
+    hse = _gravar(cenario, module="hse")
+
+    assert riscos.record is not None and hse.record is not None
+    assert riscos.deviations == () and hse.deviations == ()
+    assert riscos.pending == 0 and hse.pending == 0
+    assert riscos.deviation_required is False and hse.deviation_required is False
 
 
 # ── Edição, versão e exclusão ──────────────────────────────────────────────
@@ -412,3 +529,59 @@ def test_marcos_atrasados_so_entram_dentro_do_periodo(demonstracao: Demonstracao
     )
     for numero in ("PED-2026-0001", "PED-2026-0003", "PED-2026-0006", "PED-2026-0010"):
         assert numero in marcos_mes.description
+
+
+# ── Qualidade na demonstração: desvio sem comentário obrigatório ───────────
+
+
+def test_qualidade_grava_desvio_sem_comentario_obrigatorio(demonstracao: Demonstracao) -> None:
+    visao = _visao(demonstracao, module="qualidade", kind=WEEKLY, period="2026-S38")
+    assert {deviation.key for deviation in visao.deviations} == {
+        "rnc_vencidas",
+        "aprovacao_inspecao",
+        "conformidade_auditoria",
+        "auditorias_atrasadas",
+    }
+    assert visao.deviation_required is False
+    record = _registro_da_carga(demonstracao, module="qualidade", kind=WEEKLY, period="2026-S38")
+
+    salvo = _salvar(
+        demonstracao,
+        module="qualidade",
+        kind=WEEKLY,
+        period="2026-S38",
+        comments={},
+        analysis_id=record.id,
+        version=str(record.version),
+    )
+
+    assert salvo.record is not None
+
+
+def test_qualidade_aceita_comentario_curto_e_recusa_o_longo(demonstracao: Demonstracao) -> None:
+    visao = _visao(demonstracao, module="qualidade", kind=WEEKLY, period="2026-S38")
+    record = _registro_da_carga(demonstracao, module="qualidade", kind=WEEKLY, period="2026-S38")
+
+    curto = _salvar(
+        demonstracao,
+        module="qualidade",
+        kind=WEEKLY,
+        period="2026-S38",
+        comments={deviation.key: "curto" for deviation in visao.deviations},
+        analysis_id=record.id,
+        version=str(record.version),
+    )
+    assert curto.record is not None
+
+    with pytest.raises(InvalidDataError) as erro:
+        _salvar(
+            demonstracao,
+            module="qualidade",
+            kind=WEEKLY,
+            period="2026-S38",
+            comments={deviation.key: "a" * 601 for deviation in visao.deviations},
+            analysis_id=curto.record.id,
+            version=str(curto.record.version),
+        )
+
+    assert validation.COMMENT_LONG_MESSAGE in dict(erro.value.detail).values()

@@ -1,4 +1,4 @@
-"""Rotas da Análise do período (ISSUE-081): 403 por perfil, 422 por campo, cópia e exclusão."""
+"""Rotas da Análise do período (ISSUE-081/ISSUE-082): 403 por perfil, 422 por campo, cópia, exclusão e Portfólio."""
 
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ from urllib.parse import unquote
 
 import azure.functions as func
 import pytest
+from sqlalchemy.orm import Session
 
 from src.core import calendario
 from src.core.auth import DEMO_COOKIE
 from src.modulos.planejamento.validation import WEEKLY
 from src.modulos.relatorio import routes, service, validation
 from tests.identidades import requisicao
-from tests.relatorio.conftest import Cenario
+from tests.relatorio.conftest import Cenario, Demonstracao
 
 TEXTO = "Panorama, desempenho dos períodos anteriores, causas e tendência. " * 4
 
@@ -39,6 +40,29 @@ def _corpo_do_formulario(**campos: str) -> dict[str, str]:
     return base
 
 
+def _chamar_rota(
+    funcao: object,
+    *,
+    colaborador_id: int,
+    projeto_id: int | None,
+    params: Mapping[str, str] | None = None,
+    corpo: Mapping[str, str] | None = None,
+) -> func.HttpResponse:
+    """Chama a rota como o colaborador: POST quando há corpo, GET quando não; o alvo é o modal."""
+    parametros = dict(params or {})
+    if projeto_id is not None:
+        parametros["projeto"] = str(projeto_id)
+    requisicao_http = requisicao(
+        "/api/relatorio/analise",
+        metodo="POST" if corpo is not None else "GET",
+        cookies={DEMO_COOKIE: str(colaborador_id)},
+        alvo=routes.ANALYSIS_MODAL_TARGET,
+        params=parametros,
+        corpo=corpo,
+    )
+    return funcao(requisicao_http)  # type: ignore[operator]
+
+
 def _chamar(
     cenario: Cenario,
     funcao: object,
@@ -47,16 +71,14 @@ def _chamar(
     params: Mapping[str, str] | None = None,
     corpo: Mapping[str, str] | None = None,
 ) -> func.HttpResponse:
-    """Chama a rota como o perfil: POST quando há corpo, GET quando não; o alvo é o modal."""
-    requisicao_http = requisicao(
-        "/api/relatorio/analise",
-        metodo="POST" if corpo is not None else "GET",
-        cookies={DEMO_COOKIE: str(cenario.colaboradores[perfil])},
-        alvo=routes.ANALYSIS_MODAL_TARGET,
-        params={"projeto": str(cenario.project.id), **(params or {})},
+    """Chama a rota como o perfil do cenário, no projeto do cenário."""
+    return _chamar_rota(
+        funcao,
+        colaborador_id=cenario.colaboradores[perfil],
+        projeto_id=cenario.project.id,
+        params=params,
         corpo=corpo,
     )
-    return funcao(requisicao_http)  # type: ignore[operator]
 
 
 def _texto(resposta: func.HttpResponse) -> str:
@@ -249,3 +271,79 @@ def test_o_endereco_analise_abre_o_formulario(cenario: Cenario) -> None:
     assert 'name="analise"' in texto
     assert 'action="/api/relatorio/analise/gravar"' in texto
     assert validation.TEXT_SHORT_MESSAGE not in texto
+
+
+# ── Módulos 05, 06 e 07 e o Portfólio ──────────────────────────────────────
+
+
+@pytest.mark.parametrize("modulo", ["riscos", "qualidade", "hse"])
+def test_passo_2_dos_modulos_05_06_07(cenario: Cenario, modulo: str) -> None:
+    resposta = _chamar(
+        cenario,
+        routes.analysis_form,
+        "Membro",
+        params={"modulo": modulo, "tipo": WEEKLY, "periodo": _periodo()},
+    )
+
+    texto = _texto(resposta)
+    assert resposta.status_code == 200
+    assert 'name="analise"' in texto
+
+
+def test_gravar_qualidade_sem_comentario(cenario: Cenario) -> None:
+    resposta = _gravar(cenario, modulo="qualidade")
+
+    assert resposta.status_code == 200
+    assert "data-analise-salvo" in _texto(resposta)
+
+
+def test_gravar_no_portfolio(cenario: Cenario) -> None:
+    resposta = _chamar_rota(
+        routes.analysis_save,
+        colaborador_id=cenario.colaboradores["Membro"],
+        projeto_id=None,
+        corpo=_corpo_do_formulario(modulo="riscos"),
+    )
+
+    assert resposta.status_code == 200
+    assert "data-analise-salvo" in _texto(resposta)
+    assert (
+        service.analysis_record(
+            cenario.session,
+            project_id=None,
+            module="riscos",
+            kind=WEEKLY,
+            period=_periodo(),
+        )
+        is not None
+    )
+
+
+def test_comentario_longo_no_06_responde_422(
+    sessao_das_rotas: Session, demonstracao: Demonstracao
+) -> None:
+    record = service.analysis_record(
+        sessao_das_rotas,
+        project_id=demonstracao.project_id,
+        module="qualidade",
+        kind=WEEKLY,
+        period="2026-S38",
+    )
+    assert record is not None
+
+    resposta = _chamar_rota(
+        routes.analysis_save,
+        colaborador_id=demonstracao.admin.id,
+        projeto_id=demonstracao.project_id,
+        corpo=_corpo_do_formulario(
+            modulo="qualidade",
+            periodo="2026-S38",
+            id=str(record.id),
+            versao=str(record.version),
+            desvio_0="a" * 601,
+            desvio_chave_0="rnc_vencidas",
+        ),
+    )
+
+    assert resposta.status_code == 422
+    assert validation.COMMENT_LONG_MESSAGE in _texto(resposta)

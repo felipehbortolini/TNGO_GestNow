@@ -1,7 +1,8 @@
-"""Cálculos puros da Análise do período (ISSUE-081): detecção, textos, resumo e competência.
+"""Cálculos puros da Análise do período (ISSUE-081/ISSUE-082): detecção, textos, resumo e competência.
 
-Um caso por chave dos três módulos, os limites que não são desvio, os textos numéricos no
-formato do protótipo e o mês de competência do custo.
+Um caso por chave dos módulos 02, 03, 04 e 06, os limites que não são desvio, os textos
+numéricos no formato do protótipo e o mês de competência do custo. Riscos e HSE não têm
+detecção — neles só o texto é exigido —, mas o resumo dos cinco módulos é afirmado.
 """
 
 from __future__ import annotations
@@ -101,6 +102,54 @@ def _procurement(**mudancas: object) -> calculations.ProcurementFigures:
     return calculations.ProcurementFigures(**base)  # type: ignore[arg-type]
 
 
+def _risk(**mudancas: object) -> calculations.RiskFigures:
+    base: dict[str, object] = {
+        "active": 7,
+        "top_band": "Crítico",
+        "top_total": 2,
+        "exposure_cents": 340000000,
+        "overdue_reviews": 1,
+        "identified": 1,
+        "closed": 0,
+        "reduction_avg_pct": 33,
+    }
+    base.update(mudancas)
+    return calculations.RiskFigures(**base)  # type: ignore[arg-type]
+
+
+def _quality(**mudancas: object) -> calculations.QualityFigures:
+    base: dict[str, object] = {
+        "open_in_period": 1,
+        "closed_in_period": 0,
+        "open_at_cut": 4,
+        "approval_pct": D("66.7"),
+        "approval_meta": D("95"),
+        "approval_rejected": 1,
+        "approval_total": 3,
+        "conformity_pct": D("82.9"),
+        "conformity_meta": D("90"),
+        "non_quality_cost_cents": 5670000,
+        "overdue": (calculations.OverdueItem(code="RNC-TN-2026-0004", days=3),),
+        "late_audits": (calculations.OverdueItem(code="AUD-TN-2026-05", days=5),),
+    }
+    base.update(mudancas)
+    return calculations.QualityFigures(**base)  # type: ignore[arg-type]
+
+
+def _hse(**mudancas: object) -> calculations.HseFigures:
+    base: dict[str, object] = {
+        "tf": D("0.00"),
+        "trif": D("6.80"),
+        "accumulated_trif": D("8.88"),
+        "days_without_leave": 258,
+        "hipo": 1,
+        "hours": D("147150"),
+        "occurrences": 10,
+    }
+    base.update(mudancas)
+    return calculations.HseFigures(**base)  # type: ignore[arg-type]
+
+
 # ── Detecção: planejamento ─────────────────────────────────────────────────
 
 
@@ -194,6 +243,52 @@ def test_suprimentos_no_limite_nao_e_desvio() -> None:
     )
 
     assert calculations.procurement_deviations(figures) == ()
+
+
+# ── Detecção: qualidade (riscos e HSE não têm detecção) ────────────────────
+
+
+def test_qualidade_detecta_as_quatro_chaves() -> None:
+    keys = [deviation.key for deviation in calculations.quality_deviations(_quality())]
+
+    assert keys == [
+        "rnc_vencidas",
+        "aprovacao_inspecao",
+        "conformidade_auditoria",
+        "auditorias_atrasadas",
+    ]
+
+
+def test_qualidade_no_limite_nao_e_desvio() -> None:
+    figures = _quality(
+        approval_pct=D("95"),
+        conformity_pct=D("90"),
+        overdue=(),
+        late_audits=(),
+    )
+
+    assert calculations.quality_deviations(figures) == ()
+
+
+def test_qualidade_sem_percentual_nao_e_desvio() -> None:
+    figures = _quality(approval_pct=None, conformity_pct=None)
+
+    keys = [deviation.key for deviation in calculations.quality_deviations(figures)]
+
+    assert keys == ["rnc_vencidas", "auditorias_atrasadas"]
+
+
+def test_qualidade_sem_vencidos_nao_tem_as_chaves_de_item() -> None:
+    figures = _quality(
+        overdue=(),
+        late_audits=(),
+        approval_pct=D("66.7"),
+        conformity_pct=D("82.9"),
+    )
+
+    keys = [deviation.key for deviation in calculations.quality_deviations(figures)]
+
+    assert keys == ["aprovacao_inspecao", "conformidade_auditoria"]
 
 
 # ── Textos dos desvios ─────────────────────────────────────────────────────
@@ -376,6 +471,55 @@ def test_texto_dos_criticos_e_dos_marcos() -> None:
     assert calculations.deviation_description(marcos) == "PD-0001 Entrega (+3 d)"
 
 
+def test_texto_das_rnc_vencidas_e_das_auditorias_atrasadas() -> None:
+    rncs = calculations.Deviation(
+        key="rnc_vencidas",
+        indicator="RNC com prazo de tratamento vencido",
+        data={
+            "itens": (
+                calculations.OverdueItem(code="RNC-TN-2026-0004", days=3),
+                calculations.OverdueItem(code="RNC-TN-2026-0007", days=12),
+            )
+        },
+    )
+    auditorias = calculations.Deviation(
+        key="auditorias_atrasadas",
+        indicator="Auditorias atrasadas",
+        data={"itens": (calculations.OverdueItem(code="AUD-TN-2026-05", days=5),)},
+    )
+
+    assert calculations.deviation_description(rncs) == (
+        "RNC-TN-2026-0004 (+3 d); RNC-TN-2026-0007 (+12 d)"
+    )
+    assert calculations.deviation_description(auditorias) == "AUD-TN-2026-05 (+5 d)"
+
+
+def test_texto_da_aprovacao_em_inspecoes() -> None:
+    uma = calculations.Deviation(
+        key="aprovacao_inspecao",
+        indicator="Aprovação em inspeções",
+        data={"pct": D("66.7"), "meta": D("95"), "reprovadas": 1, "total": 3},
+    )
+    duas = calculations.Deviation(
+        key="aprovacao_inspecao",
+        indicator="Aprovação em inspeções",
+        data={"pct": D("50.0"), "meta": D("95"), "reprovadas": 2, "total": 4},
+    )
+
+    assert calculations.deviation_description(uma) == "66,7% (meta 95%) · 1 reprovada em 3"
+    assert calculations.deviation_description(duas) == "50,0% (meta 95%) · 2 reprovadas em 4"
+
+
+def test_texto_da_conformidade_em_auditorias() -> None:
+    deviation = calculations.Deviation(
+        key="conformidade_auditoria",
+        indicator="Conformidade em auditorias",
+        data={"pct": D("82.9"), "meta": D("90")},
+    )
+
+    assert calculations.deviation_description(deviation) == "82,9% (meta 90%)"
+
+
 def test_chave_desconhecida_nao_tem_texto() -> None:
     deviation = calculations.Deviation(key="outra", indicator="Outra", data={})
 
@@ -426,6 +570,55 @@ def test_resumo_do_financeiro_e_do_suprimentos() -> None:
         "Pedidos em atenção",
         "Pacotes adjudicados",
     ]
+
+
+def test_resumo_dos_riscos_da_qualidade_e_do_hse() -> None:
+    riscos = calculations.analysis_summary("riscos", _risk())
+    qualidade = calculations.analysis_summary("qualidade", _quality())
+    hse = calculations.analysis_summary("hse", _hse())
+
+    assert [item.label for item in riscos] == [
+        "Riscos ativos",
+        "Críticos",
+        "Exposição (VME)",
+        "Revisão vencida",
+        "Identificados no período",
+        "Redução média",
+    ]
+    assert [item.kind for item in riscos] == ["num", "num", "moeda", "num", "num", "pct"]
+    assert [item.label for item in qualidade] == [
+        "RNC abertas no período",
+        "RNC encerradas no período",
+        "RNC em aberto no corte",
+        "Aprovação em inspeções",
+        "Conformidade em auditorias",
+        "Custo da não qualidade acumulado",
+    ]
+    assert [item.label for item in hse] == [
+        "TF no mês",
+        "TRIF no mês",
+        "TRIF acumulada",
+        "Dias sem afastamento",
+        "HiPo no mês",
+        "HHT no mês",
+        "Ocorrências no período",
+    ]
+    assert [item.kind for item in hse] == [
+        "num2",
+        "num2",
+        "num2",
+        "num",
+        "num",
+        "num",
+        "num",
+    ]
+
+
+def test_resumo_de_riscos_com_faixa_alta_plural() -> None:
+    items = calculations.analysis_summary("riscos", _risk(top_band="Alto", top_total=3))
+
+    assert items[1].label == "Altos"
+    assert items[1].value == 3
 
 
 # ── Mês de competência e términos ──────────────────────────────────────────
@@ -484,6 +677,12 @@ def test_formatadores() -> None:
     assert calculations.format_money(123456) == "R$ 1.234,56"
     assert calculations.format_number(3) == "3"
     assert calculations.format_number(None) == "·"
+
+
+def test_formatador_de_duas_casas() -> None:
+    assert calculations.format_number2(D("6.8")) == "6,80"
+    assert calculations.format_number2(D("8.884")) == "8,88"
+    assert calculations.format_number2(None) == "·"
 
 
 def test_periodo_anterior_e_nome() -> None:
