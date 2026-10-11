@@ -1,13 +1,13 @@
-<!-- Progresso da migração: 85 de 93 -->
+<!-- Progresso da migração: 86 de 93 -->
 
 # Progresso da migração
 
-**85 de 93 issues concluídas** (última fechada: ISSUE-085). Atualizado em 11/10/2026 14:23 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**86 de 93 issues concluídas** (última fechada: ISSUE-086). Atualizado em 11/10/2026 23:29 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 85 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085 |
-| na fila | 8 | 086, 087, 088, 089, 090, 091, 092, 093 |
+| concluída | 86 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086 |
+| na fila | 7 | 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -98,12 +98,12 @@
 | ISSUE-083 | Relatório gerencial: modal, motor de corte e folhas de Planejamento | `7fcfb8a` |
 | ISSUE-084 | Relatório: folhas Financeiro (com a linha de tendência) e Suprimentos | `ca36c58` |
 | ISSUE-085 | Relatório: folhas Riscos, Qualidade, HSE e Carteira de projetos | `5333790` |
+| ISSUE-086 | Relatório: Excel, Imprimir / PDF e Alterar período | `f551689` |
 
 ## Em andamento, bloqueadas e na fila
 
 | Issue | Título | Situação | Bloqueada por |
 |---|---|---|---|
-| ISSUE-086 | Relatório: Excel, Imprimir / PDF e Alterar período | na fila | ISSUE-085 |
 | ISSUE-087 | Inglês, parte 1: catálogo no servidor, seletor PT / EN, shell, Início, Central, Governança e Financeiro | na fila | ISSUE-086, ISSUE-078 |
 | ISSUE-088 | Inglês, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, Configurações e relatório | na fila | ISSUE-087 |
 | ISSUE-089 | Oráculo de paridade completo e prova do cálculo vivo | na fila | ISSUE-088 |
