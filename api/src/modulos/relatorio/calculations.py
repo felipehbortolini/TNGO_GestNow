@@ -1,11 +1,12 @@
 """Pure calculations for the Management reporting module.
 
-Análise do período (ISSUE-081, D6): a detecção dos desvios negativos de cada módulo (02, 03 e
-04) a partir dos números que as fachadas donas devolvem, os textos numéricos de cada desvio
-(o mesmo formato do protótipo, reutilizável pela 083), o resumo de indicadores do período e o
-mês de competência do custo. Nada aqui lê o banco nem o relógio: as figuras chegam prontas e
-a data de referência vem como argumento. The period labels are the report's own, read from
-the Planning calculations (the owner of the format), never reimplemented here.
+Análise do período (ISSUE-081/ISSUE-082, D6): a detecção dos desvios negativos de cada módulo
+(02, 03, 04 e 06 — em 05 e 07 só o texto é exigido) a partir dos números que as fachadas donas
+devolvem, os textos numéricos de cada desvio (o mesmo formato do protótipo, reutilizável pela
+083), o resumo de indicadores do período e o mês de competência do custo. Nada aqui lê o banco
+nem o relógio: as figuras chegam prontas e a data de referência vem como argumento. The period
+labels are the report's own, read from the Planning calculations (the owner of the format),
+never reimplemented here.
 """
 
 from __future__ import annotations
@@ -115,6 +116,11 @@ def format_money(value: int | None) -> str:
 def format_number(value: int | None) -> str:
     """O formatador de contagem que o template usa; nulo vira ``·``."""
     return "·" if value is None else f"{int(value)}"
+
+
+def format_number2(value: Decimal | None) -> str:
+    """O formatador das taxas do HSE que o template usa: duas casas fixas (``6,80``)."""
+    return "·" if value is None else _plain(value, 2)
 
 
 # ── Figuras de entrada ─────────────────────────────────────────────────────
@@ -232,6 +238,59 @@ class ProcurementFigures:
     warning: int
     critical_orders: tuple[CriticalOrderFigure, ...]
     late_milestones: tuple[LateMilestoneFigure, ...]
+
+
+@dataclass(frozen=True)
+class OverdueItem:
+    """Um item vencido no corte: o código e os dias de atraso (positivos)."""
+
+    code: str
+    days: int
+
+
+@dataclass(frozen=True)
+class RiskFigures:
+    """Os números de riscos no corte: o resumo do painel e as contagens do período."""
+
+    active: int
+    top_band: str
+    top_total: int
+    exposure_cents: int
+    overdue_reviews: int
+    identified: int
+    closed: int
+    reduction_avg_pct: int | None
+
+
+@dataclass(frozen=True)
+class QualityFigures:
+    """Os números da qualidade no corte: RNC, inspeções, auditorias, custo e vencidos."""
+
+    open_in_period: int
+    closed_in_period: int
+    open_at_cut: int
+    approval_pct: Decimal | None
+    approval_meta: Decimal | None
+    approval_rejected: int
+    approval_total: int
+    conformity_pct: Decimal | None
+    conformity_meta: Decimal | None
+    non_quality_cost_cents: int
+    overdue: tuple[OverdueItem, ...]
+    late_audits: tuple[OverdueItem, ...]
+
+
+@dataclass(frozen=True)
+class HseFigures:
+    """Os números do HSE no corte: as taxas do mês e da carteira e o período."""
+
+    tf: Decimal | None
+    trif: Decimal | None
+    accumulated_trif: Decimal | None
+    days_without_leave: int | None
+    hipo: int
+    hours: Decimal | None
+    occurrences: int
 
 
 @dataclass(frozen=True)
@@ -442,6 +501,63 @@ def procurement_deviations(figures: ProcurementFigures) -> tuple[Deviation, ...]
     return tuple(deviations)
 
 
+def quality_deviations(figures: QualityFigures) -> tuple[Deviation, ...]:
+    """Os desvios negativos da qualidade no corte, na ordem do protótipo.
+
+    A RNC vencida e a auditoria atrasada entram pelos itens vencidos na data de referência; a
+    aprovação em inspeções e a conformidade em auditorias entram só quando o percentual existe e
+    fica abaixo da meta vigente (no limite, não é desvio). Riscos e HSE não têm detecção: neles
+    só o texto é exigido.
+    """
+    deviations: list[Deviation] = []
+    if figures.overdue:
+        deviations.append(
+            Deviation(
+                key="rnc_vencidas",
+                indicator="RNC com prazo de tratamento vencido",
+                data={"itens": figures.overdue},
+            )
+        )
+    if (
+        figures.approval_pct is not None
+        and figures.approval_meta is not None
+        and figures.approval_pct < figures.approval_meta
+    ):
+        deviations.append(
+            Deviation(
+                key="aprovacao_inspecao",
+                indicator="Aprovação em inspeções",
+                data={
+                    "pct": figures.approval_pct,
+                    "meta": figures.approval_meta,
+                    "reprovadas": figures.approval_rejected,
+                    "total": figures.approval_total,
+                },
+            )
+        )
+    if (
+        figures.conformity_pct is not None
+        and figures.conformity_meta is not None
+        and figures.conformity_pct < figures.conformity_meta
+    ):
+        deviations.append(
+            Deviation(
+                key="conformidade_auditoria",
+                indicator="Conformidade em auditorias",
+                data={"pct": figures.conformity_pct, "meta": figures.conformity_meta},
+            )
+        )
+    if figures.late_audits:
+        deviations.append(
+            Deviation(
+                key="auditorias_atrasadas",
+                indicator="Auditorias atrasadas",
+                data={"itens": figures.late_audits},
+            )
+        )
+    return tuple(deviations)
+
+
 # ── Textos dos desvios ─────────────────────────────────────────────────────
 
 PRODUCTIVITY_LABELS: Mapping[str, str] = {
@@ -544,6 +660,27 @@ def _description_marcos_atrasados(data: Mapping[str, Any]) -> str:
     return "; ".join(f"{item.code} {item.milestone} ({_dias(item.days)})" for item in data["itens"])
 
 
+def _description_rnc_vencidas(data: Mapping[str, Any]) -> str:
+    return "; ".join(f"{item.code} ({_dias(item.days)})" for item in data["itens"])
+
+
+def _description_aprovacao_inspecao(data: Mapping[str, Any]) -> str:
+    rejected = int(data["reprovadas"])
+    noun = "reprovada em" if rejected == 1 else "reprovadas em"
+    return (
+        f"{_pct(data['pct'])} (meta {_pct(data['meta'], 0)}) · "
+        f"{rejected} {noun} {int(data['total'])}"
+    )
+
+
+def _description_conformidade_auditoria(data: Mapping[str, Any]) -> str:
+    return f"{_pct(data['pct'])} (meta {_pct(data['meta'], 0)})"
+
+
+def _description_auditorias_atrasadas(data: Mapping[str, Any]) -> str:
+    return "; ".join(f"{item.code} ({_dias(item.days)})" for item in data["itens"])
+
+
 _DESCRIPTIONS: Mapping[str, Callable[[Mapping[str, Any]], str]] = {
     "avanco": _description_avanco,
     "avanco_periodo": _description_avanco_periodo,
@@ -558,6 +695,10 @@ _DESCRIPTIONS: Mapping[str, Callable[[Mapping[str, Any]], str]] = {
     "otd": _description_otd,
     "criticos": _description_criticos,
     "marcos_atrasados": _description_marcos_atrasados,
+    "rnc_vencidas": _description_rnc_vencidas,
+    "aprovacao_inspecao": _description_aprovacao_inspecao,
+    "conformidade_auditoria": _description_conformidade_auditoria,
+    "auditorias_atrasadas": _description_auditorias_atrasadas,
 }
 
 
@@ -568,20 +709,6 @@ def deviation_description(deviation: Deviation) -> str:
 
 
 # ── Resumo do passo 2 ──────────────────────────────────────────────────────
-
-
-def analysis_summary(
-    module: str,
-    figures: PlanningFigures | CostFigures | ProcurementFigures,
-) -> tuple[SummaryItem, ...]:
-    """Os indicadores do período que o resumo do formulário mostra, por módulo."""
-    if module == "planejamento" and isinstance(figures, PlanningFigures):
-        return _planning_summary(figures)
-    if module == "financeiro" and isinstance(figures, CostFigures):
-        return _cost_summary(figures)
-    if module == "suprimentos" and isinstance(figures, ProcurementFigures):
-        return _procurement_summary(figures)
-    return ()
 
 
 def _planning_summary(figures: PlanningFigures) -> tuple[SummaryItem, ...]:
@@ -632,6 +759,66 @@ def _procurement_summary(figures: ProcurementFigures) -> tuple[SummaryItem, ...]
         SummaryItem("Pedidos em atenção", figures.warning, "num"),
         SummaryItem("Pacotes adjudicados", figures.adjudicated, "num"),
     )
+
+
+def _risk_summary(figures: RiskFigures) -> tuple[SummaryItem, ...]:
+    """O resumo de riscos do protótipo: a faixa mais alta vira um rótulo plural (``Críticos``)."""
+    return (
+        SummaryItem("Riscos ativos", figures.active, "num"),
+        SummaryItem(f"{figures.top_band}s", figures.top_total, "num"),
+        SummaryItem("Exposição (VME)", figures.exposure_cents, "moeda"),
+        SummaryItem("Revisão vencida", figures.overdue_reviews, "num"),
+        SummaryItem("Identificados no período", figures.identified, "num"),
+        SummaryItem("Redução média", figures.reduction_avg_pct, "pct"),
+    )
+
+
+def _quality_summary(figures: QualityFigures) -> tuple[SummaryItem, ...]:
+    return (
+        SummaryItem("RNC abertas no período", figures.open_in_period, "num"),
+        SummaryItem("RNC encerradas no período", figures.closed_in_period, "num"),
+        SummaryItem("RNC em aberto no corte", figures.open_at_cut, "num"),
+        SummaryItem("Aprovação em inspeções", figures.approval_pct, "pct"),
+        SummaryItem("Conformidade em auditorias", figures.conformity_pct, "pct"),
+        SummaryItem("Custo da não qualidade acumulado", figures.non_quality_cost_cents, "moeda"),
+    )
+
+
+def _hse_summary(figures: HseFigures) -> tuple[SummaryItem, ...]:
+    """O resumo do HSE: as taxas com duas casas fixas (``num2``) e as contagens do mês."""
+    return (
+        SummaryItem("TF no mês", figures.tf, "num2"),
+        SummaryItem("TRIF no mês", figures.trif, "num2"),
+        SummaryItem("TRIF acumulada", figures.accumulated_trif, "num2"),
+        SummaryItem("Dias sem afastamento", figures.days_without_leave, "num"),
+        SummaryItem("HiPo no mês", figures.hipo, "num"),
+        SummaryItem("HHT no mês", figures.hours, "num"),
+        SummaryItem("Ocorrências no período", figures.occurrences, "num"),
+    )
+
+
+_SUMMARY_BUILDERS: Mapping[tuple[str, type], Callable[[Any], tuple[SummaryItem, ...]]] = {
+    ("planejamento", PlanningFigures): _planning_summary,
+    ("financeiro", CostFigures): _cost_summary,
+    ("suprimentos", ProcurementFigures): _procurement_summary,
+    ("riscos", RiskFigures): _risk_summary,
+    ("qualidade", QualityFigures): _quality_summary,
+    ("hse", HseFigures): _hse_summary,
+}
+
+
+def analysis_summary(
+    module: str,
+    figures: PlanningFigures
+    | CostFigures
+    | ProcurementFigures
+    | RiskFigures
+    | QualityFigures
+    | HseFigures,
+) -> tuple[SummaryItem, ...]:
+    """Os indicadores do período que o resumo do formulário mostra, por módulo."""
+    builder = _SUMMARY_BUILDERS.get((module, type(figures)))
+    return () if builder is None else builder(figures)
 
 
 # ── Períodos e termos ──────────────────────────────────────────────────────

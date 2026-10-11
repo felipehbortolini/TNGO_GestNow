@@ -100,7 +100,6 @@ SELF_VERIFICATION_MESSAGE = (
 CANCELLATION_FORBIDDEN_MESSAGE = "Cancelar RNC exige perfil Gestor."
 CANCELLATION_TOO_LATE_MESSAGE = "Só é possível cancelar antes da ação corretiva."
 COST_NOT_ACTIVE_MESSAGE = "RNC encerrada ou cancelada não muda de custo."
-PARAMETERS_MISSING_MESSAGE = "Os parâmetros de Qualidade ainda não foram cadastrados."
 UNKNOWN_PERSON_MESSAGE = "A pessoa informada não está no cadastro."
 
 ACTION_DESCRIPTION = "Ação corretiva da RNC {code}."
@@ -260,12 +259,17 @@ class EffectivenessResult:
 
 
 def parameters(session: Session, *, reference_date: date) -> Mapping[str, Any]:
-    """The group Qualidade of the parameters in force on the date."""
+    """The group Qualidade of the parameters in force on the date.
+
+    Without a version in force — a date before the first one — the initial values of the
+    platform apply, as in the other modules: the analysis of a past period (ISSUE-082) reads
+    the deadlines and the targets vigentes no corte.
+    """
     values = configuracoes.current_group(
         session, group=PARAMETER_GROUP, reference_date=reference_date
     )
     if not values:
-        raise InvalidDataError(PARAMETERS_MISSING_MESSAGE)
+        values = configuracoes.INITIAL_PARAMETERS[PARAMETER_GROUP]
     return values
 
 

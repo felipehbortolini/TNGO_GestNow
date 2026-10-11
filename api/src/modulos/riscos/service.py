@@ -80,7 +80,6 @@ UNKNOWN_CATEGORY_MESSAGE = "A categoria da RBS não existe."
 DUPLICATE_NOTICE = (
     "Já existe risco com o mesmo evento no projeto ({code}). Verifique se não é duplicidade."
 )
-PARAMETERS_MISSING_MESSAGE = "Os parâmetros de Riscos ainda não foram cadastrados."
 
 SUGGESTED_ORIGIN_TYPE = "Diligenciamento"
 SUGGESTED_CATEGORY_GROUP = "Suprimentos"
@@ -383,12 +382,17 @@ def ata_options(session: Session, project_id: int) -> list[AtaOption]:
 
 
 def parameters(session: Session, *, reference_date: date) -> RiskParameters:
-    """The group Riscos of the parameters in force on the date, as the calculations read it."""
+    """The group Riscos of the parameters in force on the date, as the calculations read it.
+
+    Without a version in force — a date before the first one — the initial values of the
+    platform apply, as in the other modules: the analysis of a past period (ISSUE-082) reads
+    the scale and the cadence vigentes no corte.
+    """
     values = configuracoes.current_group(
         session, group=PARAMETER_GROUP, reference_date=reference_date
     )
     if not values:
-        raise InvalidDataError(PARAMETERS_MISSING_MESSAGE)
+        values = configuracoes.INITIAL_PARAMETERS[PARAMETER_GROUP]
     return calculations.parameters_from_values(values)
 
 

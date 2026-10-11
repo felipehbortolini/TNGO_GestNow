@@ -1,16 +1,17 @@
 """Business facade for the Management reporting module.
 
-Análise do período (ISSUE-081, D6): o texto executivo e analítico de um módulo (02, 03 e 04)
-num tipo (Semanal ou Mensal) e período de um projeto, com os desvios negativos detectados no
-servidor a partir das fachadas donas e o comentário obrigatório de cada um, gravado pela chave
-do desvio. Um registro por projeto, módulo, tipo e período; o semanal e o mensal são
-distintos. Writing asks for Membro; deleting asks for Gestor. Nothing here reads the clock:
-the reference date comes from ``core.calendario`` through the caller.
+Análise do período (ISSUE-081/ISSUE-082, D6): o texto executivo e analítico de um módulo (02 a
+07) num tipo (Semanal ou Mensal) e período de um projeto ou do Portfólio, com os desvios
+negativos detectados no servidor a partir das fachadas donas e o comentário obrigatório de cada
+um nos módulos 02, 03, 04 e 06, gravado pela chave do desvio. Um registro por projeto, módulo,
+tipo e período; o semanal e o mensal são distintos e a análise do Portfólio (projeto nulo) não
+se mistura com a de um projeto. Writing asks for Membro; deleting asks for Gestor. Nothing here
+reads the clock: the reference date comes from ``core.calendario`` through the caller.
 
 The module is the report's own (D9): the 083 reads the analyses from here, and the module of
-the row names the analysed module (the 082 extends the same tables to 05/06/07 and the
-Portfólio). The figures come from the public facades of Planning, Financeiro and Suprimentos,
-called with the period cut; no formula of an owner is duplicated.
+the row names the analysed module. The figures come from the public facades of Planning,
+Financeiro, Suprimentos, Riscos, Qualidade and HSE, called with the period cut; no formula of
+an owner is duplicated.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
@@ -27,7 +29,7 @@ from src.core import audit, calendario, rbac, versioning
 from src.core.audit import TrailLine
 from src.core.errors import InvalidDataError
 from src.core.rbac import Permission, User
-from src.core.scope import PROJECT_REQUIRED_MESSAGE, Scope
+from src.core.scope import Scope
 from src.modulos.configuracoes import service as configuracoes
 from src.modulos.relatorio import calculations, validation
 from src.modulos.relatorio.models import Analysis, AnalysisDeviation
@@ -38,14 +40,30 @@ ANALYSIS_MODULES: Mapping[str, str] = {
     "planejamento": "02 Planejamento",
     "financeiro": "03 Gestão Financeira",
     "suprimentos": "04 Suprimentos",
+    "riscos": "05 Gestão de Riscos",
+    "qualidade": "06 Gestão da Qualidade",
+    "hse": "07 HSE",
 }
 
-# Todo desvio negativo detectado exige comentário nos módulos da 081; a 082 estende o mapa.
+# Todo desvio negativo detectado exige comentário nos módulos 02, 03, 04 e 06; em 05 e 07 só o
+# texto é exigido (o protótipo não define detecção para eles).
 DEVIATION_REQUIRED: Mapping[str, bool] = {
     "planejamento": True,
     "financeiro": True,
     "suprimentos": True,
+    "riscos": False,
+    "qualidade": False,
+    "hse": False,
 }
+
+FigureSet = (
+    calculations.PlanningFigures
+    | calculations.CostFigures
+    | calculations.ProcurementFigures
+    | calculations.RiskFigures
+    | calculations.QualityFigures
+    | calculations.HseFigures
+)
 
 NOT_FOUND_MESSAGE = "A análise do período não foi encontrada."
 
@@ -157,9 +175,7 @@ class AnalysisRequest:
 class _Collected:
     """As figuras coletadas de um módulo, com o aviso de que o custo não tem fechamento."""
 
-    figures: (
-        calculations.PlanningFigures | calculations.CostFigures | calculations.ProcurementFigures
-    )
+    figures: FigureSet
     sem_fechamento: bool
 
 
@@ -175,33 +191,35 @@ def analysis_options(
     kind: str,
     reference_date: date,
 ) -> AnalysisPeriodsView:
-    """Os períodos do passo 1, do início do projeto ao corrente, com a situação de cada um.
+    """Os períodos do passo 1, do início do escopo ao corrente, com a situação de cada um.
 
-    O período padrão é o anterior ao corrente; fora do intervalo do projeto, o mais recente.
-    No Portfólio a fachada recusa com 422: a análise desta fatia é só de projeto (082).
+    O período padrão é o anterior ao corrente; fora do intervalo, o mais recente. No Portfólio a
+    faixa vai do início mais antigo da carteira e o rótulo diz quantos projetos ela tem.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.WRITE)
     _check_module(module)
     _check_kind(kind)
-    project = _project(session, scope.require_project())
     registered = set(
         session.scalars(
             select(Analysis.period).where(
-                Analysis.project_id == project.id,
+                Analysis.project_id == scope.project_id,
                 Analysis.module == module,
                 Analysis.kind == kind,
             )
         )
     )
     options = calculations.period_options(
-        kind, project_start=project.start_date, reference_date=reference_date, taken=registered
+        kind,
+        project_start=_project_start(session, scope),
+        reference_date=reference_date,
+        taken=registered,
     )
     return AnalysisPeriodsView(
         module=module,
         module_label=ANALYSIS_MODULES[module],
         kind=kind,
-        project_label=_project_label(project),
+        project_label=_scope_label(session, scope),
         options=tuple(
             AnalysisOption(
                 period=option.period,
@@ -230,8 +248,12 @@ def analysis_view(
     rbac.require(user, Permission.WRITE)
     _check_module(module)
     _check_kind(kind)
-    project = _project(session, scope.require_project())
-    _check_period(kind, period, project=project, reference_date=reference_date)
+    _check_period(
+        kind,
+        period,
+        project_start=_project_start(session, scope),
+        reference_date=reference_date,
+    )
     collected = _collect(
         session,
         user=user,
@@ -246,11 +268,13 @@ def analysis_view(
         module=module,
         kind=kind,
         period=period,
-        project_label=_project_label(project),
+        project_label=_scope_label(session, scope),
         collected=collected,
-        record=_record_of(session, project_id=project.id, module=module, kind=kind, period=period),
+        record=_record_of(
+            session, project_id=scope.project_id, module=module, kind=kind, period=period
+        ),
         previous=_previous_of(
-            session, project_id=project.id, module=module, kind=kind, period=period
+            session, project_id=scope.project_id, module=module, kind=kind, period=period
         ),
         reference_date=reference_date,
     )
@@ -331,19 +355,17 @@ def save_analysis(
 ) -> AnalysisView:
     """Cria a análise ou salva a edição de uma, ou recusa com 422 por campo.
 
-    Gravar exige Membro. A análise nova pertence ao projeto do escopo (no Portfólio a tela
-    pede o projeto primeiro). O módulo, o tipo e o período de uma análise existente são
-    mantidos: só o texto e os comentários mudam. A versão vencida é recusada com 409.
+    Gravar exige Membro. A análise nova pertence ao projeto do escopo; no Portfólio ela nasce com
+    projeto nulo, sobre os números consolidados da carteira. O módulo, o tipo e o período de uma
+    análise existente são mantidos: só o texto e os comentários mudam. A versão vencida é
+    recusada com 409.
     """
     rbac.require_module(user, MODULE)
     rbac.require(user, Permission.WRITE)
     existing = (
         _find(session, scope, request.analysis_id) if request.analysis_id is not None else None
     )
-    project_id = existing.project_id if existing is not None else scope.require_project()
-    if project_id is None:
-        raise InvalidDataError(PROJECT_REQUIRED_MESSAGE)
-    project = _project(session, project_id)
+    project_id = existing.project_id if existing is not None else scope.project_id
     module = existing.module if existing is not None else request.module
     kind = existing.kind if existing is not None else request.kind
     period = existing.period if existing is not None else request.period
@@ -354,13 +376,16 @@ def save_analysis(
         errors.update(validation.validate_kind(kind))
     if not errors:
         problem = calculations.period_error(
-            kind, period, project_start=project.start_date, reference_date=reference_date
+            kind,
+            period,
+            project_start=_project_start(session, scope),
+            reference_date=reference_date,
         )
         errors.update(validation.validate_period(kind, period, problem=problem))
     errors.update(validation.validate_text(text))
     if existing is None:
         duplicate = _record_of(
-            session, project_id=project.id, module=module, kind=kind, period=period
+            session, project_id=project_id, module=module, kind=kind, period=period
         )
         if duplicate is not None:
             errors[validation.FIELD_PERIOD] = _duplicate_message(kind)
@@ -395,7 +420,7 @@ def save_analysis(
         )
     else:
         analysis = _assemble(
-            project_id=project.id,
+            project_id=project_id,
             module=module,
             kind=kind,
             period=period,
@@ -410,11 +435,11 @@ def save_analysis(
         module=module,
         kind=kind,
         period=period,
-        project_label=_project_label(project),
+        project_label=_scope_label(session, scope),
         collected=collected,
         record=analysis,
         previous=_previous_of(
-            session, project_id=project.id, module=module, kind=kind, period=period
+            session, project_id=project_id, module=module, kind=kind, period=period
         ),
         reference_date=reference_date,
     )
@@ -479,7 +504,7 @@ def delete_analysis(
 
 def _assemble(
     *,
-    project_id: int,
+    project_id: int | None,
     module: str,
     kind: str,
     period: str,
@@ -585,11 +610,20 @@ def _collect(
     bounds = calendario.period_bounds(kind, period)
     if cut is None or bounds is None:
         raise InvalidDataError({validation.FIELD_PERIOD: validation.CHOOSE_MESSAGE})
+    first = bounds[0]
     if module == "planejamento":
         return _collect_planning(session, user=user, scope=scope, kind=kind, period=period, cut=cut)
     if module == "financeiro":
         return _collect_cost(session, scope=scope, kind=kind, period=period)
-    return _collect_procurement(session, user=user, scope=scope, kind=kind, period=period, cut=cut)
+    if module == "suprimentos":
+        return _collect_procurement(
+            session, user=user, scope=scope, kind=kind, period=period, cut=cut
+        )
+    if module == "riscos":
+        return _collect_risk(session, user=user, scope=scope, first=first, cut=cut)
+    if module == "qualidade":
+        return _collect_quality(session, user=user, scope=scope, first=first, cut=cut)
+    return _collect_hse(session, user=user, scope=scope, first=first, cut=cut)
 
 
 def _collect_planning(
@@ -762,19 +796,198 @@ def _late_milestones(
     return tuple(found)
 
 
-def _detected(
-    module: str,
-    figures: calculations.PlanningFigures
-    | calculations.CostFigures
-    | calculations.ProcurementFigures,
-) -> tuple[calculations.Deviation, ...]:
-    """Os desvios negativos do módulo a partir das figuras coletadas."""
+def _collect_risk(
+    session: Session, *, user: User, scope: Scope, first: date, cut: date
+) -> _Collected:
+    """Os números de riscos no corte: o painel e as contagens de identificados e encerrados."""
+    from src.modulos.riscos import panel_service
+    from src.modulos.riscos import service as riscos
+    from src.modulos.riscos import validation as risk_validation
+
+    panel = panel_service.risk_panel(session, user=user, scope=scope, reference_date=cut)
+    summary = panel.summary
+    listing = riscos.list_risks(
+        session,
+        user=user,
+        scope=scope,
+        filters=risk_validation.RiskFilters(
+            situation=risk_validation.SITUATION_ALL, include_closed=True
+        ),
+        reference_date=cut,
+    )
+    figures = calculations.RiskFigures(
+        active=summary.active,
+        top_band=summary.top.band.name,
+        top_total=summary.top.total,
+        exposure_cents=summary.exposure_cents,
+        overdue_reviews=len(summary.overdue),
+        identified=sum(1 for line in listing.lines if first <= line.identified_on <= cut),
+        closed=sum(
+            1
+            for line in listing.lines
+            if line.closing_date is not None and first <= line.closing_date <= cut
+        ),
+        reduction_avg_pct=panel.reduction_avg_pct,
+    )
+    return _Collected(figures=figures, sem_fechamento=False)
+
+
+def _collect_quality(
+    session: Session, *, user: User, scope: Scope, first: date, cut: date
+) -> _Collected:
+    """Os números da qualidade no corte: RNC, inspeções do período, auditorias e custo."""
+    from src.modulos.qualidade import calculations as quality_calculations
+    from src.modulos.qualidade import service as qualidade
+    from src.modulos.qualidade import validation as quality_validation
+
+    parameters = qualidade.parameters(session, reference_date=cut)
+    rncs = qualidade.list_rncs(
+        session,
+        user=user,
+        scope=scope,
+        filters=quality_validation.RncFilters(situation=quality_validation.SITUATION_ALL),
+        reference_date=cut,
+    ).lines
+    inspections = qualidade.list_inspections(
+        session, user=user, scope=scope, filters=quality_validation.InspectionFilters()
+    ).lines
+    audits = qualidade.list_audits(
+        session,
+        user=user,
+        scope=scope,
+        filters=quality_validation.AuditFilters(),
+        reference_date=cut,
+    ).lines
+    in_period = [line for line in inspections if first <= line.inspection_date <= cut]
+    performed = [
+        line
+        for line in audits
+        if line.situation == quality_calculations.AUDIT_DONE
+        and first <= (line.performed_on or line.audit_date) <= cut
+    ]
+    figures = calculations.QualityFigures(
+        open_in_period=sum(
+            1
+            for line in rncs
+            if first <= line.rnc_date <= cut
+            and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        closed_in_period=sum(
+            1
+            for line in rncs
+            if line.situation == quality_calculations.SITUATION_CLOSED
+            and line.closing_date is not None
+            and first <= line.closing_date <= cut
+        ),
+        open_at_cut=sum(
+            1
+            for line in rncs
+            if line.rnc_date <= cut
+            and (line.closing_date is None or line.closing_date > cut)
+            and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        approval_pct=quality_calculations.inspection_approval_rate(
+            line.result for line in in_period
+        ),
+        approval_meta=_meta(parameters, "metaAprovacaoInspecaoPct"),
+        approval_rejected=sum(
+            1 for line in in_period if line.result == quality_calculations.RESULT_REJECTED
+        ),
+        approval_total=len(in_period),
+        conformity_pct=quality_calculations.audit_conformity_rate(
+            sum(line.items_conforming or 0 for line in performed),
+            sum(line.items_verified or 0 for line in performed),
+        ),
+        conformity_meta=_meta(parameters, "metaConformidadeAuditoriaPct"),
+        non_quality_cost_cents=sum(
+            line.cost_cents
+            for line in rncs
+            if line.rnc_date <= cut and line.situation != quality_calculations.SITUATION_CANCELLED
+        ),
+        overdue=_overdue_items(line for line in rncs if line.overdue),
+        late_audits=_overdue_items(line for line in audits if line.overdue),
+    )
+    return _Collected(figures=figures, sem_fechamento=False)
+
+
+def _meta(parameters: Mapping[str, Any], key: str) -> Decimal | None:
+    """A meta vigente do grupo Qualidade, ou ``None`` quando a chave não veio."""
+    value = parameters.get(key)
+    return None if value is None else Decimal(str(value))
+
+
+def _overdue_items(lines: Any) -> tuple[calculations.OverdueItem, ...]:
+    """Os itens vencidos na data de referência, o mais atrasado primeiro."""
+    items = [calculations.OverdueItem(code=line.code, days=line.days_overdue) for line in lines]
+    items.sort(key=lambda item: (-item.days, item.code))
+    return tuple(items)
+
+
+def _collect_hse(
+    session: Session, *, user: User, scope: Scope, first: date, cut: date
+) -> _Collected:
+    """Os números do HSE no corte: as taxas do mês, o acumulado, os dias e as ocorrências."""
+    from src.modulos.hse import calculations as hse_calculations
+    from src.modulos.hse import painel_service
+    from src.modulos.hse import service as hse
+    from src.modulos.hse import validation as hse_validation
+
+    panel = painel_service.panel(
+        session,
+        user=user,
+        scope=scope,
+        reference_date=cut,
+        month=date(cut.year, cut.month, 1),
+        pyramid_kind=None,
+    )
+    month = panel.month_indicators
+    accumulated = panel.accumulated_indicators
+    screen = hse.occurrences_screen(
+        session,
+        scope=scope,
+        filters=hse_validation.OccurrenceFilters(),
+        reference_date=cut,
+    )
+    days = [
+        calendario.in_product_timezone(row.happened_at).date()
+        for row in screen.rows
+        if not row.environmental
+    ]
+    lti_days = [
+        calendario.in_product_timezone(row.happened_at).date()
+        for row in screen.rows
+        if row.kind in hse_calculations.LTI_KINDS
+    ]
+    until_cut = [day for day in lti_days if day <= cut]
+    if until_cut:
+        days_without_leave = max(0, (cut - max(until_cut)).days)
+    else:
+        days_without_leave = month.days_without_leave if month is not None else None
+    figures = calculations.HseFigures(
+        tf=month.tf if month is not None else None,
+        trif=month.trif if month is not None else None,
+        accumulated_trif=accumulated.trif if accumulated is not None else None,
+        days_without_leave=days_without_leave,
+        hipo=month.hipo if month is not None else 0,
+        hours=month.hours if month is not None else None,
+        occurrences=sum(1 for day in days if first <= day <= cut),
+    )
+    return _Collected(figures=figures, sem_fechamento=False)
+
+
+def _detected(module: str, figures: FigureSet) -> tuple[calculations.Deviation, ...]:
+    """Os desvios negativos do módulo a partir das figuras coletadas.
+
+    Riscos e HSE não têm detecção — neles só o texto é exigido, como no protótipo.
+    """
     if module == "planejamento" and isinstance(figures, calculations.PlanningFigures):
         return calculations.planning_deviations(figures)
     if module == "financeiro" and isinstance(figures, calculations.CostFigures):
         return calculations.cost_deviations(figures)
     if module == "suprimentos" and isinstance(figures, calculations.ProcurementFigures):
         return calculations.procurement_deviations(figures)
+    if module == "qualidade" and isinstance(figures, calculations.QualityFigures):
+        return calculations.quality_deviations(figures)
     return ()
 
 
@@ -792,8 +1005,30 @@ def _project_label(project: configuracoes.ProjectSummary) -> str:
     return f"{project.code} · {project.name}"
 
 
+def _project_start(session: Session, scope: Scope) -> date | None:
+    """O início do escopo: o do projeto, ou o início mais antigo da carteira no Portfólio.
+
+    A faixa de períodos do Portfólio cobre a carteira inteira, como o protótipo; sem projeto com
+    início cadastrado não há limite inferior.
+    """
+    if scope.project_id is not None:
+        return _project(session, scope.project_id).start_date
+    starts = [
+        project.start_date for project in configuracoes.list_projects(session) if project.start_date
+    ]
+    return min(starts) if starts else None
+
+
+def _scope_label(session: Session, scope: Scope) -> str:
+    """O rótulo do escopo: ``COD · Nome`` no projeto; ``Portfólio · N projetos`` no Portfólio."""
+    if scope.project_id is None:
+        count = len(configuracoes.list_projects(session))
+        return f"Portfólio · {count} {'projeto' if count == 1 else 'projetos'}"
+    return _project_label(_project(session, scope.project_id))
+
+
 def _record_of(
-    session: Session, *, project_id: int, module: str, kind: str, period: str
+    session: Session, *, project_id: int | None, module: str, kind: str, period: str
 ) -> Analysis | None:
     statement = (
         select(Analysis)
@@ -817,7 +1052,7 @@ def _find(session: Session, scope: Scope, analysis_id: int) -> Analysis:
 
 
 def _previous_of(
-    session: Session, *, project_id: int, module: str, kind: str, period: str
+    session: Session, *, project_id: int | None, module: str, kind: str, period: str
 ) -> PreviousAnalysis | None:
     """A análise do período imediatamente anterior do mesmo tipo, só quando há registro."""
     earlier = calculations.previous_period(kind, period)
@@ -854,10 +1089,10 @@ def _check_kind(kind: str) -> None:
 
 
 def _check_period(
-    kind: str, period: str, *, project: configuracoes.ProjectSummary, reference_date: date
+    kind: str, period: str, *, project_start: date | None, reference_date: date
 ) -> None:
     problem = calculations.period_error(
-        kind, period, project_start=project.start_date, reference_date=reference_date
+        kind, period, project_start=project_start, reference_date=reference_date
     )
     errors = validation.validate_period(kind, period, problem=problem)
     if errors:

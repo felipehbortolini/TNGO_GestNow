@@ -333,6 +333,7 @@ def _form_context(
         "formatar_mes": calculations.format_month,
         "formatar_pp": calculations.format_pp,
         "formatar_num": calculations.format_number,
+        "formatar_num2": calculations.format_number2,
     }
 
 

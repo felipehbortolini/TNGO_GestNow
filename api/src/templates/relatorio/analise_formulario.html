@@ -11,7 +11,7 @@
   Espera: visao, texto, linhas (indice, desvio, valor, erro), erros, mensagens, atualizado,
   limites, pode_excluir e os formatadores.
 #}
-{% macro valor(item) %}{% if item.kind == 'pct' %}{{ formatar_pct(item.value) }}{% elif item.kind == 'indice' %}{{ formatar_indice(item.value) }}{% elif item.kind == 'moeda' %}{{ formatar_moeda(item.value) }}{% elif item.kind == 'mes' %}{{ formatar_mes(item.value) }}{% elif item.kind == 'pp' %}{{ formatar_pp(item.value) }}{% else %}{{ formatar_num(item.value) }}{% endif %}{% endmacro %}
+{% macro valor(item) %}{% if item.kind == 'pct' %}{{ formatar_pct(item.value) }}{% elif item.kind == 'indice' %}{{ formatar_indice(item.value) }}{% elif item.kind == 'moeda' %}{{ formatar_moeda(item.value) }}{% elif item.kind == 'mes' %}{{ formatar_mes(item.value) }}{% elif item.kind == 'pp' %}{{ formatar_pp(item.value) }}{% elif item.kind == 'num2' %}{{ formatar_num2(item.value) }}{% else %}{{ formatar_num(item.value) }}{% endif %}{% endmacro %}
 
 {% macro marcas(nome) %}{% if erros.get(nome) %} aria-invalid="true" aria-describedby="analise-erro-{{ nome }}"{% endif %}{% endmacro %}
 
