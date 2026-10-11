@@ -141,6 +141,8 @@ PARTS = [
     "suprimentos-pedidos",
     "suprimentos-diligenciamento",
     "suprimentos-painel",
+    "relatorio-analises",
+    "relatorio-analises-050607",
 ]
 MOCK_PEOPLE = 18
 # O mock-base, a pessoa de demonstração do vínculo Cliente e as pessoas das demais cargas.
