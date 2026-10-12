@@ -71,3 +71,39 @@ Nenhuma. A política de divergências foi decidida na Q31: mantém o número do 
 ## Notas
 
 Testing Decisions da spec: "Oráculo de paridade com o protótipo" e "Cálculo vivo".
+
+## Registro de execução
+
+Fatia entregue em 11/10/2026: o oráculo consolidado ganhou a **manchete** e as checagens
+transversais. A afirmação nova `manchete: os numeros do cenario do HANDOVER` (registrada via
+`register_check`, roda no `test_oraculo_com_a_data_25_09_2026`) reúne os números da issue pelas
+fachadas donas, no cenário da âncora: BAC 4.460.000.000, CPI 0,96, SPI de custo 0,94, projeção
+4.525.500.000 centavos (= R$ 45,26 mi com o arredondamento de duas casas do oráculo da 031 —
+o literal "4.526.000.000" do enunciado era o arredondamento apresentado, não a soma), 8 ações
+atrasadas, 3 pedidos críticos, 2 riscos críticos, 4 RNC abertas, 263 dias sem afastamento,
+pirâmide 0/16/31/190/1.240, aderência 92,9%, OTD 66,7%, pesos 55,36/29,34/15,30 e exposição
+R$ 3,4 mi. **Nenhum desses números divergiu do protótipo** e nenhuma divergência nova apareceu
+na consolidação. O **cálculo vivo** (`test_calculo_vivo.py`): a demonstração ancorada é lida com
+o relógio de hoje da plataforma (`calendario.today()`, fuso `America/Sao_Paulo`) e os atrasos e
+os dias sem afastamento diferem da âncora — o deslocamento puro da carga preservaria os números,
+então a leitura é do cenário ancorado com a data de hoje, que é a leitura do app; e uma **medição
+nova** num pacote da EAP (pela fachada do Planejamento, na mesma transação) muda o SPI na leitura
+seguinte, sem nenhum passo de recálculo. A checagem da **D5b**
+(`test_sem_indicador_persistido.py`) varre o metadata real do SQLAlchemy por segmento de nome com
+o vocabulário do indicador derivado (score, severidade, CPI, SPI, VAC, projeção, desvio, taxa,
+aderência, PPC, índice, exposição, valor agregado e saldo) e usa allowlist com as exceções da
+D5b (linhas de base congeladas, pesos da avaliação e prazos da ocorrência) e com as colisões que
+são fatos com nome de indicador (`risco_revisao.score_de/para`, `custo_erp.projecao_centavos`,
+`rnc.severidade`, metas da configuração da programação etc.), cada uma com o porquê; a asserção
+de igualdade faz uma coluna nova com nome de indicador quebrar o teste. O teste das
+**divergências** (`test_divergencias_registradas.py`) lê `docs/DIVERGENCIAS-DO-PROTOTIPO.md` e
+confere as cinco colunas da tabela com a situação preenchida, o Histórico com a issue citada
+existindo no `index.md` e as contagens mínimas (82 linhas principais e 40 do Histórico).
+**Testes**: o oráculo isolado passa (6 testes em 24 s); o escopo do subagente (oráculo +
+plataforma) rodou duas vezes com **996 passed**; o principal rodou a **suíte completa (4.095
+passed**, 19:35) e a porta de qualidade (**5/5**).
+
+- DECISAO: manchete consolidada | uma afirmação registrada reúne os números da issue pelas fachadas donas; a projeção é 4.525.500.000 centavos (R$ 45,26 mi arredondado, como o protótipo e o oráculo da 031) | ISSUE-031, ISSUE-089
+- DECISAO: cálculo vivo | a demonstração ancorada é lida com o relógio de hoje (o deslocamento puro da carga preserva os números da âncora); a medição nova muda o SPI na leitura seguinte, sem passo de recálculo | D6, ISSUE-089
+- DECISAO: D5b | a checagem varre o metadata real por segmento de nome e usa allowlist com as exceções da D5b e as colisões que são fatos | D5b, ISSUE-089
+- DECISAO: divergências | o teste confere a forma da tabela e do Histórico e que toda issue citada existe no index; nenhuma divergência nova apareceu na consolidação | Q31, ISSUE-089
