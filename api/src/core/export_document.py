@@ -31,6 +31,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from src.core import translations
 from src.core.money import format_brl
 
 if TYPE_CHECKING:
@@ -42,6 +43,10 @@ PORTFOLIO_LABEL = "Portfólio"
 PROJECT_HEADER = "Projeto"
 SCOPE_HEADING = "Escopo"
 GENERATED_HEADING = "Gerado em"
+
+# The known spellings of the ``Projeto`` column header, so the Portfólio never
+# adds a second one after a screen translated its own tables.
+_PROJECT_HEADERS = ("Projeto", "Project")
 
 type CellValue = str | int | float | Decimal | date | None
 
@@ -165,7 +170,11 @@ class Document:
     ``scope_label`` and ``portfolio`` come from the scope of the request
     (``describe_scope(scope, projects)`` and ``scope.is_portfolio``);
     ``context`` holds the extra lines of the header, as ``(label, value)``
-    pairs (``("Período", "S39/2026")``).
+    pairs (``("Período", "S39/2026")``). ``idioma`` is the language of the
+    request (D13): dates and the fixed headings follow it, numbers and money
+    stay in Brazilian Portuguese. ``namespace`` is the module of the catalog
+    the tables are translated by (``financeiro``): a screen that does not
+    translate its own columns still reaches the reader in English.
     """
 
     title: str
@@ -177,6 +186,8 @@ class Document:
     charts: tuple[Chart, ...] = ()
     tables: tuple[Table, ...] = ()
     paper: Paper = Paper.A4
+    idioma: str = "pt"
+    namespace: str = "comum"
 
     def __post_init__(self) -> None:
         for table in self.tables:
@@ -196,36 +207,60 @@ def project_label(project: ProjectLike) -> str:
     return f"{project.code} · {project.name}"
 
 
-def describe_scope(scope: Scope, projects: Sequence[ProjectLike]) -> str:
+def describe_scope(scope: Scope, projects: Sequence[ProjectLike], idioma: str = "pt") -> str:
     """``Portfólio`` or ``TN-001 · Nome do projeto``: the scope line of every export header."""
     if scope.is_portfolio:
-        return PORTFOLIO_LABEL
+        return translations.translate("comum", PORTFOLIO_LABEL, idioma)
     chosen = next((project for project in projects if project.id == scope.project_id), None)
-    return project_label(chosen) if chosen is not None else f"Projeto {scope.project_id}"
+    if chosen is not None:
+        return project_label(chosen)
+    template = translations.translate("comum", "Projeto {id}", idioma)
+    return template.format(id=scope.project_id)
 
 
 def resolve_tables(document: Document) -> tuple[Table, ...]:
-    """The tables as they are exported: in the Portfólio each one opens with ``Projeto`` (HU-016)."""
-    if not document.portfolio:
-        return document.tables
-    return tuple(
-        _with_project_column(table) if _adds_project_column(table) else table
-        for table in document.tables
+    """The tables as they are exported: in the Portfólio each one opens with ``Projeto`` (HU-016).
+
+    The titles and the headers of every table also pass through the catalog of
+    the module (D13), so a screen that writes its columns in Portuguese reaches
+    the English reader translated without repeating the call in every column.
+    """
+    tables = document.tables
+    if document.portfolio:
+        tables = tuple(
+            _with_project_column(table, document.idioma) if _adds_project_column(table) else table
+            for table in tables
+        )
+    return tuple(_translated_table(table, document) for table in tables)
+
+
+def _translated_table(table: Table, document: Document) -> Table:
+    return replace(
+        table,
+        title=translations.translate(document.namespace, table.title, document.idioma),
+        columns=tuple(
+            replace(
+                column,
+                header=translations.translate(document.namespace, column.header, document.idioma),
+            )
+            for column in table.columns
+        ),
     )
 
 
 # ── Values as a person reads them ────────────────────────────────────────
 
 
-def format_value(kind: ValueKind, value: CellValue, digits: int = 2) -> str:
+def format_value(kind: ValueKind, value: CellValue, digits: int = 2, idioma: str = "pt") -> str:
     """The text of a value: ``1.234,50``, ``45,3%``, ``R$ 1.234,56`` or ``05/10/2026``.
 
     ``None`` is the empty text. Both outputs use it, so paper and spreadsheet
-    agree on how a number is written.
+    agree on how a number is written. The date follows the language of the
+    request (D13); numbers and money stay in Brazilian Portuguese.
     """
     if value is None:
         return ""
-    return _FORMATTERS[kind](value, digits)
+    return _FORMATTERS[kind](value, digits, idioma)
 
 
 def number_of(value: CellValue) -> Decimal:
@@ -277,31 +312,31 @@ def _decimal_text(number: Decimal, digits: int) -> str:
     return f"-{text}" if rounded < 0 else text
 
 
-def _text(value: CellValue, _digits: int) -> str:
+def _text(value: CellValue, _digits: int, _idioma: str) -> str:
     return str(value)
 
 
-def _integer(value: CellValue, _digits: int) -> str:
+def _integer(value: CellValue, _digits: int, _idioma: str) -> str:
     return _decimal_text(number_of(value), 0)
 
 
-def _decimal(value: CellValue, digits: int) -> str:
+def _decimal(value: CellValue, digits: int, _idioma: str) -> str:
     return _decimal_text(number_of(value), digits)
 
 
-def _percent(value: CellValue, digits: int) -> str:
+def _percent(value: CellValue, digits: int, _idioma: str) -> str:
     return f"{_decimal_text(number_of(value), digits)}%"
 
 
-def _money(value: CellValue, _digits: int) -> str:
+def _money(value: CellValue, _digits: int, _idioma: str) -> str:
     return format_brl(cents_of(value))
 
 
-def _date(value: CellValue, _digits: int) -> str:
-    return date_of(value).strftime("%d/%m/%Y")
+def _date(value: CellValue, _digits: int, idioma: str) -> str:
+    return translations.format_date(date_of(value), idioma)
 
 
-_FORMATTERS: Mapping[ValueKind, Callable[[CellValue, int], str]] = {
+_FORMATTERS: Mapping[ValueKind, Callable[[CellValue, int, str], str]] = {
     ValueKind.TEXT: _text,
     ValueKind.INTEGER: _integer,
     ValueKind.DECIMAL: _decimal,
@@ -313,13 +348,16 @@ _FORMATTERS: Mapping[ValueKind, Callable[[CellValue, int], str]] = {
 
 def _adds_project_column(table: Table) -> bool:
     """Whether the Portfólio gives the table its ``Projeto`` column: it asks for it and has none."""
-    return table.per_project and all(column.header != PROJECT_HEADER for column in table.columns)
+    return table.per_project and all(
+        column.header not in _PROJECT_HEADERS for column in table.columns
+    )
 
 
-def _with_project_column(table: Table) -> Table:
+def _with_project_column(table: Table, idioma: str) -> Table:
+    header = translations.translate("comum", PROJECT_HEADER, idioma)
     return replace(
         table,
-        columns=(Column(PROJECT_HEADER), *table.columns),
+        columns=(Column(header), *table.columns),
         rows=tuple(replace(item, cells=(Cell(item.project), *item.cells)) for item in table.rows),
         totals=None if table.totals is None else (Cell(), *table.totals),
     )

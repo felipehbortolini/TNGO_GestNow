@@ -44,7 +44,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.worksheet import Worksheet
 
-from src.core import design_tokens
+from src.core import design_tokens, translations
 from src.core.export_document import (
     GENERATED_HEADING,
     PRODUCT_NAME,
@@ -147,9 +147,12 @@ def build_workbook(document: Document) -> bytes:
     workbook.remove(workbook.worksheets[0])
     taken: set[str] = set()
     if document.kpis or not tables:
-        _write_summary(_new_sheet(workbook, SUMMARY_SHEET, taken), document, styles)
+        resumo = translations.translate("exportacao", SUMMARY_SHEET, document.idioma)
+        _write_summary(_new_sheet(workbook, resumo, taken, document.idioma), document, styles)
     for table in tables:
-        _write_table_sheet(_new_sheet(workbook, table.title, taken), document, table, styles)
+        _write_table_sheet(
+            _new_sheet(workbook, table.title, taken, document.idioma), document, table, styles
+        )
     workbook.properties.title = document.title
     workbook.properties.creator = PRODUCT_NAME
     buffer = BytesIO()
@@ -209,18 +212,18 @@ def _build_styles() -> _Styles:
 # ── Sheets ───────────────────────────────────────────────────────────────
 
 
-def _new_sheet(workbook: Workbook, title: str, taken: set[str]) -> Worksheet:
-    name = _sheet_name(title, taken)
+def _new_sheet(workbook: Workbook, title: str, taken: set[str], idioma: str) -> Worksheet:
+    name = _sheet_name(title, taken, idioma)
     taken.add(name.casefold())
     sheet = cast("Worksheet", workbook.create_sheet(name))
     sheet.sheet_view.showGridLines = False
     return sheet
 
 
-def _sheet_name(title: str, taken: set[str]) -> str:
+def _sheet_name(title: str, taken: set[str], idioma: str) -> str:
     """A name Excel accepts (31 characters, none of ``\\ / ? * [ ] :``) and no sheet has yet."""
     base = _INVALID_SHEET_CHARACTERS.sub(" ", title).strip().strip("'")[:_MAX_SHEET_NAME]
-    base = base or "Planilha"
+    base = base or translations.translate("comum", "Planilha", idioma)
     name, number = base, 1
     while name.casefold() in taken:
         number += 1
@@ -236,11 +239,13 @@ def _write_identification(sheet: Worksheet, document: Document, styles: _Styles)
     logo.height = _LOGO_HEIGHT
     sheet.add_image(logo, "A1")
     sheet.row_dimensions[1].height = _LOGO_ROW_HEIGHT
-    generated = format_value(ValueKind.DATE, document.generated_on)
+    generated = format_value(ValueKind.DATE, document.generated_on, idioma=document.idioma)
+    scope_heading = translations.translate("comum", SCOPE_HEADING, document.idioma)
+    generated_heading = translations.translate("comum", GENERATED_HEADING, document.idioma)
     lines = [
         (document.title, styles.title),
-        (f"{SCOPE_HEADING}: {document.scope_label}", styles.muted),
-        (f"{GENERATED_HEADING}: {generated}", styles.muted),
+        (f"{scope_heading}: {document.scope_label}", styles.muted),
+        (f"{generated_heading}: {generated}", styles.muted),
         *((f"{label}: {value}", styles.muted) for label, value in document.context),
     ]
     for row, (text, font) in enumerate(lines, start=_FIRST_TEXT_ROW):
@@ -252,10 +257,14 @@ def _write_summary(sheet: Worksheet, document: Document, styles: _Styles) -> Non
     header_row = _write_identification(sheet, document, styles)
     with_status = any(kpi.status for kpi in document.kpis)
     headers = [
-        (KPI_HEADER, ValueKind.TEXT),
-        (VALUE_HEADER, ValueKind.DECIMAL),
-        (REFERENCE_HEADER, ValueKind.TEXT),
-        *([(STATUS_HEADER, ValueKind.TEXT)] if with_status else []),
+        (translations.translate("exportacao", KPI_HEADER, document.idioma), ValueKind.TEXT),
+        (translations.translate("exportacao", VALUE_HEADER, document.idioma), ValueKind.DECIMAL),
+        (translations.translate("exportacao", REFERENCE_HEADER, document.idioma), ValueKind.TEXT),
+        *(
+            [(translations.translate("exportacao", STATUS_HEADER, document.idioma), ValueKind.TEXT)]
+            if with_status
+            else []
+        ),
     ]
     _write_header(sheet, header_row, headers, styles)
     for offset, kpi in enumerate(document.kpis, start=1):
