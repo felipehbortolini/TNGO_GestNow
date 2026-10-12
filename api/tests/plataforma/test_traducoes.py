@@ -30,7 +30,19 @@ DS = RAIZ_DO_REPOSITORIO / "app" / "ds"
 MODULOS = RAIZ_DO_REPOSITORIO / "api" / "src" / "modulos"
 
 AREAS = ("inicio", "central_acoes", "governanca", "financeiro")
-TEMPLATE_NAMESPACES = (*AREAS, "nav", "comum")
+# A parte 2 (ISSUE-088): as oito áreas restantes, com a Programação Semanal de chaves novas.
+AREAS_2 = (
+    "planejamento",
+    "programacao_semanal",
+    "suprimentos",
+    "riscos",
+    "qualidade",
+    "hse",
+    "configuracoes",
+    "relatorio",
+)
+TODAS_AS_AREAS = (*AREAS, *AREAS_2)
+TEMPLATE_NAMESPACES = (*TODAS_AS_AREAS, "nav", "comum")
 
 TEMPLATE_CALL = re.compile(r"\bt\(\s*'([a-z_]+)'\s*,\s*'((?:[^'\\]|\\.)*)'\s*\)")
 VIEW_ATTR = re.compile(r'data-i18n(?:-title|-aria-label|-placeholder)?="([^"]+)"')
@@ -175,7 +187,7 @@ def test_toda_chave_dos_templates_tem_traducao() -> None:
 
 def test_toda_chave_das_views_tem_traducao() -> None:
     faltando: list[str] = []
-    for area in AREAS:
+    for area in TODAS_AS_AREAS:
         for caminho in sorted((VIEWS / area).rglob("*.html")):
             texto = caminho.read_text(encoding="utf-8")
             for key in VIEW_ATTR.findall(texto):
@@ -186,7 +198,7 @@ def test_toda_chave_das_views_tem_traducao() -> None:
 
 def test_toda_chave_do_javascript_tem_traducao() -> None:
     faltando: list[str] = []
-    pastas = [DS, *(PAGINAS / area for area in AREAS)]
+    pastas = [DS, *(PAGINAS / area for area in TODAS_AS_AREAS)]
     for pasta in pastas:
         for caminho in sorted(pasta.rglob("*.js")):
             texto = caminho.read_text(encoding="utf-8")
@@ -198,7 +210,7 @@ def test_toda_chave_do_javascript_tem_traducao() -> None:
 
 def test_toda_chave_do_python_das_areas_tem_traducao() -> None:
     faltando: list[str] = []
-    for area in AREAS:
+    for area in TODAS_AS_AREAS:
         for caminho in sorted((MODULOS / area).glob("*.py")):
             texto = caminho.read_text(encoding="utf-8")
             for namespace, key in PY_TRANSLATE.findall(texto):
@@ -234,7 +246,7 @@ def _constantes_sem_traducao(area: str, caminho: Path) -> list[str]:
 def test_as_constantes_de_mensagem_das_areas_tem_traducao() -> None:
     faltando = [
         item
-        for area in AREAS
+        for area in TODAS_AS_AREAS
         for caminho in sorted((MODULOS / area).glob("*.py"))
         for item in _constantes_sem_traducao(area, caminho)
     ]
@@ -272,3 +284,48 @@ def test_o_json_do_catalogo_e_serializavel_e_sem_valor_vazio() -> None:
         for key, value in entries.items():
             assert key.strip(), namespace
             assert value.strip(), f"{namespace}:{key}"
+
+
+# ── A completude da parte 2 (ISSUE-088) ──────────────────────────────────
+
+
+def test_toda_chave_do_catalogo_tem_ingles() -> None:
+    """O critério da parte 2: cada chave do catálogo inteiro responde em EN, nunca vazia."""
+    faltando: list[str] = []
+    for namespace, entries in translations.CATALOG.items():
+        for key in entries:
+            if not translations.translate(namespace, key, "en").strip():
+                faltando.append(f"{namespace}:{key}")
+    assert faltando == []
+
+
+def test_os_namespaces_da_parte_2_existem() -> None:
+    for namespace in AREAS_2:
+        assert translations.CATALOG.get(namespace), namespace
+
+
+def test_a_terminologia_da_parte_2() -> None:
+    assert translations.translate("planejamento", "EAP", "en") == "WBS"
+    assert translations.translate("planejamento", "SM", "en") == "CR"
+    assert translations.translate("suprimentos", "EAC", "en") == "CBS"
+    assert translations.translate("hse", "HHT", "en") == "MHW"
+    assert translations.translate("programacao_semanal", "Fiscal", "en") == "Inspector"
+    assert translations.translate("programacao_semanal", "Encarregado", "en") == "Foreman"
+
+
+def test_o_rotulo_da_semana_segue_o_idioma() -> None:
+    assert translations.semana_label(38, "pt") == "S38"
+    assert translations.semana_label(38, "en") == "W38"
+    assert translations.mes_longo(8, "pt") == "Agosto"
+    assert translations.mes_longo(8, "en") == "August"
+
+
+def test_o_rotulo_do_periodo_do_relato_segue_o_idioma() -> None:
+    from src.modulos.planejamento import calculations
+
+    em_portugues = calculations.period_name("Semanal", "2026-S38")
+    em_ingles = calculations.period_name("Semanal", "2026-S38", "en")
+    assert em_portugues.startswith("Semana 38 · 14/09")
+    assert em_ingles.startswith("Week W38 · 09/14")
+    assert calculations.short_period_name("Semanal", "2026-S38", "en") == "W38"
+    assert calculations.short_period_name("Mensal", "2026-08", "en") == "Aug/26"
