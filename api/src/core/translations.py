@@ -587,6 +587,7 @@ CATALOG: dict[str, dict[str, str]] = {
         "Prévia": "Preview",
         "Registro, matriz P x I, ficha e painel de riscos.": "Register, P x I matrix, risk sheet and dashboard.",
         "Relatório final exigido": "Final report required",
+        "Relatório gerencial": "Management report",
         "Resumo do portfólio": "Portfolio summary",
         "Resumo do projeto": "Project summary",
         "Riscos altos": "High risks",
