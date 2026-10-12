@@ -46,7 +46,7 @@
     fecharModal();
     const endereco = enderecoDe(modulo, tipo, periodo);
     modalAberto = window.TN.modal({
-      title: "Análise do período",
+      title: window.TN.t("relatorio", "Análise do período"),
       width: LARGURA_FORMULARIO,
       onClose: function () {
         modalAberto = null;
@@ -54,7 +54,7 @@
       body:
         '<div id="analise-modal" data-endereco="' + window.TN.esc(endereco) + '"' +
         " x-init=\"$ajax($el.dataset.endereco, { target: 'analise-modal' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' + window.TN.t("relatorio", "Carregando") + '"></div></div>'
     });
   }
 

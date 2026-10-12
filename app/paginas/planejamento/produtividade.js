@@ -102,7 +102,7 @@
       onClose: function () { modalAberto = null; },
       body: '<div id="produtividade-modal" data-endereco="' + window.TN.esc(opcoes.endereco) + '"' +
         " x-init=\"$ajax($el.dataset.endereco, { target: 'produtividade-modal' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' + window.TN.t("planejamento", "Carregando") + '"></div></div>'
     });
   }
 
@@ -128,7 +128,7 @@
   function revisar(dados) {
     fecharModal();
     abrirModal({
-      titulo: "Revisar linha de base",
+      titulo: window.TN.t("planejamento", "Revisar linha de base"),
       subtitulo: dados.titulo,
       largura: LARGURA_FORMULARIO,
       endereco: BASE + "/itens/" + encodeURIComponent(dados.id) + "/revisao" + sufixoDeFiltro()
@@ -138,8 +138,8 @@
   function novo() {
     fecharModal();
     abrirModal({
-      titulo: "Novo item da linha de base",
-      subtitulo: "Quantidade total da LB distribuída por semana conforme o cronograma",
+      titulo: window.TN.t("planejamento", "Novo item da linha de base"),
+      subtitulo: window.TN.t("planejamento", "Quantidade total da LB distribuída por semana conforme o cronograma"),
       largura: LARGURA_FORMULARIO,
       endereco: BASE + "/itens/novo" + sufixoDeFiltro()
     });
@@ -149,8 +149,8 @@
     fecharModal();
     const consulta = filtroDeAgora();
     abrirModal({
-      titulo: "Apontar semana",
-      subtitulo: "Realizado e HH apropriadas informados pela contratada, por item da LB",
+      titulo: window.TN.t("planejamento", "Apontar semana"),
+      subtitulo: window.TN.t("planejamento", "Realizado e HH apropriadas informados pela contratada, por item da LB"),
       largura: LARGURA_APONTAMENTO,
       endereco: BASE + "/apontamento" + sufixoDeFiltro({ semana: consulta.get("corte") || "" })
     });
@@ -159,8 +159,8 @@
   function importar() {
     fecharModal();
     abrirModal({
-      titulo: "Importar plano de quantidades",
-      subtitulo: "Itens entram em elaboração, distribuídos pelo perfil; aprove a LB depois de conferir",
+      titulo: window.TN.t("planejamento", "Importar plano de quantidades"),
+      subtitulo: window.TN.t("planejamento", "Itens entram em elaboração, distribuídos pelo perfil; aprove a LB depois de conferir"),
       largura: LARGURA_FORMULARIO,
       endereco: IMPORTACAO + sufixoDeFiltro()
     });
@@ -173,8 +173,8 @@
     if (dados.corte) parametros.set("corte", dados.corte);
     const texto = parametros.toString();
     abrirModal({
-      titulo: "Plano de ação de produtividade",
-      subtitulo: "Empresa com indicador fora da faixa: a ação vai para a Central (origem Produtividade)",
+      titulo: window.TN.t("planejamento", "Plano de ação de produtividade"),
+      subtitulo: window.TN.t("planejamento", "Empresa com indicador fora da faixa: a ação vai para a Central (origem Produtividade)"),
       largura: LARGURA_FORMULARIO,
       endereco: BASE + "/kpis/acoes/nova" + (texto ? "?" + texto : "")
     });
@@ -201,7 +201,7 @@
 
   function aprovar(dados) {
     window.TN.confirmarExclusao({
-      title: "Aprovar linha de base",
+      title: window.TN.t("planejamento", "Aprovar linha de base"),
       mensagem: "A distribuição semanal de " + dados.titulo + " fica congelada. Mudanças depois disso só por revisão com SM aprovada (08).",
       labelConfirmar: "Aprovar"
     }).then(function (confirmado) {
@@ -213,7 +213,7 @@
 
   function excluir(dados) {
     window.TN.confirmarExclusao({
-      title: "Excluir item",
+      title: window.TN.t("planejamento", "Excluir item"),
       mensagem: "Excluir " + dados.titulo + " (em elaboração, sem apontamento)?",
       labelConfirmar: "Excluir"
     }).then(function (confirmado) {

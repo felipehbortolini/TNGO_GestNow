@@ -23,7 +23,7 @@
     return (
       '<div id="' + alvo + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + alvo + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("qualidade", "Carregando") + '"></div></div>'
     );
   }
 
@@ -40,7 +40,7 @@
   function abrirFicha(codigo) {
     window.TN.modal({
       title: codigo,
-      subtitle: "Não conformidade registrada",
+      subtitle: window.TN.t("qualidade", "Não conformidade registrada"),
       width: LARGURA_DA_FICHA,
       body: corpoCarregando(ALVO_DO_MODAL, enderecoDaFicha(codigo))
     });

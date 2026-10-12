@@ -63,15 +63,15 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(ROTA_PAUTA) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando o envio"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("riscos", "Carregando o envio") + '"></div></div>'
     );
   }
 
   function abrirEnvio() {
     if (modalPauta) modalPauta.close();
     modalPauta = window.TN.modal({
-      title: "Enviar pauta por e-mail",
-      subtitle: "O envio fica registrado na trilha de auditoria",
+      title: window.TN.t("riscos", "Enviar pauta por e-mail"),
+      subtitle: window.TN.t("riscos", "O envio fica registrado na trilha de auditoria"),
       width: 720,
       onClose: function () {
         modalPauta = null;

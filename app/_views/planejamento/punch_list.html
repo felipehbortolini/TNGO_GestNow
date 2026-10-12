@@ -4,8 +4,8 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Punch list</h1>
-        <p class="page-head__sub">Itens de completação com verificação, evidência obrigatória e bloqueio de sistema.</p>
+        <h1 class="h-dash" data-i18n="Punch list">Punch list</h1>
+        <p class="page-head__sub" data-i18n="Itens de completação com verificação, evidência obrigatória e bloqueio de sistema.">Itens de completação com verificação, evidência obrigatória e bloqueio de sistema.</p>
       </div>
     </div>
 
@@ -13,13 +13,13 @@
       x-init="$ajax('/api/planejamento/punch', { target: 'punch-filtros punch-conteudo punch-painel' })"></span>
 
     <div x-show="estado === 'conteudo' || estado === 'vazio-filtro' || estado === 'vazio-origem'">
-      <div class="tabs" role="tablist" aria-label="Visões da Punch list">
+      <div class="tabs" role="tablist" aria-label="Visões da Punch list" data-i18n-aria-label="Visões da Punch list">
         <button type="button" class="tab" role="tab" id="punch-aba-lista" aria-controls="punch-tab-lista"
           :class="{ 'is-active': aba === 'lista' }" :aria-selected="aba === 'lista'"
-          data-punch-aba="lista">Lista</button>
+          data-punch-aba="lista" data-i18n="Lista">Lista</button>
         <button type="button" class="tab" role="tab" id="punch-aba-painel" aria-controls="punch-tab-painel"
           :class="{ 'is-active': aba === 'painel' }" :aria-selected="aba === 'painel'"
-          data-punch-aba="painel">Painel</button>
+          data-punch-aba="painel" data-i18n="Painel">Painel</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="punch-tab-lista" aria-labelledby="punch-aba-lista"
@@ -39,7 +39,7 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
       </div>
     </div>
@@ -47,15 +47,15 @@
     <div class="card" x-show="estado === 'erro' || estado === 'sem-permissao'">
       <div class="card__body">
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

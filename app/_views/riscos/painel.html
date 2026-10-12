@@ -4,11 +4,11 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Painel de riscos</h1>
-        <p class="page-head__sub">Exposição, evolução do score residual e pauta de escalonamento.</p>
+        <h1 class="h-dash" data-i18n="Painel de riscos">Painel de riscos</h1>
+        <p class="page-head__sub" data-i18n="Exposição, evolução do score residual e pauta de escalonamento.">Exposição, evolução do score residual e pauta de escalonamento.</p>
       </div>
       <div class="page-head__actions">
-        <button type="button" class="btn btn--ghost" data-analise="riscos">
+        <button type="button" class="btn btn--ghost" data-analise="riscos" data-i18n="Análise do período">
           <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
           Análise do período
         </button>
@@ -20,22 +20,22 @@
          permissão são daqui. -->
     <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
       <div class="spinner" aria-hidden="true"></div>
-      <p>Carregando o painel de riscos...</p>
+      <p data-i18n="Carregando o painel de riscos...">Carregando o painel de riscos...</p>
     </div>
 
     <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-      <h2 class="h-card5">Não foi possível carregar o painel</h2>
-      <p class="body-txt">Confira a conexão e tente de novo.</p>
+      <h2 class="h-card5" data-i18n="Não foi possível carregar o painel">Não foi possível carregar o painel</h2>
+      <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
       <div>
-        <button type="button" class="btn btn--secondary btn--sm" data-painel-recarregar>Tentar de novo</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-painel-recarregar data-i18n="Tentar de novo">Tentar de novo</button>
       </div>
     </div>
 
     <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
       <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-      <h2 class="h-card3">Acesso negado</h2>
-      <p>Você não tem permissão para ver esta tela.</p>
-      <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+      <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+      <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+      <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
     </div>
 
     <div x-show="estado === 'conteudo' || estado === 'vazio-origem'">

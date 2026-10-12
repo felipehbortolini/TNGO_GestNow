@@ -24,7 +24,7 @@
     return (
       '<div id="' + alvo + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + alvo + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("qualidade", "Carregando") + '"></div></div>'
     );
   }
 
@@ -41,7 +41,7 @@
   function abrirFicha(codigo) {
     window.TN.modal({
       title: codigo,
-      subtitle: "Plano de inspeção e testes",
+      subtitle: window.TN.t("qualidade", "Plano de inspeção e testes"),
       width: LARGURA_DA_FICHA,
       body: corpoCarregando(ALVO_DO_MODAL, enderecoDaFicha(codigo))
     });

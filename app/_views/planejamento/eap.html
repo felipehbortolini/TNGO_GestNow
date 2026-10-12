@@ -4,31 +4,31 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">EAP</h1>
-        <p class="page-head__sub">Árvore de áreas, subáreas e pacotes, com dicionário e avanço pelo critério de medição.</p>
+        <h1 class="h-dash" data-i18n="EAP">EAP</h1>
+        <p class="page-head__sub" data-i18n="Árvore de áreas, subáreas e pacotes, com dicionário e avanço pelo critério de medição.">Árvore de áreas, subáreas e pacotes, com dicionário e avanço pelo critério de medição.</p>
       </div>
       <div class="page-head__actions">
-        <button type="button" class="btn btn--secondary" data-eap-pacote hidden>
+        <button type="button" class="btn btn--secondary" data-eap-pacote hidden data-i18n="Novo pacote">
           <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
           Novo pacote
         </button>
-        <button type="button" class="btn btn--secondary" data-eap-revisao hidden>
+        <button type="button" class="btn btn--secondary" data-eap-revisao hidden data-i18n="Nova revisão">
           <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
           Nova revisão
         </button>
-        <button type="button" class="btn btn--secondary" data-eap-importar-pacotes hidden>
+        <button type="button" class="btn btn--secondary" data-eap-importar-pacotes hidden data-i18n="Importar pacotes">
           <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
           Importar pacotes
         </button>
-        <button type="button" class="btn btn--secondary" data-eap-importar hidden>
+        <button type="button" class="btn btn--secondary" data-eap-importar hidden data-i18n="Importar avanço">
           <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
           Importar avanço
         </button>
-        <button type="button" class="btn btn--ghost" data-tn-excel="/api/planejamento/eap/excel">
+        <button type="button" class="btn btn--ghost" data-tn-excel="/api/planejamento/eap/excel" data-i18n="Excel">
           <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
           Excel
         </button>
-        <button type="button" class="btn btn--ghost" data-tn-pdf="/api/planejamento/eap/imprimivel">
+        <button type="button" class="btn btn--ghost" data-tn-pdf="/api/planejamento/eap/imprimivel" data-i18n="PDF">
           <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
           PDF
         </button>
@@ -45,30 +45,30 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há EAP neste escopo</h2>
-          <p>Assim que a EAP do projeto for cadastrada, a árvore aparece aqui.</p>
+          <h2 class="h-card4" data-i18n="Ainda não há EAP neste escopo">Ainda não há EAP neste escopo</h2>
+          <p data-i18n="Assim que a EAP do projeto for cadastrada, a árvore aparece aqui.">Assim que a EAP do projeto for cadastrada, a árvore aparece aqui.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver os registros.">Ajuste ou limpe os filtros para ver os registros.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

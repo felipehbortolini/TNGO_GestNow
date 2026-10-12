@@ -81,13 +81,13 @@
     const texto = consulta.toString();
     const destino = BASE + "/emissao" + (texto ? "?" + texto : "");
     modalAberto = window.TN.modal({
-      title: "Emitir relatório gerencial",
-      subtitle: "O relatório sai em folhas A4 na horizontal, uma por seção.",
+      title: window.TN.t("relatorio", "Emitir relatório gerencial"),
+      subtitle: window.TN.t("relatorio", "O relatório sai em folhas A4 na horizontal, uma por seção."),
       width: LARGURA_MODAL,
       onClose: function () { modalAberto = null; },
       body: '<div id="relatorio-modal" data-endereco="' + window.TN.esc(destino) + '"' +
         " x-init=\"$ajax($el.dataset.endereco, { target: 'relatorio-modal' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' + window.TN.t("relatorio", "Carregando") + '"></div></div>'
     });
   }
 
@@ -131,7 +131,14 @@
   function paginar() {
     const paginas = document.querySelectorAll(".pagina--relatorio-gerencial [data-pagina]");
     paginas.forEach(function (elemento, indice) {
-      elemento.textContent = "Página " + (indice + 1) + " de " + paginas.length;
+      elemento.textContent =
+        window.TN.t("relatorio", "Página") +
+        " " +
+        (indice + 1) +
+        " " +
+        window.TN.t("relatorio", "de") +
+        " " +
+        paginas.length;
     });
   }
 

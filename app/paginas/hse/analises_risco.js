@@ -36,7 +36,7 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("hse", "Carregando") + '"></div></div>'
     );
   }
 
@@ -62,8 +62,8 @@
 
   function abrirFicha(codigo) {
     abrirModal({
-      titulo: "Estudo " + codigo,
-      subtitulo: "Recomendações e ações na Central",
+      titulo: window.TN.t("hse", "Estudo ") + codigo,
+      subtitulo: window.TN.t("hse", "Recomendações e ações na Central"),
       url: "/api/hse/analises-risco/" + encodeURIComponent(codigo) + "/ficha",
       largura: LARGURA_DA_FICHA
     });
@@ -162,8 +162,8 @@
         if (acao !== "nova") return;
         carregar(null).then(function () {
           abrirModal({
-            titulo: "Nova análise de risco",
-            subtitulo: "Estudo APR/JSA ou HAZOP com participantes e recomendações",
+            titulo: window.TN.t("hse", "Nova análise de risco"),
+            subtitulo: window.TN.t("hse", "Estudo APR/JSA ou HAZOP com participantes e recomendações"),
             url: "/api/hse/analises-risco/nova",
             largura: 920,
             aoFechar: function () { carregar(urlAtual); }

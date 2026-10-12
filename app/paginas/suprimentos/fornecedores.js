@@ -29,7 +29,7 @@
     return (
       '<div id="' + alvo + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + alvo + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("suprimentos", "Carregando") + '"></div></div>'
     );
   }
 

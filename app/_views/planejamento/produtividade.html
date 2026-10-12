@@ -4,8 +4,8 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Produtividade</h1>
-        <p class="page-head__sub">Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.</p>
+        <h1 class="h-dash" data-i18n="Produtividade">Produtividade</h1>
+        <p class="page-head__sub" data-i18n="Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.">Plano de quantidades da linha de base, horas efetivas do campo e indicadores por empresa.</p>
       </div>
     </div>
 
@@ -13,16 +13,16 @@
       x-init="$ajax('/api/planejamento/produtividade', { target: 'produtividade-filtros produtividade-conteudo produtividade-horas produtividade-kpis' })"></span>
 
     <div x-show="estado === 'conteudo' || estado === 'vazio-filtro' || estado === 'vazio-origem'">
-      <div class="tabs" role="tablist" aria-label="Visões da produtividade">
+      <div class="tabs" role="tablist" aria-label="Visões da produtividade" data-i18n-aria-label="Visões da produtividade">
         <button type="button" class="tab" role="tab" id="prod-aba-quantidades" aria-controls="prod-painel-quantidades"
           :class="{ 'is-active': aba === 'quantidades' }" :aria-selected="aba === 'quantidades'"
-          @click="aba = 'quantidades'">Quantidades</button>
+          @click="aba = 'quantidades'" data-i18n="Quantidades">Quantidades</button>
         <button type="button" class="tab" role="tab" id="prod-aba-horas" aria-controls="prod-painel-horas"
           :class="{ 'is-active': aba === 'horas' }" :aria-selected="aba === 'horas'"
-          @click="aba = 'horas'">Horas efetivas</button>
+          @click="aba = 'horas'" data-i18n="Horas efetivas">Horas efetivas</button>
         <button type="button" class="tab" role="tab" id="prod-aba-kpis" aria-controls="prod-painel-kpis"
           :class="{ 'is-active': aba === 'kpis' }" :aria-selected="aba === 'kpis'"
-          @click="aba = 'kpis'">KPIs de performance</button>
+          @click="aba = 'kpis'" data-i18n="KPIs de performance">KPIs de performance</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="prod-painel-quantidades" aria-labelledby="prod-aba-quantidades" x-show="aba === 'quantidades'">
@@ -33,8 +33,8 @@
         <div class="card" x-show="estado === 'vazio-filtro'">
           <div class="card__body">
             <div class="empty" data-estado="vazio-filtro">
-              <h2 class="h-card4">Nenhum item para os filtros aplicados</h2>
-              <p>Ajuste a empresa, o grupo ou a semana de corte para ver o plano de quantidades.</p>
+              <h2 class="h-card4" data-i18n="Nenhum item para os filtros aplicados">Nenhum item para os filtros aplicados</h2>
+              <p data-i18n="Ajuste a empresa, o grupo ou a semana de corte para ver o plano de quantidades.">Ajuste a empresa, o grupo ou a semana de corte para ver o plano de quantidades.</p>
             </div>
           </div>
         </div>
@@ -43,8 +43,8 @@
           <div class="card__body">
             <div class="empty" data-estado="vazio-origem">
               <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-              <h2 class="h-card4">Nenhum item da linha de base ainda</h2>
-              <p>Crie o primeiro item com o botão Novo item da LB ou importe o plano de quantidades em Excel.</p>
+              <h2 class="h-card4" data-i18n="Nenhum item da linha de base ainda">Nenhum item da linha de base ainda</h2>
+              <p data-i18n="Crie o primeiro item com o botão Novo item da LB ou importe o plano de quantidades em Excel.">Crie o primeiro item com o botão Novo item da LB ou importe o plano de quantidades em Excel.</p>
             </div>
           </div>
         </div>
@@ -63,7 +63,7 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
       </div>
     </div>
@@ -71,15 +71,15 @@
     <div class="card" x-show="estado === 'erro' || estado === 'sem-permissao'">
       <div class="card__body">
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

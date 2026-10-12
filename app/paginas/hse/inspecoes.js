@@ -30,7 +30,7 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("hse", "Carregando") + '"></div></div>'
     );
   }
 

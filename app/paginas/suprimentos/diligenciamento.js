@@ -58,7 +58,7 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("suprimentos", "Carregando") + '"></div></div>'
     );
   }
 
@@ -91,8 +91,8 @@
   function abrirImportacao(botao) {
     importando = true;
     abrirModal({
-      titulo: "Importar pedidos do ERP",
-      subtitulo: "Uma linha por marco: previsão atualizada ou data realizada; nada grava antes da confirmação",
+      titulo: window.TN.t("suprimentos", "Importar pedidos do ERP"),
+      subtitulo: window.TN.t("suprimentos", "Uma linha por marco: previsão atualizada ou data realizada; nada grava antes da confirmação"),
       largura: LARGURA_DA_IMPORTACAO,
       endereco: botao.dataset.diligenciaUrl
     });

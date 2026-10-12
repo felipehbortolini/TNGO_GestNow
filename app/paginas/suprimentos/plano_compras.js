@@ -60,7 +60,7 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("suprimentos", "Carregando") + '"></div></div>'
     );
   }
 
@@ -92,8 +92,8 @@
 
   function abrirNovo(botao) {
     abrirModal({
-      titulo: "Novo pacote de compra",
-      subtitulo: "O saldo a comprometer do item da EAC e a folga planejada aparecem ao preencher",
+      titulo: window.TN.t("suprimentos", "Novo pacote de compra"),
+      subtitulo: window.TN.t("suprimentos", "O saldo a comprometer do item da EAC e a folga planejada aparecem ao preencher"),
       largura: LARGURA_DO_FORM,
       endereco: botao.dataset.pacoteUrl
     });
@@ -102,8 +102,8 @@
   function abrirImportacao(botao) {
     importando = true;
     abrirModal({
-      titulo: "Importar plano de compras",
-      subtitulo: "Um pacote por linha; o código é gerado na importação e nada grava antes da confirmação",
+      titulo: window.TN.t("suprimentos", "Importar plano de compras"),
+      subtitulo: window.TN.t("suprimentos", "Um pacote por linha; o código é gerado na importação e nada grava antes da confirmação"),
       largura: LARGURA_DA_IMPORTACAO,
       endereco: botao.dataset.pacoteUrl
     });

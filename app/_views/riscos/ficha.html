@@ -4,11 +4,11 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Ficha do risco</h1>
-        <p class="page-head__sub">Identificação, avaliação, resposta, monitoramento e histórico do risco.</p>
+        <h1 class="h-dash" data-i18n="Ficha do risco">Ficha do risco</h1>
+        <p class="page-head__sub" data-i18n="Identificação, avaliação, resposta, monitoramento e histórico do risco.">Identificação, avaliação, resposta, monitoramento e histórico do risco.</p>
       </div>
       <div class="page-head__actions">
-        <a href="/riscos/registro" class="btn btn--secondary" data-tn-tela>Voltar ao registro</a>
+        <a href="/riscos/registro" class="btn btn--secondary" data-tn-tela data-i18n="Voltar ao registro">Voltar ao registro</a>
       </div>
     </div>
 
@@ -18,34 +18,34 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando o risco...</p>
+          <p data-i18n="Carregando o risco...">Carregando o risco...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Risco não encontrado</h2>
-          <p>O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.</p>
-          <a href="/riscos/registro" class="btn btn--primary" data-tn-tela>Voltar ao registro de riscos</a>
+          <h2 class="h-card4" data-i18n="Risco não encontrado">Risco não encontrado</h2>
+          <p data-i18n="O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.">O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.</p>
+          <a href="/riscos/registro" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao registro de riscos">Voltar ao registro de riscos</a>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver os registros.">Ajuste ou limpe os filtros para ver os registros.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar o risco</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar o risco">Não foi possível carregar o risco</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
           <div>
-            <button type="button" class="btn btn--secondary btn--sm" data-ficha-recarregar>Tentar de novo</button>
+            <button type="button" class="btn btn--secondary btn--sm" data-ficha-recarregar data-i18n="Tentar de novo">Tentar de novo</button>
           </div>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

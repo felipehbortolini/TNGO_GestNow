@@ -4,13 +4,13 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Parâmetros do sistema</h1>
-        <p class="page-head__sub">Grupos de parâmetros versionados, com edição justificada e histórico do antes e depois.</p>
+        <h1 class="h-dash" data-i18n="Parâmetros do sistema">Parâmetros do sistema</h1>
+        <p class="page-head__sub" data-i18n="Grupos de parâmetros versionados, com edição justificada e histórico do antes e depois.">Grupos de parâmetros versionados, com edição justificada e histórico do antes e depois.</p>
       </div>
     </div>
 
     <div class="aviso aviso--info parametros__aviso" role="note">
-      <span><b>Acesso restrito a Gestor e Admin.</b> Cada alteração cria uma nova versão com data
+      <span data-i18n="Cada alteração cria uma nova versão com data de vigência, autor e justificativa. Pesos e prazos valem para registros novos; critérios de exibição (base das taxas, escala de severidade, faixas) recalculam as telas na hora."><b data-i18n="Acesso restrito a Gestor e Admin.">Acesso restrito a Gestor e Admin.</b> Cada alteração cria uma nova versão com data
         de vigência, autor e justificativa. Pesos e prazos valem para registros novos; critérios de
         exibição (base das taxas, escala de severidade, faixas) recalculam as telas na hora.</span>
     </div>
@@ -20,22 +20,22 @@
          bloco data-situacao), porque a barra de filtros continua na tela. -->
     <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
       <div class="spinner" aria-hidden="true"></div>
-      <p>Carregando os parâmetros...</p>
+      <p data-i18n="Carregando os parâmetros...">Carregando os parâmetros...</p>
     </div>
 
     <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-      <h2 class="h-card5">Não foi possível carregar os parâmetros</h2>
-      <p class="body-txt">Confira a conexão e tente de novo.</p>
+      <h2 class="h-card5" data-i18n="Não foi possível carregar os parâmetros">Não foi possível carregar os parâmetros</h2>
+      <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
       <div>
-        <button type="button" class="btn btn--secondary btn--sm" data-parametros-recarregar>Tentar de novo</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-parametros-recarregar data-i18n="Tentar de novo">Tentar de novo</button>
       </div>
     </div>
 
     <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
       <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-      <h2 class="h-card3">Acesso negado</h2>
-      <p>Você não tem permissão para ver esta tela.</p>
-      <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+      <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+      <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+      <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
     </div>
 
     <div x-show="estado === 'conteudo'">

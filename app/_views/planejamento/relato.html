@@ -4,19 +4,19 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Relato do período</h1>
-        <p class="page-head__sub">Atividades do período e do próximo período, com os pontos de atenção.</p>
+        <h1 class="h-dash" data-i18n="Relato do período">Relato do período</h1>
+        <p class="page-head__sub" data-i18n="Atividades do período e do próximo período, com os pontos de atenção.">Atividades do período e do próximo período, com os pontos de atenção.</p>
       </div>
       <div class="page-head__actions">
-        <button type="button" class="btn btn--ghost" data-analise="planejamento">
+        <button type="button" class="btn btn--ghost" data-analise="planejamento" data-i18n="Análise do período">
           <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
           Análise do período
         </button>
         <button type="button" class="btn btn--secondary" id="relato-excel"
-          data-tn-excel="/api/planejamento/relatos/excel">Excel</button>
+          data-tn-excel="/api/planejamento/relatos/excel" data-i18n="Excel">Excel</button>
         <button type="button" class="btn btn--secondary" id="relato-pdf"
-          data-tn-pdf="/api/planejamento/relatos/imprimivel">PDF</button>
-        <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-relato-acao="novo">
+          data-tn-pdf="/api/planejamento/relatos/imprimivel" data-i18n="PDF">PDF</button>
+        <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-relato-acao="novo" data-i18n="Novo relato">
           <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
           Novo relato
         </button>
@@ -26,7 +26,7 @@
     <form class="toolbar" id="relato-filtro" method="get" action="/api/planejamento/relatos"
       x-ref="filtro" x-target="relato-painel">
       <input type="hidden" name="tipo" :value="tipo" />
-      <div class="seg" role="group" aria-label="Tipo de relato">
+      <div class="seg" role="group" aria-label="Tipo de relato" data-i18n-aria-label="Tipo de relato">
         <button type="button" class="seg__btn" :class="{ 'is-active': tipo === '' }" :aria-pressed="tipo === ''"
           @click="tipo = ''; $nextTick(() => $refs.filtro.requestSubmit())">Todos</button>
         <button type="button" class="seg__btn" :class="{ 'is-active': tipo === 'Semanal' }" :aria-pressed="tipo === 'Semanal'"
@@ -36,9 +36,9 @@
       </div>
       <div class="busca">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="relato-busca">Buscar nos relatos</label>
+        <label class="sr-only" for="relato-busca" data-i18n="Buscar nos relatos">Buscar nos relatos</label>
         <input id="relato-busca" type="search" name="busca" class="input busca__input"
-          placeholder="Buscar atividade, ponto de atenção ou risco"
+          placeholder="Buscar atividade, ponto de atenção ou risco" data-i18n-placeholder="Buscar atividade, ponto de atenção ou risco"
           @input.debounce.300ms="$refs.filtro.requestSubmit()" />
       </div>
     </form>
@@ -58,31 +58,31 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhum relato registrado ainda</h2>
-          <p>Registre o primeiro relato semanal ou mensal para alimentar a folha de Planejamento do relatório gerencial.</p>
-          <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-relato-acao="novo">Novo relato</button>
+          <h2 class="h-card4" data-i18n="Nenhum relato registrado ainda">Nenhum relato registrado ainda</h2>
+          <p data-i18n="Registre o primeiro relato semanal ou mensal para alimentar a folha de Planejamento do relatório gerencial.">Registre o primeiro relato semanal ou mensal para alimentar a folha de Planejamento do relatório gerencial.</p>
+          <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-relato-acao="novo" data-i18n="Novo relato">Novo relato</button>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum relato para os filtros aplicados</h2>
-          <p>Ajuste o tipo ou limpe a busca para ver os relatos.</p>
+          <h2 class="h-card4" data-i18n="Nenhum relato para os filtros aplicados">Nenhum relato para os filtros aplicados</h2>
+          <p data-i18n="Ajuste o tipo ou limpe a busca para ver os relatos.">Ajuste o tipo ou limpe a busca para ver os relatos.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os relatos</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os relatos">Não foi possível carregar os relatos</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

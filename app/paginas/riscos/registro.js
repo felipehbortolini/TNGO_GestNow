@@ -35,7 +35,7 @@
     return (
       '<div id="' + alvo + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + alvo + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("riscos", "Carregando") + '"></div></div>'
     );
   }
 
@@ -58,8 +58,8 @@
     const modelo = document.querySelector("template[data-registro-filtros-modelo]");
     if (!modelo) return;
     window.TN.modal({
-      title: "Filtros do registro",
-      subtitle: "Busca, natureza, severidade e revisão",
+      title: window.TN.t("riscos", "Filtros do registro"),
+      subtitle: window.TN.t("riscos", "Busca, natureza, severidade e revisão"),
       width: LARGURA_DOS_FILTROS,
       body: modelo.innerHTML
     });
@@ -67,8 +67,8 @@
 
   function abrirCategoria() {
     window.TN.modal({
-      title: "Nova categoria (RBS)",
-      subtitle: "Cadastro rápido do catálogo mantido em Configurações",
+      title: window.TN.t("riscos", "Nova categoria (RBS)"),
+      subtitle: window.TN.t("riscos", "Cadastro rápido do catálogo mantido em Configurações"),
       width: LARGURA_DA_CATEGORIA,
       body: corpoCarregando(ALVO_DA_CATEGORIA, "/api/riscos/categorias/nova")
     });

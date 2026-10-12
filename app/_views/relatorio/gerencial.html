@@ -4,15 +4,15 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Relatório gerencial</h1>
-        <p class="page-head__sub">Relatório semanal ou mensal em folhas A4 na horizontal, uma por seção, com impressão em PDF.</p>
+        <h1 class="h-dash" data-i18n="Relatório gerencial">Relatório gerencial</h1>
+        <p class="page-head__sub" data-i18n="Relatório semanal ou mensal em folhas A4 na horizontal, uma por seção, com impressão em PDF.">Relatório semanal ou mensal em folhas A4 na horizontal, uma por seção, com impressão em PDF.</p>
       </div>
       <div class="page-head__actions">
-        <button type="button" class="btn btn--primary" data-relatorio-abrir>
+        <button type="button" class="btn btn--primary" data-relatorio-abrir data-i18n="Emitir relatório">
           <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
           Emitir relatório
         </button>
-        <button type="button" class="btn btn--secondary" data-relatorio-imprimir>
+        <button type="button" class="btn btn--secondary" data-relatorio-imprimir data-i18n="Imprimir / PDF">
           <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
           Imprimir / PDF
         </button>
@@ -26,27 +26,27 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Montando o relatório...</p>
+          <p data-i18n="Montando o relatório...">Montando o relatório...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Nenhum relatório emitido</h2>
-          <p>Escolha o tipo, o período e as seções no modal de emissão para montar as folhas do relatório.</p>
-          <button type="button" class="btn btn--primary" data-relatorio-abrir>Emitir relatório</button>
+          <h2 class="h-card4" data-i18n="Nenhum relatório emitido">Nenhum relatório emitido</h2>
+          <p data-i18n="Escolha o tipo, o período e as seções no modal de emissão para montar as folhas do relatório.">Escolha o tipo, o período e as seções no modal de emissão para montar as folhas do relatório.</p>
+          <button type="button" class="btn btn--primary" data-relatorio-abrir data-i18n="Emitir relatório">Emitir relatório</button>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível montar o relatório</h2>
-          <p class="body-txt">Confira a conexão e escolha o período de novo.</p>
-          <button type="button" class="btn btn--secondary" data-relatorio-abrir>Emitir relatório</button>
+          <h2 class="h-card5" data-i18n="Não foi possível montar o relatório">Não foi possível montar o relatório</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e escolha o período de novo.">Confira a conexão e escolha o período de novo.</p>
+          <button type="button" class="btn btn--secondary" data-relatorio-abrir data-i18n="Emitir relatório">Emitir relatório</button>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

@@ -122,7 +122,7 @@
       },
       body: '<div id="punch-modal" data-endereco="' + window.TN.esc(opcoes.endereco) + '"' +
         " x-init=\"$ajax($el.dataset.endereco, { target: 'punch-modal' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' + window.TN.t("planejamento", "Carregando") + '"></div></div>'
     });
   }
 

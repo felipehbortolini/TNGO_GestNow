@@ -103,7 +103,7 @@
       onClose: function () { modalAberto = null; },
       body: '<div id="relato-modal" data-endereco="' + window.TN.esc(opcoes.endereco) + '"' +
         " x-init=\"$ajax($el.dataset.endereco, { target: 'relato-modal' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' + window.TN.t("planejamento", "Carregando") + '"></div></div>'
     });
   }
 
@@ -135,8 +135,8 @@
     if (TIPOS.indexOf(tipo) >= 0) valores.tipo = tipo;
     if (padrao && padrao.periodo) valores.periodo = padrao.periodo;
     abrirModal({
-      titulo: "Novo relato do período",
-      subtitulo: "Um registro por tipo e período: o semanal e o mensal são distintos",
+      titulo: window.TN.t("planejamento", "Novo relato do período"),
+      subtitulo: window.TN.t("planejamento", "Um registro por tipo e período: o semanal e o mensal são distintos"),
       largura: LARGURA_FORMULARIO,
       endereco: BASE + "/formulario?" + consulta(valores)
     });
@@ -144,7 +144,7 @@
 
   function abrirDoEndereco(tipo, periodo) {
     abrirModal({
-      titulo: "Relato do período",
+      titulo: window.TN.t("planejamento", "Relato do período"),
       largura: LARGURA_RELATO,
       endereco: BASE + "/abrir?" + consulta({ tipo: tipo, periodo: periodo })
     });

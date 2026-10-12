@@ -4,12 +4,12 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">6WLA</h1>
-        <p class="page-head__sub">Atividades por semana (seis semanas), restrições e responsáveis.</p>
+        <h1 class="h-dash" data-i18n="6WLA">6WLA</h1>
+        <p class="page-head__sub" data-i18n="Atividades por semana (seis semanas), restrições e responsáveis.">Atividades por semana (seis semanas), restrições e responsáveis.</p>
       </div>
       <div class="page-head__actions">
-        <button type="button" class="btn btn--secondary" data-tn-excel="/api/planejamento/6wla/excel">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="/api/planejamento/6wla/imprimivel">PDF</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="/api/planejamento/6wla/excel" data-i18n="Excel">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="/api/planejamento/6wla/imprimivel" data-i18n="PDF">PDF</button>
       </div>
     </div>
 
@@ -27,30 +27,30 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há atividades no 6WLA</h2>
-          <p>Inclua a primeira atividade com o botão Nova atividade; as restrições dela entram depois.</p>
+          <h2 class="h-card4" data-i18n="Ainda não há atividades no 6WLA">Ainda não há atividades no 6WLA</h2>
+          <p data-i18n="Inclua a primeira atividade com o botão Nova atividade; as restrições dela entram depois.">Inclua a primeira atividade com o botão Nova atividade; as restrições dela entram depois.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver as atividades.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver as atividades.">Ajuste ou limpe os filtros para ver as atividades.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

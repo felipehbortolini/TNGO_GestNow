@@ -35,7 +35,7 @@
     return (
       '<div id="' + ALVO_DO_MODAL + '" data-url="' + window.TN.esc(endereco) + '"' +
       " x-init=\"$ajax($el.dataset.url, { target: '" + ALVO_DO_MODAL + "' })\">" +
-      '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+      '<div class="spinner" role="status" aria-label="' + window.TN.t("hse", "Carregando") + '"></div></div>'
     );
   }
 
@@ -63,8 +63,8 @@
 
   function abrirFicha(codigo) {
     abrirModal({
-      titulo: "Ocorrência " + codigo,
-      subtitulo: "Registro, investigação, ações e histórico",
+      titulo: window.TN.t("hse", "Ocorrência ") + codigo,
+      subtitulo: window.TN.t("hse", "Registro, investigação, ações e histórico"),
       url: "/api/hse/ocorrencias/" + encodeURIComponent(codigo) + "/ficha",
       largura: LARGURA_DA_FICHA
     });
@@ -110,8 +110,8 @@
         if (acao !== "nova") return;
         carregar(null).then(function () {
           abrirModal({
-            titulo: "Nova ocorrência",
-            subtitulo: "Fluxo: Registrada, Em investigação, Ações definidas, Em tratamento, Encerrada",
+            titulo: window.TN.t("hse", "Nova ocorrência"),
+            subtitulo: window.TN.t("hse", "Fluxo: Registrada, Em investigação, Ações definidas, Em tratamento, Encerrada"),
             url: "/api/hse/ocorrencias/nova",
             largura: 920,
             aoFechar: function () { carregar(urlAtual); }
