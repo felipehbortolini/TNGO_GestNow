@@ -83,7 +83,10 @@
 
   window.TN.paginas["financeiro/contrato"] = {
     iniciar: function (raiz) {
-      definirEstado(raiz, "carregando");
+      /* Sem o número no endereço não há contrato a pedir: o vazio de origem
+         aparece no lugar da ficha, sem as chamadas que responderiam 422 (e
+         sujariam o console). */
+      definirEstado(raiz, dadosDaTela(raiz).numero ? "carregando" : "vazio-origem");
 
       raiz.addEventListener("input", atualizarAvisoDePlano);
 

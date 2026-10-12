@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--riscos-ficha"
-  x-data="{ estado: 'carregando', carregar() { return this.$ajax('/api/riscos/ficha' + window.location.search, { target: 'ficha-conteudo' }) } }"
+  x-data="{ estado: 'carregando', codigo: new URLSearchParams(window.location.search).get('codigo') || '', carregar() { return this.$ajax('/api/riscos/ficha' + window.location.search, { target: 'ficha-conteudo' }) } }"
   x-init="TN.paginas['riscos/ficha'].iniciar($el)">
   <div class="page">
     <div class="page-head">

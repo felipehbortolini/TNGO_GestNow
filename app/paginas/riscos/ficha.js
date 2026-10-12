@@ -126,7 +126,11 @@
 
       document.addEventListener("ajax:error", aoFalhar);
       ouvir();
-      carregarFicha();
+      /* Sem o código no endereço não há risco a pedir: o vazio de origem
+         aparece no lugar da ficha, sem uma chamada que responderia 404 (e
+         sujaria o console). */
+      if (dados.codigo) carregarFicha();
+      else dados.estado = "vazio-origem";
     },
 
     /* Um marcador oculto do fragmento reabre o próximo modal depois de uma gravação:

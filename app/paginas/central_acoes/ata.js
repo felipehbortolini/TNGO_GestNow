@@ -134,7 +134,10 @@
 
   window.TN.paginas["central_acoes/ata"] = {
     iniciar: function (raiz) {
-      window.Alpine.$data(raiz).estado = "carregando";
+      const dados = window.Alpine.$data(raiz);
+      /* Sem o id no endereço não há ata a pedir: o vazio de origem aparece no
+         lugar da ficha, sem uma chamada que responderia 404 (e sujaria o console). */
+      dados.estado = dados.id ? "carregando" : "vazio-origem";
       ouvir();
     }
   };

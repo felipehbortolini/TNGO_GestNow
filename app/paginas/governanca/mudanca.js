@@ -104,7 +104,11 @@
 
   window.TN.paginas["governanca/mudanca"] = {
     iniciar: function (raiz) {
-      window.Alpine.$data(raiz).estado = "carregando";
+      const dados = window.Alpine.$data(raiz);
+      /* Sem o código no endereço não há solicitação a pedir: o vazio de origem
+         aparece no lugar da ficha, sem uma chamada que responderia 404 (e
+         sujaria o console). */
+      dados.estado = dados.codigo ? "carregando" : "vazio-origem";
       ouvir();
     }
   };

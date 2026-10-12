@@ -1,5 +1,5 @@
 <main id="app-shell" class="content pagina--governanca-mudanca"
-  x-data="{ estado: 'carregando' }"
+  x-data="{ estado: 'carregando', codigo: new URLSearchParams(window.location.search).get('codigo') || '' }"
   x-init="TN.paginas['governanca/mudanca'].iniciar($el)">
   <div class="page">
     <div class="page-head">
@@ -13,7 +13,7 @@
     </div>
 
     <div id="mudanca-ficha" x-show="estado === 'pronto'"
-      x-init="$ajax('/api/governanca/mudanca' + window.location.search, { target: 'mudanca-ficha' })"></div>
+      x-init="codigo && $ajax('/api/governanca/mudanca' + window.location.search, { target: 'mudanca-ficha' })"></div>
 
     <div class="card" x-show="estado !== 'pronto'">
       <div class="card__body">
