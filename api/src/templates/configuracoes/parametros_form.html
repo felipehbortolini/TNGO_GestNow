@@ -59,8 +59,7 @@
 
   {% if grupo.id == 'riscos' %}
   <div class="aviso aviso--warn mb-16" role="note">
-    <span>A troca da escala de severidade muda as faixas e a contagem de riscos críticos em todo
-      o sistema (05 e Início). Marque a confirmação abaixo para gravar.</span>
+    <span>{{ t('configuracoes', 'A troca da escala de severidade muda as faixas e a contagem de riscos críticos em todo o sistema (05 e Início). Marque a confirmação abaixo para gravar.') }}</span>
   </div>
   {% endif %}
 
@@ -72,24 +71,22 @@
   <div class="field parametros__confirmacao">
     <label class="parametros__checkbox" for="confirmar_escala">
       <input type="checkbox" id="confirmar_escala" name="confirmar_escala" value="sim"
-        {%- if confirmar_escala %} checked{% endif %} />
-      Confirmo a troca da escala de severidade
-    </label>
+        {%- if confirmar_escala %} checked{% endif %} />{{ t('configuracoes', 'Confirmo a troca da escala de severidade') }}</label>
     {{ erro(erros, 'confirmar_escala') }}
   </div>
   {% endif %}
 
   <div class="field field--full parametros__justificativa">
-    <label for="justificativa">Justificativa da alteração</label>
+    <label for="justificativa">{{ t('configuracoes', 'Justificativa da alteração') }}</label>
     <textarea id="justificativa" name="justificativa" rows="3" maxlength="400"
       class="input{% if erros.get('justificativa') %} input--erro{% endif %}" required>{{ justificativa }}</textarea>
-    <span class="hint">Obrigatória: vira a justificativa da nova versão (mínimo de 10 caracteres).</span>
+    <span class="hint">{{ t('configuracoes', 'Obrigatória: vira a justificativa da nova versão (mínimo de 10 caracteres).') }}</span>
     {{ erro(erros, 'justificativa') }}
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-parametros-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Gravar nova versão</button>
+    <button type="button" class="btn btn--secondary" data-parametros-fechar-modal>{{ t('configuracoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('configuracoes', 'Gravar nova versão') }}</button>
   </div>
 </form>
 {% endblock %}

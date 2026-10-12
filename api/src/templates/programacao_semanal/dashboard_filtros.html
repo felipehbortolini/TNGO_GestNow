@@ -16,7 +16,7 @@
       <form method="get" action="{{ painel_url }}" x-target="dash-painel" class="toolbar">
         <input type="hidden" name="projeto" value="{{ escopo }}" />
         <div class="period">
-          <label class="sr-only" for="dash-semana">Semana</label>
+          <label class="sr-only" for="dash-semana">{{ t('programacao_semanal', 'Semana') }}</label>
           <select id="dash-semana" name="semana" class="input dash-filtro__semana"
             @change="$el.form.requestSubmit()">
             {% for s in semanas %}
@@ -26,32 +26,30 @@
         </div>
         {% if not fornecedor %}
         <div class="field dash-filtro">
-          <label class="sr-only" for="dash-empresa">Contratada</label>
+          <label class="sr-only" for="dash-empresa">{{ t('programacao_semanal', 'Contratada') }}</label>
           <select id="dash-empresa" name="empresa" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas as contratadas</option>
+            <option value="">{{ t('programacao_semanal', 'Todas as contratadas') }}</option>
             {% for o in opcoes.companies %}<option value="{{ o.id }}" {% if filtros.company_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         {% endif %}
         <div class="field dash-filtro">
-          <label class="sr-only" for="dash-local">Frente</label>
+          <label class="sr-only" for="dash-local">{{ t('programacao_semanal', 'Frente') }}</label>
           <select id="dash-local" name="local" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas as frentes</option>
+            <option value="">{{ t('programacao_semanal', 'Todas as frentes') }}</option>
             {% for o in opcoes.locations %}<option value="{{ o.id }}" {% if filtros.location_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="field dash-filtro">
-          <label class="sr-only" for="dash-encarregado">Encarregado</label>
+          <label class="sr-only" for="dash-encarregado">{{ t('programacao_semanal', 'Encarregado') }}</label>
           <select id="dash-encarregado" name="encarregado" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todos os encarregados</option>
+            <option value="">{{ t('programacao_semanal', 'Todos os encarregados') }}</option>
             {% for o in opcoes.foremen %}<option value="{{ o.id }}" {% if filtros.foreman_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <button type="button" class="btn btn--ghost"
           @click="$ajax('{{ filtros_url }}?{{ limpar_query }}', { target: 'dash-filtros' });
-                  $ajax('{{ painel_url }}?{{ limpar_query }}', { target: 'dash-painel' })">
-          Limpar
-        </button>
+                  $ajax('{{ painel_url }}?{{ limpar_query }}', { target: 'dash-painel' })">{{ t('programacao_semanal', 'Limpar') }}</button>
       </form>
     </div>
   </div>

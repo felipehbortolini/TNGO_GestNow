@@ -18,13 +18,13 @@
     {% endif %}
 
     <p class="produtividade__identificacao">
-      <span class="pill pill--neutral">Apontamento da contratada</span>
-      <span class="hint">Realizado e HH apropriadas por item da linha de base; a semana futura é recusada.</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Apontamento da contratada') }}</span>
+      <span class="hint">{{ t('planejamento', 'Realizado e HH apropriadas por item da linha de base; a semana futura é recusada.') }}</span>
     </p>
 
     <div class="produtividade__campos">
       <div class="field">
-        <label for="prod-ap-empresa">Empresa</label>
+        <label for="prod-ap-empresa">{{ t('planejamento', 'Empresa') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="prod-ap-empresa" name="empresa"
           @change="$el.form.requestSubmit($refs.recarregar)">
           {% for opcao in formulario.company_options %}
@@ -34,7 +34,7 @@
         {% if formulario.errors.get('empresa') %}<span class="field__erro" role="alert">{{ formulario.errors.get('empresa') }}</span>{% endif %}
       </div>
       <div class="field">
-        <label for="prod-ap-semana">Semana</label>
+        <label for="prod-ap-semana">{{ t('planejamento', 'Semana') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('semana') }}" id="prod-ap-semana" name="semana"
           @change="$el.form.requestSubmit($refs.recarregar)">
           {% for semana in formulario.week_options %}
@@ -48,14 +48,14 @@
     {% if formulario.rows %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Itens da empresa com o previsto da semana para apontar</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Itens da empresa com o previsto da semana para apontar') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Item</th>
-            <th scope="col" class="td-num">Previsto na semana</th>
-            <th scope="col" class="td-num">Realizado</th>
-            <th scope="col" class="td-num">HH apropriadas</th>
-            <th scope="col" class="td-num">Acumulado / LB</th>
+            <th scope="col">{{ t('planejamento', 'Item') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Previsto na semana') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Realizado') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'HH apropriadas') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Acumulado / LB') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -88,14 +88,14 @@
         </tbody>
       </table>
     </div>
-    <p class="hint">Deixe em branco o item sem apontamento. Acumulado acima do total da LB exige SM (08) e revisão da linha de base.</p>
+    <p class="hint">{{ t('planejamento', 'Deixe em branco o item sem apontamento. Acumulado acima do total da LB exige SM (08) e revisão da linha de base.') }}</p>
     {% else %}
-    <p class="muted">Nenhum item com linha de base aprovada e saldo nesta semana.</p>
+    <p class="muted">{{ t('planejamento', 'Nenhum item com linha de base aprovada e saldo nesta semana.') }}</p>
     {% endif %}
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.rows }}>Apontar semana</button>
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.rows }}>{{ t('planejamento', 'Apontar semana') }}</button>
     </div>
   </form>
 </div>

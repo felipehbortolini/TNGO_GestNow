@@ -8,17 +8,17 @@
 #}
 {% if previa.score %}
 <div class="aval-card">
-  <span class="aval-card__rotulo">Score {{ 'residual' if tipo_atual == 'residual' else 'inerente' }}</span>
+  <span class="aval-card__rotulo">Score {{ t('riscos', 'residual') if tipo_atual == 'residual' else t('riscos', 'inerente') }}</span>
   <div class="aval-card__score">
     <b>{{ previa.score }}</b>
     <span class="aval-card__pi">P{{ valores.get('p') or '·' }} x I{{ previa.impact }}</span>
     <span class="pill {{ etiqueta_de_faixa(previa.severity) }}">{{ previa.severity.name }}</span>
   </div>
   <span class="body-txt">
-    {% if anterior %}Anterior: {{ anterior.score }} · {% endif %}VME {{ formatar_moeda(previa.vme_cents or 0) }}
+    {% if anterior %}{{ t('riscos', 'Anterior:') }}  {{ anterior.score }} · {% endif %}VME {{ formatar_moeda(previa.vme_cents or 0) }}
     ({{ previa.mean_pct }}% x impacto em custo){% if previa.cadence_days %} · revisão {{ texto_da_cadencia(previa.cadence_days) }}{% endif %}
   </span>
 </div>
 {% else %}
-<p class="muted">Escolha probabilidade e impacto para ver o score.</p>
+<p class="muted">{{ t('riscos', 'Escolha probabilidade e impacto para ver o score.') }}</p>
 {% endif %}

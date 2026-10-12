@@ -14,7 +14,7 @@
   <span>{{ resultado.aviso }}</span>
 </div>
 <div class="modal__actions">
-  <button type="button" class="btn btn--primary" data-riscos-pauta-fechar-modal>Fechar</button>
+  <button type="button" class="btn btn--primary" data-riscos-pauta-fechar-modal>{{ t('riscos', 'Fechar') }}</button>
 </div>
 {% else %}
 <form method="post" action="/api/riscos/painel/pauta"
@@ -23,20 +23,18 @@
   <p class="body-txt mb-16">A pauta vai para o gerente do projeto ({{ escopo }}); o envio fica registrado na trilha de auditoria.</p>
   <div class="fgrid">
     <div class="field field--full">
-      <span class="hint">Para (gerente do projeto)</span>
+      <span class="hint">{{ t('riscos', 'Para (gerente do projeto)') }}</span>
       <span class="body-txt">{{ formulario.destinatario }}</span>
     </div>
     <div class="field field--full">
-      <label for="riscos-pauta-mensagem">Mensagem</label>
+      <label for="riscos-pauta-mensagem">{{ t('riscos', 'Mensagem') }}</label>
       <textarea id="riscos-pauta-mensagem" name="mensagem" rows="12" class="input">{{ formulario.mensagem }}</textarea>
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-riscos-pauta-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-riscos-pauta-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
-      Enviar
-    </button>
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>{{ t('riscos', 'Enviar') }}</button>
   </div>
 </form>
 {% endif %}

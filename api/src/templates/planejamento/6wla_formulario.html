@@ -11,14 +11,14 @@
         <h2 class="h-card4" id="lk-form-titulo">{{ formulario.title }}</h2>
         {% if formulario.subtitle %}<span class="hint">{{ formulario.subtitle }}</span>{% endif %}
       </div>
-      <button type="button" class="iconbtn" aria-label="Fechar o formulário"
+      <button type="button" class="iconbtn" aria-label="{{ t('planejamento', 'Fechar o formulário') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 16)"
         @click="document.getElementById('lookahead-formulario').replaceChildren()"></button>
     </div>
     <div class="card__body">
       {% if formulario.message or formulario.errors %}
       <div class="aviso aviso--erro mb-16" role="alert">
-        <strong>Não foi possível salvar.</strong>
+        <strong>{{ t('planejamento', 'Não foi possível salvar.') }}</strong>
         {% if formulario.message %}<span>{{ formulario.message }}</span>{% endif %}
         {% for texto in formulario.errors.values() %}<span>{{ texto }}</span>{% endfor %}
       </div>
@@ -31,8 +31,8 @@
         {% include formulario.template %}
         <div class="acoes-rodape mt-24">
           <button type="button" class="btn btn--secondary"
-            @click="document.getElementById('lookahead-formulario').replaceChildren()">Cancelar</button>
-          <button type="submit" class="btn btn--primary">Salvar</button>
+            @click="document.getElementById('lookahead-formulario').replaceChildren()">{{ t('planejamento', 'Cancelar') }}</button>
+          <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Salvar') }}</button>
         </div>
       </form>
     </div>

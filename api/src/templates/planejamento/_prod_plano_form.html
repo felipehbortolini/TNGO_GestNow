@@ -23,18 +23,18 @@
     {% endif %}
 
     <p class="produtividade__identificacao">
-      <span class="pill pill--neutral">Plano de ação de produtividade</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Plano de ação de produtividade') }}</span>
       {% if formulario.block.company_id %}
       <span class="fw-600">{{ formulario.block.company_name }}</span>
       {% endif %}
-      <span class="hint">Vai para a Central de Ações (origem Produtividade); uma ação aberta por empresa e semana</span>
+      <span class="hint">{{ t('planejamento', 'Vai para a Central de Ações (origem Produtividade); uma ação aberta por empresa e semana') }}</span>
     </p>
 
     <div class="produtividade__campos">
       <div class="field">
-        <label for="perf-plano-empresa">Empresa</label>
+        <label for="perf-plano-empresa">{{ t('planejamento', 'Empresa') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="perf-plano-empresa" name="empresa"{{ marcas('empresa') }}>
-          <option value="">Escolha a empresa</option>
+          <option value="">{{ t('planejamento', 'Escolha a empresa') }}</option>
           {% for opcao in formulario.options.companies %}
           <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
           {% endfor %}
@@ -42,9 +42,9 @@
         {{ erro('empresa') }}
       </div>
       <div class="field">
-        <label for="perf-plano-responsavel">Responsável</label>
+        <label for="perf-plano-responsavel">{{ t('planejamento', 'Responsável') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('responsavel') }}" id="perf-plano-responsavel" name="responsavel"{{ marcas('responsavel') }}>
-          <option value="">Escolha o responsável</option>
+          <option value="">{{ t('planejamento', 'Escolha o responsável') }}</option>
           {% for opcao in formulario.options.people %}
           <option value="{{ opcao.id }}"{% if formulario.fields.get('responsavel') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
           {% endfor %}
@@ -52,7 +52,7 @@
         {{ erro('responsavel') }}
       </div>
       <div class="field">
-        <label for="perf-plano-prevista">Data prevista</label>
+        <label for="perf-plano-prevista">{{ t('planejamento', 'Data prevista') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('prevista') }}" id="perf-plano-prevista"
           name="prevista" type="date" min="{{ hoje }}" value="{{ formulario.fields.get('prevista', '') }}"{{ marcas('prevista') }} />
         {{ erro('prevista') }}
@@ -60,22 +60,22 @@
     </div>
 
     <div class="field">
-      <label for="perf-plano-assunto">Ação</label>
+      <label for="perf-plano-assunto">{{ t('planejamento', 'Ação') }}</label>
       <input class="input{{ ' input--erro' if formulario.errors.get('assunto') }}" id="perf-plano-assunto"
         name="assunto" type="text" maxlength="150" value="{{ formulario.fields.get('assunto', '') }}"{{ marcas('assunto') }} />
       {{ erro('assunto') }}
     </div>
 
     <div class="field">
-      <label for="perf-plano-descricao">Descrição</label>
+      <label for="perf-plano-descricao">{{ t('planejamento', 'Descrição') }}</label>
       <textarea class="input{{ ' input--erro' if formulario.errors.get('descricao') }}" id="perf-plano-descricao"
         name="descricao" rows="3" maxlength="600"{{ marcas('descricao') }}>{{ formulario.fields.get('descricao', '') }}</textarea>
       {{ erro('descricao') }}
     </div>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary">Gerar plano de ação</button>
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Gerar plano de ação') }}</button>
     </div>
   </form>
 </div>

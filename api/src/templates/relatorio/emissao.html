@@ -14,51 +14,51 @@
   <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
 
   <div class="field">
-    <label for="rel-emissao-escopo">Relatório de</label>
+    <label for="rel-emissao-escopo">{{ t('relatorio', 'Relatório de') }}</label>
     <select class="input" id="rel-emissao-escopo" name="escopo" @change="$el.form.requestSubmit()">
       {% for opcao in visao.project_options %}
       <option value="{{ opcao.value }}"{{ ' selected' if opcao.selected }}>{{ opcao.label }}</option>
       {% endfor %}
     </select>
-    <span class="hint">Portfólio: visão da carteira e consolidados. Projeto: mesmo formato do relatório do projeto.</span>
+    <span class="hint">{{ t('relatorio', 'Portfólio: visão da carteira e consolidados. Projeto: mesmo formato do relatório do projeto.') }}</span>
   </div>
 
   <fieldset class="rel-emissao__grupo">
-    <legend class="rel-emissao__legenda">Tipo</legend>
+    <legend class="rel-emissao__legenda">{{ t('relatorio', 'Tipo') }}</legend>
     <div class="rel-emissao__opcoes">
       {% for tipo in ('Semanal', 'Mensal') %}
       <label class="rel-emissao__opcao">
         <input type="radio" name="tipo" value="{{ tipo }}" {{ 'checked' if tipo == visao.kind }}
           @change="$el.form.requestSubmit()" />
         <span>{{ tipo }}</span>
-        <span class="hint">{{ 'semana ISO, segunda a domingo' if tipo == 'Semanal' else 'mês civil' }}</span>
+        <span class="hint">{{ t('relatorio', 'semana ISO, segunda a domingo') if tipo == 'Semanal' else t('relatorio', 'mês civil') }}</span>
       </label>
       {% endfor %}
     </div>
   </fieldset>
 
   <div class="field">
-    <label for="rel-emissao-periodo">Período</label>
+    <label for="rel-emissao-periodo">{{ t('relatorio', 'Período') }}</label>
     <select class="input" id="rel-emissao-periodo" name="periodo" @change="$el.form.requestSubmit()">
       {% for opcao in visao.period_options %}
       <option value="{{ opcao.period }}"{{ ' selected' if opcao.selected }}>{{ opcao.label }}{{ ' (em andamento)' if opcao.in_progress }}{{ ' (padrão)' if opcao.is_default }}</option>
       {% endfor %}
     </select>
-    <span class="hint">Padrão: a semana anterior (no mensal, o mês anterior).</span>
+    <span class="hint">{{ t('relatorio', 'Padrão: a semana anterior (no mensal, o mês anterior).') }}</span>
   </div>
 
   <div class="rel-emissao__bloco">
-    <p class="rel-emissao__rotulo">Relato do período (02 Planejamento)</p>
+    <p class="rel-emissao__rotulo">{{ t('relatorio', 'Relato do período (02 Planejamento)') }}</p>
     {% include "relatorio/emissao_relato.html" %}
   </div>
 
   <div class="rel-emissao__bloco">
-    <p class="rel-emissao__rotulo">Análise do período por módulo</p>
+    <p class="rel-emissao__rotulo">{{ t('relatorio', 'Análise do período por módulo') }}</p>
     {% include "relatorio/emissao_analises.html" %}
   </div>
 
   <fieldset class="rel-emissao__grupo">
-    <legend class="rel-emissao__legenda">Conteúdo</legend>
+    <legend class="rel-emissao__legenda">{{ t('relatorio', 'Conteúdo') }}</legend>
     <div class="rel-emissao__opcoes">
       {% for secao in visao.sections %}
       <label class="rel-emissao__opcao">
@@ -70,13 +70,13 @@
   </fieldset>
 
   <div class="rel-emissao__bloco">
-    <p class="rel-emissao__rotulo">Formato</p>
-    <p class="hint">A4 na horizontal, uma página por seção (Planejamento em duas e, no Portfólio, a Carteira de projetos antes das demais). Cada página traz a análise do período do módulo; desvio negativo sem comentário aparece como pendente. O relatório abre nesta tela, pronto para imprimir ou salvar em PDF pela impressão do navegador.</p>
+    <p class="rel-emissao__rotulo">{{ t('relatorio', 'Formato') }}</p>
+    <p class="hint">{{ t('relatorio', 'A4 na horizontal, uma página por seção (Planejamento em duas e, no Portfólio, a Carteira de projetos antes das demais). Cada página traz a análise do período do módulo; desvio negativo sem comentário aparece como pendente. O relatório abre nesta tela, pronto para imprimir ou salvar em PDF pela impressão do navegador.') }}</p>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--ghost" data-relatorio-fechar>Fechar</button>
-    <button type="button" class="btn btn--primary" data-relatorio-emitir>Emitir relatório</button>
+    <button type="button" class="btn btn--ghost" data-relatorio-fechar>{{ t('relatorio', 'Fechar') }}</button>
+    <button type="button" class="btn btn--primary" data-relatorio-emitir>{{ t('relatorio', 'Emitir relatório') }}</button>
   </div>
 </form>
 {% endblock %}

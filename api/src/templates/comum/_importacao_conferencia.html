@@ -57,13 +57,13 @@
       <ul class="lista-simples">
         {% for item in preview.problem_rows %}
         <li class="lista-simples__item">
-          <span class="pill {{ 'pill--erro' if item.errors else 'pill--warn' }}">Linha {{ item.number }} · {{ 'erro' if item.errors else 'aviso' }}</span>
+          <span class="pill {{ 'pill--erro' if item.errors else 'pill--warn' }}">Linha {{ item.number }} · {{ t('comum', 'erro') if item.errors else t('comum', 'aviso') }}</span>
           <span class="linha__main">
             {% for motivo in item.errors %}
             <span class="linha__titulo">{{ motivo }}</span>
             {% endfor %}
             {% for motivo in item.warnings %}
-            <span class="linha__titulo">{% if item.errors %}Aviso: {% endif %}{{ motivo }}</span>
+            <span class="linha__titulo">{% if item.errors %}{{ t('comum', 'Aviso:') }}  {% endif %}{{ motivo }}</span>
             {% endfor %}
           </span>
         </li>
@@ -123,9 +123,9 @@
   <div x-data="{ ciente: false }">
     <input type="hidden" name="{{ campo_conferido }}" value="{{ preview.digest }}" />
     <div class="aviso aviso--info mb-16">
-      <strong>{{ vao_gravar }} linha(s) {{ 'será gravada' if vao_gravar == 1 else 'serão gravadas' }}, tudo ou nada.</strong>
+      <strong>{{ vao_gravar }} linha(s) {{ t('comum', 'será gravada') if vao_gravar == 1 else t('comum', 'serão gravadas') }}, tudo ou nada.</strong>
       {% if com_erro %}
-      <span>{{ com_erro }} linha(s) com erro {{ 'não será importada' if com_erro == 1 else 'não serão importadas' }}.</span>
+      <span>{{ com_erro }} linha(s) com erro {{ t('comum', 'não será importada') if com_erro == 1 else t('comum', 'não serão importadas') }}.</span>
       {% endif %}
     </div>
     {% if com_erro %}

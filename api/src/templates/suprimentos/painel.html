@@ -23,8 +23,8 @@
 {% endif %}
   <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
   <span class="painel__kpi-texto">
-    <span class="kpi__label">{{ kpi.label }}</span>
-    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    <span class="kpi__label">{{ t('suprimentos', kpi.label) }}</span>
+    <span class="hint">{{ t('suprimentos', kpi.reference) }}{% if kpi.footer %} · {{ t('suprimentos', kpi.footer) }}{% endif %}</span>
   </span>
   <span class="kpi__value">{{ kpi.value }}</span>
 {% if kpi.url %}</a>{% else %}</div>{% endif %}
@@ -38,12 +38,12 @@
 <div class="painel__barra">
   <p class="hint">
     Data de referência {{ formatar_data(listagem.reference_date) }} ·
-    {{ listagem.summary.packages }} {{ 'pacote' if listagem.summary.packages == 1 else 'pacotes' }} no plano ·
+    {{ listagem.summary.packages }} {{ t('suprimentos', 'pacote') if listagem.summary.packages == 1 else t('suprimentos', 'pacotes') }} no plano ·
     indicadores sobre a LB e o realizado até a data
   </p>
   <div class="painel__exportacoes">
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
   </div>
 </div>
 
@@ -52,9 +52,9 @@
   <div class="card__body">
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há pacotes no plano de compras</h2>
-      <p>Inclua os pacotes no plano de compras; o painel é montado a partir do plano, dos processos, dos pedidos e dos contratos.</p>
-      <a class="btn btn--primary" href="/suprimentos/plano-de-compras">Abrir o plano de compras</a>
+      <h2 class="h-card4">{{ t('suprimentos', 'Ainda não há pacotes no plano de compras') }}</h2>
+      <p>{{ t('suprimentos', 'Inclua os pacotes no plano de compras; o painel é montado a partir do plano, dos processos, dos pedidos e dos contratos.') }}</p>
+      <a class="btn btn--primary" href="/suprimentos/plano-de-compras">{{ t('suprimentos', 'Abrir o plano de compras') }}</a>
     </div>
   </div>
 </div>
@@ -63,8 +63,8 @@
   <section class="card" aria-labelledby="painel-t-contratacao">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-contratacao">Curva de contratação</h2>
-        <span class="hint">Pacotes adjudicados acumulados: plano de compras x realizado</span>
+        <h2 class="h-card4" id="painel-t-contratacao">{{ t('suprimentos', 'Curva de contratação') }}</h2>
+        <span class="hint">{{ t('suprimentos', 'Pacotes adjudicados acumulados: plano de compras x realizado') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -75,7 +75,7 @@
   <section class="card" aria-labelledby="painel-t-avanco">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-avanco">Avanço físico de suprimentos</h2>
+        <h2 class="h-card4" id="painel-t-avanco">{{ t('suprimentos', 'Avanço físico de suprimentos') }}</h2>
         <span class="hint">
           Real {{ formatar_percentual(listagem.mas.summary.realized_pct) }}% x previsto
           {{ formatar_percentual(listagem.mas.summary.planned_pct) }}% na LB{% if listagem.mas.summary.index is not none %} ·
@@ -92,7 +92,7 @@
   <section class="card" aria-labelledby="painel-t-saving">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-saving">Saving acumulado</h2>
+        <h2 class="h-card4" id="painel-t-saving">{{ t('suprimentos', 'Saving acumulado') }}</h2>
         <span class="hint">Sobre a estimativa e na negociação, pelo mês da adjudicação (R$ mil)</span>
       </div>
     </div>
@@ -104,8 +104,8 @@
   <section class="card" aria-labelledby="painel-t-etapas">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-etapas">Pacotes por etapa</h2>
-        <span class="hint">Situação atual do plano de compras</span>
+        <h2 class="h-card4" id="painel-t-etapas">{{ t('suprimentos', 'Pacotes por etapa') }}</h2>
+        <span class="hint">{{ t('suprimentos', 'Situação atual do plano de compras') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -117,32 +117,32 @@
 <section class="card painel__folga" aria-labelledby="painel-t-folga">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="painel-t-folga">Pedidos por folga em relação ao ROS</h2>
+      <h2 class="h-card4" id="painel-t-folga">{{ t('suprimentos', 'Pedidos por folga em relação ao ROS') }}</h2>
       <span class="hint">
         Folga = ROS menos a previsão de entrega ·
-        {{ listagem.summary.orders.critical }} {{ 'pedido crítico' if listagem.summary.orders.critical == 1 else 'pedidos críticos' }},
+        {{ listagem.summary.orders.critical }} {{ t('suprimentos', 'pedido crítico') if listagem.summary.orders.critical == 1 else t('suprimentos', 'pedidos críticos') }},
         {{ listagem.summary.orders.warning }} em atenção
       </span>
     </div>
   </div>
   {% if not listagem.slack_lines %}
   <div class="card__body">
-    <p class="empty" data-estado="vazio-filtro">Nenhum pacote com previsão de entrega no escopo.</p>
+    <p class="empty" data-estado="vazio-filtro">{{ t('suprimentos', 'Nenhum pacote com previsão de entrega no escopo.') }}</p>
   </div>
   {% else %}
   <div class="tbl-wrap">
     <table class="tbl painel__tabela">
-      <caption class="sr-only">Pedidos por folga em relação ao ROS</caption>
+      <caption class="sr-only">{{ t('suprimentos', 'Pedidos por folga em relação ao ROS') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Pacote</th>
-          <th scope="col">Escopo</th>
-          <th scope="col">Próximo marco</th>
-          <th scope="col">Previsão de entrega</th>
-          <th scope="col">ROS</th>
-          <th scope="col">Folga</th>
-          <th scope="col">Situação</th>
+          {% if portfolio %}<th scope="col">{{ t('suprimentos', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('suprimentos', 'Pacote') }}</th>
+          <th scope="col">{{ t('suprimentos', 'Escopo') }}</th>
+          <th scope="col">{{ t('suprimentos', 'Próximo marco') }}</th>
+          <th scope="col">{{ t('suprimentos', 'Previsão de entrega') }}</th>
+          <th scope="col">{{ t('suprimentos', 'ROS') }}</th>
+          <th scope="col">{{ t('suprimentos', 'Folga') }}</th>
+          <th scope="col">{{ t('suprimentos', 'Situação') }}</th>
         </tr>
       </thead>
       <tbody>

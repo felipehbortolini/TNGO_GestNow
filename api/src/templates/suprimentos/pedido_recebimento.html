@@ -29,7 +29,7 @@
 
   <div class="fgrid">
     <div class="field">
-      <label for="recebimento-data">Data do recebimento</label>
+      <label for="recebimento-data">{{ t('suprimentos', 'Data do recebimento') }}</label>
       <input id="recebimento-data" name="data" type="date"
         class="input{% if erros.get('data') %} input--erro{% endif %}" required
         value="{{ valores.get('data') or referencia }}"
@@ -39,59 +39,53 @@
     </div>
 
     <div class="field">
-      <span class="dilig__rotulo">Entrega realizada</span>
-      <p class="hint">O recebimento conclui o marco Entrega e realiza a entrega no MAS.</p>
+      <span class="dilig__rotulo">{{ t('suprimentos', 'Entrega realizada') }}</span>
+      <p class="hint">{{ t('suprimentos', 'O recebimento conclui o marco Entrega e realiza a entrega no MAS.') }}</p>
     </div>
 
     <div class="field field--full">
       <label class="check" for="recebimento-conferido">
         <input id="recebimento-conferido" type="checkbox" name="conferido" value="1"
-          {% if valores.get('conferido') in (None, '', '1') %}checked{% endif %} />
-        Conferência de quantidade e documentos concluída
-      </label>
+          {% if valores.get('conferido') in (None, '', '1') %}checked{% endif %} />{{ t('suprimentos', 'Conferência de quantidade e documentos concluída') }}</label>
     </div>
 
     <div class="field field--full">
       <label class="check" for="recebimento-avarias">
-        <input id="recebimento-avarias" type="checkbox" name="avarias" value="1" x-model="avarias" />
-        Recebido com avarias
-      </label>
+        <input id="recebimento-avarias" type="checkbox" name="avarias" value="1" x-model="avarias" />{{ t('suprimentos', 'Recebido com avarias') }}</label>
     </div>
 
     <div class="field field--full" x-show="avarias">
-      <label for="recebimento-descricao-avarias">Descrição das avarias</label>
+      <label for="recebimento-descricao-avarias">{{ t('suprimentos', 'Descrição das avarias') }}</label>
       <textarea id="recebimento-descricao-avarias" name="descricaoAvarias" rows="3" maxlength="300"
         class="input{% if erros.get('descricaoAvarias') %} input--erro{% endif %}"
         {% if erros.get('descricaoAvarias') %}aria-invalid="true" aria-describedby="erro-descricaoAvarias"{% endif %}>{{ valores.get('descricaoAvarias') or '' }}</textarea>
-      <span class="hint">Mínimo de 10 caracteres.</span>
+      <span class="hint">{{ t('suprimentos', 'Mínimo de 10 caracteres.') }}</span>
       {{ campo_erro(erros, 'descricaoAvarias') }}
     </div>
 
     <div class="field field--full">
-      <label for="recebimento-pendencias">Pendências do recebimento</label>
+      <label for="recebimento-pendencias">{{ t('suprimentos', 'Pendências do recebimento') }}</label>
       <textarea id="recebimento-pendencias" name="pendencias" rows="3" maxlength="300"
         class="input{% if erros.get('pendencias') %} input--erro{% endif %}"
-        placeholder="Certificados, data book, sobressalentes, itens faltantes"
+        placeholder="{{ t('suprimentos', 'Certificados, data book, sobressalentes, itens faltantes') }}"
         {% if erros.get('pendencias') %}aria-invalid="true" aria-describedby="erro-pendencias"{% endif %}>{{ valores.get('pendencias') or '' }}</textarea>
       {{ campo_erro(erros, 'pendencias') }}
     </div>
 
     <div class="field field--full">
-      <label for="recebimento-arquivo">Evidência do recebimento (romaneio, nota fiscal e fotos)</label>
+      <label for="recebimento-arquivo">{{ t('suprimentos', 'Evidência do recebimento (romaneio, nota fiscal e fotos)') }}</label>
       <input id="recebimento-arquivo" name="arquivo" type="file" accept=".pdf,.jpg,.jpeg,.png"
         class="input{% if erros.get('arquivo') %} input--erro{% endif %}"
         {% if erros.get('arquivo') %}aria-invalid="true" aria-describedby="erro-arquivo"{% endif %} />
-      <span class="hint">O arquivo é o anexo do recebimento (D5a); dá para enviar mais de um pela ficha, depois de salvar.</span>
+      <span class="hint">{{ t('suprimentos', 'O arquivo é o anexo do recebimento (D5a); dá para enviar mais de um pela ficha, depois de salvar.') }}</span>
       {{ campo_erro(erros, 'arquivo') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>
-      Registrar recebimento
-    </button>
+      <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar recebimento') }}</button>
   </div>
 </form>
 {% endblock %}

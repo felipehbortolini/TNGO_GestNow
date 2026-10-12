@@ -34,14 +34,14 @@
 
   <div class="fgrid">
     <div class="field">
-      <label for="res-data">Data de realização</label>
+      <label for="res-data">{{ t('qualidade', 'Data de realização') }}</label>
       <input id="res-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field">
-      <label for="res-verificados">Itens verificados</label>
+      <label for="res-verificados">{{ t('qualidade', 'Itens verificados') }}</label>
       <input id="res-verificados" name="itensVerificados" type="number" min="1" max="500"
         class="input{% if erros.get('itensVerificados') %} input--erro{% endif %}" required
         value="{{ valores.get('itensVerificados') or '' }}" @input="ver = $event.target.value"
@@ -49,7 +49,7 @@
       {{ erro(erros, 'itensVerificados') }}
     </div>
     <div class="field">
-      <label for="res-conformes">Itens conformes</label>
+      <label for="res-conformes">{{ t('qualidade', 'Itens conformes') }}</label>
       <input id="res-conformes" name="itensConformes" type="number" min="0" max="500"
         class="input{% if erros.get('itensConformes') %} input--erro{% endif %}" required
         value="{{ valores.get('itensConformes') or '' }}" @input="conf = $event.target.value"
@@ -57,7 +57,7 @@
       {{ erro(erros, 'itensConformes') }}
     </div>
     <div class="field" x-show="Number(ver) > 0 && Number(conf) >= 0 && Number(conf) <= Number(ver)">
-      <span class="field__label">Conformidade</span>
+      <span class="field__label">{{ t('qualidade', 'Conformidade') }}</span>
       <div>
         <b x-text="(Number(conf) / Number(ver) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'"></b>
         <span class="hint">meta {{ meta | round(0) }}%</span>
@@ -66,7 +66,7 @@
   </div>
 
   <fieldset class="auditorias__constatacoes-form">
-    <legend>Constatações</legend>
+    <legend>{{ t('qualidade', 'Constatações') }}</legend>
     {% if erros.get('constatacoes') %}
     <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['constatacoes'] }}</span></div>
     {% endif %}
@@ -77,36 +77,36 @@
         <label for="res-constatacao{{ posicao }}-tipo">Constatação {{ posicao }} · tipo</label>
         <select id="res-constatacao{{ posicao }}-tipo" name="constatacao{{ posicao }}_tipo" class="input"
           @change="nc = $event.target.value === 'Não conformidade'">
-          <option value="">Escolha...</option>
+          <option value="">{{ t('qualidade', 'Escolha...') }}</option>
           {% for tipo in tipos_constatacao %}
           <option value="{{ tipo }}"{% if valores.get('constatacao' ~ posicao ~ '_tipo') == tipo %} selected{% endif %}>{{ tipo }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field field--full">
-        <label for="res-constatacao{{ posicao }}-descricao">Descrição</label>
+        <label for="res-constatacao{{ posicao }}-descricao">{{ t('qualidade', 'Descrição') }}</label>
         <textarea id="res-constatacao{{ posicao }}-descricao" name="constatacao{{ posicao }}_descricao"
           class="input" rows="2" maxlength="400">{{ valores.get('constatacao' ~ posicao ~ '_descricao') or '' }}</textarea>
       </div>
       <div class="field" x-show="nc">
-        <label for="res-constatacao{{ posicao }}-requisito">Requisito</label>
+        <label for="res-constatacao{{ posicao }}-requisito">{{ t('qualidade', 'Requisito') }}</label>
         <input id="res-constatacao{{ posicao }}-requisito" name="constatacao{{ posicao }}_requisito"
-          class="input" maxlength="80" placeholder="Norma, procedimento ou cláusula"
+          class="input" maxlength="80" placeholder="{{ t('qualidade', 'Norma, procedimento ou cláusula') }}"
           value="{{ valores.get('constatacao' ~ posicao ~ '_requisito') or '' }}" />
       </div>
       <div class="field" x-show="nc">
-        <label for="res-constatacao{{ posicao }}-disciplina">Disciplina (RNC)</label>
+        <label for="res-constatacao{{ posicao }}-disciplina">{{ t('qualidade', 'Disciplina (RNC)') }}</label>
         <select id="res-constatacao{{ posicao }}-disciplina" name="constatacao{{ posicao }}_disciplina" class="input">
-          <option value="">Escolha...</option>
+          <option value="">{{ t('qualidade', 'Escolha...') }}</option>
           {% for disciplina in disciplinas %}
           <option value="{{ disciplina }}"{% if valores.get('constatacao' ~ posicao ~ '_disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field" x-show="nc">
-        <label for="res-constatacao{{ posicao }}-severidade">Severidade (RNC)</label>
+        <label for="res-constatacao{{ posicao }}-severidade">{{ t('qualidade', 'Severidade (RNC)') }}</label>
         <select id="res-constatacao{{ posicao }}-severidade" name="constatacao{{ posicao }}_severidade" class="input">
-          <option value="">Escolha...</option>
+          <option value="">{{ t('qualidade', 'Escolha...') }}</option>
           {% for severidade in severidades %}
           <option value="{{ severidade }}"{% if valores.get('constatacao' ~ posicao ~ '_severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
           {% endfor %}
@@ -116,20 +116,19 @@
     {% endfor %}
     <button type="button" class="btn btn--secondary btn--sm" x-show="constatacoes < {{ max_constatacoes }}"
       @click="constatacoes = Math.min(constatacoes + 1, {{ max_constatacoes }})">
-      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar constatação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Adicionar constatação') }}</button>
   </fieldset>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="res-resumo">Conclusão da auditoria</label>
+      <label for="res-resumo">{{ t('qualidade', 'Conclusão da auditoria') }}</label>
       <textarea id="res-resumo" name="resumo" class="input" rows="3" maxlength="600">{{ valores.get('resumo') or '' }}</textarea>
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-auditorias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar resultado</button>
+    <button type="button" class="btn btn--secondary" data-auditorias-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Registrar resultado') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -30,25 +30,25 @@
 
   <div class="fgrid">
     <div class="field">
-      <span class="field__label">Projeto</span>
+      <span class="field__label">{{ t('qualidade', 'Projeto') }}</span>
       <p class="body-txt fw-600">{{ projeto.code }} · {{ projeto.name if projeto else '' }}</p>
     </div>
     <div class="field">
-      <span class="field__label">Número</span>
-      <p class="body-txt"><span class="muted">gerado ao salvar (RNC-...)</span></p>
+      <span class="field__label">{{ t('qualidade', 'Número') }}</span>
+      <p class="body-txt"><span class="muted">{{ t('qualidade', 'gerado ao salvar (RNC-...)') }}</span></p>
     </div>
     <div class="field">
-      <label for="rnc-data">Data da constatação</label>
+      <label for="rnc-data">{{ t('qualidade', 'Data da constatação') }}</label>
       <input id="rnc-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field">
-      <label for="rnc-origem">Origem</label>
+      <label for="rnc-origem">{{ t('qualidade', 'Origem') }}</label>
       <select id="rnc-origem" name="origem" class="input{% if erros.get('origem') %} input--erro{% endif %}" required
         {% if erros.get('origem') %}aria-invalid="true" aria-describedby="erro-origem"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for origem in origens %}
         <option value="{{ origem }}"{% if valores.get('origem') == origem %} selected{% endif %}>{{ origem }}</option>
         {% endfor %}
@@ -56,17 +56,17 @@
       {{ erro(erros, 'origem') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-origem-ref">Referência da origem</label>
+      <label for="rnc-origem-ref">{{ t('qualidade', 'Referência da origem') }}</label>
       <input id="rnc-origem-ref" name="origemRef" class="input" maxlength="40"
         value="{{ valores.get('origemRef') or '' }}"
-        placeholder="Ex.: INS-2026-0160, AUD-TN-2026-02, PED-2026-0004" />
+        placeholder="{{ t('qualidade', 'Ex.: INS-2026-0160, AUD-TN-2026-02, PED-2026-0004') }}" />
       {{ erro(erros, 'origemRef') }}
     </div>
     <div class="field">
-      <label for="rnc-disciplina">Disciplina</label>
+      <label for="rnc-disciplina">{{ t('qualidade', 'Disciplina') }}</label>
       <select id="rnc-disciplina" name="disciplina" class="input{% if erros.get('disciplina') %} input--erro{% endif %}" required
         {% if erros.get('disciplina') %}aria-invalid="true" aria-describedby="erro-disciplina"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for disciplina in disciplinas %}
         <option value="{{ disciplina }}"{% if valores.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
         {% endfor %}
@@ -74,10 +74,10 @@
       {{ erro(erros, 'disciplina') }}
     </div>
     <div class="field">
-      <label for="rnc-empresa">Empresa responsável</label>
+      <label for="rnc-empresa">{{ t('qualidade', 'Empresa responsável') }}</label>
       <select id="rnc-empresa" name="empresaId" class="input{% if erros.get('empresaId') %} input--erro{% endif %}" required
         {% if erros.get('empresaId') %}aria-invalid="true" aria-describedby="erro-empresaId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresaId') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
@@ -85,10 +85,10 @@
       {{ erro(erros, 'empresaId') }}
     </div>
     <div class="field">
-      <label for="rnc-severidade">Severidade</label>
+      <label for="rnc-severidade">{{ t('qualidade', 'Severidade') }}</label>
       <select id="rnc-severidade" name="severidade" class="input{% if erros.get('severidade') %} input--erro{% endif %}" required
         {% if erros.get('severidade') %}aria-invalid="true" aria-describedby="erro-severidade"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for severidade in severidades %}
         <option value="{{ severidade }}"{% if valores.get('severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
         {% endfor %}
@@ -97,30 +97,30 @@
       {{ erro(erros, 'severidade') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-descricao">Descrição da não conformidade</label>
+      <label for="rnc-descricao">{{ t('qualidade', 'Descrição da não conformidade') }}</label>
       <textarea id="rnc-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}"
         rows="3" maxlength="600" required
-        placeholder="O que foi constatado, onde e qual requisito (desenho, especificação, norma) não foi atendido"
+        placeholder="{{ t('qualidade', 'O que foi constatado, onde e qual requisito (desenho, especificação, norma) não foi atendido') }}"
         {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
       {{ erro(erros, 'descricao') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-contencao">Contenção imediata</label>
+      <label for="rnc-contencao">{{ t('qualidade', 'Contenção imediata') }}</label>
       <textarea id="rnc-contencao" name="contencao" class="input{% if erros.get('contencao') %} input--erro{% endif %}"
         rows="2" maxlength="400" required
-        placeholder="Bloqueio, segregação, identificação ou suspensão da atividade"
+        placeholder="{{ t('qualidade', 'Bloqueio, segregação, identificação ou suspensão da atividade') }}"
         {% if erros.get('contencao') %}aria-invalid="true" aria-describedby="erro-contencao"{% endif %}>{{ valores.get('contencao') or '' }}</textarea>
       {{ erro(erros, 'contencao') }}
     </div>
   </div>
 
   <div class="aviso aviso--info mb-16" role="note">
-    <span>Evidências (fotos, relatórios): anexe na ficha da RNC depois de abrir.</span>
+    <span>{{ t('qualidade', 'Evidências (fotos, relatórios): anexe na ficha da RNC depois de abrir.') }}</span>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Abrir RNC</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Abrir RNC') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -14,15 +14,13 @@
 <span hidden data-situacao="{{ situacao }}"></span>
 
 <div class="aviso aviso--warn mb-16" role="note">
-  <strong>Esta tela controla quem entra no sistema.</strong>
-  <span>O perfil define o que a pessoa pode fazer; o vínculo define o que ela enxerga. Fornecedor
-    só vê a Programação Semanal da própria empresa.</span>
+  <strong>{{ t('configuracoes', 'Esta tela controla quem entra no sistema.') }}</strong>
+  <span>{{ t('configuracoes', 'O perfil define o que a pessoa pode fazer; o vínculo define o que ela enxerga. Fornecedor só vê a Programação Semanal da própria empresa.') }}</span>
 </div>
 
 <div class="aviso aviso--info mb-16" role="note">
-  <strong>Fiscais e encarregados saem daqui.</strong>
-  <span>Ao programar uma atividade, os campos <b>Fiscal responsável</b> e <b>Encarregado</b>
-    oferecem exatamente as pessoas ativas cadastradas abaixo com esses papéis no projeto.</span>
+  <strong>{{ t('configuracoes', 'Fiscais e encarregados saem daqui.') }}</strong>
+  <span>{{ t('configuracoes', 'Ao programar uma atividade, os campos') }}<b>{{ t('configuracoes', 'Fiscal responsável') }}</b> e <b>{{ t('configuracoes', 'Encarregado') }}</b>{{ t('configuracoes', 'oferecem exatamente as pessoas ativas cadastradas abaixo com esses papéis no projeto.') }}</span>
 </div>
 
 <div class="kpis mb-16" style="--kpis-colunas: 4">
@@ -37,60 +35,57 @@
 
 <form class="toolbar colaboradores__filtros" method="get" action="{{ url_tela }}"
   x-target="{{ target_id }}" role="search">
-  <label class="sr-only" for="{{ target_id }}-busca">Buscar colaborador</label>
+  <label class="sr-only" for="{{ target_id }}-busca">{{ t('configuracoes', 'Buscar colaborador') }}</label>
   <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ busca }}"
-    maxlength="120" placeholder="Buscar por nome, e-mail, função ou empresa" />
-  <select class="input" name="perfil" aria-label="Perfil geral" @change="$el.form.requestSubmit()">
-    <option value="">Perfil: todos</option>
+    maxlength="120" placeholder="{{ t('configuracoes', 'Buscar por nome, e-mail, função ou empresa') }}" />
+  <select class="input" name="perfil" aria-label="{{ t('configuracoes', 'Perfil geral') }}" @change="$el.form.requestSubmit()">
+    <option value="">{{ t('configuracoes', 'Perfil: todos') }}</option>
     {% for p in perfis %}
     <option value="{{ p }}"{% if perfil == p %} selected{% endif %}>{{ p }}</option>
     {% endfor %}
   </select>
-  <select class="input" name="vinculo" aria-label="Vínculo" @change="$el.form.requestSubmit()">
-    <option value="">Vínculo: todos</option>
+  <select class="input" name="vinculo" aria-label="{{ t('configuracoes', 'Vínculo') }}" @change="$el.form.requestSubmit()">
+    <option value="">{{ t('configuracoes', 'Vínculo: todos') }}</option>
     {% for v in vinculos %}
     <option value="{{ v }}"{% if vinculo == v %} selected{% endif %}>{{ v }}</option>
     {% endfor %}
   </select>
   <button type="submit" class="btn btn--secondary btn--sm">
-    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
-  </button>
+    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>{{ t('configuracoes', 'Consultar') }}</button>
   {% if busca or perfil or vinculo %}
-  <a class="btn btn--ghost btn--sm" href="{{ url_tela }}" x-target="{{ target_id }}">Limpar filtros</a>
+  <a class="btn btn--ghost btn--sm" href="{{ url_tela }}" x-target="{{ target_id }}">{{ t('configuracoes', 'Limpar filtros') }}</a>
   {% endif %}
 </form>
 
 <section class="card">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Quem tem acesso hoje</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Quem tem acesso hoje') }}</h2>
       <span class="hint">{{ visao.total }} pessoa(s) no cadastro · mostrando {{ visao.rows | length }}</span>
     </div>
     <div class="colaboradores__acoes">
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('configuracoes', 'Excel') }}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('configuracoes', 'PDF') }}</button>
       <button type="button" class="btn btn--primary btn--sm"
         data-colaboradores-modal-url="{{ url_novo }}"
-        data-colaboradores-modal-titulo="Liberar um novo acesso"
-        data-colaboradores-modal-subtitulo="O acesso vale na requisição seguinte da pessoa">
-        <span x-init="$el.innerHTML = window.icon('userPlus', 14)" aria-hidden="true"></span>
-        Liberar acesso
-      </button>
+        data-colaboradores-modal-titulo="{{ t('configuracoes', 'Liberar um novo acesso') }}"
+        data-colaboradores-modal-subtitulo="{{ t('configuracoes', 'O acesso vale na requisição seguinte da pessoa') }}">
+        <span x-init="$el.innerHTML = window.icon('userPlus', 14)" aria-hidden="true"></span>{{ t('configuracoes', 'Liberar acesso') }}</button>
     </div>
   </div>
   <div class="card__body">
     {% if visao.rows %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Colaboradores com acesso liberado</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Colaboradores com acesso liberado') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Pessoa</th>
-            <th scope="col">Perfil e vínculo</th>
-            <th scope="col">Empresa</th>
-            <th scope="col">Papéis na Programação Semanal</th>
-            <th scope="col" class="td-center">Situação</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Pessoa') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Perfil e vínculo') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Empresa') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Papéis na Programação Semanal') }}</th>
+            <th scope="col" class="td-center">{{ t('configuracoes', 'Situação') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -115,9 +110,9 @@
             </td>
             <td class="td-center">
               {% if linha.active %}
-              <span class="pill pill--ok">Ativo</span>
+              <span class="pill pill--ok">{{ t('configuracoes', 'Ativo') }}</span>
               {% else %}
-              <span class="pill pill--neutral">Suspenso</span>
+              <span class="pill pill--neutral">{{ t('configuracoes', 'Suspenso') }}</span>
               {% endif %}
             </td>
             <td class="td-center">
@@ -125,7 +120,7 @@
                 aria-label="Editar o acesso de {{ linha.name }}"
                 data-colaboradores-modal-url="/api/configuracoes/colaboradores/{{ linha.collaborator_id }}/editar"
                 data-colaboradores-modal-titulo="Editar acesso · {{ linha.name }}"
-                data-colaboradores-modal-subtitulo="O e-mail de acesso não muda por aqui"
+                data-colaboradores-modal-subtitulo="{{ t('configuracoes', 'O e-mail de acesso não muda por aqui') }}"
                 x-init="$el.innerHTML = window.icon('edit', 16)"></button>
               <button type="button" class="iconbtn" title="Revogar o acesso de {{ linha.name }}"
                 aria-label="Revogar o acesso de {{ linha.name }}"
@@ -157,14 +152,14 @@
     </div>
     {% elif situacao == 'vazio-filtro' %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum colaborador encontrado com os filtros atuais</h2>
-      <p>Ajuste ou limpe a busca, o perfil e o vínculo para ver quem tem acesso.</p>
+      <h2 class="h-card4">{{ t('configuracoes', 'Nenhum colaborador encontrado com os filtros atuais') }}</h2>
+      <p>{{ t('configuracoes', 'Ajuste ou limpe a busca, o perfil e o vínculo para ver quem tem acesso.') }}</p>
     </div>
     {% else %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ninguém cadastrado</h2>
-      <p>Libere o primeiro acesso no botão acima.</p>
+      <h2 class="h-card4">{{ t('configuracoes', 'Ninguém cadastrado') }}</h2>
+      <p>{{ t('configuracoes', 'Libere o primeiro acesso no botão acima.') }}</p>
     </div>
     {% endif %}
   </div>

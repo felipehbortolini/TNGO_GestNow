@@ -33,10 +33,10 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="rnc-metodo">Método de análise</label>
+      <label for="rnc-metodo">{{ t('qualidade', 'Método de análise') }}</label>
       <select id="rnc-metodo" name="metodo" class="input{% if erros.get('metodo') %} input--erro{% endif %}" required
         {% if erros.get('metodo') %}aria-invalid="true" aria-describedby="erro-metodo"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for metodo in metodos %}
         <option value="{{ metodo }}"{% if valores.get('metodo') == metodo %} selected{% endif %}>{{ metodo }}</option>
         {% endfor %}
@@ -44,18 +44,18 @@
       {{ erro(erros, 'metodo') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-causa">Causa raiz</label>
+      <label for="rnc-causa">{{ t('qualidade', 'Causa raiz') }}</label>
       <textarea id="rnc-causa" name="causaRaiz" class="input{% if erros.get('causaRaiz') %} input--erro{% endif %}"
         rows="3" maxlength="800" required
         {% if erros.get('causaRaiz') %}aria-invalid="true" aria-describedby="erro-causaRaiz"{% endif %}>{{ valores.get('causaRaiz') or '' }}</textarea>
       {{ erro(erros, 'causaRaiz') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-disposicao">Disposição do produto não conforme</label>
+      <label for="rnc-disposicao">{{ t('qualidade', 'Disposição do produto não conforme') }}</label>
       <select id="rnc-disposicao" name="disposicao" class="input{% if erros.get('disposicao') %} input--erro{% endif %}" required
         @change="disposicao = $event.target.value"
         {% if erros.get('disposicao') %}aria-invalid="true" aria-describedby="erro-disposicao"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for disposicao in disposicoes %}
         <option value="{{ disposicao }}"{% if valores.get('disposicao') == disposicao %} selected{% endif %}>{{ disposicao }}</option>
         {% endfor %}
@@ -63,32 +63,32 @@
       {{ erro(erros, 'disposicao') }}
     </div>
     <div class="field" x-show="['Reparo', 'Usar como está'].includes(disposicao)">
-      <label for="rnc-concessao-ref">Concessão do cliente (documento)</label>
+      <label for="rnc-concessao-ref">{{ t('qualidade', 'Concessão do cliente (documento)') }}</label>
       <input id="rnc-concessao-ref" name="concessaoReferencia" class="input{% if erros.get('concessaoReferencia') %} input--erro{% endif %}"
         maxlength="120" value="{{ valores.get('concessaoReferencia') or '' }}"
-        placeholder="Ex.: carta, parecer de engenharia ou aceite formal"
+        placeholder="{{ t('qualidade', 'Ex.: carta, parecer de engenharia ou aceite formal') }}"
         {% if erros.get('concessaoReferencia') %}aria-invalid="true" aria-describedby="erro-concessaoReferencia"{% endif %} />
       {{ erro(erros, 'concessaoReferencia') }}
     </div>
     <div class="field" x-show="['Reparo', 'Usar como está'].includes(disposicao)">
-      <label for="rnc-concessao-data">Data da concessão</label>
+      <label for="rnc-concessao-data">{{ t('qualidade', 'Data da concessão') }}</label>
       <input id="rnc-concessao-data" name="concessaoData" type="date" class="input{% if erros.get('concessaoData') %} input--erro{% endif %}"
         value="{{ valores.get('concessaoData') or '' }}"
         {% if erros.get('concessaoData') %}aria-invalid="true" aria-describedby="erro-concessaoData"{% endif %} />
       {{ erro(erros, 'concessaoData') }}
     </div>
     <div class="field">
-      <label for="rnc-custo">Custo da não qualidade estimado</label>
+      <label for="rnc-custo">{{ t('qualidade', 'Custo da não qualidade estimado') }}</label>
       <input id="rnc-custo" name="custoCentavos" class="input{% if erros.get('custoCentavos') %} input--erro{% endif %}"
         inputmode="decimal" value="{{ valores.get('custoCentavos') or '0,00' }}"
         {% if erros.get('custoCentavos') %}aria-invalid="true" aria-describedby="erro-custoCentavos"{% endif %} />
-      <span class="hint">Retrabalho, reparo, ensaios, perda de material e paralisação.</span>
+      <span class="hint">{{ t('qualidade', 'Retrabalho, reparo, ensaios, perda de material e paralisação.') }}</span>
       {{ erro(erros, 'custoCentavos') }}
     </div>
   </div>
 
   <fieldset class="rnc__acoes-form">
-    <legend>Ações corretivas (vão para a Central de Ações, origem RNC)</legend>
+    <legend>{{ t('qualidade', 'Ações corretivas (vão para a Central de Ações, origem RNC)') }}</legend>
     {% if erros.get('acoes') %}
     <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['acoes'] }}</span></div>
     {% endif %}
@@ -100,21 +100,21 @@
           value="{{ valores.get('acao' ~ posicao ~ '_assunto') or '' }}" />
       </div>
       <div class="field">
-        <label for="rnc-acao{{ posicao }}-responsavel">Responsável</label>
+        <label for="rnc-acao{{ posicao }}-responsavel">{{ t('qualidade', 'Responsável') }}</label>
         <select id="rnc-acao{{ posicao }}-responsavel" name="acao{{ posicao }}_responsavel" class="input">
-          <option value="">Escolha...</option>
+          <option value="">{{ t('qualidade', 'Escolha...') }}</option>
           {% for pessoa in pessoas %}
           <option value="{{ pessoa.id }}"{% if valores.get('acao' ~ posicao ~ '_responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="rnc-acao{{ posicao }}-prevista">Data prevista</label>
+        <label for="rnc-acao{{ posicao }}-prevista">{{ t('qualidade', 'Data prevista') }}</label>
         <input id="rnc-acao{{ posicao }}-prevista" name="acao{{ posicao }}_prevista" type="date" class="input"
           value="{{ valores.get('acao' ~ posicao ~ '_prevista') or '' }}" />
       </div>
       <div class="field field--full">
-        <label for="rnc-acao{{ posicao }}-descricao">Descrição</label>
+        <label for="rnc-acao{{ posicao }}-descricao">{{ t('qualidade', 'Descrição') }}</label>
         <input id="rnc-acao{{ posicao }}-descricao" name="acao{{ posicao }}_descricao" class="input" maxlength="500"
           value="{{ valores.get('acao' ~ posicao ~ '_descricao') or '' }}" />
       </div>
@@ -122,13 +122,12 @@
     {% endfor %}
     <button type="button" class="btn btn--secondary btn--sm" x-show="mostrar < {{ max_acoes }}"
       @click="mostrar = Math.min(mostrar + 1, {{ max_acoes }})">
-      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar ação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Adicionar ação') }}</button>
   </fieldset>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar análise</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Registrar análise') }}</button>
   </div>
 </form>
 {% endblock %}

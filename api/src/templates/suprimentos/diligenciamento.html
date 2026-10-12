@@ -26,8 +26,8 @@
 {% endif %}
   <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
   <span class="dilig__kpi-texto">
-    <span class="kpi__label">{{ kpi.label }}</span>
-    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    <span class="kpi__label">{{ t('suprimentos', kpi.label) }}</span>
+    <span class="hint">{{ t('suprimentos', kpi.reference) }}{% if kpi.footer %} · {{ t('suprimentos', kpi.footer) }}{% endif %}</span>
   </span>
   <span class="kpi__value">{{ kpi.value }}</span>
 {% if kpi.url %}</a>{% else %}</div>{% endif %}
@@ -54,25 +54,23 @@
   <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
   <div class="dilig__pendentes-corpo">
     <p class="fw-600">
-      {{ listagem.pending|length }} {{ 'pedido crítico com tratamento pendente' if listagem.pending|length == 1 else 'pedidos críticos com tratamento pendente' }}
+      {{ listagem.pending|length }} {{ t('suprimentos', 'pedido crítico com tratamento pendente') if listagem.pending|length == 1 else t('suprimentos', 'pedidos críticos com tratamento pendente') }}
     </p>
-    <p>Folga negativa exige ação de diligenciamento na Central e avaliação do risco no registro (05).</p>
+    <p>{{ t('suprimentos', 'Folga negativa exige ação de diligenciamento na Central e avaliação do risco no registro (05).') }}</p>
     <ul class="dilig__pendentes">
       {% for pendente in listagem.pending %}
       <li>
         <span x-init="$el.innerHTML = window.icon('truck', 16)" aria-hidden="true"></span>
         <span><b>{{ pendente.number }}</b> {{ pendente.description }} · folga {{ dias_com_sinal(pendente.slack_days) }}
           {% if pendente.action %}
-          <span class="pill pill--ok">ação na Central</span>
+          <span class="pill pill--ok">{{ t('suprimentos', 'ação na Central') }}</span>
           {% elif pode_gravar %}
           <form method="post" action="/api/suprimentos/diligenciamento/{{ pendente.id }}/acao"
             x-target="{{ target_id }}" x-target.403="{{ target_id }}" x-target.422="{{ target_id }}"
             class="dilig__pendente-acao">
             <input type="hidden" name="consulta" value="{{ consulta }}" />
             <button type="submit" class="btn btn--secondary btn--sm">
-              <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>
-              Gerar ação
-            </button>
+              <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Gerar ação') }}</button>
           </form>
           {% endif %}
           {% if pendente.risk %}
@@ -80,11 +78,9 @@
           {% elif pode_gravar %}
           <button type="button" class="btn btn--secondary btn--sm"
             data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ pendente.id }}/risco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
-            data-diligencia-modal-titulo="Registrar risco sugerido"
+            data-diligencia-modal-titulo="{{ t('suprimentos', 'Registrar risco sugerido') }}"
             data-diligencia-modal-subtitulo="{{ pendente.number }} · folga {{ dias_com_sinal(pendente.slack_days) }} em relação ao ROS">
-            <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
-            Registrar risco sugerido
-          </button>
+            <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar risco sugerido') }}</button>
           {% endif %}
         </span>
       </li>
@@ -99,61 +95,59 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/suprimentos/diligenciamento" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar pedidos</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('suprimentos', 'Buscar pedidos') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar pedido, fornecedor ou descrição" />
-        <label class="sr-only" for="{{ target_id }}-situacao">Pedidos exibidos</label>
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('suprimentos', 'Buscar pedido, fornecedor ou descrição') }}" />
+        <label class="sr-only" for="{{ target_id }}-situacao">{{ t('suprimentos', 'Pedidos exibidos') }}</label>
         <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
-          <option value="abertos"{% if filtros.situation == 'abertos' %} selected{% endif %}>Em aberto</option>
-          <option value="todos"{% if filtros.situation == 'todos' %} selected{% endif %}>Todos</option>
+          <option value="abertos"{% if filtros.situation == 'abertos' %} selected{% endif %}>{{ t('suprimentos', 'Em aberto') }}</option>
+          <option value="todos"{% if filtros.situation == 'todos' %} selected{% endif %}>{{ t('suprimentos', 'Todos') }}</option>
         </select>
       </form>
       <div class="dilig__barra">
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-diligencia-acao="importar"
           data-diligencia-url="/api/importacao/diligenciamento">
-          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-          Importar do ERP
-        </button>
+          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Importar do ERP') }}</button>
         {% endif %}
       </div>
     </div>
 
     <p class="hint dilig__contagem" role="status">
-      {{ listagem.total }} {{ 'pedido' if listagem.total == 1 else 'pedidos' }} no filtro atual ·
+      {{ listagem.total }} {{ t('suprimentos', 'pedido') if listagem.total == 1 else t('suprimentos', 'pedidos') }} no filtro atual ·
       folga = ROS menos a previsão de entrega · alerta com 7 dias ou menos
     </p>
 
     {% if listagem.summary.open_orders == 0 and listagem.summary.delivered == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há pedidos em diligenciamento</h2>
-      <p>Emita o pedido de um processo de compra aprovado para acompanhar fabricação e entrega.</p>
+      <h2 class="h-card4">{{ t('suprimentos', 'Ainda não há pedidos em diligenciamento') }}</h2>
+      <p>{{ t('suprimentos', 'Emita o pedido de um processo de compra aprovado para acompanhar fabricação e entrega.') }}</p>
     </div>
     {% elif not listagem.lines %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum pedido encontrado com os filtros atuais</h2>
-      <p>Ajuste ou limpe os filtros para ver os pedidos.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('suprimentos', 'Nenhum pedido encontrado com os filtros atuais') }}</h2>
+      <p>{{ t('suprimentos', 'Ajuste ou limpe os filtros para ver os pedidos.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl dilig__tabela">
-        <caption class="sr-only">Pedidos em diligenciamento</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Pedidos em diligenciamento') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Pedido</th>
-            <th scope="col">Descrição</th>
-            <th scope="col">Próximo marco</th>
-            <th scope="col">Data contratual</th>
-            <th scope="col">Previsão de entrega</th>
-            <th scope="col">ROS</th>
-            <th scope="col" class="td-num">Folga</th>
-            <th scope="col">Situação</th>
-            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+            {% if portfolio %}<th scope="col">{{ t('suprimentos', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('suprimentos', 'Pedido') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Descrição') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Próximo marco') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Data contratual') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Previsão de entrega') }}</th>
+            <th scope="col">{{ t('suprimentos', 'ROS') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Folga') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Situação') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('suprimentos', 'Ações da linha') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -176,7 +170,7 @@
               <span class="pill {{ pill_do_marco(linha.next_milestone.situation) }}">{{ linha.next_milestone.situation }}</span>
               {% endif %}
               {% else %}
-              <span class="pill pill--ok">Entregue</span>
+              <span class="pill pill--ok">{{ t('suprimentos', 'Entregue') }}</span>
               {% endif %}
             </td>
             <td class="num">{{ formatar_data(linha.contractual_date) }}</td>
@@ -195,14 +189,14 @@
             <td>
               <span class="pill {{ pill_da_situacao(linha.situation) }}">{{ linha.situation }}</span>
               {% if linha.critical %}
-              <br /><span class="hint{% if not linha.action %} valor--negativo{% endif %}">
-                {{ 'ação na Central' if linha.action else 'sem ação' }}</span>
+              <br /><span class="hint{% if not linha.action %}  valor--negativo{% endif %}">
+                {{ t('suprimentos', 'ação na Central') if linha.action else t('suprimentos', 'sem ação') }}</span>
               {% endif %}
             </td>
             <td class="dilig__acoes">
               <a class="btn btn--secondary btn--icon btn--sm"
                 href="/api/suprimentos/diligenciamento?pedido={{ linha.number | urlencode }}{% if consulta %}&{{ consulta }}{% endif %}"
-                x-target="{{ target_id }}" aria-label="Abrir pedido {{ linha.number }}" title="Abrir pedido">
+                x-target="{{ target_id }}" aria-label="Abrir pedido {{ linha.number }}" title="{{ t('suprimentos', 'Abrir pedido') }}">
                 <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
               </a>
             </td>
@@ -211,14 +205,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="dilig__paginas" aria-label="Páginas da lista">
+    <nav class="dilig__paginas" aria-label="{{ t('suprimentos', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}
@@ -228,6 +222,6 @@
 {% if ficha %}
 {% include "suprimentos/_pedido_ficha.html" %}
 {% else %}
-<p class="hint dilig__ficha-vazia">Abra um pedido na tabela para ver os marcos de fabricação, o recebimento e as últimas atualizações.</p>
+<p class="hint dilig__ficha-vazia">{{ t('suprimentos', 'Abra um pedido na tabela para ver os marcos de fabricação, o recebimento e as últimas atualizações.') }}</p>
 {% endif %}
 {% endblock %}

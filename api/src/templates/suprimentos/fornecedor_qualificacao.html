@@ -1,5 +1,5 @@
 {% extends "base_fragment.html" %}
-{% from "suprimentos/_documentos.html" import linhas %}
+{% from "suprimentos/_documentos.html" import linhas with context %}
 {#
   Atualizar qualificação (ISSUE-057): a situação, a validade da qualificação, as categorias, os
   documentos com a validade de cada um, a observação e a justificativa. A justificativa é
@@ -27,24 +27,24 @@
 
   <div class="fgrid">
     <div class="field">
-      <span class="fornecedor__rotulo">Empresa</span>
+      <span class="fornecedor__rotulo">{{ t('suprimentos', 'Empresa') }}</span>
       <p class="body-txt fw-600">{{ empresa_nome }}</p>
     </div>
 
     <div class="field">
-      <label for="fornecedor-situacao">Situação</label>
+      <label for="fornecedor-situacao">{{ t('suprimentos', 'Situação') }}</label>
       <select id="fornecedor-situacao" name="situacao" class="input{% if erros.get('situacao') %} input--erro{% endif %}" required
         {% if erros.get('situacao') %}aria-invalid="true" aria-describedby="erro-situacao"{% endif %}>
         {% for situacao in situacoes %}
         <option value="{{ situacao }}"{% if valores.get('situacao') == situacao %} selected{% endif %}>{{ situacao }}</option>
         {% endfor %}
       </select>
-      <span class="hint">Qualificado exige validade; Restrito e Bloqueado exigem o motivo.</span>
+      <span class="hint">{{ t('suprimentos', 'Qualificado exige validade; Restrito e Bloqueado exigem o motivo.') }}</span>
       {{ campo_erro(erros, 'situacao') }}
     </div>
 
     <div class="field">
-      <label for="fornecedor-validade">Validade da qualificação</label>
+      <label for="fornecedor-validade">{{ t('suprimentos', 'Validade da qualificação') }}</label>
       <input id="fornecedor-validade" name="validade" type="date" min="{{ referencia }}"
         class="input{% if erros.get('validade') %} input--erro{% endif %}" value="{{ valores.get('validade') or '' }}"
         {% if erros.get('validade') %}aria-invalid="true" aria-describedby="erro-validade"{% endif %} />
@@ -52,7 +52,7 @@
     </div>
 
     <div class="field field--full">
-      <label for="fornecedor-categorias">Categorias atendidas (separadas por vírgula)</label>
+      <label for="fornecedor-categorias">{{ t('suprimentos', 'Categorias atendidas (separadas por vírgula)') }}</label>
       <input id="fornecedor-categorias" name="categorias" class="input{% if erros.get('categorias') %} input--erro{% endif %}"
         maxlength="160" required value="{{ valores.get('categorias') or '' }}"
         {% if erros.get('categorias') %}aria-invalid="true" aria-describedby="erro-categorias"{% endif %} />
@@ -62,30 +62,28 @@
     {{ linhas(documentos, target_id) }}
 
     <div class="field field--full">
-      <label for="fornecedor-observacao">Observação</label>
+      <label for="fornecedor-observacao">{{ t('suprimentos', 'Observação') }}</label>
       <textarea id="fornecedor-observacao" name="observacao" rows="2" maxlength="300"
         class="input{% if erros.get('observacao') %} input--erro{% endif %}"
         {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
-      <span class="hint">Restrito ou Bloqueado exigem o motivo aqui (ou na justificativa).</span>
+      <span class="hint">{{ t('suprimentos', 'Restrito ou Bloqueado exigem o motivo aqui (ou na justificativa).') }}</span>
       {{ campo_erro(erros, 'observacao') }}
     </div>
 
     <div class="field field--full">
-      <label for="fornecedor-justificativa">Justificativa da mudança de situação</label>
+      <label for="fornecedor-justificativa">{{ t('suprimentos', 'Justificativa da mudança de situação') }}</label>
       <textarea id="fornecedor-justificativa" name="justificativa" rows="2" maxlength="300"
         class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
         {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
-      <span class="hint">Obrigatória quando a situação muda (mínimo de 10 caracteres); fica no histórico.</span>
+      <span class="hint">{{ t('suprimentos', 'Obrigatória quando a situação muda (mínimo de 10 caracteres); fica no histórico.') }}</span>
       {{ campo_erro(erros, 'justificativa') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-      Salvar qualificação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Salvar qualificação') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -23,33 +23,33 @@
   {% endfor %}
 
   <div class="aviso aviso--info mb-16" role="note">
-    <span>Esta ação nasce vinculada ao risco (origem Risco) e aparece na Central de Ações. Riscos não geram itens do tipo Informação.</span>
+    <span>{{ t('riscos', 'Esta ação nasce vinculada ao risco (origem Risco) e aparece na Central de Ações. Riscos não geram itens do tipo Informação.') }}</span>
   </div>
 
   <div class="det mb-16">
-    <div class="det__row"><span class="det__label">Item</span><span class="det__valor">{{ item }}</span></div>
-    <div class="det__row"><span class="det__label">Origem</span><span class="det__valor">{{ risco.code }} · Ação</span></div>
+    <div class="det__row"><span class="det__label">{{ t('riscos', 'Item') }}</span><span class="det__valor">{{ item }}</span></div>
+    <div class="det__row"><span class="det__label">{{ t('riscos', 'Origem') }}</span><span class="det__valor">{{ risco.code }} · Ação</span></div>
   </div>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="acao-assunto">Assunto</label>
+      <label for="acao-assunto">{{ t('riscos', 'Assunto') }}</label>
       <input id="acao-assunto" name="assunto" class="input{% if erros.get('assunto') %} input--erro{% endif %}" maxlength="255" required
         value="{{ valores.get('assunto') or '' }}"
         {% if erros.get('assunto') %}aria-invalid="true" aria-describedby="erro-assunto"{% endif %} />
       {{ erro(erros, 'assunto') }}
     </div>
     <div class="field field--full">
-      <label for="acao-descricao">Descrição</label>
+      <label for="acao-descricao">{{ t('riscos', 'Descrição') }}</label>
       <textarea id="acao-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}" rows="3" maxlength="500"
         {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="erro-descricao"{% endif %}>{{ valores.get('descricao') or '' }}</textarea>
       {{ erro(erros, 'descricao') }}
     </div>
     <div class="field">
-      <label for="acao-solicitante">Solicitante</label>
+      <label for="acao-solicitante">{{ t('riscos', 'Solicitante') }}</label>
       <select id="acao-solicitante" name="solicitanteId" class="input{% if erros.get('solicitanteId') %} input--erro{% endif %}" required
         {% if erros.get('solicitanteId') %}aria-invalid="true" aria-describedby="erro-solicitanteId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('riscos', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('solicitanteId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -57,11 +57,11 @@
       {{ erro(erros, 'solicitanteId') }}
     </div>
     <div class="field">
-      <label for="acao-responsavel">Responsável</label>
+      <label for="acao-responsavel">{{ t('riscos', 'Responsável') }}</label>
       <select id="acao-responsavel" name="responsavelId" class="input{% if erros.get('responsavelId') %} input--erro{% endif %}" required
         @change="responsavel = $event.target.value"
         {% if erros.get('responsavelId') %}aria-invalid="true" aria-describedby="erro-responsavelId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('riscos', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavelId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -72,15 +72,15 @@
       {{ erro(erros, 'responsavelId') }}
     </div>
     <div class="field">
-      <label for="acao-prevista">Data prevista</label>
+      <label for="acao-prevista">{{ t('riscos', 'Data prevista') }}</label>
       <input id="acao-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}" required
         value="{{ valores.get('prevista') or '' }}"
         {% if erros.get('prevista') %}aria-invalid="true" aria-describedby="erro-prevista"{% endif %} />
-      <span class="hint">Não pode ser anterior a hoje.</span>
+      <span class="hint">{{ t('riscos', 'Não pode ser anterior a hoje.') }}</span>
       {{ erro(erros, 'prevista') }}
     </div>
     <fieldset class="field field--full">
-      <legend>Contribuição esperada</legend>
+      <legend>{{ t('riscos', 'Contribuição esperada') }}</legend>
       <label class="registro__opcao">
         <input type="checkbox" name="contribuicaoProbabilidade" value="1"{% if valores.get('contribuicaoProbabilidade') == '1' %} checked{% endif %} />
         <span>{{ 'Aumenta a probabilidade' if oportunidade else 'Reduz a probabilidade' }}</span>
@@ -89,14 +89,14 @@
         <input type="checkbox" name="contribuicaoImpacto" value="1"{% if valores.get('contribuicaoImpacto') == '1' %} checked{% endif %} />
         <span>{{ 'Aumenta o benefício' if oportunidade else 'Reduz o impacto' }}</span>
       </label>
-      <span class="hint">Apoio na reavaliação residual: indica qual eixo revisar.</span>
+      <span class="hint">{{ t('riscos', 'Apoio na reavaliação residual: indica qual eixo revisar.') }}</span>
     </fieldset>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Salvar ação</button>
-    <button type="submit" class="btn btn--secondary" name="acao" value="nova">Salvar e nova</button>
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('riscos', 'Salvar ação') }}</button>
+    <button type="submit" class="btn btn--secondary" name="acao" value="nova">{{ t('riscos', 'Salvar e nova') }}</button>
   </div>
 </form>
 {% endblock %}

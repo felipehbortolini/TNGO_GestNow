@@ -18,19 +18,19 @@
   <div class="field field--full">
     <label data-analises-risco-rotulo for="ar-rec-descricao-{{ numero }}">Recomendação {{ numero }}</label>
     <textarea data-analises-risco-campo="descricao" id="ar-rec-descricao-{{ numero }}" name="rec_descricao_{{ numero }}"
-      rows="2" maxlength="300" class="input" placeholder="O que precisa ser feito">{{ rec.description }}</textarea>
+      rows="2" maxlength="300" class="input" placeholder="{{ t('hse', 'O que precisa ser feito') }}">{{ rec.description }}</textarea>
   </div>
   <div class="field">
-    <label data-analises-risco-rotulo-responsavel for="ar-rec-responsavel-{{ numero }}">Responsável</label>
+    <label data-analises-risco-rotulo-responsavel for="ar-rec-responsavel-{{ numero }}">{{ t('hse', 'Responsável') }}</label>
     <select data-analises-risco-campo="responsavel" id="ar-rec-responsavel-{{ numero }}" name="rec_responsavel_{{ numero }}" class="input">
-      <option value="">Escolha...</option>
+      <option value="">{{ t('hse', 'Escolha...') }}</option>
       {% for pessoa in pessoas %}
       <option value="{{ pessoa.id }}"{% if rec.responsible_id == pessoa.id %} selected{% endif %}>{{ pessoa.name }}</option>
       {% endfor %}
     </select>
   </div>
   <div class="field">
-    <label data-analises-risco-rotulo-prazo for="ar-rec-prazo-{{ numero }}">Prazo</label>
+    <label data-analises-risco-rotulo-prazo for="ar-rec-prazo-{{ numero }}">{{ t('hse', 'Prazo') }}</label>
     <input data-analises-risco-campo="prazo" id="ar-rec-prazo-{{ numero }}" name="rec_prazo_{{ numero }}"
       type="date" class="input" min="{{ referencia }}" max="2099-12-31"
       value="{{ rec.due_date.isoformat() if rec.due_date else '' }}" />
@@ -38,8 +38,7 @@
   <div class="field">
     <button type="button" class="btn btn--ghost btn--sm" data-analises-risco-remover
       aria-label="Remover a recomendação {{ numero }}">
-      <span x-init="$el.innerHTML = window.icon('trash', 14)" aria-hidden="true"></span> Remover
-    </button>
+      <span x-init="$el.innerHTML = window.icon('trash', 14)" aria-hidden="true"></span>{{ t('hse', 'Remover') }}</button>
   </div>
 </div>
 {% endmacro %}
@@ -55,15 +54,14 @@
   {% endfor %}
 
   <div class="aviso aviso--info mb-16" role="note">
-    <span>A recomendação nasce Aberta e pode virar ação na Central; fechar a recomendação fecha a
-      ação, e concluir a ação fecha a recomendação.</span>
+    <span>{{ t('hse', 'A recomendação nasce Aberta e pode virar ação na Central; fechar a recomendação fecha a ação, e concluir a ação fecha a recomendação.') }}</span>
   </div>
 
   <div class="fgrid">
     <div class="field">
-      <label for="ar-tipo">Tipo de estudo</label>
+      <label for="ar-tipo">{{ t('hse', 'Tipo de estudo') }}</label>
       <select id="ar-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for tipo in tipos %}
         <option value="{{ tipo }}"{% if valores.get('tipo') == tipo %} selected{% endif %}>{{ 'APR / JSA' if tipo == 'APR' else tipo }}</option>
         {% endfor %}
@@ -71,40 +69,39 @@
       {{ erro(erros, 'tipo') }}
     </div>
     <div class="field">
-      <label for="ar-area">Área</label>
+      <label for="ar-area">{{ t('hse', 'Área') }}</label>
       <input id="ar-area" name="area" type="text" class="input{% if erros.get('area') %} input--erro{% endif %}"
         maxlength="80" value="{{ valores.get('area') or '' }}" required />
       {{ erro(erros, 'area') }}
     </div>
     <div class="field">
-      <label for="ar-data">Data do estudo</label>
+      <label for="ar-data">{{ t('hse', 'Data do estudo') }}</label>
       <input id="ar-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field field--full">
-      <label for="ar-titulo">Título do estudo</label>
+      <label for="ar-titulo">{{ t('hse', 'Título do estudo') }}</label>
       <input id="ar-titulo" name="titulo" type="text" class="input{% if erros.get('titulo') %} input--erro{% endif %}"
         maxlength="150" value="{{ valores.get('titulo') or '' }}" required />
       {{ erro(erros, 'titulo') }}
     </div>
     <div class="field field--full">
-      <label for="ar-participantes">Participantes</label>
+      <label for="ar-participantes">{{ t('hse', 'Participantes') }}</label>
       <select id="ar-participantes" name="participantes" class="input{% if erros.get('participantes') %} input--erro{% endif %}"
         multiple size="6" required aria-describedby="ar-participantes-dica">
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if pessoa.id|string in participantes %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint" id="ar-participantes-dica">Segure Ctrl (ou Cmd) para marcar mais de um participante.</span>
+      <span class="hint" id="ar-participantes-dica">{{ t('hse', 'Segure Ctrl (ou Cmd) para marcar mais de um participante.') }}</span>
       {{ erro(erros, 'participantes') }}
     </div>
   </div>
 
   <fieldset class="mt-16">
-    <legend class="h-card5">Recomendações</legend>
-    <p class="hint mb-16">Cada recomendação pode virar uma ação na Central; o responsável e o prazo
-      são obrigatórios.</p>
+    <legend class="h-card5">{{ t('hse', 'Recomendações') }}</legend>
+    <p class="hint mb-16">{{ t('hse', 'Cada recomendação pode virar uma ação na Central; o responsável e o prazo são obrigatórios.') }}</p>
     {% if erros.get('recomendacoes') %}
     <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['recomendacoes'] }}</span></div>
     {% endif %}
@@ -112,14 +109,13 @@
       {% for rec in recomendacoes %}{{ linha_rec(loop.index, rec) }}{% endfor %}
     </div>
     <button type="button" class="btn btn--secondary btn--sm mt-8" data-analises-risco-adicionar>
-      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar recomendação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('hse', 'Adicionar recomendação') }}</button>
   </fieldset>
   <template data-analises-risco-modelo>{{ linha_rec("", recomendacao_vazia) }}</template>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-analises-risco-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar estudo</button>
+    <button type="button" class="btn btn--secondary" data-analises-risco-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Registrar estudo') }}</button>
   </div>
 </form>
 {% endblock %}

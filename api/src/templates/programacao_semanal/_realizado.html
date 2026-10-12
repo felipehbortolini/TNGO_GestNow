@@ -23,7 +23,7 @@
     dia: {{ dias_dia_json }},
     noite: {{ dias_noite_json }},
     previsto: {{ dias_previsto_json }},
-    mostrarNoite: {{ 'true' if tem_noite else 'false' }},
+    mostrarNoite: {{ t('programacao_semanal', 'true') if tem_noite else t('programacao_semanal', 'false') }},
     justificativa: $el.dataset.justificativa,
     get totalPrevisto() { return this.previsto.reduce((s, v) => s + (Number(v) || 0), 0); },
     get totalDia() { return this.dia.reduce((s, v) => s + (Number(v) || 0), 0); },
@@ -35,7 +35,7 @@
       return Math.abs(this.total - this.totalPrevisto) / this.totalPrevisto * 100;
     },
     get precisaJustificar() {
-      return {{ 'true' if exige_justificativa else 'false' }}
+      return {{ t('programacao_semanal', 'true') if exige_justificativa else t('programacao_semanal', 'false') }}
         && this.desvio > {{ limite_desvio }}
         && this.justificativa.trim().length < 5;
     },
@@ -48,10 +48,10 @@
   <div class="painel painel--largo" role="dialog" aria-modal="true" aria-labelledby="titulo-realizado" @click.stop>
     <div class="painel__topo">
       <div>
-        <h2 class="h-card3" id="titulo-realizado">Anexar o realizado</h2>
+        <h2 class="h-card3" id="titulo-realizado">{{ t('programacao_semanal', 'Anexar o realizado') }}</h2>
         <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.description }} · {{ atividade.company }}</p>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="{{ t('programacao_semanal', 'Fechar') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 18)"
         @click="$root.closest('.painel-fundo').remove()"></button>
     </div>
@@ -64,30 +64,24 @@
       <div class="painel__corpo">
         {% if erros %}
         <div class="aviso aviso--erro mb-16" role="alert">
-          <strong>Ajuste antes de salvar</strong>
+          <strong>{{ t('programacao_semanal', 'Ajuste antes de salvar') }}</strong>
           {% for mensagem in erros.values() %}<span>{{ mensagem }}</span>{% endfor %}
         </div>
         {% endif %}
 
         <div class="aviso aviso--info mb-16">
-          <strong>Como preencher</strong>
-          <span>
-            Digite quanto foi produzido em cada dia. Se o dia saiu exatamente como o
-            previsto, use o atalho <b>“= previsto”</b> do próprio dia — ou
-            <b>“Copiar a semana inteira”</b> logo abaixo. O total e o PPC se atualizam sozinhos.
-          </span>
+          <strong>{{ t('programacao_semanal', 'Como preencher') }}</strong>
+          <span>{{ t('programacao_semanal', 'Digite quanto foi produzido em cada dia. Se o dia saiu exatamente como o previsto, use o atalho') }}<b>“= previsto”</b>{{ t('programacao_semanal', 'do próprio dia — ou') }}<b>“Copiar a semana inteira”</b>{{ t('programacao_semanal', 'logo abaixo. O total e o PPC se atualizam sozinhos.') }}</span>
         </div>
 
         <div class="toolbar painel__distribuicao">
           <span class="grupo-label">Produção por dia — {{ unidade }}</span>
           <span class="painel__atalhos">
-            <button type="button" class="btn btn--ghost btn--sm" @click="copiarSemana()">Copiar a semana inteira</button>
-            <button type="button" class="btn btn--ghost btn--sm" @click="zerar()">Zerar tudo</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="copiarSemana()">{{ t('programacao_semanal', 'Copiar a semana inteira') }}</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="zerar()">{{ t('programacao_semanal', 'Zerar tudo') }}</button>
             <label class="toggle" :class="mostrarNoite ? 'toggle is-active' : 'toggle'">
-              <input type="checkbox" class="sr-only" x-model="mostrarNoite" aria-label="Registrar turno noite separadamente" />
-              <span class="toggle__track"><span class="toggle__thumb"></span></span>
-              Turno noite
-            </label>
+              <input type="checkbox" class="sr-only" x-model="mostrarNoite" aria-label="{{ t('programacao_semanal', 'Registrar turno noite separadamente') }}" />
+              <span class="toggle__track"><span class="toggle__thumb"></span></span>{{ t('programacao_semanal', 'Turno noite') }}</label>
           </span>
         </div>
 
@@ -101,7 +95,7 @@
             </span>
 
             <span class="lancamento__meta">
-              <span>prev. <b x-text="numero(previsto[{{ dia.indice }}])"></b></span>
+              <span>{{ t('programacao_semanal', 'prev.') }}<b x-text="numero(previsto[{{ dia.indice }}])"></b></span>
               <button type="button" class="lancamento__copiar" x-show="previsto[{{ dia.indice }}] > 0"
                 @click="copiarDia({{ dia.indice }})"
                 :aria-label="'Copiar o previsto de {{ dia.nome }}'">= previsto</button>
@@ -129,23 +123,23 @@
 
         <div class="lancamento-resumo">
           <div>
-            <span class="lancamento-resumo__rotulo">Previsto na semana</span>
+            <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Previsto na semana') }}</span>
             <span class="lancamento-resumo__valor" x-text="numero(totalPrevisto) + ' {{ unidade }}'"></span>
           </div>
           <div>
-            <span class="lancamento-resumo__rotulo">Realizado</span>
+            <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Realizado') }}</span>
             <span class="lancamento-resumo__valor" x-text="numero(total) + ' {{ unidade }}'"></span>
             <span class="hint" x-show="mostrarNoite" x-text="'dia ' + numero(totalDia) + ' · noite ' + numero(totalNoite)"></span>
           </div>
           <div>
-            <span class="lancamento-resumo__rotulo">PPC</span>
+            <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'PPC') }}</span>
             <span class="lancamento-resumo__valor"
               :class="ppc >= 80 ? '' : (ppc >= 60 ? 'is-alerta' : 'is-erro')"
               x-text="numero(ppc) + '%'"></span>
             <span class="hint" x-text="diasComProducao + ' dia(s) com produção'"></span>
           </div>
           <div>
-            <span class="lancamento-resumo__rotulo">Desvio do previsto</span>
+            <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Desvio do previsto') }}</span>
             <span class="lancamento-resumo__valor" :class="desvio > {{ limite_desvio }} ? 'is-alerta' : ''"
               x-text="numero(desvio) + '%'"></span>
             <span class="hint">limite sem justificativa: {{ limite_desvio | round | int }}%</span>
@@ -153,13 +147,11 @@
         </div>
 
         <div class="field mt-16">
-          <label for="campo-observacoes">
-            Justificativa do desvio
-            <span x-show="precisaJustificar" class="chip chip--warn">obrigatória</span>
+          <label for="campo-observacoes">{{ t('programacao_semanal', 'Justificativa do desvio') }}<span x-show="precisaJustificar" class="chip chip--warn">{{ t('programacao_semanal', 'obrigatória') }}</span>
           </label>
           <textarea id="campo-observacoes" name="observacoes"
             class="input{{ ' input--erro' if erros.observacoes }}" rows="3" x-model="justificativa"
-            placeholder="O que aconteceu na semana? Chuva, falta de frente liberada, atraso de material..."
+            placeholder="{{ t('programacao_semanal', 'O que aconteceu na semana? Chuva, falta de frente liberada, atraso de material...') }}"
             {% if erros.observacoes %}aria-invalid="true" aria-describedby="erro-observacoes"{% endif %}></textarea>
           {% if erros.observacoes %}
           <span id="erro-observacoes" class="field__erro">{{ erros.observacoes }}</span>
@@ -177,11 +169,9 @@
           {% if atividade.inspector %}<b>{{ atividade.inspector }}</b>{% endif %}.
         </span>
         <span class="painel__atalhos">
-          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Cancelar') }}</button>
           <button type="submit" class="btn btn--primary" :disabled="precisaJustificar">
-            <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-            Salvar realizado
-          </button>
+            <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Salvar realizado') }}</button>
         </span>
       </div>
     </form>

@@ -13,10 +13,10 @@
   <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-pedido" @click.stop>
     <div class="painel__topo">
       <div>
-        <h2 class="h-card3" id="titulo-pedido">Pedir alteração</h2>
+        <h2 class="h-card3" id="titulo-pedido">{{ t('programacao_semanal', 'Pedir alteração') }}</h2>
         <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }} · {{ semana }}</p>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="{{ t('programacao_semanal', 'Fechar') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 18)"
         @click="$root.closest('.painel-fundo').remove()"></button>
     </div>
@@ -31,7 +31,7 @@
         {% endif %}
 
         <div class="aviso aviso--info mb-16">
-          <strong>Este item está fechado para edição.</strong>
+          <strong>{{ t('programacao_semanal', 'Este item está fechado para edição.') }}</strong>
           <span>
             {{ motivo_fechado }} Para mudar alguma coisa, abra um pedido — ele fica
             registrado na Governança, com quem pediu e quem decidiu.
@@ -39,35 +39,33 @@
         </div>
 
         <div class="det mb-16">
-          <div class="det__row"><span class="det__label">Atividade</span><span class="det__valor">{{ atividade.description }}</span></div>
-          <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
-          <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
-          <div class="det__row"><span class="det__label">Previsto</span><span class="det__valor">{{ previsto_texto }} {{ unidade }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Atividade') }}</span><span class="det__valor">{{ atividade.description }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Frente') }}</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Encarregado') }}</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Previsto') }}</span><span class="det__valor">{{ previsto_texto }} {{ unidade }}</span></div>
         </div>
 
         <div class="field">
-          <label for="campo-motivo-pedido">O que precisa mudar, e por quê</label>
+          <label for="campo-motivo-pedido">{{ t('programacao_semanal', 'O que precisa mudar, e por quê') }}</label>
           <textarea id="campo-motivo-pedido" class="input{{ ' input--erro' if erros.motivo }}"
             name="motivo" rows="4" required minlength="10"
-            placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."
+            placeholder="{{ t('programacao_semanal', 'Ex.: a quantidade de quarta saiu trocada com a de quinta na medição.') }}"
             {% if erros.motivo %}aria-invalid="true" aria-describedby="erro-motivo-pedido"{% endif %}
           >{{ motivo }}</textarea>
           {% if erros.motivo %}
           <span id="erro-motivo-pedido" class="field__erro">{{ erros.motivo }}</span>
           {% else %}
-          <span class="hint">Uma frase basta: o planejador decide pela Governança da programação.</span>
+          <span class="hint">{{ t('programacao_semanal', 'Uma frase basta: o planejador decide pela Governança da programação.') }}</span>
           {% endif %}
         </div>
       </div>
 
       <div class="painel__rodape">
-        <span class="hint">Aplicar o pedido reabre a atividade para a sua empresa.</span>
+        <span class="hint">{{ t('programacao_semanal', 'Aplicar o pedido reabre a atividade para a sua empresa.') }}</span>
         <span class="painel__atalhos">
-          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Cancelar') }}</button>
           <button type="submit" class="btn btn--primary">
-            <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-            Enviar pedido
-          </button>
+            <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Enviar pedido') }}</button>
         </span>
       </div>
     </form>

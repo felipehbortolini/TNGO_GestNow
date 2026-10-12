@@ -13,10 +13,10 @@
   <div class="painel" role="dialog" aria-modal="true" aria-labelledby="titulo-validar" @click.stop>
     <div class="painel__topo">
       <div>
-        <h2 class="h-card3" id="titulo-validar">Validar a programação</h2>
+        <h2 class="h-card3" id="titulo-validar">{{ t('programacao_semanal', 'Validar a programação') }}</h2>
         <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }}</p>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="{{ t('programacao_semanal', 'Fechar') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 18)"
         @click="$root.closest('.painel-fundo').remove()"></button>
     </div>
@@ -32,26 +32,23 @@
         {% endif %}
 
         <div class="aviso aviso--info mb-16">
-          <strong>O que a validação faz</strong>
-          <span>
-            Confirma que a programação está coerente e libera o fornecedor a reportar o
-            realizado. O fiscal escolhido passa a ser quem aprova esse reporte.
-          </span>
+          <strong>{{ t('programacao_semanal', 'O que a validação faz') }}</strong>
+          <span>{{ t('programacao_semanal', 'Confirma que a programação está coerente e libera o fornecedor a reportar o realizado. O fiscal escolhido passa a ser quem aprova esse reporte.') }}</span>
         </div>
 
         <div class="det mb-16">
-          <div class="det__row"><span class="det__label">Atividade</span><span class="det__valor">{{ atividade.description }}</span></div>
-          <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
-          <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
-          <div class="det__row"><span class="det__label">Previsto</span><span class="det__valor">{{ previsto_texto }} {{ unidade }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Atividade') }}</span><span class="det__valor">{{ atividade.description }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Frente') }}</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Encarregado') }}</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+          <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Previsto') }}</span><span class="det__valor">{{ previsto_texto }} {{ unidade }}</span></div>
         </div>
 
         <div class="field">
-          <label for="campo-fiscal-validacao">Fiscal responsável</label>
+          <label for="campo-fiscal-validacao">{{ t('programacao_semanal', 'Fiscal responsável') }}</label>
           <select id="campo-fiscal-validacao" class="input{{ ' input--erro' if erros.responsavel }}"
             name="responsavel" required
             {% if erros.responsavel %}aria-invalid="true" aria-describedby="erro-fiscal-validacao"{% endif %}>
-            <option value="">Selecione o fiscal...</option>
+            <option value="">{{ t('programacao_semanal', 'Selecione o fiscal...') }}</option>
             {% for fiscal in fiscais %}
             <option value="{{ fiscal.id }}" {% if valores.inspector_id == fiscal.id %}selected{% endif %}>{{ fiscal.label }}</option>
             {% endfor %}
@@ -59,25 +56,23 @@
           {% if erros.responsavel %}
           <span id="erro-fiscal-validacao" class="field__erro">{{ erros.responsavel }}</span>
           {% else %}
-          <span class="hint">A lista vem dos colaboradores com o papel de Fiscal neste projeto.</span>
+          <span class="hint">{{ t('programacao_semanal', 'A lista vem dos colaboradores com o papel de Fiscal neste projeto.') }}</span>
           {% endif %}
         </div>
 
         <div class="field mt-16">
-          <label for="campo-comentarios-validacao">Comentários ao fornecedor</label>
+          <label for="campo-comentarios-validacao">{{ t('programacao_semanal', 'Comentários ao fornecedor') }}</label>
           <textarea id="campo-comentarios-validacao" class="input" name="comentarios" rows="3"
-            placeholder="Opcional — ajustes combinados, pontos de atenção">{{ valores.comments }}</textarea>
+            placeholder="{{ t('programacao_semanal', 'Opcional — ajustes combinados, pontos de atenção') }}">{{ valores.comments }}</textarea>
         </div>
       </div>
 
       <div class="painel__rodape">
         <span class="hint">A situação passa de “Em elaboração” para “Validada”.</span>
         <span class="painel__atalhos">
-          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+          <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Cancelar') }}</button>
           <button type="submit" class="btn btn--primary">
-            <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
-            Validar
-          </button>
+            <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Validar') }}</button>
         </span>
       </div>
     </form>

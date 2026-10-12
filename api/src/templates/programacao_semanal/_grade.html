@@ -13,13 +13,13 @@
     {% endfor %}
   </div>
   <div class="dias">
-    <span class="dias__rotulo">Prev</span>
+    <span class="dias__rotulo">{{ t('programacao_semanal', 'Prev') }}</span>
     {% for celula in dias %}
     <span class="{{ celula.planned_classes }}" title="{{ celula.planned_title }}">{{ celula.planned_text }}</span>
     {% endfor %}
-    <span class="dias__rotulo dias__rotulo--real">Real</span>
+    <span class="dias__rotulo dias__rotulo--real">{{ t('programacao_semanal', 'Real') }}</span>
     {% for celula in dias %}
-    <span class="{{ celula.done_classes }}" title="{{ celula.done_title }}">{{ celula.done_text }}{% if celula.has_night %}<i class="dia__noite" aria-label="inclui turno noite">N</i>{% endif %}</span>
+    <span class="{{ celula.done_classes }}" title="{{ celula.done_title }}">{{ celula.done_text }}{% if celula.has_night %}<i class="dia__noite" aria-label="{{ t('programacao_semanal', 'inclui turno noite') }}">N</i>{% endif %}</span>
     {% endfor %}
   </div>
 </div>

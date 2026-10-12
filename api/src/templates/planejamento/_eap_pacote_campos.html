@@ -11,17 +11,17 @@
   x-data="{ recurso: '{{ valores.get('recurso') or recurso }}' }">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="eap-pacote-titulo">{{ 'Desdobrar pacote de planejamento' if recurso == 'desdobramento' else 'Novo pacote' }}</h2>
-      <span class="hint">Desdobramento de pacote de planejamento (o total não muda) ou nova revisão a partir de SM aprovada com impacto em escopo</span>
+      <h2 class="h-card4" id="eap-pacote-titulo">{{ t('planejamento', 'Desdobrar pacote de planejamento') if recurso == 'desdobramento' else t('planejamento', 'Novo pacote') }}</h2>
+      <span class="hint">{{ t('planejamento', 'Desdobramento de pacote de planejamento (o total não muda) ou nova revisão a partir de SM aprovada com impacto em escopo') }}</span>
     </div>
-    <button type="button" class="iconbtn" aria-label="Fechar o formulário"
+    <button type="button" class="iconbtn" aria-label="{{ t('planejamento', 'Fechar o formulário') }}"
       x-init="$el.innerHTML = window.icon('dismiss', 16)"
       @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"></button>
   </div>
   <div class="card__body">
     {% if mensagem or erros %}
     <div class="aviso aviso--erro mb-16" role="alert">
-      <strong>Não foi possível salvar o pacote.</strong>
+      <strong>{{ t('planejamento', 'Não foi possível salvar o pacote.') }}</strong>
       {% if mensagem %}<span>{{ mensagem }}</span>{% endif %}
       {% for texto in erros.values() %}<span>{{ texto }}</span>{% endfor %}
     </div>
@@ -30,20 +30,20 @@
       x-target="{{ alvo_formulario }} {{ alvo_conteudo }}" data-tn-loading="Salvando...">
       <div class="fgrid">
         <div class="field field--full">
-          <label for="eap-pacote-recurso">Origem do peso</label>
+          <label for="eap-pacote-recurso">{{ t('planejamento', 'Origem do peso') }}</label>
           <select id="eap-pacote-recurso" class="input{% if erros.get('recurso') %} input--erro{% endif %}"
             name="recurso" x-model="recurso" required
             {% if erros.get('recurso') %}aria-invalid="true" aria-describedby="eap-pacote-recurso-erro"{% endif %}>
-            <option value="desdobramento"{% if (valores.get('recurso') or recurso) == 'desdobramento' %} selected{% endif %}>Desdobramento de pacote de planejamento (o total não muda)</option>
-            <option value="revisao"{% if (valores.get('recurso') or recurso) == 'revisao' %} selected{% endif %}>Nova revisão da EAP (SM aprovada com impacto em escopo)</option>
+            <option value="desdobramento"{% if (valores.get('recurso') or recurso) == 'desdobramento' %} selected{% endif %}>{{ t('planejamento', 'Desdobramento de pacote de planejamento (o total não muda)') }}</option>
+            <option value="revisao"{% if (valores.get('recurso') or recurso) == 'revisao' %} selected{% endif %}>{{ t('planejamento', 'Nova revisão da EAP (SM aprovada com impacto em escopo)') }}</option>
           </select>
           {% if erros.get('recurso') %}<span class="field__erro" id="eap-pacote-recurso-erro" role="alert">{{ erros['recurso'] }}</span>{% endif %}
         </div>
         <div class="field field--full" x-show="recurso === 'desdobramento'">
-          <label for="eap-pacote-origem">Pacote de planejamento</label>
+          <label for="eap-pacote-origem">{{ t('planejamento', 'Pacote de planejamento') }}</label>
           <select id="eap-pacote-origem" class="input{% if erros.get('origem') %} input--erro{% endif %}" name="origem"
             {% if erros.get('origem') %}aria-invalid="true" aria-describedby="eap-pacote-origem-erro"{% endif %}>
-            <option value="">Escolha o pacote a desdobrar</option>
+            <option value="">{{ t('planejamento', 'Escolha o pacote a desdobrar') }}</option>
             {% for pacote in opcoes.planning_packages %}
             <option value="{{ pacote.value }}"{% if (valores.get('origem') or '') == pacote.value %} selected{% endif %}>{{ pacote.text }}</option>
             {% endfor %}
@@ -51,19 +51,19 @@
           {% if erros.get('origem') %}<span class="field__erro" id="eap-pacote-origem-erro" role="alert">{{ erros['origem'] }}</span>{% endif %}
         </div>
         <div class="field field--full" x-show="recurso === 'revisao'">
-          <label for="eap-pacote-sm">SM aprovada</label>
+          <label for="eap-pacote-sm">{{ t('planejamento', 'SM aprovada') }}</label>
           <select id="eap-pacote-sm" class="input{% if erros.get('sm') %} input--erro{% endif %}" name="sm"
             {% if erros.get('sm') %}aria-invalid="true" aria-describedby="eap-pacote-sm-erro"{% endif %}>
-            <option value="">Escolha a SM que aprovou a mudança</option>
+            <option value="">{{ t('planejamento', 'Escolha a SM que aprovou a mudança') }}</option>
             {% for fonte in opcoes.changes %}
             <option value="{{ fonte.value }}"{% if (valores.get('sm') or '') == fonte.value %} selected{% endif %}>{{ fonte.text }}</option>
             {% endfor %}
           </select>
-          <span class="hint">Só as SM aprovadas com impacto em escopo que nenhuma revisão incorporou ainda.</span>
+          <span class="hint">{{ t('planejamento', 'Só as SM aprovadas com impacto em escopo que nenhuma revisão incorporou ainda.') }}</span>
           {% if erros.get('sm') %}<span class="field__erro" id="eap-pacote-sm-erro" role="alert">{{ erros['sm'] }}</span>{% endif %}
         </div>
         <div class="field" x-show="recurso === 'revisao'">
-          <label for="eap-pacote-tipo">Tipo de pacote</label>
+          <label for="eap-pacote-tipo">{{ t('planejamento', 'Tipo de pacote') }}</label>
           <select id="eap-pacote-tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" name="tipo"
             {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="eap-pacote-tipo-erro"{% endif %}>
             {% for tipo in tipos %}
@@ -73,10 +73,10 @@
           {% if erros.get('tipo') %}<span class="field__erro" id="eap-pacote-tipo-erro" role="alert">{{ erros['tipo'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-pai">Subárea</label>
+          <label for="eap-pacote-pai">{{ t('planejamento', 'Subárea') }}</label>
           <select id="eap-pacote-pai" class="input{% if erros.get('pai') %} input--erro{% endif %}" name="pai" required
             {% if erros.get('pai') %}aria-invalid="true" aria-describedby="eap-pacote-pai-erro"{% endif %}>
-            <option value="">Escolha a subárea</option>
+            <option value="">{{ t('planejamento', 'Escolha a subárea') }}</option>
             {% for subarea in opcoes.subareas %}
             <option value="{{ subarea.value }}"{% if (valores.get('pai') or '') == subarea.value %} selected{% endif %}>{{ subarea.text }}</option>
             {% endfor %}
@@ -84,17 +84,17 @@
           {% if erros.get('pai') %}<span class="field__erro" id="eap-pacote-pai-erro" role="alert">{{ erros['pai'] }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="eap-pacote-descricao">Descrição</label>
+          <label for="eap-pacote-descricao">{{ t('planejamento', 'Descrição') }}</label>
           <input id="eap-pacote-descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}"
             type="text" name="descricao" value="{{ valores.get('descricao') or '' }}" maxlength="120" required
             {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="eap-pacote-descricao-erro"{% endif %} />
           {% if erros.get('descricao') %}<span class="field__erro" id="eap-pacote-descricao-erro" role="alert">{{ erros['descricao'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-criterio">Critério de medição</label>
+          <label for="eap-pacote-criterio">{{ t('planejamento', 'Critério de medição') }}</label>
           <select id="eap-pacote-criterio" class="input{% if erros.get('criterio') %} input--erro{% endif %}" name="criterio"
             {% if erros.get('criterio') %}aria-invalid="true" aria-describedby="eap-pacote-criterio-erro"{% endif %}>
-            <option value="">Sem medição (pacote de planejamento)</option>
+            <option value="">{{ t('planejamento', 'Sem medição (pacote de planejamento)') }}</option>
             {% for criterio in criterios %}
             <option value="{{ criterio }}"{% if (valores.get('criterio') or '') == criterio %} selected{% endif %}>{{ criterio }}</option>
             {% endfor %}
@@ -102,10 +102,10 @@
           {% if erros.get('criterio') %}<span class="field__erro" id="eap-pacote-criterio-erro" role="alert">{{ erros['criterio'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-modelo">Modelo de etapas</label>
+          <label for="eap-pacote-modelo">{{ t('planejamento', 'Modelo de etapas') }}</label>
           <select id="eap-pacote-modelo" class="input{% if erros.get('modelo') %} input--erro{% endif %}" name="modelo"
             {% if erros.get('modelo') %}aria-invalid="true" aria-describedby="eap-pacote-modelo-erro"{% endif %}>
-            <option value="">Sem modelo</option>
+            <option value="">{{ t('planejamento', 'Sem modelo') }}</option>
             {% for modelo in opcoes.stage_models %}
             <option value="{{ modelo.get('id', '') }}"{% if (valores.get('modelo') or '') == modelo.get('id', '') %} selected{% endif %}>{{ modelo.get('nome', '') }}</option>
             {% endfor %}
@@ -113,10 +113,10 @@
           {% if erros.get('modelo') %}<span class="field__erro" id="eap-pacote-modelo-erro" role="alert">{{ erros['modelo'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-unidade">Unidade</label>
+          <label for="eap-pacote-unidade">{{ t('planejamento', 'Unidade') }}</label>
           <select id="eap-pacote-unidade" class="input{% if erros.get('unidade') %} input--erro{% endif %}" name="unidade"
             {% if erros.get('unidade') %}aria-invalid="true" aria-describedby="eap-pacote-unidade-erro"{% endif %}>
-            <option value="">Sem unidade</option>
+            <option value="">{{ t('planejamento', 'Sem unidade') }}</option>
             {% for valor, texto in opcoes.unit_choices() %}
             <option value="{{ valor }}"{% if (valores.get('unidade') or '') == valor %} selected{% endif %}>{{ texto }}</option>
             {% endfor %}
@@ -124,14 +124,14 @@
           {% if erros.get('unidade') %}<span class="field__erro" id="eap-pacote-unidade-erro" role="alert">{{ erros['unidade'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-quantidade">Quantidade da linha de base</label>
+          <label for="eap-pacote-quantidade">{{ t('planejamento', 'Quantidade da linha de base') }}</label>
           <input id="eap-pacote-quantidade" class="input{% if erros.get('quantidade') %} input--erro{% endif %}"
             type="number" name="quantidade" min="0" step="0.01" value="{{ valores.get('quantidade') or '' }}"
             {% if erros.get('quantidade') %}aria-invalid="true" aria-describedby="eap-pacote-quantidade-erro"{% endif %} />
           {% if erros.get('quantidade') %}<span class="field__erro" id="eap-pacote-quantidade-erro" role="alert">{{ erros['quantidade'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-peso">Peso (% do projeto)</label>
+          <label for="eap-pacote-peso">{{ t('planejamento', 'Peso (% do projeto)') }}</label>
           <input id="eap-pacote-peso" class="input{% if erros.get('peso') %} input--erro{% endif %}"
             type="number" name="peso" min="0" max="{{ opcoes.limits.max_package_weight }}" step="0.01"
             value="{{ valores.get('peso') or '' }}" required
@@ -140,24 +140,24 @@
           {% if erros.get('peso') %}<span class="field__erro" id="eap-pacote-peso-erro" role="alert">{{ erros['peso'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-inicio">Início da linha de base</label>
+          <label for="eap-pacote-inicio">{{ t('planejamento', 'Início da linha de base') }}</label>
           <input id="eap-pacote-inicio" class="input{% if erros.get('inicio') %} input--erro{% endif %}"
             type="date" name="inicio" value="{{ valores.get('inicio') or '' }}" required
             {% if erros.get('inicio') %}aria-invalid="true" aria-describedby="eap-pacote-inicio-erro"{% endif %} />
           {% if erros.get('inicio') %}<span class="field__erro" id="eap-pacote-inicio-erro" role="alert">{{ erros['inicio'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-termino">Término da linha de base</label>
+          <label for="eap-pacote-termino">{{ t('planejamento', 'Término da linha de base') }}</label>
           <input id="eap-pacote-termino" class="input{% if erros.get('termino') %} input--erro{% endif %}"
             type="date" name="termino" value="{{ valores.get('termino') or '' }}" required
             {% if erros.get('termino') %}aria-invalid="true" aria-describedby="eap-pacote-termino-erro"{% endif %} />
           {% if erros.get('termino') %}<span class="field__erro" id="eap-pacote-termino-erro" role="alert">{{ erros['termino'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-empresa">Empresa executante</label>
+          <label for="eap-pacote-empresa">{{ t('planejamento', 'Empresa executante') }}</label>
           <select id="eap-pacote-empresa" class="input{% if erros.get('empresa') %} input--erro{% endif %}" name="empresa"
             {% if erros.get('empresa') %}aria-invalid="true" aria-describedby="eap-pacote-empresa-erro"{% endif %}>
-            <option value="">Sem empresa</option>
+            <option value="">{{ t('planejamento', 'Sem empresa') }}</option>
             {% for valor, texto in opcoes.company_choices() %}
             <option value="{{ valor }}"{% if (valores.get('empresa') or '') | string == valor | string %} selected{% endif %}>{{ texto }}</option>
             {% endfor %}
@@ -165,10 +165,10 @@
           {% if erros.get('empresa') %}<span class="field__erro" id="eap-pacote-empresa-erro" role="alert">{{ erros['empresa'] }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="eap-pacote-responsavel">Responsável</label>
+          <label for="eap-pacote-responsavel">{{ t('planejamento', 'Responsável') }}</label>
           <select id="eap-pacote-responsavel" class="input{% if erros.get('responsavel') %} input--erro{% endif %}" name="responsavel" required
             {% if erros.get('responsavel') %}aria-invalid="true" aria-describedby="eap-pacote-responsavel-erro"{% endif %}>
-            <option value="">Selecione</option>
+            <option value="">{{ t('planejamento', 'Selecione') }}</option>
             {% for valor, texto in opcoes.person_choices() %}
             <option value="{{ valor }}"{% if (valores.get('responsavel') or '') | string == valor | string %} selected{% endif %}>{{ texto }}</option>
             {% endfor %}
@@ -176,10 +176,10 @@
           {% if erros.get('responsavel') %}<span class="field__erro" id="eap-pacote-responsavel-erro" role="alert">{{ erros['responsavel'] }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="eap-pacote-eac">Item da EAC (custo)</label>
+          <label for="eap-pacote-eac">{{ t('planejamento', 'Item da EAC (custo)') }}</label>
           <select id="eap-pacote-eac" class="input{% if erros.get('eac') %} input--erro{% endif %}" name="eac"
             {% if erros.get('eac') %}aria-invalid="true" aria-describedby="eap-pacote-eac-erro"{% endif %}>
-            <option value="">Sem vínculo com a EAC</option>
+            <option value="">{{ t('planejamento', 'Sem vínculo com a EAC') }}</option>
             {% for codigo in opcoes.eac_codes %}
             <option value="{{ codigo }}"{% if (valores.get('eac') or '') == codigo %} selected{% endif %}>{{ codigo }}</option>
             {% endfor %}
@@ -187,15 +187,15 @@
           {% if erros.get('eac') %}<span class="field__erro" id="eap-pacote-eac-erro" role="alert">{{ erros['eac'] }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="eap-pacote-entregavel">Entregável</label>
+          <label for="eap-pacote-entregavel">{{ t('planejamento', 'Entregável') }}</label>
           <textarea id="eap-pacote-entregavel" class="input" name="entregavel" rows="2" maxlength="300">{{ valores.get('entregavel') or '' }}</textarea>
         </div>
         <div class="field field--full">
-          <label for="eap-pacote-aceitacao">Critério de aceitação</label>
+          <label for="eap-pacote-aceitacao">{{ t('planejamento', 'Critério de aceitação') }}</label>
           <textarea id="eap-pacote-aceitacao" class="input" name="aceitacao" rows="2" maxlength="300">{{ valores.get('aceitacao') or '' }}</textarea>
         </div>
         <div class="field field--full">
-          <label for="eap-pacote-justificativa">Justificativa</label>
+          <label for="eap-pacote-justificativa">{{ t('planejamento', 'Justificativa') }}</label>
           <textarea id="eap-pacote-justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
             name="justificativa" rows="2" minlength="10" maxlength="300" required
             {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="eap-pacote-justificativa-erro"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
@@ -204,8 +204,8 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
-        <button type="submit" class="btn btn--primary">Salvar</button>
+          @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('planejamento', 'Cancelar') }}</button>
+        <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Salvar') }}</button>
       </div>
     </form>
   </div>

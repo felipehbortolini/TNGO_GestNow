@@ -25,8 +25,8 @@
 {% endif %}
   <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
   <span class="processos__kpi-texto">
-    <span class="kpi__label">{{ kpi.label }}</span>
-    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    <span class="kpi__label">{{ t('suprimentos', kpi.label) }}</span>
+    <span class="hint">{{ t('suprimentos', kpi.reference) }}{% if kpi.footer %} · {{ t('suprimentos', kpi.footer) }}{% endif %}</span>
   </span>
   <span class="kpi__value">{{ kpi.value }}</span>
 {% if kpi.url %}</a>{% else %}</div>{% endif %}
@@ -42,44 +42,42 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/suprimentos/processos" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar processos</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('suprimentos', 'Buscar processos') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar pacote, RFx ou fornecedor" />
-        <label class="sr-only" for="{{ target_id }}-situacao">Processos exibidos</label>
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('suprimentos', 'Buscar pacote, RFx ou fornecedor') }}" />
+        <label class="sr-only" for="{{ target_id }}-situacao">{{ t('suprimentos', 'Processos exibidos') }}</label>
         <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
-          <option value="andamento"{% if filtros.situation == 'andamento' %} selected{% endif %}>Em andamento</option>
-          <option value="todos"{% if filtros.situation == '' %} selected{% endif %}>Todos</option>
+          <option value="andamento"{% if filtros.situation == 'andamento' %} selected{% endif %}>{{ t('suprimentos', 'Em andamento') }}</option>
+          <option value="todos"{% if filtros.situation == '' %} selected{% endif %}>{{ t('suprimentos', 'Todos') }}</option>
         </select>
       </form>
       <div class="processos__barra">
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary" data-tn-incluir="requisicao" data-processo-acao="requisicao"
           data-processo-url="/api/suprimentos/processos/requisicao{% if consulta %}?{{ consulta }}{% endif %}">
-          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-          Nova requisição
-        </button>
+          <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Nova requisição') }}</button>
         {% endif %}
       </div>
     </div>
 
     <p class="hint processos__contagem" role="status">
-      {{ listagem.total }} {{ 'processo' if listagem.total == 1 else 'processos' }} no filtro atual ·
+      {{ listagem.total }} {{ t('suprimentos', 'processo') if listagem.total == 1 else t('suprimentos', 'processos') }} no filtro atual ·
       o clique numa linha abre a ficha do processo
     </p>
 
     {% if listagem.summary.total == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há processos de compra</h2>
-      <p>Inclua os pacotes no plano de compras e registre a primeira requisição para conduzir o processo.</p>
+      <h2 class="h-card4">{{ t('suprimentos', 'Ainda não há processos de compra') }}</h2>
+      <p>{{ t('suprimentos', 'Inclua os pacotes no plano de compras e registre a primeira requisição para conduzir o processo.') }}</p>
     </div>
     {% elif not listagem.lines %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum processo encontrado com os filtros atuais</h2>
-      <p>Ajuste ou limpe os filtros para ver os processos.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('suprimentos', 'Nenhum processo encontrado com os filtros atuais') }}</h2>
+      <p>{{ t('suprimentos', 'Ajuste ou limpe os filtros para ver os processos.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div data-grafico="etapas" data-dados='{{ grafico | tojson }}'
@@ -92,7 +90,7 @@
   {% if ficha %}
   {% include "suprimentos/_processo_ficha.html" %}
   {% else %}
-  <p class="hint processos__ficha-vazia">Selecione um processo na régua para ver a ficha, o mapa de equalização e o histórico.</p>
+  <p class="hint processos__ficha-vazia">{{ t('suprimentos', 'Selecione um processo na régua para ver a ficha, o mapa de equalização e o histórico.') }}</p>
   {% endif %}
 </div>
 {% endblock %}

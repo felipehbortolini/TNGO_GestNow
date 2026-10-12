@@ -12,24 +12,24 @@
 {% set r = visao.riscos %}
 {% set analise = r.analysis %}
 {% set analise_url = r.analysis_url %}
-<section class="rel-folha" aria-label="Riscos">
+<section class="rel-folha" aria-label="{{ t('relatorio', 'Riscos') }}">
   {{ folha.cabecalho(visao, 'Riscos', 'registro do 05 Gestão de Riscos') }}
   <div class="rel-folha__corpo">
     <div class="rel-kpis">
       {{ folha.kpi('Riscos ativos', formatar_num(r.active), 'info', '', 'Referência', 'de ' ~ formatar_num(r.registered) ~ ' cadastrados', formatar_num(r.threats) ~ ' ameaças · ' ~ formatar_num(r.opportunities) ~ ' oportunidades') }}
-      {{ folha.kpi(r.top.name ~ 's', formatar_num(r.top.total), 'danger' if r.top.total else 'success', '', 'Meta', formatar_num(r.top.goal), formatar_num(r.top.threats) ~ ' ameaças · ' ~ formatar_num(r.top.opportunities) ~ ' oportunidades') }}
+      {{ folha.kpi(r.top.name ~ 's', formatar_num(r.top.total), 'danger' if r.top.total else t('relatorio', 'success'), '', 'Meta', formatar_num(r.top.goal), formatar_num(r.top.threats) ~ ' ameaças · ' ~ formatar_num(r.top.opportunities) ~ ' oportunidades') }}
       {% if r.second %}
-      {{ folha.kpi(r.second.name ~ 's', formatar_num(r.second.total), 'warning' if r.second.total else 'success', '', 'Meta', formatar_num(r.second.goal), formatar_num(r.second.threats) ~ ' ameaças · ' ~ formatar_num(r.second.opportunities) ~ ' oportunidades') }}
+      {{ folha.kpi(r.second.name ~ 's', formatar_num(r.second.total), 'warning' if r.second.total else t('relatorio', 'success'), '', 'Meta', formatar_num(r.second.goal), formatar_num(r.second.threats) ~ ' ameaças · ' ~ formatar_num(r.second.opportunities) ~ ' oportunidades') }}
       {% endif %}
       {{ folha.kpi('Exposição (VME)', formatar_moeda_compacta(r.exposure_cents), 'info', '', 'Limite', ('≤ ' ~ formatar_moeda_compacta(r.exposure_limit_cents)) if r.exposure_limit_cents is not none else '·', 'ameaças ativas') }}
-      {{ folha.kpi('Revisão vencida', formatar_num(r.overdue_reviews), 'danger' if r.overdue_reviews else 'success', '', 'Esperado', '0', formatar_num(r.agenda) ~ ' na pauta de escalonamento') }}
+      {{ folha.kpi('Revisão vencida', formatar_num(r.overdue_reviews), 'danger' if r.overdue_reviews else t('relatorio', 'success'), '', 'Esperado', '0', formatar_num(r.agenda) ~ ' na pauta de escalonamento') }}
       {{ folha.kpi('Identificados no período', formatar_num(r.identified), 'info', '', 'Referência', 'de ' ~ formatar_num(r.registered) ~ ' cadastrados', formatar_num(r.closed) ~ ' encerrados no período') }}
     </div>
 
     <div class="rel-grade rel-grade--40-60">
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Matriz P x I <small>residual, riscos ativos</small></h3>
-        <div class="rel-matriz" role="img" aria-label="Matriz de probabilidade por impacto, avaliação residual">
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Matriz P x I') }}<small>{{ t('relatorio', 'residual, riscos ativos') }}</small></h3>
+        <div class="rel-matriz" role="img" aria-label="{{ t('relatorio', 'Matriz de probabilidade por impacto, avaliação residual') }}">
           {% for celula in r.matrix %}
           {% if celula.impact == 1 %}<span class="rel-matriz__eixo">{{ celula.probability }}</span>{% endif %}
           <span class="rel-matriz__cel rel-matriz__cel--{{ celula.tone }}" title="P{{ celula.probability }} x I{{ celula.impact }}">{{ celula.text }}</span>
@@ -38,23 +38,23 @@
           {% for impacto in (1, 2, 3, 4, 5) %}<span class="rel-matriz__eixo">{{ impacto }}</span>{% endfor %}
           <span class="rel-matriz__rotulo-x">Impacto (eixo vertical: probabilidade) · A = ameaças, O = oportunidades</span>
         </div>
-        <h3 class="rel-bloco__titulo">Exposição das ameaças <small>score residual somado por mês</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Exposição das ameaças') }}<small>{{ t('relatorio', 'score residual somado por mês') }}</small></h3>
         <div class="rel-grafico rel-grafico--p" data-grafico="curva-s-barra-linha" data-dados='{{ r.evolution_chart | tojson }}'></div>
       </div>
       <div class="rel-bloco">
         {% include "relatorio/_analise_periodo.html" %}
-        <h3 class="rel-bloco__titulo">Principais riscos <small>maior score residual</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Principais riscos') }}<small>{{ t('relatorio', 'maior score residual') }}</small></h3>
         {% if r.principais %}
         <table class="rel-tabela">
-          <caption class="sr-only">Principais riscos</caption>
+          <caption class="sr-only">{{ t('relatorio', 'Principais riscos') }}</caption>
           <thead>
             <tr>
               <th scope="col">Nº</th>
-              <th scope="col">Risco</th>
-              <th scope="col">Residual</th>
-              <th scope="col">Estratégia</th>
-              <th scope="col">Dono</th>
-              <th scope="col">Próx. revisão</th>
+              <th scope="col">{{ t('relatorio', 'Risco') }}</th>
+              <th scope="col">{{ t('relatorio', 'Residual') }}</th>
+              <th scope="col">{{ t('relatorio', 'Estratégia') }}</th>
+              <th scope="col">{{ t('relatorio', 'Dono') }}</th>
+              <th scope="col">{{ t('relatorio', 'Próx. revisão') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -71,7 +71,7 @@
           </tbody>
         </table>
         {% else %}
-        <p class="rel-vazio">Nenhum risco ativo avaliado.</p>
+        <p class="rel-vazio">{{ t('relatorio', 'Nenhum risco ativo avaliado.') }}</p>
         {% endif %}
       </div>
     </div>

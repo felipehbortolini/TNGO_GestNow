@@ -35,7 +35,7 @@
   <label for="lk-{{ nome }}">{{ rotulo }}</label>
   <select id="lk-{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}" name="{{ nome }}" required
     {% if erros.get(nome) %}aria-invalid="true" aria-describedby="lk-{{ nome }}-erro"{% endif %}>
-    <option value="">Selecione</option>
+    <option value="">{{ t('planejamento', 'Selecione') }}</option>
     {% for valor, nome_da_opcao in opcoes %}
     <option value="{{ valor }}"{% if (valores.get(nome) or '') | string == valor | string %} selected{% endif %}>{{ nome_da_opcao }}</option>
     {% endfor %}

@@ -33,28 +33,28 @@
 {% else %}
 {% set nota = 'Relato pendente' %}
 {% endif %}
-<section class="rel-folha" aria-label="Planejamento: análise e relato do período">
+<section class="rel-folha" aria-label="{{ t('relatorio', 'Planejamento: análise e relato do período') }}">
   {{ folha.cabecalho(visao, 'Planejamento · Análise e relato do período', sub) }}
   <div class="rel-folha__corpo">
     {% if visao.is_portfolio %}
     <div class="rel-grade rel-grade--55-45">
       {% include "relatorio/_analise_periodo.html" %}
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Relatos dos projetos <small>{{ visao.period_label }} · atividades no relatório de cada projeto</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Relatos dos projetos') }}<small>{{ visao.period_label }} · atividades no relatório de cada projeto</small></h3>
         <table class="rel-tabela">
-          <caption class="sr-only">Relatos dos projetos</caption>
+          <caption class="sr-only">{{ t('relatorio', 'Relatos dos projetos') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Projeto</th>
-              <th scope="col">Relato {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</th>
-              <th scope="col" class="num">Pontos</th>
+              <th scope="col">{{ t('relatorio', 'Projeto') }}</th>
+              <th scope="col">Relato {{ t('relatorio', 'semanal') if visao.kind == 'Semanal' else t('relatorio', 'mensal') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Pontos') }}</th>
             </tr>
           </thead>
           <tbody>
             {% for linha in visao.project_relatos %}
             <tr>
               <td><b>{{ linha.project_label }}</b></td>
-              <td>{% if linha.registered %}{{ linha.updated }}{% else %}<span class="rel-negativo">pendente</span> <a href="{{ linha.url }}">(registrar)</a>{% endif %}</td>
+              <td>{% if linha.registered %}{{ linha.updated }}{% else %}<span class="rel-negativo">{{ t('relatorio', 'pendente') }}</span> <a href="{{ linha.url }}">(registrar)</a>{% endif %}</td>
               <td class="num">{{ formatar_num(linha.points | length) if linha.registered else '·' }}</td>
             </tr>
             {% endfor %}
@@ -63,17 +63,17 @@
       </div>
     </div>
     <div class="rel-bloco">
-      <h3 class="rel-bloco__titulo">Pontos de atenção e riscos dos projetos (ameaça e oportunidade)</h3>
+      <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Pontos de atenção e riscos dos projetos (ameaça e oportunidade)') }}</h3>
       {% if visao.relato_points %}
       <table class="rel-tabela">
-        <caption class="sr-only">Pontos de atenção e riscos dos projetos</caption>
+        <caption class="sr-only">{{ t('relatorio', 'Pontos de atenção e riscos dos projetos') }}</caption>
         <thead>
           <tr>
             <th scope="col" class="num">Nº</th>
-            <th scope="col">Projeto</th>
-            <th scope="col">Ponto de atenção</th>
-            <th scope="col">Risco</th>
-            <th scope="col">Descrição do risco</th>
+            <th scope="col">{{ t('relatorio', 'Projeto') }}</th>
+            <th scope="col">{{ t('relatorio', 'Ponto de atenção') }}</th>
+            <th scope="col">{{ t('relatorio', 'Risco') }}</th>
+            <th scope="col">{{ t('relatorio', 'Descrição do risco') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -89,38 +89,38 @@
         </tbody>
       </table>
       {% else %}
-      <p class="rel-vazio">Nenhum ponto de atenção registrado nos relatos do período.</p>
+      <p class="rel-vazio">{{ t('relatorio', 'Nenhum ponto de atenção registrado nos relatos do período.') }}</p>
       {% endif %}
     </div>
     {% elif visao.relato %}
     <div class="rel-grade rel-grade--55-45">
       {% include "relatorio/_analise_periodo.html" %}
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Atividades do período <small>{{ visao.period_label }}</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Atividades do período') }}<small>{{ visao.period_label }}</small></h3>
         {% if visao.relato.activities %}
         <ul class="rel-lista">{% for linha in visao.relato.activities %}<li>{{ linha }}</li>{% endfor %}</ul>
         {% else %}
-        <p class="rel-vazio">Sem registro.</p>
+        <p class="rel-vazio">{{ t('relatorio', 'Sem registro.') }}</p>
         {% endif %}
-        <h3 class="rel-bloco__titulo">Atividades do próximo período <small>{{ visao.relato.next_name }}</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Atividades do próximo período') }}<small>{{ visao.relato.next_name }}</small></h3>
         {% if visao.relato.next_activities %}
         <ul class="rel-lista">{% for linha in visao.relato.next_activities %}<li>{{ linha }}</li>{% endfor %}</ul>
         {% else %}
-        <p class="rel-vazio">Sem registro.</p>
+        <p class="rel-vazio">{{ t('relatorio', 'Sem registro.') }}</p>
         {% endif %}
       </div>
     </div>
     <div class="rel-bloco">
-      <h3 class="rel-bloco__titulo">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+      <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Pontos de atenção e riscos (ameaça e oportunidade)') }}</h3>
       {% if visao.relato.points %}
       <table class="rel-tabela">
-        <caption class="sr-only">Pontos de atenção e riscos</caption>
+        <caption class="sr-only">{{ t('relatorio', 'Pontos de atenção e riscos') }}</caption>
         <thead>
           <tr>
             <th scope="col" class="num">Nº</th>
-            <th scope="col">Ponto de atenção</th>
-            <th scope="col">Risco</th>
-            <th scope="col">Descrição do risco</th>
+            <th scope="col">{{ t('relatorio', 'Ponto de atenção') }}</th>
+            <th scope="col">{{ t('relatorio', 'Risco') }}</th>
+            <th scope="col">{{ t('relatorio', 'Descrição do risco') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -135,14 +135,14 @@
         </tbody>
       </table>
       {% else %}
-      <p class="rel-vazio">Nenhum ponto de atenção registrado no período.</p>
+      <p class="rel-vazio">{{ t('relatorio', 'Nenhum ponto de atenção registrado no período.') }}</p>
       {% endif %}
     </div>
     {% else %}
     <div class="rel-grade rel-grade--55-45">
       {% include "relatorio/_analise_periodo.html" %}
       <div class="rel-bloco">
-        <div class="rel-alerta"><b>Relato {{ visao.kind | lower }} do período não registrado.</b> Registre as atividades do período, as do próximo período e os pontos de atenção em 02 Planejamento &gt; Relato do período <a href="{{ visao.relato_url }}">(registrar agora)</a> e emita o relatório de novo.</div>
+        <div class="rel-alerta"><b>Relato {{ visao.kind | lower }} do período não registrado.</b> Registre as atividades do período, as do próximo período e os pontos de atenção em 02 Planejamento &gt; Relato do período <a href="{{ visao.relato_url }}">(registrar agora)</a>{{ t('relatorio', 'e emita o relatório de novo.') }}</div>
       </div>
     </div>
     {% endif %}

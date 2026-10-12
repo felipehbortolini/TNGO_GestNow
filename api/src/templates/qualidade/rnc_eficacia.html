@@ -27,29 +27,29 @@
 
   <div class="fgrid">
     <fieldset class="field field--full">
-      <legend>Resultado</legend>
+      <legend>{{ t('qualidade', 'Resultado') }}</legend>
       <label class="registro__opcao">
         <input type="radio" name="eficaz" value="sim" required @change="eficaz = 'sim'"
           {% if valores.get('eficaz') == 'sim' %} checked{% endif %} />
-        <span>Eficaz — a causa foi eliminada; encerra a RNC</span>
+        <span>{{ t('qualidade', 'Eficaz — a causa foi eliminada; encerra a RNC') }}</span>
       </label>
       <label class="registro__opcao">
         <input type="radio" name="eficaz" value="nao" @change="eficaz = 'nao'"
           {% if valores.get('eficaz') == 'nao' %} checked{% endif %} />
-        <span>Ineficaz — volta para Ação corretiva</span>
+        <span>{{ t('qualidade', 'Ineficaz — volta para Ação corretiva') }}</span>
       </label>
       {{ erro(erros, 'eficaz') }}
     </fieldset>
     <div class="field field--full">
-      <label for="rnc-eficacia-texto">Evidência da verificação</label>
+      <label for="rnc-eficacia-texto">{{ t('qualidade', 'Evidência da verificação') }}</label>
       <textarea id="rnc-eficacia-texto" name="texto" class="input{% if erros.get('texto') %} input--erro{% endif %}"
         rows="3" maxlength="600" required
-        placeholder="Inspeções seguintes, ensaios, auditoria ou indicador que comprovam o resultado"
+        placeholder="{{ t('qualidade', 'Inspeções seguintes, ensaios, auditoria ou indicador que comprovam o resultado') }}"
         {% if erros.get('texto') %}aria-invalid="true" aria-describedby="erro-texto"{% endif %}>{{ valores.get('texto') or '' }}</textarea>
       {{ erro(erros, 'texto') }}
     </div>
     <div class="field">
-      <label for="rnc-eficacia-data">Data da verificação</label>
+      <label for="rnc-eficacia-data">{{ t('qualidade', 'Data da verificação') }}</label>
       <input id="rnc-eficacia-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
@@ -59,18 +59,18 @@
       <label class="registro__opcao">
         <input type="checkbox" name="registrarLicao" value="1" @change="licao = $event.target.checked"
           {% if valores.get('registrarLicao') == '1' %} checked{% endif %} />
-        <span>Registrar lição aprendida (Rascunho no 08 Governança, origem RNC)</span>
+        <span>{{ t('qualidade', 'Registrar lição aprendida (Rascunho no 08 Governança, origem RNC)') }}</span>
       </label>
     </div>
     <div class="field field--full" x-show="eficaz === 'sim' && licao">
-      <label for="rnc-licao-titulo">Título da lição</label>
+      <label for="rnc-licao-titulo">{{ t('qualidade', 'Título da lição') }}</label>
       <input id="rnc-licao-titulo" name="licaoTitulo" class="input{% if erros.get('licaoTitulo') %} input--erro{% endif %}"
         maxlength="120" value="{{ valores.get('licaoTitulo') or '' }}"
         {% if erros.get('licaoTitulo') %}aria-invalid="true" aria-describedby="erro-licaoTitulo"{% endif %} />
       {{ erro(erros, 'licaoTitulo') }}
     </div>
     <div class="field field--full" x-show="eficaz === 'sim' && licao">
-      <label for="rnc-licao-recomendacao">Recomendação</label>
+      <label for="rnc-licao-recomendacao">{{ t('qualidade', 'Recomendação') }}</label>
       <textarea id="rnc-licao-recomendacao" name="licaoRecomendacao" class="input{% if erros.get('licaoRecomendacao') %} input--erro{% endif %}"
         rows="2" maxlength="500"
         {% if erros.get('licaoRecomendacao') %}aria-invalid="true" aria-describedby="erro-licaoRecomendacao"{% endif %}>{{ valores.get('licaoRecomendacao') or '' }}</textarea>
@@ -79,8 +79,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar verificação</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Registrar verificação') }}</button>
   </div>
 </form>
 {% endblock %}

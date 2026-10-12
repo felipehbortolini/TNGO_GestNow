@@ -25,32 +25,32 @@
     <form method="post" action="{{ pedidos_url }}/{{ p.id }}/decisao" x-target="gov-pedidos gov-trilha"
       class="gov-decisao" data-tn-loading="Decidindo...">
       <input type="hidden" name="versao" value="{{ p.version }}" />
-      <label class="sr-only" for="resposta-{{ p.id }}">Resposta ao pedido</label>
+      <label class="sr-only" for="resposta-{{ p.id }}">{{ t('programacao_semanal', 'Resposta ao pedido') }}</label>
       <input id="resposta-{{ p.id }}" class="input gov-decisao__campo" type="text" name="resposta"
-        placeholder="Resposta (obrigatória para recusar)"
+        placeholder="{{ t('programacao_semanal', 'Resposta (obrigatória para recusar)') }}"
         {% if erro_id == p.id %}value="{{ resposta_digitada }}" aria-invalid="true" aria-describedby="erro-{{ p.id }}"{% endif %} />
       {% if erro_id == p.id %}
       <span id="erro-{{ p.id }}" class="field__erro">{{ erro_mensagem }}</span>
       {% endif %}
       <span class="gov-decisao__acoes">
-        <button type="submit" class="btn btn--primary btn--sm" name="decisao" value="aplicar">Liberar</button>
-        <button type="submit" class="btn btn--secondary btn--sm" name="decisao" value="recusar">Recusar</button>
+        <button type="submit" class="btn btn--primary btn--sm" name="decisao" value="aplicar">{{ t('programacao_semanal', 'Liberar') }}</button>
+        <button type="submit" class="btn btn--secondary btn--sm" name="decisao" value="recusar">{{ t('programacao_semanal', 'Recusar') }}</button>
       </span>
     </form>
     {% else %}
-    <span class="pill pill--warn">Aguardando decisão</span>
+    <span class="pill pill--warn">{{ t('programacao_semanal', 'Aguardando decisão') }}</span>
     {% endif %}
   </li>
   {% endfor %}
 </ul>
 {% else %}
 <div class="empty" style="min-height: 140px">
-  <p>Nenhum pedido de alteração aguardando decisão.</p>
+  <p>{{ t('programacao_semanal', 'Nenhum pedido de alteração aguardando decisão.') }}</p>
 </div>
 {% endif %}
 
 {% if resolvidos %}
-<p class="grupo-label mt-16">Decididos recentemente</p>
+<p class="grupo-label mt-16">{{ t('programacao_semanal', 'Decididos recentemente') }}</p>
 <div class="trilha">
   {% for p in resolvidos %}
   <div class="trilha__item">

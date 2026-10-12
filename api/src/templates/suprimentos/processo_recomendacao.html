@@ -19,18 +19,17 @@
   {% endif %}
 
   <div class="aviso aviso--info mb-16">
-    <span>
-      Melhor nota final: <b>{{ melhor.name if melhor else '·' }}</b>{% if melhor %} ({{ formatar_numero(melhor.final_score) }}){% endif %}.
+    <span>{{ t('suprimentos', 'Melhor nota final:') }}<b>{{ melhor.name if melhor else '·' }}</b>{% if melhor %} ({{ formatar_numero(melhor.final_score) }}){% endif %}.
       Recomendar outro fornecedor, ou fornecedor não qualificado, exige justificativa.
     </span>
   </div>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="recomendacao-proposta">Fornecedor recomendado</label>
+      <label for="recomendacao-proposta">{{ t('suprimentos', 'Fornecedor recomendado') }}</label>
       <select id="recomendacao-proposta" name="proposta" class="input{% if erros.get('fornecedor') %} input--erro{% endif %}" required
         {% if erros.get('fornecedor') %}aria-invalid="true" aria-describedby="erro-fornecedor"{% endif %}>
-        <option value="">Escolha a proposta aprovada</option>
+        <option value="">{{ t('suprimentos', 'Escolha a proposta aprovada') }}</option>
         {% for proposta in aprovadas %}
         <option value="{{ proposta.id }}"{% if valores.get('proposta') == proposta.id|string or (not valores and melhor and proposta.id == melhor.id) %} selected{% endif %}>
           {% if proposta.rank %}{{ proposta.rank }}º {% endif %}{{ proposta.name }} · {{ formatar_moeda(proposta.negociado_cents or proposta.value_cents) }} · {{ proposta.qualification }}
@@ -41,7 +40,7 @@
     </div>
 
     <div class="field">
-      <label for="recomendacao-valor">Valor recomendado</label>
+      <label for="recomendacao-valor">{{ t('suprimentos', 'Valor recomendado') }}</label>
       <input id="recomendacao-valor" name="valor" class="input{% if erros.get('valor') %} input--erro{% endif %}"
         inputmode="decimal" placeholder="0,00" required
         value="{{ valores.get('valor') or valor_sugerido }}"
@@ -50,7 +49,7 @@
     </div>
 
     <div class="field">
-      <label for="recomendacao-data">Data</label>
+      <label for="recomendacao-data">{{ t('suprimentos', 'Data') }}</label>
       <input id="recomendacao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
@@ -59,30 +58,28 @@
 
     <div class="field field--full">
       <p class="body-txt">
-        <b>Alçada de aprovação:</b> {{ alcada or '·' }}
+        <b>{{ t('suprimentos', 'Alçada de aprovação:') }}</b> {{ alcada or '·' }}
         {% if saldo is not none %}
         <span class="hint">· saldo a comprometer do item {{ linha.eac_code }}: {{ formatar_moeda(saldo) }}</span>
         {% endif %}
       </p>
-      <span class="hint">O valor acima do saldo a comprometer é recusado na aprovação; faça remanejamento ou SM antes.</span>
+      <span class="hint">{{ t('suprimentos', 'O valor acima do saldo a comprometer é recusado na aprovação; faça remanejamento ou SM antes.') }}</span>
     </div>
 
     <div class="field field--full">
-      <label for="recomendacao-justificativa">Justificativa da recomendação</label>
+      <label for="recomendacao-justificativa">{{ t('suprimentos', 'Justificativa da recomendação') }}</label>
       <textarea id="recomendacao-justificativa" name="justificativa" rows="3" maxlength="400"
         class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
         {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
-      <span class="hint">Obrigatória quando a recomendação não é a melhor nota final ou o fornecedor não está qualificado (20 caracteres).</span>
+      <span class="hint">{{ t('suprimentos', 'Obrigatória quando a recomendação não é a melhor nota final ou o fornecedor não está qualificado (20 caracteres).') }}</span>
       {% if erros.get('justificativa') %}<span id="erro-justificativa" class="field__erro">{{ erros.get('justificativa') }}</span>{% endif %}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
-      Recomendar adjudicação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Recomendar adjudicação') }}</button>
   </div>
 </form>
 {% endblock %}

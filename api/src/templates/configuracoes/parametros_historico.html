@@ -11,28 +11,28 @@
 {% block fragment %}
 {% if not versoes %}
 <div class="empty" data-estado="vazio-origem">
-  <h2 class="h-card4">Nenhuma versão registrada</h2>
-  <p>As versões nascem da gravação de um grupo de parâmetros.</p>
+  <h2 class="h-card4">{{ t('configuracoes', 'Nenhuma versão registrada') }}</h2>
+  <p>{{ t('configuracoes', 'As versões nascem da gravação de um grupo de parâmetros.') }}</p>
 </div>
 {% else %}
 <div class="tbl-wrap">
   <table class="tbl parametros__versoes">
-    <caption class="sr-only">Versões dos parâmetros</caption>
+    <caption class="sr-only">{{ t('configuracoes', 'Versões dos parâmetros') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Versão</th>
-        <th scope="col">Grupo</th>
-        <th scope="col">Vigência</th>
-        <th scope="col">Alterada por</th>
-        <th scope="col">Justificativa</th>
-        <th scope="col" class="parametros__valor">Alterações</th>
-        <th scope="col"><span class="sr-only">Ver alterações</span></th>
+        <th scope="col">{{ t('configuracoes', 'Versão') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Grupo') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Vigência') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Alterada por') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Justificativa') }}</th>
+        <th scope="col" class="parametros__valor">{{ t('configuracoes', 'Alterações') }}</th>
+        <th scope="col"><span class="sr-only">{{ t('configuracoes', 'Ver alterações') }}</span></th>
       </tr>
     </thead>
     <tbody>
       {% for versao in versoes %}
       <tr>
-        <td class="nowrap"><b>v{{ versao.version }}</b>{% if versao.current %} <span class="pill pill--ok">Vigente</span>{% endif %}</td>
+        <td class="nowrap"><b>v{{ versao.version }}</b>{% if versao.current %} <span class="pill pill--ok">{{ t('configuracoes', 'Vigente') }}</span>{% endif %}</td>
         <td>{{ versao.group_name }}</td>
         <td class="nowrap">{{ data(versao.effective_from) }} em diante</td>
         <td>{{ versao.author_name or '·' }}</td>
@@ -42,7 +42,7 @@
           {% if versao.changes %}
           <a class="btn btn--ghost btn--sm"
             href="{{ url_historico }}?grupo={{ versao.group }}&versao={{ versao.version }}"
-            x-target="{{ target_id }}">Ver</a>
+            x-target="{{ target_id }}">{{ t('configuracoes', 'Ver') }}</a>
           {% endif %}
         </td>
       </tr>
@@ -58,10 +58,10 @@
     <caption class="sr-only">Alterações da versão {{ detalhe.version }}</caption>
     <thead>
       <tr>
-        <th scope="col">Grupo</th>
-        <th scope="col">Parâmetro</th>
-        <th scope="col">Antes</th>
-        <th scope="col">Depois</th>
+        <th scope="col">{{ t('configuracoes', 'Grupo') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Parâmetro') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Antes') }}</th>
+        <th scope="col">{{ t('configuracoes', 'Depois') }}</th>
       </tr>
     </thead>
     <tbody>

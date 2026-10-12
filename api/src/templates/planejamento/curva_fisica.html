@@ -13,9 +13,9 @@
   data-carteira="{{ 'sim' if visao.is_portfolio else 'nao' }}"></span>
 
 {% if visao.is_empty %}
-<p class="body-txt">{{ 'Nenhum projeto da carteira tem Curva S cadastrada.' if visao.is_portfolio else 'Este projeto ainda não tem Curva S cadastrada.' }}</p>
+<p class="body-txt">{{ t('planejamento', 'Nenhum projeto da carteira tem Curva S cadastrada.') if visao.is_portfolio else t('planejamento', 'Este projeto ainda não tem Curva S cadastrada.') }}</p>
 {% else %}
-<div class="kpis" role="group" aria-label="Indicadores da Curva S física">
+<div class="kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores da Curva S física') }}">
   {% for kpi in kpis %}
   {% if kpi.href %}<a class="kpi kpi--{{ kpi.tom }}" href="{{ kpi.href }}" data-tn-tela>{% else %}<div class="kpi kpi--{{ kpi.tom }} kpi--estatico">{% endif %}
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -31,7 +31,7 @@
 <section class="card mb-16" aria-labelledby="curva-s-grafico-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="curva-s-grafico-titulo">Curva S física{{ ' da carteira' if visao.is_portfolio }}</h2>
+      <h2 class="h-card4" id="curva-s-grafico-titulo">Curva S física{{ t('planejamento', ' da carteira') if visao.is_portfolio }}</h2>
       <span class="hint">{{ subtitulo }}</span>
     </div>
   </div>
@@ -43,29 +43,29 @@
 <section class="card mb-16" aria-labelledby="curva-s-tabela-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="curva-s-tabela-titulo">Período a período</h2>
-      <span class="hint">Previsto e real acumulados, com o incremento do mês e o desvio em p.p.; o mês do corte está destacado</span>
+      <h2 class="h-card4" id="curva-s-tabela-titulo">{{ t('planejamento', 'Período a período') }}</h2>
+      <span class="hint">{{ t('planejamento', 'Previsto e real acumulados, com o incremento do mês e o desvio em p.p.; o mês do corte está destacado') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Curva S física período a período</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Curva S física período a período') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Mês</th>
-            <th scope="col" class="td-num">Previsto no mês (p.p.)</th>
-            <th scope="col" class="td-num">Previsto acumulado</th>
-            <th scope="col" class="td-num">Real no mês (p.p.)</th>
-            <th scope="col" class="td-num">Real acumulado</th>
-            <th scope="col" class="td-num">Tendência</th>
-            <th scope="col" class="td-num">Desvio (p.p.)</th>
+            <th scope="col">{{ t('planejamento', 'Mês') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Previsto no mês (p.p.)') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Previsto acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Real no mês (p.p.)') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Real acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Tendência') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Desvio (p.p.)') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for linha in linhas %}
           <tr{% if linha.corte %} class="fw-600" aria-current="true"{% endif %}>
-            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">corte</span>{% endif %}</td>
+            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">{{ t('planejamento', 'corte') }}</span>{% endif %}</td>
             <td class="td-num">{{ linha.previsto_mes }}</td>
             <td class="td-num">{{ linha.previsto }}</td>
             <td class="td-num">{{ linha.real_mes }}</td>
@@ -86,24 +86,24 @@
 <section class="card mb-16" aria-labelledby="curva-s-carteira-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="curva-s-carteira-titulo">Composição da carteira</h2>
-      <span class="hint">Peso, avanço e contribuição de cada projeto para o desvio ponderado da carteira</span>
+      <h2 class="h-card4" id="curva-s-carteira-titulo">{{ t('planejamento', 'Composição da carteira') }}</h2>
+      <span class="hint">{{ t('planejamento', 'Peso, avanço e contribuição de cada projeto para o desvio ponderado da carteira') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Composição da carteira por projeto</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Composição da carteira por projeto') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
-            <th scope="col" class="td-num">Peso na carteira</th>
-            <th scope="col" class="td-num">Previsto acumulado</th>
-            <th scope="col" class="td-num">Real acumulado</th>
-            <th scope="col" class="td-num">Desvio (p.p.)</th>
-            <th scope="col" class="td-num">SPI</th>
-            <th scope="col" class="td-num">Contribuição para o desvio (p.p.)</th>
-            <th scope="col">Término pela tendência</th>
+            <th scope="col">{{ t('planejamento', 'Projeto') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Peso na carteira') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Previsto acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Real acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Desvio (p.p.)') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'SPI') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Contribuição para o desvio (p.p.)') }}</th>
+            <th scope="col">{{ t('planejamento', 'Término pela tendência') }}</th>
           </tr>
         </thead>
         <tbody>

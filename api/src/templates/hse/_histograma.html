@@ -9,28 +9,28 @@
 {% macro histograma(pontos, maximo, portfolio, identificador) %}
 <section class="card" aria-labelledby="{{ identificador }}-titulo">
   <div class="card__head">
-    <h2 class="h-card4" id="{{ identificador }}-titulo">Histograma de mão de obra</h2>
-    <span class="hint">previsto: HHT registrado ajustado pelo avanço previsto e real da Curva S física</span>
+    <h2 class="h-card4" id="{{ identificador }}-titulo">{{ t('hse', 'Histograma de mão de obra') }}</h2>
+    <span class="hint">{{ t('hse', 'previsto: HHT registrado ajustado pelo avanço previsto e real da Curva S física') }}</span>
   </div>
   <div class="card__body">
     {% if not pontos %}
     <div class="empty" data-estado="vazio-origem">
-      <h2 class="h-card4">Ainda não há histograma</h2>
-      <p>O histograma nasce do HHT registrado: lance as horas dos meses para vê-lo aqui.</p>
+      <h2 class="h-card4">{{ t('hse', 'Ainda não há histograma') }}</h2>
+      <p>{{ t('hse', 'O histograma nasce do HHT registrado: lance as horas dos meses para vê-lo aqui.') }}</p>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Histograma de mão de obra por mês</caption>
+        <caption class="sr-only">{{ t('hse', 'Histograma de mão de obra por mês') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Mês</th>
-            <th scope="col">HHT previsto</th>
-            <th scope="col"><span class="sr-only">Barra do HHT previsto</span></th>
-            <th scope="col">HHT registrado</th>
-            <th scope="col">Efetivo previsto</th>
-            <th scope="col">Efetivo registrado</th>
+            {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('hse', 'Mês') }}</th>
+            <th scope="col">{{ t('hse', 'HHT previsto') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('hse', 'Barra do HHT previsto') }}</span></th>
+            <th scope="col">{{ t('hse', 'HHT registrado') }}</th>
+            <th scope="col">{{ t('hse', 'Efetivo previsto') }}</th>
+            <th scope="col">{{ t('hse', 'Efetivo registrado') }}</th>
           </tr>
         </thead>
         <tbody>

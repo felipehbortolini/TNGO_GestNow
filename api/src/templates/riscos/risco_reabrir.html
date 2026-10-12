@@ -16,20 +16,20 @@
   <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
   {% endif %}
   <div class="aviso aviso--info mb-16" role="note">
-    <span>Reabrir devolve o risco à carteira ativa, na situação em que estava antes do encerramento.</span>
+    <span>{{ t('riscos', 'Reabrir devolve o risco à carteira ativa, na situação em que estava antes do encerramento.') }}</span>
   </div>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="reabrir-justificativa">Justificativa</label>
+      <label for="reabrir-justificativa">{{ t('riscos', 'Justificativa') }}</label>
       <textarea id="reabrir-justificativa" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}" rows="3" maxlength="500" required
         {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
-      <span class="hint">Grava linha no histórico do risco (mínimo de 10 caracteres).</span>
+      <span class="hint">{{ t('riscos', 'Grava linha no histórico do risco (mínimo de 10 caracteres).') }}</span>
       {% if erros.get('justificativa') %}<span id="erro-justificativa" class="field__erro">{{ erros['justificativa'] }}</span>{% endif %}
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Reabrir</button>
+    <button type="button" class="btn btn--secondary" data-ficha-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('riscos', 'Reabrir') }}</button>
   </div>
 </form>
 {% endblock %}

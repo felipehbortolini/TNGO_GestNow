@@ -23,8 +23,7 @@
   data-analises-risco-modal-url="/api/hse/analises-risco/{{ linha.code }}/recomendacoes/{{ recomendacao.position }}/fechar{{ ('?' ~ consulta) if consulta else '' }}"
   data-analises-risco-modal-titulo="Fechar recomendação · {{ linha.code }}"
   data-analises-risco-modal-subtitulo="{{ recomendacao.description|truncate(80) }}" data-analises-risco-modal-largura="640">
-  <span x-init="$el.innerHTML = window.icon('check', 14)" aria-hidden="true"></span> Fechar
-</button>
+  <span x-init="$el.innerHTML = window.icon('check', 14)" aria-hidden="true"></span>{{ t('hse', 'Fechar') }}</button>
 {% endmacro %}
 
 {% macro form_criar_acao(recomendacao) %}
@@ -34,9 +33,8 @@
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
   <input type="hidden" name="consulta" value="{{ consulta }}" />
   <button type="submit" class="btn btn--ghost btn--sm"
-    title="Criar ação na Central para esta recomendação">
-    <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Criar ação
-  </button>
+    title="{{ t('hse', 'Criar ação na Central para esta recomendação') }}">
+    <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('hse', 'Criar ação') }}</button>
 </form>
 {% endmacro %}
 
@@ -49,17 +47,16 @@
     {{ campo('Participantes', linha.participant_names|join(', ')) }}
   </div>
 
-  <p class="hint mb-16">A recomendação nasce Aberta; fechar a recomendação conclui a ação na
-    Central e concluir a ação fecha a recomendação.</p>
+  <p class="hint mb-16">{{ t('hse', 'A recomendação nasce Aberta; fechar a recomendação conclui a ação na Central e concluir a ação fecha a recomendação.') }}</p>
 
-  <h3 class="section-title">Recomendações</h3>
+  <h3 class="section-title">{{ t('hse', 'Recomendações') }}</h3>
   {% if linha.recommendations %}
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Recomendações do estudo</caption>
-      <thead><tr><th scope="col">Recomendação</th><th scope="col">Responsável</th>
-        <th scope="col">Prazo</th><th scope="col">Situação</th><th scope="col">Ação na Central</th>
-        <th scope="col"><span class="sr-only">Ações da linha</span></th></tr></thead>
+      <caption class="sr-only">{{ t('hse', 'Recomendações do estudo') }}</caption>
+      <thead><tr><th scope="col">{{ t('hse', 'Recomendação') }}</th><th scope="col">{{ t('hse', 'Responsável') }}</th>
+        <th scope="col">{{ t('hse', 'Prazo') }}</th><th scope="col">{{ t('hse', 'Situação') }}</th><th scope="col">{{ t('hse', 'Ação na Central') }}</th>
+        <th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th></tr></thead>
       <tbody>
         {% for rec in linha.recommendations %}
         {% set pode_fechar = pode_gravar and not rec.is_closed %}
@@ -75,7 +72,7 @@
           <td class="nowrap">{{ data(rec.due_date) }}</td>
           <td>
             <span class="pill {{ 'pill--ok' if rec.is_closed else ('pill--erro' if rec.overdue else 'pill--warn') }}">{{ rec.situation }}</span>
-            {% if rec.overdue %}<span class="pill pill--erro">Atrasada</span>{% endif %}
+            {% if rec.overdue %}<span class="pill pill--erro">{{ t('hse', 'Atrasada') }}</span>{% endif %}
           </td>
           <td>
             {% if rec.action %}
@@ -96,7 +93,7 @@
     </table>
   </div>
   {% else %}
-  <p class="hint">Nenhuma recomendação registrada.</p>
+  <p class="hint">{{ t('hse', 'Nenhuma recomendação registrada.') }}</p>
   {% endif %}
 </div>
 {% endblock %}

@@ -9,18 +9,18 @@
 {% if gargalos %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Atividades com PPC abaixo da faixa de atenção</caption>
+    <caption class="sr-only">{{ t('programacao_semanal', 'Atividades com PPC abaixo da faixa de atenção') }}</caption>
     <thead>
       <tr>
-        {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-        <th scope="col">Atividade</th>
-        <th scope="col">Contratada</th>
-        <th scope="col">Frente</th>
-        <th scope="col">Encarregado</th>
-        <th scope="col" class="td-num">Previsto</th>
-        <th scope="col" class="td-num">Realizado</th>
-        <th scope="col" class="td-num">PPC</th>
-        <th scope="col" class="td-center">Dias parados</th>
+        {% if portfolio %}<th scope="col">{{ t('programacao_semanal', 'Projeto') }}</th>{% endif %}
+        <th scope="col">{{ t('programacao_semanal', 'Atividade') }}</th>
+        <th scope="col">{{ t('programacao_semanal', 'Contratada') }}</th>
+        <th scope="col">{{ t('programacao_semanal', 'Frente') }}</th>
+        <th scope="col">{{ t('programacao_semanal', 'Encarregado') }}</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'Previsto') }}</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'Realizado') }}</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'PPC') }}</th>
+        <th scope="col" class="td-center">{{ t('programacao_semanal', 'Dias parados') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -49,7 +49,7 @@
 {% else %}
 <div class="empty">
   <img src="/ds/assets/ilustra-sucesso.png" alt="" />
-  <h3 class="h-card4">Nenhum gargalo na semana</h3>
+  <h3 class="h-card4">{{ t('programacao_semanal', 'Nenhum gargalo na semana') }}</h3>
   <p>Todas as atividades estão em {{ limite_gargalo }}% de PPC ou acima.</p>
 </div>
 {% endif %}

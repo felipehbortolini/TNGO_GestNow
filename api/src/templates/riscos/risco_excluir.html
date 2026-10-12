@@ -21,18 +21,18 @@
   {% endfor %}
 
   <div class="aviso aviso--warn mb-16" role="note">
-    <span>Exclusão lógica: o risco sai da lista, mas continua no banco com motivo, autor e data. Só o Admin vê e restaura.</span>
+    <span>{{ t('riscos', 'Exclusão lógica: o risco sai da lista, mas continua no banco com motivo, autor e data. Só o Admin vê e restaura.') }}</span>
   </div>
 
-  <p class="body-txt mb-16">Excluir <strong>{{ risco.code }}</strong> — {{ risco.title }}?</p>
+  <p class="body-txt mb-16">{{ t('riscos', 'Excluir') }}<strong>{{ risco.code }}</strong> — {{ risco.title }}?</p>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="risco-motivo">Motivo</label>
+      <label for="risco-motivo">{{ t('riscos', 'Motivo') }}</label>
       <select id="risco-motivo" name="motivo" class="input{% if erros.get('motivo') %} input--erro{% endif %}" required
         @change="motivo = $event.target.value"
         {% if erros.get('motivo') %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('riscos', 'Escolha...') }}</option>
         {% for item in motivos %}
         <option value="{{ item }}"{% if valores.get('motivo') == item %} selected{% endif %}>{{ item }}</option>
         {% endfor %}
@@ -40,17 +40,17 @@
       {% if erros.get('motivo') %}<span id="erro-motivo" class="field__erro">{{ erros['motivo'] }}</span>{% endif %}
     </div>
     <div class="field field--full" x-show="motivo === '{{ motivo_outro }}'">
-      <label for="risco-observacao">Observação</label>
+      <label for="risco-observacao">{{ t('riscos', 'Observação') }}</label>
       <textarea id="risco-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}" rows="3" maxlength="500"
         {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
-      <span class="hint">Detalhe o motivo: obrigatório quando o motivo for Outro.</span>
+      <span class="hint">{{ t('riscos', 'Detalhe o motivo: obrigatório quando o motivo for Outro.') }}</span>
       {% if erros.get('observacao') %}<span id="erro-observacao" class="field__erro">{{ erros['observacao'] }}</span>{% endif %}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--danger">Excluir</button>
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--danger">{{ t('riscos', 'Excluir') }}</button>
   </div>
 </form>
 {% endblock %}

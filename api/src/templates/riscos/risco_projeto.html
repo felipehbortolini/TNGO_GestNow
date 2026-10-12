@@ -10,13 +10,13 @@
 <form method="get" action="/api/riscos/novo" x-target="{{ target_id }}" data-tn-loading="Abrindo o formulário...">
   <input type="hidden" name="consulta" value="{{ consulta }}" />
   <div class="aviso aviso--info mb-16" role="note">
-    <span>Portfólio: escolha o projeto do risco. O número, o apetite e a numeração vêm da configuração dele.</span>
+    <span>{{ t('riscos', 'Portfólio: escolha o projeto do risco. O número, o apetite e a numeração vêm da configuração dele.') }}</span>
   </div>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="{{ target_id }}-projeto">Projeto</label>
+      <label for="{{ target_id }}-projeto">{{ t('riscos', 'Projeto') }}</label>
       <select id="{{ target_id }}-projeto" name="projeto" class="input" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('riscos', 'Escolha...') }}</option>
         {% for projeto in projetos %}
         <option value="{{ projeto.id }}">{{ projeto.code }} · {{ projeto.name }}</option>
         {% endfor %}
@@ -24,8 +24,8 @@
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Continuar</button>
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('riscos', 'Continuar') }}</button>
   </div>
 </form>
 {% endblock %}

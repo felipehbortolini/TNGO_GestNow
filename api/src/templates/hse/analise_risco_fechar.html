@@ -30,23 +30,23 @@
 
   <div class="fgrid">
     <div class="field">
-      <label for="ar-fechar-data">Data de conclusão</label>
+      <label for="ar-fechar-data">{{ t('hse', 'Data de conclusão') }}</label>
       <input id="ar-fechar-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field field--full">
-      <label for="ar-fechar-evidencia">Evidência</label>
+      <label for="ar-fechar-evidencia">{{ t('hse', 'Evidência') }}</label>
       <textarea id="ar-fechar-evidencia" name="evidencia" rows="2" maxlength="300"
         class="input{% if erros.get('evidencia') %} input--erro{% endif %}">{{ valores.get('evidencia') or '' }}</textarea>
-      <span class="hint">Opcional: o que comprova a conclusão da recomendação.</span>
+      <span class="hint">{{ t('hse', 'Opcional: o que comprova a conclusão da recomendação.') }}</span>
       {{ erro(erros, 'evidencia') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-analises-risco-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Fechar recomendação</button>
+    <button type="button" class="btn btn--secondary" data-analises-risco-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Fechar recomendação') }}</button>
   </div>
 </form>
 {% endblock %}

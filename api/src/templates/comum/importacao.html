@@ -70,7 +70,7 @@
           {% for coluna in colunas %}
           <tr>
             <td class="fw-600">{{ coluna.cabecalho }}</td>
-            <td>{{ 'Sim' if coluna.obrigatoria else 'Não' }}</td>
+            <td>{{ t('comum', 'Sim') if coluna.obrigatoria else t('comum', 'Não') }}</td>
             <td>{{ coluna.formato }}</td>
             <td>{{ coluna.exemplo }}</td>
           </tr>

@@ -34,7 +34,7 @@
   <div class="card__head">
     <div>
       <h2 class="h-card4" id="{{ identificador }}">{{ titulo }}</h2>
-      <span class="hint">Não ambientais, no acumulado; até as 8 maiores</span>
+      <span class="hint">{{ t('hse', 'Não ambientais, no acumulado; até as 8 maiores') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -51,7 +51,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="empty" data-estado="vazio-filtro">Nenhuma ocorrência no período.</p>
+    <p class="empty" data-estado="vazio-filtro">{{ t('hse', 'Nenhuma ocorrência no período.') }}</p>
     {% endif %}
   </div>
 </section>
@@ -63,53 +63,53 @@
 {% if situacao == 'vazio-origem' %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-  <h2 class="h-card4">Ainda não há HHT registrado no escopo</h2>
-  <p>Registre as horas trabalhadas (HHT) de cada mês e empresa para o painel mostrar as taxas, as pirâmides e os indicadores proativos.</p>
-  <a class="btn btn--primary" href="{{ link_hht }}" data-tn-tela>Ir para Horas trabalhadas</a>
+  <h2 class="h-card4">{{ t('hse', 'Ainda não há HHT registrado no escopo') }}</h2>
+  <p>{{ t('hse', 'Registre as horas trabalhadas (HHT) de cada mês e empresa para o painel mostrar as taxas, as pirâmides e os indicadores proativos.') }}</p>
+  <a class="btn btn--primary" href="{{ link_hht }}" data-tn-tela>{{ t('hse', 'Ir para Horas trabalhadas') }}</a>
 </div>
 {% else %}
 <form class="toolbar painel__filtros" method="get" action="/api/hse/painel" x-target="{{ target_id }}">
-  <label class="sr-only" for="{{ target_id }}-ano">Ano</label>
+  <label class="sr-only" for="{{ target_id }}-ano">{{ t('hse', 'Ano') }}</label>
   <select id="{{ target_id }}-ano" name="ano" class="input" @change="$el.form.requestSubmit()">
     {% for ano in anos %}
     <option value="{{ ano }}"{% if ano == painel.year %} selected{% endif %}>{{ ano }}</option>
     {% endfor %}
   </select>
-  <label class="sr-only" for="{{ target_id }}-mes">Mês</label>
+  <label class="sr-only" for="{{ target_id }}-mes">{{ t('hse', 'Mês') }}</label>
   <select id="{{ target_id }}-mes" name="mes" class="input" @change="$el.form.requestSubmit()">
     {% for mes in meses %}
     <option value="{{ mes.value }}"{% if mes.value == mes_selecionado %} selected{% endif %}>{{ mes.label }}</option>
     {% endfor %}
   </select>
-  <div class="seg" role="group" aria-label="Referência da pirâmide">
+  <div class="seg" role="group" aria-label="{{ t('hse', 'Referência da pirâmide') }}">
     <button type="submit" name="referencia" value="bird" class="seg__btn{{ ' is-active' if referencia == 'bird' }}"
-      aria-pressed="{{ 'true' if referencia == 'bird' else 'false' }}">Bird</button>
+      aria-pressed="{{ t('hse', 'true') if referencia == 'bird' else t('hse', 'false') }}">{{ t('hse', 'Bird') }}</button>
     <button type="submit" name="referencia" value="heinrich" class="seg__btn{{ ' is-active' if referencia == 'heinrich' }}"
-      aria-pressed="{{ 'true' if referencia == 'heinrich' else 'false' }}">Heinrich</button>
+      aria-pressed="{{ t('hse', 'true') if referencia == 'heinrich' else t('hse', 'false') }}">{{ t('hse', 'Heinrich') }}</button>
   </div>
-  <button type="submit" name="referencia" value="{{ referencia }}" class="btn btn--secondary btn--sm">Consultar</button>
+  <button type="submit" name="referencia" value="{{ referencia }}" class="btn btn--secondary btn--sm">{{ t('hse', 'Consultar') }}</button>
 </form>
 
 <div class="painel__barra">
   <p class="hint" role="status">{{ linha_periodo }}</p>
   <div class="painel__exportacoes">
-    <a class="btn btn--secondary btn--sm" href="{{ link_ocorrencias }}" data-tn-tela>Ocorrências</a>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    <a class="btn btn--secondary btn--sm" href="{{ link_ocorrencias }}" data-tn-tela>{{ t('hse', 'Ocorrências') }}</a>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('hse', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('hse', 'PDF') }}</button>
   </div>
 </div>
 
-<h2 class="h-card5 painel__titulo">No mês selecionado</h2>
+<h2 class="h-card5 painel__titulo">{{ t('hse', 'No mês selecionado') }}</h2>
 <div class="kpis painel__kpis" style="--kpis-colunas: 4">
   {% for kpi in kpis_mes %}{{ cartao(kpi) }}{% endfor %}
 </div>
 
-<h2 class="h-card5 painel__titulo">Acumulado</h2>
+<h2 class="h-card5 painel__titulo">{{ t('hse', 'Acumulado') }}</h2>
 <div class="kpis painel__kpis" style="--kpis-colunas: 4">
   {% for kpi in kpis_acumulado %}{{ cartao(kpi) }}{% endfor %}
 </div>
 
-<h2 class="h-card5 painel__titulo">Indicadores proativos</h2>
+<h2 class="h-card5 painel__titulo">{{ t('hse', 'Indicadores proativos') }}</h2>
 <div class="kpis painel__kpis" style="--kpis-colunas: 4">
   {% for kpi in kpis_proativos %}{{ cartao(kpi) }}{% endfor %}
 </div>
@@ -118,8 +118,8 @@
   <section class="card" aria-labelledby="painel-t-piramide">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-piramide">Pirâmide de segurança</h2>
-        <span class="hint">Mês selecionado e acumulado, com a proporção de referência</span>
+        <h2 class="h-card4" id="painel-t-piramide">{{ t('hse', 'Pirâmide de segurança') }}</h2>
+        <span class="hint">{{ t('hse', 'Mês selecionado e acumulado, com a proporção de referência') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -130,8 +130,8 @@
   <section class="card" aria-labelledby="painel-t-evolucao">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-evolucao">Evolução mensal</h2>
-        <span class="hint">Taxa de frequência (TF) e de lesões registráveis (TRIF), por mês com HHT registrado</span>
+        <h2 class="h-card4" id="painel-t-evolucao">{{ t('hse', 'Evolução mensal') }}</h2>
+        <span class="hint">{{ t('hse', 'Taxa de frequência (TF) e de lesões registráveis (TRIF), por mês com HHT registrado') }}</span>
       </div>
     </div>
     <div class="card__body">

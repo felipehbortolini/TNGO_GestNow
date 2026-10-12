@@ -8,22 +8,22 @@
 {% if visao.relato %}
 <p class="rel-situacao__linha">
   {% if visao.relato.registered %}
-  <span class="pill pill--ok">Registrado</span>
-  <span class="hint">A página 2 do Planejamento traz as atividades, os pontos de atenção e os riscos. <a href="{{ visao.relato.url }}">Ver relato</a></span>
+  <span class="pill pill--ok">{{ t('relatorio', 'Registrado') }}</span>
+  <span class="hint">{{ t('relatorio', 'A página 2 do Planejamento traz as atividades, os pontos de atenção e os riscos.') }}<a href="{{ visao.relato.url }}">{{ t('relatorio', 'Ver relato') }}</a></span>
   {% else %}
-  <span class="pill pill--warn">Pendente</span>
-  <span class="hint">Sem relato {{ visao.kind | lower }} neste período: a página 2 do Planejamento sai com o aviso. <a href="{{ visao.relato.url }}">Registrar agora</a></span>
+  <span class="pill pill--warn">{{ t('relatorio', 'Pendente') }}</span>
+  <span class="hint">Sem relato {{ visao.kind | lower }} neste período: a página 2 do Planejamento sai com o aviso. <a href="{{ visao.relato.url }}">{{ t('relatorio', 'Registrar agora') }}</a></span>
   {% endif %}
 </p>
-{% if visao.in_progress %}<p class="hint">Período em andamento: o relatório sai parcial, com dados até a data de referência.</p>{% endif %}
+{% if visao.in_progress %}<p class="hint">{{ t('relatorio', 'Período em andamento: o relatório sai parcial, com dados até a data de referência.') }}</p>{% endif %}
 {% else %}
 <ul class="rel-situacao">
   {% for linha in visao.project_relatos %}
   <li>
-    {% if linha.registered %}<span class="pill pill--ok">Registrado</span>{% else %}<span class="pill pill--warn">Pendente</span>{% endif %}
-    <span class="hint">{{ linha.project_label }} · <a href="{{ linha.url }}">{{ 'Ver relato' if linha.registered else 'Registrar agora' }}</a></span>
+    {% if linha.registered %}<span class="pill pill--ok">{{ t('relatorio', 'Registrado') }}</span>{% else %}<span class="pill pill--warn">{{ t('relatorio', 'Pendente') }}</span>{% endif %}
+    <span class="hint">{{ linha.project_label }} · <a href="{{ linha.url }}">{{ t('relatorio', 'Ver relato') if linha.registered else t('relatorio', 'Registrar agora') }}</a></span>
   </li>
   {% endfor %}
 </ul>
-{% if visao.in_progress %}<p class="hint">Período em andamento: o relatório sai parcial, com dados até a data de referência.</p>{% endif %}
+{% if visao.in_progress %}<p class="hint">{{ t('relatorio', 'Período em andamento: o relatório sai parcial, com dados até a data de referência.') }}</p>{% endif %}
 {% endif %}

@@ -12,26 +12,26 @@
 {% set consulta = '?empresa=' ~ filtro_performance.empresa ~ '&corte=' ~ filtro_performance.corte %}
 <div id="produtividade-kpis">
   <form class="toolbar produtividade__filtros" method="get" action="{{ api_performance }}"
-    x-target="produtividade-kpis" role="search" aria-label="Filtros dos KPIs de performance" x-data
+    x-target="produtividade-kpis" role="search" aria-label="{{ t('planejamento', 'Filtros dos KPIs de performance') }}" x-data
     @change="$el.requestSubmit()">
     <div class="field">
-      <label class="sr-only" for="perf-empresa">Empresa</label>
+      <label class="sr-only" for="perf-empresa">{{ t('planejamento', 'Empresa') }}</label>
       <select id="perf-empresa" name="empresa" class="input">
-        <option value="">Todas as empresas</option>
+        <option value="">{{ t('planejamento', 'Todas as empresas') }}</option>
         {% for opcao in performance.company_options %}
         <option value="{{ opcao.value }}"{% if opcao.value == filtro_performance.empresa %} selected{% endif %}>{{ opcao.label }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field">
-      <label class="sr-only" for="perf-corte">Semana de corte</label>
+      <label class="sr-only" for="perf-corte">{{ t('planejamento', 'Semana de corte') }}</label>
       <select id="perf-corte" name="corte" class="input">
         {% for semana in performance.cut_options | reverse %}
         <option value="{{ semana }}"{% if semana == performance.cut_week %} selected{% endif %}>Corte {{ rotulo_semana(semana) }}{% if semana == performance.current_week %} (atual){% endif %}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="btn btn--secondary">Filtrar</button>
+    <button type="submit" class="btn btn--secondary">{{ t('planejamento', 'Filtrar') }}</button>
   </form>
 
   <div class="produtividade__barra">
@@ -41,27 +41,25 @@
       · tendência das últimas {{ performance.trend_weeks | length }} semanas
     </p>
     <div class="produtividade__inclusao">
-      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_performance }}/excel{{ consulta }}">Excel</button>
-      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_performance }}/imprimivel{{ consulta }}">PDF</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_performance }}/excel{{ consulta }}">{{ t('planejamento', 'Excel') }}</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_performance }}/imprimivel{{ consulta }}">{{ t('planejamento', 'PDF') }}</button>
     </div>
   </div>
 
   <h2 class="produtividade__secao">
-    {% if bloco.company_id %}Performance: {{ bloco.company_name }}{% else %}Performance geral{% endif %}
+    {% if bloco.company_id %}{{ t('planejamento', 'Performance:') }}  {{ bloco.company_name }}{% else %}{{ t('planejamento', 'Performance geral') }}{% endif %}
   </h2>
-  <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores de performance">
+  <div class="kpis produtividade__kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores de performance') }}">
     <div class="kpi kpi--{{ tom(faixa_spi(bloco.quantities.spi)) }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('trendingUp', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Avanço por quantidades
-        <span class="produtividade__nota">Previsto: {{ percentual(bloco.quantities.pct_prev) }}</span>
-        <span class="produtividade__nota">em horas ganhas</span>
+      <span class="kpi__label">{{ t('planejamento', 'Avanço por quantidades') }}<span class="produtividade__nota">Previsto: {{ percentual(bloco.quantities.pct_prev) }}</span>
+        <span class="produtividade__nota">{{ t('planejamento', 'em horas ganhas') }}</span>
       </span>
       <span class="kpi__value">{{ percentual(bloco.quantities.pct_real) }}</span>
     </div>
     <div class="kpi kpi--{{ tom(faixa_spi(bloco.quantities.spi)) }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('curve', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">SPI de quantidades
-        <span class="produtividade__nota">Meta: ≥ {{ indice(parametros.spi_bands[1]) }}</span>
+      <span class="kpi__label">{{ t('planejamento', 'SPI de quantidades') }}<span class="produtividade__nota">Meta: ≥ {{ indice(parametros.spi_bands[1]) }}</span>
         <span class="produtividade__nota">horas ganhas ÷ previstas na LB</span>
       </span>
       <span class="kpi__value">{{ indice(bloco.quantities.spi) }}</span>
@@ -76,56 +74,49 @@
     </div>
     <div class="kpi kpi--{{ tom(faixa_pf(bloco.quantities.pf_window)) }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('gauge', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Fator de produtividade
-        <span class="produtividade__nota">Meta: ≤ {{ indice(parametros.pf_bands[0]) }}</span>
+      <span class="kpi__label">{{ t('planejamento', 'Fator de produtividade') }}<span class="produtividade__nota">Meta: ≤ {{ indice(parametros.pf_bands[0]) }}</span>
         <span class="produtividade__nota">acumulado {{ indice(bloco.quantities.pf) }} · 1,00 = orçado</span>
       </span>
       <span class="kpi__value">{{ indice(bloco.quantities.pf_window) }}</span>
     </div>
     <div class="kpi {{ 'kpi--erro' if bloco.schedule.slip_weeks and bloco.schedule.slip_weeks > 0 else 'kpi--ok' }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Tendência de atraso
-        <span class="produtividade__nota">Esperado: 0 semanas</span>
+      <span class="kpi__label">{{ t('planejamento', 'Tendência de atraso') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0 semanas') }}</span>
         <span class="produtividade__nota">SPI(t) {{ indice(bloco.schedule.spi_t) }} · {{ bloco.quantities.pending }} apontamento(s) pendente(s)</span>
       </span>
       <span class="kpi__value">{{ bloco.schedule.slip_weeks if bloco.schedule.slip_weeks is not none else '·' }}</span>
     </div>
     <div class="kpi kpi--{{ tom(faixa_utilizacao(bloco.capacity.utilization)) }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Capacidade produtiva
-        <span class="produtividade__nota">Meta: ≥ {{ horas_num(parametros.daily_hours * parametros.utilization_pct / 100, 2) }} h/dia</span>
+      <span class="kpi__label">{{ t('planejamento', 'Capacidade produtiva') }}<span class="produtividade__nota">Meta: ≥ {{ horas_num(parametros.daily_hours * parametros.utilization_pct / 100, 2) }} h/dia</span>
         <span class="produtividade__nota">utilização {{ percentual(bloco.capacity.utilization) }}</span>
       </span>
       <span class="kpi__value">{{ horas_num(bloco.capacity.capacity, 2) }}</span>
     </div>
     <div class="kpi kpi--{{ tom(faixa_trabalho(bloco.sample.working_pct)) }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('hardHat', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Pessoas trabalhando
-        <span class="produtividade__nota">Meta: ≥ {{ percentual(parametros.working_pct, 0) }}</span>
+      <span class="kpi__label">{{ t('planejamento', 'Pessoas trabalhando') }}<span class="produtividade__nota">Meta: ≥ {{ percentual(parametros.working_pct, 0) }}</span>
         <span class="produtividade__nota">parado {{ percentual(bloco.sample.stopped_pct) }}</span>
       </span>
       <span class="kpi__value">{{ percentual(bloco.sample.working_pct) }}</span>
     </div>
     <div class="kpi {{ 'kpi--warn' if bloco.stoppages.crew_hours else 'kpi--ok' }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Efetivo paralisado
-        <span class="produtividade__nota">Esperado: 0</span>
+      <span class="kpi__label">{{ t('planejamento', 'Efetivo paralisado') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
         <span class="produtividade__nota">{{ percentual(bloco.stoppage_share, 2) }} das HH disponíveis · cliente {{ horas_num(bloco.stoppages.client_hours, 1) }}</span>
       </span>
       <span class="kpi__value">{{ horas_num(bloco.stoppages.crew_hours, 1) }}</span>
     </div>
     <div class="kpi {{ 'kpi--warn' if bloco.stoppages.machine_hours else 'kpi--ok' }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Máquinas e equipamentos parados
-        <span class="produtividade__nota">Esperado: 0</span>
+      <span class="kpi__label">{{ t('planejamento', 'Máquinas e equipamentos parados') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
         <span class="produtividade__nota">{{ bloco.stoppages.events }} evento(s) de paralisação</span>
       </span>
       <span class="kpi__value">{{ horas_num(bloco.stoppages.machine_hours, 1) }}</span>
     </div>
     <div class="kpi {{ 'kpi--warn' if bloco.capacity.idle_hh else 'kpi--ok' }} kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">HH improdutivas na frente
-        <span class="produtividade__nota">Esperado: 0</span>
+      <span class="kpi__label">{{ t('planejamento', 'HH improdutivas na frente') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
         <span class="produtividade__nota">(jornada − CP) x efetivo</span>
       </span>
       <span class="kpi__value">{{ horas_num(bloco.capacity.idle_hh, 0) }}</span>
@@ -135,30 +126,30 @@
   <section class="card produtividade__plano" aria-labelledby="perf-t-empresas">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="perf-t-empresas">Performance por empresa</h2>
-        <span class="hint">Situação pela faixa dos parâmetros; a empresa com indicador fora da faixa pode gerar o plano de ação na Central</span>
+        <h2 class="h-card4" id="perf-t-empresas">{{ t('planejamento', 'Performance por empresa') }}</h2>
+        <span class="hint">{{ t('planejamento', 'Situação pela faixa dos parâmetros; a empresa com indicador fora da faixa pode gerar o plano de ação na Central') }}</span>
       </div>
     </div>
     {% if not performance.companies %}
-    <div class="card__body"><p class="muted">Nenhuma empresa com dados de produtividade no filtro.</p></div>
+    <div class="card__body"><p class="muted">{{ t('planejamento', 'Nenhuma empresa com dados de produtividade no filtro.') }}</p></div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Indicadores de performance por empresa</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Indicadores de performance por empresa') }}</caption>
         <thead>
           <tr>
-            {% if performance.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Empresa</th>
-            <th scope="col" class="td-num">Avanço real x prev.</th>
-            <th scope="col" class="td-num">SPI</th>
-            <th scope="col" class="td-num">Aderência</th>
-            <th scope="col" class="td-num">FP</th>
-            <th scope="col" class="td-num">CP (h/dia)</th>
+            {% if performance.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('planejamento', 'Empresa') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Avanço real x prev.') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'SPI') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Aderência') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'FP') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'CP (h/dia)') }}</th>
             <th scope="col" class="td-num">% trabalhando</th>
-            <th scope="col" class="td-num">Hhora parada</th>
-            <th scope="col" class="td-num">Mhora parada</th>
-            <th scope="col">Situação</th>
-            <th scope="col"><span class="sr-only">Ações</span></th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Hhora parada') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Mhora parada') }}</th>
+            <th scope="col">{{ t('planejamento', 'Situação') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -202,7 +193,7 @@
               {% elif linha.attentions %}
               <span class="pill pill--warn">{{ linha.attentions | length }} ponto(s) de atenção</span>
               {% else %}
-              <span class="pill pill--ok">No plano</span>
+              <span class="pill pill--ok">{{ t('planejamento', 'No plano') }}</span>
               {% endif %}
             </td>
             <td>
@@ -213,7 +204,7 @@
               {% elif performance.can_write and linha.has_attention and linha.company_id %}
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-tn-incluir="plano"
                 data-prod-acao="plano" data-prod-empresa="{{ linha.company_id }}" data-prod-corte="{{ performance.cut_week }}"
-                aria-label="Gerar plano de ação de {{ linha.company_name }}" title="Gerar plano de ação"
+                aria-label="Gerar plano de ação de {{ linha.company_name }}" title="{{ t('planejamento', 'Gerar plano de ação') }}"
                 x-init="$el.innerHTML = window.icon('add', 18)"></button>
               {% endif %}
             </td>
@@ -228,22 +219,22 @@
   <section class="card produtividade__lista" aria-labelledby="perf-t-tendencia">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="perf-t-tendencia">Tendência semanal por empresa</h2>
+        <h2 class="h-card4" id="perf-t-tendencia">{{ t('planejamento', 'Tendência semanal por empresa') }}</h2>
         <span class="hint">Últimas {{ performance.trend_weeks | length }} semanas até o corte: FP, aderência, % trabalhando e CP</span>
       </div>
     </div>
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Tendência semanal por empresa</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Tendência semanal por empresa') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Semana</th>
-            {% if performance.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Empresa</th>
-            <th scope="col" class="td-num">FP</th>
-            <th scope="col" class="td-num">Aderência</th>
+            <th scope="col">{{ t('planejamento', 'Semana') }}</th>
+            {% if performance.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('planejamento', 'Empresa') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'FP') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Aderência') }}</th>
             <th scope="col" class="td-num">% trabalhando</th>
-            <th scope="col" class="td-num">CP (h/dia)</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'CP (h/dia)') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -274,8 +265,8 @@
     <section class="card" aria-labelledby="perf-t-ader">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="perf-t-ader">Aderência semanal por empresa</h2>
-          <span class="hint">Realizado limitado ao previsto, ponderado pelas HH orçadas; a meta em tracejado</span>
+          <h2 class="h-card4" id="perf-t-ader">{{ t('planejamento', 'Aderência semanal por empresa') }}</h2>
+          <span class="hint">{{ t('planejamento', 'Realizado limitado ao previsto, ponderado pelas HH orçadas; a meta em tracejado') }}</span>
         </div>
       </div>
       <div class="card__body">
@@ -286,7 +277,7 @@
       <div class="card__head">
         <div>
           <h2 class="h-card4" id="perf-t-trab">% trabalhando por empresa</h2>
-          <span class="hint">Pessoas trabalhando nas rodadas de observação; a meta em tracejado</span>
+          <span class="hint">{{ t('planejamento', 'Pessoas trabalhando nas rodadas de observação; a meta em tracejado') }}</span>
         </div>
       </div>
       <div class="card__body">
@@ -296,28 +287,28 @@
   </div>
 
   <details class="produtividade__definicoes">
-    <summary class="h-card5">Como os indicadores são calculados</summary>
+    <summary class="h-card5">{{ t('planejamento', 'Como os indicadores são calculados') }}</summary>
     <dl class="produtividade__dl">
-      <dt>Horas ganhas (HG)</dt>
-      <dd>Quantidade realizada x índice orçado (HH por unidade): soma cabos, concreto, aço, tubulação e painéis na mesma base.</dd>
-      <dt>Avanço por quantidades</dt>
+      <dt>{{ t('planejamento', 'Horas ganhas (HG)') }}</dt>
+      <dd>{{ t('planejamento', 'Quantidade realizada x índice orçado (HH por unidade): soma cabos, concreto, aço, tubulação e painéis na mesma base.') }}</dd>
+      <dt>{{ t('planejamento', 'Avanço por quantidades') }}</dt>
       <dd>HG acumuladas ÷ HH orçadas do total da LB; o previsto é a quantidade prevista acumulada x índice ÷ HH orçadas.</dd>
-      <dt>SPI de quantidades</dt>
+      <dt>{{ t('planejamento', 'SPI de quantidades') }}</dt>
       <dd>HG ÷ horas previstas na LB até a semana de corte (1,00 = no plano; abaixo = atrasado).</dd>
-      <dt>Aderência semanal</dt>
+      <dt>{{ t('planejamento', 'Aderência semanal') }}</dt>
       <dd>Realizado ÷ previsto da semana, limitado a 100% por item e ponderado pelas HH orçadas; faixas {{ percentual(parametros.adherence_bands[0], 0) }} e {{ percentual(parametros.adherence_bands[1], 0) }}.</dd>
-      <dt>Fator de produtividade (FP)</dt>
+      <dt>{{ t('planejamento', 'Fator de produtividade (FP)') }}</dt>
       <dd>HH apropriadas pela contratada ÷ horas ganhas; 1,00 = índice da proposta; alerta acima de {{ indice(parametros.pf_bands[0]) }}.</dd>
-      <dt>Tendência de atraso</dt>
+      <dt>{{ t('planejamento', 'Tendência de atraso') }}</dt>
       <dd>Prazo agregado (earned schedule): semanas da LB equivalentes ao realizado ÷ semanas decorridas = SPI(t); o atraso compara o término projetado com o fim da LB.</dd>
-      <dt>Capacidade produtiva (CP)</dt>
+      <dt>{{ t('planejamento', 'Capacidade produtiva (CP)') }}</dt>
       <dd>Execução da manhã + da tarde por jornada; utilização = CP ÷ jornada de {{ horas_num(parametros.daily_hours, 1) }} h.</dd>
       <dt>% trabalhando</dt>
       <dd>Pessoas trabalhando sobre as observadas nas rodadas da amostragem; meta de {{ percentual(parametros.working_pct, 0) }}.</dd>
-      <dt>Hhora e Mhora</dt>
-      <dd>Efetivo paralisado (pessoas x horas) e máquinas ou equipamentos parados (unidades x horas), com o percentual das HH disponíveis.</dd>
-      <dt>Plano de ação</dt>
-      <dd>Empresa com indicador fora da faixa gera uma ação na Central (origem Produtividade, referência semana e empresa); uma ação aberta por empresa e semana.</dd>
+      <dt>{{ t('planejamento', 'Hhora e Mhora') }}</dt>
+      <dd>{{ t('planejamento', 'Efetivo paralisado (pessoas x horas) e máquinas ou equipamentos parados (unidades x horas), com o percentual das HH disponíveis.') }}</dd>
+      <dt>{{ t('planejamento', 'Plano de ação') }}</dt>
+      <dd>{{ t('planejamento', 'Empresa com indicador fora da faixa gera uma ação na Central (origem Produtividade, referência semana e empresa); uma ação aberta por empresa e semana.') }}</dd>
     </dl>
   </details>
 </div>

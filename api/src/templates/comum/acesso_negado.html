@@ -21,7 +21,7 @@
     {% if orientacao %}<p>{{ orientacao }}</p>{% endif %}
     {% if email %}<p>{{ t('comum', 'Conta usada:') }} <strong>{{ email }}</strong></p>{% endif %}
     {% if acao_url %}
-    <a class="btn btn--primary" href="{{ acao_url }}"{% if acao_tela %} data-tn-tela{% endif %}>{{ t('shell', acao_rotulo) }}</a>
+    <a class="btn btn--primary" href="{{ acao_url }}"{% if acao_tela %}  data-tn-tela{% endif %}>{{ t('shell', acao_rotulo) }}</a>
     {% endif %}
   </div>
 </main>

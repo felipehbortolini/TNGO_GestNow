@@ -44,27 +44,27 @@
 
   <div class="fgrid">
     <div class="field">
-      <label for="oc-data">Data do evento</label>
+      <label for="oc-data">{{ t('hse', 'Data do evento') }}</label>
       <input id="oc-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field">
-      <label for="oc-hora">Hora (HH:MM)</label>
+      <label for="oc-hora">{{ t('hse', 'Hora (HH:MM)') }}</label>
       <input id="oc-hora" name="hora" type="text" class="input{% if erros.get('hora') %} input--erro{% endif %}"
         maxlength="5" placeholder="14:30" value="{{ valores.get('hora') or '' }}" required />
       {{ erro(erros, 'hora') }}
     </div>
     <div class="field field--full">
-      <label for="oc-area">Área / local</label>
+      <label for="oc-area">{{ t('hse', 'Área / local') }}</label>
       <input id="oc-area" name="area" type="text" class="input{% if erros.get('area') %} input--erro{% endif %}"
         maxlength="80" value="{{ valores.get('area') or '' }}" required />
       {{ erro(erros, 'area') }}
     </div>
     <div class="field">
-      <label for="oc-empresa">Empresa (contratada)</label>
+      <label for="oc-empresa">{{ t('hse', 'Empresa (contratada)') }}</label>
       <select id="oc-empresa" name="empresa" class="input{% if erros.get('empresa') %} input--erro{% endif %}" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresa') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
@@ -72,9 +72,9 @@
       {{ erro(erros, 'empresa') }}
     </div>
     <div class="field">
-      <label for="oc-tipo">Tipo de ocorrência</label>
+      <label for="oc-tipo">{{ t('hse', 'Tipo de ocorrência') }}</label>
       <select id="oc-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" x-model="tipo" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for tipo in tipos %}
         <option value="{{ tipo }}">{{ tipo }}</option>
         {% endfor %}
@@ -82,9 +82,9 @@
       {{ erro(erros, 'tipo') }}
     </div>
     <div class="field" x-show="ambiental()">
-      <label for="oc-subtipo">Subtipo ambiental</label>
+      <label for="oc-subtipo">{{ t('hse', 'Subtipo ambiental') }}</label>
       <select id="oc-subtipo" name="subtipo" class="input{% if erros.get('subtipo') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for subtipo in subtipos %}
         <option value="{{ subtipo }}"{% if valores.get('subtipo') == subtipo %} selected{% endif %}>{{ subtipo }}</option>
         {% endfor %}
@@ -92,9 +92,9 @@
       {{ erro(erros, 'subtipo') }}
     </div>
     <div class="field" x-show="ambiental()">
-      <label for="oc-severidade">Severidade</label>
+      <label for="oc-severidade">{{ t('hse', 'Severidade') }}</label>
       <select id="oc-severidade" name="severidade" class="input{% if erros.get('severidade') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for severidade in severidades %}
         <option value="{{ severidade }}"{% if valores.get('severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
         {% endfor %}
@@ -102,75 +102,71 @@
       {{ erro(erros, 'severidade') }}
     </div>
     <div class="field field--full" x-show="!ambiental()">
-      <label for="oc-descricao">Descrição do ocorrido</label>
+      <label for="oc-descricao">{{ t('hse', 'Descrição do ocorrido') }}</label>
       <textarea id="oc-descricao" name="descricao" rows="3" maxlength="500"
         class="input{% if erros.get('descricao') %} input--erro{% endif %}">{{ valores.get('descricao') or '' }}</textarea>
       {{ erro(erros, 'descricao') }}
     </div>
     <div class="field" x-show="comFuncao()">
-      <label for="oc-funcao">Função da pessoa envolvida</label>
+      <label for="oc-funcao">{{ t('hse', 'Função da pessoa envolvida') }}</label>
       <input id="oc-funcao" name="funcao" type="text" class="input{% if erros.get('funcao') %} input--erro{% endif %}"
         maxlength="60" value="{{ valores.get('funcao') or '' }}" />
-      <span class="hint">Sem nome (LGPD): os dados pessoais e médicos ficam no bloco restrito.</span>
+      <span class="hint">{{ t('hse', 'Sem nome (LGPD): os dados pessoais e médicos ficam no bloco restrito.') }}</span>
       {{ erro(erros, 'funcao') }}
     </div>
     <div class="field" x-show="!ambiental()">
-      <label for="oc-pessoas">Pessoas envolvidas</label>
+      <label for="oc-pessoas">{{ t('hse', 'Pessoas envolvidas') }}</label>
       <input id="oc-pessoas" name="pessoas" type="number" min="0" max="20" class="input{% if erros.get('pessoas') %} input--erro{% endif %}"
         value="{{ valores.get('pessoas') or '0' }}" />
       {{ erro(erros, 'pessoas') }}
     </div>
     <div class="field field--full" x-show="!ambiental()">
-      <label for="oc-gravidade">Gravidade real observada</label>
+      <label for="oc-gravidade">{{ t('hse', 'Gravidade real observada') }}</label>
       <select id="oc-gravidade" name="gravidade" class="input{% if erros.get('gravidade') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {{ opcoes(gravidades, valores.get('gravidade')) }}
       </select>
       {{ erro(erros, 'gravidade') }}
     </div>
     <div class="field" x-show="!ambiental()">
-      <label for="oc-potencial-p">Probabilidade potencial (de recorrência)</label>
+      <label for="oc-potencial-p">{{ t('hse', 'Probabilidade potencial (de recorrência)') }}</label>
       <select id="oc-potencial-p" name="potencial_p" class="input{% if erros.get('potencial') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {{ opcoes(probabilidades, valores.get('potencial_p')) }}
       </select>
     </div>
     <div class="field" x-show="!ambiental()">
-      <label for="oc-potencial-i">Impacto potencial</label>
+      <label for="oc-potencial-i">{{ t('hse', 'Impacto potencial') }}</label>
       <select id="oc-potencial-i" name="potencial_i" class="input{% if erros.get('potencial') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {{ opcoes(impactos, valores.get('potencial_i')) }}
       </select>
       {{ erro(erros, 'potencial') }}
     </div>
     <div class="field field--full" x-show="!ambiental()">
       <label class="ocorrencias__opcao">
-        <input type="checkbox" name="hipo" value="1"{% if valores.get('hipo') == '1' %} checked{% endif %} />
-        Marcar como alto potencial (HiPo)
-      </label>
+        <input type="checkbox" name="hipo" value="1"{% if valores.get('hipo') == '1' %} checked{% endif %} />{{ t('hse', 'Marcar como alto potencial (HiPo)') }}</label>
     </div>
     <div class="field" x-show="lti()">
-      <label for="oc-dias-perdidos">Dias perdidos</label>
+      <label for="oc-dias-perdidos">{{ t('hse', 'Dias perdidos') }}</label>
       <input id="oc-dias-perdidos" name="dias_perdidos" type="number" min="0" max="365"
         class="input{% if erros.get('dias_perdidos') %} input--erro{% endif %}" value="{{ valores.get('dias_perdidos') or '0' }}" />
       {{ erro(erros, 'dias_perdidos') }}
     </div>
     <div class="field" x-show="lti()">
-      <label for="oc-dias-debitados">Dias debitados</label>
+      <label for="oc-dias-debitados">{{ t('hse', 'Dias debitados') }}</label>
       <input id="oc-dias-debitados" name="dias_debitados" type="number" min="0" max="365"
         class="input{% if erros.get('dias_debitados') %} input--erro{% endif %}" value="{{ valores.get('dias_debitados') or '0' }}" />
       {{ erro(erros, 'dias_debitados') }}
     </div>
     <div class="field field--full" x-show="comFuncao()">
       <label class="ocorrencias__opcao">
-        <input type="checkbox" name="cat" value="1"{% if valores.get('cat') == '1' %} checked{% endif %} />
-        Comunicação legal (CAT) aplicável
-      </label>
+        <input type="checkbox" name="cat" value="1"{% if valores.get('cat') == '1' %} checked{% endif %} />{{ t('hse', 'Comunicação legal (CAT) aplicável') }}</label>
     </div>
     <div class="field field--full" x-show="!ambiental()">
-      <label for="oc-causa">Causa imediata</label>
+      <label for="oc-causa">{{ t('hse', 'Causa imediata') }}</label>
       <select id="oc-causa" name="causa_imediata" class="input{% if erros.get('causa_imediata') %} input--erro{% endif %}">
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for causa in causas %}
         <option value="{{ causa }}"{% if valores.get('causa_imediata') == causa %} selected{% endif %}>{{ causa }}</option>
         {% endfor %}
@@ -178,7 +174,7 @@
       {{ erro(erros, 'causa_imediata') }}
     </div>
     <div class="field">
-      <label for="oc-comunicacao">Horas até a comunicação formal</label>
+      <label for="oc-comunicacao">{{ t('hse', 'Horas até a comunicação formal') }}</label>
       <input id="oc-comunicacao" name="comunicacao" type="number" min="0" max="200"
         class="input{% if erros.get('comunicacao') %} input--erro{% endif %}" value="{{ valores.get('comunicacao') or '0' }}" required />
       <span class="hint">Prazo de comunicação vigente: {{ prazo_comunicacao }} horas a partir do evento. Ele fica gravado nesta ocorrência.</span>
@@ -187,16 +183,15 @@
   </div>
 
   <fieldset class="mb-16">
-    <legend class="h-card5">Dado restrito (LGPD)</legend>
-    <p class="hint mb-16">Nome e dados médicos da ocorrência. O Membro preenche; só Gestor e Admin
-      leem de volta, inclusive os anexos com esses dados.</p>
+    <legend class="h-card5">{{ t('hse', 'Dado restrito (LGPD)') }}</legend>
+    <p class="hint mb-16">{{ t('hse', 'Nome e dados médicos da ocorrência. O Membro preenche; só Gestor e Admin leem de volta, inclusive os anexos com esses dados.') }}</p>
     <div class="fgrid">
       <div class="field">
-        <label for="oc-nome">Nome da pessoa</label>
+        <label for="oc-nome">{{ t('hse', 'Nome da pessoa') }}</label>
         <input id="oc-nome" name="nome" type="text" class="input" maxlength="120" value="{{ valores.get('nome') or '' }}" />
       </div>
       <div class="field">
-        <label for="oc-medica">Descrição médica</label>
+        <label for="oc-medica">{{ t('hse', 'Descrição médica') }}</label>
         <input id="oc-medica" name="descricao_medica" type="text" class="input{% if erros.get('medica') %} input--erro{% endif %}"
           maxlength="500" value="{{ valores.get('descricao_medica') or '' }}" />
         {{ erro(erros, 'medica') }}
@@ -205,8 +200,8 @@
   </fieldset>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar ocorrência</button>
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Registrar ocorrência') }}</button>
   </div>
 </form>
 {% endblock %}

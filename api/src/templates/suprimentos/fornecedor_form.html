@@ -1,5 +1,5 @@
 {% extends "base_fragment.html" %}
-{% from "suprimentos/_documentos.html" import linhas %}
+{% from "suprimentos/_documentos.html" import linhas with context %}
 {#
   Novo fornecedor (ISSUE-057): a razão social, o tipo, as categorias atendidas e os três
   documentos de partida do protótipo (certidões e FGTS), com a validade de cada um. A empresa é
@@ -25,7 +25,7 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="fornecedor-nome">Razão social ou nome fantasia</label>
+      <label for="fornecedor-nome">{{ t('suprimentos', 'Razão social ou nome fantasia') }}</label>
       <input id="fornecedor-nome" name="nome" class="input{% if erros.get('nome') %} input--erro{% endif %}"
         maxlength="80" required value="{{ valores.get('nome') or '' }}"
         {% if erros.get('nome') %}aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
@@ -33,7 +33,7 @@
     </div>
 
     <div class="field">
-      <label for="fornecedor-tipo">Tipo</label>
+      <label for="fornecedor-tipo">{{ t('suprimentos', 'Tipo') }}</label>
       <select id="fornecedor-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required
         {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
         {% for tipo in tipos %}
@@ -44,10 +44,10 @@
     </div>
 
     <div class="field field--full">
-      <label for="fornecedor-categorias">Categorias atendidas (separadas por vírgula)</label>
+      <label for="fornecedor-categorias">{{ t('suprimentos', 'Categorias atendidas (separadas por vírgula)') }}</label>
       <input id="fornecedor-categorias" name="categorias" class="input{% if erros.get('categorias') %} input--erro{% endif %}"
         maxlength="160" required value="{{ valores.get('categorias') or '' }}"
-        placeholder="Montagem eletromecânica, Estruturas metálicas"
+        placeholder="{{ t('suprimentos', 'Montagem eletromecânica, Estruturas metálicas') }}"
         {% if erros.get('categorias') %}aria-invalid="true" aria-describedby="erro-categorias"{% endif %} />
       {{ campo_erro(erros, 'categorias') }}
     </div>
@@ -55,7 +55,7 @@
     {{ linhas(documentos, target_id) }}
 
     <div class="field field--full">
-      <label for="fornecedor-observacao">Observação</label>
+      <label for="fornecedor-observacao">{{ t('suprimentos', 'Observação') }}</label>
       <textarea id="fornecedor-observacao" name="observacao" rows="3" maxlength="300"
         class="input{% if erros.get('observacao') %} input--erro{% endif %}"
         {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
@@ -64,11 +64,9 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-fornecedor-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-      Cadastrar fornecedor
-    </button>
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Cadastrar fornecedor') }}</button>
   </div>
 </form>
 {% endblock %}

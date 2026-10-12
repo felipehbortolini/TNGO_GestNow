@@ -21,57 +21,49 @@
       {% if ficha.pode_gravar and not p.delivered %}
       <button type="button" class="btn btn--primary btn--sm"
         data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/marco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
-        data-diligencia-modal-titulo="Atualizar marco"
+        data-diligencia-modal-titulo="{{ t('suprimentos', 'Atualizar marco') }}"
         data-diligencia-modal-subtitulo="{{ p.number }} · {{ p.supplier }}">
-        <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
-        Atualizar marco
-      </button>
+        <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Atualizar marco') }}</button>
       {% endif %}
       {% if ficha.pode_gravar and not p.delivered and p.milestones|length >= 5 and p.milestones[4].done %}
       <button type="button" class="btn btn--primary btn--sm"
         data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/recebimento{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
-        data-diligencia-modal-titulo="Registrar recebimento na obra"
+        data-diligencia-modal-titulo="{{ t('suprimentos', 'Registrar recebimento na obra') }}"
         data-diligencia-modal-subtitulo="{{ p.number }} · {{ p.description }}">
-        <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>
-        Registrar recebimento
-      </button>
+        <span x-init="$el.innerHTML = window.icon('package', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar recebimento') }}</button>
       {% endif %}
       {% if ficha.pode_gravar and p.critical and not p.action %}
       <form method="post" action="/api/suprimentos/diligenciamento/{{ p.id }}/acao"
         x-target="{{ target_id }}" x-target.403="{{ target_id }}" x-target.422="{{ target_id }}">
         <input type="hidden" name="consulta" value="{{ ficha.consulta }}" />
         <button type="submit" class="btn btn--secondary btn--sm">
-          <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>
-          Gerar ação
-        </button>
+          <span x-init="$el.innerHTML = window.icon('actions', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Gerar ação') }}</button>
       </form>
       {% endif %}
       {% if ficha.pode_gravar and p.critical and not p.risk %}
       <button type="button" class="btn btn--secondary btn--sm"
         data-diligencia-modal-url="/api/suprimentos/diligenciamento/{{ p.id }}/risco{% if parametro_consulta %}?{{ parametro_consulta }}{% endif %}"
-        data-diligencia-modal-titulo="Registrar risco sugerido"
+        data-diligencia-modal-titulo="{{ t('suprimentos', 'Registrar risco sugerido') }}"
         data-diligencia-modal-subtitulo="{{ p.number }} · folga {{ dias_com_sinal(p.slack_days) }} em relação ao ROS">
-        <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
-        Registrar risco sugerido
-      </button>
+        <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar risco sugerido') }}</button>
       {% endif %}
-      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
+      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>{{ t('suprimentos', 'Ver no MAS') }}</a>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl dilig__marcos">
-        <caption class="sr-only">Marcos de fabricação do pedido</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Marcos de fabricação do pedido') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Marco</th>
-            <th scope="col">LB (contratual)</th>
-            <th scope="col">Previsão</th>
-            <th scope="col">Realizado</th>
-            <th scope="col" class="td-num">Desvio</th>
-            <th scope="col">Situação</th>
+            <th scope="col">{{ t('suprimentos', 'Marco') }}</th>
+            <th scope="col">{{ t('suprimentos', 'LB (contratual)') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Previsão') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Realizado') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Desvio') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Situação') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -100,10 +92,10 @@
 
     <div class="tbl-wrap mt-16">
       <table class="tbl dilig__rodape">
-        <caption class="sr-only">Recebimento, ação e últimas atualizações do pedido</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Recebimento, ação e últimas atualizações do pedido') }}</caption>
         <tbody>
           <tr>
-            <th scope="row">Data contratual</th>
+            <th scope="row">{{ t('suprimentos', 'Data contratual') }}</th>
             <td>
               {{ ficha.formatar_data(p.contractual_date) }}
               {% if p.contractual_delay_days and p.contractual_delay_days > 0 %}
@@ -112,7 +104,7 @@
             </td>
           </tr>
           <tr>
-            <th scope="row">ROS e folga</th>
+            <th scope="row">{{ t('suprimentos', 'ROS e folga') }}</th>
             <td>
               {{ ficha.formatar_data(p.ros) }}
               {% if p.slack_days is not none %}
@@ -121,30 +113,30 @@
             </td>
           </tr>
           <tr>
-            <th scope="row">Ação na Central</th>
+            <th scope="row">{{ t('suprimentos', 'Ação na Central') }}</th>
             <td>
               {% if p.action %}
               <a href="/central-acoes/acoes?busca={{ p.number | urlencode }}" data-tn-tela>{{ p.action.subject }}</a>
               {% if p.action.due_date %} · {{ ficha.formatar_data(p.action.due_date) }}{% endif %}
-              {% else %}<span class="muted">nenhuma aberta</span>{% endif %}
+              {% else %}<span class="muted">{{ t('suprimentos', 'nenhuma aberta') }}</span>{% endif %}
             </td>
           </tr>
           <tr>
-            <th scope="row">Risco</th>
+            <th scope="row">{{ t('suprimentos', 'Risco') }}</th>
             <td>
               {% if p.risk %}
               <a href="/riscos/ficha?codigo={{ p.risk.code | urlencode }}" data-tn-tela>{{ p.risk.code }} {{ p.risk.title }}</a>
               <span class="pill pill--neutral">{{ p.risk.situation }}</span>
-              {% else %}<span class="muted">sem risco registrado</span>{% endif %}
+              {% else %}<span class="muted">{{ t('suprimentos', 'sem risco registrado') }}</span>{% endif %}
             </td>
           </tr>
           {% if p.receipt %}
           <tr>
-            <th scope="row">Recebimento</th>
+            <th scope="row">{{ t('suprimentos', 'Recebimento') }}</th>
             <td>
               {{ ficha.formatar_data(p.receipt.date) }} ·
-              {{ 'conferido' if p.receipt.checked else 'conferência pendente' }} ·
-              {% if p.receipt.damaged %}com avarias: {{ p.receipt.damage_description }}{% else %}sem avarias{% endif %}
+              {{ t('suprimentos', 'conferido') if p.receipt.checked else t('suprimentos', 'conferência pendente') }} ·
+              {% if p.receipt.damaged %}{{ t('suprimentos', 'com avarias:') }}  {{ p.receipt.damage_description }}{% else %}{{ t('suprimentos', 'sem avarias') }}{% endif %}
               {% if p.receipt.pending %}<br /><span class="hint valor--negativo">{{ p.receipt.pending }}</span>{% endif %}
               {% if ficha.anexos %}<br /><span class="hint">Evidências: {{ ficha.anexos | join(', ') }}</span>{% endif %}
             </td>
@@ -152,7 +144,7 @@
           {% endif %}
           {% if p.history %}
           <tr>
-            <th scope="row">Últimas atualizações</th>
+            <th scope="row">{{ t('suprimentos', 'Últimas atualizações') }}</th>
             <td>
               {% for atualizacao in (p.history | reverse | list)[:5] %}
               {{ ficha.formatar_data(atualizacao.date) }} · {{ atualizacao.author or '—' }} · {{ atualizacao.text }}<br />

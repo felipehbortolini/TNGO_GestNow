@@ -14,9 +14,9 @@
     <thead>
       <tr>
         <th scope="col">{{ rotulo_coluna }}</th>
-        <th scope="col" class="td-num">Atividades</th>
-        <th scope="col" class="td-num">Realizado / previsto</th>
-        <th scope="col" class="td-num">Aderência</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'Atividades') }}</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'Realizado / previsto') }}</th>
+        <th scope="col" class="td-num">{{ t('programacao_semanal', 'Aderência') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -25,7 +25,7 @@
         <td class="fw-600">
           {{ item.label }}
           {% if item.pending %}
-          <span class="chip chip--warn" title="Aprovações pendentes">{{ item.pending }} pendente(s)</span>
+          <span class="chip chip--warn" title="{{ t('programacao_semanal', 'Aprovações pendentes') }}">{{ item.pending }} pendente(s)</span>
           {% endif %}
         </td>
         <td class="td-num">{{ item.activities }}</td>
@@ -37,5 +37,5 @@
   </table>
 </div>
 {% else %}
-<div class="empty"><p>Sem dados para este corte.</p></div>
+<div class="empty"><p>{{ t('programacao_semanal', 'Sem dados para este corte.') }}</p></div>
 {% endif %}

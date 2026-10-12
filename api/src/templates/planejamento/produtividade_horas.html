@@ -14,19 +14,19 @@
 {% set consulta = '?empresa=' ~ filtro_horas.empresa ~ '&corte=' ~ filtro_horas.corte ~ '&area=' ~ (filtro_horas.area | urlencode) ~ '&encarregado=' ~ (filtro_horas.encarregado | urlencode) ~ '&periodo=' ~ filtro_horas.periodo %}
 <div id="produtividade-horas" x-data="{ visao: 'cp' }">
   <form class="toolbar produtividade__filtros" method="get" action="{{ api_horas }}"
-    x-target="produtividade-horas" role="search" aria-label="Filtros das horas efetivas" x-data
+    x-target="produtividade-horas" role="search" aria-label="{{ t('planejamento', 'Filtros das horas efetivas') }}" x-data
     @change="$el.requestSubmit()">
     <div class="field">
-      <label class="sr-only" for="horas-empresa">Empresa</label>
+      <label class="sr-only" for="horas-empresa">{{ t('planejamento', 'Empresa') }}</label>
       <select id="horas-empresa" name="empresa" class="input">
-        <option value="">Todas as empresas</option>
+        <option value="">{{ t('planejamento', 'Todas as empresas') }}</option>
         {% for opcao in horas.company_options %}
         <option value="{{ opcao.value }}"{% if opcao.value == filtro_horas.empresa %} selected{% endif %}>{{ opcao.label }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field">
-      <label class="sr-only" for="horas-corte">Semana de corte</label>
+      <label class="sr-only" for="horas-corte">{{ t('planejamento', 'Semana de corte') }}</label>
       <select id="horas-corte" name="corte" class="input">
         {% for semana in horas.cut_options | reverse %}
         <option value="{{ semana }}"{% if semana == horas.cut_week %} selected{% endif %}>Corte {{ rotulo_semana(semana) }}{% if semana == horas.current_week %} (atual){% endif %}</option>
@@ -34,106 +34,95 @@
       </select>
     </div>
     <div class="field">
-      <label class="sr-only" for="horas-area">Área (CWA)</label>
+      <label class="sr-only" for="horas-area">{{ t('planejamento', 'Área (CWA)') }}</label>
       <select id="horas-area" name="area" class="input">
-        <option value="">Todas as áreas (CWA)</option>
+        <option value="">{{ t('planejamento', 'Todas as áreas (CWA)') }}</option>
         {% for area in horas.area_options %}
         <option value="{{ area }}"{% if area == filtro_horas.area %} selected{% endif %}>{{ area }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field">
-      <label class="sr-only" for="horas-encarregado">Encarregado</label>
+      <label class="sr-only" for="horas-encarregado">{{ t('planejamento', 'Encarregado') }}</label>
       <select id="horas-encarregado" name="encarregado" class="input">
-        <option value="">Todos os encarregados</option>
+        <option value="">{{ t('planejamento', 'Todos os encarregados') }}</option>
         {% for encarregado in horas.foreman_options %}
         <option value="{{ encarregado }}"{% if encarregado == filtro_horas.encarregado %} selected{% endif %}>{{ encarregado }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field">
-      <label class="sr-only" for="horas-periodo">Período</label>
+      <label class="sr-only" for="horas-periodo">{{ t('planejamento', 'Período') }}</label>
       <select id="horas-periodo" name="periodo" class="input">
         {% for opcao in horas.period_options %}
         <option value="{{ opcao.value }}"{% if opcao.value == filtro_horas.periodo %} selected{% endif %}>{{ opcao.label }}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="btn btn--secondary">Filtrar</button>
+    <button type="submit" class="btn btn--secondary">{{ t('planejamento', 'Filtrar') }}</button>
   </form>
 
   <div class="produtividade__barra">
     <p class="hint produtividade__contexto">
-      Período: {% if horas.window_start %}{{ horas.window_start.strftime('%d/%m/%Y') }} a {% else %}até {% endif %}{{ horas.window_end.strftime('%d/%m/%Y') }}
-      · {{ capacidade.records }} {{ 'registro de jornada' if capacidade.records == 1 else 'registros de jornada' }}
-      · {{ amostragem.records }} {{ 'rodada de observação' if amostragem.records == 1 else 'rodadas de observação' }}
-      · {{ paradas.events }} {{ 'paralisação' if paradas.events == 1 else 'paralisações' }}
+      Período: {% if horas.window_start %}{{ horas.window_start.strftime('%d/%m/%Y') }} a {% else %}{{ t('planejamento', 'até') }}  {% endif %}{{ horas.window_end.strftime('%d/%m/%Y') }}
+      · {{ capacidade.records }} {{ t('planejamento', 'registro de jornada') if capacidade.records == 1 else t('planejamento', 'registros de jornada') }}
+      · {{ amostragem.records }} {{ t('planejamento', 'rodada de observação') if amostragem.records == 1 else t('planejamento', 'rodadas de observação') }}
+      · {{ paradas.events }} {{ t('planejamento', 'paralisação') if paradas.events == 1 else t('planejamento', 'paralisações') }}
     </p>
     <div class="produtividade__inclusao">
-      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_horas }}/excel{{ consulta }}">Excel</button>
-      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_horas }}/imprimivel{{ consulta }}">PDF</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api_horas }}/excel{{ consulta }}">{{ t('planejamento', 'Excel') }}</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api_horas }}/imprimivel{{ consulta }}">{{ t('planejamento', 'PDF') }}</button>
       {% if horas.can_write %}
       <button type="button" class="btn btn--primary" data-tn-incluir="jornada" data-horas-acao="jornada" data-horas-endereco="{{ api_horas }}/jornadas/nova{{ consulta }}">
-        <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-        Registrar jornada
-      </button>
+        <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Registrar jornada') }}</button>
       <button type="button" class="btn btn--secondary" data-tn-incluir="amostragem" data-horas-acao="amostragem" data-horas-endereco="{{ api_horas }}/amostragens/nova{{ consulta }}">
-        <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
-        Registrar observação
-      </button>
+        <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Registrar observação') }}</button>
       <button type="button" class="btn btn--secondary" data-tn-incluir="paralisacao" data-horas-acao="paralisacao" data-horas-endereco="{{ api_horas }}/paralisacoes/nova{{ consulta }}">
-        <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-        Registrar paralisação
-      </button>
+        <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Registrar paralisação') }}</button>
       {% endif %}
     </div>
   </div>
 
-  <div class="seg" role="group" aria-label="Visão das horas efetivas">
-    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'cp' }" :aria-pressed="visao === 'cp'" @click="visao = 'cp'">Capacidade produtiva</button>
-    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'amostragem' }" :aria-pressed="visao === 'amostragem'" @click="visao = 'amostragem'">Amostragem do trabalho</button>
-    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'paralisacoes' }" :aria-pressed="visao === 'paralisacoes'" @click="visao = 'paralisacoes'">Paralisações</button>
+  <div class="seg" role="group" aria-label="{{ t('planejamento', 'Visão das horas efetivas') }}">
+    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'cp' }" :aria-pressed="visao === 'cp'" @click="visao = 'cp'">{{ t('planejamento', 'Capacidade produtiva') }}</button>
+    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'amostragem' }" :aria-pressed="visao === 'amostragem'" @click="visao = 'amostragem'">{{ t('planejamento', 'Amostragem do trabalho') }}</button>
+    <button type="button" class="seg__btn" :class="{ 'is-active': visao === 'paralisacoes' }" :aria-pressed="visao === 'paralisacoes'" @click="visao = 'paralisacoes'">{{ t('planejamento', 'Paralisações') }}</button>
   </div>
 
   {# ── Capacidade produtiva ─────────────────────────────────────────────── #}
-  <section x-show="visao === 'cp'" class="produtividade__visao" role="tabpanel" aria-label="Capacidade produtiva">
-    <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores da capacidade produtiva">
+  <section x-show="visao === 'cp'" class="produtividade__visao" role="tabpanel" aria-label="{{ t('planejamento', 'Capacidade produtiva') }}">
+    <div class="kpis produtividade__kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores da capacidade produtiva') }}">
       <div class="kpi kpi--{{ tom(faixa_utilizacao(capacidade.utilization)) }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Capacidade produtiva (CP)
-          <span class="produtividade__nota">Meta: ≥ {{ horas_num(parametros.daily_hours * parametros.utilization_pct / 100, 2) }} h/dia</span>
+        <span class="kpi__label">{{ t('planejamento', 'Capacidade produtiva (CP)') }}<span class="produtividade__nota">Meta: ≥ {{ horas_num(parametros.daily_hours * parametros.utilization_pct / 100, 2) }} h/dia</span>
           <span class="produtividade__nota">manhã {{ horas_num(capacidade.morning_capacity, 2) }} h · tarde {{ horas_num(capacidade.afternoon_capacity, 2) }} h</span>
         </span>
         <span class="kpi__value">{{ horas_num(capacidade.capacity, 2) }}</span>
       </div>
       <div class="kpi kpi--{{ tom(faixa_utilizacao(capacidade.utilization)) }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('sparkle', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Utilização da jornada
-          <span class="produtividade__nota">Meta: ≥ {{ percentual_horas(parametros.utilization_pct, 0) }}</span>
+        <span class="kpi__label">{{ t('planejamento', 'Utilização da jornada') }}<span class="produtividade__nota">Meta: ≥ {{ percentual_horas(parametros.utilization_pct, 0) }}</span>
           <span class="produtividade__nota">CP ÷ jornada de {{ horas_num(parametros.daily_hours, 1) }} h</span>
         </span>
         <span class="kpi__value">{{ percentual_horas(capacidade.utilization) }}</span>
       </div>
       <div class="kpi kpi--{{ tom(faixa_atraso(capacidade.morning_delay_min)) }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Atraso médio de início
-          <span class="produtividade__nota">Limite: ≤ {{ horas_num(parametros.delay_bands[0], 0) }} min</span>
+        <span class="kpi__label">{{ t('planejamento', 'Atraso médio de início') }}<span class="produtividade__nota">Limite: ≤ {{ horas_num(parametros.delay_bands[0], 0) }} min</span>
           <span class="produtividade__nota">manhã, da chegada ao início · tarde {{ horas_num(capacidade.afternoon_delay_min, 0) }} min</span>
         </span>
         <span class="kpi__value">{{ horas_num(capacidade.morning_delay_min, 0) }}</span>
       </div>
       <div class="kpi kpi--info kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">HH efetivas
-          <span class="produtividade__nota">Esperado: 0 improdutivas</span>
-          <span class="produtividade__nota">CP x efetivo nas frentes registradas</span>
+        <span class="kpi__label">{{ t('planejamento', 'HH efetivas') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0 improdutivas') }}</span>
+          <span class="produtividade__nota">{{ t('planejamento', 'CP x efetivo nas frentes registradas') }}</span>
         </span>
         <span class="kpi__value">{{ horas_num(capacidade.effective_hh, 0) }}</span>
       </div>
       <div class="kpi {{ 'kpi--warn' if capacidade.idle_hh else 'kpi--ok' }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">HH improdutivas na frente
-          <span class="produtividade__nota">Esperado: 0</span>
+        <span class="kpi__label">{{ t('planejamento', 'HH improdutivas na frente') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
           <span class="produtividade__nota">(jornada - CP) x efetivo</span>
         </span>
         <span class="kpi__value">{{ horas_num(capacidade.idle_hh, 0) }}</span>
@@ -143,28 +132,28 @@
     <section class="card produtividade__jornada" aria-labelledby="horas-t-jornada">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-jornada">Jornada média na frente de serviço</h2>
-          <span class="hint">Horários médios registrados pela fiscalização; atraso de início e execução em cada turno</span>
+          <h2 class="h-card4" id="horas-t-jornada">{{ t('planejamento', 'Jornada média na frente de serviço') }}</h2>
+          <span class="hint">{{ t('planejamento', 'Horários médios registrados pela fiscalização; atraso de início e execução em cada turno') }}</span>
         </div>
       </div>
       <div class="card__body">
         {% if capacidade.records %}
         <div class="tbl-wrap">
           <table class="tbl">
-            <caption class="sr-only">Jornada média por turno</caption>
+            <caption class="sr-only">{{ t('planejamento', 'Jornada média por turno') }}</caption>
             <thead>
               <tr>
-                <th scope="col">Turno</th>
-                <th scope="col">Chegada na frente</th>
-                <th scope="col">Início das atividades</th>
-                <th scope="col">Término das atividades</th>
-                <th scope="col" class="td-num">Atraso (min)</th>
-                <th scope="col" class="td-num">Execução (h)</th>
+                <th scope="col">{{ t('planejamento', 'Turno') }}</th>
+                <th scope="col">{{ t('planejamento', 'Chegada na frente') }}</th>
+                <th scope="col">{{ t('planejamento', 'Início das atividades') }}</th>
+                <th scope="col">{{ t('planejamento', 'Término das atividades') }}</th>
+                <th scope="col" class="td-num">{{ t('planejamento', 'Atraso (min)') }}</th>
+                <th scope="col" class="td-num">{{ t('planejamento', 'Execução (h)') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <th scope="row">Manhã</th>
+                <th scope="row">{{ t('planejamento', 'Manhã') }}</th>
                 <td>{{ tempo(capacidade.morning.arrival if capacidade.morning else none) }}</td>
                 <td>{{ tempo(capacidade.morning.start if capacidade.morning else none) }}</td>
                 <td>{{ tempo(capacidade.morning.end if capacidade.morning else none) }}</td>
@@ -172,14 +161,14 @@
                 <td class="td-num num">{{ horas_num(capacidade.morning_capacity, 2) }}</td>
               </tr>
               <tr>
-                <th scope="row">Almoço</th>
+                <th scope="row">{{ t('planejamento', 'Almoço') }}</th>
                 <td colspan="2">{{ tempo(capacidade.afternoon.arrival if capacidade.afternoon else none) }} (retorno)</td>
                 <td>{{ tempo(capacidade.morning.end if capacidade.morning else none) }} (saída)</td>
                 <td class="td-num num">{{ horas_num(capacidade.lunch_min, 0) }}</td>
                 <td class="td-num num">·</td>
               </tr>
               <tr>
-                <th scope="row">Tarde</th>
+                <th scope="row">{{ t('planejamento', 'Tarde') }}</th>
                 <td>{{ tempo(capacidade.afternoon.arrival if capacidade.afternoon else none) }}</td>
                 <td>{{ tempo(capacidade.afternoon.start if capacidade.afternoon else none) }}</td>
                 <td>{{ tempo(capacidade.afternoon.end if capacidade.afternoon else none) }}</td>
@@ -190,7 +179,7 @@
           </table>
         </div>
         {% else %}
-        <p class="muted">Nenhum registro de jornada no filtro.</p>
+        <p class="muted">{{ t('planejamento', 'Nenhum registro de jornada no filtro.') }}</p>
         {% endif %}
       </div>
     </section>
@@ -198,21 +187,21 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-areas">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-areas">Capacidade produtiva por área (CWA)</h2>
-          <span class="hint">CP média das frentes e o efetivo e as máquinas parados no período</span>
+          <h2 class="h-card4" id="horas-t-areas">{{ t('planejamento', 'Capacidade produtiva por área (CWA)') }}</h2>
+          <span class="hint">{{ t('planejamento', 'CP média das frentes e o efetivo e as máquinas parados no período') }}</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Resumo por área da capacidade produtiva e das paralisações</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Resumo por área da capacidade produtiva e das paralisações') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Área (CWA)</th>
-              <th scope="col" class="td-num">CP (h/dia)</th>
-              <th scope="col" class="td-num">Utilização</th>
-              <th scope="col" class="td-num">Efetivo paralisado (Hhora)</th>
-              <th scope="col" class="td-num">Máq./equip. parados (Mhora)</th>
-              <th scope="col" class="td-num">Jornadas</th>
+              <th scope="col">{{ t('planejamento', 'Área (CWA)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'CP (h/dia)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Utilização') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Efetivo paralisado (Hhora)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Máq./equip. parados (Mhora)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Jornadas') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -238,17 +227,17 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-cp-dia">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-cp-dia">Capacidade produtiva por dia</h2>
-          <span class="hint">Média das frentes por dia, na ordem do calendário</span>
+          <h2 class="h-card4" id="horas-t-cp-dia">{{ t('planejamento', 'Capacidade produtiva por dia') }}</h2>
+          <span class="hint">{{ t('planejamento', 'Média das frentes por dia, na ordem do calendário') }}</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Capacidade produtiva e amostragem por dia</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Capacidade produtiva e amostragem por dia') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Dia</th>
-              <th scope="col" class="td-num">CP (h/dia)</th>
+              <th scope="col">{{ t('planejamento', 'Dia') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'CP (h/dia)') }}</th>
               <th scope="col" class="td-num">% trabalhando</th>
               <th scope="col" class="td-num">% em trânsito</th>
               <th scope="col" class="td-num">% parado</th>
@@ -272,28 +261,28 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-jornadas">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-jornadas">Registros de jornada</h2>
-          <span class="hint">{{ horas.field_days | length }} {{ 'registro' if horas.field_days | length == 1 else 'registros' }} · registrado pela fiscalização da gerenciadora</span>
+          <h2 class="h-card4" id="horas-t-jornadas">{{ t('planejamento', 'Registros de jornada') }}</h2>
+          <span class="hint">{{ horas.field_days | length }} {{ t('planejamento', 'registro') if horas.field_days | length == 1 else t('planejamento', 'registros') }} · registrado pela fiscalização da gerenciadora</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Registros de jornada da fiscalização</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Registros de jornada da fiscalização') }}</caption>
           <thead>
             <tr>
-              {% if horas.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Data</th>
-              <th scope="col">Empresa</th>
-              <th scope="col">Área / encarregado</th>
-              <th scope="col" class="td-num">Efetivo</th>
-              <th scope="col">Manhã</th>
-              <th scope="col">Tarde</th>
-              <th scope="col" class="td-num">Atraso (min)</th>
-              <th scope="col" class="td-num">CP (h)</th>
-              <th scope="col" class="td-num">Utilização</th>
-              <th scope="col" class="td-num">HH efetivas</th>
-              <th scope="col" class="td-num">HH impr.</th>
-              <th scope="col"><span class="sr-only">Ações</span></th>
+              {% if horas.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('planejamento', 'Data') }}</th>
+              <th scope="col">{{ t('planejamento', 'Empresa') }}</th>
+              <th scope="col">{{ t('planejamento', 'Área / encarregado') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Efetivo') }}</th>
+              <th scope="col">{{ t('planejamento', 'Manhã') }}</th>
+              <th scope="col">{{ t('planejamento', 'Tarde') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Atraso (min)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'CP (h)') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Utilização') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'HH efetivas') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'HH impr.') }}</th>
+              <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -337,36 +326,32 @@
   </section>
 
   {# ── Amostragem do trabalho ───────────────────────────────────────────── #}
-  <section x-show="visao === 'amostragem'" class="produtividade__visao" role="tabpanel" aria-label="Amostragem do trabalho" x-cloak>
-    <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores da amostragem">
+  <section x-show="visao === 'amostragem'" class="produtividade__visao" role="tabpanel" aria-label="{{ t('planejamento', 'Amostragem do trabalho') }}" x-cloak>
+    <div class="kpis produtividade__kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores da amostragem') }}">
       <div class="kpi kpi--{{ tom(faixa_trabalho(amostragem.working_pct)) }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Trabalhando
-          <span class="produtividade__nota">Meta: ≥ {{ percentual_horas(parametros.working_pct, 0) }}</span>
+        <span class="kpi__label">{{ t('planejamento', 'Trabalhando') }}<span class="produtividade__nota">Meta: ≥ {{ percentual_horas(parametros.working_pct, 0) }}</span>
           <span class="produtividade__nota">{{ amostragem.working }} pessoas</span>
         </span>
         <span class="kpi__value">{{ percentual_horas(amostragem.working_pct) }}</span>
       </div>
       <div class="kpi kpi--warn kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('arrowRight', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Em trânsito
-          <span class="produtividade__nota">Limite: ≤ {{ percentual_horas(100 - parametros.working_pct, 0) }}</span>
+        <span class="kpi__label">{{ t('planejamento', 'Em trânsito') }}<span class="produtividade__nota">Limite: ≤ {{ percentual_horas(100 - parametros.working_pct, 0) }}</span>
           <span class="produtividade__nota">{{ amostragem.transit }} pessoas</span>
         </span>
         <span class="kpi__value">{{ percentual_horas(amostragem.transit_pct) }}</span>
       </div>
       <div class="kpi kpi--erro kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Parado
-          <span class="produtividade__nota">Esperado: {{ percentual_horas(0, 0) }}</span>
+        <span class="kpi__label">{{ t('planejamento', 'Parado') }}<span class="produtividade__nota">Esperado: {{ percentual_horas(0, 0) }}</span>
           <span class="produtividade__nota">{{ amostragem.stopped }} pessoas</span>
         </span>
         <span class="kpi__value">{{ percentual_horas(amostragem.stopped_pct) }}</span>
       </div>
       <div class="kpi kpi--info kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('taskList', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Rodadas de observação
-          <span class="produtividade__nota">Referência: {{ capacidade.records }} {{ 'jornada' if capacidade.records == 1 else 'jornadas' }}</span>
+        <span class="kpi__label">{{ t('planejamento', 'Rodadas de observação') }}<span class="produtividade__nota">Referência: {{ capacidade.records }} {{ t('planejamento', 'jornada') if capacidade.records == 1 else t('planejamento', 'jornadas') }}</span>
           <span class="produtividade__nota">{{ amostragem.people }} pessoas observadas</span>
         </span>
         <span class="kpi__value">{{ amostragem.records }}</span>
@@ -376,15 +361,15 @@
     <section class="card" aria-labelledby="horas-t-pareto">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-pareto">Pareto dos motivos de parada</h2>
-          <span class="hint">Pessoas observadas paradas, em ordem decrescente, com o percentual acumulado</span>
+          <h2 class="h-card4" id="horas-t-pareto">{{ t('planejamento', 'Pareto dos motivos de parada') }}</h2>
+          <span class="hint">{{ t('planejamento', 'Pessoas observadas paradas, em ordem decrescente, com o percentual acumulado') }}</span>
         </div>
       </div>
       <div class="card__body">
         {% if horas.stop_reasons %}
         <div class="produtividade__grafico produtividade__grafico--pareto" data-grafico="pareto" data-dados='{{ pareto_paradas | tojson }}'></div>
         {% else %}
-        <p class="muted">Nenhuma pessoa parada nas rodadas do filtro.</p>
+        <p class="muted">{{ t('planejamento', 'Nenhuma pessoa parada nas rodadas do filtro.') }}</p>
         {% endif %}
       </div>
     </section>
@@ -393,8 +378,8 @@
       <section class="card" aria-labelledby="horas-t-motivos-parado">
         <div class="card__head">
           <div>
-            <h2 class="h-card4" id="horas-t-motivos-parado">Motivos de parada</h2>
-            <span class="hint">Pessoas observadas paradas, por motivo</span>
+            <h2 class="h-card4" id="horas-t-motivos-parado">{{ t('planejamento', 'Motivos de parada') }}</h2>
+            <span class="hint">{{ t('planejamento', 'Pessoas observadas paradas, por motivo') }}</span>
           </div>
         </div>
         <div class="card__body">
@@ -408,15 +393,15 @@
             {% endfor %}
           </ul>
           {% else %}
-          <p class="muted">Nenhuma pessoa parada nas rodadas do filtro.</p>
+          <p class="muted">{{ t('planejamento', 'Nenhuma pessoa parada nas rodadas do filtro.') }}</p>
           {% endif %}
         </div>
       </section>
       <section class="card" aria-labelledby="horas-t-motivos-transito">
         <div class="card__head">
           <div>
-            <h2 class="h-card4" id="horas-t-motivos-transito">Motivos em trânsito</h2>
-            <span class="hint">Pessoas observadas em trânsito, por motivo</span>
+            <h2 class="h-card4" id="horas-t-motivos-transito">{{ t('planejamento', 'Motivos em trânsito') }}</h2>
+            <span class="hint">{{ t('planejamento', 'Pessoas observadas em trânsito, por motivo') }}</span>
           </div>
         </div>
         <div class="card__body">
@@ -430,7 +415,7 @@
             {% endfor %}
           </ul>
           {% else %}
-          <p class="muted">Nenhuma pessoa em trânsito nas rodadas do filtro.</p>
+          <p class="muted">{{ t('planejamento', 'Nenhuma pessoa em trânsito nas rodadas do filtro.') }}</p>
           {% endif %}
         </div>
       </section>
@@ -439,18 +424,18 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-amostra-emp">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-amostra-emp">Por empresa e encarregado</h2>
-          <span class="hint">Pessoas observadas e distribuição no período</span>
+          <h2 class="h-card4" id="horas-t-amostra-emp">{{ t('planejamento', 'Por empresa e encarregado') }}</h2>
+          <span class="hint">{{ t('planejamento', 'Pessoas observadas e distribuição no período') }}</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Amostragem por empresa e encarregado</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Amostragem por empresa e encarregado') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Empresa / encarregado</th>
-              <th scope="col" class="td-num">Rodadas</th>
-              <th scope="col" class="td-num">Pessoas</th>
+              <th scope="col">{{ t('planejamento', 'Empresa / encarregado') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Rodadas') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Pessoas') }}</th>
               <th scope="col" class="td-num">% trabalhando</th>
               <th scope="col" class="td-num">% em trânsito</th>
               <th scope="col" class="td-num">% parado</th>
@@ -487,25 +472,25 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-amostras">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-amostras">Rodadas de observação</h2>
-          <span class="hint">{{ horas.samples | length }} {{ 'rodada' if horas.samples | length == 1 else 'rodadas' }} no período</span>
+          <h2 class="h-card4" id="horas-t-amostras">{{ t('planejamento', 'Rodadas de observação') }}</h2>
+          <span class="hint">{{ horas.samples | length }} {{ t('planejamento', 'rodada') if horas.samples | length == 1 else t('planejamento', 'rodadas') }} no período</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Rodadas da amostragem do trabalho</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Rodadas da amostragem do trabalho') }}</caption>
           <thead>
             <tr>
-              {% if horas.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Data</th>
-              <th scope="col">Hora</th>
-              <th scope="col">Empresa</th>
-              <th scope="col">Área / encarregado</th>
-              <th scope="col" class="td-num">Trabalhando</th>
-              <th scope="col" class="td-num">Em trânsito</th>
-              <th scope="col" class="td-num">Parado</th>
+              {% if horas.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('planejamento', 'Data') }}</th>
+              <th scope="col">{{ t('planejamento', 'Hora') }}</th>
+              <th scope="col">{{ t('planejamento', 'Empresa') }}</th>
+              <th scope="col">{{ t('planejamento', 'Área / encarregado') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Trabalhando') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Em trânsito') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Parado') }}</th>
               <th scope="col" class="td-num">% trabalhando</th>
-              <th scope="col"><span class="sr-only">Ações</span></th>
+              <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -547,45 +532,40 @@
   </section>
 
   {# ── Paralisações ─────────────────────────────────────────────────────── #}
-  <section x-show="visao === 'paralisacoes'" class="produtividade__visao" role="tabpanel" aria-label="Paralisações" x-cloak>
-    <div class="kpis produtividade__kpis" role="group" aria-label="Indicadores das paralisações">
+  <section x-show="visao === 'paralisacoes'" class="produtividade__visao" role="tabpanel" aria-label="{{ t('planejamento', 'Paralisações') }}" x-cloak>
+    <div class="kpis produtividade__kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores das paralisações') }}">
       <div class="kpi {{ 'kpi--erro' if paradas.crew_hours else 'kpi--ok' }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Efetivo paralisado
-          <span class="produtividade__nota">Esperado: 0</span>
-          <span class="produtividade__nota">pessoas x horas paradas</span>
+        <span class="kpi__label">{{ t('planejamento', 'Efetivo paralisado') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
+          <span class="produtividade__nota">{{ t('planejamento', 'pessoas x horas paradas') }}</span>
         </span>
         <span class="kpi__value">{{ horas_num(paradas.crew_hours, 1) }}</span>
       </div>
       <div class="kpi {{ 'kpi--warn' if paradas.machine_hours else 'kpi--ok' }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Máquinas e equipamentos parados
-          <span class="produtividade__nota">Esperado: 0</span>
-          <span class="produtividade__nota">unidades x horas paradas</span>
+        <span class="kpi__label">{{ t('planejamento', 'Máquinas e equipamentos parados') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
+          <span class="produtividade__nota">{{ t('planejamento', 'unidades x horas paradas') }}</span>
         </span>
         <span class="kpi__value">{{ horas_num(paradas.machine_hours, 1) }}</span>
       </div>
       <div class="kpi {{ 'kpi--warn' if paradas.client_hours else 'kpi--ok' }} kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Responsabilidade do cliente
-          <span class="produtividade__nota">Esperado: 0</span>
+        <span class="kpi__label">{{ t('planejamento', 'Responsabilidade do cliente') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
           <span class="produtividade__nota">externas em Hhora: {{ horas_num(paradas.external_hours, 1) }}</span>
         </span>
         <span class="kpi__value">{{ horas_num(paradas.client_hours, 1) }}</span>
       </div>
       <div class="kpi kpi--info kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Clima
-          <span class="produtividade__nota">Esperado: 0</span>
-          <span class="produtividade__nota">tempo excusável sem compensação</span>
+        <span class="kpi__label">{{ t('planejamento', 'Clima') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
+          <span class="produtividade__nota">{{ t('planejamento', 'tempo excusável sem compensação') }}</span>
         </span>
         <span class="kpi__value">{{ horas_num(paradas.weather_hours, 1) }}</span>
       </div>
       <div class="kpi kpi--erro kpi--estatico">
         <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-        <span class="kpi__label">Eventos
-          <span class="produtividade__nota">Esperado: 0</span>
-          <span class="produtividade__nota">registros de paralisação</span>
+        <span class="kpi__label">{{ t('planejamento', 'Eventos') }}<span class="produtividade__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
+          <span class="produtividade__nota">{{ t('planejamento', 'registros de paralisação') }}</span>
         </span>
         <span class="kpi__value">{{ paradas.events }}</span>
       </div>
@@ -595,8 +575,8 @@
       <section class="card" aria-labelledby="horas-t-par-motivo">
         <div class="card__head">
           <div>
-            <h2 class="h-card4" id="horas-t-par-motivo">Efetivo paralisado por motivo</h2>
-            <span class="hint">Hhora no período</span>
+            <h2 class="h-card4" id="horas-t-par-motivo">{{ t('planejamento', 'Efetivo paralisado por motivo') }}</h2>
+            <span class="hint">{{ t('planejamento', 'Hhora no período') }}</span>
           </div>
         </div>
         <div class="card__body">
@@ -605,20 +585,20 @@
             {% for linha in paradas.by_reason %}
             <li>
               <span class="produtividade__motivo">{{ linha.key }}</span>
-              <span class="produtividade__motivo-valor">{{ horas_num(linha.total, 1) }} Hhora · {{ linha.events }} {{ 'evento' if linha.events == 1 else 'eventos' }}</span>
+              <span class="produtividade__motivo-valor">{{ horas_num(linha.total, 1) }} Hhora · {{ linha.events }} {{ t('planejamento', 'evento') if linha.events == 1 else t('planejamento', 'eventos') }}</span>
             </li>
             {% endfor %}
           </ul>
           {% else %}
-          <p class="muted">Nenhuma paralisação de efetivo no filtro.</p>
+          <p class="muted">{{ t('planejamento', 'Nenhuma paralisação de efetivo no filtro.') }}</p>
           {% endif %}
         </div>
       </section>
       <section class="card" aria-labelledby="horas-t-par-resp">
         <div class="card__head">
           <div>
-            <h2 class="h-card4" id="horas-t-par-resp">Efetivo paralisado por responsabilidade</h2>
-            <span class="hint">Cliente, gerenciadora e terceiros: base de pleito em Contratos (03)</span>
+            <h2 class="h-card4" id="horas-t-par-resp">{{ t('planejamento', 'Efetivo paralisado por responsabilidade') }}</h2>
+            <span class="hint">{{ t('planejamento', 'Cliente, gerenciadora e terceiros: base de pleito em Contratos (03)') }}</span>
           </div>
         </div>
         <div class="card__body">
@@ -627,12 +607,12 @@
             {% for linha in paradas.by_responsibility %}
             <li>
               <span class="produtividade__motivo">{{ linha.key }}</span>
-              <span class="produtividade__motivo-valor">{{ horas_num(linha.total, 1) }} Hhora · {{ linha.events }} {{ 'evento' if linha.events == 1 else 'eventos' }}</span>
+              <span class="produtividade__motivo-valor">{{ horas_num(linha.total, 1) }} Hhora · {{ linha.events }} {{ t('planejamento', 'evento') if linha.events == 1 else t('planejamento', 'eventos') }}</span>
             </li>
             {% endfor %}
           </ul>
           {% else %}
-          <p class="muted">Nenhuma paralisação de efetivo no filtro.</p>
+          <p class="muted">{{ t('planejamento', 'Nenhuma paralisação de efetivo no filtro.') }}</p>
           {% endif %}
         </div>
       </section>
@@ -641,24 +621,24 @@
     <section class="card produtividade__lista" aria-labelledby="horas-t-paral">
       <div class="card__head">
         <div>
-          <h2 class="h-card4" id="horas-t-paral">Registros de paralisação</h2>
-          <span class="hint">{{ horas.stoppages | length }} {{ 'registro' if horas.stoppages | length == 1 else 'registros' }} · Hhora = pessoas x horas; Mhora = unidades x horas</span>
+          <h2 class="h-card4" id="horas-t-paral">{{ t('planejamento', 'Registros de paralisação') }}</h2>
+          <span class="hint">{{ horas.stoppages | length }} {{ t('planejamento', 'registro') if horas.stoppages | length == 1 else t('planejamento', 'registros') }} · Hhora = pessoas x horas; Mhora = unidades x horas</span>
         </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Registros de paralisação de efetivo e de máquina</caption>
+          <caption class="sr-only">{{ t('planejamento', 'Registros de paralisação de efetivo e de máquina') }}</caption>
           <thead>
             <tr>
-              {% if horas.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Data</th>
-              <th scope="col">Empresa</th>
-              <th scope="col">Área</th>
-              <th scope="col">Recurso parado</th>
-              <th scope="col" class="td-num">Hhora / Mhora</th>
-              <th scope="col">Motivo</th>
-              <th scope="col">Responsabilidade</th>
-              <th scope="col"><span class="sr-only">Ações</span></th>
+              {% if horas.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('planejamento', 'Data') }}</th>
+              <th scope="col">{{ t('planejamento', 'Empresa') }}</th>
+              <th scope="col">{{ t('planejamento', 'Área') }}</th>
+              <th scope="col">{{ t('planejamento', 'Recurso parado') }}</th>
+              <th scope="col" class="td-num">{{ t('planejamento', 'Hhora / Mhora') }}</th>
+              <th scope="col">{{ t('planejamento', 'Motivo') }}</th>
+              <th scope="col">{{ t('planejamento', 'Responsabilidade') }}</th>
+              <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -676,12 +656,12 @@
                   <span class="produtividade__celula-nota">{{ registro.kind }} · {{ horas_num(registro.quantity, 0) }} · {{ tempo(registro.start) }} a {{ tempo(registro.end) }}</span>
                 </div>
               </td>
-              <td class="td-num num">{{ horas_num(registro.figures.total, 1) }} {{ 'Hhora' if registro.kind == 'Efetivo' else 'Mhora' }}</td>
+              <td class="td-num num">{{ horas_num(registro.figures.total, 1) }} {{ t('planejamento', 'Hhora') if registro.kind == 'Efetivo' else t('planejamento', 'Mhora') }}</td>
               <td>{{ registro.reason }}</td>
               <td>
                 {% if registro.figures.external %}
                 <span class="pill pill--warn">{{ registro.responsibility }}</span>
-                {% if registro.responsibility == 'Cliente' %}<br /><span class="produtividade__celula-nota">pleito potencial</span>{% endif %}
+                {% if registro.responsibility == 'Cliente' %}<br /><span class="produtividade__celula-nota">{{ t('planejamento', 'pleito potencial') }}</span>{% endif %}
                 {% else %}
                 <span class="pill pill--{{ 'fix' if registro.responsibility == 'Clima' else 'neutral' }}">{{ registro.responsibility }}</span>
                 {% endif %}

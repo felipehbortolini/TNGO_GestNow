@@ -55,22 +55,22 @@
   {% if auditoria.reschedules %}
   <p class="hint mb-16">
     Reprogramada:
-    {% for reprogramacao in auditoria.reschedules %}{{ formatar_data(reprogramacao.previous_date) }} para {{ formatar_data(reprogramacao.new_date) }} ({{ reprogramacao.justification }}){% if reprogramacao.author_name %} — {{ reprogramacao.author_name }}{% if reprogramacao.registered_on %} em {{ formatar_data(reprogramacao.registered_on) }}{% endif %}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
+    {% for reprogramacao in auditoria.reschedules %}{{ formatar_data(reprogramacao.previous_date) }} para {{ formatar_data(reprogramacao.new_date) }} ({{ reprogramacao.justification }}){% if reprogramacao.author_name %} — {{ reprogramacao.author_name }}{% if reprogramacao.registered_on %} {{ t('qualidade', 'em') }} {{ formatar_data(reprogramacao.registered_on) }}{% endif %}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
   </p>
   {% endif %}
 
   {% if auditoria.findings %}
-  <h3 class="section-title">Constatações</h3>
+  <h3 class="section-title">{{ t('qualidade', 'Constatações') }}</h3>
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Constatações da auditoria</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Constatações da auditoria') }}</caption>
       <thead>
         <tr>
           <th scope="col">Nº</th>
-          <th scope="col">Tipo</th>
-          <th scope="col">Descrição</th>
-          <th scope="col">Requisito</th>
-          <th scope="col">RNC</th>
+          <th scope="col">{{ t('qualidade', 'Tipo') }}</th>
+          <th scope="col">{{ t('qualidade', 'Descrição') }}</th>
+          <th scope="col">{{ t('qualidade', 'Requisito') }}</th>
+          <th scope="col">{{ t('qualidade', 'RNC') }}</th>
         </tr>
       </thead>
       <tbody>

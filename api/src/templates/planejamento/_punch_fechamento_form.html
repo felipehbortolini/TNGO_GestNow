@@ -29,27 +29,27 @@
     </p>
 
     <section class="punch__anexos" aria-labelledby="punch-anexos-titulo">
-      <h3 class="h-card5" id="punch-anexos-titulo">Evidência do fechamento</h3>
-      <p class="hint">A aprovação exige ao menos um anexo (foto ou documento) gravado no item.</p>
+      <h3 class="h-card5" id="punch-anexos-titulo">{{ t('planejamento', 'Evidência do fechamento') }}</h3>
+      <p class="hint">{{ t('planejamento', 'A aprovação exige ao menos um anexo (foto ou documento) gravado no item.') }}</p>
       <div id="punch-anexos" x-data x-init="$ajax($el.dataset.url, { target: 'punch-anexos' })"
         data-url="/api/anexos?origem=punch_item&registro={{ item.id }}">
-        <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+        <div class="spinner" role="status" aria-label="{{ t('planejamento', 'Carregando os anexos') }}"></div>
       </div>
     </section>
 
     <div class="punch__campos">
       <div class="field">
-        <label for="punch-resultado">Resultado</label>
+        <label for="punch-resultado">{{ t('planejamento', 'Resultado') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('resultado') }}" id="punch-resultado" name="resultado">
-          <option value="Aprovado"{% if formulario.fields.get('resultado') == 'Aprovado' %} selected{% endif %}>Aprovado: fechar o item</option>
-          <option value="Reprovado"{% if formulario.fields.get('resultado') == 'Reprovado' %} selected{% endif %}>Reprovado: volta para tratamento</option>
+          <option value="Aprovado"{% if formulario.fields.get('resultado') == 'Aprovado' %} selected{% endif %}>{{ t('planejamento', 'Aprovado: fechar o item') }}</option>
+          <option value="Reprovado"{% if formulario.fields.get('resultado') == 'Reprovado' %} selected{% endif %}>{{ t('planejamento', 'Reprovado: volta para tratamento') }}</option>
         </select>
         {{ erro('resultado') }}
       </div>
       <div class="field">
-        <label for="punch-verificador">Verificado por</label>
+        <label for="punch-verificador">{{ t('planejamento', 'Verificado por') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('verificador') }}" id="punch-verificador" name="verificador">
-          <option value="">Escolha o verificador</option>
+          <option value="">{{ t('planejamento', 'Escolha o verificador') }}</option>
           {% for pessoa in formulario.options.people if pessoa.id != item.owner_id %}
           <option value="{{ pessoa.id }}"{% if formulario.fields.get('verificador') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
           {% endfor %}
@@ -59,15 +59,15 @@
     </div>
 
     <div class="field">
-      <label for="punch-comentario">Comentário</label>
+      <label for="punch-comentario">{{ t('planejamento', 'Comentário') }}</label>
       <textarea class="input{{ ' input--erro' if formulario.errors.get('comentario') }}" id="punch-comentario"
         name="comentario" rows="2" maxlength="300">{{ formulario.fields.get('comentario', '') }}</textarea>
       {{ erro('comentario') }}
     </div>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary">Registrar verificação</button>
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Registrar verificação') }}</button>
     </div>
   </form>
 </div>

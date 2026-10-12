@@ -3,7 +3,7 @@
   empresa, responsável e as semanas programadas. O código (LA-01) é do servidor.
   Espera: formulario e opcoes.
 #}
-{% from "planejamento/6wla_macros.html" import texto, escolha, mensagem %}
+{% from "planejamento/6wla_macros.html" import texto, escolha, mensagem with context %}
 {% set valores = formulario.values %}
 {% set erros = formulario.errors %}
 <div class="fgrid">
@@ -13,7 +13,7 @@
   {{ escolha("empresa", "Empresa", valores, erros, opcoes.company_choices()) }}
   {{ escolha("responsavel", "Responsável", valores, erros, opcoes.person_choices()) }}
   <fieldset class="field field--full lookahead__semanas">
-    <legend>Semanas programadas</legend>
+    <legend>{{ t('planejamento', 'Semanas programadas') }}</legend>
     <div class="lookahead__opcoes">
       {% for semana in opcoes.weeks %}
       <label class="lookahead__opcao">

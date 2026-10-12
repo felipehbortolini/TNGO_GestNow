@@ -14,38 +14,38 @@
   </p>
 
   <section class="relato-bloco" aria-labelledby="relato-ver-periodo">
-    <h3 class="h-card5" id="relato-ver-periodo">Atividades do período</h3>
+    <h3 class="h-card5" id="relato-ver-periodo">{{ t('planejamento', 'Atividades do período') }}</h3>
     {% if relato.activities %}
     <ul class="relato-lista">
       {% for linha in relato.activities %}<li>{{ linha }}</li>{% endfor %}
     </ul>
     {% else %}
-    <p class="muted">Sem registro.</p>
+    <p class="muted">{{ t('planejamento', 'Sem registro.') }}</p>
     {% endif %}
   </section>
 
   <section class="relato-bloco" aria-labelledby="relato-ver-proximo">
-    <h3 class="h-card5" id="relato-ver-proximo">Atividades do próximo período</h3>
+    <h3 class="h-card5" id="relato-ver-proximo">{{ t('planejamento', 'Atividades do próximo período') }}</h3>
     <p class="hint">{{ relato.next_name }}</p>
     {% if relato.next_activities %}
     <ul class="relato-lista">
       {% for linha in relato.next_activities %}<li>{{ linha }}</li>{% endfor %}
     </ul>
     {% else %}
-    <p class="muted">Sem registro.</p>
+    <p class="muted">{{ t('planejamento', 'Sem registro.') }}</p>
     {% endif %}
   </section>
 
   <section class="relato-bloco" aria-labelledby="relato-ver-pontos">
-    <h3 class="h-card5" id="relato-ver-pontos">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+    <h3 class="h-card5" id="relato-ver-pontos">{{ t('planejamento', 'Pontos de atenção e riscos (ameaça e oportunidade)') }}</h3>
     {% if relato.points %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Pontos de atenção e riscos atrelados</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Pontos de atenção e riscos atrelados') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Ponto de atenção</th>
-            <th scope="col">Risco atrelado</th>
+            <th scope="col">{{ t('planejamento', 'Ponto de atenção') }}</th>
+            <th scope="col">{{ t('planejamento', 'Risco atrelado') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -62,17 +62,17 @@
       </table>
     </div>
     {% else %}
-    <p class="muted">Nenhum ponto de atenção no período.</p>
+    <p class="muted">{{ t('planejamento', 'Nenhum ponto de atenção no período.') }}</p>
     {% endif %}
   </section>
 
   <p class="hint">Atualizado em {{ atualizado }} por {{ relato.updated_by }}. O risco atrelado é a leitura do planejamento e não entra no registro do 05 Gestão de Riscos.</p>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">Fechar</button>
+    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">{{ t('planejamento', 'Fechar') }}</button>
     {% if pode_gravar %}
     <button type="button" class="btn btn--primary" data-relato-acao="editar" data-relato-id="{{ relato.id }}"
-      data-relato-titulo="Editar relato {{ relato.kind | lower }}" data-relato-subtitulo="{{ relato.name }}">Editar</button>
+      data-relato-titulo="Editar relato {{ relato.kind | lower }}" data-relato-subtitulo="{{ relato.name }}">{{ t('planejamento', 'Editar') }}</button>
     {% endif %}
   </div>
 </div>

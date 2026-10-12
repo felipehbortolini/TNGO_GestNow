@@ -14,9 +14,7 @@
   data-cadastros-modal-url="{{ url_tela }}/{{ tipo }}/novo"
   data-cadastros-modal-titulo="{{ titulo }}"
   data-cadastros-modal-subtitulo="{{ subtitulo }}">
-  <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>
-  Incluir
-</button>
+  <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('configuracoes', 'Incluir') }}</button>
 {% endmacro %}
 
 {% macro acoes(url_tela, tipo, id, nome, rotulo) %}
@@ -43,16 +41,16 @@
   })"></button>
 {% endmacro %}
 {% block fragment %}
-<div class="toolbar cadastros__acoes mb-16" role="toolbar" aria-label="Exportações dos cadastros">
+<div class="toolbar cadastros__acoes mb-16" role="toolbar" aria-label="{{ t('configuracoes', 'Exportações dos cadastros') }}">
   <span class="hint">{{ visao.total }} registro(s) nos sete cadastros de apoio.</span>
-  <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-  <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('configuracoes', 'Excel') }}</button>
+  <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('configuracoes', 'PDF') }}</button>
 </div>
 
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Empresas</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Empresas') }}</h2>
       <span class="hint">{{ visao.companies | length }} empresa(s) · contratadas, fornecedores e gerenciadoras</span>
     </div>
     {{ incluir(url_tela, 'empresa', 'Nova empresa', 'A empresa entra nos formulários de contratos, suprimentos e programação') }}
@@ -61,12 +59,12 @@
     {% if visao.companies %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Empresas cadastradas</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Empresas cadastradas') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Nome</th>
-            <th scope="col">Tipo</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Tipo') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -81,7 +79,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -89,7 +87,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Pessoas</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Pessoas') }}</h2>
       <span class="hint">{{ visao.people | length }} pessoa(s) · gerentes de projeto, fiscais e contatos</span>
     </div>
     {{ incluir(url_tela, 'pessoa', 'Nova pessoa', 'A pessoa entra nos formulários de projetos, contratos e programação') }}
@@ -98,14 +96,14 @@
     {% if visao.people %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Pessoas cadastradas</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Pessoas cadastradas') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Nome</th>
-            <th scope="col">Função</th>
-            <th scope="col">Empresa</th>
-            <th scope="col">E-mail</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Função') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Empresa') }}</th>
+            <th scope="col">{{ t('configuracoes', 'E-mail') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -122,7 +120,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -130,7 +128,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Projetos</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Projetos') }}</h2>
       <span class="hint">{{ visao.projects | length }} projeto(s) · identificação, cliente, gerente, orçamento e ponderação</span>
     </div>
     {{ incluir(url_tela, 'projeto', 'Novo projeto', 'O projeto nasce com a configuração padrão da Programação Semanal') }}
@@ -139,18 +137,18 @@
     {% if visao.projects %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Projetos cadastrados</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Projetos cadastrados') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Código</th>
-            <th scope="col">Nome</th>
-            <th scope="col">Cliente</th>
-            <th scope="col">Gerente</th>
-            <th scope="col" class="td-num">Orçamento</th>
-            <th scope="col">Início</th>
-            <th scope="col">Término</th>
-            <th scope="col">Notas</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Código') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Cliente') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Gerente') }}</th>
+            <th scope="col" class="td-num">{{ t('configuracoes', 'Orçamento') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Início') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Término') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Notas') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -181,7 +179,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -189,7 +187,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Sistemas</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Sistemas') }}</h2>
       <span class="hint">{{ visao.systems | length }} sistema(s) · a hierarquia da punch list, por projeto</span>
     </div>
     {{ incluir(url_tela, 'sistema', 'Novo sistema', 'O sistema pertence a um projeto: a punch list o usa como hierarquia') }}
@@ -198,14 +196,14 @@
     {% if visao.systems %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Sistemas cadastrados</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Sistemas cadastrados') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
-            <th scope="col">Código</th>
-            <th scope="col">Nome</th>
-            <th scope="col">Área</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Projeto') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Código') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Área') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -222,7 +220,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -230,7 +228,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Unidades</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Unidades') }}</h2>
       <span class="hint">{{ visao.units | length }} unidade(s) · de medida (programação) e organizacionais (Central de Ações)</span>
     </div>
     {{ incluir(url_tela, 'unidade', 'Nova unidade', 'Medida vale para quantidades; organizacional, para a estrutura da Central de Ações') }}
@@ -239,13 +237,13 @@
     {% if visao.units %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Unidades cadastradas</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Unidades cadastradas') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Tipo</th>
-            <th scope="col">Código</th>
-            <th scope="col">Nome</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Tipo') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Código') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -261,7 +259,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -269,7 +267,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Locais</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Locais') }}</h2>
       <span class="hint">{{ visao.locations | length }} local(is) · onde a programação e a jornada de campo acontecem</span>
     </div>
     {{ incluir(url_tela, 'local', 'Novo local', 'O local pertence a um projeto e entra na programação e na jornada de campo') }}
@@ -278,13 +276,13 @@
     {% if visao.locations %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Locais cadastrados</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Locais cadastrados') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
-            <th scope="col">Código</th>
-            <th scope="col">Nome</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Projeto') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Código') }}</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -300,7 +298,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>
@@ -308,7 +306,7 @@
 <section class="card mb-16">
   <div class="card__head">
     <div>
-      <h2 class="h-card4">Disciplinas</h2>
+      <h2 class="h-card4">{{ t('configuracoes', 'Disciplinas') }}</h2>
       <span class="hint">{{ visao.disciplines | length }} disciplina(s) · RNC, ITP, lições e punch list as usam</span>
     </div>
     {{ incluir(url_tela, 'disciplina', 'Nova disciplina', 'A disciplina entra nos formulários de qualidade, governança e punch list') }}
@@ -317,11 +315,11 @@
     {% if visao.disciplines %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Disciplinas cadastradas</caption>
+        <caption class="sr-only">{{ t('configuracoes', 'Disciplinas cadastradas') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Nome</th>
-            <th scope="col" class="td-center" style="width: 110px">Ações</th>
+            <th scope="col">{{ t('configuracoes', 'Nome') }}</th>
+            <th scope="col" class="td-center" style="width: 110px">{{ t('configuracoes', 'Ações') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -335,7 +333,7 @@
       </table>
     </div>
     {% else %}
-    <div class="empty"><p>Nada cadastrado ainda.</p></div>
+    <div class="empty"><p>{{ t('configuracoes', 'Nada cadastrado ainda.') }}</p></div>
     {% endif %}
   </div>
 </section>

@@ -14,15 +14,15 @@
       <h2 class="h-card4" id="eap-avanco-titulo">Registrar avanço · {{ no.code }}</h2>
       <span class="hint">{{ no.description }} · critério {{ criterio or 'sem medição' }} · peso {{ peso }} · previsto {{ previsto }} · real atual {{ real }}</span>
     </div>
-    <button type="button" class="iconbtn" aria-label="Fechar o formulário"
+    <button type="button" class="iconbtn" aria-label="{{ t('planejamento', 'Fechar o formulário') }}"
       x-init="$el.innerHTML = window.icon('dismiss', 16)"
       @click="document.getElementById('eap-formulario').replaceChildren()"></button>
   </div>
   <div class="card__body">
-    <p class="hint mb-16">O acumulado não regride: estorno só com justificativa e papel Gestor. O executado não passa a quantidade da linha de base.</p>
+    <p class="hint mb-16">{{ t('planejamento', 'O acumulado não regride: estorno só com justificativa e papel Gestor. O executado não passa a quantidade da linha de base.') }}</p>
     {% if mensagem or erros %}
     <div class="aviso aviso--erro mb-16" role="alert">
-      <strong>Não foi possível registrar o avanço.</strong>
+      <strong>{{ t('planejamento', 'Não foi possível registrar o avanço.') }}</strong>
       {% if mensagem %}<span>{{ mensagem }}</span>{% endif %}
       {% for texto in erros.values() %}<span>{{ texto }}</span>{% endfor %}
     </div>
@@ -32,7 +32,7 @@
       <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
       <div class="fgrid">
         <div class="field">
-          <label for="eap-avanco-data">Data da medição</label>
+          <label for="eap-avanco-data">{{ t('planejamento', 'Data da medição') }}</label>
           <input id="eap-avanco-data" class="input{% if erros.get('data') %} input--erro{% endif %}"
             type="date" name="data" value="{{ valores.get('data') or hoje }}" max="{{ hoje }}" required
             {% if erros.get('data') %}aria-invalid="true" aria-describedby="eap-avanco-data-erro"{% endif %} />
@@ -60,10 +60,10 @@
         </div>
         {% elif estados %}
         <div class="field">
-          <label for="eap-avanco-estado">Situação do marco</label>
+          <label for="eap-avanco-estado">{{ t('planejamento', 'Situação do marco') }}</label>
           <select id="eap-avanco-estado" class="input{% if erros.get('estado') %} input--erro{% endif %}" name="estado" required
             {% if erros.get('estado') %}aria-invalid="true" aria-describedby="eap-avanco-estado-erro"{% endif %}>
-            <option value="">Selecione</option>
+            <option value="">{{ t('planejamento', 'Selecione') }}</option>
             {% for estado in estados %}
             <option value="{{ estado }}"{% if (valores.get('estado') or '') == estado %} selected{% endif %}>{{ estado }}</option>
             {% endfor %}
@@ -72,7 +72,7 @@
         </div>
         {% else %}
         <div class="field">
-          <label for="eap-avanco-estimado">Avanço estimado acumulado (%)</label>
+          <label for="eap-avanco-estimado">{{ t('planejamento', 'Avanço estimado acumulado (%)') }}</label>
           <input id="eap-avanco-estimado" class="input{% if erros.get('estimadoPct') %} input--erro{% endif %}"
             type="number" name="estimadoPct" min="0" max="100" step="0.01" value="{{ valores.get('estimadoPct') or '' }}"
             {% if erros.get('estimadoPct') %}aria-invalid="true" aria-describedby="eap-avanco-estimado-erro"{% endif %} />
@@ -80,23 +80,23 @@
         </div>
         {% endif %}
         <div class="field field--full">
-          <label for="eap-avanco-obs">Observação ou evidência</label>
+          <label for="eap-avanco-obs">{{ t('planejamento', 'Observação ou evidência') }}</label>
           <textarea id="eap-avanco-obs" class="input" name="obs" rows="2" maxlength="300"
-            placeholder="Boletim de medição, relatório de campo, certificado...">{{ valores.get('obs') or '' }}</textarea>
+            placeholder="{{ t('planejamento', 'Boletim de medição, relatório de campo, certificado...') }}">{{ valores.get('obs') or '' }}</textarea>
         </div>
         <div class="field field--full">
-          <label for="eap-avanco-justificativa">Justificativa do estorno</label>
+          <label for="eap-avanco-justificativa">{{ t('planejamento', 'Justificativa do estorno') }}</label>
           <textarea id="eap-avanco-justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
             name="justificativa" rows="2" minlength="10" maxlength="300"
             {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="eap-avanco-justificativa-erro"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
-          <span class="hint">Obrigatória quando o novo avanço fica abaixo do real atual; exige papel Gestor.</span>
+          <span class="hint">{{ t('planejamento', 'Obrigatória quando o novo avanço fica abaixo do real atual; exige papel Gestor.') }}</span>
           {% if erros.get('justificativa') %}<span class="field__erro" id="eap-avanco-justificativa-erro" role="alert">{{ erros['justificativa'] }}</span>{% endif %}
         </div>
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="document.getElementById('eap-formulario').replaceChildren()">Cancelar</button>
-        <button type="submit" class="btn btn--primary">Registrar avanço</button>
+          @click="document.getElementById('eap-formulario').replaceChildren()">{{ t('planejamento', 'Cancelar') }}</button>
+        <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Registrar avanço') }}</button>
       </div>
     </form>
   </div>

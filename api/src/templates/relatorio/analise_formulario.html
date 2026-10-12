@@ -29,7 +29,7 @@
 
   {% if mensagens %}
   <div class="aviso aviso--erro" role="alert">
-    <strong>Não foi possível salvar a análise.</strong>
+    <strong>{{ t('relatorio', 'Não foi possível salvar a análise.') }}</strong>
     {% for mensagem in mensagens %}<span>{{ mensagem }}</span>{% endfor %}
   </div>
   {% endif %}
@@ -40,7 +40,7 @@
   </p>
 
   {% if visao.summary %}
-  <div class="analise-resumo" role="list" aria-label="Indicadores do período">
+  <div class="analise-resumo" role="list" aria-label="{{ t('relatorio', 'Indicadores do período') }}">
     {% for item in visao.summary %}
     <div class="analise-resumo__item" role="listitem">
       <span>{{ item.label }}</span>
@@ -49,27 +49,27 @@
     {% endfor %}
   </div>
   {% elif visao.sem_fechamento %}
-  <p class="hint">Sem fechamento mensal de custos até o corte deste período.</p>
+  <p class="hint">{{ t('relatorio', 'Sem fechamento mensal de custos até o corte deste período.') }}</p>
   {% endif %}
 
-  <p class="hint">Texto executivo e analítico: panorama do projeto, desempenho dos períodos anteriores, causas dos desvios e tendência para os próximos períodos.</p>
+  <p class="hint">{{ t('relatorio', 'Texto executivo e analítico: panorama do projeto, desempenho dos períodos anteriores, causas dos desvios e tendência para os próximos períodos.') }}</p>
 
   {% if visao.deviation_required %}
   {% set total = visao.deviations | length %}
   {% if total %}
   <div class="aviso aviso--warn" role="note">
-    <span>{{ total }} {{ 'desvio negativo' if total == 1 else 'desvios negativos' }} no período. Todo desvio negativo exige comentário próprio (causa, efeito e ação), com ao menos {{ limites.comentario_min }} caracteres.</span>
+    <span>{{ total }} {{ t('relatorio', 'desvio negativo') if total == 1 else t('relatorio', 'desvios negativos') }} no período. Todo desvio negativo exige comentário próprio (causa, efeito e ação), com ao menos {{ limites.comentario_min }} caracteres.</span>
   </div>
   {% else %}
-  <p class="hint">Nenhum desvio negativo detectado no período.</p>
+  <p class="hint">{{ t('relatorio', 'Nenhum desvio negativo detectado no período.') }}</p>
   {% endif %}
   {% endif %}
 
   <div class="field">
-    <label for="analise-texto">Análise do período</label>
+    <label for="analise-texto">{{ t('relatorio', 'Análise do período') }}</label>
     <textarea class="input{{ ' input--erro' if erros.get('analise') }}" id="analise-texto" name="analise"
       rows="9" minlength="{{ limites.texto_min }}" maxlength="{{ limites.texto_max }}"
-      placeholder="Panorama, desempenho dos períodos anteriores, causas e tendência para os próximos períodos"{{ marcas('analise') }}>{{ texto }}</textarea>
+      placeholder="{{ t('relatorio', 'Panorama, desempenho dos períodos anteriores, causas e tendência para os próximos períodos') }}"{{ marcas('analise') }}>{{ texto }}</textarea>
     <span class="hint">Mínimo de {{ limites.texto_min }} caracteres.</span>
     {% if erros.get('analise') %}<span class="field__erro" id="analise-erro-analise" role="alert">{{ erros['analise'] }}</span>{% endif %}
   </div>
@@ -84,7 +84,7 @@
     <label for="analise-desvio-{{ indice }}">{{ linha.desvio.indicator }}</label>
     <textarea class="input{{ ' input--erro' if linha.erro }}" id="analise-desvio-{{ indice }}"
       name="desvio_{{ indice }}" rows="2" maxlength="{{ limites.comentario_max }}"
-      placeholder="Causa, efeito e ação"{{ marcas('desvio_' ~ indice) }}>{{ linha.valor }}</textarea>
+      placeholder="{{ t('relatorio', 'Causa, efeito e ação') }}"{{ marcas('desvio_' ~ indice) }}>{{ linha.valor }}</textarea>
     <input type="hidden" name="desvio_chave_{{ indice }}" value="{{ linha.desvio.key }}" />
     {% if linha.erro %}<span class="field__erro" id="analise-erro-desvio-{{ indice }}" role="alert">{{ linha.erro }}</span>{% endif %}
   </div>
@@ -96,15 +96,15 @@
 
   <div class="modal__actions">
     <button type="button" class="btn btn--ghost"
-      @click.prevent="$ajax('/api/relatorio/analise/periodo?modulo={{ visao.module }}&amp;tipo={{ visao.kind }}&amp;periodo={{ visao.period }}', { target: 'analise-modal' })">Trocar período</button>
+      @click.prevent="$ajax('/api/relatorio/analise/periodo?modulo={{ visao.module }}&amp;tipo={{ visao.kind }}&amp;periodo={{ visao.period }}', { target: 'analise-modal' })">{{ t('relatorio', 'Trocar período') }}</button>
     {% if visao.previous %}
-    <button type="submit" class="btn btn--ghost" formaction="/api/relatorio/analise/copiar">Copiar do período anterior</button>
+    <button type="submit" class="btn btn--ghost" formaction="/api/relatorio/analise/copiar">{{ t('relatorio', 'Copiar do período anterior') }}</button>
     {% endif %}
     {% if visao.record and pode_excluir %}
     <button type="button" class="btn btn--ghost"
-      @click.prevent="window.TN.confirmarExclusao({ mensagem: 'Excluir a análise de {{ visao.period_label }}? O período volta a ficar pendente no relatório gerencial.', rows: [{ label: 'Módulo', valor: '{{ visao.module_label }}' }, { label: 'Período', valor: '{{ visao.period_label }}' }] }).then(function (ok) { if (ok) $refs.excluir.click(); })">Excluir</button>
+      @click.prevent="window.TN.confirmarExclusao({ mensagem: 'Excluir a análise de {{ visao.period_label }}? O período volta a ficar pendente no relatório gerencial.', rows: [{ label: 'Módulo', valor: '{{ visao.module_label }}' }, { label: 'Período', valor: '{{ visao.period_label }}' }] }).then(function (ok) { if (ok) $refs.excluir.click(); })">{{ t('relatorio', 'Excluir') }}</button>
     {% endif %}
-    <button type="submit" class="btn btn--primary">{{ 'Registrar análise' if not visao.record else 'Salvar alterações' }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('relatorio', 'Registrar análise') if not visao.record else t('relatorio', 'Salvar alterações') }}</button>
   </div>
 </form>
 {% endblock %}

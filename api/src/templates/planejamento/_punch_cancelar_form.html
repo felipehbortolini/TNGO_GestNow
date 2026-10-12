@@ -13,13 +13,13 @@
     {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
 
     <p class="punch__identificacao">
-      <span class="pill pill--erro">Cancelar item</span>
+      <span class="pill pill--erro">{{ t('planejamento', 'Cancelar item') }}</span>
       <b>{{ item.code }}</b>
       <span class="body-txt">{{ item.description }}</span>
     </p>
 
     <div class="field">
-      <label for="punch-justificativa">Justificativa</label>
+      <label for="punch-justificativa">{{ t('planejamento', 'Justificativa') }}</label>
       <textarea class="input{{ ' input--erro' if formulario.errors.get('justificativa') }}" id="punch-justificativa"
         name="justificativa" rows="2" maxlength="300"{% if formulario.errors.get('justificativa') %} aria-invalid="true"{% endif %}>{{ formulario.fields.get('justificativa', '') }}</textarea>
       {% if formulario.errors.get('justificativa') %}
@@ -28,8 +28,8 @@
     </div>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">Voltar</button>
-      <button type="submit" class="btn btn--danger">Cancelar item</button>
+      <button type="button" class="btn btn--secondary" data-punch-acao="fechar">{{ t('planejamento', 'Voltar') }}</button>
+      <button type="submit" class="btn btn--danger">{{ t('planejamento', 'Cancelar item') }}</button>
     </div>
   </form>
 </div>

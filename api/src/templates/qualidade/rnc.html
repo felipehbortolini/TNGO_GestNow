@@ -39,23 +39,19 @@
 {% if linha.situation == 'Aberta' and pode_gravar %}
 <button type="button" class="btn btn--secondary btn--sm" data-rnc-formulario data-rnc-fechar="1"
   data-rnc-url="/api/qualidade/rnc/{{ linha.code }}/responsavel{{ sufixo }}" data-rnc-titulo="Atribuir análise · {{ linha.code }}">
-  <span x-init="$el.innerHTML = window.icon('person', 14)" aria-hidden="true"></span> Atribuir
-</button>
+  <span x-init="$el.innerHTML = window.icon('person', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Atribuir') }}</button>
 {% elif linha.situation == 'Em análise de causa' and pode_gravar %}
 <button type="button" class="btn btn--secondary btn--sm" data-rnc-formulario data-rnc-fechar="1"
   data-rnc-url="/api/qualidade/rnc/{{ linha.code }}/analise{{ sufixo }}" data-rnc-titulo="Registrar análise · {{ linha.code }}">
-  <span x-init="$el.innerHTML = window.icon('file', 14)" aria-hidden="true"></span> Analisar
-</button>
+  <span x-init="$el.innerHTML = window.icon('file', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Analisar') }}</button>
 {% elif linha.situation == 'Ação corretiva' and pode_gravar %}
 <button type="button" class="btn btn--secondary btn--sm" data-rnc-formulario data-rnc-fechar="1"
   data-rnc-url="/api/qualidade/rnc/{{ linha.code }}/verificacao{{ sufixo }}" data-rnc-titulo="Enviar para verificação · {{ linha.code }}">
-  <span x-init="$el.innerHTML = window.icon('send', 14)" aria-hidden="true"></span> Verificação
-</button>
+  <span x-init="$el.innerHTML = window.icon('send', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Verificação') }}</button>
 {% elif linha.situation == 'Verificação de eficácia' and pode_gerir %}
 <button type="button" class="btn btn--secondary btn--sm" data-rnc-formulario data-rnc-fechar="1"
   data-rnc-url="/api/qualidade/rnc/{{ linha.code }}/eficacia{{ sufixo }}" data-rnc-titulo="Verificar eficácia · {{ linha.code }}">
-  <span x-init="$el.innerHTML = window.icon('checkCircle', 14)" aria-hidden="true"></span> Eficácia
-</button>
+  <span x-init="$el.innerHTML = window.icon('checkCircle', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Eficácia') }}</button>
 {% endif %}
 {% endmacro %}
 
@@ -73,56 +69,54 @@
 <div class="card">
   <div class="card__body">
     <form class="toolbar rnc__filtros" method="get" action="/api/qualidade/rnc" x-target="{{ target_id }}" role="search">
-      <label class="sr-only" for="{{ target_id }}-busca">Buscar RNC</label>
+      <label class="sr-only" for="{{ target_id }}-busca">{{ t('qualidade', 'Buscar RNC') }}</label>
       <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ filtros.search }}"
-        maxlength="120" placeholder="Número, descrição, referência, disciplina ou empresa..." />
-      <select class="input" name="situacao" aria-label="Situação" @change="$el.form.requestSubmit()">
-        <option value="ativas"{% if filtros.situation == 'ativas' %} selected{% endif %}>Situação: em aberto</option>
-        <option value="vencidas"{% if filtros.situation == 'vencidas' %} selected{% endif %}>Situação: vencidas</option>
-        <option value="todas"{% if filtros.situation == 'todas' %} selected{% endif %}>Situação: todas</option>
+        maxlength="120" placeholder="{{ t('qualidade', 'Número, descrição, referência, disciplina ou empresa...') }}" />
+      <select class="input" name="situacao" aria-label="{{ t('qualidade', 'Situação') }}" @change="$el.form.requestSubmit()">
+        <option value="ativas"{% if filtros.situation == 'ativas' %} selected{% endif %}>{{ t('qualidade', 'Situação: em aberto') }}</option>
+        <option value="vencidas"{% if filtros.situation == 'vencidas' %} selected{% endif %}>{{ t('qualidade', 'Situação: vencidas') }}</option>
+        <option value="todas"{% if filtros.situation == 'todas' %} selected{% endif %}>{{ t('qualidade', 'Situação: todas') }}</option>
         {% for situacao in situacoes %}
         <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
         {% endfor %}
       </select>
-      <select class="input" name="severidade" aria-label="Severidade" @change="$el.form.requestSubmit()">
-        <option value="">Severidade: todas</option>
+      <select class="input" name="severidade" aria-label="{{ t('qualidade', 'Severidade') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('qualidade', 'Severidade: todas') }}</option>
         {% for severidade in severidades %}
         <option value="{{ severidade }}"{% if filtros.severity == severidade %} selected{% endif %}>{{ severidade }}</option>
         {% endfor %}
       </select>
-      <select class="input" name="disciplina" aria-label="Disciplina" @change="$el.form.requestSubmit()">
-        <option value="">Disciplina: todas</option>
+      <select class="input" name="disciplina" aria-label="{{ t('qualidade', 'Disciplina') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('qualidade', 'Disciplina: todas') }}</option>
         {% for disciplina in listagem.disciplines %}
         <option value="{{ disciplina }}"{% if filtros.discipline == disciplina %} selected{% endif %}>{{ disciplina }}</option>
         {% endfor %}
       </select>
-      <select class="input" name="origem" aria-label="Origem" @change="$el.form.requestSubmit()">
-        <option value="">Origem: todas</option>
+      <select class="input" name="origem" aria-label="{{ t('qualidade', 'Origem') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('qualidade', 'Origem: todas') }}</option>
         {% for origem in origens %}
         <option value="{{ origem }}"{% if filtros.origin == origem %} selected{% endif %}>{{ origem }}</option>
         {% endfor %}
       </select>
       <button type="submit" class="btn btn--secondary btn--sm">
-        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
-      </button>
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Consultar') }}</button>
       {% if tem_filtro %}
-      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('qualidade', 'Limpar filtros') }}</a>
       {% endif %}
     </form>
 
     <div class="toolbar rnc__barra">
       <span class="rnc__contagem" role="status">
-        {{ listagem.total }} {{ 'RNC encontrada' if listagem.total == 1 else 'RNCs encontradas' }}
+        {{ listagem.total }} {{ t('qualidade', 'RNC encontrada') if listagem.total == 1 else t('qualidade', 'RNCs encontradas') }}
         · prazo de tratamento pela severidade; ações corretivas na Central (origem RNC)
       </span>
       <span class="rnc__barra-acoes">
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('qualidade', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('qualidade', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary btn--sm" data-rnc-formulario
-          data-rnc-url="/api/qualidade/rnc/nova{{ sufixo_nova }}" data-rnc-titulo="Nova não conformidade (RNC)">
-          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Nova RNC
-        </button>
+          data-rnc-url="/api/qualidade/rnc/nova{{ sufixo_nova }}" data-rnc-titulo="{{ t('qualidade', 'Nova não conformidade (RNC)') }}">
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Nova RNC') }}</button>
         {% endif %}
       </span>
     </div>
@@ -131,31 +125,31 @@
     <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
       <h2 class="h-card4">
-        {% if tem_filtro %}Nenhuma RNC encontrada com os filtros atuais{% else %}Ainda não há RNC registradas{% endif %}
+        {% if tem_filtro %}{{ t('qualidade', 'Nenhuma RNC encontrada com os filtros atuais') }}{% else %}{{ t('qualidade', 'Ainda não há RNC registradas') }}{% endif %}
       </h2>
       <p>
-        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
-        {% else %}Abra a primeira RNC com a descrição, a contenção imediata e a severidade do prazo.{% endif %}
+        {% if tem_filtro %}{{ t('qualidade', 'Ajuste ou limpe os filtros para ver os registros.') }}
+        {% else %}{{ t('qualidade', 'Abra a primeira RNC com a descrição, a contenção imediata e a severidade do prazo.') }}{% endif %}
       </p>
       {% if tem_filtro and pode_gravar %}
-      <p><a class="btn btn--secondary btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a></p>
+      <p><a class="btn btn--secondary btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('qualidade', 'Limpar filtros') }}</a></p>
       {% endif %}
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl rnc__tabela">
-        <caption class="sr-only">Relatórios de não conformidade</caption>
+        <caption class="sr-only">{{ t('qualidade', 'Relatórios de não conformidade') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            {% if portfolio %}<th scope="col">{{ t('qualidade', 'Projeto') }}</th>{% endif %}
             <th scope="col">Nº</th>
-            <th scope="col">Não conformidade</th>
-            <th scope="col">Disciplina</th>
-            <th scope="col">Empresa</th>
-            <th scope="col">Severidade</th>
-            <th scope="col">Situação</th>
-            <th scope="col">Prazo</th>
-            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+            <th scope="col">{{ t('qualidade', 'Não conformidade') }}</th>
+            <th scope="col">{{ t('qualidade', 'Disciplina') }}</th>
+            <th scope="col">{{ t('qualidade', 'Empresa') }}</th>
+            <th scope="col">{{ t('qualidade', 'Severidade') }}</th>
+            <th scope="col">{{ t('qualidade', 'Situação') }}</th>
+            <th scope="col">{{ t('qualidade', 'Prazo') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('qualidade', 'Ações da linha') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -164,7 +158,7 @@
           <tr class="{{ 'rnc__linha--alerta' if linha.overdue else '' }}{{ ' rnc__linha--apagada' if not linha.active }}">
             {% if portfolio %}<td><span class="pill pill--neutral">{{ projeto[0].code if projeto else linha.project_code }}</span></td>{% endif %}
             <td class="rnc__codigo nowrap">
-              <a href="#" data-rnc-ficha="{{ linha.code }}" title="Abrir a ficha"><b>{{ linha.code }}</b></a>
+              <a href="#" data-rnc-ficha="{{ linha.code }}" title="{{ t('qualidade', 'Abrir a ficha') }}"><b>{{ linha.code }}</b></a>
               <br /><span class="hint">{{ formatar_data(linha.rnc_date) }}</span>
             </td>
             <td>
@@ -179,7 +173,7 @@
               {% if linha.next_step %}<br /><span class="hint">{{ linha.next_step }}</span>{% endif %}
               {% if linha.actions.total %}
               <br /><span class="hint{{ ' rnc__atraso' if linha.actions.overdue }}">{{ linha.actions.open }} de {{ linha.actions.total }} ação(ões) aberta(s)
-                {%- if linha.actions.overdue %} · {{ linha.actions.overdue }} atrasada(s){% endif %}</span>
+                {%- if linha.actions.overdue %} · {{ linha.actions.overdue }}  {{ t('qualidade', 'atrasada(s)') }}{% endif %}</span>
               {% endif %}
               {% if linha.recurrence_count %}
               <br /><span class="pill pill--erro">{{ linha.recurrence_count }} reincidência(s)</span>
@@ -190,12 +184,12 @@
               {% else %}
               {{ formatar_data(linha.deadline) }}
               {% if linha.overdue %}<br /><span class="field__erro">vencido há {{ linha.days_overdue }} dia(s)</span>
-              {% elif linha.verification_overdue %}<br /><span class="field__erro">verificação vencida</span>
+              {% elif linha.verification_overdue %}<br /><span class="field__erro">{{ t('qualidade', 'verificação vencida') }}</span>
               {% elif linha.verification_expected %}<br /><span class="hint">verificação {{ formatar_data(linha.verification_expected) }}</span>{% endif %}
               {% endif %}
             </td>
             <td class="rnc__acoes no-wrap">
-              <button type="button" class="iconbtn" data-rnc-ficha="{{ linha.code }}" title="Ver RNC" aria-label="Ver RNC {{ linha.code }}">
+              <button type="button" class="iconbtn" data-rnc-ficha="{{ linha.code }}" title="{{ t('qualidade', 'Ver RNC') }}" aria-label="Ver RNC {{ linha.code }}">
                 <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
               </button>
               {{ acao_rapida(linha) }}
@@ -205,14 +199,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="rnc__paginas" aria-label="Páginas da lista">
+    <nav class="rnc__paginas" aria-label="{{ t('qualidade', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('qualidade', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('qualidade', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}

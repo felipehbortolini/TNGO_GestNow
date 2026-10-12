@@ -72,51 +72,47 @@
     <form class="toolbar ocorrencias__filtros" method="get" action="/api/hse/ocorrencias" x-target="{{ target_id }}" role="search">
       <div class="toolbar__search input-icon">
         <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar ocorrências</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('hse', 'Buscar ocorrências') }}</label>
         <input id="{{ target_id }}-busca" class="input input--pill" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar por número, área ou descrição" />
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('hse', 'Buscar por número, área ou descrição') }}" />
       </div>
-      <select class="input" name="situacao" aria-label="Situação" @change="$el.form.requestSubmit()">
-        <option value="">Situação: todas</option>
+      <select class="input" name="situacao" aria-label="{{ t('hse', 'Situação') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('hse', 'Situação: todas') }}</option>
         {% for situacao in situacoes %}
         <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
         {% endfor %}
       </select>
-      <select class="input" name="tipo" aria-label="Tipo" @change="$el.form.requestSubmit()">
-        <option value="">Tipo: todos</option>
+      <select class="input" name="tipo" aria-label="{{ t('hse', 'Tipo') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('hse', 'Tipo: todos') }}</option>
         {% for tipo in tipos %}
         <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ tipo }}</option>
         {% endfor %}
       </select>
       <label class="ocorrencias__opcao">
         <input type="checkbox" name="hipo" value="1"{% if filtros.hipo %} checked{% endif %}
-          @change="$el.form.requestSubmit()" />
-        Só alto potencial (HiPo)
-      </label>
+          @change="$el.form.requestSubmit()" />{{ t('hse', 'Só alto potencial (HiPo)') }}</label>
       <button type="submit" class="btn btn--secondary btn--sm">
-        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
-      </button>
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>{{ t('hse', 'Consultar') }}</button>
       {% if tem_filtro %}
-      <a class="btn btn--ghost btn--sm" href="/api/hse/ocorrencias" x-target="{{ target_id }}">Limpar filtros</a>
+      <a class="btn btn--ghost btn--sm" href="/api/hse/ocorrencias" x-target="{{ target_id }}">{{ t('hse', 'Limpar filtros') }}</a>
       {% endif %}
     </form>
 
     <div class="toolbar ocorrencias__barra">
       <span class="hint" role="status">
-        {{ total }} {{ 'ocorrência encontrada' if total == 1 else 'ocorrências encontradas' }}
+        {{ total }} {{ t('hse', 'ocorrência encontrada') if total == 1 else t('hse', 'ocorrências encontradas') }}
         · nível 5 (desvios) vem do consolidado mensal
       </span>
       <span class="ocorrencias__barra-acoes">
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('hse', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('hse', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary btn--sm" data-tn-incluir="nova"
           data-ocorrencias-modal-url="/api/hse/ocorrencias/nova?consulta={{ consulta }}"
-          data-ocorrencias-modal-titulo="Nova ocorrência"
-          data-ocorrencias-modal-subtitulo="Fluxo: Registrada, Em investigação, Ações definidas, Em tratamento, Encerrada"
+          data-ocorrencias-modal-titulo="{{ t('hse', 'Nova ocorrência') }}"
+          data-ocorrencias-modal-subtitulo="{{ t('hse', 'Fluxo: Registrada, Em investigação, Ações definidas, Em tratamento, Encerrada') }}"
           data-ocorrencias-modal-largura="920">
-          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Nova ocorrência
-        </button>
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('hse', 'Nova ocorrência') }}</button>
         {% endif %}
       </span>
     </div>
@@ -125,23 +121,23 @@
     <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
       <h2 class="h-card4">
-        {% if tem_filtro %}Nenhuma ocorrência encontrada com os filtros atuais{% else %}Ainda não há ocorrências registradas{% endif %}
+        {% if tem_filtro %}{{ t('hse', 'Nenhuma ocorrência encontrada com os filtros atuais') }}{% else %}{{ t('hse', 'Ainda não há ocorrências registradas') }}{% endif %}
       </h2>
       <p>
-        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
-        {% else %}Registre a primeira ocorrência com data, área, tipo e o potencial (P x I).{% endif %}
+        {% if tem_filtro %}{{ t('hse', 'Ajuste ou limpe os filtros para ver os registros.') }}
+        {% else %}{{ t('hse', 'Registre a primeira ocorrência com data, área, tipo e o potencial (P x I).') }}{% endif %}
       </p>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Ocorrências do projeto</caption>
+        <caption class="sr-only">{{ t('hse', 'Ocorrências do projeto') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Nº</th><th scope="col">Data / hora</th><th scope="col">Área</th>
-          <th scope="col">Empresa</th><th scope="col">Tipo / nível</th><th scope="col">Potencial</th>
-          <th scope="col">Situação</th><th scope="col">Prazos</th>
-          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">Nº</th><th scope="col">{{ t('hse', 'Data / hora') }}</th><th scope="col">{{ t('hse', 'Área') }}</th>
+          <th scope="col">{{ t('hse', 'Empresa') }}</th><th scope="col">{{ t('hse', 'Tipo / nível') }}</th><th scope="col">{{ t('hse', 'Potencial') }}</th>
+          <th scope="col">{{ t('hse', 'Situação') }}</th><th scope="col">{{ t('hse', 'Prazos') }}</th>
+          <th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -158,11 +154,11 @@
               <span class="ocorrencias__tipo">
                 <b>{{ linha.kind }}</b>
                 {% if linha.environmental %}
-                <span class="pill pill--neutral">Ambiental</span>
+                <span class="pill pill--neutral">{{ t('hse', 'Ambiental') }}</span>
                 {% else %}
                 <span class="pill {{ pill_do_nivel.get(linha.level, 'pill--neutral') }}">N{{ linha.level }} · {{ linha.level_name }}</span>
                 {% endif %}
-                {% if linha.hipo %}<span class="pill pill--erro">HiPo</span>{% endif %}
+                {% if linha.hipo %}<span class="pill pill--erro">{{ t('hse', 'HiPo') }}</span>{% endif %}
               </span>
             </td>
             <td>
@@ -175,12 +171,12 @@
             </td>
             <td><span class="pill {{ pill_da_situacao.get(linha.situation, 'pill--neutral') }}">{{ linha.situation }}</span></td>
             <td>
-              {% if linha.communication_overdue %}<span class="pill pill--erro">Comunicação fora do prazo</span>{% endif %}
-              {% if linha.investigation_late == 'vencido' %}<span class="pill pill--erro">Investigação vencida</span>
-              {% elif linha.investigation_late == 'fora' %}<span class="pill pill--erro">Investigação fora do prazo</span>{% endif %}
-              {% if linha.report_late == 'vencido' %}<span class="pill pill--erro">Relatório final vencido</span>
-              {% elif linha.report_late == 'fora' %}<span class="pill pill--erro">Relatório fora do prazo</span>{% endif %}
-              {% if not linha.overdue %}<span class="hint">no prazo</span>{% endif %}
+              {% if linha.communication_overdue %}<span class="pill pill--erro">{{ t('hse', 'Comunicação fora do prazo') }}</span>{% endif %}
+              {% if linha.investigation_late == 'vencido' %}<span class="pill pill--erro">{{ t('hse', 'Investigação vencida') }}</span>
+              {% elif linha.investigation_late == 'fora' %}<span class="pill pill--erro">{{ t('hse', 'Investigação fora do prazo') }}</span>{% endif %}
+              {% if linha.report_late == 'vencido' %}<span class="pill pill--erro">{{ t('hse', 'Relatório final vencido') }}</span>
+              {% elif linha.report_late == 'fora' %}<span class="pill pill--erro">{{ t('hse', 'Relatório fora do prazo') }}</span>{% endif %}
+              {% if not linha.overdue %}<span class="hint">{{ t('hse', 'no prazo') }}</span>{% endif %}
             </td>
             <td>{{ acoes_da_linha(linha) }}</td>
           </tr>
@@ -188,10 +184,10 @@
         </tbody>
       </table>
     </div>
-    <nav class="ocorrencias__paginas" aria-label="Páginas da tabela">
-      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+    <nav class="ocorrencias__paginas" aria-label="{{ t('hse', 'Páginas da tabela') }}">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('hse', 'Anterior') }}</a>{% endif %}
       <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
-      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('hse', 'Próxima') }}</a>{% endif %}
     </nav>
     {% endif %}
   </div>

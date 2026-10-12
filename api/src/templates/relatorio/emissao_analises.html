@@ -8,13 +8,13 @@
   {% for analise in visao.analyses %}
   <li>
     {% if analise.situation == 'registered' %}
-    <span class="pill pill--ok">Registrada</span>
+    <span class="pill pill--ok">{{ t('relatorio', 'Registrada') }}</span>
     {% elif analise.situation == 'deviations' %}
     <span class="pill pill--warn">{{ analise.pending }} desvio{{ 's' if analise.pending != 1 }} sem comentário</span>
     {% else %}
-    <span class="pill pill--warn">Pendente</span>
+    <span class="pill pill--warn">{{ t('relatorio', 'Pendente') }}</span>
     {% endif %}
-    <span class="hint">{{ analise.label }}{% if analise.required and analise.deviations %} · {{ analise.deviations }} desvio{{ 's' if analise.deviations != 1 }} negativo{{ 's' if analise.deviations != 1 }}{% endif %} · <a href="{{ analise.url }}">{{ 'Ver ou editar' if analise.registered else 'Registrar' }}</a></span>
+    <span class="hint">{{ analise.label }}{% if analise.required and analise.deviations %} · {{ analise.deviations }} desvio{{ 's' if analise.deviations != 1 }} negativo{{ 's' if analise.deviations != 1 }}{% endif %} · <a href="{{ analise.url }}">{{ t('relatorio', 'Ver ou editar') if analise.registered else t('relatorio', 'Registrar') }}</a></span>
   </li>
   {% endfor %}
 </ul>

@@ -15,41 +15,37 @@
   <p class="hint">Pacotes novos mudam os pesos da EAP: a importação gera a Rev {{ proxima_revisao }} vinculada à SM aprovada. Nada é gravado antes da sua confirmação.</p>
   {% if not fontes %}
   <div class="aviso aviso--info" role="note">
-    <strong>Não há SM aprovada com impacto em escopo pendente de incorporação.</strong>
-    <span>Aprove uma SM com impacto em escopo em Governança para importar pacotes.</span>
+    <strong>{{ t('planejamento', 'Não há SM aprovada com impacto em escopo pendente de incorporação.') }}</strong>
+    <span>{{ t('planejamento', 'Aprove uma SM com impacto em escopo em Governança para importar pacotes.') }}</span>
   </div>
   {% endif %}
   <div class="fgrid">
     <div class="field field--full">
-      <label for="eap-pacotes-sm">SM aprovada</label>
+      <label for="eap-pacotes-sm">{{ t('planejamento', 'SM aprovada') }}</label>
       <select id="eap-pacotes-sm" name="sm" class="input" required>
-        <option value="">Escolha a SM que aprovou o acréscimo</option>
+        <option value="">{{ t('planejamento', 'Escolha a SM que aprovou o acréscimo') }}</option>
         {% for fonte in fontes %}
         <option value="{{ fonte.value }}">{{ fonte.text }}</option>
         {% endfor %}
       </select>
-      <span class="hint">Só as SM aprovadas com impacto em escopo que nenhuma revisão incorporou ainda.</span>
+      <span class="hint">{{ t('planejamento', 'Só as SM aprovadas com impacto em escopo que nenhuma revisão incorporou ainda.') }}</span>
     </div>
     <div class="field field--full">
-      <label for="eap-pacotes-justificativa">Justificativa da revisão</label>
+      <label for="eap-pacotes-justificativa">{{ t('planejamento', 'Justificativa da revisão') }}</label>
       <textarea id="eap-pacotes-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
     </div>
   </div>
   <div class="upload">
     <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
-      <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
-      Baixar o modelo (.xlsx)
-    </button>
+      <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Baixar o modelo (.xlsx)') }}</button>
     <div class="field upload__campo">
-      <label for="eap-pacotes-arquivo">Planilha preenchida</label>
+      <label for="eap-pacotes-arquivo">{{ t('planejamento', 'Planilha preenchida') }}</label>
       <input id="eap-pacotes-arquivo" class="input upload__arquivo" type="file"
         name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="eap-pacotes-dica" />
       <span class="hint" id="eap-pacotes-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
     </div>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-      Conferir a planilha
-    </button>
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Conferir a planilha') }}</button>
   </div>
   <div id="{{ alvo_resultado }}" aria-live="polite"></div>
 </form>

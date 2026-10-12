@@ -10,11 +10,8 @@
 {% block fragment %}
 {% if portfolio %}
 <div class="aviso aviso--info">
-  <strong>Escolha um projeto</strong>
-  <span>
-    No Portfólio a configuração da programação é só de leitura. Escolha um projeto na
-    barra lateral para ver e editar os parâmetros e as janelas.
-  </span>
+  <strong>{{ t('programacao_semanal', 'Escolha um projeto') }}</strong>
+  <span>{{ t('programacao_semanal', 'No Portfólio a configuração da programação é só de leitura. Escolha um projeto na barra lateral para ver e editar os parâmetros e as janelas.') }}</span>
 </div>
 {% else %}
 <div id="config-parametros">{% include "programacao_semanal/_parametros.html" %}</div>

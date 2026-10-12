@@ -25,13 +25,13 @@
       {% if ficha.documento %}
       <a class="btn btn--secondary btn--sm" href="{{ ficha.documento.url }}" data-tn-tela>{{ ficha.documento.tipo }} {{ ficha.documento.numero }}</a>
       {% endif %}
-      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>Ver no MAS</a>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">Excel</button>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">PDF</button>
+      <a class="btn btn--secondary btn--sm" href="{{ ficha.mas_url }}" data-tn-tela>{{ t('suprimentos', 'Ver no MAS') }}</a>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ ficha.url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ ficha.url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
     </div>
   </div>
   <div class="card__body">
-    <ol class="processo-etapas" aria-label="Etapas do processo de compra">
+    <ol class="processo-etapas" aria-label="{{ t('suprimentos', 'Etapas do processo de compra') }}">
       {% for passo in linha.steps %}
       <li class="processo-etapas__item processo-etapas__item--{{ passo.situation }}"
         {% if passo.situation == 'andamento' %}aria-current="step"{% endif %}>
@@ -39,7 +39,7 @@
         <span class="processo-etapas__nome">{{ passo.label }}</span>
         <span class="hint processo-etapas__data">
           {% if passo.date %}{{ ficha.formatar_data(passo.date) }}
-          {% elif passo.planned %}Prev. {{ ficha.formatar_data(passo.planned) }}
+          {% elif passo.planned %}{{ t('suprimentos', 'Prev.') }}  {{ ficha.formatar_data(passo.planned) }}
           {% else %}·{% endif %}
         </span>
       </li>
@@ -48,36 +48,36 @@
 
     <div class="tbl-wrap">
       <table class="tbl processo__resumo">
-        <caption class="sr-only">Resumo do processo</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Resumo do processo') }}</caption>
         <tbody>
           <tr>
-            <th scope="row">Item da EAC</th>
+            <th scope="row">{{ t('suprimentos', 'Item da EAC') }}</th>
             <td>
               {% if linha.eac_code %}
               <span class="fw-600">{{ linha.eac_code }}</span> {{ linha.eac_description }}
               {% if linha.eac_balance_cents is not none %}
               <span class="hint">· saldo a comprometer {{ ficha.formatar_moeda(linha.eac_balance_cents) }}</span>
               {% endif %}
-              {% else %}<span class="muted">sem EAC</span>{% endif %}
+              {% else %}<span class="muted">{{ t('suprimentos', 'sem EAC') }}</span>{% endif %}
             </td>
           </tr>
           <tr>
-            <th scope="row">Estimativa</th>
+            <th scope="row">{{ t('suprimentos', 'Estimativa') }}</th>
             <td class="num">{{ ficha.formatar_moeda(linha.estimate_cents) }}</td>
           </tr>
           <tr>
-            <th scope="row">Pesos técnico e comercial</th>
+            <th scope="row">{{ t('suprimentos', 'Pesos técnico e comercial') }}</th>
             <td>{% if linha.process_id %}{{ linha.weight_technical }} / {{ linha.weight_commercial }}{% else %}·{% endif %}</td>
           </tr>
           <tr>
-            <th scope="row">Prazo das propostas</th>
+            <th scope="row">{{ t('suprimentos', 'Prazo das propostas') }}</th>
             <td>
               {% if linha.proposals_deadline %}{{ ficha.formatar_data(linha.proposals_deadline) }}
               {% else %}·{% endif %}
             </td>
           </tr>
           <tr>
-            <th scope="row">Convidados</th>
+            <th scope="row">{{ t('suprimentos', 'Convidados') }}</th>
             <td>
               {% if linha.invitees %}
               {% for convidado in linha.invitees %}{{ convidado.name }}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -85,16 +85,16 @@
             </td>
           </tr>
           <tr>
-            <th scope="row">Propostas</th>
+            <th scope="row">{{ t('suprimentos', 'Propostas') }}</th>
             <td>
               {% if linha.process_id %}
               {{ linha.received_count }} recebidas · {{ linha.approved_count }} aprovadas tecnicamente · mínimo {{ linha.minimum }}
-              {% if linha.single_supplier %}<br /><span class="pill pill--warn">Fornecedor único</span>{% endif %}
+              {% if linha.single_supplier %}<br /><span class="pill pill--warn">{{ t('suprimentos', 'Fornecedor único') }}</span>{% endif %}
               {% else %}·{% endif %}
             </td>
           </tr>
           <tr>
-            <th scope="row">Alçada exigida</th>
+            <th scope="row">{{ t('suprimentos', 'Alçada exigida') }}</th>
             <td>
               {{ linha.approval_band or '·' }}
               <span class="hint">· valor de referência {{ ficha.formatar_moeda(linha.reference_value_cents) }}</span>
@@ -102,7 +102,7 @@
           </tr>
           {% if linha.recommendation %}
           <tr>
-            <th scope="row">Recomendação</th>
+            <th scope="row">{{ t('suprimentos', 'Recomendação') }}</th>
             <td>
               {{ linha.recommendation.name }} · {{ ficha.formatar_moeda(linha.recommendation.value_cents) }} ·
               {{ ficha.formatar_data(linha.recommendation.date) }}
@@ -115,7 +115,7 @@
           {% endif %}
           {% if linha.approval %}
           <tr>
-            <th scope="row">Aprovação</th>
+            <th scope="row">{{ t('suprimentos', 'Aprovação') }}</th>
             <td>
               {{ linha.approval.approver or '—' }} · {{ linha.approval.band or '·' }} ·
               {{ ficha.formatar_data(linha.approval.date) }}
@@ -129,29 +129,29 @@
       </table>
     </div>
 
-    <h3 class="h-card5 mt-16">Mapa de equalização</h3>
+    <h3 class="h-card5 mt-16">{{ t('suprimentos', 'Mapa de equalização') }}</h3>
     <p class="hint">
-      {% if not linha.process_id %}O mapa aparece quando a RFx é emitida.
-      {% elif linha.approved_count == 0 %}Equalização técnica pendente: notas e aprovação antes da comercial.
+      {% if not linha.process_id %}{{ t('suprimentos', 'O mapa aparece quando a RFx é emitida.') }}
+      {% elif linha.approved_count == 0 %}{{ t('suprimentos', 'Equalização técnica pendente: notas e aprovação antes da comercial.') }}
       {% else %}Nota comercial = menor preço tecnicamente aprovado ÷ preço x 100 · nota final ponderada pelos pesos ·
-      proposta reprovada fica fora do ranking.{% endif %}
+  {{ t('suprimentos', 'proposta reprovada fica fora do ranking.') }}{% endif %}
     </p>
     {% if linha.proposals %}
     <div class="tbl-wrap">
       <table class="tbl processo__mapa">
-        <caption class="sr-only">Mapa de equalização do processo</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Mapa de equalização do processo') }}</caption>
         <thead>
           <tr>
             <th scope="col">#</th>
-            <th scope="col">Fornecedor</th>
-            <th scope="col" class="td-num">Valor</th>
-            <th scope="col" class="td-num">Negociado</th>
-            <th scope="col" class="td-num">Prazo (dias)</th>
-            <th scope="col" class="td-num">Nota técnica</th>
-            <th scope="col">Técnica</th>
-            <th scope="col" class="td-num">Nota comercial</th>
-            <th scope="col" class="td-num">Nota final</th>
-            <th scope="col">Desvios</th>
+            <th scope="col">{{ t('suprimentos', 'Fornecedor') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Valor') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Negociado') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Prazo (dias)') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Nota técnica') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Técnica') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Nota comercial') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Nota final') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Desvios') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -170,9 +170,9 @@
             <td class="td-num num">{{ proposta.deadline_days }}</td>
             <td class="td-num num">{{ proposta.technical_score if proposta.technical_score is not none else '·' }}</td>
             <td>
-              {% if proposta.tecnicamente_approved is none %}<span class="pill pill--neutral">Pendente</span>
-              {% elif proposta.tecnicamente_approved %}<span class="pill pill--ok">Aprovada</span>
-              {% else %}<span class="pill pill--erro">Reprovada</span>{% endif %}
+              {% if proposta.tecnicamente_approved is none %}<span class="pill pill--neutral">{{ t('suprimentos', 'Pendente') }}</span>
+              {% elif proposta.tecnicamente_approved %}<span class="pill pill--ok">{{ t('suprimentos', 'Aprovada') }}</span>
+              {% else %}<span class="pill pill--erro">{{ t('suprimentos', 'Reprovada') }}</span>{% endif %}
             </td>
             <td class="td-num num">{{ ficha.formatar_numero(proposta.commercial_score) }}</td>
             <td class="td-num num fw-600">{{ ficha.formatar_numero(proposta.final_score) }}</td>
@@ -183,10 +183,10 @@
       </table>
     </div>
     {% elif linha.process_id %}
-    <p class="body-txt muted">Nenhuma proposta registrada.</p>
+    <p class="body-txt muted">{{ t('suprimentos', 'Nenhuma proposta registrada.') }}</p>
     {% endif %}
 
-    <h3 class="h-card5 mt-16">Histórico do processo</h3>
+    <h3 class="h-card5 mt-16">{{ t('suprimentos', 'Histórico do processo') }}</h3>
     {% if linha.history %}
     <ul class="lista-simples">
       {% for registro in linha.history | reverse %}
@@ -197,7 +197,7 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p class="body-txt muted">Sem registros no histórico.</p>
+    <p class="body-txt muted">{{ t('suprimentos', 'Sem registros no histórico.') }}</p>
     {% endif %}
   </div>
 </section>

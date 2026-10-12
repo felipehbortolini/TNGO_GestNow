@@ -52,38 +52,37 @@
 <section class="card card--flush inspecoes__card" aria-labelledby="t-itps">
   <div class="card__header">
     <div>
-      <h2 class="card__title" id="t-itps">Planos de inspeção e testes (ITP)</h2>
+      <h2 class="card__title" id="t-itps">{{ t('qualidade', 'Planos de inspeção e testes (ITP)') }}</h2>
       <p class="card__subtitle">
-        {{ itps.total }} {{ 'plano' if itps.total == 1 else 'planos' }}
+        {{ itps.total }} {{ t('qualidade', 'plano') if itps.total == 1 else t('qualidade', 'planos') }}
         · H = espera obrigatória; W = testemunho do cliente; R = revisão de registros
       </p>
     </div>
     {% if pode_gravar %}
     <div class="inspecoes__barra-acoes">
       <button type="button" class="btn btn--secondary btn--sm" data-inspecoes-formulario
-        data-inspecoes-url="/api/qualidade/inspecoes/itp/novo{{ sufixo }}" data-inspecoes-titulo="Novo plano de inspeção e testes (ITP)">
-        <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Novo ITP
-      </button>
+        data-inspecoes-url="/api/qualidade/inspecoes/itp/novo{{ sufixo }}" data-inspecoes-titulo="{{ t('qualidade', 'Novo plano de inspeção e testes (ITP)') }}">
+        <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Novo ITP') }}</button>
     </div>
     {% endif %}
   </div>
   {% if itps.total == 0 %}
   <div class="card__body">
-    <p class="hint">Nenhum ITP cadastrado{% if portfolio %} no escopo{% endif %}.</p>
+    <p class="hint">Nenhum ITP cadastrado{% if portfolio %}   {{ t('qualidade', 'no escopo') }}{% endif %}.</p>
   </div>
   {% else %}
   <div class="tbl-wrap">
     <table class="tbl inspecoes__tabela">
-      <caption class="sr-only">Planos de inspeção e testes</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Planos de inspeção e testes') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">ITP</th>
-          <th scope="col">Título</th>
-          <th scope="col">Pontos</th>
-          <th scope="col">Inspeções e aprovação</th>
-          <th scope="col">Cliente</th>
-          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          {% if portfolio %}<th scope="col">{{ t('qualidade', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('qualidade', 'ITP') }}</th>
+          <th scope="col">{{ t('qualidade', 'Título') }}</th>
+          <th scope="col">{{ t('qualidade', 'Pontos') }}</th>
+          <th scope="col">{{ t('qualidade', 'Inspeções e aprovação') }}</th>
+          <th scope="col">{{ t('qualidade', 'Cliente') }}</th>
+          <th scope="col"><span class="sr-only">{{ t('qualidade', 'Ações da linha') }}</span></th>
         </tr>
       </thead>
       <tbody>
@@ -91,7 +90,7 @@
         <tr>
           {% if portfolio %}<td><span class="pill pill--neutral">{{ linha.project_code }}</span></td>{% endif %}
           <td class="nowrap">
-            <a href="#" data-itp-ficha="{{ linha.code }}" title="Ver pontos"><b>{{ linha.code }}</b></a>
+            <a href="#" data-itp-ficha="{{ linha.code }}" title="{{ t('qualidade', 'Ver pontos') }}"><b>{{ linha.code }}</b></a>
             <br /><span class="hint">Rev {{ linha.revision }}</span>
           </td>
           <td>
@@ -110,13 +109,13 @@
           </td>
           <td>
             {% if linha.approved_by_client %}
-            <span class="pill pill--ok">Aprovado</span>
+            <span class="pill pill--ok">{{ t('qualidade', 'Aprovado') }}</span>
             {% else %}
-            <span class="pill pill--warn">Pendente</span>
+            <span class="pill pill--warn">{{ t('qualidade', 'Pendente') }}</span>
             {% endif %}
           </td>
           <td class="inspecoes__acoes nowrap">
-            <button type="button" class="iconbtn" data-itp-ficha="{{ linha.code }}" title="Ver pontos" aria-label="Ver pontos do {{ linha.code }}">
+            <button type="button" class="iconbtn" data-itp-ficha="{{ linha.code }}" title="{{ t('qualidade', 'Ver pontos') }}" aria-label="Ver pontos do {{ linha.code }}">
               <span x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
             </button>
             {% if pode_gerir and not linha.approved_by_client %}
@@ -138,73 +137,71 @@
 </section>
 
 <form class="toolbar inspecoes__filtros" method="get" action="/api/qualidade/inspecoes" x-target="{{ target_id }}" role="search">
-  <label class="sr-only" for="{{ target_id }}-busca">Buscar inspeção</label>
+  <label class="sr-only" for="{{ target_id }}-busca">{{ t('qualidade', 'Buscar inspeção') }}</label>
   <input id="{{ target_id }}-busca" class="input" type="search" name="busca" value="{{ filtros.search }}"
-    maxlength="120" placeholder="Buscar registro, ponto, ITP ou RNC..." />
-  <select class="input" name="itp" aria-label="ITP" @change="$el.form.requestSubmit()">
-    <option value="">ITP: todos</option>
+    maxlength="120" placeholder="{{ t('qualidade', 'Buscar registro, ponto, ITP ou RNC...') }}" />
+  <select class="input" name="itp" aria-label="{{ t('qualidade', 'ITP') }}" @change="$el.form.requestSubmit()">
+    <option value="">{{ t('qualidade', 'ITP: todos') }}</option>
     {% for linha in itps.lines %}
     <option value="{{ linha.id }}"{% if filtros.itp_id == linha.id %} selected{% endif %}>{{ linha.code }} · {{ linha.title }}</option>
     {% endfor %}
   </select>
-  <select class="input" name="resultado" aria-label="Resultado" @change="$el.form.requestSubmit()">
-    <option value="">Resultado: todos</option>
+  <select class="input" name="resultado" aria-label="{{ t('qualidade', 'Resultado') }}" @change="$el.form.requestSubmit()">
+    <option value="">{{ t('qualidade', 'Resultado: todos') }}</option>
     {% for resultado in resultados %}
     <option value="{{ resultado }}"{% if filtros.result == resultado %} selected{% endif %}>{{ resultado }}</option>
     {% endfor %}
   </select>
-  <select class="input" name="tipo" aria-label="Tipo de ponto" @change="$el.form.requestSubmit()">
-    <option value="">Tipo de ponto: todos</option>
+  <select class="input" name="tipo" aria-label="{{ t('qualidade', 'Tipo de ponto') }}" @change="$el.form.requestSubmit()">
+    <option value="">{{ t('qualidade', 'Tipo de ponto: todos') }}</option>
     {% for tipo in tipos_ponto %}
     <option value="{{ tipo }}"{% if filtros.point_type == tipo %} selected{% endif %}>{{ nome_do_tipo[tipo] }}</option>
     {% endfor %}
   </select>
   <button type="submit" class="btn btn--secondary btn--sm">
-    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
-  </button>
+    <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Consultar') }}</button>
   {% if tem_filtro %}
-  <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+  <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('qualidade', 'Limpar filtros') }}</a>
   {% endif %}
 </form>
 
 <section class="card card--flush" aria-labelledby="t-inspecoes">
   <div class="card__header">
     <div>
-      <h2 class="card__title" id="t-inspecoes">Registros de inspeção</h2>
+      <h2 class="card__title" id="t-inspecoes">{{ t('qualidade', 'Registros de inspeção') }}</h2>
       <p class="card__subtitle">
-        {{ listagem.total }} {{ 'registro encontrado' if listagem.total == 1 else 'registros encontrados' }}
+        {{ listagem.total }} {{ t('qualidade', 'registro encontrado') if listagem.total == 1 else t('qualidade', 'registros encontrados') }}
         · reprovação abre RNC automaticamente
       </p>
     </div>
     <div class="inspecoes__barra-acoes">
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('qualidade', 'Excel') }}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('qualidade', 'PDF') }}</button>
       {% if pode_gravar %}
       <button type="button" class="btn btn--primary btn--sm" data-inspecoes-formulario
-        data-inspecoes-url="/api/qualidade/inspecoes/inspecao{{ sufixo }}" data-inspecoes-titulo="Registrar inspeção">
-        <span x-init="$el.innerHTML = window.icon('taskList', 14)" aria-hidden="true"></span> Registrar inspeção
-      </button>
+        data-inspecoes-url="/api/qualidade/inspecoes/inspecao{{ sufixo }}" data-inspecoes-titulo="{{ t('qualidade', 'Registrar inspeção') }}">
+        <span x-init="$el.innerHTML = window.icon('taskList', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Registrar inspeção') }}</button>
       {% endif %}
     </div>
   </div>
   {% if listagem.total == 0 %}
   <div class="card__body">
-    <p class="hint">Nenhum registro encontrado.</p>
+    <p class="hint">{{ t('qualidade', 'Nenhum registro encontrado.') }}</p>
   </div>
   {% else %}
   <div class="tbl-wrap">
     <table class="tbl inspecoes__tabela">
-      <caption class="sr-only">Registros de inspeção</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Registros de inspeção') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('qualidade', 'Projeto') }}</th>{% endif %}
           <th scope="col">Nº</th>
-          <th scope="col">Data</th>
-          <th scope="col">Ponto</th>
-          <th scope="col">Tipo</th>
-          <th scope="col">Inspetor</th>
-          <th scope="col">Resultado</th>
-          <th scope="col">RNC</th>
+          <th scope="col">{{ t('qualidade', 'Data') }}</th>
+          <th scope="col">{{ t('qualidade', 'Ponto') }}</th>
+          <th scope="col">{{ t('qualidade', 'Tipo') }}</th>
+          <th scope="col">{{ t('qualidade', 'Inspetor') }}</th>
+          <th scope="col">{{ t('qualidade', 'Resultado') }}</th>
+          <th scope="col">{{ t('qualidade', 'RNC') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -234,14 +231,14 @@
       </tbody>
     </table>
   </div>
-  <nav class="inspecoes__paginas" aria-label="Páginas da lista">
+  <nav class="inspecoes__paginas" aria-label="{{ t('qualidade', 'Páginas da lista') }}">
     <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
     {% if link_anterior %}
-    <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+    <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('qualidade', 'Anterior') }}</a>
     {% endif %}
     <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
     {% if link_proximo %}
-    <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+    <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('qualidade', 'Próxima') }}</a>
     {% endif %}
   </nav>
   {% endif %}

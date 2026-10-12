@@ -23,8 +23,8 @@
 {% endif %}
   <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icon }}', 16)" aria-hidden="true"></span>
   <span class="fornecedores__kpi-texto">
-    <span class="kpi__label">{{ kpi.label }}</span>
-    <span class="hint">{{ kpi.reference }}{% if kpi.footer %} · {{ kpi.footer }}{% endif %}</span>
+    <span class="kpi__label">{{ t('suprimentos', kpi.label) }}</span>
+    <span class="hint">{{ t('suprimentos', kpi.reference) }}{% if kpi.footer %} · {{ t('suprimentos', kpi.footer) }}{% endif %}</span>
   </span>
   <span class="kpi__value">{{ kpi.value }}</span>
 {% if kpi.url %}</a>{% else %}</div>{% endif %}
@@ -48,72 +48,70 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/suprimentos/fornecedores" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar fornecedores</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('suprimentos', 'Buscar fornecedores') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar empresa ou categoria" />
-        <label class="sr-only" for="{{ target_id }}-situacao">Situação</label>
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('suprimentos', 'Buscar empresa ou categoria') }}" />
+        <label class="sr-only" for="{{ target_id }}-situacao">{{ t('suprimentos', 'Situação') }}</label>
         <select id="{{ target_id }}-situacao" class="input" name="situacao" @change="$el.form.requestSubmit()">
-          <option value="">Todas as situações</option>
+          <option value="">{{ t('suprimentos', 'Todas as situações') }}</option>
           <option value="{{ sem_qualificacao }}"{% if filtros.situation == sem_qualificacao %} selected{% endif %}>{{ sem_qualificacao }}</option>
           {% for situacao in situacoes %}
           <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
           {% endfor %}
         </select>
-        <label class="sr-only" for="{{ target_id }}-categoria">Categoria</label>
+        <label class="sr-only" for="{{ target_id }}-categoria">{{ t('suprimentos', 'Categoria') }}</label>
         <select id="{{ target_id }}-categoria" class="input" name="categoria" @change="$el.form.requestSubmit()">
-          <option value="">Todas as categorias</option>
+          <option value="">{{ t('suprimentos', 'Todas as categorias') }}</option>
           {% for categoria in listagem.categories %}
           <option value="{{ categoria }}"{% if filtros.category == categoria %} selected{% endif %}>{{ categoria }}</option>
           {% endfor %}
         </select>
-        <button type="submit" class="btn btn--secondary btn--sm">Filtrar</button>
+        <button type="submit" class="btn btn--secondary btn--sm">{{ t('suprimentos', 'Filtrar') }}</button>
       </form>
       <div class="fornecedores__barra">
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('suprimentos', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('suprimentos', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary"
           data-fornecedor-modal-url="/api/suprimentos/fornecedores/novo?{{ parametro_consulta }}"
-          data-fornecedor-modal-titulo="Novo fornecedor"
-          data-fornecedor-modal-subtitulo="A empresa entra no cadastro como Em qualificação">
-          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-          Novo fornecedor
-        </button>
+          data-fornecedor-modal-titulo="{{ t('suprimentos', 'Novo fornecedor') }}"
+          data-fornecedor-modal-subtitulo="{{ t('suprimentos', 'A empresa entra no cadastro como Em qualificação') }}">
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Novo fornecedor') }}</button>
         {% endif %}
       </div>
     </div>
 
     <p class="hint fornecedores__contagem" role="status">
-      {{ listagem.total }} {{ 'fornecedor' if listagem.total == 1 else 'fornecedores' }} no filtro atual
-      {%- if listagem.summary.unregistered %} · {{ listagem.summary.unregistered }} empresas sem qualificação{% endif %}
+      {{ listagem.total }} {{ t('suprimentos', 'fornecedor') if listagem.total == 1 else t('suprimentos', 'fornecedores') }} no filtro atual
+      {%- if listagem.summary.unregistered %} · {{ listagem.summary.unregistered }}  {{ t('suprimentos', 'empresas sem qualificação') }}{% endif %}
     </p>
 
     {% if listagem.summary.registered == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há fornecedores qualificados</h2>
-      <p>Cadastre o primeiro fornecedor; ele entra como Em qualificação e recebe os documentos com validade.</p>
+      <h2 class="h-card4">{{ t('suprimentos', 'Ainda não há fornecedores qualificados') }}</h2>
+      <p>{{ t('suprimentos', 'Cadastre o primeiro fornecedor; ele entra como Em qualificação e recebe os documentos com validade.') }}</p>
     </div>
     {% elif not listagem.lines %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum fornecedor encontrado com os filtros atuais</h2>
-      <p>Ajuste ou limpe os filtros para ver o cadastro.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('suprimentos', 'Nenhum fornecedor encontrado com os filtros atuais') }}</h2>
+      <p>{{ t('suprimentos', 'Ajuste ou limpe os filtros para ver o cadastro.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl fornecedores__tabela">
-        <caption class="sr-only">Fornecedores e contratadas</caption>
+        <caption class="sr-only">{{ t('suprimentos', 'Fornecedores e contratadas') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Empresa</th>
-            <th scope="col">Categorias</th>
-            <th scope="col">Situação</th>
-            <th scope="col">Validade</th>
-            <th scope="col">Documentos</th>
-            <th scope="col">Desempenho</th>
-            <th scope="col" class="td-num">Valor contratado</th>
-            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+            <th scope="col">{{ t('suprimentos', 'Empresa') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Categorias') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Situação') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Validade') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Documentos') }}</th>
+            <th scope="col">{{ t('suprimentos', 'Desempenho') }}</th>
+            <th scope="col" class="td-num">{{ t('suprimentos', 'Valor contratado') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('suprimentos', 'Ações da linha') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -131,13 +129,13 @@
             <td class="num">
               {% if linha.validity %}
               {{ formatar_data(linha.validity) }}
-              {% if linha.qualification_expired %}<br /><span class="pill pill--erro">vencida</span>
-              {% elif linha.qualification_expiring %}<br /><span class="hint">vence em até 90 dias</span>{% endif %}
+              {% if linha.qualification_expired %}<br /><span class="pill pill--erro">{{ t('suprimentos', 'vencida') }}</span>
+              {% elif linha.qualification_expiring %}<br /><span class="hint">{{ t('suprimentos', 'vence em até 90 dias') }}</span>{% endif %}
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
             <td>
               {% if not linha.registered %}<span class="muted">—</span>
-              {% elif linha.documents_up_to_date %}<span class="pill pill--ok">Válidos</span>
+              {% elif linha.documents_up_to_date %}<span class="pill pill--ok">{{ t('suprimentos', 'Válidos') }}</span>
               {% else %}
               <span class="pill pill--erro">{{ linha.expired_documents|length }} vencido{% if linha.expired_documents|length > 1 %}s{% endif %}</span>
               <br /><span class="hint">{{ linha.expired_documents|map(attribute='name')|join(', ') }}</span>
@@ -162,14 +160,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="fornecedores__paginas" aria-label="Páginas da lista">
+    <nav class="fornecedores__paginas" aria-label="{{ t('suprimentos', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('suprimentos', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}

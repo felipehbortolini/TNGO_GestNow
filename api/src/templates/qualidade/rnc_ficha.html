@@ -51,7 +51,7 @@
       {{ botao('/api/qualidade/rnc/' ~ linha.code ~ '/cancelamento', 'Cancelar RNC · ' ~ linha.code, 'Cancelar RNC', 'dismiss') }}
     {% endif %}
     {% if pode_gerir and linha.situation == 'Verificação de eficácia' %}
-    <span class="pill pill--fix">Verificação pelo Gestor; quem analisou não verifica</span>
+    <span class="pill pill--fix">{{ t('qualidade', 'Verificação pelo Gestor; quem analisou não verifica') }}</span>
     {% endif %}
   </div>
 
@@ -77,14 +77,14 @@
   <p class="mb-16">{{ linha.description }}</p>
 
   <div class="aviso mb-16" role="note">
-    <span><b>Contenção</b>: {{ linha.containment }}</span>
+    <span><b>{{ t('qualidade', 'Contenção') }}</b>: {{ linha.containment }}</span>
   </div>
 
   {% if linha.root_cause %}
   <div class="aviso aviso--info mb-16" role="note">
     <span>
       <b>Causa raiz ({{ linha.method }})</b>: {{ linha.root_cause }}<br />
-      <b>Disposição</b>: {{ linha.disposition }}
+      <b>{{ t('qualidade', 'Disposição') }}</b>: {{ linha.disposition }}
       {%- if linha.concession_reference %} · concessão {{ linha.concession_reference }} ({{ formatar_data(linha.concession_date) }}){% endif %}
     </span>
   </div>
@@ -92,19 +92,19 @@
 
   {% if linha.effectiveness_date %}
   <div class="aviso {{ 'aviso--ok' if linha.effective else 'aviso--warn' }} mb-16" role="note">
-    <span><b>{{ 'Eficácia verificada' if linha.effective else 'Última verificação: ineficaz' }}</b>
+    <span><b>{{ t('qualidade', 'Eficácia verificada') if linha.effective else t('qualidade', 'Última verificação: ineficaz') }}</b>
       ({{ formatar_data(linha.effectiveness_date) }}): {{ linha.effectiveness_text }}</span>
   </div>
   {% endif %}
 
-  <h3 class="section-title">Ações na Central</h3>
+  <h3 class="section-title">{{ t('qualidade', 'Ações na Central') }}</h3>
   {% if ficha.actions %}
   <div class="tbl-wrap mb-16">
     <table class="tbl">
-      <caption class="sr-only">Ações da Central da RNC</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Ações da Central da RNC') }}</caption>
       <thead>
-        <tr><th scope="col">Item</th><th scope="col">Assunto</th><th scope="col">Responsável</th>
-          <th scope="col">Prevista</th><th scope="col">Status</th></tr>
+        <tr><th scope="col">{{ t('qualidade', 'Item') }}</th><th scope="col">{{ t('qualidade', 'Assunto') }}</th><th scope="col">{{ t('qualidade', 'Responsável') }}</th>
+          <th scope="col">{{ t('qualidade', 'Prevista') }}</th><th scope="col">{{ t('qualidade', 'Status') }}</th></tr>
       </thead>
       <tbody>
         {% for acao in ficha.actions %}
@@ -120,22 +120,22 @@
     </table>
   </div>
   {% else %}
-  <p class="hint mb-16">Nenhuma ação corretiva na Central ainda.</p>
+  <p class="hint mb-16">{{ t('qualidade', 'Nenhuma ação corretiva na Central ainda.') }}</p>
   {% endif %}
 
-  <h3 class="section-title">Evidências</h3>
+  <h3 class="section-title">{{ t('qualidade', 'Evidências') }}</h3>
   <div id="rnc-anexos" class="mb-16" data-url="/api/anexos?origem=rnc&registro={{ linha.id }}"
     x-data x-init="$ajax($el.dataset.url, { target: 'rnc-anexos' })">
-    <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+    <div class="spinner" role="status" aria-label="{{ t('qualidade', 'Carregando os anexos') }}"></div>
   </div>
 
-  <h3 class="section-title">Histórico</h3>
+  <h3 class="section-title">{{ t('qualidade', 'Histórico') }}</h3>
   {% if ficha.history %}
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Histórico da RNC</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Histórico da RNC') }}</caption>
       <thead>
-        <tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr>
+        <tr><th scope="col">{{ t('qualidade', 'Quando') }}</th><th scope="col">{{ t('qualidade', 'Quem') }}</th><th scope="col">{{ t('qualidade', 'O que aconteceu') }}</th></tr>
       </thead>
       <tbody>
         {% for item in ficha.history %}
@@ -149,7 +149,7 @@
     </table>
   </div>
   {% else %}
-  <p class="hint">Sem histórico registrado.</p>
+  <p class="hint">{{ t('qualidade', 'Sem histórico registrado.') }}</p>
   {% endif %}
 </div>
 {% endblock %}

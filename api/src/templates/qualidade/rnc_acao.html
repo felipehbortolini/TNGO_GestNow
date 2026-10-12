@@ -24,37 +24,37 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="rnc-nova-acao-assunto">Ação corretiva</label>
+      <label for="rnc-nova-acao-assunto">{{ t('qualidade', 'Ação corretiva') }}</label>
       <input id="rnc-nova-acao-assunto" name="acao1_assunto" class="input{% if erros.get('acoes') %} input--erro{% endif %}"
         maxlength="255" required value="{{ valores.get('acao1_assunto') or '' }}"
         {% if erros.get('acoes') %}aria-invalid="true" aria-describedby="erro-acoes"{% endif %} />
       {{ erro(erros, 'acoes') }}
     </div>
     <div class="field">
-      <label for="rnc-nova-acao-responsavel">Responsável</label>
+      <label for="rnc-nova-acao-responsavel">{{ t('qualidade', 'Responsável') }}</label>
       <select id="rnc-nova-acao-responsavel" name="acao1_responsavel" class="input" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('acao1_responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field">
-      <label for="rnc-nova-acao-prevista">Data prevista</label>
+      <label for="rnc-nova-acao-prevista">{{ t('qualidade', 'Data prevista') }}</label>
       <input id="rnc-nova-acao-prevista" name="acao1_prevista" type="date" class="input" required
         value="{{ valores.get('acao1_prevista') or '' }}" />
-      <span class="hint">Não pode ser anterior a hoje.</span>
+      <span class="hint">{{ t('qualidade', 'Não pode ser anterior a hoje.') }}</span>
     </div>
     <div class="field field--full">
-      <label for="rnc-nova-acao-descricao">Descrição</label>
+      <label for="rnc-nova-acao-descricao">{{ t('qualidade', 'Descrição') }}</label>
       <input id="rnc-nova-acao-descricao" name="acao1_descricao" class="input" maxlength="500"
         value="{{ valores.get('acao1_descricao') or '' }}" />
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Criar ação</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Criar ação') }}</button>
   </div>
 </form>
 {% endblock %}

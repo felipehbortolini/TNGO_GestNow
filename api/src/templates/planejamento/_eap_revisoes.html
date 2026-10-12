@@ -8,26 +8,26 @@
 <section class="card mb-16" aria-labelledby="eap-revisoes-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="eap-revisoes-titulo">{{ 'Revisão vigente da EAP por projeto' if visao.is_portfolio else 'Revisões da EAP' }}</h2>
-      <span class="hint">Rev 0 é a linha de base aprovada; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo</span>
+      <h2 class="h-card4" id="eap-revisoes-titulo">{{ t('planejamento', 'Revisão vigente da EAP por projeto') if visao.is_portfolio else t('planejamento', 'Revisões da EAP') }}</h2>
+      <span class="hint">{{ t('planejamento', 'Rev 0 é a linha de base aprovada; estrutura e pesos só mudam por nova revisão, a partir de SM aprovada com impacto em escopo') }}</span>
     </div>
   </div>
   <div class="card__body">
     {% if visao.revisions %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">{{ 'Revisão vigente da EAP por projeto' if visao.is_portfolio else 'Revisões da EAP' }}</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Revisão vigente da EAP por projeto') if visao.is_portfolio else t('planejamento', 'Revisões da EAP') }}</caption>
         <thead>
           <tr>
-            {% if visao.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Revisão</th>
-            <th scope="col">Data</th>
-            <th scope="col" class="td-num">Pacotes</th>
-            {% if visao.is_portfolio %}<th scope="col" class="td-num">Revisões do projeto</th>{% endif %}
-            <th scope="col">Alteração</th>
-            <th scope="col">SM</th>
-            <th scope="col">Justificativa</th>
-            <th scope="col">Aprovado por</th>
+            {% if visao.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('planejamento', 'Revisão') }}</th>
+            <th scope="col">{{ t('planejamento', 'Data') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Pacotes') }}</th>
+            {% if visao.is_portfolio %}<th scope="col" class="td-num">{{ t('planejamento', 'Revisões do projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('planejamento', 'Alteração') }}</th>
+            <th scope="col">{{ t('planejamento', 'SM') }}</th>
+            <th scope="col">{{ t('planejamento', 'Justificativa') }}</th>
+            <th scope="col">{{ t('planejamento', 'Aprovado por') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -36,8 +36,8 @@
             {% if visao.is_portfolio %}<td>{{ revisao.project_label }}</td>{% endif %}
             <td>
               <strong>Rev {{ revisao.revision }}</strong>
-              {% if revisao.revision == 0 %}<span class="pill pill--fix">Linha de base</span>{% endif %}
-              {% if not visao.is_portfolio and visao.current_revision is not none and revisao.revision == visao.current_revision.revision %}<span class="pill pill--ok">Vigente</span>{% endif %}
+              {% if revisao.revision == 0 %}<span class="pill pill--fix">{{ t('planejamento', 'Linha de base') }}</span>{% endif %}
+              {% if not visao.is_portfolio and visao.current_revision is not none and revisao.revision == visao.current_revision.revision %}<span class="pill pill--ok">{{ t('planejamento', 'Vigente') }}</span>{% endif %}
             </td>
             <td>{{ revisao.revision_date.strftime('%d/%m/%Y') }}</td>
             <td class="td-num">{{ revisao.package_count }}</td>
@@ -52,7 +52,7 @@
       </table>
     </div>
     {% else %}
-    <p class="body-txt">Nenhuma revisão registrada.</p>
+    <p class="body-txt">{{ t('planejamento', 'Nenhuma revisão registrada.') }}</p>
     {% endif %}
   </div>
 </section>

@@ -11,12 +11,11 @@
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
   data-tn-loading="Iniciando o tratamento...">
   <input type="hidden" name="consulta" value="{{ consulta }}" />
-  <p class="mb-16">Confirma o início do tratamento da ocorrência <b>{{ linha.code }}</b>?</p>
-  <p class="hint mb-16">A ocorrência passa para Em tratamento; o encerramento exige as ações
-    corretivas da Central concluídas e a verificação de eficácia (Gestor).</p>
+  <p class="mb-16">{{ t('hse', 'Confirma o início do tratamento da ocorrência') }}<b>{{ linha.code }}</b>?</p>
+  <p class="hint mb-16">{{ t('hse', 'A ocorrência passa para Em tratamento; o encerramento exige as ações corretivas da Central concluídas e a verificação de eficácia (Gestor).') }}</p>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Iniciar tratamento</button>
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Iniciar tratamento') }}</button>
   </div>
 </form>
 {% endblock %}

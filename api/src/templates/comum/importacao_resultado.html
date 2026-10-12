@@ -15,7 +15,7 @@
     <strong>{{ resultado.written | length }} linha(s) de {{ importador }} importada(s)</strong>
     <span>
       {{ resultado.file_name }}: tudo foi gravado de uma vez, com o registro na trilha.
-      {% if resultado.with_warning %}{{ resultado.with_warning }} linha(s) entraram com aviso.{% endif %}
+      {% if resultado.with_warning %}{{ resultado.with_warning }}   {{ t('comum', 'linha(s) entraram com aviso.') }}{% endif %}
     </span>
   </div>
 

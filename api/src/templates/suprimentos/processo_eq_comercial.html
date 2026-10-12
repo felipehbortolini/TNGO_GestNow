@@ -26,7 +26,7 @@
 
   <div class="fgrid">
     <div class="field">
-      <label for="eq-comercial-peso-tecnico">Peso técnico (%)</label>
+      <label for="eq-comercial-peso-tecnico">{{ t('suprimentos', 'Peso técnico (%)') }}</label>
       <input id="eq-comercial-peso-tecnico" name="pesoTecnico" class="input{% if erros.get('pesoTecnico') %} input--erro{% endif %}"
         inputmode="numeric" required @input="pt = Number($el.value || 0)"
         value="{{ valores.get('pesoTecnico') or peso_tecnico }}"
@@ -35,7 +35,7 @@
     </div>
 
     <div class="field">
-      <label for="eq-comercial-peso-comercial">Peso comercial (%)</label>
+      <label for="eq-comercial-peso-comercial">{{ t('suprimentos', 'Peso comercial (%)') }}</label>
       <input id="eq-comercial-peso-comercial" name="pesoComercial" class="input{% if erros.get('pesoComercial') %} input--erro{% endif %}"
         inputmode="numeric" required @input="pc = Number($el.value || 0)"
         value="{{ valores.get('pesoComercial') or peso_comercial }}"
@@ -44,28 +44,28 @@
     </div>
 
     <div class="field">
-      <label for="eq-comercial-data">Data do mapa comercial</label>
+      <label for="eq-comercial-data">{{ t('suprimentos', 'Data do mapa comercial') }}</label>
       <input id="eq-comercial-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
-      <span class="hint">A data realizada do marco de equalização comercial no MAS.</span>
+      <span class="hint">{{ t('suprimentos', 'A data realizada do marco de equalização comercial no MAS.') }}</span>
       {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
     </div>
   </div>
 
-  <h3 class="h-card5 mt-16">Prévia do ranking</h3>
-  <p class="hint" x-show="!linhas().length">Os pesos devem somar 100 e as propostas precisam da nota técnica.</p>
+  <h3 class="h-card5 mt-16">{{ t('suprimentos', 'Prévia do ranking') }}</h3>
+  <p class="hint" x-show="!linhas().length">{{ t('suprimentos', 'Os pesos devem somar 100 e as propostas precisam da nota técnica.') }}</p>
   <div class="tbl-wrap" x-show="linhas().length">
     <table class="tbl">
-      <caption class="sr-only">Prévia do ranking</caption>
+      <caption class="sr-only">{{ t('suprimentos', 'Prévia do ranking') }}</caption>
       <thead>
         <tr>
           <th scope="col">#</th>
-          <th scope="col">Fornecedor</th>
-          <th scope="col" class="td-num">Valor</th>
-          <th scope="col" class="td-num">Técnica</th>
-          <th scope="col" class="td-num">Comercial</th>
-          <th scope="col" class="td-num">Final</th>
+          <th scope="col">{{ t('suprimentos', 'Fornecedor') }}</th>
+          <th scope="col" class="td-num">{{ t('suprimentos', 'Valor') }}</th>
+          <th scope="col" class="td-num">{{ t('suprimentos', 'Técnica') }}</th>
+          <th scope="col" class="td-num">{{ t('suprimentos', 'Comercial') }}</th>
+          <th scope="col" class="td-num">{{ t('suprimentos', 'Final') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -84,11 +84,9 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
-      Concluir equalização comercial
-    </button>
+      <span x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Concluir equalização comercial') }}</button>
   </div>
 </form>
 {% endblock %}

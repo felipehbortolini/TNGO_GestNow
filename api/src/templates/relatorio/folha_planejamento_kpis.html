@@ -14,51 +14,51 @@
 {% set av_real = p.actual_period %}
 {% set av_prev = p.predicted_period %}
 {% set av_desvio = (av_real - av_prev) if av_real is not none and av_prev is not none else none %}
-<section class="rel-folha" aria-label="Planejamento: Curva S, KPIs e produtividade">
+<section class="rel-folha" aria-label="{{ t('relatorio', 'Planejamento: Curva S, KPIs e produtividade') }}">
   {{ folha.cabecalho(visao, 'Planejamento · Curva S, KPIs e produtividade', 'corte ' ~ formatar_data(visao.cut)) }}
   <div class="rel-folha__corpo">
     {% if p.empty %}
-    <div class="rel-alerta">Sem Curva S cadastrada no escopo.</div>
+    <div class="rel-alerta">{{ t('relatorio', 'Sem Curva S cadastrada no escopo.') }}</div>
     {% else %}
     <div class="rel-kpis">
       {{ folha.kpi('Avanço previsto (acumulado)', formatar_pct(p.figures.predicted), 'previsto', '', 'Linha de base', formatar_data(visao.cut)) }}
       {{ folha.kpi('Avanço real (acumulado)', formatar_pct(p.figures.actual), 'real', '', 'Previsto', formatar_pct(p.figures.predicted), 'desvio ' ~ formatar_pp(p.figures.deviation_pp), p.figures.deviation_pp < 0) }}
       {{ folha.kpi('SPI físico', formatar_indice(p.figures.spi), folha.cor_indice(p.figures.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'período anterior ' ~ formatar_indice(p.figures.previous_spi) if p.figures.previous_spi is not none else 'real ÷ previsto') }}
-      {{ folha.kpi('Avanço na ' ~ ('semana' if sem else 'mês'), formatar_num1(av_real), 'info' if av_desvio is none else ('success' if av_desvio >= 0 else 'danger'), 'p.p.', 'Previsto', formatar_num1(av_prev) ~ ' p.p.', ('desvio ' ~ formatar_pp(av_desvio)) if av_desvio is not none else '', av_desvio is not none and av_desvio < 0) }}
-      {{ folha.kpi('Término pela tendência', formatar_mes(p.figures.trend_finish), 'danger' if p.figures.trend_finish and p.figures.baseline_finish and p.figures.trend_finish > p.figures.baseline_finish else 'success', '', 'Linha de base', formatar_mes(p.figures.baseline_finish)) }}
-      {{ folha.kpi('Desvio acumulado', formatar_pp(p.figures.deviation_pp), 'danger' if p.figures.deviation_pp < 0 else 'success', 'p.p.', 'Meta', '≥ 0', 'faixas −' ~ formatar_num0(p.deviation_bands[0]) ~ ' e −' ~ formatar_num0(p.deviation_bands[1]) ~ ' p.p.') }}
+      {{ folha.kpi('Avanço na ' ~ ('semana' if sem else t('relatorio', 'mês')), formatar_num1(av_real), 'info' if av_desvio is none else ('success' if av_desvio >= 0 else t('relatorio', 'danger')), 'p.p.', 'Previsto', formatar_num1(av_prev) ~ ' p.p.', ('desvio ' ~ formatar_pp(av_desvio)) if av_desvio is not none else '', av_desvio is not none and av_desvio < 0) }}
+      {{ folha.kpi('Término pela tendência', formatar_mes(p.figures.trend_finish), 'danger' if p.figures.trend_finish and p.figures.baseline_finish and p.figures.trend_finish > p.figures.baseline_finish else t('relatorio', 'success'), '', 'Linha de base', formatar_mes(p.figures.baseline_finish)) }}
+      {{ folha.kpi('Desvio acumulado', formatar_pp(p.figures.deviation_pp), 'danger' if p.figures.deviation_pp < 0 else t('relatorio', 'success'), 'p.p.', 'Meta', '≥ 0', 'faixas −' ~ formatar_num0(p.deviation_bands[0]) ~ ' e −' ~ formatar_num0(p.deviation_bands[1]) ~ ' p.p.') }}
     </div>
 
     {% if prod %}
-    <h3 class="rel-bloco__titulo">Produtividade <small>últimas {{ prod.weeks }} semanas até {{ p.week_label }}{% if prod.alert_companies %} · empresas em alerta: {{ prod.alert_companies | join(', ') }}{% endif %}</small></h3>
+    <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Produtividade') }}<small>últimas {{ prod.weeks }} semanas até {{ p.week_label }}{% if prod.alert_companies %} · empresas em alerta: {{ prod.alert_companies | join(', ') }}{% endif %}</small></h3>
     <div class="rel-kpis">
       {{ folha.kpi('SPI de quantidades', formatar_indice(prod.spi), (prod.bands.spi if prod.bands else none) or folha.cor_indice(prod.spi), '', 'Meta', '≥ ' ~ formatar_indice(1), 'horas ganhas ÷ planejadas') }}
       {{ folha.kpi('Fator de produtividade (FP)', formatar_indice(prod.pf_window), (prod.bands.pf if prod.bands else none) or 'info', '', 'Meta', '≤ ' ~ formatar_indice(prod.meta_pf), 'HH aprop. ÷ ganhas') }}
       {{ folha.kpi('Aderência semanal', formatar_pct(prod.adherence), (prod.bands.adherence if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_adherence) ~ '%', 'real ÷ LB') }}
       {{ folha.kpi('Pessoas trabalhando', formatar_pct(prod.working_pct), (prod.bands.working if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_working) ~ '%', 'amostragem') }}
       {{ folha.kpi('Utilização da jornada', formatar_pct(prod.utilization), (prod.bands.utilization if prod.bands else none) or 'info', '', 'Meta', '≥ ' ~ formatar_num0(prod.meta_utilization) ~ '%', 'horas efetivas') }}
-      {{ folha.kpi('HH paralisadas', formatar_pct(prod.stoppage_share), 'warning' if prod.stoppage_share is not none and prod.stoppage_share > 5 else 'success', '', 'Limite', '≤ 5%', formatar_num0(prod.stoppage_hours) ~ ' HH na janela') }}
+      {{ folha.kpi('HH paralisadas', formatar_pct(prod.stoppage_share), 'warning' if prod.stoppage_share is not none and prod.stoppage_share > 5 else t('relatorio', 'success'), '', 'Limite', '≤ 5%', formatar_num0(prod.stoppage_hours) ~ ' HH na janela') }}
     </div>
     {% endif %}
 
     <div class="rel-grade rel-grade--60-40">
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Curva S física <small>% acumulado por mês</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Curva S física') }}<small>% acumulado por mês</small></h3>
         <div class="rel-grafico rel-grafico--c" data-grafico="curva-s-linha" data-dados='{{ p.curve_chart | tojson }}'></div>
       </div>
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">{{ 'Avanço por semana' if sem else 'Avanço por mês' }} <small>p.p. no período</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Avanço por semana') if sem else t('relatorio', 'Avanço por mês') }} <small>{{ t('relatorio', 'p.p. no período') }}</small></h3>
         <div class="rel-grafico rel-grafico--p" data-grafico="curva-s-barra-linha" data-dados='{{ p.bars_chart | tojson }}'></div>
-        <h3 class="rel-bloco__titulo">{{ 'Avanço por projeto' if p.is_portfolio else 'Avanço por área' }}</h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Avanço por projeto') if p.is_portfolio else t('relatorio', 'Avanço por área') }}</h3>
         <table class="rel-tabela">
-          <caption class="sr-only">{{ 'Avanço por projeto' if p.is_portfolio else 'Avanço por área' }}</caption>
+          <caption class="sr-only">{{ t('relatorio', 'Avanço por projeto') if p.is_portfolio else t('relatorio', 'Avanço por área') }}</caption>
           <thead>
             <tr>
-              <th scope="col">{{ 'Projeto' if p.is_portfolio else 'Área' }}</th>
-              <th scope="col" class="num">Peso</th>
-              <th scope="col" class="num">Previsto</th>
-              <th scope="col" class="num">Real</th>
-              <th scope="col" class="num">Desvio (p.p.)</th>
+              <th scope="col">{{ t('relatorio', 'Projeto') if p.is_portfolio else t('relatorio', 'Área') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Peso') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Previsto') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Real') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Desvio (p.p.)') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -77,5 +77,5 @@
     </div>
     {% endif %}
   </div>
-  {{ folha.rodape(('Semanal: avanço interpolado dentro do mês (Curva S mensal)' if sem else 'Mensal: ponto do mês da Curva S') ~ ('; carteira: média ponderada dos projetos' if p.is_portfolio else '')) }}
+  {{ folha.rodape(('Semanal: avanço interpolado dentro do mês (Curva S mensal)' if sem else t('relatorio', 'Mensal: ponto do mês da Curva S')) ~ ('; carteira: média ponderada dos projetos' if p.is_portfolio else '')) }}
 </section>

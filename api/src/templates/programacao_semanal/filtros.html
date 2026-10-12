@@ -14,7 +14,7 @@
     x-data="{ refinando: false }" @keydown.escape.window="refinando = false" class="mb-16">
     <div class="toolbar">
       <div class="period">
-        <label class="sr-only" for="campo-semana">Semana</label>
+        <label class="sr-only" for="campo-semana">{{ t('programacao_semanal', 'Semana') }}</label>
         <select id="campo-semana" name="semana" class="input prog-semana" @change="$el.form.requestSubmit()">
           {% for s in semanas %}
           <option value="{{ s.id }}" {% if s.id == semana %}selected{% endif %}>{{ s.id }} · {{ s.period }}</option>
@@ -23,10 +23,10 @@
       </div>
       <div class="busca">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="campo-busca">Buscar na programação</label>
+        <label class="sr-only" for="campo-busca">{{ t('programacao_semanal', 'Buscar na programação') }}</label>
         <input id="campo-busca" type="search" name="busca" class="input busca__input"
           value="{{ filtros.search }}" autocomplete="off"
-          placeholder="Procurar: atividade, frente, empresa, encarregado ou fiscal"
+          placeholder="{{ t('programacao_semanal', 'Procurar: atividade, frente, empresa, encarregado ou fiscal') }}"
           x-data="{ espera: null }"
           @input="clearTimeout(espera); espera = setTimeout(() => $el.form.requestSubmit(), 300)" />
       </div>
@@ -39,77 +39,73 @@
       {% if no_portfolio %}
       {% if janela.can_pick_project %}
       <button type="button" class="btn btn--primary" data-tn-incluir="nova">
-        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova atividade
-      </button>
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Nova atividade') }}</button>
       {% endif %}
       {% elif janela.can_create %}
       <button type="button" class="btn btn--primary"
         @click="$ajax('{{ form_url }}?semana={{ semana | urlencode }}', { target: 'drawer' })">
-        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova atividade
-      </button>
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Nova atividade') }}</button>
       {% endif %}
     </div>
 
     <div class="filtro-fundo" x-show="refinando" x-cloak @click="refinando = false"></div>
     <div id="painel-refino" class="filtro-panel" x-show="refinando" x-cloak role="dialog"
-      aria-modal="false" aria-label="Refinar a programação">
-      <h3>Refinar a programação</h3>
+      aria-modal="false" aria-label="{{ t('programacao_semanal', 'Refinar a programação') }}">
+      <h3>{{ t('programacao_semanal', 'Refinar a programação') }}</h3>
       <p class="hint mb-16">Cada escolha aplica na hora. Deixe em “todas” o que não quiser filtrar.</p>
       <div class="filtro-sec">
-        <div class="filtro-sec__head">Onde e quem</div>
+        <div class="filtro-sec__head">{{ t('programacao_semanal', 'Onde e quem') }}</div>
         <div class="field mb-16">
-          <label for="f-local">Frente / local</label>
+          <label for="f-local">{{ t('programacao_semanal', 'Frente / local') }}</label>
           <select id="f-local" name="local" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas as frentes</option>
+            <option value="">{{ t('programacao_semanal', 'Todas as frentes') }}</option>
             {% for o in opcoes.locations %}<option value="{{ o.id }}" {% if filtros.location_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         {% if not fornecedor %}
         <div class="field mb-16">
-          <label for="f-empresa">Contratada</label>
+          <label for="f-empresa">{{ t('programacao_semanal', 'Contratada') }}</label>
           <select id="f-empresa" name="empresa" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas as contratadas</option>
+            <option value="">{{ t('programacao_semanal', 'Todas as contratadas') }}</option>
             {% for o in opcoes.companies %}<option value="{{ o.id }}" {% if filtros.company_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         {% endif %}
         <div class="field mb-16">
-          <label for="f-encarregado">Encarregado</label>
+          <label for="f-encarregado">{{ t('programacao_semanal', 'Encarregado') }}</label>
           <select id="f-encarregado" name="encarregado" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todos os encarregados</option>
+            <option value="">{{ t('programacao_semanal', 'Todos os encarregados') }}</option>
             {% for o in opcoes.foremen %}<option value="{{ o.id }}" {% if filtros.foreman_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
         <div class="field">
-          <label for="f-fiscal">Fiscal responsável</label>
+          <label for="f-fiscal">{{ t('programacao_semanal', 'Fiscal responsável') }}</label>
           <select id="f-fiscal" name="responsavel" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todos os fiscais</option>
+            <option value="">{{ t('programacao_semanal', 'Todos os fiscais') }}</option>
             {% for o in opcoes.inspectors %}<option value="{{ o.id }}" {% if filtros.inspector_id == o.id %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
         </div>
       </div>
       <div class="filtro-sec">
-        <div class="filtro-sec__head">Em que pé está</div>
+        <div class="filtro-sec__head">{{ t('programacao_semanal', 'Em que pé está') }}</div>
         <div class="field mb-16">
-          <label for="f-situacao">Situação da programação</label>
+          <label for="f-situacao">{{ t('programacao_semanal', 'Situação da programação') }}</label>
           <select id="f-situacao" name="situacao" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas</option>
+            <option value="">{{ t('programacao_semanal', 'Todas') }}</option>
             {% for valor, rotulo in situacoes.items() %}<option value="{{ valor }}" {% if filtros.situation == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
           </select>
         </div>
         <div class="field mb-16">
-          <label for="f-aprovacao">Realizado</label>
+          <label for="f-aprovacao">{{ t('programacao_semanal', 'Realizado') }}</label>
           <select id="f-aprovacao" name="aprovacao" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Qualquer</option>
+            <option value="">{{ t('programacao_semanal', 'Qualquer') }}</option>
             {% for valor, rotulo in aprovacoes.items() %}<option value="{{ valor }}" {% if filtros.approval == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
           </select>
         </div>
         <div class="field">
-          <label for="f-ppc">Faixa de PPC</label>
+          <label for="f-ppc">{{ t('programacao_semanal', 'Faixa de PPC') }}</label>
           <select id="f-ppc" name="ppc" class="input" @change="$el.form.requestSubmit()">
-            <option value="">Todas</option>
+            <option value="">{{ t('programacao_semanal', 'Todas') }}</option>
             {% for valor, rotulo in faixas.items() %}<option value="{{ valor }}" {% if filtros.band == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
           </select>
         </div>
@@ -118,8 +114,8 @@
         <button type="button" class="btn btn--ghost"
           @click="refinando = false;
                   $ajax('{{ filtros_url }}?semana={{ semana | urlencode }}', { target: 'prog-filtros' });
-                  $ajax('{{ matriz_url }}?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })">Limpar refinos</button>
-        <button type="button" class="btn btn--primary" @click="refinando = false">Ver o resultado</button>
+                  $ajax('{{ matriz_url }}?semana={{ semana | urlencode }}', { target: 'prog-resumo prog-tabela' })">{{ t('programacao_semanal', 'Limpar refinos') }}</button>
+        <button type="button" class="btn btn--primary" @click="refinando = false">{{ t('programacao_semanal', 'Ver o resultado') }}</button>
       </div>
     </div>
   </form>
@@ -142,9 +138,7 @@
           method: 'post', target: 'drawer prog-resumo prog-tabela'
         });
       })">
-      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
-      Publicar as validadas
-    </button>
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Publicar as validadas') }}</button>
   </div>
   {% endif %}
 </div>

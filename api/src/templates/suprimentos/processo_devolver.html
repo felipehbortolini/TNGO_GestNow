@@ -18,21 +18,19 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="devolver-motivo">Motivo</label>
+      <label for="devolver-motivo">{{ t('suprimentos', 'Motivo') }}</label>
       <textarea id="devolver-motivo" name="motivo" rows="3" maxlength="300" required
         class="input{% if erros.get('motivo') %} input--erro{% endif %}"
         {% if erros.get('motivo') %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>{{ valores.get('motivo') or '' }}</textarea>
-      <span class="hint">Mínimo de 10 caracteres; o processo volta para a negociação.</span>
+      <span class="hint">{{ t('suprimentos', 'Mínimo de 10 caracteres; o processo volta para a negociação.') }}</span>
       {% if erros.get('motivo') %}<span id="erro-motivo" class="field__erro">{{ erros.get('motivo') }}</span>{% endif %}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
-      Devolver recomendação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Devolver recomendação') }}</button>
   </div>
 </form>
 {% endblock %}

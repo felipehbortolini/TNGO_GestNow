@@ -8,7 +8,7 @@
 <section class="card mb-16" aria-labelledby="eap-desdobramentos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="eap-desdobramentos-titulo">Desdobramentos da revisão vigente</h2>
+      <h2 class="h-card4" id="eap-desdobramentos-titulo">{{ t('planejamento', 'Desdobramentos da revisão vigente') }}</h2>
       {% if visao.current_revision is not none %}
       <span class="hint">Rev {{ visao.current_revision.revision }} · o peso sai do pacote de planejamento para o pacote de trabalho; o total não muda</span>
       {% endif %}
@@ -18,15 +18,15 @@
     {% if visao.breakdowns %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Desdobramentos da revisão vigente</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Desdobramentos da revisão vigente') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Data</th>
-            <th scope="col">Pacote de planejamento</th>
-            <th scope="col">Pacote de trabalho</th>
-            <th scope="col" class="td-num">Peso</th>
-            <th scope="col">Justificativa</th>
-            <th scope="col">Registrado por</th>
+            <th scope="col">{{ t('planejamento', 'Data') }}</th>
+            <th scope="col">{{ t('planejamento', 'Pacote de planejamento') }}</th>
+            <th scope="col">{{ t('planejamento', 'Pacote de trabalho') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Peso') }}</th>
+            <th scope="col">{{ t('planejamento', 'Justificativa') }}</th>
+            <th scope="col">{{ t('planejamento', 'Registrado por') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -44,7 +44,7 @@
       </table>
     </div>
     {% else %}
-    <p class="body-txt">Nenhum desdobramento nesta revisão.</p>
+    <p class="body-txt">{{ t('planejamento', 'Nenhum desdobramento nesta revisão.') }}</p>
     {% endif %}
   </div>
 </section>

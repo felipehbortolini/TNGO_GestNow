@@ -12,33 +12,33 @@
 {% block fragment %}
 <div class="fornecedor__resumo">
   <table class="tbl">
-    <caption class="sr-only">Resumo do fornecedor</caption>
+    <caption class="sr-only">{{ t('suprimentos', 'Resumo do fornecedor') }}</caption>
     <tbody>
       <tr>
-        <th scope="row">Situação</th>
+        <th scope="row">{{ t('suprimentos', 'Situação') }}</th>
         <td><span class="pill {{ 'pill--neutral' if fornecedor.situation == sem_qualificacao else '' }}">{{ fornecedor.situation }}</span></td>
-        <th scope="row">Nota média</th>
+        <th scope="row">{{ t('suprimentos', 'Nota média') }}</th>
         <td class="num">{{ fornecedor.mean_score if fornecedor.mean_score is not none else '·' }}</td>
       </tr>
       <tr>
-        <th scope="row">Valor contratado</th>
+        <th scope="row">{{ t('suprimentos', 'Valor contratado') }}</th>
         <td class="num">{{ formatar_moeda(fornecedor.contracted_cents) }}</td>
-        <th scope="row">Categorias</th>
+        <th scope="row">{{ t('suprimentos', 'Categorias') }}</th>
         <td>{{ fornecedor.categories|join(', ') if fornecedor.categories else '—' }}</td>
       </tr>
       <tr>
-        <th scope="row">Entrega no prazo (OTD)</th>
+        <th scope="row">{{ t('suprimentos', 'Entrega no prazo (OTD)') }}</th>
         <td class="num">
           {% if fornecedor.otd is not none %}
           <span class="pill {{ 'pill--ok' if fornecedor.otd >= 90 else 'pill--warn' }}">{{ formatar_numero(fornecedor.otd, 1) }}%</span>
           {% else %}<span class="muted">·</span>{% endif %}
         </td>
-        <th scope="row">Pedidos no escopo</th>
+        <th scope="row">{{ t('suprimentos', 'Pedidos no escopo') }}</th>
         <td class="num">{{ fornecedor.delivered_orders|length }} de {{ fornecedor.orders|length }} entregues</td>
       </tr>
       {% if fornecedor.observation %}
       <tr>
-        <th scope="row">Observação</th>
+        <th scope="row">{{ t('suprimentos', 'Observação') }}</th>
         <td colspan="3">{{ fornecedor.observation }}</td>
       </tr>
       {% endif %}
@@ -46,18 +46,18 @@
   </table>
 </div>
 
-<h3 class="h-card5 mt-16">Avaliações de desempenho (03 Contratos)</h3>
+<h3 class="h-card5 mt-16">{{ t('suprimentos', 'Avaliações de desempenho (03 Contratos)') }}</h3>
 {% if fornecedor.evaluations %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Avaliações de desempenho da empresa</caption>
+    <caption class="sr-only">{{ t('suprimentos', 'Avaliações de desempenho da empresa') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Período</th>
-        <th scope="col">Contrato</th>
-        <th scope="col">Tipo</th>
-        <th scope="col" class="td-num">Nota</th>
-        <th scope="col">Classe</th>
+        <th scope="col">{{ t('suprimentos', 'Período') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Contrato') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Tipo') }}</th>
+        <th scope="col" class="td-num">{{ t('suprimentos', 'Nota') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Classe') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -77,19 +77,19 @@
   </table>
 </div>
 {% else %}
-<p class="body-txt muted">Sem avaliações de contrato para esta empresa.</p>
+<p class="body-txt muted">{{ t('suprimentos', 'Sem avaliações de contrato para esta empresa.') }}</p>
 {% endif %}
 
-<h3 class="h-card5 mt-16">Contratos</h3>
+<h3 class="h-card5 mt-16">{{ t('suprimentos', 'Contratos') }}</h3>
 {% if fornecedor.contracts %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Contratos da empresa</caption>
+    <caption class="sr-only">{{ t('suprimentos', 'Contratos da empresa') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Número</th>
-        <th scope="col">Objeto</th>
-        <th scope="col" class="td-num">Valor original</th>
+        <th scope="col">{{ t('suprimentos', 'Número') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Objeto') }}</th>
+        <th scope="col" class="td-num">{{ t('suprimentos', 'Valor original') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -104,21 +104,21 @@
   </table>
 </div>
 {% else %}
-<p class="body-txt muted">Sem contratos no escopo para esta empresa.</p>
+<p class="body-txt muted">{{ t('suprimentos', 'Sem contratos no escopo para esta empresa.') }}</p>
 {% endif %}
 
-<h3 class="h-card5 mt-16">Pedidos e entregas</h3>
+<h3 class="h-card5 mt-16">{{ t('suprimentos', 'Pedidos e entregas') }}</h3>
 {% if fornecedor.orders %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Pedidos da empresa no escopo</caption>
+    <caption class="sr-only">{{ t('suprimentos', 'Pedidos da empresa no escopo') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Pedido</th>
-        <th scope="col">Descrição</th>
-        <th scope="col" class="td-num">Valor</th>
-        <th scope="col">Data contratual</th>
-        <th scope="col">Entrega</th>
+        <th scope="col">{{ t('suprimentos', 'Pedido') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Descrição') }}</th>
+        <th scope="col" class="td-num">{{ t('suprimentos', 'Valor') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Data contratual') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Entrega') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -132,9 +132,9 @@
           {% if pedido.delivery %}
           {{ formatar_data(pedido.delivery) }}
           {% if pedido.delivery > pedido.contractual_date %}
-          <span class="pill pill--erro">fora do prazo</span>
-          {% else %}<span class="pill pill--ok">no prazo</span>{% endif %}
-          {% else %}<span class="muted">em aberto</span>{% endif %}
+          <span class="pill pill--erro">{{ t('suprimentos', 'fora do prazo') }}</span>
+          {% else %}<span class="pill pill--ok">{{ t('suprimentos', 'no prazo') }}</span>{% endif %}
+          {% else %}<span class="muted">{{ t('suprimentos', 'em aberto') }}</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -142,21 +142,21 @@
   </table>
 </div>
 {% else %}
-<p class="body-txt muted">Sem pedidos no escopo para esta empresa.</p>
+<p class="body-txt muted">{{ t('suprimentos', 'Sem pedidos no escopo para esta empresa.') }}</p>
 {% endif %}
 
-<h3 class="h-card5 mt-16">Histórico da qualificação</h3>
+<h3 class="h-card5 mt-16">{{ t('suprimentos', 'Histórico da qualificação') }}</h3>
 {% if fornecedor.history %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Histórico da qualificação</caption>
+    <caption class="sr-only">{{ t('suprimentos', 'Histórico da qualificação') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Data</th>
-        <th scope="col">De</th>
-        <th scope="col">Para</th>
-        <th scope="col">Por</th>
-        <th scope="col">Justificativa</th>
+        <th scope="col">{{ t('suprimentos', 'Data') }}</th>
+        <th scope="col">{{ t('suprimentos', 'De') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Para') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Por') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Justificativa') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -173,6 +173,6 @@
   </table>
 </div>
 {% else %}
-<p class="body-txt muted">Sem mudanças de situação registradas.</p>
+<p class="body-txt muted">{{ t('suprimentos', 'Sem mudanças de situação registradas.') }}</p>
 {% endif %}
 {% endblock %}

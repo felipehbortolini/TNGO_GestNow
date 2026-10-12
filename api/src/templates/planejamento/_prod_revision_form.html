@@ -35,15 +35,15 @@
 
     {% if not formulario.changes %}
     <div class="aviso aviso--warn" role="note">
-      <span>Nenhuma SM aprovada disponível. Registre a mudança em Governança (08) antes de revisar a linha de base.</span>
+      <span>{{ t('planejamento', 'Nenhuma SM aprovada disponível. Registre a mudança em Governança (08) antes de revisar a linha de base.') }}</span>
     </div>
     {% endif %}
 
     <div class="produtividade__campos">
       <div class="field produtividade__campo--largo">
-        <label for="prod-rev-sm">SM que autoriza</label>
+        <label for="prod-rev-sm">{{ t('planejamento', 'SM que autoriza') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('smRef') }}" id="prod-rev-sm" name="smRef"{{ marcas('smRef') }}>
-          <option value="">Escolha a SM aprovada</option>
+          <option value="">{{ t('planejamento', 'Escolha a SM aprovada') }}</option>
           {% for sm in formulario.changes %}
           <option value="{{ sm.code }}"{% if formulario.fields.get('smRef') == sm.code %} selected{% endif %}>{{ sm.code }} · {{ sm.title }}</option>
           {% endfor %}
@@ -58,7 +58,7 @@
         {{ erro('total') }}
       </div>
       <div class="field">
-        <label for="prod-rev-fim">Nova semana final</label>
+        <label for="prod-rev-fim">{{ t('planejamento', 'Nova semana final') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('fim') }}" id="prod-rev-fim" name="fim"{{ marcas('fim') }}
           @change="$el.form.requestSubmit($refs.recarregar)">
           {% for semana in formulario.options.week_options %}
@@ -68,7 +68,7 @@
         {{ erro('fim') }}
       </div>
       <div class="field">
-        <label for="prod-rev-perfil">Perfil do saldo</label>
+        <label for="prod-rev-perfil">{{ t('planejamento', 'Perfil do saldo') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('perfil') }}" id="prod-rev-perfil" name="perfil"{{ marcas('perfil') }}
           @change="$el.form.requestSubmit($refs.recarregar)">
           {% for perfil in formulario.options.profiles %}
@@ -78,7 +78,7 @@
         {{ erro('perfil') }}
       </div>
       <div class="field produtividade__campo--largo">
-        <label for="prod-rev-justificativa">Justificativa</label>
+        <label for="prod-rev-justificativa">{{ t('planejamento', 'Justificativa') }}</label>
         <textarea class="input{{ ' input--erro' if formulario.errors.get('justificativa') }}" id="prod-rev-justificativa"
           name="justificativa" rows="2" maxlength="400"{{ marcas('justificativa') }}>{{ formulario.fields.get('justificativa', '') }}</textarea>
         {{ erro('justificativa') }}
@@ -86,7 +86,7 @@
     </div>
 
     <fieldset class="produtividade__grade-caixa">
-      <legend class="produtividade__legenda">Semanas congeladas (até a semana corrente)</legend>
+      <legend class="produtividade__legenda">{{ t('planejamento', 'Semanas congeladas (até a semana corrente)') }}</legend>
       {% if formulario.frozen %}
       <div class="produtividade__grade produtividade__grade--travada">
         {% for linha in formulario.frozen %}
@@ -97,7 +97,7 @@
         {% endfor %}
       </div>
       {% else %}
-      <p class="muted">Nenhuma semana congelada: a revisão redistribui o total inteiro.</p>
+      <p class="muted">{{ t('planejamento', 'Nenhuma semana congelada: a revisão redistribui o total inteiro.') }}</p>
       {% endif %}
     </fieldset>
 
@@ -116,14 +116,14 @@
       </div>
       <p class="hint">{{ formulario.free_weeks | length }} semanas livres · a soma com as congeladas precisa fechar com o novo total.</p>
       {% else %}
-      <p class="muted">Escolha a nova semana final para o servidor distribuir o saldo.</p>
+      <p class="muted">{{ t('planejamento', 'Escolha a nova semana final para o servidor distribuir o saldo.') }}</p>
       {% endif %}
       {{ erro('distribuicao') }}
     </fieldset>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.changes }}>Revisar LB</button>
+      <button type="button" class="btn btn--secondary" data-prod-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary"{{ ' disabled' if not formulario.changes }}>{{ t('planejamento', 'Revisar LB') }}</button>
     </div>
   </form>
 </div>

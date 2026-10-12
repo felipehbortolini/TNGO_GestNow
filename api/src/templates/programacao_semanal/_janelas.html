@@ -11,9 +11,8 @@
   erros_janela, editando_janela, pode_editar, salvar_janela_url.
 #}
 <div class="aviso aviso--info mb-16">
-  <strong>Como a janela funciona</strong>
-  <span>
-    A regra vale para a <b>empresa</b>, não para a pessoa. São três camadas, nesta ordem:
+  <strong>{{ t('programacao_semanal', 'Como a janela funciona') }}</strong>
+  <span>{{ t('programacao_semanal', 'A regra vale para a') }}<b>{{ t('programacao_semanal', 'empresa') }}</b>, não para a pessoa. São três camadas, nesta ordem:
     a liberação extraordinária vence tudo; depois, a semana precisa estar liberada;
     por último, o dia e o horário precisam ser os de hoje. Fora disso a contratada
     consulta, mas não edita.
@@ -27,9 +26,9 @@
       <h2 class="h-card4">{{ j.empresa }}</h2>
       <p class="hint">
         {% if j.aberta %}
-        <span class="pill pill--ok">Aberta agora</span>
+        <span class="pill pill--ok">{{ t('programacao_semanal', 'Aberta agora') }}</span>
         {% else %}
-        <span class="pill pill--warn">Fechada agora</span>
+        <span class="pill pill--warn">{{ t('programacao_semanal', 'Fechada agora') }}</span>
         {% endif %}
         {{ j.motivo }} · semana {{ semana_atual }} ({{ periodo_atual }})
       </p>
@@ -46,14 +45,14 @@
       <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros_janela._ }}</span></div>
       {% endif %}
 
-      <h3 class="h-card5">Dia e horário</h3>
+      <h3 class="h-card5">{{ t('programacao_semanal', 'Dia e horário') }}</h3>
       <div class="fgrid cfg-janela-campos">
         <div class="field">
-          <label for="cfg-dia-{{ j.company_id }}">Dia da semana</label>
+          <label for="cfg-dia-{{ j.company_id }}">{{ t('programacao_semanal', 'Dia da semana') }}</label>
           <select id="cfg-dia-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.dia }}"
             name="dia"
             {% if editando_janela == j.company_id and erros_janela.dia %}aria-invalid="true" aria-describedby="cfg-erro-dia-{{ j.company_id }}"{% endif %}>
-            <option value="">Qualquer dia</option>
+            <option value="">{{ t('programacao_semanal', 'Qualquer dia') }}</option>
             {% for d in dias_semana %}
             <option value="{{ d.valor }}" {% if j.dia == d.valor|string %}selected{% endif %}>{{ d.nome }}</option>
             {% endfor %}
@@ -63,7 +62,7 @@
           {% endif %}
         </div>
         <div class="field">
-          <label for="cfg-abre-{{ j.company_id }}">Abre às</label>
+          <label for="cfg-abre-{{ j.company_id }}">{{ t('programacao_semanal', 'Abre às') }}</label>
           <input id="cfg-abre-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.abre }}"
             type="time" name="abre" value="{{ j.abre or '00:01' }}"
             {% if editando_janela == j.company_id and erros_janela.abre %}aria-invalid="true" aria-describedby="cfg-erro-abre-{{ j.company_id }}"{% endif %} />
@@ -72,7 +71,7 @@
           {% endif %}
         </div>
         <div class="field">
-          <label for="cfg-fecha-{{ j.company_id }}">Fecha às</label>
+          <label for="cfg-fecha-{{ j.company_id }}">{{ t('programacao_semanal', 'Fecha às') }}</label>
           <input id="cfg-fecha-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.fecha }}"
             type="time" name="fecha" value="{{ j.fecha or '23:59' }}"
             {% if editando_janela == j.company_id and erros_janela.fecha %}aria-invalid="true" aria-describedby="cfg-erro-fecha-{{ j.company_id }}"{% endif %} />
@@ -82,8 +81,8 @@
         </div>
       </div>
 
-      <h3 class="h-card5 mt-16">Semanas liberadas</h3>
-      <p class="hint">Clique nas pastilhas para marcar; os atalhos de trimestre e de ano marcam e limpam de uma vez.</p>
+      <h3 class="h-card5 mt-16">{{ t('programacao_semanal', 'Semanas liberadas') }}</h3>
+      <p class="hint">{{ t('programacao_semanal', 'Clique nas pastilhas para marcar; os atalhos de trimestre e de ano marcam e limpam de uma vez.') }}</p>
       <div class="cfg-semanas">
         {% for bloco in anos %}
         <div class="cfg-semanas__ano">
@@ -97,10 +96,10 @@
               {% endfor %}
               <button type="button" class="btn btn--ghost btn--sm"
                 data-marcar-ano="{{ bloco.ano }}" data-marcar-valor="sim"
-                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">Ano inteiro</button>
+                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">{{ t('programacao_semanal', 'Ano inteiro') }}</button>
               <button type="button" class="btn btn--ghost btn--sm"
                 data-marcar-ano="{{ bloco.ano }}" data-marcar-valor="nao"
-                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">Limpar</button>
+                @click="TN.paginas['programacao_semanal/configuracao'].marcar($el)">{{ t('programacao_semanal', 'Limpar') }}</button>
             </span>
           </div>
           <div class="cfg-semanas__grade">
@@ -120,8 +119,8 @@
       <span class="field__erro">{{ erros_janela.semanas }}</span>
       {% endif %}
 
-      <h3 class="h-card5 mt-16">Liberação extraordinária</h3>
-      <p class="hint">Abre uma semana específica por um período absoluto, ignorando dia e horário.</p>
+      <h3 class="h-card5 mt-16">{{ t('programacao_semanal', 'Liberação extraordinária') }}</h3>
+      <p class="hint">{{ t('programacao_semanal', 'Abre uma semana específica por um período absoluto, ignorando dia e horário.') }}</p>
       {% if j.extras %}
       <div class="cfg-extras">
         {% for e in j.extras %}
@@ -135,7 +134,7 @@
       {% endif %}
       <div class="fgrid cfg-janela-campos">
         <div class="field">
-          <label for="cfg-extra-semana-{{ j.company_id }}">Semana</label>
+          <label for="cfg-extra-semana-{{ j.company_id }}">{{ t('programacao_semanal', 'Semana') }}</label>
           <input id="cfg-extra-semana-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_semana }}"
             type="text" name="extra_semana" value="{{ j.extra_semana }}"
             placeholder="{{ semana_atual }}" autocomplete="off"
@@ -145,7 +144,7 @@
           {% endif %}
         </div>
         <div class="field">
-          <label for="cfg-extra-abre-{{ j.company_id }}">Abre em</label>
+          <label for="cfg-extra-abre-{{ j.company_id }}">{{ t('programacao_semanal', 'Abre em') }}</label>
           <input id="cfg-extra-abre-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_abre }}"
             type="datetime-local" name="extra_abre" value="{{ j.extra_abre }}"
             {% if editando_janela == j.company_id and erros_janela.extra_abre %}aria-invalid="true" aria-describedby="cfg-erro-extra-abre-{{ j.company_id }}"{% endif %} />
@@ -154,7 +153,7 @@
           {% endif %}
         </div>
         <div class="field">
-          <label for="cfg-extra-fecha-{{ j.company_id }}">Fecha em</label>
+          <label for="cfg-extra-fecha-{{ j.company_id }}">{{ t('programacao_semanal', 'Fecha em') }}</label>
           <input id="cfg-extra-fecha-{{ j.company_id }}" class="input{{ ' input--erro' if editando_janela == j.company_id and erros_janela.extra_fecha }}"
             type="datetime-local" name="extra_fecha" value="{{ j.extra_fecha }}"
             {% if editando_janela == j.company_id and erros_janela.extra_fecha %}aria-invalid="true" aria-describedby="cfg-erro-extra-fecha-{{ j.company_id }}"{% endif %} />
@@ -174,7 +173,7 @@
     {% else %}
     <dl class="cfg-detalhe">
       <div class="cfg-detalhe__linha">
-        <dt>Dia e horário</dt>
+        <dt>{{ t('programacao_semanal', 'Dia e horário') }}</dt>
         <dd>
           {% if j.dia %}
           {% for d in dias_semana %}{% if j.dia == d.valor|string %}{{ d.nome }}{% endif %}{% endfor %}
@@ -185,11 +184,11 @@
         </dd>
       </div>
       <div class="cfg-detalhe__linha">
-        <dt>Semanas liberadas</dt>
+        <dt>{{ t('programacao_semanal', 'Semanas liberadas') }}</dt>
         <dd>{{ j.semanas|join(', ') or 'Nenhuma' }}</dd>
       </div>
       <div class="cfg-detalhe__linha">
-        <dt>Liberações extraordinárias</dt>
+        <dt>{{ t('programacao_semanal', 'Liberações extraordinárias') }}</dt>
         <dd>
           {% if j.extras %}
           {% for e in j.extras %}{{ e.semana }} ({{ e.abre }} a {{ e.fecha }}){% if not loop.last %}; {% endif %}{% endfor %}

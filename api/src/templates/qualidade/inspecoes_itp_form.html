@@ -36,25 +36,25 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="itp-titulo">Título</label>
+      <label for="itp-titulo">{{ t('qualidade', 'Título') }}</label>
       <input id="itp-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}"
         maxlength="120" required value="{{ valores.get('titulo') or '' }}"
         {% if erros.get('titulo') %}aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
       {{ erro(erros, 'titulo') }}
     </div>
     <div class="field">
-      <span class="field__label">Projeto</span>
+      <span class="field__label">{{ t('qualidade', 'Projeto') }}</span>
       <p class="body-txt fw-600">{{ projeto.code }} · {{ projeto.name if projeto else '' }}</p>
     </div>
     <div class="field">
-      <span class="field__label">Revisão</span>
-      <p class="body-txt">{% if codigo %}nova revisão (volta a pedir a aprovação do cliente){% else %}0 (a primeira){% endif %}</p>
+      <span class="field__label">{{ t('qualidade', 'Revisão') }}</span>
+      <p class="body-txt">{% if codigo %}{{ t('qualidade', 'nova revisão (volta a pedir a aprovação do cliente)') }}{% else %}{{ t('qualidade', '0 (a primeira)') }}{% endif %}</p>
     </div>
     <div class="field">
-      <label for="itp-disciplina">Disciplina</label>
+      <label for="itp-disciplina">{{ t('qualidade', 'Disciplina') }}</label>
       <select id="itp-disciplina" name="disciplina" class="input{% if erros.get('disciplina') %} input--erro{% endif %}" required
         {% if erros.get('disciplina') %}aria-invalid="true" aria-describedby="erro-disciplina"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for disciplina in disciplinas %}
         <option value="{{ disciplina }}"{% if valores.get('disciplina') == disciplina %} selected{% endif %}>{{ disciplina }}</option>
         {% endfor %}
@@ -62,10 +62,10 @@
       {{ erro(erros, 'disciplina') }}
     </div>
     <div class="field">
-      <label for="itp-empresa">Empresa executante</label>
+      <label for="itp-empresa">{{ t('qualidade', 'Empresa executante') }}</label>
       <select id="itp-empresa" name="empresaId" class="input{% if erros.get('empresaId') %} input--erro{% endif %}" required
         {% if erros.get('empresaId') %}aria-invalid="true" aria-describedby="erro-empresaId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresaId') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
@@ -75,7 +75,7 @@
   </div>
 
   <fieldset class="inspecoes__pontos-form">
-    <legend>Pontos de inspeção</legend>
+    <legend>{{ t('qualidade', 'Pontos de inspeção') }}</legend>
     {% if erros.get('pontos') %}
     <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['pontos'] }}</span></div>
     {% endif %}
@@ -87,16 +87,16 @@
           value="{{ valores.get('ponto' ~ posicao ~ '_atividade') or '' }}" />
       </div>
       <div class="field">
-        <label for="itp-ponto{{ posicao }}-tipo">Tipo</label>
+        <label for="itp-ponto{{ posicao }}-tipo">{{ t('qualidade', 'Tipo') }}</label>
         <select id="itp-ponto{{ posicao }}-tipo" name="ponto{{ posicao }}_tipo" class="input">
-          <option value="">Escolha...</option>
-          <option value="H"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'H' %} selected{% endif %}>H · espera</option>
-          <option value="W"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'W' %} selected{% endif %}>W · testemunho</option>
-          <option value="R"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'R' %} selected{% endif %}>R · revisão de registro</option>
+          <option value="">{{ t('qualidade', 'Escolha...') }}</option>
+          <option value="H"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'H' %} selected{% endif %}>{{ t('qualidade', 'H · espera') }}</option>
+          <option value="W"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'W' %} selected{% endif %}>{{ t('qualidade', 'W · testemunho') }}</option>
+          <option value="R"{% if valores.get('ponto' ~ posicao ~ '_tipo') == 'R' %} selected{% endif %}>{{ t('qualidade', 'R · revisão de registro') }}</option>
         </select>
       </div>
       <div class="field">
-        <label for="itp-ponto{{ posicao }}-responsavel">Executa / inspeciona</label>
+        <label for="itp-ponto{{ posicao }}-responsavel">{{ t('qualidade', 'Executa / inspeciona') }}</label>
         <select id="itp-ponto{{ posicao }}-responsavel" name="ponto{{ posicao }}_responsavel" class="input">
           {% for responsavel in responsaveis %}
           <option value="{{ responsavel }}"{% if valores.get('ponto' ~ posicao ~ '_responsavel') == responsavel %} selected{% endif %}>{{ responsavel }}</option>
@@ -104,12 +104,12 @@
         </select>
       </div>
       <div class="field field--full">
-        <label for="itp-ponto{{ posicao }}-criterio">Critério de aceitação</label>
+        <label for="itp-ponto{{ posicao }}-criterio">{{ t('qualidade', 'Critério de aceitação') }}</label>
         <input id="itp-ponto{{ posicao }}-criterio" name="ponto{{ posicao }}_criterio" class="input" maxlength="160"
           value="{{ valores.get('ponto' ~ posicao ~ '_criterio') or '' }}" />
       </div>
       <div class="field">
-        <label for="itp-ponto{{ posicao }}-referencia">Documento de referência</label>
+        <label for="itp-ponto{{ posicao }}-referencia">{{ t('qualidade', 'Documento de referência') }}</label>
         <input id="itp-ponto{{ posicao }}-referencia" name="ponto{{ posicao }}_referencia" class="input" maxlength="60"
           value="{{ valores.get('ponto' ~ posicao ~ '_referencia') or '' }}" />
       </div>
@@ -117,13 +117,12 @@
     {% endfor %}
     <button type="button" class="btn btn--secondary btn--sm" x-show="pontos < {{ max_pontos }}"
       @click="pontos = Math.min(pontos + 1, {{ max_pontos }})">
-      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Adicionar ponto
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('qualidade', 'Adicionar ponto') }}</button>
   </fieldset>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">{% if codigo %}Salvar revisão{% else %}Criar ITP{% endif %}</button>
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{% if codigo %}{{ t('qualidade', 'Salvar revisão') }}{% else %}{{ t('qualidade', 'Criar ITP') }}{% endif %}</button>
   </div>
 </form>
 {% endblock %}

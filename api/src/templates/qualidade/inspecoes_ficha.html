@@ -47,19 +47,19 @@
     {{ campo('Inspeções', itp.inspections ~ ((' · ' ~ (itp.approval_pct | round(1) | replace('.', ',')) ~ '% aprovadas') if itp.approval_pct is not none else '')) }}
   </div>
 
-  <h3 class="section-title">Pontos da revisão vigente</h3>
+  <h3 class="section-title">{{ t('qualidade', 'Pontos da revisão vigente') }}</h3>
   {% if itp.points %}
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Pontos do ITP</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Pontos do ITP') }}</caption>
       <thead>
         <tr>
           <th scope="col">Nº</th>
-          <th scope="col">Atividade</th>
-          <th scope="col">Tipo</th>
-          <th scope="col">Critério de aceitação</th>
-          <th scope="col">Referência</th>
-          <th scope="col">Executa / inspeciona</th>
+          <th scope="col">{{ t('qualidade', 'Atividade') }}</th>
+          <th scope="col">{{ t('qualidade', 'Tipo') }}</th>
+          <th scope="col">{{ t('qualidade', 'Critério de aceitação') }}</th>
+          <th scope="col">{{ t('qualidade', 'Referência') }}</th>
+          <th scope="col">{{ t('qualidade', 'Executa / inspeciona') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -77,7 +77,7 @@
     </table>
   </div>
   {% else %}
-  <p class="hint">Nenhum ponto na revisão vigente.</p>
+  <p class="hint">{{ t('qualidade', 'Nenhum ponto na revisão vigente.') }}</p>
   {% endif %}
 </div>
 {% endblock %}

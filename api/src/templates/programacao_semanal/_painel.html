@@ -22,7 +22,7 @@
 
 <section class="card mb-16">
   <div class="card__head">
-    <h2 class="h-card4">Janelas de programação</h2>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Janelas de programação') }}</h2>
     <span class="hint">situação de agora, {{ semana }} · {{ periodo }}</span>
   </div>
   <div class="card__body">
@@ -46,36 +46,36 @@
       {% endfor %}
     </ul>
     {% else %}
-    <div class="empty"><p>Nenhuma janela cadastrada.</p></div>
+    <div class="empty"><p>{{ t('programacao_semanal', 'Nenhuma janela cadastrada.') }}</p></div>
     {% endif %}
   </div>
 </section>
 
 <section class="card mb-16">
   <div class="card__head">
-    <h2 class="h-card4">Lista de controle</h2>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Lista de controle') }}</h2>
     <span class="gov-exportar">
-      <span class="hint">uma linha por contratada e semana, da mais recente para a mais antiga</span>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">Excel</button>
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">PDF</button>
+      <span class="hint">{{ t('programacao_semanal', 'uma linha por contratada e semana, da mais recente para a mais antiga') }}</span>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">{{ t('programacao_semanal', 'Excel') }}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">{{ t('programacao_semanal', 'PDF') }}</button>
     </span>
   </div>
   <div class="card__body">
     {% if linhas %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Situação das programações por contratada e semana</caption>
+        <caption class="sr-only">{{ t('programacao_semanal', 'Situação das programações por contratada e semana') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Contratada</th>
-            <th scope="col">Semana</th>
-            <th scope="col" class="td-num">Programações</th>
-            <th scope="col">Situação</th>
-            <th scope="col" class="td-center">Pendências</th>
-            <th scope="col" class="td-num">Aderência</th>
-            <th scope="col">Fiscal</th>
-            <th scope="col">Última alteração</th>
+            {% if portfolio %}<th scope="col">{{ t('programacao_semanal', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('programacao_semanal', 'Contratada') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Semana') }}</th>
+            <th scope="col" class="td-num">{{ t('programacao_semanal', 'Programações') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Situação') }}</th>
+            <th scope="col" class="td-center">{{ t('programacao_semanal', 'Pendências') }}</th>
+            <th scope="col" class="td-num">{{ t('programacao_semanal', 'Aderência') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Fiscal') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Última alteração') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -110,8 +110,8 @@
     {% else %}
     <div class="empty">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h3 class="h-card4">Nada registrado ainda</h3>
-      <p>Assim que a primeira programação for criada, o controle aparece aqui.</p>
+      <h3 class="h-card4">{{ t('programacao_semanal', 'Nada registrado ainda') }}</h3>
+      <p>{{ t('programacao_semanal', 'Assim que a primeira programação for criada, o controle aparece aqui.') }}</p>
     </div>
     {% endif %}
   </div>
@@ -119,12 +119,12 @@
 
 <section class="card mb-16">
   <div class="card__head">
-    <h2 class="h-card4">Pedidos de alteração</h2>
-    <span class="hint">o caminho para mudar o que já está publicado ou aprovado</span>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Pedidos de alteração') }}</h2>
+    <span class="hint">{{ t('programacao_semanal', 'o caminho para mudar o que já está publicado ou aprovado') }}</span>
   </div>
   <div class="card__body">
     <div id="gov-pedidos" x-init="$ajax('{{ pedidos_url }}', { target: 'gov-pedidos' })">
-      <div class="empty"><div class="spinner" role="status" aria-label="Carregando"></div></div>
+      <div class="empty"><div class="spinner" role="status" aria-label="{{ t('programacao_semanal', 'Carregando') }}"></div></div>
     </div>
   </div>
 </section>
@@ -132,12 +132,12 @@
 {% if pode_ver_trilha %}
 <section class="card">
   <div class="card__head">
-    <h2 class="h-card4">Trilha de auditoria</h2>
-    <span class="hint">quem mudou o quê, e quando — só a programação deste escopo</span>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Trilha de auditoria') }}</h2>
+    <span class="hint">{{ t('programacao_semanal', 'quem mudou o quê, e quando — só a programação deste escopo') }}</span>
   </div>
   <div class="card__body">
     <div id="gov-trilha" x-init="$ajax('{{ trilha_url }}', { target: 'gov-trilha' })">
-      <div class="empty"><div class="spinner" role="status" aria-label="Carregando"></div></div>
+      <div class="empty"><div class="spinner" role="status" aria-label="{{ t('programacao_semanal', 'Carregando') }}"></div></div>
     </div>
   </div>
 </section>

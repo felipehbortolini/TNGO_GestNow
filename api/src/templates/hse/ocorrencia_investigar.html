@@ -27,9 +27,9 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="inv-metodo">Método de investigação</label>
+      <label for="inv-metodo">{{ t('hse', 'Método de investigação') }}</label>
       <select id="inv-metodo" name="metodo" class="input{% if erros.get('metodo') %} input--erro{% endif %}" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for metodo in metodos %}
         <option value="{{ metodo }}"{% if valores.get('metodo') == metodo %} selected{% endif %}>{{ metodo }}</option>
         {% endfor %}
@@ -37,13 +37,13 @@
       {{ erro(erros, 'metodo') }}
     </div>
     <div class="field field--full">
-      <label for="inv-causa">Causa raiz</label>
+      <label for="inv-causa">{{ t('hse', 'Causa raiz') }}</label>
       <textarea id="inv-causa" name="causa_raiz" rows="4" maxlength="500"
         class="input{% if erros.get('causa_raiz') %} input--erro{% endif %}" required>{{ valores.get('causa_raiz') or '' }}</textarea>
       {{ erro(erros, 'causa_raiz') }}
     </div>
     <div class="field">
-      <label for="inv-data">Data da investigação</label>
+      <label for="inv-data">{{ t('hse', 'Data da investigação') }}</label>
       <input id="inv-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
       {{ erro(erros, 'data') }}
@@ -51,8 +51,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar investigação</button>
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Registrar investigação') }}</button>
   </div>
 </form>
 {% endblock %}

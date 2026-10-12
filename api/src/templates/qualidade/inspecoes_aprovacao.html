@@ -26,15 +26,15 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="itp-aprovacao-referencia">Documento de aprovação</label>
+      <label for="itp-aprovacao-referencia">{{ t('qualidade', 'Documento de aprovação') }}</label>
       <input id="itp-aprovacao-referencia" name="referencia" class="input{% if erros.get('referencia') %} input--erro{% endif %}"
         maxlength="120" required value="{{ valores.get('referencia') or '' }}"
-        placeholder="Ex.: carta, comentário de revisão ou ata"
+        placeholder="{{ t('qualidade', 'Ex.: carta, comentário de revisão ou ata') }}"
         {% if erros.get('referencia') %}aria-invalid="true" aria-describedby="erro-referencia"{% endif %} />
       {{ erro(erros, 'referencia') }}
     </div>
     <div class="field">
-      <label for="itp-aprovacao-data">Data</label>
+      <label for="itp-aprovacao-data">{{ t('qualidade', 'Data') }}</label>
       <input id="itp-aprovacao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or '' }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
@@ -43,8 +43,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar aprovação</button>
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Registrar aprovação') }}</button>
   </div>
 </form>
 {% endblock %}

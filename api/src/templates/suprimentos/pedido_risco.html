@@ -26,12 +26,12 @@
 
   <div class="aviso aviso--info mb-16" role="status">
     <span x-init="$el.innerHTML = window.icon('info', 16)" aria-hidden="true"></span>
-    <span>O risco entra no registro (05) em análise, com origem no diligenciamento. O dono define o plano de resposta na ficha do risco; o VME usa a probabilidade média da faixa.</span>
+    <span>{{ t('suprimentos', 'O risco entra no registro (05) em análise, com origem no diligenciamento. O dono define o plano de resposta na ficha do risco; o VME usa a probabilidade média da faixa.') }}</span>
   </div>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="risco-titulo">Risco</label>
+      <label for="risco-titulo">{{ t('suprimentos', 'Risco') }}</label>
       <input id="risco-titulo" name="titulo" maxlength="140" required
         class="input{% if erros.get('titulo') %} input--erro{% endif %}"
         value="{{ valores.get('titulo') or padroes.title }}"
@@ -40,7 +40,7 @@
     </div>
 
     <div class="field">
-      <label for="risco-probabilidade">Probabilidade (1 a 5)</label>
+      <label for="risco-probabilidade">{{ t('suprimentos', 'Probabilidade (1 a 5)') }}</label>
       <input id="risco-probabilidade" name="probabilidade" type="number" min="1" max="5" step="1" required
         class="input{% if erros.get('probabilidade') %} input--erro{% endif %}"
         value="{{ valores.get('probabilidade') or padroes.probability }}"
@@ -49,7 +49,7 @@
     </div>
 
     <div class="field">
-      <label for="risco-impacto">Impacto (1 a 5)</label>
+      <label for="risco-impacto">{{ t('suprimentos', 'Impacto (1 a 5)') }}</label>
       <input id="risco-impacto" name="impacto" type="number" min="1" max="5" step="1" required
         class="input{% if erros.get('impacto') %} input--erro{% endif %}"
         value="{{ valores.get('impacto') or padroes.impact }}"
@@ -58,7 +58,7 @@
     </div>
 
     <div class="field">
-      <label for="risco-custo">Impacto em custo se ocorrer</label>
+      <label for="risco-custo">{{ t('suprimentos', 'Impacto em custo se ocorrer') }}</label>
       <input id="risco-custo" name="custo" inputmode="decimal"
         class="input{% if erros.get('custo') %} input--erro{% endif %}"
         value="{{ valores.get('custo') or '' }}"
@@ -67,22 +67,22 @@
     </div>
 
     <div class="field">
-      <label for="risco-dono">Dono do risco</label>
+      <label for="risco-dono">{{ t('suprimentos', 'Dono do risco') }}</label>
       <select id="risco-dono" name="dono" required
         class="input{% if erros.get('dono') %} input--erro{% endif %}"
         {% if erros.get('dono') %}aria-invalid="true" aria-describedby="erro-dono"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('suprimentos', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"
           {% if (valores.get('dono') or padroes.owner_id | string) == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
       </select>
       {{ campo_erro(erros, 'dono') }}
-      <span class="hint">De partida, o comprador do pacote.</span>
+      <span class="hint">{{ t('suprimentos', 'De partida, o comprador do pacote.') }}</span>
     </div>
 
     <div class="field field--full">
-      <label for="risco-causa">Causa</label>
+      <label for="risco-causa">{{ t('suprimentos', 'Causa') }}</label>
       <input id="risco-causa" name="causa" maxlength="160"
         class="input{% if erros.get('causa') %} input--erro{% endif %}"
         value="{{ valores.get('causa') or padroes.cause }}"
@@ -91,7 +91,7 @@
     </div>
 
     <div class="field field--full">
-      <label for="risco-consequencia">Consequência</label>
+      <label for="risco-consequencia">{{ t('suprimentos', 'Consequência') }}</label>
       <input id="risco-consequencia" name="consequencia" maxlength="160"
         class="input{% if erros.get('consequencia') %} input--erro{% endif %}"
         value="{{ valores.get('consequencia') or padroes.consequence }}"
@@ -101,11 +101,9 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>
-      Registrar risco
-    </button>
+      <span x-init="$el.innerHTML = window.icon('alertTriangle', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar risco') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -12,13 +12,13 @@
 {% block fragment %}
 <div class="rel-barra nao-imprimir">
   <p class="rel-barra__titulo">
-    <b>Relatório gerencial {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</b>
+    <b>{{ t('relatorio', 'Relatório gerencial') }} {{ t('relatorio', 'semanal') if visao.kind == 'Semanal' else t('relatorio', 'mensal') }}</b>
     <span>{{ visao.scope_label }} · {{ visao.period_label }}{% if visao.in_progress %} · parcial, dados até {{ formatar_data(visao.cut) }}{% endif %}</span>
   </p>
   <div class="rel-barra__acoes">
-    <button type="button" class="btn btn--ghost" data-relatorio-alterar>Alterar período</button>
+    <button type="button" class="btn btn--ghost" data-relatorio-alterar>{{ t('relatorio', 'Alterar período') }}</button>
     <button type="button" class="btn btn--ghost"
-      data-tn-excel="/api/relatorio/gerencial/excel?tipo={{ visao.kind }}&periodo={{ visao.period }}&secoes={{ visao.sections | join(',') }}">Excel</button>
+      data-tn-excel="/api/relatorio/gerencial/excel?tipo={{ visao.kind }}&periodo={{ visao.period }}&secoes={{ visao.sections | join(',') }}">{{ t('relatorio', 'Excel') }}</button>
   </div>
 </div>
 

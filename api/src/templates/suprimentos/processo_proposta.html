@@ -19,10 +19,10 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="proposta-empresa">Fornecedor do cadastro</label>
+      <label for="proposta-empresa">{{ t('suprimentos', 'Fornecedor do cadastro') }}</label>
       <select id="proposta-empresa" name="empresa" class="input{% if erros.get('fornecedor') %} input--erro{% endif %}"
         {% if erros.get('fornecedor') %}aria-invalid="true" aria-describedby="erro-fornecedor"{% endif %}>
-        <option value="">Escolha o fornecedor ou use o nome ao lado</option>
+        <option value="">{{ t('suprimentos', 'Escolha o fornecedor ou use o nome ao lado') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresa') == empresa.id|string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
@@ -32,14 +32,14 @@
     </div>
 
     <div class="field field--full">
-      <label for="proposta-nome">Fornecedor sem cadastro (nome)</label>
+      <label for="proposta-nome">{{ t('suprimentos', 'Fornecedor sem cadastro (nome)') }}</label>
       <input id="proposta-nome" name="nome" class="input" maxlength="80"
-        placeholder="Só para quem não está no cadastro; para adjudicar, é preciso cadastrar e qualificar"
+        placeholder="{{ t('suprimentos', 'Só para quem não está no cadastro; para adjudicar, é preciso cadastrar e qualificar') }}"
         value="{{ valores.get('nome') or '' }}" />
     </div>
 
     <div class="field">
-      <label for="proposta-data">Recebida em</label>
+      <label for="proposta-data">{{ t('suprimentos', 'Recebida em') }}</label>
       <input id="proposta-data" name="data" type="date" class="input{% if erros.get('recebida') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('recebida') %}aria-invalid="true" aria-describedby="erro-recebida"{% endif %} />
@@ -47,13 +47,13 @@
     </div>
 
     <div class="field">
-      <label for="proposta-validade">Validade da proposta</label>
+      <label for="proposta-validade">{{ t('suprimentos', 'Validade da proposta') }}</label>
       <input id="proposta-validade" name="validade" type="date" class="input"
         value="{{ valores.get('validade') or '' }}" />
     </div>
 
     <div class="field">
-      <label for="proposta-valor">Valor total</label>
+      <label for="proposta-valor">{{ t('suprimentos', 'Valor total') }}</label>
       <input id="proposta-valor" name="valor" class="input{% if erros.get('valor') %} input--erro{% endif %}"
         inputmode="decimal" placeholder="0,00" required value="{{ valores.get('valor') or '' }}"
         {% if erros.get('valor') %}aria-invalid="true" aria-describedby="erro-valor"{% endif %} />
@@ -61,7 +61,7 @@
     </div>
 
     <div class="field">
-      <label for="proposta-prazo">Prazo de entrega (dias após o pedido)</label>
+      <label for="proposta-prazo">{{ t('suprimentos', 'Prazo de entrega (dias após o pedido)') }}</label>
       <input id="proposta-prazo" name="prazo" class="input{% if erros.get('prazo') %} input--erro{% endif %}"
         inputmode="numeric" required value="{{ valores.get('prazo') or '' }}"
         {% if erros.get('prazo') %}aria-invalid="true" aria-describedby="erro-prazo"{% endif %} />
@@ -69,21 +69,19 @@
     </div>
 
     <div class="field field--full">
-      <label for="proposta-arquivo">Proposta técnica e comercial (PDF)</label>
+      <label for="proposta-arquivo">{{ t('suprimentos', 'Proposta técnica e comercial (PDF)') }}</label>
       <input id="proposta-arquivo" name="arquivo" type="file" accept=".pdf" required
         class="input{% if erros.get('arquivo') %} input--erro{% endif %}"
         {% if erros.get('arquivo') %}aria-invalid="true" aria-describedby="erro-arquivo"{% endif %} />
-      <span class="hint">O PDF é o anexo da proposta (D5a).</span>
+      <span class="hint">{{ t('suprimentos', 'O PDF é o anexo da proposta (D5a).') }}</span>
       {% if erros.get('arquivo') %}<span id="erro-arquivo" class="field__erro">{{ erros.get('arquivo') }}</span>{% endif %}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-      Registrar proposta
-    </button>
+      <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar proposta') }}</button>
   </div>
 </form>
 {% endblock %}

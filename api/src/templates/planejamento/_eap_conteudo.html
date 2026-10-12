@@ -12,7 +12,7 @@
   data-pode-editar="{{ 'sim' if pode_editar else 'nao' }}"
   data-pode-gerir="{{ 'sim' if pode_gerir else 'nao' }}"></span>
 
-<div class="kpis" role="group" aria-label="Indicadores da EAP">
+<div class="kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores da EAP') }}">
   {% for kpi in kpis %}
   <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -26,7 +26,7 @@
 </div>
 
 {% if visao.is_empty %}
-<p class="body-txt">Este projeto ainda não tem EAP cadastrada.</p>
+<p class="body-txt">{{ t('planejamento', 'Este projeto ainda não tem EAP cadastrada.') }}</p>
 {% else %}
 {% include "planejamento/_eap_arvore.html" %}
 {% include "planejamento/_eap_revisoes.html" %}

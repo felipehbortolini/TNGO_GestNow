@@ -16,11 +16,11 @@
     <div class="painel__topo">
       <div>
         <h2 class="h-card3" id="titulo-aprovacao">
-          {{ 'Reabrir o realizado' if reabrindo else 'Aprovar o realizado' }}
+          {{ t('programacao_semanal', 'Reabrir o realizado') if reabrindo else t('programacao_semanal', 'Aprovar o realizado') }}
         </h2>
         <p class="painel__sub">{{ atividade.unique_id }} · {{ atividade.company }}</p>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="{{ t('programacao_semanal', 'Fechar') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 18)"
         @click="$root.closest('.painel-fundo').remove()"></button>
     </div>
@@ -32,27 +32,27 @@
 
       <div class="lancamento-resumo mb-16">
         <div>
-          <span class="lancamento-resumo__rotulo">Previsto</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Previsto') }}</span>
           <span class="lancamento-resumo__valor">{{ previsto_texto }}</span>
           <span class="hint">{{ unidade }}</span>
         </div>
         <div>
-          <span class="lancamento-resumo__rotulo">Realizado</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Realizado') }}</span>
           <span class="lancamento-resumo__valor">{{ realizado_texto }}</span>
           <span class="hint">{{ unidade }}</span>
         </div>
         <div>
-          <span class="lancamento-resumo__rotulo">PPC</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'PPC') }}</span>
           <span class="lancamento-resumo__valor">{{ ppc_texto }}</span>
         </div>
       </div>
 
-      <p class="grupo-label">Dia a dia reportado</p>
+      <p class="grupo-label">{{ t('programacao_semanal', 'Dia a dia reportado') }}</p>
       {% include "programacao_semanal/_grade.html" %}
 
       {% if observacoes %}
       <div class="aviso aviso--warn mt-16">
-        <strong>Justificativa do fornecedor</strong>
+        <strong>{{ t('programacao_semanal', 'Justificativa do fornecedor') }}</strong>
         <span>{{ observacoes }}</span>
       </div>
       {% endif %}
@@ -64,18 +64,16 @@
         <input type="hidden" name="versao" value="{{ versao }}" />
         <input type="hidden" name="semana" value="{{ semana }}" />
         <div class="field mt-16">
-          <label for="campo-comentarios-aprovacao">Comentários da fiscalização</label>
+          <label for="campo-comentarios-aprovacao">{{ t('programacao_semanal', 'Comentários da fiscalização') }}</label>
           <textarea id="campo-comentarios-aprovacao" class="input" name="comentarios" rows="3"
-            placeholder="Opcional — registro do que foi conferido em campo">{{ valores.comments }}</textarea>
+            placeholder="{{ t('programacao_semanal', 'Opcional — registro do que foi conferido em campo') }}">{{ valores.comments }}</textarea>
         </div>
         <div class="painel__rodape painel__rodape--interno">
-          <span class="hint">Depois de aprovado, o realizado não pode mais ser alterado pelo fornecedor.</span>
+          <span class="hint">{{ t('programacao_semanal', 'Depois de aprovado, o realizado não pode mais ser alterado pelo fornecedor.') }}</span>
           <span class="painel__atalhos">
-            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Cancelar') }}</button>
             <button type="submit" class="btn btn--primary">
-              <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
-              Aprovar
-            </button>
+              <span x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Aprovar') }}</button>
           </span>
         </div>
       </form>
@@ -86,35 +84,33 @@
         <input type="hidden" name="versao" value="{{ versao }}" />
         <input type="hidden" name="semana" value="{{ semana }}" />
         <div class="aviso aviso--info mt-16">
-          <strong>O realizado já está aprovado</strong>
-          <span>Reabrir devolve o lançamento ao fornecedor para correção; o motivo fica registrado na trilha.</span>
+          <strong>{{ t('programacao_semanal', 'O realizado já está aprovado') }}</strong>
+          <span>{{ t('programacao_semanal', 'Reabrir devolve o lançamento ao fornecedor para correção; o motivo fica registrado na trilha.') }}</span>
         </div>
         <div class="field mt-16">
-          <label for="campo-motivo-reabertura">Motivo da reabertura</label>
+          <label for="campo-motivo-reabertura">{{ t('programacao_semanal', 'Motivo da reabertura') }}</label>
           <textarea id="campo-motivo-reabertura" class="input{{ ' input--erro' if erros.motivo }}" name="motivo"
-            rows="3" required placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."
+            rows="3" required placeholder="{{ t('programacao_semanal', 'Ex.: a quantidade de quarta saiu trocada com a de quinta na medição.') }}"
             {% if erros.motivo %}aria-invalid="true" aria-describedby="erro-motivo-reabertura"{% endif %}>{{ valores.reason }}</textarea>
           {% if erros.motivo %}<span id="erro-motivo-reabertura" class="field__erro">{{ erros.motivo }}</span>{% endif %}
         </div>
         <div class="painel__rodape painel__rodape--interno">
-          <span class="hint">O fornecedor volta a poder reportar o realizado desta atividade.</span>
+          <span class="hint">{{ t('programacao_semanal', 'O fornecedor volta a poder reportar o realizado desta atividade.') }}</span>
           <span class="painel__atalhos">
-            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Cancelar</button>
+            <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Cancelar') }}</button>
             <button type="submit" class="btn btn--secondary">
-              <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
-              Reabrir realizado
-            </button>
+              <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Reabrir realizado') }}</button>
           </span>
         </div>
       </form>
       {% else %}
       <div class="aviso aviso--info mt-16">
-        <strong>Não há realizado aguardando o fiscal</strong>
-        <span>O fornecedor ainda não reportou a produção desta atividade.</span>
+        <strong>{{ t('programacao_semanal', 'Não há realizado aguardando o fiscal') }}</strong>
+        <span>{{ t('programacao_semanal', 'O fornecedor ainda não reportou a produção desta atividade.') }}</span>
       </div>
       <div class="painel__rodape painel__rodape--interno">
-        <span class="hint">Nada a aprovar por enquanto.</span>
-        <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">Fechar</button>
+        <span class="hint">{{ t('programacao_semanal', 'Nada a aprovar por enquanto.') }}</span>
+        <button type="button" class="btn btn--secondary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Fechar') }}</button>
       </div>
       {% endif %}
     </div>

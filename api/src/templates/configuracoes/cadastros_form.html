@@ -23,20 +23,20 @@
   {% if tipo == 'empresa' %}
   <div class="fgrid">
     <div class="field field--full">
-      <label for="cad-nome">Nome da empresa</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome da empresa') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
-        placeholder="Contratada, fornecedor ou gerenciadora"
+        placeholder="{{ t('configuracoes', 'Contratada, fornecedor ou gerenciadora') }}"
         {% if erros.get('nome') %}aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
       {{ erro(erros, 'nome') }}
     </div>
     <div class="field">
-      <label for="cad-tipo">Tipo</label>
+      <label for="cad-tipo">{{ t('configuracoes', 'Tipo') }}</label>
       <select id="cad-tipo" name="tipo"
         class="input{% if erros.get('tipo') %} input--erro{% endif %}"
         {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for tipo_empresa in opcoes.company_kinds %}
         <option value="{{ tipo_empresa }}"{% if valores.get('tipo') == tipo_empresa %} selected{% endif %}>{{ tipo_empresa }}</option>
         {% endfor %}
@@ -48,7 +48,7 @@
   {% elif tipo == 'pessoa' %}
   <div class="fgrid">
     <div class="field">
-      <label for="cad-nome">Nome</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
@@ -56,13 +56,13 @@
       {{ erro(erros, 'nome') }}
     </div>
     <div class="field">
-      <label for="cad-funcao">Função</label>
+      <label for="cad-funcao">{{ t('configuracoes', 'Função') }}</label>
       <input id="cad-funcao" name="funcao" type="text" class="input"
         value="{{ valores.get('funcao') or '' }}" maxlength="60" autocomplete="off"
-        placeholder="Opcional" />
+        placeholder="{{ t('configuracoes', 'Opcional') }}" />
     </div>
     <div class="field">
-      <label for="cad-email">E-mail</label>
+      <label for="cad-email">{{ t('configuracoes', 'E-mail') }}</label>
       <input id="cad-email" name="email" type="email"
         class="input{% if erros.get('email') %} input--erro{% endif %}"
         value="{{ valores.get('email') or '' }}" required autocomplete="off"
@@ -71,16 +71,16 @@
       {{ erro(erros, 'email') }}
     </div>
     <div class="field">
-      <label for="cad-empresa">Empresa</label>
+      <label for="cad-empresa">{{ t('configuracoes', 'Empresa') }}</label>
       <select id="cad-empresa" name="empresa"
         class="input{% if erros.get('empresa') %} input--erro{% endif %}"
         {% if erros.get('empresa') %}aria-invalid="true" aria-describedby="erro-empresa"{% endif %}>
-        <option value="">Sem empresa</option>
+        <option value="">{{ t('configuracoes', 'Sem empresa') }}</option>
         {% for empresa in opcoes.companies %}
         <option value="{{ empresa.id }}"{% if valores.get('empresa') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint">A empresa do cadastro; é por ela que a Programação Semanal corta os dados da contratada.</span>
+      <span class="hint">{{ t('configuracoes', 'A empresa do cadastro; é por ela que a Programação Semanal corta os dados da contratada.') }}</span>
       {{ erro(erros, 'empresa') }}
     </div>
   </div>
@@ -88,16 +88,16 @@
   {% elif tipo == 'projeto' %}
   <div class="fgrid">
     <div class="field">
-      <label for="cad-codigo">Código</label>
+      <label for="cad-codigo">{{ t('configuracoes', 'Código') }}</label>
       <input id="cad-codigo" name="codigo" type="text"
         class="input{% if erros.get('codigo') %} input--erro{% endif %}"
         value="{{ valores.get('codigo') or '' }}" required maxlength="40" autocomplete="off"
-        placeholder="TN-001"
+        placeholder="{{ t('configuracoes', 'TN-001') }}"
         {% if erros.get('codigo') %}aria-invalid="true" aria-describedby="erro-codigo"{% endif %} />
       {{ erro(erros, 'codigo') }}
     </div>
     <div class="field">
-      <label for="cad-nome">Nome</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="120" autocomplete="off"
@@ -105,27 +105,27 @@
       {{ erro(erros, 'nome') }}
     </div>
     <div class="field">
-      <label for="cad-cliente-nome">Cliente</label>
+      <label for="cad-cliente-nome">{{ t('configuracoes', 'Cliente') }}</label>
       <input id="cad-cliente-nome" name="cliente_nome" type="text"
         class="input{% if erros.get('cliente') %} input--erro{% endif %}"
         value="{{ valores.get('cliente_nome') or '' }}" required maxlength="80" autocomplete="off"
         {% if erros.get('cliente') %}aria-invalid="true" aria-describedby="erro-cliente"{% endif %} />
-      <span class="hint">Cliente já cadastrado é reusado pelo nome, sem diferenciar maiúsculas.</span>
+      <span class="hint">{{ t('configuracoes', 'Cliente já cadastrado é reusado pelo nome, sem diferenciar maiúsculas.') }}</span>
       {{ erro(erros, 'cliente') }}
     </div>
     <div class="field">
-      <label for="cad-cliente-sigla">Sigla do cliente</label>
+      <label for="cad-cliente-sigla">{{ t('configuracoes', 'Sigla do cliente') }}</label>
       <input id="cad-cliente-sigla" name="cliente_sigla" type="text" class="input"
         value="{{ valores.get('cliente_sigla') or '' }}" maxlength="20" autocomplete="off"
-        placeholder="Obrigatória só no cliente novo" />
-      <span class="hint">Obrigatória quando o cliente ainda não existe; ignorada no cliente já cadastrado.</span>
+        placeholder="{{ t('configuracoes', 'Obrigatória só no cliente novo') }}" />
+      <span class="hint">{{ t('configuracoes', 'Obrigatória quando o cliente ainda não existe; ignorada no cliente já cadastrado.') }}</span>
     </div>
     <div class="field">
-      <label for="cad-gerente">Gerente do projeto</label>
+      <label for="cad-gerente">{{ t('configuracoes', 'Gerente do projeto') }}</label>
       <select id="cad-gerente" name="gerente"
         class="input{% if erros.get('gerente') %} input--erro{% endif %}"
         {% if erros.get('gerente') %}aria-invalid="true" aria-describedby="erro-gerente"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for pessoa in opcoes.people %}
         <option value="{{ pessoa.id }}"{% if valores.get('gerente') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -133,26 +133,26 @@
       {{ erro(erros, 'gerente') }}
     </div>
     <div class="field">
-      <label for="cad-pep">PEP</label>
+      <label for="cad-pep">{{ t('configuracoes', 'PEP') }}</label>
       <input id="cad-pep" name="pep" type="text" class="input"
         value="{{ valores.get('pep') or '' }}" maxlength="40" autocomplete="off"
-        placeholder="Opcional" />
+        placeholder="{{ t('configuracoes', 'Opcional') }}" />
     </div>
     <div class="field">
-      <label for="cad-apetite">Apetite a risco</label>
+      <label for="cad-apetite">{{ t('configuracoes', 'Apetite a risco') }}</label>
       <select id="cad-apetite" name="apetite"
         class="input{% if erros.get('apetite') %} input--erro{% endif %}"
         {% if erros.get('apetite') %}aria-invalid="true" aria-describedby="erro-apetite"{% endif %}>
-        <option value="">Sem apetite definido</option>
+        <option value="">{{ t('configuracoes', 'Sem apetite definido') }}</option>
         {% for apetite in opcoes.appetites %}
         <option value="{{ apetite.value }}"{% if valores.get('apetite') == apetite.value %} selected{% endif %}>{{ apetite.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint">As faixas vêm da escala de severidade vigente dos parâmetros de riscos.</span>
+      <span class="hint">{{ t('configuracoes', 'As faixas vêm da escala de severidade vigente dos parâmetros de riscos.') }}</span>
       {{ erro(erros, 'apetite') }}
     </div>
     <div class="field">
-      <label for="cad-orcamento">Orçamento</label>
+      <label for="cad-orcamento">{{ t('configuracoes', 'Orçamento') }}</label>
       <input id="cad-orcamento" name="orcamento" type="text"
         class="input{% if erros.get('orcamento') %} input--erro{% endif %}"
         value="{{ valores.get('orcamento') or '' }}" autocomplete="off" placeholder="R$ 0,00"
@@ -160,7 +160,7 @@
       {{ erro(erros, 'orcamento') }}
     </div>
     <div class="field">
-      <label for="cad-inicio">Início</label>
+      <label for="cad-inicio">{{ t('configuracoes', 'Início') }}</label>
       <input id="cad-inicio" name="inicio" type="date"
         class="input{% if erros.get('inicio') %} input--erro{% endif %}"
         value="{{ valores.get('inicio') or '' }}"
@@ -168,7 +168,7 @@
       {{ erro(erros, 'inicio') }}
     </div>
     <div class="field">
-      <label for="cad-termino">Término previsto</label>
+      <label for="cad-termino">{{ t('configuracoes', 'Término previsto') }}</label>
       <input id="cad-termino" name="termino_previsto" type="date"
         class="input{% if erros.get('termino') %} input--erro{% endif %}"
         value="{{ valores.get('termino_previsto') or '' }}"
@@ -176,31 +176,30 @@
       {{ erro(erros, 'termino') }}
     </div>
     <div class="field">
-      <label for="cad-padrao-ata">Padrão da ata</label>
+      <label for="cad-padrao-ata">{{ t('configuracoes', 'Padrão da ata') }}</label>
       <input id="cad-padrao-ata" name="padrao_ata" type="text" class="input"
         value="{{ valores.get('padrao_ata') or '' }}" maxlength="20" autocomplete="off"
-        placeholder="Opcional" />
+        placeholder="{{ t('configuracoes', 'Opcional') }}" />
       <span class="hint">Sem padrão, a numeração segue TN-&lt;ano&gt;, RSK e PL.</span>
     </div>
     <div class="field">
-      <label for="cad-padrao-risco">Padrão do risco</label>
+      <label for="cad-padrao-risco">{{ t('configuracoes', 'Padrão do risco') }}</label>
       <input id="cad-padrao-risco" name="padrao_risco" type="text" class="input"
         value="{{ valores.get('padrao_risco') or '' }}" maxlength="20" autocomplete="off"
-        placeholder="RSK" />
+        placeholder="{{ t('configuracoes', 'RSK') }}" />
     </div>
     <div class="field">
-      <label for="cad-padrao-punch">Padrão da punch list</label>
+      <label for="cad-padrao-punch">{{ t('configuracoes', 'Padrão da punch list') }}</label>
       <input id="cad-padrao-punch" name="padrao_punch" type="text" class="input"
         value="{{ valores.get('padrao_punch') or '' }}" maxlength="20" autocomplete="off"
-        placeholder="PL" />
+        placeholder="{{ t('configuracoes', 'PL') }}" />
     </div>
   </div>
 
   {% if opcoes.criteria %}
   <div class="cadastros__notas">
-    <h3 class="h-card5">Notas de ponderação</h3>
-    <p class="hint">As notas ficam na versão vigente dos parâmetros do portfólio e entram na
-      ponderação da carteira; o campo vazio não grava nota.</p>
+    <h3 class="h-card5">{{ t('configuracoes', 'Notas de ponderação') }}</h3>
+    <p class="hint">{{ t('configuracoes', 'As notas ficam na versão vigente dos parâmetros do portfólio e entram na ponderação da carteira; o campo vazio não grava nota.') }}</p>
     <div class="fgrid">
       {% for criterio in opcoes.criteria %}
       <div class="field">
@@ -220,11 +219,11 @@
   {% elif tipo == 'sistema' %}
   <div class="fgrid">
     <div class="field">
-      <label for="cad-projeto">Projeto</label>
+      <label for="cad-projeto">{{ t('configuracoes', 'Projeto') }}</label>
       <select id="cad-projeto" name="projeto"
         class="input{% if erros.get('projeto') %} input--erro{% endif %}"
         {% if erros.get('projeto') %}aria-invalid="true" aria-describedby="erro-projeto"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for projeto in opcoes.projects %}
         <option value="{{ projeto.id }}"{% if valores.get('projeto') == projeto.id | string %} selected{% endif %}>{{ projeto.code }} · {{ projeto.name }}</option>
         {% endfor %}
@@ -232,16 +231,16 @@
       {{ erro(erros, 'projeto') }}
     </div>
     <div class="field">
-      <label for="cad-codigo">Código</label>
+      <label for="cad-codigo">{{ t('configuracoes', 'Código') }}</label>
       <input id="cad-codigo" name="codigo" type="text"
         class="input{% if erros.get('codigo') %} input--erro{% endif %}"
         value="{{ valores.get('codigo') or '' }}" required maxlength="40" autocomplete="off"
         {% if erros.get('codigo') %}aria-invalid="true" aria-describedby="erro-codigo"{% endif %} />
-      <span class="hint">Único dentro do projeto.</span>
+      <span class="hint">{{ t('configuracoes', 'Único dentro do projeto.') }}</span>
       {{ erro(erros, 'codigo') }}
     </div>
     <div class="field">
-      <label for="cad-nome">Nome</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
@@ -249,40 +248,40 @@
       {{ erro(erros, 'nome') }}
     </div>
     <div class="field">
-      <label for="cad-area">Área</label>
+      <label for="cad-area">{{ t('configuracoes', 'Área') }}</label>
       <input id="cad-area" name="area" type="text" class="input"
         value="{{ valores.get('area') or '' }}" maxlength="60" autocomplete="off"
-        placeholder="Opcional" />
+        placeholder="{{ t('configuracoes', 'Opcional') }}" />
     </div>
   </div>
 
   {% elif tipo == 'unidade' %}
   <div class="fgrid">
     <div class="field">
-      <label for="cad-tipo">Tipo</label>
+      <label for="cad-tipo">{{ t('configuracoes', 'Tipo') }}</label>
       <select id="cad-tipo" name="tipo"
         class="input{% if erros.get('tipo') %} input--erro{% endif %}"
         {% if erros.get('tipo') %}aria-invalid="true" aria-describedby="erro-tipo"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for tipo_unidade in opcoes.unit_kinds %}
         <option value="{{ tipo_unidade }}"{% if valores.get('tipo') == tipo_unidade %} selected{% endif %}>{{ tipo_unidade }}</option>
         {% endfor %}
       </select>
-      <span class="hint">A unidade de medida vale para quantidades; a organizacional, para a estrutura da Central de Ações.</span>
+      <span class="hint">{{ t('configuracoes', 'A unidade de medida vale para quantidades; a organizacional, para a estrutura da Central de Ações.') }}</span>
       {{ erro(erros, 'tipo') }}
     </div>
     <div class="field">
-      <label for="cad-codigo">Código</label>
+      <label for="cad-codigo">{{ t('configuracoes', 'Código') }}</label>
       <input id="cad-codigo" name="codigo" type="text"
         class="input{% if erros.get('codigo') %} input--erro{% endif %}"
         value="{{ valores.get('codigo') or '' }}" required maxlength="20" autocomplete="off"
         placeholder="m², un, ENG..."
         {% if erros.get('codigo') %}aria-invalid="true" aria-describedby="erro-codigo"{% endif %} />
-      <span class="hint">Único dentro do tipo.</span>
+      <span class="hint">{{ t('configuracoes', 'Único dentro do tipo.') }}</span>
       {{ erro(erros, 'codigo') }}
     </div>
     <div class="field">
-      <label for="cad-nome">Nome</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
@@ -294,11 +293,11 @@
   {% elif tipo == 'local' %}
   <div class="fgrid">
     <div class="field">
-      <label for="cad-projeto">Projeto</label>
+      <label for="cad-projeto">{{ t('configuracoes', 'Projeto') }}</label>
       <select id="cad-projeto" name="projeto"
         class="input{% if erros.get('projeto') %} input--erro{% endif %}"
         {% if erros.get('projeto') %}aria-invalid="true" aria-describedby="erro-projeto"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for projeto in opcoes.projects %}
         <option value="{{ projeto.id }}"{% if valores.get('projeto') == projeto.id | string %} selected{% endif %}>{{ projeto.code }} · {{ projeto.name }}</option>
         {% endfor %}
@@ -306,16 +305,16 @@
       {{ erro(erros, 'projeto') }}
     </div>
     <div class="field">
-      <label for="cad-codigo">Código</label>
+      <label for="cad-codigo">{{ t('configuracoes', 'Código') }}</label>
       <input id="cad-codigo" name="codigo" type="text"
         class="input{% if erros.get('codigo') %} input--erro{% endif %}"
         value="{{ valores.get('codigo') or '' }}" required maxlength="40" autocomplete="off"
         {% if erros.get('codigo') %}aria-invalid="true" aria-describedby="erro-codigo"{% endif %} />
-      <span class="hint">Único dentro do projeto.</span>
+      <span class="hint">{{ t('configuracoes', 'Único dentro do projeto.') }}</span>
       {{ erro(erros, 'codigo') }}
     </div>
     <div class="field">
-      <label for="cad-nome">Nome</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
@@ -327,11 +326,11 @@
   {% else %}
   <div class="fgrid">
     <div class="field field--full">
-      <label for="cad-nome">Nome da disciplina</label>
+      <label for="cad-nome">{{ t('configuracoes', 'Nome da disciplina') }}</label>
       <input id="cad-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
-        placeholder="Civil, Mecânica, Tubulação..."
+        placeholder="{{ t('configuracoes', 'Civil, Mecânica, Tubulação...') }}"
         {% if erros.get('nome') %}aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
       {{ erro(erros, 'nome') }}
     </div>
@@ -339,8 +338,8 @@
   {% endif %}
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-cadastros-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if editando else 'Incluir' }}</button>
+    <button type="button" class="btn btn--secondary" data-cadastros-fechar-modal>{{ t('configuracoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('configuracoes', 'Salvar alterações') if editando else t('configuracoes', 'Incluir') }}</button>
   </div>
 </form>
 {% endblock %}

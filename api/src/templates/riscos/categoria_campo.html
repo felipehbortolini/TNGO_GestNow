@@ -9,7 +9,7 @@
 {% block fragment %}
 <select id="risco-categoria" name="categoria" class="input{% if erros.get('categoria') %} input--erro{% endif %}" required
   {% if erros.get('categoria') %}aria-invalid="true" aria-describedby="erro-categoria"{% endif %}>
-  <option value="">Escolha...</option>
+  <option value="">{{ t('riscos', 'Escolha...') }}</option>
   {% for categoria in categorias %}
   <option value="{{ categoria.id }}"{% if valores.get('categoria') == categoria.id|string %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
   {% endfor %}

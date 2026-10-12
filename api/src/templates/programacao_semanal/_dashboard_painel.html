@@ -19,12 +19,12 @@
 {% if situacao == 'vazio-origem' %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-  <h2 class="h-card4">Ainda não há programação nesta semana</h2>
+  <h2 class="h-card4">{{ t('programacao_semanal', 'Ainda não há programação nesta semana') }}</h2>
   <p>Assim que a semana {{ semana }} tiver atividades, os indicadores aparecem aqui. Escolha outra semana ou importe a programação.</p>
 </div>
 {% elif situacao == 'vazio-filtro' %}
 <div class="empty" data-estado="vazio-filtro">
-  <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
+  <h2 class="h-card4">{{ t('programacao_semanal', 'Nenhum resultado para os filtros aplicados') }}</h2>
   <p>A semana {{ semana }} tem programação, mas nada do corte escolhido. Ajuste ou limpe os filtros para ver os indicadores.</p>
 </div>
 {% else %}
@@ -34,12 +34,12 @@
     <span class="hint">· {{ kpis[2].value }} atividades e {{ kpis[3].value }} contratadas</span>
   </p>
   <span class="dash-exportar">
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">Excel</button>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">PDF</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}">{{ t('programacao_semanal', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}">{{ t('programacao_semanal', 'PDF') }}</button>
   </span>
 </div>
 
-<div class="kpis dash-kpis" role="group" aria-label="Indicadores da programação">
+<div class="kpis dash-kpis" role="group" aria-label="{{ t('programacao_semanal', 'Indicadores da programação') }}">
   {% for kpi in kpis %}
   <div class="kpi kpi--{{ kpi.tone }} kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -52,7 +52,7 @@
 <section class="card mb-16" aria-labelledby="dash-aderencia-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-aderencia-titulo">Evolução da aderência por contratada</h2>
+      <h2 class="h-card4" id="dash-aderencia-titulo">{{ t('programacao_semanal', 'Evolução da aderência por contratada') }}</h2>
       <span class="hint">A linha de cada contratada é a aderência do período; clique no nome do mês para abrir as semanas dele. A tracejada é a meta de {{ meta_aderencia }}.</span>
     </div>
   </div>
@@ -64,10 +64,10 @@
       gráfico: o realizado da semana dividido pelo previsto dela.
     #}
     <table class="sr-only">
-      <caption>Aderência por contratada em cada semana do horizonte</caption>
+      <caption>{{ t('programacao_semanal', 'Aderência por contratada em cada semana do horizonte') }}</caption>
       <thead>
         <tr>
-          <th scope="col">Semana</th>
+          <th scope="col">{{ t('programacao_semanal', 'Semana') }}</th>
           {% for serie in grafico_evolucao.data.series if serie.tipo == 'razao' and serie.id != 'meta' %}
           <th scope="col">{{ serie.rotulo }}</th>
           {% endfor %}
@@ -85,20 +85,15 @@
         {% endfor %}
       </tbody>
     </table>
-    <p class="hint mt-8">
-      Aderência de um período é o realizado dividido pelo previsto <i>daquele</i>
-      período — nunca a média das aderências semanais, que daria outro número sempre
-      que as semanas tiverem tamanhos diferentes. O mês fechado soma o numerador e o
-      denominador das suas semanas e divide uma vez só.
-    </p>
+    <p class="hint mt-8">{{ t('programacao_semanal', 'Aderência de um período é o realizado dividido pelo previsto') }}<i>{{ t('programacao_semanal', 'daquele') }}</i>{{ t('programacao_semanal', 'período — nunca a média das aderências semanais, que daria outro número sempre que as semanas tiverem tamanhos diferentes. O mês fechado soma o numerador e o denominador das suas semanas e divide uma vez só.') }}</p>
   </div>
 </section>
 
 <section class="card mb-16" aria-labelledby="dash-curva-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-curva-titulo">Curva S do avanço</h2>
-      <span class="hint">Peso igual por atividade; o escopo da atividade é a soma do previsto dela no horizonte de treze semanas. A curva não é volume: as unidades das atividades não se somam.</span>
+      <h2 class="h-card4" id="dash-curva-titulo">{{ t('programacao_semanal', 'Curva S do avanço') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'Peso igual por atividade; o escopo da atividade é a soma do previsto dela no horizonte de treze semanas. A curva não é volume: as unidades das atividades não se somam.') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -109,8 +104,8 @@
 <section class="card mb-16" aria-labelledby="dash-semanal-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-semanal-titulo">Previsto contra realizado</h2>
-      <span class="hint">Avanço de cada semana em pontos percentuais do escopo do horizonte; clique no nome do mês para abrir as semanas dele.</span>
+      <h2 class="h-card4" id="dash-semanal-titulo">{{ t('programacao_semanal', 'Previsto contra realizado') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'Avanço de cada semana em pontos percentuais do escopo do horizonte; clique no nome do mês para abrir as semanas dele.') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -131,8 +126,8 @@
 <div class="dash-quebras mt-24">
   <section class="card">
     <div class="card__head">
-      <h2 class="h-card4">Ranking por contratada</h2>
-      <span class="hint">pior primeiro</span>
+      <h2 class="h-card4">{{ t('programacao_semanal', 'Ranking por contratada') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'pior primeiro') }}</span>
     </div>
     <div class="card__body">
       {% set itens, rotulo_coluna = ranking_empresa, 'Contratada' %}
@@ -142,8 +137,8 @@
 
   <section class="card">
     <div class="card__head">
-      <h2 class="h-card4">Ranking por frente</h2>
-      <span class="hint">pior primeiro</span>
+      <h2 class="h-card4">{{ t('programacao_semanal', 'Ranking por frente') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'pior primeiro') }}</span>
     </div>
     <div class="card__body">
       {% set itens, rotulo_coluna = ranking_frente, 'Frente' %}
@@ -153,8 +148,8 @@
 
   <section class="card">
     <div class="card__head">
-      <h2 class="h-card4">Ranking por encarregado</h2>
-      <span class="hint">pior primeiro</span>
+      <h2 class="h-card4">{{ t('programacao_semanal', 'Ranking por encarregado') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'pior primeiro') }}</span>
     </div>
     <div class="card__body">
       {% set itens, rotulo_coluna = ranking_encarregado, 'Encarregado' %}
@@ -166,7 +161,7 @@
 <section class="card mt-24" aria-labelledby="dash-heatmap-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-heatmap-titulo">Mapa de calor — dia por frente</h2>
+      <h2 class="h-card4" id="dash-heatmap-titulo">{{ t('programacao_semanal', 'Mapa de calor — dia por frente') }}</h2>
       <span class="hint">percentual do previsto entregue em cada dia, na escala do módulo ({{ limite_alto }}% e {{ limite_gargalo }}%); o dia sem previsão não é 0%, é ausência de plano</span>
     </div>
   </div>
@@ -178,8 +173,8 @@
 <section class="card mt-24" aria-labelledby="dash-dia-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-dia-titulo">Produção por dia</h2>
-      <span class="hint">previsto contra realizado de cada dia da semana; a variação é o desvio do dia</span>
+      <h2 class="h-card4" id="dash-dia-titulo">{{ t('programacao_semanal', 'Produção por dia') }}</h2>
+      <span class="hint">{{ t('programacao_semanal', 'previsto contra realizado de cada dia da semana; a variação é o desvio do dia') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -191,7 +186,7 @@
 <section class="card mt-24" aria-labelledby="dash-gargalos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="dash-gargalos-titulo">O que travou a semana</h2>
+      <h2 class="h-card4" id="dash-gargalos-titulo">{{ t('programacao_semanal', 'O que travou a semana') }}</h2>
       <span class="hint">atividades abaixo de {{ limite_gargalo }}% de PPC, pior primeiro</span>
     </div>
   </div>

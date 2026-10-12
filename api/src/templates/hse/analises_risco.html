@@ -49,44 +49,40 @@
     <form class="toolbar analises-risco__filtros" method="get" action="/api/hse/analises-risco" x-target="{{ target_id }}" role="search">
       <div class="toolbar__search input-icon">
         <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar estudos</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('hse', 'Buscar estudos') }}</label>
         <input id="{{ target_id }}-busca" class="input input--pill" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Buscar por número, título ou área" />
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('hse', 'Buscar por número, título ou área') }}" />
       </div>
-      <select class="input" name="tipo" aria-label="Tipo" @change="$el.form.requestSubmit()">
-        <option value="">Tipo: todos</option>
+      <select class="input" name="tipo" aria-label="{{ t('hse', 'Tipo') }}" @change="$el.form.requestSubmit()">
+        <option value="">{{ t('hse', 'Tipo: todos') }}</option>
         {% for tipo in tipos %}
         <option value="{{ tipo }}"{% if filtros.kind == tipo %} selected{% endif %}>{{ 'APR / JSA' if tipo == 'APR' else tipo }}</option>
         {% endfor %}
       </select>
       <label class="analises-risco__opcao">
         <input type="checkbox" name="abertas" value="1"{% if filtros.open_only %} checked{% endif %}
-          @change="$el.form.requestSubmit()" />
-        Só com recomendação aberta
-      </label>
+          @change="$el.form.requestSubmit()" />{{ t('hse', 'Só com recomendação aberta') }}</label>
       <button type="submit" class="btn btn--secondary btn--sm">
-        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span> Consultar
-      </button>
+        <span x-init="$el.innerHTML = window.icon('search', 14)" aria-hidden="true"></span>{{ t('hse', 'Consultar') }}</button>
       {% if tem_filtro %}
-      <a class="btn btn--ghost btn--sm" href="/api/hse/analises-risco" x-target="{{ target_id }}">Limpar filtros</a>
+      <a class="btn btn--ghost btn--sm" href="/api/hse/analises-risco" x-target="{{ target_id }}">{{ t('hse', 'Limpar filtros') }}</a>
       {% endif %}
     </form>
 
     <div class="toolbar analises-risco__barra">
       <span class="hint" role="status">
-        {{ total }} {{ 'estudo encontrado' if total == 1 else 'estudos encontrados' }}
+        {{ total }} {{ t('hse', 'estudo encontrado') if total == 1 else t('hse', 'estudos encontrados') }}
       </span>
       <span class="analises-risco__barra-acoes">
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('hse', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('hse', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary btn--sm" data-tn-incluir="nova"
           data-analises-risco-modal-url="/api/hse/analises-risco/nova?consulta={{ consulta }}"
-          data-analises-risco-modal-titulo="Nova análise de risco"
-          data-analises-risco-modal-subtitulo="Estudo APR/JSA ou HAZOP com participantes e recomendações"
+          data-analises-risco-modal-titulo="{{ t('hse', 'Nova análise de risco') }}"
+          data-analises-risco-modal-subtitulo="{{ t('hse', 'Estudo APR/JSA ou HAZOP com participantes e recomendações') }}"
           data-analises-risco-modal-largura="920">
-          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span> Novo estudo
-        </button>
+          <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('hse', 'Novo estudo') }}</button>
         {% endif %}
       </span>
     </div>
@@ -95,23 +91,23 @@
     <div class="empty" data-estado="{{ 'vazio-origem' if not tem_filtro else 'vazio-filtro' }}">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
       <h2 class="h-card4">
-        {% if tem_filtro %}Nenhum estudo encontrado com os filtros atuais{% else %}Ainda não há estudos registrados{% endif %}
+        {% if tem_filtro %}{{ t('hse', 'Nenhum estudo encontrado com os filtros atuais') }}{% else %}{{ t('hse', 'Ainda não há estudos registrados') }}{% endif %}
       </h2>
       <p>
-        {% if tem_filtro %}Ajuste ou limpe os filtros para ver os registros.
-        {% else %}Registre o primeiro estudo com tipo, área, título, participantes e recomendações.{% endif %}
+        {% if tem_filtro %}{{ t('hse', 'Ajuste ou limpe os filtros para ver os registros.') }}
+        {% else %}{{ t('hse', 'Registre o primeiro estudo com tipo, área, título, participantes e recomendações.') }}{% endif %}
       </p>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Análises de risco do projeto</caption>
+        <caption class="sr-only">{{ t('hse', 'Análises de risco do projeto') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Nº</th><th scope="col">Tipo</th><th scope="col">Área</th>
-          <th scope="col">Título</th><th scope="col">Data</th><th scope="col">Participantes</th>
-          <th scope="col">Recomendações</th>
-          <th scope="col"><span class="sr-only">Ações da linha</span></th>
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">Nº</th><th scope="col">{{ t('hse', 'Tipo') }}</th><th scope="col">{{ t('hse', 'Área') }}</th>
+          <th scope="col">{{ t('hse', 'Título') }}</th><th scope="col">{{ t('hse', 'Data') }}</th><th scope="col">{{ t('hse', 'Participantes') }}</th>
+          <th scope="col">{{ t('hse', 'Recomendações') }}</th>
+          <th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -122,7 +118,7 @@
               data-analises-risco-modal-titulo="Estudo {{ linha.code }}"
               data-analises-risco-modal-subtitulo="{{ linha.kind }} · {{ linha.area }}"
               data-analises-risco-modal-largura="960">{{ linha.code }}</button></td>
-            <td><span class="pill {{ pill_do_tipo.get(linha.kind, 'pill--neutral') }}">{{ 'APR / JSA' if linha.kind == 'APR' else linha.kind }}</span></td>
+            <td><span class="pill {{ pill_do_tipo.get(linha.kind, 'pill--neutral') }}">{{ t('hse', 'APR / JSA') if linha.kind == 'APR' else linha.kind }}</span></td>
             <td>{{ linha.area }}</td>
             <td>{{ linha.title }}</td>
             <td class="nowrap">{{ data(linha.held_on) }}</td>
@@ -140,10 +136,10 @@
         </tbody>
       </table>
     </div>
-    <nav class="analises-risco__paginas" aria-label="Páginas da tabela">
-      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+    <nav class="analises-risco__paginas" aria-label="{{ t('hse', 'Páginas da tabela') }}">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('hse', 'Anterior') }}</a>{% endif %}
       <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
-      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('hse', 'Próxima') }}</a>{% endif %}
     </nav>
     {% endif %}
   </div>

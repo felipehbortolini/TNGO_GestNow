@@ -12,7 +12,7 @@
   <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
   <input type="hidden" name="modulo" value="{{ visao.module }}" />
 
-  <p class="hint">Escolha o tipo e o período. Semanal e mensal são registros distintos; o texto alimenta a página do módulo no relatório gerencial (Início).</p>
+  <p class="hint">{{ t('relatorio', 'Escolha o tipo e o período. Semanal e mensal são registros distintos; o texto alimenta a página do módulo no relatório gerencial (Início).') }}</p>
 
   <p class="analise-identificacao">
     <span class="fw-600">{{ visao.module_label }}</span>
@@ -22,19 +22,19 @@
   <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
     formaction="/api/relatorio/analise/periodo"></button>
   <fieldset class="analise-opcoes">
-    <legend class="analise-legenda">Tipo</legend>
+    <legend class="analise-legenda">{{ t('relatorio', 'Tipo') }}</legend>
     {% for opcao in tipos %}
     <label class="analise-opcao">
       <input type="radio" name="tipo" value="{{ opcao }}" {{ 'checked' if opcao == visao.kind }}
         @change="$el.form.requestSubmit($refs.recarregar)" />
-      <span>{{ opcao }}</span>
-      <span class="hint">{{ 'semana ISO, segunda a domingo' if opcao == 'Semanal' else 'mês civil' }}</span>
+      <span>{{ t('relatorio', opcao) }}</span>
+      <span class="hint">{{ t('relatorio', 'semana ISO, segunda a domingo') if opcao == 'Semanal' else t('relatorio', 'mês civil') }}</span>
     </label>
     {% endfor %}
   </fieldset>
 
   <div class="field">
-    <label for="analise-periodo">Período</label>
+    <label for="analise-periodo">{{ t('relatorio', 'Período') }}</label>
     <select class="input" id="analise-periodo" name="periodo">
       {% for opcao in visao.options %}
       <option value="{{ opcao.period }}"{{ ' selected' if opcao.period == visao.selected }}>{{ opcao.label }} ({{ 'análise registrada' if opcao.registered else 'em andamento' if opcao.in_progress else 'pendente' }})</option>
@@ -43,7 +43,7 @@
   </div>
 
   <div class="modal__actions">
-    <button type="submit" class="btn btn--primary">Continuar</button>
+    <button type="submit" class="btn btn--primary">{{ t('relatorio', 'Continuar') }}</button>
   </div>
 </form>
 {% endblock %}

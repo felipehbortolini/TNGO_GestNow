@@ -18,7 +18,7 @@
     {% if resultado.skipped %}
     <section class="card mt-16" aria-labelledby="{{ target_id }}-fora">
       <div class="card__head">
-        <h3 class="h-card5" id="{{ target_id }}-fora">Linhas que ficaram de fora</h3>
+        <h3 class="h-card5" id="{{ target_id }}-fora">{{ t('planejamento', 'Linhas que ficaram de fora') }}</h3>
         <span class="hint">{{ resultado.skipped | length }} com erro, não gravadas: corrija na planilha e envie só elas</span>
       </div>
       <div class="card__body">

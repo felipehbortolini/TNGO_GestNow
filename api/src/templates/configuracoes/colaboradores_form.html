@@ -31,23 +31,22 @@
   {% endfor %}
 
   <div class="aviso aviso--info mb-16" role="note">
-    <span>O perfil geral vale nos módulos 01 a 08, Início, relatório e Configurações; o vínculo
-      corta o que a pessoa enxerga. A mudança vale na requisição seguinte dela.</span>
+    <span>{{ t('configuracoes', 'O perfil geral vale nos módulos 01 a 08, Início, relatório e Configurações; o vínculo corta o que a pessoa enxerga. A mudança vale na requisição seguinte dela.') }}</span>
   </div>
 
   <div class="fgrid">
     <div class="field">
-      <label for="colab-nome">Nome completo</label>
+      <label for="colab-nome">{{ t('configuracoes', 'Nome completo') }}</label>
       <input id="colab-nome" name="nome" type="text"
         class="input{% if erros.get('nome') %} input--erro{% endif %}"
         value="{{ valores.get('nome') or '' }}" required maxlength="80" autocomplete="off"
-        placeholder="Como a pessoa assina"
+        placeholder="{{ t('configuracoes', 'Como a pessoa assina') }}"
         {% if erros.get('nome') %}aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
       {{ erro(erros, 'nome') }}
     </div>
 
     <div class="field">
-      <label for="colab-email">E-mail corporativo</label>
+      <label for="colab-email">{{ t('configuracoes', 'E-mail corporativo') }}</label>
       <input id="colab-email" name="email" type="email"
         class="input{% if erros.get('email') %} input--erro{% endif %}"
         value="{{ valores.get('email') or '' }}" required autocomplete="off"
@@ -56,21 +55,21 @@
       {% if erros.get('email') %}
       {{ erro(erros, 'email') }}
       {% elif editando %}
-      <span class="hint">O e-mail de acesso não muda por aqui.</span>
+      <span class="hint">{{ t('configuracoes', 'O e-mail de acesso não muda por aqui.') }}</span>
       {% else %}
-      <span class="hint">É por ele que o login reconhece a pessoa.</span>
+      <span class="hint">{{ t('configuracoes', 'É por ele que o login reconhece a pessoa.') }}</span>
       {% endif %}
     </div>
 
     <div class="field">
-      <label for="colab-funcao">Função</label>
+      <label for="colab-funcao">{{ t('configuracoes', 'Função') }}</label>
       <input id="colab-funcao" name="funcao" type="text" class="input"
         value="{{ valores.get('funcao') or '' }}" maxlength="60" autocomplete="off"
-        placeholder="Opcional" />
+        placeholder="{{ t('configuracoes', 'Opcional') }}" />
     </div>
 
     <div class="field">
-      <label for="colab-perfil">Perfil geral</label>
+      <label for="colab-perfil">{{ t('configuracoes', 'Perfil geral') }}</label>
       <select id="colab-perfil" name="perfil"
         class="input{% if erros.get('perfil') %} input--erro{% endif %}"
         {% if erros.get('perfil') %}aria-invalid="true" aria-describedby="erro-perfil"{% endif %}>
@@ -83,7 +82,7 @@
     </div>
 
     <div class="field">
-      <label for="colab-vinculo">Vínculo</label>
+      <label for="colab-vinculo">{{ t('configuracoes', 'Vínculo') }}</label>
       <select id="colab-vinculo" name="vinculo" x-model="vinculo"
         class="input{% if erros.get('vinculo') %} input--erro{% endif %}"
         {% if erros.get('vinculo') %}aria-invalid="true" aria-describedby="erro-vinculo"{% endif %}>
@@ -95,35 +94,31 @@
     </div>
 
     <div class="field" x-show="vinculo === 'Fornecedor'">
-      <label for="colab-empresa">Empresa</label>
+      <label for="colab-empresa">{{ t('configuracoes', 'Empresa') }}</label>
       <select id="colab-empresa" name="empresa"
         class="input{% if erros.get('empresa') %} input--erro{% endif %}"
         {% if erros.get('empresa') %}aria-invalid="true" aria-describedby="erro-empresa"{% endif %}>
-        <option value="">Selecione...</option>
+        <option value="">{{ t('configuracoes', 'Selecione...') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresa') == empresa.id | string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint">Obrigatória no vínculo Fornecedor: é por ela que a Programação Semanal
-        corta os dados da contratada.</span>
+      <span class="hint">{{ t('configuracoes', 'Obrigatória no vínculo Fornecedor: é por ela que a Programação Semanal corta os dados da contratada.') }}</span>
       {{ erro(erros, 'empresa') }}
     </div>
 
     <div class="field">
       <label class="colaboradores__checkbox" for="colab-ativo">
         <input type="checkbox" id="colab-ativo" name="ativo" value="sim"
-          {% if valores.get('ativo', True) %}checked{% endif %} />
-        Ativo
-      </label>
-      <span class="hint">Suspenso mantém a pessoa no cadastro e tira o acesso na requisição seguinte.</span>
+          {% if valores.get('ativo', True) %}checked{% endif %} />{{ t('configuracoes', 'Ativo') }}</label>
+      <span class="hint">{{ t('configuracoes', 'Suspenso mantém a pessoa no cadastro e tira o acesso na requisição seguinte.') }}</span>
       {{ erro(erros, 'ativo') }}
     </div>
   </div>
 
   <div class="colaboradores__papeis">
-    <h3 class="h-card5">Papéis na Programação Semanal</h3>
-    <p class="hint">O papel vale só no projeto escolhido: uma pessoa pode ser Fiscal num projeto e
-      não em outro. Os campos de Fiscal responsável e Encarregado da programação leem daqui.</p>
+    <h3 class="h-card5">{{ t('configuracoes', 'Papéis na Programação Semanal') }}</h3>
+    <p class="hint">{{ t('configuracoes', 'O papel vale só no projeto escolhido: uma pessoa pode ser Fiscal num projeto e não em outro. Os campos de Fiscal responsável e Encarregado da programação leem daqui.') }}</p>
     <template x-for="(linha, indice) in papeis" :key="indice">
       <div class="colaboradores__papel">
         <select class="input" x-model="linha.projeto_id" :aria-label="'Projeto do papel ' + (indice + 1)">
@@ -132,7 +127,7 @@
           </template>
         </select>
         <select class="input" x-model="linha.papel" :aria-label="'Papel ' + (indice + 1)">
-          <option value="">Escolha o papel...</option>
+          <option value="">{{ t('configuracoes', 'Escolha o papel...') }}</option>
           <template x-for="rotulo in rotulos" :key="rotulo">
             <option :value="rotulo" x-text="rotulo"></option>
           </template>
@@ -142,17 +137,15 @@
           @click="removerPapel(indice)" x-init="$el.innerHTML = window.icon('trash', 16)"></button>
       </div>
     </template>
-    <p class="hint" x-show="!papeis.length">Nenhum papel por projeto. Use o botão abaixo para dar o primeiro.</p>
+    <p class="hint" x-show="!papeis.length">{{ t('configuracoes', 'Nenhum papel por projeto. Use o botão abaixo para dar o primeiro.') }}</p>
     <button type="button" class="btn btn--secondary btn--sm" @click="adicionarPapel()">
-      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>
-      Adicionar papel
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 14)" aria-hidden="true"></span>{{ t('configuracoes', 'Adicionar papel') }}</button>
     {{ erro(erros, 'papeis') }}
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-colaboradores-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if editando else 'Liberar acesso' }}</button>
+    <button type="button" class="btn btn--secondary" data-colaboradores-fechar-modal>{{ t('configuracoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('configuracoes', 'Salvar alterações') if editando else t('configuracoes', 'Liberar acesso') }}</button>
   </div>
 </form>
 {% endblock %}

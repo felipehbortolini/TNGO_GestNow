@@ -18,10 +18,10 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="negociacao-proposta">Fornecedor</label>
+      <label for="negociacao-proposta">{{ t('suprimentos', 'Fornecedor') }}</label>
       <select id="negociacao-proposta" name="proposta" class="input{% if erros.get('fornecedor') %} input--erro{% endif %}" required
         {% if erros.get('fornecedor') %}aria-invalid="true" aria-describedby="erro-fornecedor"{% endif %}>
-        <option value="">Escolha a proposta aprovada</option>
+        <option value="">{{ t('suprimentos', 'Escolha a proposta aprovada') }}</option>
         {% for proposta in aprovadas %}
         <option value="{{ proposta.id }}"{% if valores.get('proposta') == proposta.id|string %} selected{% endif %}>
           {% if proposta.rank %}{{ proposta.rank }}º {% endif %}{{ proposta.name }} · {{ formatar_moeda(proposta.value_cents) }}
@@ -32,7 +32,7 @@
     </div>
 
     <div class="field">
-      <label for="negociacao-valor">Valor negociado</label>
+      <label for="negociacao-valor">{{ t('suprimentos', 'Valor negociado') }}</label>
       <input id="negociacao-valor" name="valor" class="input{% if erros.get('valor') %} input--erro{% endif %}"
         inputmode="decimal" placeholder="0,00" required value="{{ valores.get('valor') or '' }}"
         {% if erros.get('valor') %}aria-invalid="true" aria-describedby="erro-valor"{% endif %} />
@@ -40,7 +40,7 @@
     </div>
 
     <div class="field">
-      <label for="negociacao-data">Data</label>
+      <label for="negociacao-data">{{ t('suprimentos', 'Data') }}</label>
       <input id="negociacao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
@@ -48,18 +48,16 @@
     </div>
 
     <div class="field field--full">
-      <label for="negociacao-observacao">Condições negociadas</label>
+      <label for="negociacao-observacao">{{ t('suprimentos', 'Condições negociadas') }}</label>
       <textarea id="negociacao-observacao" name="observacao" rows="3" maxlength="300"
         class="input">{{ valores.get('observacao') or '' }}</textarea>
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
-      Registrar negociação
-    </button>
+      <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar negociação') }}</button>
   </div>
 </form>
 {% endblock %}

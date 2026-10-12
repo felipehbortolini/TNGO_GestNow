@@ -68,7 +68,7 @@
       linha.communication_hours ~ ' h · ' ~ ('<span class="pill pill--erro">Fora do prazo</span>' if linha.communication_overdue else '<span class="pill pill--ok">No prazo</span>')) }}
     {% if linha.report_required %}
     {{ campo('Relatório final (LTI/HiPo)',
-      ('<span class="pill pill--erro">' ~ ('Fora do prazo' if linha.report_late == 'fora' else 'Vencido') ~ '</span>') if linha.report_late else '<span class="pill pill--ok">No prazo</span>') }}
+      ('<span class="pill pill--erro">' ~ ('Fora do prazo' if linha.report_late == 'fora' else t('hse', 'Vencido')) ~ '</span>') if linha.report_late else '<span class="pill pill--ok">No prazo</span>') }}
     {% endif %}
   </div>
 
@@ -79,11 +79,11 @@
     <span><b>Investigação ({{ ficha.investigation.method }}, {{ data(ficha.investigation.investigated_on) }})</b>:
       {{ ficha.investigation.root_cause }}<br />
       <span class="hint">Responsável: {{ ficha.investigation.responsible_name }}</span>
-      {% if linha.investigation_late == 'fora' %}<span class="pill pill--erro">fora do prazo preliminar</span>{% endif %}
+      {% if linha.investigation_late == 'fora' %}<span class="pill pill--erro">{{ t('hse', 'fora do prazo preliminar') }}</span>{% endif %}
     </span>
   </div>
   {% elif linha.investigation_late == 'vencido' %}
-  <div class="aviso aviso--warn mb-16" role="note"><span>Investigação preliminar vencida: o prazo passou sem registro.</span></div>
+  <div class="aviso aviso--warn mb-16" role="note"><span>{{ t('hse', 'Investigação preliminar vencida: o prazo passou sem registro.') }}</span></div>
   {% endif %}
 
   {% if linha.closed_on %}
@@ -93,18 +93,18 @@
   {% endif %}
 
   {% if ficha.lesson_code %}
-  <p class="mb-16"><b>Lição aprendida</b>:
+  <p class="mb-16"><b>{{ t('hse', 'Lição aprendida') }}</b>:
     <a href="{{ lesson_url or '#' }}" data-tn-tela>{{ ficha.lesson_code }}</a>
-    <span class="hint">Rascunho na Governança (origem HSE)</span></p>
+    <span class="hint">{{ t('hse', 'Rascunho na Governança (origem HSE)') }}</span></p>
   {% endif %}
 
-  <h3 class="section-title">Ações corretivas (Central)</h3>
+  <h3 class="section-title">{{ t('hse', 'Ações corretivas (Central)') }}</h3>
   {% if ficha.actions %}
   <div class="tbl-wrap mb-16">
     <table class="tbl">
-      <caption class="sr-only">Ações corretivas da ocorrência</caption>
-      <thead><tr><th scope="col">Item</th><th scope="col">Assunto</th><th scope="col">Responsável</th>
-        <th scope="col">Prevista</th><th scope="col">Status</th></tr></thead>
+      <caption class="sr-only">{{ t('hse', 'Ações corretivas da ocorrência') }}</caption>
+      <thead><tr><th scope="col">{{ t('hse', 'Item') }}</th><th scope="col">{{ t('hse', 'Assunto') }}</th><th scope="col">{{ t('hse', 'Responsável') }}</th>
+        <th scope="col">{{ t('hse', 'Prevista') }}</th><th scope="col">{{ t('hse', 'Status') }}</th></tr></thead>
       <tbody>
         {% for acao in ficha.actions %}
         <tr>
@@ -119,29 +119,29 @@
     </table>
   </div>
   {% else %}
-  <p class="hint mb-16">Nenhuma ação corretiva na Central ainda.</p>
+  <p class="hint mb-16">{{ t('hse', 'Nenhuma ação corretiva na Central ainda.') }}</p>
   {% endif %}
 
-  <h3 class="section-title">Evidências</h3>
+  <h3 class="section-title">{{ t('hse', 'Evidências') }}</h3>
   <div id="ocorrencia-anexos" class="mb-16" data-url="/api/anexos?origem=ocorrencia&registro={{ linha.id }}"
     x-data x-init="$ajax($el.dataset.url, { target: 'ocorrencia-anexos' })">
-    <div class="spinner" role="status" aria-label="Carregando os anexos"></div>
+    <div class="spinner" role="status" aria-label="{{ t('hse', 'Carregando os anexos') }}"></div>
   </div>
 
   {% if ver_restrito %}
-  <h3 class="section-title">Dado restrito (LGPD)</h3>
+  <h3 class="section-title">{{ t('hse', 'Dado restrito (LGPD)') }}</h3>
   <div id="{{ alvo_restrito }}" class="mb-16" data-url="{{ url_restrito }}"
     x-data x-init="$ajax($el.dataset.url, { target: '{{ alvo_restrito }}' })">
-    <div class="spinner" role="status" aria-label="Carregando o dado restrito"></div>
+    <div class="spinner" role="status" aria-label="{{ t('hse', 'Carregando o dado restrito') }}"></div>
   </div>
   {% endif %}
 
-  <h3 class="section-title">Histórico</h3>
+  <h3 class="section-title">{{ t('hse', 'Histórico') }}</h3>
   {% if ficha.history %}
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Histórico da ocorrência</caption>
-      <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr></thead>
+      <caption class="sr-only">{{ t('hse', 'Histórico da ocorrência') }}</caption>
+      <thead><tr><th scope="col">{{ t('hse', 'Quando') }}</th><th scope="col">{{ t('hse', 'Quem') }}</th><th scope="col">{{ t('hse', 'O que aconteceu') }}</th></tr></thead>
       <tbody>
         {% for item in ficha.history %}
         <tr>
@@ -154,7 +154,7 @@
     </table>
   </div>
   {% else %}
-  <p class="hint">Sem histórico registrado.</p>
+  <p class="hint">{{ t('hse', 'Sem histórico registrado.') }}</p>
   {% endif %}
 </div>
 {% endblock %}

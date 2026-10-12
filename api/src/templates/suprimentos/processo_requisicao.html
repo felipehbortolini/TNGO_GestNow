@@ -19,10 +19,10 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="requisicao-pacote">Pacote do plano de compras</label>
+      <label for="requisicao-pacote">{{ t('suprimentos', 'Pacote do plano de compras') }}</label>
       <select id="requisicao-pacote" name="pacote" class="input{% if erros.get('pacote') %} input--erro{% endif %}" required
         {% if erros.get('pacote') %}aria-invalid="true" aria-describedby="erro-pacote"{% endif %}>
-        <option value="">Escolha o pacote</option>
+        <option value="">{{ t('suprimentos', 'Escolha o pacote') }}</option>
         {% for pacote in pacotes %}
         <option value="{{ pacote.id }}"{% if valores.get('pacote') == pacote.id|string %} selected{% endif %}>
           {{ pacote.code }} {{ pacote.scope }}{% if pacote.plan_requisition %} · LB {{ formatar_data(pacote.plan_requisition) }}{% endif %}
@@ -30,40 +30,38 @@
         {% endfor %}
       </select>
       {% if not pacotes %}
-      <span class="hint">Não há pacotes planejados aguardando requisição. Inclua o pacote no Plano de compras.</span>
+      <span class="hint">{{ t('suprimentos', 'Não há pacotes planejados aguardando requisição. Inclua o pacote no Plano de compras.') }}</span>
       {% endif %}
       {% if erros.get('pacote') %}<span id="erro-pacote" class="field__erro">{{ erros.get('pacote') }}</span>{% endif %}
     </div>
 
     <div class="field">
-      <label for="requisicao-data">Data da requisição</label>
+      <label for="requisicao-data">{{ t('suprimentos', 'Data da requisição') }}</label>
       <input id="requisicao-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
-      <span class="hint">A data realizada do marco; a linha de base congela a partir dela.</span>
+      <span class="hint">{{ t('suprimentos', 'A data realizada do marco; a linha de base congela a partir dela.') }}</span>
       {% if erros.get('data') %}<span id="erro-data" class="field__erro">{{ erros.get('data') }}</span>{% endif %}
     </div>
 
     <div class="field">
-      <label for="requisicao-documento">Documento da requisição</label>
+      <label for="requisicao-documento">{{ t('suprimentos', 'Documento da requisição') }}</label>
       <input id="requisicao-documento" name="documento" class="input" maxlength="40"
-        placeholder="Ex.: RM-MEC-0042 rev. 0" value="{{ valores.get('documento') or '' }}" />
+        placeholder="{{ t('suprimentos', 'Ex.: RM-MEC-0042 rev. 0') }}" value="{{ valores.get('documento') or '' }}" />
     </div>
 
     <div class="field field--full">
-      <label for="requisicao-observacao">Observação</label>
+      <label for="requisicao-observacao">{{ t('suprimentos', 'Observação') }}</label>
       <textarea id="requisicao-observacao" name="observacao" rows="3" maxlength="300"
         class="input">{{ valores.get('observacao') or '' }}</textarea>
-      <span class="hint">Documento e observação ficam na trilha do pacote.</span>
+      <span class="hint">{{ t('suprimentos', 'Documento e observação ficam na trilha do pacote.') }}</span>
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-      Registrar requisição
-    </button>
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Registrar requisição') }}</button>
   </div>
 </form>
 {% endblock %}

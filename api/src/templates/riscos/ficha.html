@@ -33,7 +33,7 @@
 <span class="pill {{ etiqueta_de_faixa(visao.severity) }}"><b>{{ visao.score }}</b> {{ visao.severity.name }}</span>
 <span class="hint">P{{ visao.probability }} x I{{ visao.impact }}</span>
 {% else %}
-<span class="muted">não avaliado</span>
+<span class="muted">{{ t('riscos', 'não avaliado') }}</span>
 {% endif %}
 {% endmacro %}
 {% block fragment %}
@@ -47,85 +47,85 @@
 {% endfor %}
 {% if alerta_do_gestor %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <span>Risco na faixa mais alta: o gestor do projeto deve ser avisado.</span>
+  <span>{{ t('riscos', 'Risco na faixa mais alta: o gestor do projeto deve ser avisado.') }}</span>
 </div>
 {% endif %}
 {% if exige_plano %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <span>Risco na faixa mais alta sem plano de resposta: registre o plano agora.</span>
+  <span>{{ t('riscos', 'Risco na faixa mais alta sem plano de resposta: registre o plano agora.') }}</span>
 </div>
 {% endif %}
 
 {% if linha.hidden %}
 <div class="aviso aviso--erro mb-16" role="alert">
-  <strong>Risco excluído</strong>
+  <strong>{{ t('riscos', 'Risco excluído') }}</strong>
   <span>Motivo: {{ linha.deletion_reason or '·' }}. Só o Admin vê e restaura riscos excluídos.</span>
 </div>
 {% elif not linha.active %}
 {% set motivo = 'Capturada' if ficha.line.closing_reason == 'Materializado' and linha.nature != 'Ameaça' else ficha.line.closing_reason %}
 <div class="aviso aviso--info mb-16" role="status">
-  <strong>Risco encerrado</strong>
+  <strong>{{ t('riscos', 'Risco encerrado') }}</strong>
   <span>
-    {% if ficha.line.closing_date %}Encerrado em {{ formatar_data(ficha.line.closing_date) }}{% if ficha.closed_by_name %} por {{ ficha.closed_by_name }}{% endif %}.{% endif %}
+    {% if ficha.line.closing_date %}{{ t('riscos', 'Encerrado em') }}  {{ formatar_data(ficha.line.closing_date) }}{% if ficha.closed_by_name %} {{ t('riscos', 'por') }} {{ ficha.closed_by_name }}{% endif %}.{% endif %}
     Motivo: {{ motivo or '·' }}.
     {% if ficha.line.closing_reason == 'Materializado' and linha.nature == 'Ameaça' and ficha.line.closing_schedule_impact_days is not none %}
     Impacto real: {{ ficha.line.closing_schedule_impact_days }} dia(s) e {{ formatar_moeda(ficha.line.closing_cost_impact_cents) }}.
     {% endif %}
-    {% if ficha.lesson %}Lição <a href="/governanca/licoes?busca={{ ficha.lesson.code }}" data-tn-tela>{{ ficha.lesson.code }}</a> ({{ ficha.lesson.situation }}).{% endif %}
-    {% if ficha.closing_change %}Mudança <a href="/governanca/mudanca?codigo={{ ficha.closing_change.code }}" data-tn-tela>{{ ficha.closing_change.code }}</a> ({{ ficha.closing_change.situation }}).{% endif %}
+    {% if ficha.lesson %}{{ t('riscos', 'Lição') }}  <a href="/governanca/licoes?busca={{ ficha.lesson.code }}" data-tn-tela>{{ ficha.lesson.code }}</a> ({{ ficha.lesson.situation }}).{% endif %}
+    {% if ficha.closing_change %}{{ t('riscos', 'Mudança') }}  <a href="/governanca/mudanca?codigo={{ ficha.closing_change.code }}" data-tn-tela>{{ ficha.closing_change.code }}</a> ({{ ficha.closing_change.situation }}).{% endif %}
   </span>
 </div>
 {% else %}
 {% if linha.situation == 'Identificado' %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Risco sem avaliação.</strong>
-  <span>Avalie probabilidade e impacto para definir a severidade e a cadência de revisão.</span>
+  <strong>{{ t('riscos', 'Risco sem avaliação.') }}</strong>
+  <span>{{ t('riscos', 'Avalie probabilidade e impacto para definir a severidade e a cadência de revisão.') }}</span>
 </div>
 {% endif %}
 {% if ficha.approval_pending %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Plano de resposta aguardando aprovação</strong>
-  <span>da gerência do projeto{% if ficha.approval and ficha.approval.requested_at %} desde {{ ficha.approval.requested_at.strftime('%d/%m/%Y') }}{% endif %}.</span>
+  <strong>{{ t('riscos', 'Plano de resposta aguardando aprovação') }}</strong>
+  <span>da gerência do projeto{% if ficha.approval and ficha.approval.requested_at %} {{ t('riscos', 'desde') }} {{ ficha.approval.requested_at.strftime('%d/%m/%Y') }}{% endif %}.</span>
 </div>
 {% endif %}
 {% if ficha.approval_returned %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Plano devolvido pelo gestor.</strong>
+  <strong>{{ t('riscos', 'Plano devolvido pelo gestor.') }}</strong>
   <span>{% if ficha.approval and ficha.approval.justification %}{{ ficha.approval.justification }} {% endif %}Revise e salve o plano novamente.</span>
 </div>
 {% endif %}
 {% if ficha.trigger_on %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Gatilho ocorreu</strong>
+  <strong>{{ t('riscos', 'Gatilho ocorreu') }}</strong>
   <span>em {{ formatar_data(ficha.trigger_on) }}: reavaliação obrigatória.</span>
 </div>
 {% endif %}
 {% if linha.review_overdue %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Revisão vencida</strong>
+  <strong>{{ t('riscos', 'Revisão vencida') }}</strong>
   <span>desde {{ formatar_data(linha.next_review) }}{% if linha.cadence_days %} (cadência {{ texto_da_cadencia(linha.cadence_days) }}){% endif %}.</span>
 </div>
 {% endif %}
 {% if exige_acao and not ficha.actions %}
 <div class="aviso aviso--warn mb-16" role="status">
   <strong>Risco {{ linha.inherent.severity.name if linha.inherent else '' }} sem ação vinculada.</strong>
-  <span>O plano exige pelo menos uma ação.</span>
+  <span>{{ t('riscos', 'O plano exige pelo menos uma ação.') }}</span>
 </div>
 {% endif %}
 {% if linha.has_plan and linha.situation == 'Em tratamento' and ficha.actions and acoes_abertas == 0 %}
 <div class="aviso aviso--info mb-16" role="status">
-  <span>Todas as ações foram concluídas. Reavalie o residual: concluir as ações não fecha o risco (o encerramento é explícito).</span>
+  <span>{{ t('riscos', 'Todas as ações foram concluídas. Reavalie o residual: concluir as ações não fecha o risco (o encerramento é explícito).') }}</span>
 </div>
 {% endif %}
 {% if ficha.pauta %}
 <div class="aviso aviso--info mb-16" role="status">
-  <strong>Na pauta de escalonamento:</strong>
+  <strong>{{ t('riscos', 'Na pauta de escalonamento:') }}</strong>
   <span>{{ ficha.pauta | join(' · ') }}</span>
 </div>
 {% endif %}
 {% endif %}
 
-<section class="card ficha__faixa" aria-label="Identificação do risco">
+<section class="card ficha__faixa" aria-label="{{ t('riscos', 'Identificação do risco') }}">
   <div class="card__body ficha__faixa-corpo">
     <div>
       <p class="ficha__codigo">{{ linha.code }} · {{ linha.nature }}</p>
@@ -136,10 +136,10 @@
       </p>
     </div>
     <div class="ficha__selos">
-      <span class="hint">Inerente</span>
+      <span class="hint">{{ t('riscos', 'Inerente') }}</span>
       {{ nota_da_avaliacao(linha.inherent) }}
       <span class="ficha__seta" aria-hidden="true">›</span>
-      <span class="hint">Residual</span>
+      <span class="hint">{{ t('riscos', 'Residual') }}</span>
       {{ nota_da_avaliacao(linha.residual) }}
       {{ pill_da_situacao(linha.situation) }}
     </div>
@@ -153,7 +153,7 @@
 
 {% set proximo = 'avaliar' if not linha.inherent else ('plano' if not linha.has_plan else ('aprovar' if ficha.approval_pending and pode_gerir else ('avaliar' if ficha.trigger_on else ('revisar' if linha.review_overdue else '')))) %}
 {% if linha.active and not linha.hidden %}
-<div class="toolbar mb-16" role="group" aria-label="Ações do risco">
+<div class="toolbar mb-16" role="group" aria-label="{{ t('riscos', 'Ações do risco') }}">
   {% if pode_gravar %}
   {{ botao_do_modal(url_editar, 'Editar risco ' ~ linha.code, 'Editar', 'edit', false) }}
   {{ botao_do_modal(url_avaliar, 'Avaliação do risco ' ~ linha.code, 'Avaliar', 'chartLine', proximo == 'avaliar') }}
@@ -167,24 +167,24 @@
   {% if pode_gerir %}
   {{ botao_do_modal(url_encerrar, 'Encerrar risco · ' ~ linha.code, 'Encerrar', 'lock', false) }}
   {% endif %}
-  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
 </div>
 {% elif not linha.hidden and pode_gerir %}
-<div class="toolbar mb-16" role="group" aria-label="Ações do risco">
+<div class="toolbar mb-16" role="group" aria-label="{{ t('riscos', 'Ações do risco') }}">
   {{ botao_do_modal(url_reabrir, 'Reabrir risco ' ~ linha.code, 'Reabrir', 'refresh', true) }}
-  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
 </div>
 {% else %}
-<div class="toolbar mb-16" role="group" aria-label="Exportações">
-  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+<div class="toolbar mb-16" role="group" aria-label="{{ t('riscos', 'Exportações') }}">
+  <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+  <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
 </div>
 {% endif %}
 
 <div x-data="{ aba: 'identificacao' }">
-  <div class="tabs" role="tablist" aria-label="Seções do risco">
+  <div class="tabs" role="tablist" aria-label="{{ t('riscos', 'Seções do risco') }}">
     {% for chave, nome, icone in [('identificacao', 'Identificação', 'file'), ('avaliacao', 'Avaliação', 'chartLine'), ('resposta', 'Resposta e ações', 'taskList'), ('monitoramento', 'Monitoramento', 'clock'), ('historico', 'Histórico', 'listaNumeros')] %}
     <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
       :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
@@ -211,7 +211,7 @@
         {{ linha_detalhe('Identificado por', ficha.identified_by_name) }}
         {{ linha_detalhe('Identificado em', formatar_data(linha.identified_on)) }}
         <div class="det__row">
-          <span class="det__label">Origem</span>
+          <span class="det__label">{{ t('riscos', 'Origem') }}</span>
           <span class="det__valor">
             {% if linha.ata_id %}<a href="/central-acoes/ata?id={{ linha.ata_id }}" data-tn-tela>{{ linha.origin or 'Ata' }}</a>
             {% else %}{{ linha.origin or linha.origin_type }}{% endif %}
@@ -226,24 +226,24 @@
   <section class="mt-16" role="tabpanel" id="painel-avaliacao" aria-labelledby="aba-avaliacao" x-show="aba === 'avaliacao'">
     <div class="card">
       <div class="card__head">
-        <h3 class="h-card4">Avaliação vigente</h3>
-        <span class="hint">Somente leitura; alterar exige o modal Avaliação, que grava justificativa e histórico.</span>
+        <h3 class="h-card4">{{ t('riscos', 'Avaliação vigente') }}</h3>
+        <span class="hint">{{ t('riscos', 'Somente leitura; alterar exige o modal Avaliação, que grava justificativa e histórico.') }}</span>
       </div>
       <div class="card__body">
         <div class="ficha__aval-grid">
           <div class="aval-card">
-            <span class="aval-card__rotulo">Inerente (sem tratamento)</span>
+            <span class="aval-card__rotulo">{{ t('riscos', 'Inerente (sem tratamento)') }}</span>
             {% if linha.inherent %}
             <div class="aval-card__score"><b>{{ linha.inherent.score }}</b><span class="pill {{ etiqueta_de_faixa(linha.inherent.severity) }}">{{ linha.inherent.severity.name }}</span></div>
             <span class="aval-card__pi">P{{ linha.inherent.probability }} x I{{ linha.inherent.impact }}</span>
-            {% else %}<span class="muted">Ainda não avaliado.</span>{% endif %}
+            {% else %}<span class="muted">{{ t('riscos', 'Ainda não avaliado.') }}</span>{% endif %}
           </div>
           <div class="aval-card">
-            <span class="aval-card__rotulo">Residual (com o plano)</span>
+            <span class="aval-card__rotulo">{{ t('riscos', 'Residual (com o plano)') }}</span>
             {% if linha.residual %}
             <div class="aval-card__score"><b>{{ linha.residual.score }}</b><span class="pill {{ etiqueta_de_faixa(linha.residual.severity) }}">{{ linha.residual.severity.name }}</span></div>
             <span class="aval-card__pi">P{{ linha.residual.probability }} x I{{ linha.residual.impact }}</span>
-            {% else %}<span class="muted">{{ 'Plano registrado: avalie o residual.' if linha.has_plan else 'Habilitada depois do plano de resposta.' }}</span>{% endif %}
+            {% else %}<span class="muted">{{ t('riscos', 'Plano registrado: avalie o residual.') if linha.has_plan else t('riscos', 'Habilitada depois do plano de resposta.') }}</span>{% endif %}
           </div>
         </div>
         <div class="ficha__colunas mt-16">
@@ -255,13 +255,13 @@
             {{ linha_detalhe('VME atual', formatar_moeda(linha.vme_cents)) }}
             {{ linha_detalhe('Severidade-alvo', linha.target_severity) }}
             {{ linha_detalhe('Prazo para atingir o alvo', formatar_data(linha.target_date)) }}
-            {{ linha_detalhe('Risco à vida', 'Sim' if linha.life_risk else 'Não') }}
+            {{ linha_detalhe('Risco à vida', 'Sim' if linha.life_risk else t('riscos', 'Não')) }}
           </div>
           <div>
             <div class="tbl-wrap">
               <table class="tbl tbl--compact">
-                <caption class="sr-only">Impacto por dimensão</caption>
-                <thead><tr><th scope="col">Dimensão</th><th scope="col" class="td-num">Inerente</th><th scope="col" class="td-num">Residual</th></tr></thead>
+                <caption class="sr-only">{{ t('riscos', 'Impacto por dimensão') }}</caption>
+                <thead><tr><th scope="col">{{ t('riscos', 'Dimensão') }}</th><th scope="col" class="td-num">{{ t('riscos', 'Inerente') }}</th><th scope="col" class="td-num">{{ t('riscos', 'Residual') }}</th></tr></thead>
                 <tbody>
                   {% for chave, rotulo in dimensoes %}
                   <tr>
@@ -283,7 +283,7 @@
   <section class="mt-16" role="tabpanel" id="painel-resposta" aria-labelledby="aba-resposta" x-show="aba === 'resposta'">
     <div class="card">
       <div class="card__head">
-        <h3 class="h-card4">Plano de resposta</h3>
+        <h3 class="h-card4">{{ t('riscos', 'Plano de resposta') }}</h3>
         <span class="hint">{{ linha.strategy or 'sem estratégia' }}</span>
       </div>
       <div class="card__body">
@@ -294,10 +294,10 @@
           {% if linha.instrument %}{{ linha_detalhe('Instrumento', linha.instrument) }}{% endif %}
           {% if linha.strategy == 'Evitar' %}
           <div class="det__row">
-            <span class="det__label">Solicitação de mudança (08)</span>
+            <span class="det__label">{{ t('riscos', 'Solicitação de mudança (08)') }}</span>
             <span class="det__valor">
               {% if ficha.change %}<a href="/governanca/mudanca?codigo={{ ficha.change.code }}" data-tn-tela>{{ ficha.change.code }}</a> · {{ ficha.change.title }} ({{ ficha.change.situation }})
-              {% else %}a registrar (ação na Central){% endif %}
+              {% else %}{{ t('riscos', 'a registrar (ação na Central)') }}{% endif %}
             </span>
           </div>
           {% endif %}
@@ -305,33 +305,33 @@
           {{ linha_detalhe('Prazo para atingir o alvo', formatar_data(linha.target_date)) }}
           {{ linha_detalhe('Custo da resposta', formatar_moeda(linha.response_cost_cents) if linha.response_cost_cents is not none else 'não informado') }}
           {{ linha_detalhe('Responsável pelo plano', ficha.plan_responsible_name) }}
-          {{ linha_detalhe('Aprovação da gerência do projeto', 'Aprovado' if ficha.approval_situation == 'Aprovado' else ('Pendente' if ficha.approval_pending else ('Devolvido' if ficha.approval_returned else 'Não exigida'))) }}
+          {{ linha_detalhe('Aprovação da gerência do projeto', 'Aprovado' if ficha.approval_situation == 'Aprovado' else ('Pendente' if ficha.approval_pending else ('Devolvido' if ficha.approval_returned else t('riscos', 'Não exigida')))) }}
         </div>
         {% else %}
         <div class="empty" data-estado="vazio-origem">
-          <p>Plano de resposta ainda não definido.</p>
+          <p>{{ t('riscos', 'Plano de resposta ainda não definido.') }}</p>
         </div>
         {% endif %}
       </div>
     </div>
     <div class="card mt-16">
       <div class="card__head">
-        <h3 class="h-card4">Ações vinculadas</h3>
-        <span class="hint">Registros da Central de Ações com origem Risco; navegam de volta para esta ficha.</span>
+        <h3 class="h-card4">{{ t('riscos', 'Ações vinculadas') }}</h3>
+        <span class="hint">{{ t('riscos', 'Registros da Central de Ações com origem Risco; navegam de volta para esta ficha.') }}</span>
       </div>
       <div class="card__body">
         {% if ficha.actions %}
         <div class="tbl-wrap">
           <table class="tbl">
-            <caption class="sr-only">Ações do risco</caption>
-            <thead><tr><th scope="col">Item</th><th scope="col">Ação</th><th scope="col">Responsável</th><th scope="col">Prevista</th><th scope="col">Contribuição</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Abrir</span></th></tr></thead>
+            <caption class="sr-only">{{ t('riscos', 'Ações do risco') }}</caption>
+            <thead><tr><th scope="col">{{ t('riscos', 'Item') }}</th><th scope="col">{{ t('riscos', 'Ação') }}</th><th scope="col">{{ t('riscos', 'Responsável') }}</th><th scope="col">{{ t('riscos', 'Prevista') }}</th><th scope="col">{{ t('riscos', 'Contribuição') }}</th><th scope="col">{{ t('riscos', 'Situação') }}</th><th scope="col"><span class="sr-only">{{ t('riscos', 'Abrir') }}</span></th></tr></thead>
             <tbody>
               {% for acao in ficha.actions %}
               <tr{% if acao.overdue %} class="ficha__linha-alerta"{% endif %}>
                 <td class="td-num">{{ acao.item or '·' }}</td>
                 <td>
                   <span class="fw-600">{{ acao.subject }}</span><br />
-                  <span class="hint">{{ 'Problema (risco materializado)' if acao.group == 'Problema' else (acao.group or 'Plano de resposta') }} · Origem: Risco {{ linha.code }}</span>
+                  <span class="hint">{{ t('riscos', 'Problema (risco materializado)') if acao.group == 'Problema' else (acao.group or 'Plano de resposta') }} · Origem: Risco {{ linha.code }}</span>
                 </td>
                 <td>{{ acao.responsible_name }}</td>
                 <td class="nowrap">
@@ -349,7 +349,7 @@
                   {% if acao.overdue %}<br /><span class="hint">há {{ acao.days_overdue }} dia(s)</span>{% endif %}
                 </td>
                 <td>
-                  <a class="iconbtn" href="{{ acao.url }}" data-tn-tela aria-label="Abrir na Central de Ações" title="Abrir na Central de Ações">
+                  <a class="iconbtn" href="{{ acao.url }}" data-tn-tela aria-label="{{ t('riscos', 'Abrir na Central de Ações') }}" title="{{ t('riscos', 'Abrir na Central de Ações') }}">
                     <span x-init="$el.innerHTML = window.icon('arrowRight', 16)" aria-hidden="true"></span>
                   </a>
                 </td>
@@ -359,21 +359,21 @@
           </table>
         </div>
         {% else %}
-        <div class="empty" data-estado="vazio-origem"><p>Nenhuma ação vinculada.</p></div>
+        <div class="empty" data-estado="vazio-origem"><p>{{ t('riscos', 'Nenhuma ação vinculada.') }}</p></div>
         {% endif %}
       </div>
     </div>
     <div class="card mt-16">
       <div class="card__head">
-        <h3 class="h-card4">Claims vinculados</h3>
-        <span class="hint">Claims do contrato que apontam este risco (06 Financeiro, ISSUE-067).</span>
+        <h3 class="h-card4">{{ t('riscos', 'Claims vinculados') }}</h3>
+        <span class="hint">{{ t('riscos', 'Claims do contrato que apontam este risco (06 Financeiro, ISSUE-067).') }}</span>
       </div>
       <div class="card__body">
         {% if ficha.claims %}
         <div class="tbl-wrap">
           <table class="tbl">
-            <caption class="sr-only">Claims vinculados ao risco</caption>
-            <thead><tr><th scope="col">Claim</th><th scope="col">Descrição</th><th scope="col">Situação</th></tr></thead>
+            <caption class="sr-only">{{ t('riscos', 'Claims vinculados ao risco') }}</caption>
+            <thead><tr><th scope="col">{{ t('riscos', 'Claim') }}</th><th scope="col">{{ t('riscos', 'Descrição') }}</th><th scope="col">{{ t('riscos', 'Situação') }}</th></tr></thead>
             <tbody>
               {% for claim in ficha.claims %}
               <tr>
@@ -386,7 +386,7 @@
           </table>
         </div>
         {% else %}
-        <div class="empty" data-estado="vazio-origem"><p>Nenhum claim vinculado.</p></div>
+        <div class="empty" data-estado="vazio-origem"><p>{{ t('riscos', 'Nenhum claim vinculado.') }}</p></div>
         {% endif %}
       </div>
     </div>
@@ -395,10 +395,10 @@
   <section class="mt-16" role="tabpanel" id="painel-monitoramento" aria-labelledby="aba-monitoramento" x-show="aba === 'monitoramento'">
     <div class="card">
       <div class="card__head">
-        <h3 class="h-card4">Revisões</h3>
+        <h3 class="h-card4">{{ t('riscos', 'Revisões') }}</h3>
         <span class="hint">
-          {% if linha.cadence_days %}Cadência: {{ texto_da_cadencia(linha.cadence_days) }}{% if linha.current %} ({{ linha.current.severity.name | lower }}){% endif %}
-          {% else %}Sem cadência definida (risco não avaliado){% endif %}
+          {% if linha.cadence_days %}{{ t('riscos', 'Cadência:') }}  {{ texto_da_cadencia(linha.cadence_days) }}{% if linha.current %} ({{ linha.current.severity.name | lower }}){% endif %}
+          {% else %}{{ t('riscos', 'Sem cadência definida (risco não avaliado)') }}{% endif %}
         </span>
       </div>
       <div class="card__body">
@@ -409,26 +409,26 @@
             <span class="ficha__feed-data">{{ formatar_data(revisao.reviewed_on) }}</span>
             <span class="ficha__feed-corpo">
               <b>
-                {% if revisao.kind == 'inerente' %}Avaliação inicial
-                {% elif revisao.kind == 'residual' %}Avaliação residual{% if revisao.score_from is not none %} (de {{ revisao.score_from }} para {{ revisao.score_to }}){% endif %}
+                {% if revisao.kind == 'inerente' %}{{ t('riscos', 'Avaliação inicial') }}
+                {% elif revisao.kind == 'residual' %}{{ t('riscos', 'Avaliação residual') }}{% if revisao.score_from is not none %} (de {{ revisao.score_from }} para {{ revisao.score_to }}){% endif %}
                 {% else %}{{ texto_da_apurada(revisao.assessed_situation, linha.nature) }}{% if revisao.score_from is not none and revisao.score_from != revisao.score_to %} (de {{ revisao.score_from }} para {{ revisao.score_to }}){% endif %}{% endif %}
               </b>
               <span class="hint">P{{ revisao.probability }} x I{{ revisao.impact }} = {{ revisao.score_to }}{% if revisao.severity_name %} ({{ revisao.severity_name }}){% endif %}.</span>
               {% if revisao.body %}<span class="body-txt">{{ revisao.body }}</span>{% endif %}
-              {% if revisao.trigger_occurred %}<span class="pill pill--warn">Gatilho ocorreu</span>{% endif %}
+              {% if revisao.trigger_occurred %}<span class="pill pill--warn">{{ t('riscos', 'Gatilho ocorreu') }}</span>{% endif %}
             </span>
             <span class="hint">{{ revisao.author_name }}</span>
           </li>
           {% endfor %}
         </ul>
         {% else %}
-        <div class="empty" data-estado="vazio-origem"><p>Nenhuma revisão registrada.</p></div>
+        <div class="empty" data-estado="vazio-origem"><p>{{ t('riscos', 'Nenhuma revisão registrada.') }}</p></div>
         {% endif %}
         <p class="hint mt-16">
           {% if linha.active %}
-          {% if linha.next_review %}Próxima revisão: <b>{{ formatar_data(linha.next_review) }}</b>. {% endif %}
+          {% if linha.next_review %}{{ t('riscos', 'Próxima revisão:') }}  <b>{{ formatar_data(linha.next_review) }}</b>. {% endif %}
           Cadência sugerida pela severidade; o gestor pode antecipar, nunca postergar.
-          {% else %}Risco fora da carteira ativa: sem revisões programadas.{% endif %}
+          {% else %}{{ t('riscos', 'Risco fora da carteira ativa: sem revisões programadas.') }}{% endif %}
         </p>
       </div>
     </div>
@@ -440,8 +440,8 @@
         {% if ficha.history %}
         <div class="tbl-wrap">
           <table class="tbl">
-            <caption class="sr-only">Histórico do risco</caption>
-            <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que mudou</th></tr></thead>
+            <caption class="sr-only">{{ t('riscos', 'Histórico do risco') }}</caption>
+            <thead><tr><th scope="col">{{ t('riscos', 'Quando') }}</th><th scope="col">{{ t('riscos', 'Quem') }}</th><th scope="col">{{ t('riscos', 'O que mudou') }}</th></tr></thead>
             <tbody>
               {% for entrada in ficha.history %}
               <tr>
@@ -454,7 +454,7 @@
           </table>
         </div>
         {% else %}
-        <div class="empty" data-estado="vazio-origem"><p>Sem histórico registrado.</p></div>
+        <div class="empty" data-estado="vazio-origem"><p>{{ t('riscos', 'Sem histórico registrado.') }}</p></div>
         {% endif %}
       </div>
     </div>

@@ -12,7 +12,7 @@
 {% set c = visao.carteira %}
 {% set sobre = c.vac_cents is not none and c.vac_cents < 0 %}
 {% set vac_html %}<span class="{{ 'rel-negativo' if sobre else 'rel-economia' }}">{% if c.vac_cents is none %}·{% else %}{{ '+' if sobre else '−' }}{{ formatar_moeda_compacta(c.vac_cents | abs) }}{% endif %}</span> x orçamento{% endset %}
-<section class="rel-folha" aria-label="Carteira de projetos">
+<section class="rel-folha" aria-label="{{ t('relatorio', 'Carteira de projetos') }}">
   {{ folha.cabecalho(visao, 'Carteira de projetos', 'posição em ' ~ formatar_data(c.reference_date)) }}
   <div class="rel-folha__corpo">
     <div class="rel-kpis">
@@ -21,28 +21,28 @@
       {{ folha.kpi('Avanço ponderado', formatar_pct(c.actual), 'real', '', 'Previsto', formatar_pct(c.predicted), 'desvio ' ~ formatar_pp(c.deviation_pp), c.deviation_pp < 0) }}
       {{ folha.kpi('SPI físico ponderado', formatar_indice(c.spi), c.spi_tone, '', 'Meta', '≥ ' ~ formatar_indice(1), 'término ' ~ formatar_mes(c.trend_finish) ~ ' x LB ' ~ formatar_mes(c.baseline_finish)) }}
       {{ folha.kpi('CPI da carteira', formatar_indice(c.cpi), c.cpi_tone, '', 'Meta', '≥ ' ~ formatar_indice(1), 'EV ÷ AC somados dos projetos') }}
-      {{ folha.kpi('Projeção no término', formatar_mil(c.projection_cents), 'danger' if sobre else 'success', 'R$ mil', 'Orçado', formatar_moeda_mil(c.budget_cents), rodape_html=vac_html) }}
+      {{ folha.kpi('Projeção no término', formatar_mil(c.projection_cents), 'danger' if sobre else t('relatorio', 'success'), 'R$ mil', 'Orçado', formatar_moeda_mil(c.budget_cents), rodape_html=vac_html) }}
     </div>
 
     <div class="rel-bloco">
-      <h3 class="rel-bloco__titulo">Projetos da carteira <small>R$ mil · posição na data de referência · peso = relevância na carteira</small></h3>
+      <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Projetos da carteira') }}<small>R$ mil · posição na data de referência · peso = relevância na carteira</small></h3>
       <table class="rel-tabela">
-        <caption class="sr-only">Projetos da carteira</caption>
+        <caption class="sr-only">{{ t('relatorio', 'Projetos da carteira') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
-            <th scope="col" class="num">Peso</th>
-            <th scope="col" class="num">BAC</th>
-            <th scope="col" class="num">Previsto</th>
-            <th scope="col" class="num">Real</th>
-            <th scope="col" class="num">SPI</th>
-            <th scope="col" class="num">CPI</th>
-            <th scope="col" class="num">Projeção</th>
-            <th scope="col">Término LB / tendência</th>
-            <th scope="col" class="num">Riscos críticos</th>
-            <th scope="col" class="num">Pedidos críticos</th>
-            <th scope="col" class="num">Ações atrasadas</th>
-            <th scope="col">Situação</th>
+            <th scope="col">{{ t('relatorio', 'Projeto') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Peso') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'BAC') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Previsto') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Real') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'SPI') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'CPI') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Projeção') }}</th>
+            <th scope="col">{{ t('relatorio', 'Término LB / tendência') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Riscos críticos') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Pedidos críticos') }}</th>
+            <th scope="col" class="num">{{ t('relatorio', 'Ações atrasadas') }}</th>
+            <th scope="col">{{ t('relatorio', 'Situação') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -64,7 +64,7 @@
           </tr>
           {% endfor %}
           <tr class="rel-total">
-            <td>Total da carteira</td>
+            <td>{{ t('relatorio', 'Total da carteira') }}</td>
             <td class="num">100,00%</td>
             <td class="num">{{ formatar_mil(c.budget_cents) }}</td>
             <td class="num">{{ formatar_pct(c.predicted) }}</td>
@@ -84,19 +84,19 @@
 
     <div class="rel-grade rel-grade--60-40">
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Curva S física da carteira <small>média ponderada pelos pesos dos projetos</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Curva S física da carteira') }}<small>{{ t('relatorio', 'média ponderada pelos pesos dos projetos') }}</small></h3>
         <div class="rel-grafico rel-grafico--m" data-grafico="curva-s-linha" data-dados='{{ c.curve_chart | tojson }}'></div>
       </div>
       <div class="rel-bloco">
-        <h3 class="rel-bloco__titulo">Critérios de ponderação <small>peso do projeto = soma ponderada dos critérios, normalizada a 100%</small></h3>
+        <h3 class="rel-bloco__titulo">{{ t('relatorio', 'Critérios de ponderação') }}<small>peso do projeto = soma ponderada dos critérios, normalizada a 100%</small></h3>
         {% if c.criteria %}
         <table class="rel-tabela">
-          <caption class="sr-only">Critérios de ponderação</caption>
+          <caption class="sr-only">{{ t('relatorio', 'Critérios de ponderação') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Critério</th>
-              <th scope="col" class="num">Peso</th>
-              <th scope="col">Fonte</th>
+              <th scope="col">{{ t('relatorio', 'Critério') }}</th>
+              <th scope="col" class="num">{{ t('relatorio', 'Peso') }}</th>
+              <th scope="col">{{ t('relatorio', 'Fonte') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -104,13 +104,13 @@
             <tr>
               <td>{{ criterio.name }}</td>
               <td class="num">{{ formatar_num0(criterio.weight) }}%</td>
-              <td>{{ 'orçamento vigente (EAC)' if criterio.source == 'orcamento' else 'nota de 1 a 5 por projeto' }}</td>
+              <td>{{ t('relatorio', 'orçamento vigente (EAC)') if criterio.source == 'orcamento' else t('relatorio', 'nota de 1 a 5 por projeto') }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <p class="rel-vazio">Ponderação não configurada.</p>
+        <p class="rel-vazio">{{ t('relatorio', 'Ponderação não configurada.') }}</p>
         {% endif %}
       </div>
     </div>

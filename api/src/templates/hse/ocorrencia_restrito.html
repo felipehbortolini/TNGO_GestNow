@@ -17,9 +17,7 @@
 {% block fragment %}
 <div class="aviso aviso--info mb-16" role="note">
   <span class="ocorrencias__restrito-titulo">
-    <span x-init="$el.innerHTML = window.icon('lock', 14)" aria-hidden="true"></span>
-    Campo de acesso restrito (LGPD): Membro preenche, Gestor e Admin leem — inclusive os anexos.
-  </span>
+    <span x-init="$el.innerHTML = window.icon('lock', 14)" aria-hidden="true"></span>{{ t('hse', 'Campo de acesso restrito (LGPD): Membro preenche, Gestor e Admin leem — inclusive os anexos.') }}</span>
 </div>
 <div class="fgrid">
   {{ campo('Nome', restrito.name) }}
@@ -27,11 +25,10 @@
   {{ campo('Gravidade real', gravidade[0][1] if gravidade else none) }}
   {{ campo('Dias perdidos', restrito.days_lost) }}
   {{ campo('Dias debitados', restrito.days_charged) }}
-  {{ campo('Comunicação legal (CAT)', 'Aplicável' if restrito.cat else 'Não aplicável') }}
+  {{ campo('Comunicação legal (CAT)', 'Aplicável' if restrito.cat else t('hse', 'Não aplicável')) }}
   {{ campo('Descrição médica', restrito.medical_notes) }}
 </div>
 {% if restrito.suggests_hipo %}
-<p class="hint mt-16">O impacto potencial registrado supera a gravidade real: avalie marcar a
-  ocorrência como alto potencial (HiPo).</p>
+<p class="hint mt-16">{{ t('hse', 'O impacto potencial registrado supera a gravidade real: avalie marcar a ocorrência como alto potencial (HiPo).') }}</p>
 {% endif %}
 {% endblock %}

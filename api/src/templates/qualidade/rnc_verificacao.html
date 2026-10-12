@@ -20,13 +20,13 @@
   </div>
 
   <div class="det mb-16">
-    <div class="det__row"><span class="det__label">Ações na Central</span><span class="det__valor">{{ rnc.actions.open }} aberta(s) de {{ rnc.actions.total }}</span></div>
-    <div class="det__row"><span class="det__label">Disposição</span><span class="det__valor">{{ rnc.disposition or '—' }}{% if rnc.concession_reference %} · concessão {{ rnc.concession_reference }}{% endif %}</span></div>
+    <div class="det__row"><span class="det__label">{{ t('qualidade', 'Ações na Central') }}</span><span class="det__valor">{{ rnc.actions.open }} aberta(s) de {{ rnc.actions.total }}</span></div>
+    <div class="det__row"><span class="det__label">{{ t('qualidade', 'Disposição') }}</span><span class="det__valor">{{ rnc.disposition or '—' }}{% if rnc.concession_reference %} · concessão {{ rnc.concession_reference }}{% endif %}</span></div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Enviar para verificação</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Enviar para verificação') }}</button>
   </div>
 </form>
 {% endblock %}

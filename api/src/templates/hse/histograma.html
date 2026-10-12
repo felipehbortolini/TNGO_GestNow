@@ -4,7 +4,7 @@
   protótipo o mostrava (GET /api/hse/histograma). Espera: pontos, maximo e portfolio
   (ver _histograma.html).
 #}
-{% from "hse/_histograma.html" import histograma %}
+{% from "hse/_histograma.html" import histograma with context %}
 {% block fragment %}
 {{ histograma(pontos, maximo, portfolio, target_id) }}
 {% endblock %}

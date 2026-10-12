@@ -36,9 +36,9 @@
 {% if situacao == 'vazio-origem' %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-  <h2 class="h-card4">Ainda não há riscos registrados</h2>
-  <p>Registre e avalie os riscos para o painel mostrar a exposição, a evolução e a pauta de escalonamento.</p>
-  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>Ir ao Registro de riscos</a>
+  <h2 class="h-card4">{{ t('riscos', 'Ainda não há riscos registrados') }}</h2>
+  <p>{{ t('riscos', 'Registre e avalie os riscos para o painel mostrar a exposição, a evolução e a pauta de escalonamento.') }}</p>
+  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>{{ t('riscos', 'Ir ao Registro de riscos') }}</a>
 </div>
 {% else %}
 <div class="kpis painel__kpis" style="--kpis-colunas: 5">
@@ -46,13 +46,10 @@
 </div>
 
 <div class="painel__barra">
-  <p class="hint">
-    Avaliação residual (ou a inerente quando não existe); o VME soma só as ameaças ativas e a
-    evolução é reconstruída das avaliações e revisões.
-  </p>
+  <p class="hint">{{ t('riscos', 'Avaliação residual (ou a inerente quando não existe); o VME soma só as ameaças ativas e a evolução é reconstruída das avaliações e revisões.') }}</p>
   <div class="painel__exportacoes">
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
   </div>
 </div>
 
@@ -60,8 +57,8 @@
   <section class="card" aria-labelledby="painel-t-categorias">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-categorias">Exposição por categoria (RBS)</h2>
-        <span class="hint">Soma do score residual das ameaças ativas; clique para abrir o Registro filtrado</span>
+        <h2 class="h-card4" id="painel-t-categorias">{{ t('riscos', 'Exposição por categoria (RBS)') }}</h2>
+        <span class="hint">{{ t('riscos', 'Soma do score residual das ameaças ativas; clique para abrir o Registro filtrado') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -82,7 +79,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <p class="empty" data-estado="vazio-filtro">Nenhuma ameaça ativa avaliada no escopo.</p>
+      <p class="empty" data-estado="vazio-filtro">{{ t('riscos', 'Nenhuma ameaça ativa avaliada no escopo.') }}</p>
       {% endif %}
     </div>
   </section>
@@ -90,8 +87,8 @@
   <section class="card" aria-labelledby="painel-t-evolucao">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-evolucao">Evolução da exposição total</h2>
-        <span class="hint">Score residual somado das ameaças, por mês; o mês corrente vai até a data de referência</span>
+        <h2 class="h-card4" id="painel-t-evolucao">{{ t('riscos', 'Evolução da exposição total') }}</h2>
+        <span class="hint">{{ t('riscos', 'Score residual somado das ameaças, por mês; o mês corrente vai até a data de referência') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -103,7 +100,7 @@
 <section class="card painel__pauta" aria-labelledby="painel-t-pauta">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="painel-t-pauta">Pauta de escalonamento</h2>
+      <h2 class="h-card4" id="painel-t-pauta">{{ t('riscos', 'Pauta de escalonamento') }}</h2>
       <span class="hint">{{ resumo_da_pauta }}</span>
     </div>
     {% if pode_gravar %}
@@ -116,15 +113,15 @@
   {% if painel.agenda %}
   <div class="tbl-wrap">
     <table class="tbl painel__tabela">
-      <caption class="sr-only">Pauta de escalonamento</caption>
+      <caption class="sr-only">{{ t('riscos', 'Pauta de escalonamento') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('riscos', 'Projeto') }}</th>{% endif %}
           <th scope="col">Nº</th>
-          <th scope="col">Risco</th>
-          <th scope="col">Residual</th>
-          <th scope="col">Motivo</th>
-          <th scope="col">Dono</th>
+          <th scope="col">{{ t('riscos', 'Risco') }}</th>
+          <th scope="col">{{ t('riscos', 'Residual') }}</th>
+          <th scope="col">{{ t('riscos', 'Motivo') }}</th>
+          <th scope="col">{{ t('riscos', 'Dono') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -140,7 +137,7 @@
             {% if item.severity %}
             <span class="pill {{ etiqueta_de_faixa(item.severity) }}"><b>{{ item.score }}</b> {{ item.severity.name }}</span>
             {% else %}
-            <span class="muted">não avaliado</span>
+            <span class="muted">{{ t('riscos', 'não avaliado') }}</span>
             {% endif %}
           </td>
           <td>{{ item.reasons | join(' · ') }}</td>
@@ -152,7 +149,7 @@
   </div>
   {% else %}
   <div class="card__body">
-    <p class="empty" data-estado="vazio-filtro">Nenhum risco exige decisão do gerente do projeto.</p>
+    <p class="empty" data-estado="vazio-filtro">{{ t('riscos', 'Nenhum risco exige decisão do gerente do projeto.') }}</p>
   </div>
   {% endif %}
 </section>

@@ -3,7 +3,7 @@
   padrão) e como ela foi removida.
   Espera: formulario e opcoes.
 #}
-{% from "planejamento/6wla_macros.html" import texto, area_de_texto %}
+{% from "planejamento/6wla_macros.html" import texto, area_de_texto with context %}
 {% set valores = formulario.values %}
 {% set erros = formulario.errors %}
 <div class="fgrid">

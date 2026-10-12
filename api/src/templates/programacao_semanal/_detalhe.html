@@ -16,7 +16,7 @@
         <h2 class="h-card3" id="titulo-detalhe">{{ atividade.unique_id }}</h2>
         <p class="painel__sub">{{ atividade.description }}</p>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="Fechar"
+      <button type="button" class="btn btn--ghost btn--sm painel__fechar" aria-label="{{ t('programacao_semanal', 'Fechar') }}"
         x-init="$el.innerHTML = window.icon('dismiss', 18)"
         @click="$root.closest('.painel-fundo').remove()"></button>
     </div>
@@ -24,45 +24,45 @@
     <div class="painel__corpo">
       <div class="lancamento-resumo mb-16">
         <div>
-          <span class="lancamento-resumo__rotulo">Previsto</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Previsto') }}</span>
           <span class="lancamento-resumo__valor">{{ previsto_texto }}</span>
           <span class="hint">{{ unidade }}</span>
         </div>
         <div>
-          <span class="lancamento-resumo__rotulo">Realizado</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'Realizado') }}</span>
           <span class="lancamento-resumo__valor">{{ realizado_texto }}</span>
           <span class="hint">{{ unidade }}</span>
         </div>
         <div>
-          <span class="lancamento-resumo__rotulo">PPC</span>
+          <span class="lancamento-resumo__rotulo">{{ t('programacao_semanal', 'PPC') }}</span>
           <span class="lancamento-resumo__valor">{{ ppc_texto }}</span>
         </div>
       </div>
 
-      <p class="grupo-label">Dia a dia</p>
+      <p class="grupo-label">{{ t('programacao_semanal', 'Dia a dia') }}</p>
       {% include "programacao_semanal/_grade.html" %}
 
-      <p class="grupo-label mt-16">Ficha</p>
+      <p class="grupo-label mt-16">{{ t('programacao_semanal', 'Ficha') }}</p>
       <div class="det">
-        <div class="det__row"><span class="det__label">Semana</span><span class="det__valor">{{ semana }} · {{ periodo }}</span></div>
-        <div class="det__row"><span class="det__label">Frente</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
-        <div class="det__row"><span class="det__label">Contratada</span><span class="det__valor">{{ atividade.company }}</span></div>
-        <div class="det__row"><span class="det__label">Encarregado</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
-        <div class="det__row"><span class="det__label">Fiscal</span><span class="det__valor">{{ atividade.inspector or '—' }}</span></div>
-        <div class="det__row"><span class="det__label">Situação</span><span class="det__valor">{{ situacao_label }}</span></div>
-        <div class="det__row"><span class="det__label">Realizado</span><span class="det__valor">{{ aprovacao_label }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Semana') }}</span><span class="det__valor">{{ semana }} · {{ periodo }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Frente') }}</span><span class="det__valor">{{ atividade.location or '—' }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Contratada') }}</span><span class="det__valor">{{ atividade.company }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Encarregado') }}</span><span class="det__valor">{{ atividade.foreman or '—' }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Fiscal') }}</span><span class="det__valor">{{ atividade.inspector or '—' }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Situação') }}</span><span class="det__valor">{{ situacao_label }}</span></div>
+        <div class="det__row"><span class="det__label">{{ t('programacao_semanal', 'Realizado') }}</span><span class="det__valor">{{ aprovacao_label }}</span></div>
       </div>
 
       {% if atividade.notes %}
       <div class="aviso aviso--warn mt-16">
-        <strong>Observações do fornecedor</strong>
+        <strong>{{ t('programacao_semanal', 'Observações do fornecedor') }}</strong>
         <span>{{ atividade.notes }}</span>
       </div>
       {% endif %}
 
       {% if atividade.comments %}
       <div class="aviso aviso--info mt-16">
-        <strong>Comentários da Timenow</strong>
+        <strong>{{ t('programacao_semanal', 'Comentários da Timenow') }}</strong>
         <span class="txt-pre">{{ atividade.comments }}</span>
       </div>
       {% endif %}
@@ -74,33 +74,33 @@
       #}
       {% if pode_pedir %}
       <div class="aviso aviso--info mt-16" x-data="{ pedindo: false }">
-        <strong>Este item está fechado para edição.</strong>
+        <strong>{{ t('programacao_semanal', 'Este item está fechado para edição.') }}</strong>
         <span>
           {{ motivo_fechado }} Para mudar alguma coisa, abra um pedido — ele fica
           registrado na Governança, com quem pediu e quem decidiu.
         </span>
         <button type="button" class="btn btn--secondary btn--sm mt-8" x-show="!pedindo"
-          @click="pedindo = true">Pedir alteração</button>
+          @click="pedindo = true">{{ t('programacao_semanal', 'Pedir alteração') }}</button>
         <form method="post" action="{{ pedir_url }}" x-target="drawer prog-resumo prog-tabela"
           x-show="pedindo" class="mt-8" data-tn-loading="Enviando...">
           <input type="hidden" name="atividade_id" value="{{ atividade.id }}" />
           <input type="hidden" name="semana" value="{{ semana }}" />
           <div class="field">
-            <label for="campo-motivo-pedido">O que precisa mudar, e por quê</label>
+            <label for="campo-motivo-pedido">{{ t('programacao_semanal', 'O que precisa mudar, e por quê') }}</label>
             <textarea id="campo-motivo-pedido" class="input" name="motivo" rows="3" required
               minlength="10"
-              placeholder="Ex.: a quantidade de quarta saiu trocada com a de quinta na medição."></textarea>
+              placeholder="{{ t('programacao_semanal', 'Ex.: a quantidade de quarta saiu trocada com a de quinta na medição.') }}"></textarea>
           </div>
           <div class="painel__atalhos mt-8">
-            <button type="button" class="btn btn--ghost btn--sm" @click="pedindo = false">Cancelar</button>
-            <button type="submit" class="btn btn--primary btn--sm">Enviar pedido</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="pedindo = false">{{ t('programacao_semanal', 'Cancelar') }}</button>
+            <button type="submit" class="btn btn--primary btn--sm">{{ t('programacao_semanal', 'Enviar pedido') }}</button>
           </div>
         </form>
       </div>
       {% endif %}
 
       {% if eventos %}
-      <p class="grupo-label mt-16">Histórico</p>
+      <p class="grupo-label mt-16">{{ t('programacao_semanal', 'Histórico') }}</p>
       <div class="trilha">
         {% for evento in eventos %}
         <div class="trilha__item">
@@ -116,16 +116,14 @@
     </div>
 
     <div class="painel__rodape">
-      <span class="hint">Somente leitura.</span>
+      <span class="hint">{{ t('programacao_semanal', 'Somente leitura.') }}</span>
       <span class="painel__atalhos">
         {% if pode_reabrir %}
         <button type="button" class="btn btn--secondary"
           @click="$ajax('{{ aprovar_url }}?atividade={{ atividade.id }}', { target: 'drawer' })">
-          <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>
-          Reabrir realizado
-        </button>
+          <span x-init="$el.innerHTML = window.icon('refresh', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Reabrir realizado') }}</button>
         {% endif %}
-        <button type="button" class="btn btn--primary" @click="$root.closest('.painel-fundo').remove()">Fechar</button>
+        <button type="button" class="btn btn--primary" @click="$root.closest('.painel-fundo').remove()">{{ t('programacao_semanal', 'Fechar') }}</button>
       </span>
     </div>
   </div>

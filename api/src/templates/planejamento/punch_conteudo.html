@@ -14,8 +14,8 @@
     <div class="card__body">
       <div class="empty" data-estado="vazio-origem">
         <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-        <h2 class="h-card4">Nenhum item da Punch list ainda</h2>
-        <p>Importe uma lista de walkdown ou abra o primeiro item para começar a completação.</p>
+        <h2 class="h-card4">{{ t('planejamento', 'Nenhum item da Punch list ainda') }}</h2>
+        <p>{{ t('planejamento', 'Importe uma lista de walkdown ou abra o primeiro item para começar a completação.') }}</p>
       </div>
     </div>
   </div>
@@ -23,47 +23,44 @@
   <div class="card">
     <div class="card__body">
       <div class="empty" data-estado="vazio-filtro">
-        <h2 class="h-card4">Nenhum item no filtro atual</h2>
-        <p>Ajuste ou limpe os filtros para ver os itens da Punch list.</p>
+        <h2 class="h-card4">{{ t('planejamento', 'Nenhum item no filtro atual') }}</h2>
+        <p>{{ t('planejamento', 'Ajuste ou limpe os filtros para ver os itens da Punch list.') }}</p>
       </div>
     </div>
   </div>
   {% else %}
-  <div class="kpis" role="group" aria-label="Indicadores da Punch list">
+  <div class="kpis" role="group" aria-label="{{ t('planejamento', 'Indicadores da Punch list') }}">
     <button type="button" class="kpi kpi--{{ 'fix' if filtro.situacao == 'abertos' and not filtro.categoria else 'neutro' }} kpi--botao"
       data-punch-kpi="abertos">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('listChecks', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Abertos <span class="punch__nota">Esperado: 0</span></span>
+      <span class="kpi__label">{{ t('planejamento', 'Abertos') }}<span class="punch__nota">{{ t('planejamento', 'Esperado: 0') }}</span></span>
       <span class="kpi__value">{{ visao.kpis.opened }}</span>
     </button>
     <button type="button" class="kpi kpi--{{ 'erro' if visao.kpis.open_a else 'ok' }} kpi--botao"
       data-punch-kpi="A">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Categoria A abertos
-        <span class="punch__nota">impedem o marco seguinte</span>
-        <span class="punch__nota">Esperado: 0</span>
+      <span class="kpi__label">{{ t('planejamento', 'Categoria A abertos') }}<span class="punch__nota">{{ t('planejamento', 'impedem o marco seguinte') }}</span>
+        <span class="punch__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
       </span>
       <span class="kpi__value">{{ visao.kpis.open_a }}</span>
     </button>
     <button type="button" class="kpi kpi--{{ 'info' if visao.kpis.verifying else 'ok' }} kpi--botao"
       data-punch-kpi="verificacao">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('eye', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Aguardando verificação <span class="punch__nota">Esperado: 0</span></span>
+      <span class="kpi__label">{{ t('planejamento', 'Aguardando verificação') }}<span class="punch__nota">{{ t('planejamento', 'Esperado: 0') }}</span></span>
       <span class="kpi__value">{{ visao.kpis.verifying }}</span>
     </button>
     <button type="button" class="kpi kpi--{{ 'warn' if visao.kpis.overdue else 'ok' }} kpi--botao"
       data-punch-kpi="vencidos">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Vencidos
-        <span class="punch__nota">prazo passou e o item segue aberto</span>
-        <span class="punch__nota">Esperado: 0</span>
+      <span class="kpi__label">{{ t('planejamento', 'Vencidos') }}<span class="punch__nota">{{ t('planejamento', 'prazo passou e o item segue aberto') }}</span>
+        <span class="punch__nota">{{ t('planejamento', 'Esperado: 0') }}</span>
       </span>
       <span class="kpi__value">{{ visao.kpis.overdue }}</span>
     </button>
     <button type="button" class="kpi kpi--ok kpi--botao" data-punch-kpi="fechados">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Fechados
-        <span class="punch__nota">Previsto: {{ visao.kpis.valid }}</span>
+      <span class="kpi__label">{{ t('planejamento', 'Fechados') }}<span class="punch__nota">Previsto: {{ visao.kpis.valid }}</span>
         {% if visao.kpis.closed_pct is not none %}<span class="punch__nota">{{ percentual(visao.kpis.closed_pct, 0) }} dos itens válidos</span>{% endif %}
       </span>
       <span class="kpi__value">{{ visao.kpis.closed }}</span>
@@ -73,23 +70,23 @@
   <section class="card punch__lista" aria-labelledby="punch-t-itens">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="punch-t-itens">Itens da Punch list</h2>
+        <h2 class="h-card4" id="punch-t-itens">{{ t('planejamento', 'Itens da Punch list') }}</h2>
         <span class="hint">{{ visao.rows | length }} item(ns) no filtro atual</span>
       </div>
     </div>
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Itens da Punch list</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Itens da Punch list') }}</caption>
         <thead>
           <tr>
-            {% if visao.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
+            {% if visao.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
             <th scope="col">Nº / Cat.</th>
-            <th scope="col">Sistema / TAG</th>
-            <th scope="col">Descrição</th>
-            <th scope="col">Responsável</th>
-            <th scope="col">Prazo</th>
-            <th scope="col">Situação</th>
-            <th scope="col"><span class="sr-only">Ações</span></th>
+            <th scope="col">{{ t('planejamento', 'Sistema / TAG') }}</th>
+            <th scope="col">{{ t('planejamento', 'Descrição') }}</th>
+            <th scope="col">{{ t('planejamento', 'Responsável') }}</th>
+            <th scope="col">{{ t('planejamento', 'Prazo') }}</th>
+            <th scope="col">{{ t('planejamento', 'Situação') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -120,11 +117,11 @@
             </td>
             <td class="nowrap num">
               {{ formatar_data(item.due_date) }}<br />
-              <small class="muted">{{ 'aberto há' if item.is_open else 'tratado em' }} {{ item.age_days }} dia(s)</small>
+              <small class="muted">{{ t('planejamento', 'aberto há') if item.is_open else t('planejamento', 'tratado em') }} {{ item.age_days }} dia(s)</small>
             </td>
             <td class="nowrap">
               <span class="pill pill--{{ tom_situacao(item.situation) }}">{{ item.situation }}</span>
-              {% if item.overdue %}<br /><small class="muted">vencido</small>{% endif %}
+              {% if item.overdue %}<br /><small class="muted">{{ t('planejamento', 'vencido') }}</small>{% endif %}
             </td>
             <td class="nowrap">
               {% if pode_gravar %}
@@ -135,7 +132,7 @@
                 {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
               </form>
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-punch-acao="tratar" data-punch-form="punch-tratar-{{ item.id }}"
-                aria-label="Tratar {{ item.code }}" title="Tratar">
+                aria-label="Tratar {{ item.code }}" title="{{ t('planejamento', 'Tratar') }}">
                 <span x-init="$el.innerHTML = window.icon('refresh', 18)" aria-hidden="true"></span>
               </button>
               {% endif %}
@@ -146,7 +143,7 @@
                 {% for nome, valor in filtro.items() %}<input type="hidden" name="f_{{ nome }}" value="{{ valor }}" />{% endfor %}
               </form>
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-punch-acao="enviar" data-punch-form="punch-enviar-{{ item.id }}"
-                aria-label="Enviar {{ item.code }} para verificação" title="Enviar para verificação">
+                aria-label="Enviar {{ item.code }} para verificação" title="{{ t('planejamento', 'Enviar para verificação') }}">
                 <span x-init="$el.innerHTML = window.icon('send', 18)" aria-hidden="true"></span>
               </button>
               {% endif %}
@@ -154,7 +151,7 @@
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-punch-acao="verificar"
                 data-punch-id="{{ item.id }}" data-punch-codigo="{{ item.code }}" data-punch-titulo="{{ item.description }}"
                 data-punch-url="{{ api }}/itens/{{ item.id }}/verificacao{% if consulta %}?{{ consulta }}{% endif %}"
-                aria-label="Verificar {{ item.code }}" title="Verificar">
+                aria-label="Verificar {{ item.code }}" title="{{ t('planejamento', 'Verificar') }}">
                 <span x-init="$el.innerHTML = window.icon('eye', 18)" aria-hidden="true"></span>
               </button>
               {% endif %}
@@ -162,20 +159,20 @@
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-punch-acao="editar"
                 data-punch-id="{{ item.id }}" data-punch-codigo="{{ item.code }}" data-punch-titulo="{{ item.description }}"
                 data-punch-url="{{ api }}/itens/{{ item.id }}/editar{% if consulta %}?{{ consulta }}{% endif %}"
-                aria-label="Editar {{ item.code }}" title="Editar">
+                aria-label="Editar {{ item.code }}" title="{{ t('planejamento', 'Editar') }}">
                 <span x-init="$el.innerHTML = window.icon('edit', 18)" aria-hidden="true"></span>
               </button>
               <button type="button" class="btn btn--ghost btn--icon btn--sm" data-punch-acao="cancelar"
                 data-punch-id="{{ item.id }}" data-punch-codigo="{{ item.code }}"
                 data-punch-url="{{ api }}/itens/{{ item.id }}/cancelamento{% if consulta %}?{{ consulta }}{% endif %}"
-                aria-label="Cancelar {{ item.code }}" title="Cancelar item">
+                aria-label="Cancelar {{ item.code }}" title="{{ t('planejamento', 'Cancelar item') }}">
                 <span x-init="$el.innerHTML = window.icon('dismiss', 18)" aria-hidden="true"></span>
               </button>
               {% endif %}
               {% endif %}
               {% if item.action and item.action.url %}
               <a class="btn btn--ghost btn--icon btn--sm" href="{{ item.action.url }}" data-tn-tela
-                aria-label="Ver a ação {{ item.action.reference }} na Central" title="Ver na Central">
+                aria-label="Ver a ação {{ item.action.reference }} na Central" title="{{ t('planejamento', 'Ver na Central') }}">
                 <span x-init="$el.innerHTML = window.icon('arrowRight', 18)" aria-hidden="true"></span>
               </a>
               {% endif %}

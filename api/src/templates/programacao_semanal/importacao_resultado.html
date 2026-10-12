@@ -14,14 +14,14 @@
     <strong>{{ resultado.written | length }} linha(s) de {{ importador }} importada(s)</strong>
     <span>
       {{ resultado.file_name }}: tudo foi gravado de uma vez, com o registro na trilha.
-      {% if resultado.with_warning %}{{ resultado.with_warning }} linha(s) entraram com aviso.{% endif %}
+      {% if resultado.with_warning %}{{ resultado.with_warning }}  {{ t('programacao_semanal', 'linha(s) entraram com aviso.') }}{% endif %}
     </span>
   </div>
 
   {% if resultado.skipped %}
   <section class="card mt-16">
     <div class="card__head">
-      <h3 class="h-card5">Linhas que ficaram de fora</h3>
+      <h3 class="h-card5">{{ t('programacao_semanal', 'Linhas que ficaram de fora') }}</h3>
       <span class="hint">{{ resultado.skipped | length }} com erro, não gravadas: corrija na planilha e envie só elas</span>
     </div>
     <div class="card__body">
@@ -43,9 +43,7 @@
 
   <div class="acoes-rodape mt-16">
     <a class="btn btn--secondary" data-tn-tela
-      href="/programacao_semanal/programacao{% if semana %}?semana={{ semana | urlencode }}{% endif %}">
-      Abrir a programação
-    </a>
+      href="/programacao_semanal/programacao{% if semana %}?semana={{ semana | urlencode }}{% endif %}">{{ t('programacao_semanal', 'Abrir a programação') }}</a>
   </div>
 </div>
 {% endblock %}

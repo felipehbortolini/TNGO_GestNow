@@ -9,29 +9,29 @@
 <section class="card mb-16" aria-labelledby="eap-arvore-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="eap-arvore-titulo">{{ 'Estrutura analítica da carteira' if visao.is_portfolio else 'Estrutura analítica do projeto' }}</h2>
-      <span class="hint">Pesos em % do projeto (regra dos 100%); o real de cada pacote sai do critério de medição; o desvio usa as faixas dos parâmetros em vigor</span>
+      <h2 class="h-card4" id="eap-arvore-titulo">{{ t('planejamento', 'Estrutura analítica da carteira') if visao.is_portfolio else t('planejamento', 'Estrutura analítica do projeto') }}</h2>
+      <span class="hint">{{ t('planejamento', 'Pesos em % do projeto (regra dos 100%); o real de cada pacote sai do critério de medição; o desvio usa as faixas dos parâmetros em vigor') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl eap-arvore">
-        <caption class="sr-only">{{ 'Estrutura analítica da carteira' if visao.is_portfolio else 'Estrutura analítica do projeto' }}</caption>
+        <caption class="sr-only">{{ t('planejamento', 'Estrutura analítica da carteira') if visao.is_portfolio else t('planejamento', 'Estrutura analítica do projeto') }}</caption>
         <thead>
           <tr>
-            {% if visao.is_portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Código</th>
-            <th scope="col">Descrição</th>
-            <th scope="col">Critério de medição</th>
-            <th scope="col" class="td-num">{{ 'Peso na carteira' if visao.is_portfolio else 'Peso' }}</th>
-            {% if visao.is_portfolio %}<th scope="col" class="td-num">Peso no projeto</th>{% endif %}
-            <th scope="col" class="td-num">Previsto</th>
-            <th scope="col" class="td-num">Real</th>
-            <th scope="col" class="td-num">Desvio (p.p.)</th>
-            <th scope="col">Início LB</th>
-            <th scope="col">Término LB</th>
-            <th scope="col">Situação</th>
-            {% if pode_editar and not visao.is_portfolio %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            {% if visao.is_portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('planejamento', 'Código') }}</th>
+            <th scope="col">{{ t('planejamento', 'Descrição') }}</th>
+            <th scope="col">{{ t('planejamento', 'Critério de medição') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Peso na carteira') if visao.is_portfolio else t('planejamento', 'Peso') }}</th>
+            {% if visao.is_portfolio %}<th scope="col" class="td-num">{{ t('planejamento', 'Peso no projeto') }}</th>{% endif %}
+            <th scope="col" class="td-num">{{ t('planejamento', 'Previsto') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Real') }}</th>
+            <th scope="col" class="td-num">{{ t('planejamento', 'Desvio (p.p.)') }}</th>
+            <th scope="col">{{ t('planejamento', 'Início LB') }}</th>
+            <th scope="col">{{ t('planejamento', 'Término LB') }}</th>
+            <th scope="col">{{ t('planejamento', 'Situação') }}</th>
+            {% if pode_editar and not visao.is_portfolio %}<th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -51,7 +51,7 @@
             <td class="eap-linha__descricao">
               <span class="eap-linha__recuo" data-nivel="{{ no.level }}" aria-hidden="true"></span>
               {% if no.level < 3 %}<strong>{{ no.description }}</strong>{% else %}{{ no.description }}{% endif %}
-              {% if no.is_planning_package %}<span class="pill pill--fix">Planejamento</span>{% endif %}
+              {% if no.is_planning_package %}<span class="pill pill--fix">{{ t('planejamento', 'Planejamento') }}</span>{% endif %}
             </td>
             <td>{{ linha.criterio }}</td>
             <td class="td-num">{{ linha.peso }}</td>
@@ -59,7 +59,7 @@
             <td class="td-num">{{ linha.previsto }}</td>
             <td class="td-num">
               {% if no.is_planning_package %}
-              <span class="muted">sem medição</span>
+              <span class="muted">{{ t('planejamento', 'sem medição') }}</span>
               {% else %}
               <span class="eap-barra">
                 <span class="eap-barra__trilho" role="progressbar" aria-valuenow="{{ linha.real_num }}"
@@ -74,7 +74,7 @@
             <td>{{ linha.inicio }}</td>
             <td>
               {{ linha.termino }}
-              {% if linha.situacao == 'Vencido' %}<span class="pill pill--erro">Vencido</span>{% endif %}
+              {% if linha.situacao == 'Vencido' %}<span class="pill pill--erro">{{ t('planejamento', 'Vencido') }}</span>{% endif %}
             </td>
             <td>{% if linha.situacao %}<span class="pill pill--{{ linha.tom_situacao }}">{{ linha.situacao }}</span>{% endif %}</td>
             {% if pode_editar and not visao.is_portfolio %}
@@ -83,12 +83,12 @@
               <span class="eap-linha__acoes">
                 {% if not no.is_planning_package %}
                 <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/avanco" x-target="{{ alvo_formulario }}"
-                  aria-label="Registrar avanço do pacote {{ no.code }}" title="Registrar avanço">
+                  aria-label="Registrar avanço do pacote {{ no.code }}" title="{{ t('planejamento', 'Registrar avanço') }}">
                   <span x-init="$el.innerHTML = window.icon('chartLine', 16)" aria-hidden="true"></span>
                 </a>
                 {% endif %}
                 <a class="iconbtn" href="/api/planejamento/eap/itens/{{ no.id }}/dicionario" x-target="{{ alvo_formulario }}"
-                  aria-label="Dicionário do pacote {{ no.code }}" title="Dicionário">
+                  aria-label="Dicionário do pacote {{ no.code }}" title="{{ t('planejamento', 'Dicionário') }}">
                   <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
                 </a>
               </span>

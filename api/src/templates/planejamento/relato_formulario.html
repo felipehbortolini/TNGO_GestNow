@@ -22,19 +22,19 @@
   <input type="hidden" name="versao" value="{{ estado.version }}" />
 
   <div class="aviso aviso--info" role="note">
-    <span>O risco de cada ponto de atenção é a leitura do planejamento e não tem vínculo com o registro do 05 Gestão de Riscos. Para tratá-lo formalmente, registre-o também no 05.</span>
+    <span>{{ t('planejamento', 'O risco de cada ponto de atenção é a leitura do planejamento e não tem vínculo com o registro do 05 Gestão de Riscos. Para tratá-lo formalmente, registre-o também no 05.') }}</span>
   </div>
 
   {% if mensagens %}
   <div class="aviso aviso--erro" role="alert">
-    <strong>Não foi possível salvar o relato.</strong>
+    <strong>{{ t('planejamento', 'Não foi possível salvar o relato.') }}</strong>
     {% for mensagem in mensagens %}<span>{{ mensagem }}</span>{% endfor %}
   </div>
   {% endif %}
 
   <div class="relato-form__bloco">
     <p class="relato-ver__identificacao">
-      <span class="muted">Projeto</span>
+      <span class="muted">{{ t('planejamento', 'Projeto') }}</span>
       <span class="fw-600">{{ projeto }}</span>
     </p>
 
@@ -42,20 +42,20 @@
     <button type="submit" hidden tabindex="-1" aria-hidden="true" x-ref="recarregar"
       formaction="/api/planejamento/relatos/formulario"></button>
     <fieldset class="relato-opcoes">
-      <legend class="relato-legenda">Tipo</legend>
+      <legend class="relato-legenda">{{ t('planejamento', 'Tipo') }}</legend>
       {% for opcao in tipos %}
       <label class="relato-opcao">
         <input type="radio" name="tipo" value="{{ opcao }}" {{ 'checked' if opcao == tipo }}
           @change="$el.form.requestSubmit($refs.recarregar)" />
         <span>{{ opcao }}</span>
-        <span class="hint">{{ 'semana ISO, segunda a domingo' if opcao == 'Semanal' else 'mês civil' }}</span>
+        <span class="hint">{{ t('planejamento', 'semana ISO, segunda a domingo') if opcao == 'Semanal' else t('planejamento', 'mês civil') }}</span>
       </label>
       {% endfor %}
       {{ erro('tipo') }}
     </fieldset>
 
     <div class="field">
-      <label for="relato-periodo">Período</label>
+      <label for="relato-periodo">{{ t('planejamento', 'Período') }}</label>
       <select class="input{{ ' input--erro' if erros.get('periodo') }}" id="relato-periodo" name="periodo"{{ marcas('periodo') }}>
         {% for opcao in opcoes %}
         <option value="{{ opcao.period }}"{{ ' selected' if opcao.period == periodo }}{{ ' disabled' if opcao.taken }}>{{ opcao.label }}{{ ' (em andamento)' if opcao.in_progress }}{{ ' (já registrado)' if opcao.taken }}</option>
@@ -67,14 +67,14 @@
     <p class="relato-ver__identificacao">
       <span class="pill {{ 'pill--neutral' if relato.kind == 'Mensal' else 'pill--fix' }}">{{ relato.kind }}</span>
       <span class="fw-600">{{ relato.name }}</span>
-      <span class="hint">o tipo e o período não mudam depois de criados</span>
+      <span class="hint">{{ t('planejamento', 'o tipo e o período não mudam depois de criados') }}</span>
     </p>
     {% endif %}
   </div>
 
   <div class="relato-form__bloco">
     <div class="field">
-      <label for="relato-atividades-periodo">Atividades do período</label>
+      <label for="relato-atividades-periodo">{{ t('planejamento', 'Atividades do período') }}</label>
       <textarea class="input{{ ' input--erro' if erros.get('atividades_periodo') }}" id="relato-atividades-periodo"
         name="atividades_periodo" rows="5"{{ marcas('atividades_periodo') }}>{{ estado.activities }}</textarea>
       <span class="hint">Uma atividade por linha (até {{ limites.linhas }} linhas de {{ limites.linha }} caracteres).</span>
@@ -82,19 +82,19 @@
     </div>
 
     <div class="field">
-      <label for="relato-atividades-proximo">Atividades do próximo período</label>
+      <label for="relato-atividades-proximo">{{ t('planejamento', 'Atividades do próximo período') }}</label>
       <textarea class="input{{ ' input--erro' if erros.get('atividades_proximo') }}" id="relato-atividades-proximo"
         name="atividades_proximo" rows="5"{{ marcas('atividades_proximo') }}>{{ estado.next_activities }}</textarea>
-      <span class="hint">Uma atividade por linha.</span>
+      <span class="hint">{{ t('planejamento', 'Uma atividade por linha.') }}</span>
       {{ erro('atividades_proximo') }}
     </div>
   </div>
 
   <div class="relato-form__bloco">
-    <h3 class="h-card5">Pontos de atenção e riscos (ameaça e oportunidade)</h3>
+    <h3 class="h-card5">{{ t('planejamento', 'Pontos de atenção e riscos (ameaça e oportunidade)') }}</h3>
     {{ erro('pontos') }}
     {% if not linhas_pontos %}
-    <p class="muted">Nenhum ponto de atenção no período. Use o botão abaixo para incluir.</p>
+    <p class="muted">{{ t('planejamento', 'Nenhum ponto de atenção no período. Use o botão abaixo para incluir.') }}</p>
     {% endif %}
 
     {% for linha in linhas_pontos %}
@@ -103,14 +103,14 @@
       <legend class="relato-legenda">Ponto de atenção {{ loop.index }}</legend>
 
       <div class="field">
-        <label for="relato-ponto-{{ i }}-descricao">Ponto de atenção</label>
+        <label for="relato-ponto-{{ i }}-descricao">{{ t('planejamento', 'Ponto de atenção') }}</label>
         <textarea class="input{{ ' input--erro' if linha.erros.descricao }}" id="relato-ponto-{{ i }}-descricao"
           name="ponto_{{ i }}_descricao" rows="2" maxlength="{{ limites.ponto }}"{{ marcas('ponto_' ~ i ~ '_descricao') }}>{{ linha.ponto.description }}</textarea>
         {{ erro('ponto_' ~ i ~ '_descricao') }}
       </div>
 
       <fieldset class="relato-opcoes">
-        <legend class="relato-legenda">Risco atrelado</legend>
+        <legend class="relato-legenda">{{ t('planejamento', 'Risco atrelado') }}</legend>
         {% for natureza in naturezas %}
         <label class="relato-opcao">
           <input type="radio" name="ponto_{{ i }}_natureza" value="{{ natureza }}" {{ 'checked' if natureza == linha.ponto.nature }} />
@@ -121,10 +121,10 @@
       </fieldset>
 
       <div class="field">
-        <label for="relato-ponto-{{ i }}-risco">Descrição do risco</label>
+        <label for="relato-ponto-{{ i }}-risco">{{ t('planejamento', 'Descrição do risco') }}</label>
         <textarea class="input{{ ' input--erro' if linha.erros.risco }}" id="relato-ponto-{{ i }}-risco"
           name="ponto_{{ i }}_risco" rows="2" maxlength="{{ limites.ponto }}"
-          placeholder="Causa, evento e efeito no projeto (prazo, custo, escopo ou qualidade)"{{ marcas('ponto_' ~ i ~ '_risco') }}>{{ linha.ponto.risk }}</textarea>
+          placeholder="{{ t('planejamento', 'Causa, evento e efeito no projeto (prazo, custo, escopo ou qualidade)') }}"{{ marcas('ponto_' ~ i ~ '_risco') }}>{{ linha.ponto.risk }}</textarea>
         {{ erro('ponto_' ~ i ~ '_risco') }}
       </div>
 
@@ -135,14 +135,14 @@
 
     <button type="submit" class="btn btn--secondary"
       formaction="/api/planejamento/relatos/formulario?acao=adicionar-ponto"
-      {{ 'disabled' if linhas_pontos | length >= limites.pontos }}>Adicionar ponto de atenção</button>
+      {{ t('planejamento', 'disabled') if linhas_pontos | length >= limites.pontos }}>{{ t('planejamento', 'Adicionar ponto de atenção') }}</button>
     <span class="hint">Até {{ limites.pontos }} pontos de atenção por relato.</span>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">Cancelar</button>
-    <button type="submit" class="btn btn--ghost" formaction="/api/planejamento/relatos/copiar">Copiar do período anterior</button>
-    <button type="submit" class="btn btn--primary">{{ 'Registrar relato' if novo else 'Salvar alterações' }}</button>
+    <button type="button" class="btn btn--secondary" data-relato-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--ghost" formaction="/api/planejamento/relatos/copiar">{{ t('planejamento', 'Copiar do período anterior') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Registrar relato') if novo else t('planejamento', 'Salvar alterações') }}</button>
   </div>
 </form>
 {% endblock %}

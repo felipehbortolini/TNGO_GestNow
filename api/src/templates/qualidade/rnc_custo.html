@@ -24,24 +24,24 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="rnc-custo-apurado">Custo apurado</label>
+      <label for="rnc-custo-apurado">{{ t('qualidade', 'Custo apurado') }}</label>
       <input id="rnc-custo-apurado" name="custoCentavos" class="input{% if erros.get('custoCentavos') %} input--erro{% endif %}"
         inputmode="decimal" required value="{{ valores.get('custoCentavos') or '0,00' }}"
         {% if erros.get('custoCentavos') %}aria-invalid="true" aria-describedby="erro-custoCentavos"{% endif %} />
       {{ erro(erros, 'custoCentavos') }}
     </div>
     <div class="field field--full">
-      <label for="rnc-custo-composicao">Composição do custo</label>
+      <label for="rnc-custo-composicao">{{ t('qualidade', 'Composição do custo') }}</label>
       <textarea id="rnc-custo-composicao" name="justificativa" class="input{% if erros.get('justificativa') %} input--erro{% endif %}"
-        rows="2" maxlength="300" required placeholder="Horas de retrabalho, ensaios, material, equipamento parado"
+        rows="2" maxlength="300" required placeholder="{{ t('qualidade', 'Horas de retrabalho, ensaios, material, equipamento parado') }}"
         {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="erro-justificativa"{% endif %}>{{ valores.get('justificativa') or '' }}</textarea>
       {{ erro(erros, 'justificativa') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Atualizar custo</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Atualizar custo') }}</button>
   </div>
 </form>
 {% endblock %}

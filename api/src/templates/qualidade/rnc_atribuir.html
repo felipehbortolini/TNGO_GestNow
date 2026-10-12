@@ -24,22 +24,22 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="rnc-responsavel">Responsável pela análise</label>
+      <label for="rnc-responsavel">{{ t('qualidade', 'Responsável pela análise') }}</label>
       <select id="rnc-responsavel" name="responsavelId" class="input{% if erros.get('responsavelId') %} input--erro{% endif %}" required
         {% if erros.get('responsavelId') %}aria-invalid="true" aria-describedby="erro-responsavelId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavelId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint">Normalmente o responsável técnico da empresa que gerou a não conformidade. Quem responde pela análise não verifica a eficácia.</span>
+      <span class="hint">{{ t('qualidade', 'Normalmente o responsável técnico da empresa que gerou a não conformidade. Quem responde pela análise não verifica a eficácia.') }}</span>
       {{ erro(erros, 'responsavelId') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Atribuir</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Atribuir') }}</button>
   </div>
 </form>
 {% endblock %}

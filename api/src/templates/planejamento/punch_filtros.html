@@ -8,49 +8,41 @@
 #}
 <div id="punch-filtros" class="pagina--planejamento-punch_list">
   <form id="punch-filtro" class="toolbar" method="get" action="{{ api }}" x-target="punch-filtros punch-conteudo"
-    role="search" aria-label="Filtros da Punch list" x-data @change="$el.requestSubmit()">
+    role="search" aria-label="{{ t('planejamento', 'Filtros da Punch list') }}" x-data @change="$el.requestSubmit()">
     <input type="hidden" name="categoria" value="{{ filtro.categoria }}" />
     <input type="hidden" name="vencidos" value="{{ filtro.vencidos }}" />
     <div class="field">
-      <label class="sr-only" for="punch-busca">Buscar</label>
+      <label class="sr-only" for="punch-busca">{{ t('planejamento', 'Buscar') }}</label>
       <span class="busca">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 16)" aria-hidden="true"></span>
         <input id="punch-busca" class="input busca__input" type="search" name="busca" value="{{ filtro.busca }}"
-          placeholder="Buscar número, descrição ou TAG" />
+          placeholder="{{ t('planejamento', 'Buscar número, descrição ou TAG') }}" />
       </span>
     </div>
     <div class="field">
-      <label class="sr-only" for="punch-situacao">Situação</label>
+      <label class="sr-only" for="punch-situacao">{{ t('planejamento', 'Situação') }}</label>
       <select id="punch-situacao" name="situacao" class="input">
-        <option value="abertos"{% if filtro.situacao == 'abertos' %} selected{% endif %}>Abertos (não fechados)</option>
+        <option value="abertos"{% if filtro.situacao == 'abertos' %} selected{% endif %}>{{ t('planejamento', 'Abertos (não fechados)') }}</option>
         {% for situacao in ["Aberto", "Em tratamento", "Aguardando verificação", "Fechado", "Cancelado"] %}
         <option value="{{ situacao }}"{% if filtro.situacao == situacao %} selected{% endif %}>{{ situacao }}</option>
         {% endfor %}
       </select>
     </div>
     <button type="submit" class="btn btn--secondary">
-      <span x-init="$el.innerHTML = window.icon('search', 16)" aria-hidden="true"></span>
-      Filtrar
-    </button>
+      <span x-init="$el.innerHTML = window.icon('search', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Filtrar') }}</button>
     <button type="button" class="btn btn--secondary" data-punch-acao="filtros"
       data-punch-url="{{ api }}/filtros{% if consulta %}?{{ consulta }}{% endif %}">
-      <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
-      Filtros
-    </button>
+      <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Filtros') }}</button>
     <span class="toolbar__espaco"></span>
     {% if pode_gravar %}
     <button type="button" class="btn btn--primary" data-tn-incluir="novo" data-punch-acao="novo"
       data-punch-url="{{ api }}/itens/novo{% if consulta %}?{{ consulta }}{% endif %}">
-      <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-      Novo item
-    </button>
+      <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Novo item') }}</button>
     <button type="button" class="btn btn--secondary" data-tn-incluir="importar" data-punch-acao="importar"
       data-punch-url="/api/importacao/punch-itens">
-      <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-      Importar Excel
-    </button>
+      <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Importar Excel') }}</button>
     {% endif %}
-    <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api }}/excel{% if consulta %}?{{ consulta }}{% endif %}">Excel</button>
-    <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api }}/imprimivel{% if consulta %}?{{ consulta }}{% endif %}">PDF</button>
+    <button type="button" class="btn btn--ghost btn--sm" data-tn-excel="{{ api }}/excel{% if consulta %}?{{ consulta }}{% endif %}">{{ t('planejamento', 'Excel') }}</button>
+    <button type="button" class="btn btn--ghost btn--sm" data-tn-pdf="{{ api }}/imprimivel{% if consulta %}?{{ consulta }}{% endif %}">{{ t('planejamento', 'PDF') }}</button>
   </form>
 </div>

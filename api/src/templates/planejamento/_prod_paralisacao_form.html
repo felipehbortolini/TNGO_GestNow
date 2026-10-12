@@ -29,26 +29,26 @@
 
     <p class="produtividade__identificacao">
       {% if formulario.record %}
-      <span class="pill pill--neutral">Editar paralisação</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Editar paralisação') }}</span>
       <span class="fw-600">{{ formulario.record.resource }} · {{ formulario.record.area }}</span>
       <span class="hint">{{ formulario.record.project_label }}</span>
       {% else %}
-      <span class="pill pill--neutral">Nova paralisação</span>
-      <span class="hint">Efetivo (Hhora) ou máquina e equipamento (Mhora) parados na frente</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Nova paralisação') }}</span>
+      <span class="hint">{{ t('planejamento', 'Efetivo (Hhora) ou máquina e equipamento (Mhora) parados na frente') }}</span>
       {% endif %}
     </p>
 
     <div class="produtividade__campos">
       <div class="field">
-        <label for="horas-paralisacao-data">Data</label>
+        <label for="horas-paralisacao-data">{{ t('planejamento', 'Data') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('data') }}" id="horas-paralisacao-data"
           name="data" type="date" max="{{ hoje }}" value="{{ formulario.fields.get('data', '') }}"{{ marcas('data') }} />
         {{ erro('data') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-empresa">Empresa</label>
+        <label for="horas-paralisacao-empresa">{{ t('planejamento', 'Empresa') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="horas-paralisacao-empresa" name="empresa"{{ marcas('empresa') }}>
-          <option value="">Escolha a empresa</option>
+          <option value="">{{ t('planejamento', 'Escolha a empresa') }}</option>
           {% for opcao in formulario.options.companies %}
           <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
           {% endfor %}
@@ -56,7 +56,7 @@
         {{ erro('empresa') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-area">Área (CWA)</label>
+        <label for="horas-paralisacao-area">{{ t('planejamento', 'Área (CWA)') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('area') }}" id="horas-paralisacao-area"
           name="area" type="text" maxlength="80" list="horas-paralisacao-areas"
           value="{{ formulario.fields.get('area', '') }}"{{ marcas('area') }} />
@@ -66,7 +66,7 @@
         {{ erro('area') }}
       </div>
       <div class="field produtividade__campo--largo">
-        <label for="horas-paralisacao-tipo">Tipo</label>
+        <label for="horas-paralisacao-tipo">{{ t('planejamento', 'Tipo') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('tipo') }}" id="horas-paralisacao-tipo" name="tipo"{{ marcas('tipo') }}>
           {% for tipo in formulario.options.kinds %}
           <option value="{{ tipo }}"{% if formulario.fields.get('tipo') == tipo %} selected{% endif %}>{{ 'Efetivo (pessoas · Hhora)' if tipo == 'Efetivo' else 'Máquina ou equipamento (unidades · Mhora)' }}</option>
@@ -75,34 +75,34 @@
         {{ erro('tipo') }}
       </div>
       <div class="field produtividade__campo--largo">
-        <label for="horas-paralisacao-recurso">Recurso parado</label>
+        <label for="horas-paralisacao-recurso">{{ t('planejamento', 'Recurso parado') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('recurso') }}" id="horas-paralisacao-recurso"
-          name="recurso" type="text" maxlength="80" placeholder="Ex.: Montadores de estrutura; Guindaste 90 t"
+          name="recurso" type="text" maxlength="80" placeholder="{{ t('planejamento', 'Ex.: Montadores de estrutura; Guindaste 90 t') }}"
           value="{{ formulario.fields.get('recurso', '') }}"{{ marcas('recurso') }} />
         {{ erro('recurso') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-quantidade">Quantidade</label>
+        <label for="horas-paralisacao-quantidade">{{ t('planejamento', 'Quantidade') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('quantidade') }}" id="horas-paralisacao-quantidade"
           name="quantidade" type="number" min="1" step="1" value="{{ formulario.fields.get('quantidade', '') }}"{{ marcas('quantidade') }} />
         {{ erro('quantidade') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-inicio">Hora de início</label>
+        <label for="horas-paralisacao-inicio">{{ t('planejamento', 'Hora de início') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('inicio') }}" id="horas-paralisacao-inicio"
           name="inicio" type="time" value="{{ formulario.fields.get('inicio', '') }}"{{ marcas('inicio') }} />
         {{ erro('inicio') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-termino">Hora de término</label>
+        <label for="horas-paralisacao-termino">{{ t('planejamento', 'Hora de término') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('termino') }}" id="horas-paralisacao-termino"
           name="termino" type="time" value="{{ formulario.fields.get('termino', '') }}"{{ marcas('termino') }} />
         {{ erro('termino') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-motivo">Motivo</label>
+        <label for="horas-paralisacao-motivo">{{ t('planejamento', 'Motivo') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('motivo') }}" id="horas-paralisacao-motivo" name="motivo"{{ marcas('motivo') }}>
-          <option value="">Escolha o motivo</option>
+          <option value="">{{ t('planejamento', 'Escolha o motivo') }}</option>
           {% for motivo in formulario.options.stoppage_reasons %}
           <option value="{{ motivo }}"{% if formulario.fields.get('motivo') == motivo %} selected{% endif %}>{{ motivo }}</option>
           {% endfor %}
@@ -110,10 +110,10 @@
         {{ erro('motivo') }}
       </div>
       <div class="field">
-        <label for="horas-paralisacao-responsabilidade">Responsabilidade</label>
+        <label for="horas-paralisacao-responsabilidade">{{ t('planejamento', 'Responsabilidade') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('responsabilidade') }}" id="horas-paralisacao-responsabilidade"
           name="responsabilidade" x-model="responsabilidade"{{ marcas('responsabilidade') }}>
-          <option value="">Escolha a responsabilidade</option>
+          <option value="">{{ t('planejamento', 'Escolha a responsabilidade') }}</option>
           {% for opcao in formulario.options.responsibilities %}
           <option value="{{ opcao }}"{% if formulario.fields.get('responsabilidade') == opcao %} selected{% endif %}>{{ opcao }}</option>
           {% endfor %}
@@ -123,19 +123,19 @@
     </div>
 
     <div class="aviso aviso--warn" role="note" x-show="['Cliente', 'Gerenciadora', 'Terceiros'].includes(responsabilidade)" x-cloak>
-      <span>Tempo potencialmente excusável<span x-show="responsabilidade === 'Cliente'"> e compensável</span>: notifique formalmente dentro do prazo contratual e avalie o pleito em Contratos (03).</span>
+      <span>{{ t('planejamento', 'Tempo potencialmente excusável') }}<span x-show="responsabilidade === 'Cliente'">{{ t('planejamento', 'e compensável') }}</span>: notifique formalmente dentro do prazo contratual e avalie o pleito em Contratos (03).</span>
     </div>
 
     <div class="field">
-      <label for="horas-paralisacao-descricao">Descrição</label>
+      <label for="horas-paralisacao-descricao">{{ t('planejamento', 'Descrição') }}</label>
       <textarea class="input{{ ' input--erro' if formulario.errors.get('descricao') }}" id="horas-paralisacao-descricao"
         name="descricao" rows="2" maxlength="300"{{ marcas('descricao') }}>{{ formulario.fields.get('descricao', '') }}</textarea>
       {{ erro('descricao') }}
     </div>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if registro_id else 'Registrar paralisação' }}</button>
+      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Salvar alterações') if registro_id else t('planejamento', 'Registrar paralisação') }}</button>
     </div>
   </form>
 </div>

@@ -46,9 +46,9 @@
 {% if situacao == 'vazio-origem' %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-  <h2 class="h-card4">Ainda não há registros da qualidade</h2>
-  <p>Abra as RNC, os ITP e as auditorias do projeto para o painel mostrar os indicadores, os gráficos e a pauta de tratamento.</p>
-  <a class="btn btn--primary" href="{{ link_rnc }}" data-tn-tela>Ir para as Não conformidades</a>
+  <h2 class="h-card4">{{ t('qualidade', 'Ainda não há registros da qualidade') }}</h2>
+  <p>{{ t('qualidade', 'Abra as RNC, os ITP e as auditorias do projeto para o painel mostrar os indicadores, os gráficos e a pauta de tratamento.') }}</p>
+  <a class="btn btn--primary" href="{{ link_rnc }}" data-tn-tela>{{ t('qualidade', 'Ir para as Não conformidades') }}</a>
 </div>
 {% else %}
 <div class="kpis painel__kpis" style="--kpis-colunas: 5">
@@ -58,13 +58,13 @@
 <div class="painel__barra">
   <p class="hint">
     Data de referência {{ formatar_data(painel.reference_date) }} ·
-    {{ painel.registered }} {{ 'registro' if painel.registered == 1 else 'registros' }} no escopo ·
+    {{ painel.registered }} {{ t('qualidade', 'registro') if painel.registered == 1 else t('qualidade', 'registros') }} no escopo ·
     canceladas fora das agregações
   </p>
   <div class="painel__exportacoes">
-    <a class="btn btn--secondary btn--sm" href="{{ link_rnc }}" data-tn-tela>Não conformidades</a>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    <a class="btn btn--secondary btn--sm" href="{{ link_rnc }}" data-tn-tela>{{ t('qualidade', 'Não conformidades') }}</a>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('qualidade', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">{{ t('qualidade', 'PDF') }}</button>
   </div>
 </div>
 
@@ -79,8 +79,8 @@
   <section class="card" aria-labelledby="painel-t-rnc-mes">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-rnc-mes">RNC por mês</h2>
-        <span class="hint">Abertas e encerradas nos últimos 6 meses</span>
+        <h2 class="h-card4" id="painel-t-rnc-mes">{{ t('qualidade', 'RNC por mês') }}</h2>
+        <span class="hint">{{ t('qualidade', 'Abertas e encerradas nos últimos 6 meses') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -91,7 +91,7 @@
   <section class="card" aria-labelledby="painel-t-aprov">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-aprov">Aprovação em inspeções</h2>
+        <h2 class="h-card4" id="painel-t-aprov">{{ t('qualidade', 'Aprovação em inspeções') }}</h2>
         <span class="hint">
           % de inspeções aprovadas por mês (ressalva conta como aprovada) ·
           meta {{ formatar_percentual(painel.indicators.inspection_approval_target_pct) }}%
@@ -106,8 +106,8 @@
   <section class="card" aria-labelledby="painel-t-pareto">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-pareto">Pareto de RNC por disciplina</h2>
-        <span class="hint">Quantidade por disciplina, da maior para a menor; canceladas fora</span>
+        <h2 class="h-card4" id="painel-t-pareto">{{ t('qualidade', 'Pareto de RNC por disciplina') }}</h2>
+        <span class="hint">{{ t('qualidade', 'Quantidade por disciplina, da maior para a menor; canceladas fora') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -118,8 +118,8 @@
   <section class="card" aria-labelledby="painel-t-origem">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="painel-t-origem">RNC por origem</h2>
-        <span class="hint">Onde a não conformidade foi detectada</span>
+        <h2 class="h-card4" id="painel-t-origem">{{ t('qualidade', 'RNC por origem') }}</h2>
+        <span class="hint">{{ t('qualidade', 'Onde a não conformidade foi detectada') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -131,10 +131,10 @@
 <section class="card painel__pauta" aria-labelledby="painel-t-pauta">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="painel-t-pauta">Pauta de tratamento</h2>
+      <h2 class="h-card4" id="painel-t-pauta">{{ t('qualidade', 'Pauta de tratamento') }}</h2>
       <span class="hint">
         {% if painel.agenda %}
-        {{ painel.agenda | length }} {{ 'RNC pede' if painel.agenda | length == 1 else 'RNCs pedem' }}
+        {{ painel.agenda | length }} {{ t('qualidade', 'RNC pede') if painel.agenda | length == 1 else t('qualidade', 'RNCs pedem') }}
         decisão: prazo vencido, verificação vencida, severidade crítica ou concessão pendente
         {% else %}
         Nenhuma RNC fora do prazo, crítica ou com concessão pendente
@@ -144,21 +144,21 @@
   </div>
   {% if not painel.agenda %}
   <div class="card__body">
-    <p class="empty" data-estado="vazio-filtro">Nenhuma RNC na pauta.</p>
+    <p class="empty" data-estado="vazio-filtro">{{ t('qualidade', 'Nenhuma RNC na pauta.') }}</p>
   </div>
   {% else %}
   <div class="tbl-wrap">
     <table class="tbl painel__tabela">
-      <caption class="sr-only">Pauta de tratamento</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Pauta de tratamento') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">RNC</th>
-          <th scope="col">Não conformidade</th>
-          <th scope="col">Severidade</th>
-          <th scope="col">Situação</th>
-          <th scope="col">Atraso</th>
-          <th scope="col">Motivo</th>
+          {% if portfolio %}<th scope="col">{{ t('qualidade', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('qualidade', 'RNC') }}</th>
+          <th scope="col">{{ t('qualidade', 'Não conformidade') }}</th>
+          <th scope="col">{{ t('qualidade', 'Severidade') }}</th>
+          <th scope="col">{{ t('qualidade', 'Situação') }}</th>
+          <th scope="col">{{ t('qualidade', 'Atraso') }}</th>
+          <th scope="col">{{ t('qualidade', 'Motivo') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -176,7 +176,7 @@
           <td><span class="pill {{ pill_da_situacao.get(item.line.situation, 'pill--neutral') }}">{{ item.line.situation }}</span></td>
           <td class="nowrap">
             {% if item.line.days_overdue %}
-            <span class="field__erro">{{ item.line.days_overdue }} {{ 'dia' if item.line.days_overdue == 1 else 'dias' }}</span>
+            <span class="field__erro">{{ item.line.days_overdue }} {{ t('qualidade', 'dia') if item.line.days_overdue == 1 else t('qualidade', 'dias') }}</span>
             {% else %}
             <span class="muted">·</span>
             {% endif %}
@@ -193,26 +193,26 @@
 <section class="card painel__empresas" aria-labelledby="painel-t-empresas">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="painel-t-empresas">Desempenho da qualidade por empresa</h2>
-      <span class="hint">Inspeções, reprovações, RNC e custo da não qualidade</span>
+      <h2 class="h-card4" id="painel-t-empresas">{{ t('qualidade', 'Desempenho da qualidade por empresa') }}</h2>
+      <span class="hint">{{ t('qualidade', 'Inspeções, reprovações, RNC e custo da não qualidade') }}</span>
     </div>
   </div>
   {% if not painel.by_company %}
   <div class="card__body">
-    <p class="empty" data-estado="vazio-filtro">Sem registros por empresa no escopo.</p>
+    <p class="empty" data-estado="vazio-filtro">{{ t('qualidade', 'Sem registros por empresa no escopo.') }}</p>
   </div>
   {% else %}
   <div class="tbl-wrap">
     <table class="tbl painel__tabela">
-      <caption class="sr-only">Desempenho por empresa</caption>
+      <caption class="sr-only">{{ t('qualidade', 'Desempenho por empresa') }}</caption>
       <thead>
         <tr>
-          <th scope="col">Empresa</th>
-          <th scope="col" class="td-num">Inspeções</th>
-          <th scope="col" class="td-num">Reprovadas</th>
-          <th scope="col" class="td-num">Aprovação</th>
-          <th scope="col" class="td-num">RNC</th>
-          <th scope="col" class="td-num">Custo da não qualidade</th>
+          <th scope="col">{{ t('qualidade', 'Empresa') }}</th>
+          <th scope="col" class="td-num">{{ t('qualidade', 'Inspeções') }}</th>
+          <th scope="col" class="td-num">{{ t('qualidade', 'Reprovadas') }}</th>
+          <th scope="col" class="td-num">{{ t('qualidade', 'Aprovação') }}</th>
+          <th scope="col" class="td-num">{{ t('qualidade', 'RNC') }}</th>
+          <th scope="col" class="td-num">{{ t('qualidade', 'Custo da não qualidade') }}</th>
         </tr>
       </thead>
       <tbody>

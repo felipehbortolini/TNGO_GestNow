@@ -11,13 +11,13 @@
 {% block fragment %}
 <section class="card mb-16">
   <div class="card__head">
-    <h2 class="h-card4">Semana</h2>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Semana') }}</h2>
     <span class="hint">{{ periodo }} — o Excel e o relatório saem desta semana</span>
   </div>
   <div class="card__body">
     <div class="toolbar">
       <div class="field">
-        <label for="importacao-semana">Semana de referência</label>
+        <label for="importacao-semana">{{ t('programacao_semanal', 'Semana de referência') }}</label>
         <select id="importacao-semana" class="input" name="semana"
           @change="$ajax('{{ painel_url }}?semana=' + encodeURIComponent($el.value), { target: 'importacao-painel' })">
           {% for opcao in semanas %}
@@ -28,87 +28,68 @@
         </select>
       </div>
       <button type="button" class="btn btn--secondary" data-tn-excel="{{ excel_url }}">
-        <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
-        Baixar Excel da semana
-      </button>
+        <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Baixar Excel da semana') }}</button>
       <button type="button" class="btn btn--secondary" data-tn-pdf="{{ pdf_url }}">
-        <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
-        Imprimir ou salvar em PDF
-      </button>
+        <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Imprimir ou salvar em PDF') }}</button>
     </div>
   </div>
 </section>
 
 {% if portfolio %}
 <div class="aviso aviso--info mb-16">
-  <strong>Escolha um projeto para importar</strong>
-  <span>
-    No Portfólio a importação da semana não tem onde gravar. Escolha um projeto na
-    barra lateral para enviar a planilha; o Excel e o relatório continuam disponíveis.
-  </span>
+  <strong>{{ t('programacao_semanal', 'Escolha um projeto para importar') }}</strong>
+  <span>{{ t('programacao_semanal', 'No Portfólio a importação da semana não tem onde gravar. Escolha um projeto na barra lateral para enviar a planilha; o Excel e o relatório continuam disponíveis.') }}</span>
 </div>
 {% elif not pode_importar %}
 <div class="aviso aviso--info mb-16">
-  <strong>Importação restrita</strong>
-  <span>
-    Só o Planejador deste projeto ou o Admin importam a planilha da semana.
-    O Excel e o relatório continuam disponíveis.
-  </span>
+  <strong>{{ t('programacao_semanal', 'Importação restrita') }}</strong>
+  <span>{{ t('programacao_semanal', 'Só o Planejador deste projeto ou o Admin importam a planilha da semana. O Excel e o relatório continuam disponíveis.') }}</span>
 </div>
 {% endif %}
 
 {% if pode_importar %}
 <section class="card">
   <div class="card__head">
-    <h2 class="h-card4">Importar planilha</h2>
-    <span class="hint">nada é gravado antes da sua confirmação</span>
+    <h2 class="h-card4">{{ t('programacao_semanal', 'Importar planilha') }}</h2>
+    <span class="hint">{{ t('programacao_semanal', 'nada é gravado antes da sua confirmação') }}</span>
   </div>
   <div class="card__body">
     <ol class="lista-simples mb-16">
       <li class="lista-simples__item">
         <span class="pill pill--fix">1</span>
         <span class="linha__main">
-          <span class="linha__titulo">Baixe o modelo</span>
-          <span class="linha__meta">
-            As colunas já vêm na ordem do app; a aba Instruções diz o que cada uma pede.
-            Uma atividade ocupa duas linhas: Prev. com o programado e Real. com o executado.
-          </span>
+          <span class="linha__titulo">{{ t('programacao_semanal', 'Baixe o modelo') }}</span>
+          <span class="linha__meta">{{ t('programacao_semanal', 'As colunas já vêm na ordem do app; a aba Instruções diz o que cada uma pede. Uma atividade ocupa duas linhas: Prev. com o programado e Real. com o executado.') }}</span>
         </span>
         <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
-          <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
-          Baixar o modelo (.xlsx)
-        </button>
+          <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Baixar o modelo (.xlsx)') }}</button>
       </li>
       <li class="lista-simples__item">
         <span class="pill pill--fix">2</span>
         <span class="linha__main">
-          <span class="linha__titulo">Envie e confira</span>
-          <span class="linha__meta">
-            O sistema confere linha a linha e mostra o que vai gravar. Nada é salvo neste passo.
-          </span>
+          <span class="linha__titulo">{{ t('programacao_semanal', 'Envie e confira') }}</span>
+          <span class="linha__meta">{{ t('programacao_semanal', 'O sistema confere linha a linha e mostra o que vai gravar. Nada é salvo neste passo.') }}</span>
         </span>
       </li>
       <li class="lista-simples__item">
         <span class="pill pill--fix">3</span>
         <span class="linha__main">
-          <span class="linha__titulo">Confirme</span>
-          <span class="linha__meta">
-            Só o que passou na conferência é gravado, tudo ou nada, com registro na trilha.
-          </span>
+          <span class="linha__titulo">{{ t('programacao_semanal', 'Confirme') }}</span>
+          <span class="linha__meta">{{ t('programacao_semanal', 'Só o que passou na conferência é gravado, tudo ou nada, com registro na trilha.') }}</span>
         </span>
       </li>
     </ol>
 
     <div class="tbl-wrap mb-16">
       <table class="tbl">
-        <caption class="sr-only">Cadastros aceitos na planilha</caption>
+        <caption class="sr-only">{{ t('programacao_semanal', 'Cadastros aceitos na planilha') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Locais</th>
-            <th scope="col">Empresas</th>
-            <th scope="col">Unidades</th>
-            <th scope="col">Encarregados</th>
-            <th scope="col">Fiscais</th>
+            <th scope="col">{{ t('programacao_semanal', 'Locais') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Empresas') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Unidades') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Encarregados') }}</th>
+            <th scope="col">{{ t('programacao_semanal', 'Fiscais') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -126,16 +107,14 @@
       x-data="{ nome: '' }" @reset="nome = ''">
       <div class="upload">
         <div class="field upload__campo">
-          <label for="importacao-arquivo">Planilha preenchida</label>
+          <label for="importacao-arquivo">{{ t('programacao_semanal', 'Planilha preenchida') }}</label>
           <input id="importacao-arquivo" class="input upload__arquivo" type="file"
             name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="importacao-dica"
             @change="nome = $el.files[0] ? $el.files[0].name : ''; document.getElementById('importacao-conferencia').replaceChildren()" />
           <span class="hint" id="importacao-dica">Somente .xlsx, até {{ limite_mb }} MB e {{ limite_linhas }} linhas de dados.</span>
         </div>
         <button type="submit" class="btn btn--primary" :disabled="!nome">
-          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Conferir a planilha
-        </button>
+          <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('programacao_semanal', 'Conferir a planilha') }}</button>
       </div>
       <div id="importacao-conferencia" aria-live="polite"></div>
     </form>

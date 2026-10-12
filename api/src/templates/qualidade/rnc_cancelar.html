@@ -20,12 +20,12 @@
   {% endif %}
 
   <div class="aviso aviso--warn mb-16" role="note">
-    <span>Só antes da ação corretiva, quando o registro foi indevido ou duplicado.</span>
+    <span>{{ t('qualidade', 'Só antes da ação corretiva, quando o registro foi indevido ou duplicado.') }}</span>
   </div>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="rnc-motivo">Motivo</label>
+      <label for="rnc-motivo">{{ t('qualidade', 'Motivo') }}</label>
       <textarea id="rnc-motivo" name="motivo" class="input{% if erros.get('motivo') %} input--erro{% endif %}"
         rows="2" maxlength="300" required
         {% if erros.get('motivo') %}aria-invalid="true" aria-describedby="erro-motivo"{% endif %}>{{ valores.get('motivo') or '' }}</textarea>
@@ -34,8 +34,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>Voltar</button>
-    <button type="submit" class="btn btn--primary">Cancelar RNC</button>
+    <button type="button" class="btn btn--secondary" data-rnc-fechar-modal>{{ t('qualidade', 'Voltar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Cancelar RNC') }}</button>
   </div>
 </form>
 {% endblock %}

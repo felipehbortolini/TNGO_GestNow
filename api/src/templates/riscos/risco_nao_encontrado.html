@@ -7,8 +7,8 @@
 {% block fragment %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-aviso.png" alt="" />
-  <h2 class="h-card4">Risco não encontrado</h2>
-  <p>O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.</p>
-  <a class="btn btn--primary" href="/riscos/registro" data-tn-tela>Voltar ao registro de riscos</a>
+  <h2 class="h-card4">{{ t('riscos', 'Risco não encontrado') }}</h2>
+  <p>{{ t('riscos', 'O risco não existe, foi excluído ou você não tem acesso a ele. Confira o número no registro.') }}</p>
+  <a class="btn btn--primary" href="/riscos/registro" data-tn-tela>{{ t('riscos', 'Voltar ao registro de riscos') }}</a>
 </div>
 {% endblock %}

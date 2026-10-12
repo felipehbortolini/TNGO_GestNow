@@ -14,7 +14,7 @@
 {% macro botao_editar(aba, registro_id, consulta, titulo, subtitulo) %}
 <button type="button" class="iconbtn" data-hse-modal-url="/api/hse/inspecoes/{{ aba }}/{{ registro_id }}/editar?{{ consulta }}"
   data-hse-modal-titulo="{{ titulo }}" data-hse-modal-subtitulo="{{ subtitulo }}"
-  aria-label="Editar: {{ subtitulo }}" title="Editar">
+  aria-label="Editar: {{ subtitulo }}" title="{{ t('hse', 'Editar') }}">
   <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
 </button>
 {% endmacro %}
@@ -36,7 +36,7 @@
 <div class="card">
   <div class="card__body">
     <div class="toolbar">
-      <div class="seg" role="group" aria-label="Registros do HSE">
+      <div class="seg" role="group" aria-label="{{ t('hse', 'Registros do HSE') }}">
         {% for item in abas %}
         <a class="seg__btn{% if item.chave == aba %} is-active{% endif %}" href="{{ item.url }}"
           x-target="{{ target_id }}"{% if item.chave == aba %} aria-current="true"{% endif %}>{{ item.rotulo }} <span class="pill pill--neutral">{{ item.total }}</span></a>
@@ -49,34 +49,34 @@
           data-hse-modal-subtitulo="{{ subtitulo_novo }}">{{ rotulo_novo }}</button>
         {% if aba == 'mensal' %}
         <button type="button" class="btn btn--secondary" data-tn-incluir="importar"
-          data-hse-modal-url="/api/importacao/hse-mensal" data-hse-modal-titulo="Importar fechamento mensal"
-          data-hse-modal-subtitulo="Planilha Excel conferida linha a linha antes de gravar" data-hse-modal-largura="820"
-          data-hse-atualiza>Importar planilha</button>
+          data-hse-modal-url="/api/importacao/hse-mensal" data-hse-modal-titulo="{{ t('hse', 'Importar fechamento mensal') }}"
+          data-hse-modal-subtitulo="{{ t('hse', 'Planilha Excel conferida linha a linha antes de gravar') }}" data-hse-modal-largura="820"
+          data-hse-atualiza>{{ t('hse', 'Importar planilha') }}</button>
         {% endif %}
         {% endif %}
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('hse', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('hse', 'PDF') }}</button>
       </div>
     </div>
 
-    <p class="hint inspecoes__contagem" role="status">{{ total }} {{ 'registro' if total == 1 else 'registros' }} nesta aba</p>
+    <p class="hint inspecoes__contagem" role="status">{{ total }} {{ t('hse', 'registro') if total == 1 else t('hse', 'registros') }} nesta aba</p>
 
     {% if not total %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Nenhum registro nesta aba</h2>
+      <h2 class="h-card4">{{ t('hse', 'Nenhum registro nesta aba') }}</h2>
       <p>{{ texto_vazio }}</p>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
         {% if aba == 'mensal' %}
-        <caption class="sr-only">Registros mensais</caption>
+        <caption class="sr-only">{{ t('hse', 'Registros mensais') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Mês</th><th scope="col">DDS</th><th scope="col">Inspeções</th>
-          <th scope="col">Observações</th><th scope="col">Desvios</th>
-          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('hse', 'Mês') }}</th><th scope="col">{{ t('hse', 'DDS') }}</th><th scope="col">{{ t('hse', 'Inspeções') }}</th>
+          <th scope="col">{{ t('hse', 'Observações') }}</th><th scope="col">{{ t('hse', 'Desvios') }}</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>{% endif %}
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -92,12 +92,12 @@
           {% endfor %}
         </tbody>
         {% elif aba == 'inspecao' %}
-        <caption class="sr-only">Inspeções de segurança</caption>
+        <caption class="sr-only">{{ t('hse', 'Inspeções de segurança') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Data</th><th scope="col">Área</th><th scope="col">Empresa</th><th scope="col">Responsável</th>
-          <th scope="col">Conformes / itens</th><th scope="col">Não conformes</th>
-          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('hse', 'Data') }}</th><th scope="col">{{ t('hse', 'Área') }}</th><th scope="col">{{ t('hse', 'Empresa') }}</th><th scope="col">{{ t('hse', 'Responsável') }}</th>
+          <th scope="col">{{ t('hse', 'Conformes / itens') }}</th><th scope="col">{{ t('hse', 'Não conformes') }}</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>{% endif %}
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -125,14 +125,14 @@
           {% endfor %}
         </tbody>
         {% elif aba == 'observacao' %}
-        <caption class="sr-only">Observações comportamentais</caption>
+        <caption class="sr-only">{{ t('hse', 'Observações comportamentais') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Data</th><th scope="col">Área</th><th scope="col">Tipo</th><th scope="col">Descrição</th>
-          <th scope="col">Empresa</th><th scope="col">Responsável</th>
-          {% if ver_observado %}<th scope="col">Pessoa observada</th>{% endif %}
-          <th scope="col">Situação</th>
-          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('hse', 'Data') }}</th><th scope="col">{{ t('hse', 'Área') }}</th><th scope="col">{{ t('hse', 'Tipo') }}</th><th scope="col">{{ t('hse', 'Descrição') }}</th>
+          <th scope="col">{{ t('hse', 'Empresa') }}</th><th scope="col">{{ t('hse', 'Responsável') }}</th>
+          {% if ver_observado %}<th scope="col">{{ t('hse', 'Pessoa observada') }}</th>{% endif %}
+          <th scope="col">{{ t('hse', 'Situação') }}</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>{% endif %}
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -151,12 +151,12 @@
           {% endfor %}
         </tbody>
         {% else %}
-        <caption class="sr-only">DDS</caption>
+        <caption class="sr-only">{{ t('hse', 'DDS') }}</caption>
         <thead><tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Data</th><th scope="col">Tema</th><th scope="col">Empresa</th>
-          <th scope="col">Responsável</th><th scope="col">Participantes</th>
-          {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações da linha</span></th>{% endif %}
+          {% if portfolio %}<th scope="col">{{ t('hse', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('hse', 'Data') }}</th><th scope="col">{{ t('hse', 'Tema') }}</th><th scope="col">{{ t('hse', 'Empresa') }}</th>
+          <th scope="col">{{ t('hse', 'Responsável') }}</th><th scope="col">{{ t('hse', 'Participantes') }}</th>
+          {% if pode_gravar %}<th scope="col"><span class="sr-only">{{ t('hse', 'Ações da linha') }}</span></th>{% endif %}
         </tr></thead>
         <tbody>
           {% for linha in linhas %}
@@ -174,10 +174,10 @@
         {% endif %}
       </table>
     </div>
-    <nav class="inspecoes__paginas" aria-label="Páginas da tabela">
-      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>{% endif %}
+    <nav class="inspecoes__paginas" aria-label="{{ t('hse', 'Páginas da tabela') }}">
+      {% if link_anterior %}<a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('hse', 'Anterior') }}</a>{% endif %}
       <span class="hint">Página {{ pagina }} de {{ pagina_total }}</span>
-      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>{% endif %}
+      {% if link_proximo %}<a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('hse', 'Próxima') }}</a>{% endif %}
     </nav>
     {% endif %}
   </div>

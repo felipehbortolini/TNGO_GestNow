@@ -20,25 +20,25 @@
   <div class="aviso aviso--erro mb-16" role="alert"><span>{{ mensagem }}</span></div>
   {% endfor %}
 
-  <p class="hint mb-16">Esta ação nasce vinculada à ocorrência (origem HSE) e aparece na Central de Ações.</p>
+  <p class="hint mb-16">{{ t('hse', 'Esta ação nasce vinculada à ocorrência (origem HSE) e aparece na Central de Ações.') }}</p>
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="ac-assunto">Assunto</label>
+      <label for="ac-assunto">{{ t('hse', 'Assunto') }}</label>
       <input id="ac-assunto" name="assunto" type="text" class="input{% if erros.get('assunto') %} input--erro{% endif %}"
         maxlength="255" value="{{ valores.get('assunto') or '' }}" required />
       {{ erro(erros, 'assunto') }}
     </div>
     <div class="field field--full">
-      <label for="ac-descricao">Descrição</label>
+      <label for="ac-descricao">{{ t('hse', 'Descrição') }}</label>
       <textarea id="ac-descricao" name="descricao" rows="3" maxlength="300"
         class="input{% if erros.get('descricao') %} input--erro{% endif %}">{{ valores.get('descricao') or '' }}</textarea>
       {{ erro(erros, 'descricao') }}
     </div>
     <div class="field">
-      <label for="ac-responsavel">Responsável</label>
+      <label for="ac-responsavel">{{ t('hse', 'Responsável') }}</label>
       <select id="ac-responsavel" name="responsavel" class="input{% if erros.get('responsavel') %} input--erro{% endif %}" required>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('hse', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavel') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -46,7 +46,7 @@
       {{ erro(erros, 'responsavel') }}
     </div>
     <div class="field">
-      <label for="ac-prevista">Data prevista</label>
+      <label for="ac-prevista">{{ t('hse', 'Data prevista') }}</label>
       <input id="ac-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}"
         min="{{ referencia }}" value="{{ valores.get('prevista') or '' }}" required />
       {{ erro(erros, 'prevista') }}
@@ -54,8 +54,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Criar ação corretiva</button>
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Criar ação corretiva') }}</button>
   </div>
 </form>
 {% endblock %}

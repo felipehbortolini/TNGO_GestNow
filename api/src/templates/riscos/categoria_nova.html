@@ -17,7 +17,7 @@
   <p class="hint mb-16">Cadastro rápido do catálogo mantido em Configurações &gt; Cadastros.</p>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="{{ target_id }}-grupo">Grupo (nível 1)</label>
+      <label for="{{ target_id }}-grupo">{{ t('riscos', 'Grupo (nível 1)') }}</label>
       <input id="{{ target_id }}-grupo" name="grupo" class="input{% if erros.get('grupo') %} input--erro{% endif %}" maxlength="60" required
         list="{{ target_id }}-grupos" value="{{ valores.get('grupo') or '' }}"
         {% if erros.get('grupo') %}aria-invalid="true" aria-describedby="erro-grupo"{% endif %} />
@@ -27,15 +27,15 @@
       {% if erros.get('grupo') %}<span id="erro-grupo" class="field__erro">{{ erros['grupo'] }}</span>{% endif %}
     </div>
     <div class="field field--full">
-      <label for="{{ target_id }}-nome">Subcategoria</label>
+      <label for="{{ target_id }}-nome">{{ t('riscos', 'Subcategoria') }}</label>
       <input id="{{ target_id }}-nome" name="nome" class="input{% if erros.get('nome') %} input--erro{% endif %}" maxlength="60" required
         value="{{ valores.get('nome') or '' }}"{% if erros.get('nome') %} aria-invalid="true" aria-describedby="erro-nome"{% endif %} />
       {% if erros.get('nome') %}<span id="erro-nome" class="field__erro">{{ erros['nome'] }}</span>{% endif %}
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Cadastrar categoria</button>
+    <button type="button" class="btn btn--secondary" data-registro-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('riscos', 'Cadastrar categoria') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -8,32 +8,32 @@
 <header class="rel-folha__cabecalho">
   <img class="rel-folha__logo" src="/ds/assets/favicon-timenow.png" alt="" />
   <div class="rel-folha__titulo">
-    <b>Relatório gerencial {{ 'semanal' if visao.kind == 'Semanal' else 'mensal' }}</b>
+    <b>{{ t('relatorio', 'Relatório gerencial') }} {{ t('relatorio', 'semanal') if visao.kind == 'Semanal' else t('relatorio', 'mensal') }}</b>
     <span>{{ visao.period_label }}{% if visao.in_progress %} · parcial, dados até {{ formatar_data(visao.cut) }}{% endif %}</span>
   </div>
   <div class="rel-folha__projeto">
     <b>{{ visao.scope_label }}</b>
-    Emitido em {{ formatar_data(visao.reference_date) }} (data de referência) por {{ visao.emitted_by }}
+    {{ t('relatorio', 'Emitido em') }} {{ formatar_data(visao.reference_date) }} ({{ t('relatorio', 'data de referência') }}) {{ t('relatorio', 'por') }} {{ visao.emitted_by }}
   </div>
 </header>
-<h2 class="rel-folha__secao">{{ secao }}{% if sub %} <small>{{ sub }}</small>{% endif %}</h2>
+<h2 class="rel-folha__secao">{{ t('relatorio', secao) }}{% if sub %} <small>{{ sub }}</small>{% endif %}</h2>
 {% endmacro %}
 
 {% macro rodape(nota) %}
 <footer class="rel-folha__rodape">
-  <span>Timenow GestNow</span>
+  <span>{{ t('relatorio', 'Timenow GestNow') }}</span>
   <span>{{ nota }}</span>
   <span data-pagina></span>
 </footer>
 {% endmacro %}
 
-{% macro cor_indice(valor) %}{{ 'info' if valor is none else 'success' if valor >= 1 else 'warning' if valor >= 0.95 else 'danger' }}{% endmacro %}
+{% macro cor_indice(valor) %}{{ t('relatorio', 'info') if valor is none else t('relatorio', 'success') if valor >= 1 else t('relatorio', 'warning') if valor >= 0.95 else t('relatorio', 'danger') }}{% endmacro %}
 
 {% macro kpi(rotulo, valor, cor, unidade='', esperado_rotulo='', esperado_valor='', rodape='', rodape_negativo=False, rodape_html=none) %}
 <div class="rel-kpi rel-kpi--{{ cor }}">
-  <span class="rel-kpi__rotulo">{{ rotulo }}</span>
+  <span class="rel-kpi__rotulo">{{ t('relatorio', rotulo) }}</span>
   <span class="rel-kpi__valor">{{ valor }}{% if unidade %}<small>{{ unidade }}</small>{% endif %}</span>
-  <span class="rel-kpi__esperado">{% if esperado_rotulo %}<span>{{ esperado_rotulo }} <b>{{ esperado_valor }}</b></span>{% endif %}</span>
+  <span class="rel-kpi__esperado">{% if esperado_rotulo %}<span>{{ t('relatorio', esperado_rotulo) }} <b>{{ esperado_valor }}</b></span>{% endif %}</span>
   <span class="rel-kpi__rodape">{% if rodape_html %}{{ rodape_html }}{% elif rodape_negativo %}<span class="rel-negativo">{{ rodape }}</span>{% elif rodape %}{{ rodape }}{% else %}&nbsp;{% endif %}</span>
 </div>
 {% endmacro %}

@@ -7,28 +7,26 @@
 #}
 <div id="lookahead-filtros">
   <form class="toolbar lookahead__filtros" method="get" action="{{ api }}" x-target="lookahead-conteudo"
-    role="search" aria-label="Filtros do 6WLA" x-data @input.debounce.300ms="$el.requestSubmit()">
+    role="search" aria-label="{{ t('planejamento', 'Filtros do 6WLA') }}" x-data @input.debounce.300ms="$el.requestSubmit()">
     <div class="busca">
       <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-      <label class="sr-only" for="lookahead-busca">Buscar atividade, área ou código</label>
+      <label class="sr-only" for="lookahead-busca">{{ t('planejamento', 'Buscar atividade, área ou código') }}</label>
       <input id="lookahead-busca" type="search" name="busca" class="input busca__input"
-        placeholder="Buscar atividade, área ou código" value="{{ filtros.search }}" />
+        placeholder="{{ t('planejamento', 'Buscar atividade, área ou código') }}" value="{{ filtros.search }}" />
     </div>
     <div class="field">
-      <label class="sr-only" for="lookahead-disciplina">Disciplina</label>
+      <label class="sr-only" for="lookahead-disciplina">{{ t('planejamento', 'Disciplina') }}</label>
       <select id="lookahead-disciplina" name="disciplina" class="input">
-        <option value="">Todas as disciplinas</option>
+        <option value="">{{ t('planejamento', 'Todas as disciplinas') }}</option>
         {% for disciplina in disciplinas %}
         <option value="{{ disciplina }}"{% if disciplina == filtros.discipline %} selected{% endif %}>{{ disciplina }}</option>
         {% endfor %}
       </select>
     </div>
     <label class="lookahead__opcao">
-      <input type="checkbox" name="so_restricao" value="1"{% if filtros.only_with_open_constraint %} checked{% endif %} />
-      Só com restrição aberta
-    </label>
+      <input type="checkbox" name="so_restricao" value="1"{% if filtros.only_with_open_constraint %} checked{% endif %} />{{ t('planejamento', 'Só com restrição aberta') }}</label>
     <div class="field">
-      <label class="sr-only" for="lookahead-restricoes">Restrições listadas</label>
+      <label class="sr-only" for="lookahead-restricoes">{{ t('planejamento', 'Restrições listadas') }}</label>
       <select id="lookahead-restricoes" name="restricoes" class="input">
         {% for valor, nome in listas_de_restricoes.items() %}
         <option value="{{ valor }}"{% if valor == filtros.constraints %} selected{% endif %}>Restrições: {{ nome | lower }}</option>
@@ -39,14 +37,10 @@
     <div class="lookahead__inclusao">
       <button type="button" class="btn btn--primary" data-tn-incluir="atividade"
         @click="$ajax('{{ api }}/atividades/nova', { target: 'lookahead-formulario' })">
-        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova atividade
-      </button>
+        <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Nova atividade') }}</button>
       <button type="button" class="btn btn--secondary" data-tn-incluir="restricao"
         @click="$ajax('{{ api }}/restricoes/nova', { target: 'lookahead-formulario' })">
-        <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-        Nova restrição
-      </button>
+        <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>{{ t('planejamento', 'Nova restrição') }}</button>
     </div>
     {% endif %}
   </form>

@@ -18,14 +18,14 @@
 <span hidden data-situacao="{{ situacao }}"></span>
 
 <div class="toolbar">
-  <div class="seg" role="group" aria-label="Avaliação exibida">
+  <div class="seg" role="group" aria-label="{{ t('riscos', 'Avaliação exibida') }}">
     <a class="seg__btn{% if matriz.assessment == 'inerente' %} is-active{% endif %}" href="{{ link_inerente }}"
-      x-target="{{ target_id }}"{% if matriz.assessment == 'inerente' %} aria-current="true"{% endif %}>Inerente</a>
+      x-target="{{ target_id }}"{% if matriz.assessment == 'inerente' %} aria-current="true"{% endif %}>{{ t('riscos', 'Inerente') }}</a>
     <a class="seg__btn{% if matriz.assessment == 'residual' %} is-active{% endif %}" href="{{ link_residual }}"
-      x-target="{{ target_id }}"{% if matriz.assessment == 'residual' %} aria-current="true"{% endif %}>Residual</a>
+      x-target="{{ target_id }}"{% if matriz.assessment == 'residual' %} aria-current="true"{% endif %}>{{ t('riscos', 'Residual') }}</a>
   </div>
   <form class="matriz__natureza" method="get" action="/api/riscos/matriz" x-target="{{ target_id }}">
-    <label class="sr-only" for="{{ target_id }}-natureza">Natureza</label>
+    <label class="sr-only" for="{{ target_id }}-natureza">{{ t('riscos', 'Natureza') }}</label>
     <select id="{{ target_id }}-natureza" class="input" name="natureza" @change="$el.form.requestSubmit()">
       {% for valor, rotulo in naturezas %}
       <option value="{{ valor }}"{% if matriz.nature == valor %} selected{% endif %}>{{ rotulo }}</option>
@@ -34,33 +34,33 @@
     {% if matriz.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
   </form>
   <div class="matriz__acoes">
-    <a class="btn btn--secondary" href="{{ link_registro }}" data-tn-tela>Registro</a>
-    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+    <a class="btn btn--secondary" href="{{ link_registro }}" data-tn-tela>{{ t('riscos', 'Registro') }}</a>
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
   </div>
 </div>
 
 {% if situacao == 'vazio-origem' %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-  <h2 class="h-card4">Ainda não há riscos registrados</h2>
-  <p>Registre e avalie os riscos para a matriz mostrar a distribuição por probabilidade e impacto.</p>
-  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>Ir ao Registro de riscos</a>
+  <h2 class="h-card4">{{ t('riscos', 'Ainda não há riscos registrados') }}</h2>
+  <p>{{ t('riscos', 'Registre e avalie os riscos para a matriz mostrar a distribuição por probabilidade e impacto.') }}</p>
+  <a class="btn btn--primary" href="{{ link_registro }}" data-tn-tela>{{ t('riscos', 'Ir ao Registro de riscos') }}</a>
 </div>
 {% else %}
 <div class="matriz__grade">
   <section class="card" aria-labelledby="matriz-t-grade">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="matriz-t-grade">Distribuição por probabilidade e impacto</h2>
+        <h2 class="h-card4" id="matriz-t-grade">{{ t('riscos', 'Distribuição por probabilidade e impacto') }}</h2>
         <span class="hint">{{ matriz.caption }}</span>
       </div>
     </div>
     <div class="card__body">
-      <p class="hint">Cada célula mostra a quantidade de riscos e o número; clique na célula para abrir o Registro filtrado; célula vazia fica esmaecida.</p>
+      <p class="hint">{{ t('riscos', 'Cada célula mostra a quantidade de riscos e o número; clique na célula para abrir o Registro filtrado; célula vazia fica esmaecida.') }}</p>
       <div class="matriz__visual" data-grafico="matriz-formatada" data-dados='{{ grafico | tojson }}'
         @grafico:selecionar.prevent="TN.shell.navegar($event.detail.item.href)"></div>
-      <ul class="matriz__legenda" aria-label="Faixas de severidade">
+      <ul class="matriz__legenda" aria-label="{{ t('riscos', 'Faixas de severidade') }}">
         {% for style in matriz.bands %}
         <li class="matriz__legenda-item">
           <span class="matriz__legenda-cor matriz__tom--{{ style.tone }}" aria-hidden="true"></span>
@@ -76,8 +76,8 @@
   <section class="card" aria-labelledby="matriz-t-mov">
     <div class="card__head">
       <div>
-        <h2 class="h-card4" id="matriz-t-mov">Movimentação inerente para residual</h2>
-        <span class="hint">Eficácia do plano de resposta</span>
+        <h2 class="h-card4" id="matriz-t-mov">{{ t('riscos', 'Movimentação inerente para residual') }}</h2>
+        <span class="hint">{{ t('riscos', 'Eficácia do plano de resposta') }}</span>
       </div>
     </div>
     <div class="card__body">
@@ -85,7 +85,7 @@
       <ul class="matriz__mov">
         {% for item in matriz.movement %}
         <li>
-          <a class="matriz__mov-linha{% if item.no_reduction %} is-alerta{% endif %}" href="{{ link_da_ficha(item.code) }}" data-tn-tela
+          <a class="matriz__mov-linha{% if item.no_reduction %}  is-alerta{% endif %}" href="{{ link_da_ficha(item.code) }}" data-tn-tela
             title="{{ item.code }} · {{ item.title }}">
             <span class="matriz__mov-id">{{ item.code }}{% if portfolio %}<small>{{ rotulos_de_projeto[item.project_id] }}</small>{% endif %}</span>
             <span class="matriz__mov-trilho" aria-hidden="true">
@@ -99,7 +99,7 @@
         {% endfor %}
       </ul>
       {% else %}
-      <p class="empty" data-estado="vazio-filtro">Nenhum risco com plano de resposta e avaliação residual.</p>
+      <p class="empty" data-estado="vazio-filtro">{{ t('riscos', 'Nenhum risco com plano de resposta e avaliação residual.') }}</p>
       {% endif %}
       <p class="hint">{{ matriz.movement_note }}</p>
     </div>

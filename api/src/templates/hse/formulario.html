@@ -21,7 +21,7 @@
   <select id="{{ identificador }}" class="input{% if item.error %} input--erro{% endif %}"
     {% if not item.locked %}name="{{ item.name }}"{% else %}disabled{% endif %}
     {% if item.required %}required{% endif %}{{ erro_attrs }}>
-    <option value="">{{ 'Escolha' if item.required else 'Nenhuma' }}</option>
+    <option value="">{{ t('hse', 'Escolha') if item.required else t('hse', 'Nenhuma') }}</option>
     {% for valor, texto in item.options %}
     <option value="{{ valor }}"{% if valor == item.value %} selected{% endif %}>{{ texto }}</option>
     {% endfor %}
@@ -61,8 +61,8 @@
   </div>
   {% if checklist is not none %}
   <fieldset>
-    <legend class="h-card5">Itens do checklist</legend>
-    <p class="hint mb-16">Preencha só os itens inspecionados; as linhas em branco são ignoradas.</p>
+    <legend class="h-card5">{{ t('hse', 'Itens do checklist') }}</legend>
+    <p class="hint mb-16">{{ t('hse', 'Preencha só os itens inspecionados; as linhas em branco são ignoradas.') }}</p>
     {% for linha in checklist %}
     <div class="fgrid mb-16">
       <div class="field field--full">
@@ -73,8 +73,8 @@
       <div class="field">
         <label for="{{ target_id }}-conforme-{{ linha.index }}">Situação do item {{ linha.index }}</label>
         <select id="{{ target_id }}-conforme-{{ linha.index }}" class="input" name="item_conforme_{{ linha.index }}">
-          <option value="sim"{% if linha.conforming == 'sim' %} selected{% endif %}>Conforme</option>
-          <option value="nao"{% if linha.conforming == 'nao' %} selected{% endif %}>Não conforme</option>
+          <option value="sim"{% if linha.conforming == 'sim' %} selected{% endif %}>{{ t('hse', 'Conforme') }}</option>
+          <option value="nao"{% if linha.conforming == 'nao' %} selected{% endif %}>{{ t('hse', 'Não conforme') }}</option>
         </select>
       </div>
       <div class="field">

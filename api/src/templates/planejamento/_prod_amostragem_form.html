@@ -26,32 +26,32 @@
 
     <p class="produtividade__identificacao">
       {% if formulario.record %}
-      <span class="pill pill--neutral">Editar rodada</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Editar rodada') }}</span>
       <span class="fw-600">{{ formulario.record.area }} · {{ formulario.record.foreman }}</span>
       <span class="hint">{{ formulario.record.project_label }}</span>
       {% else %}
-      <span class="pill pill--neutral">Nova rodada</span>
-      <span class="hint">Pessoas trabalhando, em trânsito e paradas no instante da rodada</span>
+      <span class="pill pill--neutral">{{ t('planejamento', 'Nova rodada') }}</span>
+      <span class="hint">{{ t('planejamento', 'Pessoas trabalhando, em trânsito e paradas no instante da rodada') }}</span>
       {% endif %}
     </p>
 
     <div class="produtividade__campos">
       <div class="field">
-        <label for="horas-amostra-data">Data</label>
+        <label for="horas-amostra-data">{{ t('planejamento', 'Data') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('data') }}" id="horas-amostra-data"
           name="data" type="date" max="{{ hoje }}" value="{{ formulario.fields.get('data', '') }}"{{ marcas('data') }} />
         {{ erro('data') }}
       </div>
       <div class="field">
-        <label for="horas-amostra-hora">Hora da rodada</label>
+        <label for="horas-amostra-hora">{{ t('planejamento', 'Hora da rodada') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('hora') }}" id="horas-amostra-hora"
           name="hora" type="time" value="{{ formulario.fields.get('hora', '') }}"{{ marcas('hora') }} />
         {{ erro('hora') }}
       </div>
       <div class="field">
-        <label for="horas-amostra-empresa">Empresa</label>
+        <label for="horas-amostra-empresa">{{ t('planejamento', 'Empresa') }}</label>
         <select class="input{{ ' input--erro' if formulario.errors.get('empresa') }}" id="horas-amostra-empresa" name="empresa"{{ marcas('empresa') }}>
-          <option value="">Escolha a empresa</option>
+          <option value="">{{ t('planejamento', 'Escolha a empresa') }}</option>
           {% for opcao in formulario.options.companies %}
           <option value="{{ opcao.id }}"{% if formulario.fields.get('empresa') == opcao.id | string %} selected{% endif %}>{{ opcao.name }}</option>
           {% endfor %}
@@ -59,7 +59,7 @@
         {{ erro('empresa') }}
       </div>
       <div class="field">
-        <label for="horas-amostra-area">Área (CWA)</label>
+        <label for="horas-amostra-area">{{ t('planejamento', 'Área (CWA)') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('area') }}" id="horas-amostra-area"
           name="area" type="text" maxlength="80" list="horas-amostra-areas"
           value="{{ formulario.fields.get('area', '') }}"{{ marcas('area') }} />
@@ -69,7 +69,7 @@
         {{ erro('area') }}
       </div>
       <div class="field">
-        <label for="horas-amostra-encarregado">Encarregado</label>
+        <label for="horas-amostra-encarregado">{{ t('planejamento', 'Encarregado') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('encarregado') }}" id="horas-amostra-encarregado"
           name="encarregado" type="text" maxlength="80" list="horas-amostra-encarregados"
           value="{{ formulario.fields.get('encarregado', '') }}"{{ marcas('encarregado') }} />
@@ -79,7 +79,7 @@
         {{ erro('encarregado') }}
       </div>
       <div class="field">
-        <label for="horas-amostra-trabalhando">Pessoas trabalhando</label>
+        <label for="horas-amostra-trabalhando">{{ t('planejamento', 'Pessoas trabalhando') }}</label>
         <input class="input{{ ' input--erro' if formulario.errors.get('trabalhando') }}" id="horas-amostra-trabalhando"
           name="trabalhando" type="number" min="0" step="1" value="{{ formulario.fields.get('trabalhando', '') }}"{{ marcas('trabalhando') }} />
         {{ erro('trabalhando') }}
@@ -87,7 +87,7 @@
     </div>
 
     <fieldset class="produtividade__grade-caixa">
-      <legend class="produtividade__legenda">Paradas, por motivo</legend>
+      <legend class="produtividade__legenda">{{ t('planejamento', 'Paradas, por motivo') }}</legend>
       <div class="produtividade__grade">
         {% for motivo in formulario.options.stop_reasons %}
         {% set campo = 'parado_' ~ loop.index0 %}
@@ -103,7 +103,7 @@
     </fieldset>
 
     <fieldset class="produtividade__grade-caixa">
-      <legend class="produtividade__legenda">Em trânsito, por motivo</legend>
+      <legend class="produtividade__legenda">{{ t('planejamento', 'Em trânsito, por motivo') }}</legend>
       <div class="produtividade__grade">
         {% for motivo in formulario.options.transit_reasons %}
         {% set campo = 'transito_' ~ loop.index0 %}
@@ -119,8 +119,8 @@
     </fieldset>
 
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">Cancelar</button>
-      <button type="submit" class="btn btn--primary">{{ 'Salvar alterações' if registro_id else 'Registrar rodada' }}</button>
+      <button type="button" class="btn btn--secondary" data-horas-acao="fechar">{{ t('planejamento', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('planejamento', 'Salvar alterações') if registro_id else t('planejamento', 'Registrar rodada') }}</button>
     </div>
   </form>
 </div>

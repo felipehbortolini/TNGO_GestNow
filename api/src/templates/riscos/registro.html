@@ -36,7 +36,7 @@
   <span class="pill {{ etiqueta_de_faixa(visao.severity) }}"><b>{{ visao.score }}</b> {{ visao.severity.name }}</span>
   <br /><span class="hint">P{{ visao.probability }} x I{{ visao.impact }}</span>
   {% else %}
-  <span class="muted">não avaliado</span>
+  <span class="muted">{{ t('riscos', 'não avaliado') }}</span>
   {% endif %}
 </td>
 {% endmacro %}
@@ -49,7 +49,7 @@
 {% endif %}
 
 {% if contexto %}
-<div class="registro__contexto" aria-label="Contexto do {{ 'portfólio' if portfolio else 'projeto' }}">
+<div class="registro__contexto" aria-label="Contexto do {{ t('riscos', 'portfólio') if portfolio else t('riscos', 'projeto') }}">
   {% for texto, tom in contexto %}
   <span class="pill {{ 'pill--fix' if tom == 'primary' else 'pill--neutral' }}">{{ texto }}</span>
   {% endfor %}
@@ -61,12 +61,12 @@
 {% endfor %}
 {% if alerta_do_gestor %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <span>Risco na faixa mais alta: o gestor do projeto deve ser avisado.</span>
+  <span>{{ t('riscos', 'Risco na faixa mais alta: o gestor do projeto deve ser avisado.') }}</span>
 </div>
 {% endif %}
 {% if exige_plano %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <span>Risco na faixa mais alta sem plano de resposta: registre o plano na ficha do risco.</span>
+  <span>{{ t('riscos', 'Risco na faixa mais alta sem plano de resposta: registre o plano na ficha do risco.') }}</span>
 </div>
 {% endif %}
 
@@ -92,7 +92,7 @@
     {% for linha in vencidos %}<a href="{{ link_da_ficha(linha.code) }}" data-tn-tela>{{ linha.code }}</a>{{ ', ' if not loop.last }}{% endfor %}.
     Riscos {{ faixas[0].name|lower }}s exigem revisão {{ cadencia_do_topo }}.
   </span>
-  <a class="btn btn--secondary btn--sm" href="{{ link_vencidas }}" x-target="{{ target_id }}">Filtrar vencidas</a>
+  <a class="btn btn--secondary btn--sm" href="{{ link_vencidas }}" x-target="{{ target_id }}">{{ t('riscos', 'Filtrar vencidas') }}</a>
 </div>
 {% endif %}
 
@@ -101,9 +101,9 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/riscos/registro" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar riscos</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('riscos', 'Buscar riscos') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Número, risco, causa, consequência, dono..." />
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('riscos', 'Número, risco, causa, consequência, dono...') }}" />
         {% if filtros.nature %}<input type="hidden" name="natureza" value="{{ filtros.nature }}" />{% endif %}
         {% if filtros.category %}<input type="hidden" name="categoria" value="{{ filtros.category }}" />{% endif %}
         {% if filtros.severities %}<input type="hidden" name="severidade" value="{{ filtros.severities|join(',') }}" />{% endif %}
@@ -114,32 +114,28 @@
         {% if filtros.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
       </form>
       <div class="registro__barra">
-        <div class="seg" role="group" aria-label="Avaliação exibida">
+        <div class="seg" role="group" aria-label="{{ t('riscos', 'Avaliação exibida') }}">
           <a class="seg__btn{% if filtros.assessment == 'inerente' %} is-active{% endif %}" href="{{ link_inerente }}"
-            x-target="{{ target_id }}"{% if filtros.assessment == 'inerente' %} aria-current="true"{% endif %}>Inerente</a>
+            x-target="{{ target_id }}"{% if filtros.assessment == 'inerente' %} aria-current="true"{% endif %}>{{ t('riscos', 'Inerente') }}</a>
           <a class="seg__btn{% if filtros.assessment == 'residual' %} is-active{% endif %}" href="{{ link_residual }}"
-            x-target="{{ target_id }}"{% if filtros.assessment == 'residual' %} aria-current="true"{% endif %}>Residual</a>
+            x-target="{{ target_id }}"{% if filtros.assessment == 'residual' %} aria-current="true"{% endif %}>{{ t('riscos', 'Residual') }}</a>
         </div>
         <button type="button" class="btn btn--secondary" data-registro-filtros>
-          <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
-          Filtros
-        </button>
-        <a class="btn btn--secondary" href="{{ url_matriz }}" data-tn-tela>Matriz P x I</a>
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
+          <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>{{ t('riscos', 'Filtros') }}</button>
+        <a class="btn btn--secondary" href="{{ url_matriz }}" data-tn-tela>{{ t('riscos', 'Matriz P x I') }}</a>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('riscos', 'Excel') }}</button>
+        <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('riscos', 'PDF') }}</button>
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary" data-registro-modal-url="/api/riscos/novo?{{ parametro_consulta }}"
-          data-registro-modal-titulo="Novo risco"
+          data-registro-modal-titulo="{{ t('riscos', 'Novo risco') }}"
           data-registro-modal-subtitulo="{{ 'Escolha o projeto' if portfolio else 'Causa, evento e consequência' }}">
-          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-          Novo risco
-        </button>
+          <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>{{ t('riscos', 'Novo risco') }}</button>
         {% endif %}
       </div>
     </div>
 
-    <div class="registro__chips" aria-label="Filtros ativos">
-      <span class="hint">Filtros ativos:</span>
+    <div class="registro__chips" aria-label="{{ t('riscos', 'Filtros ativos') }}">
+      <span class="hint">{{ t('riscos', 'Filtros ativos:') }}</span>
       {% for chip in chips %}
       <span class="chip">
         <span>{{ chip.text }}</span>
@@ -151,48 +147,48 @@
       </span>
       {% endfor %}
       {% if tem_filtro_extra %}
-      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('riscos', 'Limpar filtros') }}</a>
       {% endif %}
     </div>
 
     <p class="hint registro__contagem" role="status">
       {% if filtros.situation == 'ativos' and not filtros.include_closed %}
-      {{ listagem.total }} {{ 'risco ativo' if listagem.total == 1 else 'riscos ativos' }}
+      {{ listagem.total }} {{ t('riscos', 'risco ativo') if listagem.total == 1 else t('riscos', 'riscos ativos') }}
       {% else %}
-      {{ listagem.total }} {{ 'risco' if listagem.total == 1 else 'riscos' }} no filtro atual
+      {{ listagem.total }} {{ t('riscos', 'risco') if listagem.total == 1 else t('riscos', 'riscos') }} no filtro atual
       {% endif %}
-      {% if listagem.closed_hidden %}({{ listagem.closed_hidden }} {{ 'encerrado oculto' if listagem.closed_hidden == 1 else 'encerrados ocultos' }} pelo filtro){% endif %}
+      {% if listagem.closed_hidden %}({{ listagem.closed_hidden }} {{ t('riscos', 'encerrado oculto') if listagem.closed_hidden == 1 else t('riscos', 'encerrados ocultos') }}  {{ t('riscos', 'pelo filtro)') }}{% endif %}
     </p>
 
     {% if listagem.summary.registered == 0 and not filtros.include_deleted %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há riscos registrados</h2>
-      <p>Registre o primeiro risco com causa, evento e consequência; o score e a severidade são calculados pelo servidor.</p>
+      <h2 class="h-card4">{{ t('riscos', 'Ainda não há riscos registrados') }}</h2>
+      <p>{{ t('riscos', 'Registre o primeiro risco com causa, evento e consequência; o score e a severidade são calculados pelo servidor.') }}</p>
     </div>
     {% elif not listagem.lines %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum risco encontrado com os filtros atuais</h2>
-      <p>Ajuste ou limpe os filtros para ver os riscos.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('riscos', 'Nenhum risco encontrado com os filtros atuais') }}</h2>
+      <p>{{ t('riscos', 'Ajuste ou limpe os filtros para ver os riscos.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('riscos', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl registro__tabela">
-        <caption class="sr-only">Registro de riscos</caption>
+        <caption class="sr-only">{{ t('riscos', 'Registro de riscos') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
+            {% if portfolio %}<th scope="col">{{ t('riscos', 'Projeto') }}</th>{% endif %}
             <th scope="col">Nº</th>
-            <th scope="col">Risco</th>
-            <th scope="col">Dono</th>
-            <th scope="col"{% if filtros.assessment == 'inerente' %} class="registro__destaque"{% endif %}>Inerente</th>
-            <th scope="col"{% if filtros.assessment == 'residual' %} class="registro__destaque"{% endif %}>Residual</th>
-            <th scope="col">Estratégia</th>
-            <th scope="col">Ações</th>
-            <th scope="col">Próx. revisão</th>
-            <th scope="col">Situação</th>
-            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+            <th scope="col">{{ t('riscos', 'Risco') }}</th>
+            <th scope="col">{{ t('riscos', 'Dono') }}</th>
+            <th scope="col"{% if filtros.assessment == 'inerente' %} class="registro__destaque"{% endif %}>{{ t('riscos', 'Inerente') }}</th>
+            <th scope="col"{% if filtros.assessment == 'residual' %} class="registro__destaque"{% endif %}>{{ t('riscos', 'Residual') }}</th>
+            <th scope="col">{{ t('riscos', 'Estratégia') }}</th>
+            <th scope="col">{{ t('riscos', 'Ações') }}</th>
+            <th scope="col">{{ t('riscos', 'Próx. revisão') }}</th>
+            <th scope="col">{{ t('riscos', 'Situação') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('riscos', 'Ações da linha') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -200,8 +196,8 @@
           <tr class="{{ 'registro__linha--alerta' if linha.review_overdue }}{{ ' registro__linha--apagada' if (not linha.active) or linha.hidden }}">
             {% if portfolio %}<td><span class="pill pill--neutral">{{ rotulos_de_projeto[linha.project_id] }}</span></td>{% endif %}
             <td class="registro__codigo">
-              <a href="{{ link_da_ficha(linha.code) }}" data-tn-tela title="Abrir ficha"><b>{{ linha.code }}</b></a>
-              {% if linha.hidden %}<br /><span class="hint">excluído</span>{% endif %}
+              <a href="{{ link_da_ficha(linha.code) }}" data-tn-tela title="{{ t('riscos', 'Abrir ficha') }}"><b>{{ linha.code }}</b></a>
+              {% if linha.hidden %}<br /><span class="hint">{{ t('riscos', 'excluído') }}</span>{% endif %}
             </td>
             <td>
               <span class="fw-600">{{ linha.title }}</span><br />
@@ -211,34 +207,34 @@
             {{ nota(linha.inherent, filtros.assessment == 'inerente') }}
             {{ nota(linha.residual, filtros.assessment == 'residual') }}
             <td>
-              {% if linha.strategy %}<span class="pill pill--fix">{{ linha.strategy }}</span>{% else %}<span class="muted">sem plano</span>{% endif %}
-              {% if linha.plan_pending %}<br /><span class="hint">aguarda aprovação</span>{% endif %}
+              {% if linha.strategy %}<span class="pill pill--fix">{{ linha.strategy }}</span>{% else %}<span class="muted">{{ t('riscos', 'sem plano') }}</span>{% endif %}
+              {% if linha.plan_pending %}<br /><span class="hint">{{ t('riscos', 'aguarda aprovação') }}</span>{% endif %}
             </td>
             <td class="num">
               {% if linha.actions.total %}
-              <b>{{ linha.actions.open }}</b>/{{ linha.actions.total }}<br /><span class="hint">abertas</span>
-              {% if linha.actions.overdue %}<br /><span class="registro__atrasada">{{ linha.actions.overdue }} {{ 'atrasada' if linha.actions.overdue == 1 else 'atrasadas' }}</span>{% endif %}
+              <b>{{ linha.actions.open }}</b>/{{ linha.actions.total }}<br /><span class="hint">{{ t('riscos', 'abertas') }}</span>
+              {% if linha.actions.overdue %}<br /><span class="registro__atrasada">{{ linha.actions.overdue }} {{ t('riscos', 'atrasada') if linha.actions.overdue == 1 else t('riscos', 'atrasadas') }}</span>{% endif %}
               {% else %}0{% endif %}
             </td>
             <td class="num registro__codigo">
               {% if linha.next_review %}
               {{ formatar_data(linha.next_review) }}
-              {% if linha.review_overdue %}<br /><span class="pill pill--erro">vencida</span>
+              {% if linha.review_overdue %}<br /><span class="pill pill--erro">{{ t('riscos', 'vencida') }}</span>
               {% else %}<br /><span class="hint">{{ texto_da_cadencia(linha.cadence_days) }}</span>{% endif %}
               {% else %}
-              <span class="hint">{{ 'sem data' if linha.active else 'encerrado' }}</span>
+              <span class="hint">{{ t('riscos', 'sem data') if linha.active else t('riscos', 'encerrado') }}</span>
               {% endif %}
             </td>
             <td><span class="pill {{ pill_da_situacao.get(linha.situation, 'pill--neutral') }}">{{ linha.situation }}</span></td>
             <td class="registro__acoes">
-              <a class="iconbtn" href="{{ link_da_ficha(linha.code) }}" data-tn-tela aria-label="Abrir ficha de {{ linha.code }}" title="Abrir ficha">
+              <a class="iconbtn" href="{{ link_da_ficha(linha.code) }}" data-tn-tela aria-label="Abrir ficha de {{ linha.code }}" title="{{ t('riscos', 'Abrir ficha') }}">
                 <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
               </a>
               {% if linha.hidden %}
               {% if eh_admin %}
               <form method="post" action="/api/riscos/{{ linha.code }}/restaurar" x-target="{{ target_id }}" class="registro__restaurar">
                 <input type="hidden" name="consulta" value="{{ consulta }}" />
-                <button type="submit" class="btn btn--secondary btn--sm">Restaurar</button>
+                <button type="submit" class="btn btn--secondary btn--sm">{{ t('riscos', 'Restaurar') }}</button>
               </form>
               {% endif %}
               {% elif linha.active and pode_gravar %}
@@ -254,14 +250,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="registro__paginas" aria-label="Páginas da lista">
+    <nav class="registro__paginas" aria-label="{{ t('riscos', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('riscos', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('riscos', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}
@@ -273,66 +269,66 @@
     @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
     <div class="fgrid">
       <div class="field field--full">
-        <label for="{{ target_id }}-f-busca">Busca livre</label>
+        <label for="{{ target_id }}-f-busca">{{ t('riscos', 'Busca livre') }}</label>
         <input id="{{ target_id }}-f-busca" class="input" type="text" name="busca" maxlength="120"
-          value="{{ filtros.search }}" placeholder="Número, risco, causa, consequência, dono..." />
+          value="{{ filtros.search }}" placeholder="{{ t('riscos', 'Número, risco, causa, consequência, dono...') }}" />
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-natureza">Natureza</label>
+        <label for="{{ target_id }}-f-natureza">{{ t('riscos', 'Natureza') }}</label>
         <select id="{{ target_id }}-f-natureza" class="input" name="natureza">
-          <option value="">Todas</option>
-          <option value="Ameaça"{% if filtros.nature == 'Ameaça' %} selected{% endif %}>Ameaça</option>
-          <option value="Oportunidade"{% if filtros.nature == 'Oportunidade' %} selected{% endif %}>Oportunidade</option>
+          <option value="">{{ t('riscos', 'Todas') }}</option>
+          <option value="Ameaça"{% if filtros.nature == 'Ameaça' %} selected{% endif %}>{{ t('riscos', 'Ameaça') }}</option>
+          <option value="Oportunidade"{% if filtros.nature == 'Oportunidade' %} selected{% endif %}>{{ t('riscos', 'Oportunidade') }}</option>
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-categoria">Categoria (RBS)</label>
+        <label for="{{ target_id }}-f-categoria">{{ t('riscos', 'Categoria (RBS)') }}</label>
         <select id="{{ target_id }}-f-categoria" class="input" name="categoria">
-          <option value="">Todas</option>
+          <option value="">{{ t('riscos', 'Todas') }}</option>
           {% for categoria in listagem.categories %}
           <option value="{{ categoria.group }} > {{ categoria.name }}"{% if filtros.category == categoria.group ~ ' > ' ~ categoria.name %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-situacao">Situação</label>
+        <label for="{{ target_id }}-f-situacao">{{ t('riscos', 'Situação') }}</label>
         <select id="{{ target_id }}-f-situacao" class="input" name="situacao">
-          <option value="ativos"{% if filtros.situation == 'ativos' %} selected{% endif %}>Ativos</option>
-          <option value="todas"{% if filtros.situation == 'todas' %} selected{% endif %}>Todas</option>
+          <option value="ativos"{% if filtros.situation == 'ativos' %} selected{% endif %}>{{ t('riscos', 'Ativos') }}</option>
+          <option value="todas"{% if filtros.situation == 'todas' %} selected{% endif %}>{{ t('riscos', 'Todas') }}</option>
           {% for situacao in situacoes %}
           <option value="{{ situacao }}"{% if filtros.situation == situacao %} selected{% endif %}>{{ situacao }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-estrategia">Estratégia</label>
+        <label for="{{ target_id }}-f-estrategia">{{ t('riscos', 'Estratégia') }}</label>
         <select id="{{ target_id }}-f-estrategia" class="input" name="estrategia">
-          <option value="">Todas</option>
+          <option value="">{{ t('riscos', 'Todas') }}</option>
           {% for estrategia in estrategias %}
           <option value="{{ estrategia }}"{% if filtros.strategy == estrategia %} selected{% endif %}>{{ estrategia }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-dono">Dono</label>
+        <label for="{{ target_id }}-f-dono">{{ t('riscos', 'Dono') }}</label>
         <select id="{{ target_id }}-f-dono" class="input" name="dono">
-          <option value="">Todos</option>
+          <option value="">{{ t('riscos', 'Todos') }}</option>
           {% for pessoa_id, nome in listagem.owners %}
           <option value="{{ pessoa_id }}"{% if filtros.owner_id == pessoa_id %} selected{% endif %}>{{ nome }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-revisao">Revisão</label>
+        <label for="{{ target_id }}-f-revisao">{{ t('riscos', 'Revisão') }}</label>
         <select id="{{ target_id }}-f-revisao" class="input" name="revisao">
-          <option value="">Qualquer</option>
+          <option value="">{{ t('riscos', 'Qualquer') }}</option>
           {% for valor, texto in revisoes %}
           <option value="{{ valor }}"{% if filtros.review == valor %} selected{% endif %}>{{ texto }}</option>
           {% endfor %}
         </select>
       </div>
       <fieldset class="field field--full registro__faixas">
-        <legend>Severidade ({{ 'inerente' if filtros.assessment == 'inerente' else 'residual' }})</legend>
+        <legend>Severidade ({{ t('riscos', 'inerente') if filtros.assessment == 'inerente' else t('riscos', 'residual') }})</legend>
         {% for faixa in faixas %}
         <label class="registro__opcao">
           <input type="checkbox" name="severidade" value="{{ faixa.id }}"{% if faixa.id in filtros.severities %} checked{% endif %} />
@@ -341,30 +337,30 @@
         {% endfor %}
       </fieldset>
       <div class="field">
-        <label for="{{ target_id }}-f-de">Identificado de</label>
+        <label for="{{ target_id }}-f-de">{{ t('riscos', 'Identificado de') }}</label>
         <input id="{{ target_id }}-f-de" class="input" type="date" name="de" value="{{ filtros.identified_from.isoformat() if filtros.identified_from }}" />
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-ate">Identificado até</label>
+        <label for="{{ target_id }}-f-ate">{{ t('riscos', 'Identificado até') }}</label>
         <input id="{{ target_id }}-f-ate" class="input" type="date" name="ate" value="{{ filtros.identified_until.isoformat() if filtros.identified_until }}" />
       </div>
       <div class="field field--full">
         <label class="registro__opcao">
           <input type="checkbox" name="encerrados" value="1"{% if filtros.include_closed %} checked{% endif %} />
-          <span>Incluir encerrados e materializados</span>
+          <span>{{ t('riscos', 'Incluir encerrados e materializados') }}</span>
         </label>
         {% if eh_admin %}
         <label class="registro__opcao">
           <input type="checkbox" name="excluidos" value="1"{% if filtros.include_deleted %} checked{% endif %} />
-          <span>Incluir excluídos (só o Admin vê)</span>
+          <span>{{ t('riscos', 'Incluir excluídos (só o Admin vê)') }}</span>
         </label>
         {% endif %}
       </div>
     </div>
     {% if filtros.assessment == 'inerente' %}<input type="hidden" name="aval" value="inerente" />{% endif %}
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-registro-fechar-modal>Cancelar</button>
-      <button type="submit" class="btn btn--primary">Consultar</button>
+      <button type="button" class="btn btn--secondary" data-registro-fechar-modal>{{ t('riscos', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('riscos', 'Consultar') }}</button>
     </div>
   </form>
 </template>

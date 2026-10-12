@@ -26,7 +26,7 @@
 {% if portfolio %}
 {{ indicador(rotulo, cob.registered, tom, icone, 'Esperado: ' ~ cob.expected, cob.name ~ ' · projetos com relato') }}
 {% else %}
-{{ indicador(rotulo, 'Registrado' if cob.is_complete else 'Pendente', tom, icone, 'Esperado: Registrado', cob.name) }}
+{{ indicador(rotulo, 'Registrado' if cob.is_complete else t('planejamento', 'Pendente'), tom, icone, 'Esperado: Registrado', cob.name) }}
 {% endif %}
 {% endmacro %}
 
@@ -38,7 +38,7 @@
   {{ cobertura('Mês anterior', resumo.previous_month, 'calendar') }}
   {% if resumo.last_weekly %}
   {{ indicador('Pontos de atenção (último semanal)', resumo.last_weekly.points | length,
-     'warn' if resumo.last_weekly.threats else 'info', 'warning',
+     'warn' if resumo.last_weekly.threats else t('planejamento', 'info'), 'warning',
      'Referência: ' ~ (resumo.reference_points if resumo.reference_points is not none else '·'),
      textos.pontos ~ ' · ' ~ resumo.last_weekly.short_name) }}
   {% else %}
@@ -50,21 +50,21 @@
 {% if linhas %}
 <div class="card">
   <div class="card__head">
-    <h2 class="h-card4">Relatos registrados</h2>
-    <span class="hint">um registro semanal e um mensal por período; alimentam a página 2 do Planejamento no relatório gerencial</span>
+    <h2 class="h-card4">{{ t('planejamento', 'Relatos registrados') }}</h2>
+    <span class="hint">{{ t('planejamento', 'um registro semanal e um mensal por período; alimentam a página 2 do Planejamento no relatório gerencial') }}</span>
   </div>
   <div class="tbl-wrap">
     <table class="tbl">
-      <caption class="sr-only">Relatos do período</caption>
+      <caption class="sr-only">{{ t('planejamento', 'Relatos do período') }}</caption>
       <thead>
         <tr>
-          {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-          <th scope="col">Período</th>
-          <th scope="col" class="td-num">Atividades do período</th>
-          <th scope="col" class="td-num">Próximo período</th>
-          <th scope="col" class="td-num">Pontos de atenção</th>
-          <th scope="col">Atualizado</th>
-          <th scope="col"><span class="sr-only">Ações</span></th>
+          {% if portfolio %}<th scope="col">{{ t('planejamento', 'Projeto') }}</th>{% endif %}
+          <th scope="col">{{ t('planejamento', 'Período') }}</th>
+          <th scope="col" class="td-num">{{ t('planejamento', 'Atividades do período') }}</th>
+          <th scope="col" class="td-num">{{ t('planejamento', 'Próximo período') }}</th>
+          <th scope="col" class="td-num">{{ t('planejamento', 'Pontos de atenção') }}</th>
+          <th scope="col">{{ t('planejamento', 'Atualizado') }}</th>
+          <th scope="col"><span class="sr-only">{{ t('planejamento', 'Ações') }}</span></th>
         </tr>
       </thead>
       <tbody>

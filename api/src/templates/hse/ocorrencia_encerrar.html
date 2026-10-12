@@ -22,41 +22,40 @@
 
   {% if acoes_abertas %}
   <div class="aviso aviso--warn mb-16" role="note">
-    <span>{{ acoes_abertas }} {{ 'ação corretiva em aberto' if acoes_abertas == 1 else 'ações corretivas em aberto' }}.
+    <span>{{ acoes_abertas }} {{ t('hse', 'ação corretiva em aberto') if acoes_abertas == 1 else t('hse', 'ações corretivas em aberto') }}.
       Conclua-as na Central antes de encerrar.</span>
   </div>
   {% endif %}
 
   {% if linha.hipo %}
   <div class="aviso aviso--warn mb-16" role="note">
-    <span>Ocorrência de alto potencial (HiPo): a lição aprendida é obrigatória e nasce em
-      Rascunho na Governança, com origem HSE.</span>
+    <span>{{ t('hse', 'Ocorrência de alto potencial (HiPo): a lição aprendida é obrigatória e nasce em Rascunho na Governança, com origem HSE.') }}</span>
   </div>
   {% endif %}
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="en-eficacia">Verificação de eficácia</label>
+      <label for="en-eficacia">{{ t('hse', 'Verificação de eficácia') }}</label>
       <textarea id="en-eficacia" name="eficacia" rows="3" maxlength="600"
         class="input{% if erros.get('eficacia') %} input--erro{% endif %}" required
-        placeholder="Inspeções seguintes, indicadores ou auditoria que comprovam que o problema acabou">{{ valores.get('eficacia') or '' }}</textarea>
+        placeholder="{{ t('hse', 'Inspeções seguintes, indicadores ou auditoria que comprovam que o problema acabou') }}">{{ valores.get('eficacia') or '' }}</textarea>
       {{ erro(erros, 'eficacia') }}
     </div>
     <div class="field">
-      <label for="en-data">Data do encerramento</label>
+      <label for="en-data">{{ t('hse', 'Data do encerramento') }}</label>
       <input id="en-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('data') or referencia }}" required />
       {{ erro(erros, 'data') }}
     </div>
     {% if linha.hipo %}
     <div class="field field--full">
-      <label for="en-titulo">Título da lição</label>
+      <label for="en-titulo">{{ t('hse', 'Título da lição') }}</label>
       <input id="en-titulo" name="titulo" type="text" class="input{% if erros.get('titulo') %} input--erro{% endif %}"
         maxlength="150" value="{{ valores.get('titulo') or '' }}" required />
       {{ erro(erros, 'titulo') }}
     </div>
     <div class="field field--full">
-      <label for="en-recomendacao">Recomendação da lição</label>
+      <label for="en-recomendacao">{{ t('hse', 'Recomendação da lição') }}</label>
       <textarea id="en-recomendacao" name="recomendacao" rows="3" maxlength="1000"
         class="input{% if erros.get('recomendacao') %} input--erro{% endif %}" required>{{ valores.get('recomendacao') or '' }}</textarea>
       {{ erro(erros, 'recomendacao') }}
@@ -65,8 +64,8 @@
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Encerrar</button>
+    <button type="button" class="btn btn--secondary" data-ocorrencias-fechar-modal>{{ t('hse', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('hse', 'Encerrar') }}</button>
   </div>
 </form>
 {% endblock %}

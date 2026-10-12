@@ -3,22 +3,22 @@
   remoção, descrição e data necessária. Na edição a atividade é fixa.
   Espera: formulario (com activity ou activities) e opcoes.
 #}
-{% from "planejamento/6wla_macros.html" import texto, escolha, area_de_texto %}
+{% from "planejamento/6wla_macros.html" import texto, escolha, area_de_texto with context %}
 {% set valores = formulario.values %}
 {% set erros = formulario.errors %}
 <div class="fgrid">
   {% if formulario.activity %}
   <div class="field field--full">
-    <span class="lookahead__rotulo">Atividade</span>
+    <span class="lookahead__rotulo">{{ t('planejamento', 'Atividade') }}</span>
     <p class="body-txt">{{ formulario.activity.code }} · {{ formulario.activity.name }}</p>
   </div>
   {% else %}
   {% set varios_projetos = (formulario.activities | map(attribute="project_id") | unique | list | length) > 1 %}
   <div class="field field--full">
-    <label for="lk-atividade">Atividade</label>
+    <label for="lk-atividade">{{ t('planejamento', 'Atividade') }}</label>
     <select id="lk-atividade" class="input{% if erros.get('atividade') %} input--erro{% endif %}" name="atividade" required
       {% if erros.get('atividade') %}aria-invalid="true" aria-describedby="lk-atividade-erro"{% endif %}>
-      <option value="">Selecione</option>
+      <option value="">{{ t('planejamento', 'Selecione') }}</option>
       {% for atividade in formulario.activities %}
       <option value="{{ atividade.id }}"{% if (valores.get('atividade') or '') | string == atividade.id | string %} selected{% endif %}>
         {{ atividade.code }} · {{ atividade.name }}{% if varios_projetos %} ({{ atividade.project_label }}){% endif %}

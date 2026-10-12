@@ -14,23 +14,23 @@
 {% block fragment %}
 <dl class="det mas__detalhe">
   <div class="det__row">
-    <dt class="det__label">Item da EAC</dt>
-    <dd class="det__valor">{% if linha.eac_code %}{{ linha.eac_code }} {{ linha.eac_description }}{% else %}<span class="muted">sem EAC</span>{% endif %}</dd>
+    <dt class="det__label">{{ t('suprimentos', 'Item da EAC') }}</dt>
+    <dd class="det__valor">{% if linha.eac_code %}{{ linha.eac_code }} {{ linha.eac_description }}{% else %}<span class="muted">{{ t('suprimentos', 'sem EAC') }}</span>{% endif %}</dd>
   </div>
   <div class="det__row">
-    <dt class="det__label">Fornecedor</dt>
+    <dt class="det__label">{{ t('suprimentos', 'Fornecedor') }}</dt>
     <dd class="det__valor">{{ linha.supplier or 'em contratação' }}</dd>
   </div>
   <div class="det__row">
-    <dt class="det__label">Valor</dt>
+    <dt class="det__label">{{ t('suprimentos', 'Valor') }}</dt>
     <dd class="det__valor">{{ formatar_moeda(linha.value_cents) }}{% if linha.adjudicated_cents is none %} <span class="hint">(estimado)</span>{% endif %}</dd>
   </div>
   <div class="det__row">
-    <dt class="det__label">Comprador</dt>
+    <dt class="det__label">{{ t('suprimentos', 'Comprador') }}</dt>
     <dd class="det__valor">{{ linha.buyer }}</dd>
   </div>
   <div class="det__row">
-    <dt class="det__label">ROS e folga</dt>
+    <dt class="det__label">{{ t('suprimentos', 'ROS e folga') }}</dt>
     <dd class="det__valor">
       {{ formatar_data(linha.ros) }}
       {% if linha.slack_days is none %}<span class="muted">·</span>
@@ -38,7 +38,7 @@
     </dd>
   </div>
   <div class="det__row">
-    <dt class="det__label">Avanço</dt>
+    <dt class="det__label">{{ t('suprimentos', 'Avanço') }}</dt>
     <dd class="det__valor">real {{ formatar_percentual(linha.realized_pct) }}% · previsto na LB {{ formatar_percentual(linha.planned_pct) }}%</dd>
   </div>
 </dl>
@@ -48,13 +48,13 @@
     <caption class="sr-only">Marcos do pacote {{ linha.code }}</caption>
     <thead>
       <tr>
-        <th scope="col">Marco</th>
-        <th scope="col" class="td-num">Peso</th>
-        <th scope="col">LB</th>
-        <th scope="col">Previsão</th>
-        <th scope="col">Realizado</th>
-        <th scope="col" class="td-num">Desvio</th>
-        <th scope="col">Situação</th>
+        <th scope="col">{{ t('suprimentos', 'Marco') }}</th>
+        <th scope="col" class="td-num">{{ t('suprimentos', 'Peso') }}</th>
+        <th scope="col">{{ t('suprimentos', 'LB') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Previsão') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Realizado') }}</th>
+        <th scope="col" class="td-num">{{ t('suprimentos', 'Desvio') }}</th>
+        <th scope="col">{{ t('suprimentos', 'Situação') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -65,7 +65,7 @@
         <td class="num">{{ formatar_data(marco.baseline) }}</td>
         <td class="num">{{ formatar_data(marco.forecast) if not marco.done else '' }}</td>
         <td class="num">{{ formatar_data(marco.real) }}</td>
-        <td class="td-num num">{% if marco.situation == 'na' %}{% elif marco.deviation_days %}{{ formatar_desvio(marco.deviation_days) }}{% else %}0 d{% endif %}</td>
+        <td class="td-num num">{% if marco.situation == 'na' %}{% elif marco.deviation_days %}{{ formatar_desvio(marco.deviation_days) }}{% else %}{{ t('suprimentos', '0 d') }}{% endif %}</td>
         <td><span class="pill {{ pill_do_marco(marco.situation) }}">{{ rotulo_da_situacao(marco.situation) }}</span></td>
       </tr>
       {% endfor %}
@@ -77,6 +77,6 @@
   {% if url_processo %}<a class="btn btn--secondary btn--sm" href="{{ url_processo }}">Processo {{ linha.process_number }}</a>{% endif %}
   {% if url_diligenciamento %}<a class="btn btn--secondary btn--sm" href="{{ url_diligenciamento }}">Diligenciamento {{ linha.order_number }}</a>{% endif %}
   {% if url_contrato %}<a class="btn btn--secondary btn--sm" href="{{ url_contrato }}">Contrato {{ linha.contract_number }}</a>{% endif %}
-  <a class="btn btn--ghost btn--sm" href="{{ url_plano }}">Plano de compras</a>
+  <a class="btn btn--ghost btn--sm" href="{{ url_plano }}">{{ t('suprimentos', 'Plano de compras') }}</a>
 </div>
 {% endblock %}

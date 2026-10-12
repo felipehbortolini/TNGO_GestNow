@@ -23,14 +23,14 @@
   {% if recomendacao %}
   <p class="hint mb-16">
     {{ recomendacao.name }} · {{ formatar_moeda(recomendacao.value_cents) }} ·
-    {% if servico %}o contrato nasce no módulo 03 (administração contratual){% else %}o pedido entra no diligenciamento com o cronograma de fabricação padrão{% endif %}
+    {% if servico %}{{ t('suprimentos', 'o contrato nasce no módulo 03 (administração contratual)') }}{% else %}{{ t('suprimentos', 'o pedido entra no diligenciamento com o cronograma de fabricação padrão') }}{% endif %}
     e o valor fica comprometido no item {{ linha.eac_code or '—' }} da EAC.
   </p>
   {% endif %}
 
   <div class="fgrid">
     <div class="field">
-      <label for="emitir-data">{% if servico %}Emissão do contrato{% else %}Emissão do pedido{% endif %}</label>
+      <label for="emitir-data">{% if servico %}{{ t('suprimentos', 'Emissão do contrato') }}{% else %}{{ t('suprimentos', 'Emissão do pedido') }}{% endif %}</label>
       <input id="emitir-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
@@ -39,7 +39,7 @@
 
     {% if servico %}
     <div class="field">
-      <label for="emitir-inicio">Início (mobilização)</label>
+      <label for="emitir-inicio">{{ t('suprimentos', 'Início (mobilização)') }}</label>
       <input id="emitir-inicio" name="inicio" type="date" class="input{% if erros.get('inicio') %} input--erro{% endif %}"
         required value="{{ valores.get('inicio') or (linha.ros.isoformat() if linha.ros else referencia) }}"
         {% if erros.get('inicio') %}aria-invalid="true" aria-describedby="erro-inicio"{% endif %} />
@@ -47,19 +47,19 @@
     </div>
 
     <div class="field">
-      <label for="emitir-termino">Término contratual</label>
+      <label for="emitir-termino">{{ t('suprimentos', 'Término contratual') }}</label>
       <input id="emitir-termino" name="termino" type="date" class="input{% if erros.get('termino') %} input--erro{% endif %}"
         required value="{{ valores.get('termino') or '' }}"
         {% if erros.get('termino') %}aria-invalid="true" aria-describedby="erro-termino"{% endif %} />
-      <span class="hint">Posterior à emissão.</span>
+      <span class="hint">{{ t('suprimentos', 'Posterior à emissão.') }}</span>
       {% if erros.get('termino') %}<span id="erro-termino" class="field__erro">{{ erros.get('termino') }}</span>{% endif %}
     </div>
 
     <div class="field">
-      <label for="emitir-fiscal">Fiscal do contrato</label>
+      <label for="emitir-fiscal">{{ t('suprimentos', 'Fiscal do contrato') }}</label>
       <select id="emitir-fiscal" name="fiscal" class="input{% if erros.get('fiscal') %} input--erro{% endif %}" required
         {% if erros.get('fiscal') %}aria-invalid="true" aria-describedby="erro-fiscal"{% endif %}>
-        <option value="">Escolha o fiscal</option>
+        <option value="">{{ t('suprimentos', 'Escolha o fiscal') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('fiscal') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -68,30 +68,30 @@
     </div>
 
     <div class="field">
-      <label for="emitir-retencao">Retenção contratual (%)</label>
+      <label for="emitir-retencao">{{ t('suprimentos', 'Retenção contratual (%)') }}</label>
       <input id="emitir-retencao" name="retencao" class="input{% if erros.get('retencao') %} input--erro{% endif %}"
         inputmode="numeric" value="{{ valores.get('retencao') or 5 }}"
         {% if erros.get('retencao') %}aria-invalid="true" aria-describedby="erro-retencao"{% endif %} />
-      <span class="hint">Entre 0% e 20%.</span>
+      <span class="hint">{{ t('suprimentos', 'Entre 0% e 20%.') }}</span>
       {% if erros.get('retencao') %}<span id="erro-retencao" class="field__erro">{{ erros.get('retencao') }}</span>{% endif %}
     </div>
     {% else %}
     <div class="field">
-      <label for="emitir-prazo">Prazo de entrega (dias)</label>
+      <label for="emitir-prazo">{{ t('suprimentos', 'Prazo de entrega (dias)') }}</label>
       <input id="emitir-prazo" name="prazo" class="input{% if erros.get('prazo') %} input--erro{% endif %}"
         inputmode="numeric" required value="{{ valores.get('prazo') or (proposta.deadline_days if proposta else '') }}"
         {% if erros.get('prazo') %}aria-invalid="true" aria-describedby="erro-prazo"{% endif %} />
-      <span class="hint">Contado da emissão até a data contratual; os seis marcos de fabricação são distribuídos nessa janela.</span>
+      <span class="hint">{{ t('suprimentos', 'Contado da emissão até a data contratual; os seis marcos de fabricação são distribuídos nessa janela.') }}</span>
       {% if erros.get('prazo') %}<span id="erro-prazo" class="field__erro">{{ erros.get('prazo') }}</span>{% endif %}
     </div>
     {% endif %}
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-processo-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
       <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
-      {% if servico %}Emitir contrato{% else %}Emitir pedido{% endif %}
+      {% if servico %}{{ t('suprimentos', 'Emitir contrato') }}{% else %}{{ t('suprimentos', 'Emitir pedido') }}{% endif %}
     </button>
   </div>
 </form>

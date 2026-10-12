@@ -20,10 +20,10 @@
   <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.get('itpId') or erros.get('geral') }}</span></div>
   {% endif %}
   <div class="aviso aviso--warn mb-16" role="alert">
-    <span>Nenhum ITP aprovado pelo cliente neste projeto.</span>
+    <span>{{ t('qualidade', 'Nenhum ITP aprovado pelo cliente neste projeto.') }}</span>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Fechar</button>
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>{{ t('qualidade', 'Fechar') }}</button>
   </div>
 </div>
 {% else %}
@@ -43,7 +43,7 @@
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="insp-itp">ITP</label>
+      <label for="insp-itp">{{ t('qualidade', 'ITP') }}</label>
       <select id="insp-itp" name="itpId" class="input{% if erros.get('itpId') %} input--erro{% endif %}" required
         {% if erros.get('itpId') %}aria-invalid="true" aria-describedby="erro-itpId"{% endif %}
         @change="
@@ -59,12 +59,12 @@
       {{ erro(erros, 'itpId') }}
     </div>
     <div class="field field--full">
-      <label for="insp-ponto">Ponto do ITP</label>
+      <label for="insp-ponto">{{ t('qualidade', 'Ponto do ITP') }}</label>
       <select id="insp-ponto" name="pontoId" class="input{% if erros.get('pontoId') %} input--erro{% endif %}" required
         {% if erros.get('pontoId') %}aria-invalid="true" aria-describedby="erro-pontoId"{% endif %}
         @change="pontoInfo = $event.target.selectedOptions[0] ? ($event.target.selectedOptions[0].dataset.info || '') : ''"
         x-init="pontoInfo = $el.selectedOptions[0] ? ($el.selectedOptions[0].dataset.info || '') : ''">
-        <option value="">Selecione...</option>
+        <option value="">{{ t('qualidade', 'Selecione...') }}</option>
         {% for ponto in pontos %}
         <option value="{{ ponto.id }}" data-info="{{ nome_do_tipo.get(ponto.point_type, ponto.point_type) }} · Critério: {{ ponto.criterion }}{% if ponto.reference %} · {{ ponto.reference }}{% endif %}"
           {% if valores.get('pontoId') == ponto.id | string %} selected{% endif %}>{{ ponto.order }}. {{ ponto.activity }} ({{ ponto.point_type }})</option>
@@ -74,17 +74,17 @@
       <span class="hint" x-text="pontoInfo"></span>
     </div>
     <div class="field">
-      <label for="insp-data">Data da inspeção</label>
+      <label for="insp-data">{{ t('qualidade', 'Data da inspeção') }}</label>
       <input id="insp-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}"
         max="{{ referencia }}" required value="{{ valores.get('data') or referencia }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="erro-data"{% endif %} />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field">
-      <label for="insp-inspetor">Inspetor</label>
+      <label for="insp-inspetor">{{ t('qualidade', 'Inspetor') }}</label>
       <select id="insp-inspetor" name="inspetorId" class="input{% if erros.get('inspetorId') %} input--erro{% endif %}" required
         {% if erros.get('inspetorId') %}aria-invalid="true" aria-describedby="erro-inspetorId"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('inspetorId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -92,7 +92,7 @@
       {{ erro(erros, 'inspetorId') }}
     </div>
     <div class="field">
-      <label for="insp-notificacao">Notificação ao cliente</label>
+      <label for="insp-notificacao">{{ t('qualidade', 'Notificação ao cliente') }}</label>
       <input id="insp-notificacao" name="notificacao" type="date" class="input{% if erros.get('notificacao') %} input--erro{% endif %}"
         max="{{ referencia }}" value="{{ valores.get('notificacao') or '' }}"
         {% if erros.get('notificacao') %}aria-invalid="true" aria-describedby="erro-notificacao"{% endif %} />
@@ -100,11 +100,11 @@
       {{ erro(erros, 'notificacao') }}
     </div>
     <div class="field">
-      <label for="insp-resultado">Resultado</label>
+      <label for="insp-resultado">{{ t('qualidade', 'Resultado') }}</label>
       <select id="insp-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}" required
         @change="resultado = $event.target.value"
         {% if erros.get('resultado') %}aria-invalid="true" aria-describedby="erro-resultado"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for opcao in resultados %}
         <option value="{{ opcao }}"{% if valores.get('resultado') == opcao %} selected{% endif %}>{{ opcao }}{% if opcao == 'Reprovado' %} — abre RNC{% endif %}</option>
         {% endfor %}
@@ -112,17 +112,17 @@
       {{ erro(erros, 'resultado') }}
     </div>
     <div class="field field--full" x-show="resultado && resultado !== 'Aprovado'">
-      <label for="insp-observacao">Ressalva ou motivo da reprovação</label>
+      <label for="insp-observacao">{{ t('qualidade', 'Ressalva ou motivo da reprovação') }}</label>
       <textarea id="insp-observacao" name="observacao" class="input{% if erros.get('observacao') %} input--erro{% endif %}"
         rows="2" maxlength="500"
         {% if erros.get('observacao') %}aria-invalid="true" aria-describedby="erro-observacao"{% endif %}>{{ valores.get('observacao') or '' }}</textarea>
       {{ erro(erros, 'observacao') }}
     </div>
     <div class="field" x-show="resultado === 'Reprovado'">
-      <label for="insp-severidade">Severidade da RNC</label>
+      <label for="insp-severidade">{{ t('qualidade', 'Severidade da RNC') }}</label>
       <select id="insp-severidade" name="severidade" class="input{% if erros.get('severidade') %} input--erro{% endif %}"
         {% if erros.get('severidade') %}aria-invalid="true" aria-describedby="erro-severidade"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('qualidade', 'Escolha...') }}</option>
         {% for severidade in severidades %}
         <option value="{{ severidade }}"{% if valores.get('severidade') == severidade %} selected{% endif %}>{{ severidade }}</option>
         {% endfor %}
@@ -130,21 +130,21 @@
       {{ erro(erros, 'severidade') }}
     </div>
     <div class="field field--full" x-show="resultado === 'Reprovado'">
-      <label for="insp-contencao">Contenção imediata</label>
+      <label for="insp-contencao">{{ t('qualidade', 'Contenção imediata') }}</label>
       <textarea id="insp-contencao" name="contencao" class="input{% if erros.get('contencao') %} input--erro{% endif %}"
-        rows="2" maxlength="400" placeholder="Bloqueio, segregação, identificação ou suspensão da atividade"
+        rows="2" maxlength="400" placeholder="{{ t('qualidade', 'Bloqueio, segregação, identificação ou suspensão da atividade') }}"
         {% if erros.get('contencao') %}aria-invalid="true" aria-describedby="erro-contencao"{% endif %}>{{ valores.get('contencao') or '' }}</textarea>
       {{ erro(erros, 'contencao') }}
     </div>
   </div>
 
   <div class="aviso aviso--info mb-16" role="note">
-    <span>A reprovação abre a RNC com a severidade e a contenção informadas, na mesma transação.</span>
+    <span>{{ t('qualidade', 'A reprovação abre a RNC com a severidade e a contenção informadas, na mesma transação.') }}</span>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Registrar</button>
+    <button type="button" class="btn btn--secondary" data-inspecoes-fechar-modal>{{ t('qualidade', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('qualidade', 'Registrar') }}</button>
   </div>
 </form>
 {% endif %}

@@ -37,13 +37,13 @@
 
   {% if not pendentes %}
   <div class="aviso aviso--ok mb-16">
-    <span>Todos os marcos deste pedido estão realizados; a entrega se registra no recebimento.</span>
+    <span>{{ t('suprimentos', 'Todos os marcos deste pedido estão realizados; a entrega se registra no recebimento.') }}</span>
   </div>
   {% endif %}
 
   <div class="fgrid">
     <div class="field field--full">
-      <label for="marco-marco">Marco</label>
+      <label for="marco-marco">{{ t('suprimentos', 'Marco') }}</label>
       <select id="marco-marco" name="marco" class="input{% if erros.get('marco') %} input--erro{% endif %}" required
         x-model="marco"
         {% if erros.get('marco') %}aria-invalid="true" aria-describedby="erro-marco"{% endif %}>
@@ -58,41 +58,41 @@
     </div>
 
     <div class="field">
-      <label for="marco-tipo">O que registrar</label>
+      <label for="marco-tipo">{{ t('suprimentos', 'O que registrar') }}</label>
       <select id="marco-tipo" name="tipo" class="input" required x-model="tipo">
-        <option value="realizado">Marco realizado</option>
-        <option value="previsao">Nova previsão (reprogramação)</option>
+        <option value="realizado">{{ t('suprimentos', 'Marco realizado') }}</option>
+        <option value="previsao">{{ t('suprimentos', 'Nova previsão (reprogramação)') }}</option>
       </select>
     </div>
 
     <div class="field" x-show="tipo === 'realizado'">
-      <label for="marco-realizada">Data realizada</label>
+      <label for="marco-realizada">{{ t('suprimentos', 'Data realizada') }}</label>
       <input id="marco-realizada" name="realizada" type="date"
         class="input{% if erros.get('realizada') %} input--erro{% endif %}"
         value="{{ valores.get('realizada') or referencia }}"
         {% if erros.get('realizada') %}aria-invalid="true" aria-describedby="erro-realizada"{% endif %} />
-      <span class="hint">Até a data de referência; exige o marco anterior realizado.</span>
+      <span class="hint">{{ t('suprimentos', 'Até a data de referência; exige o marco anterior realizado.') }}</span>
       {{ campo_erro(erros, 'realizada') }}
     </div>
 
     <div class="field" x-show="tipo === 'realizado' && marco === '{{ posicao_fat }}'">
-      <label for="marco-resultado">Resultado da inspeção em fábrica</label>
+      <label for="marco-resultado">{{ t('suprimentos', 'Resultado da inspeção em fábrica') }}</label>
       <select id="marco-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}"
         x-model="resultado"
         {% if erros.get('resultado') %}aria-invalid="true" aria-describedby="erro-resultado"{% endif %}>
-        <option value="">Escolha...</option>
-        <option value="Aprovado"{% if valores.get('resultado') == 'Aprovado' %} selected{% endif %}>Aprovado</option>
-        <option value="Reprovado"{% if valores.get('resultado') == 'Reprovado' %} selected{% endif %}>Reprovado</option>
+        <option value="">{{ t('suprimentos', 'Escolha...') }}</option>
+        <option value="Aprovado"{% if valores.get('resultado') == 'Aprovado' %} selected{% endif %}>{{ t('suprimentos', 'Aprovado') }}</option>
+        <option value="Reprovado"{% if valores.get('resultado') == 'Reprovado' %} selected{% endif %}>{{ t('suprimentos', 'Reprovado') }}</option>
       </select>
-      <span class="hint">Gera o registro de inspeção no 06 Qualidade.</span>
+      <span class="hint">{{ t('suprimentos', 'Gera o registro de inspeção no 06 Qualidade.') }}</span>
       {{ campo_erro(erros, 'resultado') }}
     </div>
 
     <div class="field" x-show="tipo === 'realizado' && marco === '{{ posicao_fat }}'">
-      <label for="marco-inspetor">Inspetor</label>
+      <label for="marco-inspetor">{{ t('suprimentos', 'Inspetor') }}</label>
       <select id="marco-inspetor" name="inspetorId" class="input{% if erros.get('inspetorId') %} input--erro{% endif %}"
         {% if erros.get('inspetorId') %}aria-invalid="true" aria-describedby="erro-inspetorId"{% endif %}>
-        <option value="">O responsável pela requisição</option>
+        <option value="">{{ t('suprimentos', 'O responsável pela requisição') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('inspetorId') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -101,39 +101,35 @@
     </div>
 
     <div class="field" x-show="tipo === 'previsao' || (marco === '{{ posicao_fat }}' && resultado === 'Reprovado')">
-      <label for="marco-previsao">Nova previsão</label>
+      <label for="marco-previsao">{{ t('suprimentos', 'Nova previsão') }}</label>
       <input id="marco-previsao" name="previsao" type="date"
         class="input{% if erros.get('previsao') %} input--erro{% endif %}"
         value="{{ valores.get('previsao') or '' }}"
         {% if erros.get('previsao') %}aria-invalid="true" aria-describedby="erro-previsao"{% endif %} />
-      <span class="hint">A previsão não fica no passado; no FAT reprovado é a nova previsão do reteste.</span>
+      <span class="hint">{{ t('suprimentos', 'A previsão não fica no passado; no FAT reprovado é a nova previsão do reteste.') }}</span>
       {{ campo_erro(erros, 'previsao') }}
     </div>
 
     <div class="field field--full" x-show="tipo === 'previsao' || (marco === '{{ posicao_fat }}' && resultado === 'Reprovado')">
       <label class="check" for="marco-cascata">
         <input id="marco-cascata" type="checkbox" name="cascata" value="1"
-          {% if valores.get('cascata') in (None, '', '1') %}checked{% endif %} />
-        Reprogramar os marcos seguintes na mesma quantidade de dias
-      </label>
+          {% if valores.get('cascata') in (None, '', '1') %}checked{% endif %} />{{ t('suprimentos', 'Reprogramar os marcos seguintes na mesma quantidade de dias') }}</label>
     </div>
 
     <div class="field field--full">
-      <label for="marco-comentario">Comentário do diligenciamento</label>
+      <label for="marco-comentario">{{ t('suprimentos', 'Comentário do diligenciamento') }}</label>
       <textarea id="marco-comentario" name="comentario" rows="3" maxlength="300"
         class="input{% if erros.get('comentario') %} input--erro{% endif %}"
-        placeholder="Fonte da informação, visita à fábrica, relatório do inspetor"
+        placeholder="{{ t('suprimentos', 'Fonte da informação, visita à fábrica, relatório do inspetor') }}"
         {% if erros.get('comentario') %}aria-invalid="true" aria-describedby="erro-comentario"{% endif %}>{{ valores.get('comentario') or '' }}</textarea>
       {{ campo_erro(erros, 'comentario') }}
     </div>
   </div>
 
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-diligencia-fechar-modal>{{ t('suprimentos', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
-      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-      Salvar marco
-    </button>
+      <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>{{ t('suprimentos', 'Salvar marco') }}</button>
   </div>
 </form>
 {% endblock %}

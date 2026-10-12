@@ -8,8 +8,8 @@
 #}
 {% macro linhas(documentos, prefixo) %}
 <fieldset class="field field--full fornecedor__documentos">
-  <legend>Documentos (validade)</legend>
-  <p class="hint">Documento vencido deixa o fornecedor com pendência no cadastro.</p>
+  <legend>{{ t('suprimentos', 'Documentos (validade)') }}</legend>
+  <p class="hint">{{ t('suprimentos', 'Documento vencido deixa o fornecedor com pendência no cadastro.') }}</p>
   {% for documento in documentos %}
   <div class="fornecedor__documento">
     <span class="fornecedor__documento-nome">{{ documento.nome }}</span>

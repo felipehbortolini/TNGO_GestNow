@@ -12,7 +12,7 @@
   <div class="aviso aviso--info prog-janela" role="status">
     <span>{{ janela.reason }}</span>
     {% if janela.can_pick_project %}
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-incluir="nova">Escolher um projeto</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-incluir="nova">{{ t('programacao_semanal', 'Escolher um projeto') }}</button>
     {% endif %}
   </div>
   {% elif janela.is_supplier %}
