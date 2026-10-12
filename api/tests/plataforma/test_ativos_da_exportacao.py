@@ -129,11 +129,33 @@ def test_o_arquivo_de_cores_vai_e_volta_sem_perder_nada(tmp_path: Path) -> None:
 
 # ── Nenhuma biblioteca de PDF ────────────────────────────────────────────
 
+# O Playwright é ferramenta de desenvolvimento da varredura de telas (ISSUE-090):
+# abre e reprova telas, não gera PDF. Só ele é tolerado, e só nas devDependencies
+# do package.json — no servidor e nas dependências de execução a lista segue inteira.
+FERRAMENTAS_TOLERADAS_EM_DESENVOLVIMENTO = frozenset({"playwright"})
+
+
+def _texto_dos_manifestos() -> str:
+    """Os manifestos como texto; o package.json perde as ferramentas de dev toleradas."""
+    textos = [
+        (RAIZ / manifesto).read_text(encoding="utf-8").lower()
+        for manifesto in MANIFESTOS
+        if manifesto != "package.json"
+    ]
+    pacote = json.loads((RAIZ / "package.json").read_text(encoding="utf-8"))
+    textos.append(json.dumps(pacote.get("dependencies", {}), ensure_ascii=False).lower())
+    textos.append(
+        " ".join(
+            nome
+            for nome in pacote.get("devDependencies", {})
+            if nome.lower() not in FERRAMENTAS_TOLERADAS_EM_DESENVOLVIMENTO
+        ).lower()
+    )
+    return " ".join(textos)
+
 
 def test_nenhuma_biblioteca_de_pdf_foi_adicionada_ao_servidor_nem_ao_navegador() -> None:
-    texto = " ".join(
-        (RAIZ / manifesto).read_text(encoding="utf-8").lower() for manifesto in MANIFESTOS
-    )
+    texto = _texto_dos_manifestos()
 
     achadas = [
         nome

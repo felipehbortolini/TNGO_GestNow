@@ -44,6 +44,16 @@ Os testes rodam no banco `gestnow_teste`, recriado pelas migrações a cada exec
 api\.venv\Scripts\python.exe -m pytest  # dentro de api/
 ```
 
+## Varredura de telas
+
+Com o app no ar, a varredura abre cada tela da lista de navegação em 1280, 1100 e 760 px, com os perfis Admin, Visualizador e Fornecedor, e reprova console com erro, rolagem horizontal, barra lateral ausente ou oculta, tela sem estilo próprio e link quebrado (ISSUE-090):
+
+```powershell
+npm run varredura
+```
+
+O Playwright e o navegador dele são dependências de desenvolvimento: `npm install` na raiz e `npx playwright install chromium` uma vez. A base padrão é `http://localhost:4280`, trocável por `--base` ou pela variável `GESTNOW_BASE`; `--perfis` e `--larguras` restringem a rodada (ex.: `npm run varredura -- --perfis admin --larguras 1280` para um fumaça). Sai com código 1 se houver qualquer reprovação e imprime a tabela-resumo no fim.
+
 ## Onde está o quê
 
 | Procurando | Está em |
