@@ -75,12 +75,15 @@
 </div>
 
 {% if portfolio %}
-<section class="card mb-16" aria-labelledby="{{ target_id }}-projetos">
+{# O nome da seção sai da legenda da tabela e não do h2: o card do gráfico
+   acima tem o mesmo título ("Status por projeto") e dois landmarks com o
+   mesmo nome reprovam em `landmark-unique`. #}
+<section class="card mb-16" aria-labelledby="{{ target_id }}-projetos-tabela">
   <div class="card__head"><h2 class="h-card4" id="{{ target_id }}-projetos">{{ t('central_acoes', 'Status por projeto') }}</h2></div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">{{ t('central_acoes', 'Ações por projeto e status') }}</caption>
+        <caption class="sr-only" id="{{ target_id }}-projetos-tabela">{{ t('central_acoes', 'Ações por projeto e status') }}</caption>
         <thead><tr>
           <th scope="col">{{ t('central_acoes', 'Projeto') }}</th><th scope="col">{{ t('central_acoes', 'Em dia') }}</th><th scope="col">{{ t('central_acoes', 'Atrasadas') }}</th>
           <th scope="col">{{ t('central_acoes', 'Concluídas') }}</th><th scope="col">{{ t('central_acoes', 'Total') }}</th>

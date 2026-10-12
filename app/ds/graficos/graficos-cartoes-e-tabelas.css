@@ -393,7 +393,9 @@
   font-weight: 600; letter-spacing: .2px; line-height: 1;
 }
 .graf-matriz__valor.is-rodape { background: var(--verde-50); color: var(--brand-title); font-weight: 700; }
-.graf-matriz__apoio { display: block; margin-top: 2px; font-size: 9px; line-height: 1.3; color: var(--text-secondary); }
+/* O apoio aparece nas linhas com fundo (--neutro-100 e --surface-hover-suave),
+   onde o --text-secondary cai para 4,02:1 e 4,31:1; o primário passa nos dois. */
+.graf-matriz__apoio { display: block; margin-top: 2px; font-size: 9px; line-height: 1.3; color: var(--text-primary); }
 
 /* Linha de total: fixa embaixo, com o filete verde em cima */
 .graf-matriz__linha.is-rodape-linha > td, .graf-matriz__linha.is-rodape-linha > th {
@@ -716,7 +718,9 @@ td.graf-quant__espaco { width: 4px; padding: 0; border: 0; background: transpare
 .graf-etapas__qtd { margin-left: 4px; padding: 1px 5px; border-radius: 9999px; background: var(--ok-50); font-size: 8.5px; font-weight: 700; color: var(--brand-title); }
 .graf-etapas__data { font-size: 10.5px; line-height: 1.15; color: var(--text-secondary); white-space: nowrap; }
 .graf-etapas__data.is-previsto { color: var(--warn-700); }
-.graf-etapas__data-caixa { flex: 1; min-width: 0; padding: 6px 4px; border: 1px solid var(--neutro-100); border-radius: 7px; background: var(--neutro-50); text-align: center; }
+/* Branco e não --neutro-50: o rótulo é --text-secondary e sobre o tint
+   fechava 4,32:1 (WCAG 1.4.3); a borda mantém a caixa visível. */
+.graf-etapas__data-caixa { flex: 1; min-width: 0; padding: 6px 4px; border: 1px solid var(--neutro-100); border-radius: 7px; background: var(--branco); text-align: center; }
 .graf-etapas__data-rot { display: block; font-size: 8.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-secondary); }
 .graf-etapas__data-val { display: block; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--brand-title); white-space: nowrap; }
 .graf-etapas__nada { padding: 45px 20px; font-size: 12px; text-align: center; color: var(--text-secondary); }

@@ -82,6 +82,10 @@
 .sidebar__item.is-active .sidebar__item-label { font-weight: 500; }
 .sidebar__item.is-active .sidebar__item-icon { background: var(--brand-primary); color: var(--branco); }
 .sidebar__item-num { margin-right: 6px; font-weight: 600; color: var(--text-dimmed); font-variant-numeric: tabular-nums; }
+/* Sobre --surface-hover, o --text-dimmed fecha 4,21:1; herdar a cor do item
+   (--text-nav) mantém o número legível no hover e no item ativo. */
+.sidebar__item:hover .sidebar__item-num,
+.sidebar__item.is-active .sidebar__item-num { color: inherit; }
 
 .sidebar__item-icon {
   width: 28px; height: 28px; flex: none;
@@ -156,7 +160,9 @@
 .module-tabs .tab.is-active::after { bottom: 0; }
 .module-tabs__voltar { gap: 4px; }
 /* Segunda linha: as subabas do grupo aberto (Programação Semanal). */
-.module-tabs__sub { background: var(--neutro-50); border-top: 1px solid var(--neutro-100); }
+/* Branco e não --neutro-50: a aba inativa é --text-secondary, que precisa
+   de 4,5:1 e sobre o tint cairia para 4,32:1 (WCAG 1.4.3). */
+.module-tabs__sub { background: var(--branco); border-top: 1px solid var(--neutro-100); }
 .module-tabs__sub .module-tabs__in { min-height: 40px; }
 .module-tabs__sub .tab { padding: 10px 14px; font-size: 12px; }
 

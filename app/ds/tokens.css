@@ -150,12 +150,17 @@
    de mouse. Contraste de --verde-500 sobre branco: 3,02:1, aprova o
    mínimo de 3:1 da WCAG 1.4.11 para elemento não textual.
 
-   .input tem tratamento próprio (borda + halo), logo abaixo. */
+   .input tem tratamento próprio (borda + halo), logo abaixo.
+
+   `.tbl-wrap` entra quando a rolagem horizontal é real: ds/rolagem.js só o
+   torna focável nesse caso, para o teclado alcançar as colunas cortadas
+   (WCAG 2.1.1, o `scrollable-region-focusable` do axe). */
 .btn:focus-visible,
 .iconbtn:focus-visible,
 .tab:focus-visible,
 .seg__btn:focus-visible,
 .toggle:focus-visible,
+.tbl-wrap:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--verde-500);
   outline-offset: 2px;
@@ -228,11 +233,13 @@ button { font-family: var(--font); }
   display: flex; align-items: center; justify-content: center;
 }
 
-/* ---------- Tipografia ---------- */
+/* ---------- Tipografia ----------
+   O aglutinador é texto: usa o verde 700 (4,96:1 sobre verde-50), nunca o
+   verde-500, que só vale para elemento não textual (3:1). */
 .aglutinador {
   font-family: var(--font-label);
   font-size: 14px; font-weight: 600; letter-spacing: 1px;
-  text-transform: uppercase; color: var(--verde-500); margin: 0;
+  text-transform: uppercase; color: var(--verde-700); margin: 0;
 }
 .aglutinador--sm { font-size: 11px; }
 .h-dash { font-size: 40px; font-weight: 700; color: var(--brand-title); margin: 0; line-height: 1.15; }
@@ -298,10 +305,15 @@ button { font-family: var(--font); }
 /* ---------- Tabelas ---------- */
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* Fundo branco, não --neutro-50: o cinza --text-secondary fecha 4,54:1 sobre
+   branco e cai para 4,32:1 sobre o tint (WCAG 1.4.3). O filete de 1px no
+   box-shadow mantém a separação do cabeçalho sem quebrar o sticky, o que o
+   border-bottom faria com border-collapse. */
 .tbl thead th {
   font-family: var(--font-label); font-size: 11px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary);
-  padding: 12px 16px; background: var(--neutro-50); position: sticky; top: 0;
+  padding: 12px 16px; background: var(--branco); position: sticky; top: 0;
+  box-shadow: inset 0 -1px 0 var(--neutro-100);
   text-align: left; white-space: nowrap;
 }
 .tbl tbody td { padding: 12px 16px; border-bottom: 1px solid var(--neutro-100); }

@@ -44,7 +44,9 @@
 /* Variantes semânticas — no piloto eram --total/--rascunho/--enviada,
    nomes do domínio daquele app. */
 .kpi--neutro::before { background: var(--verde-500); }
-.kpi--neutro .kpi__label { color: var(--verde-600); }
+/* Verde 700 e não 600: o rótulo é texto sobre branco e o 600 fechava 4,25:1
+   (WCAG 1.4.3); o 700 passa com 5,17:1. */
+.kpi--neutro .kpi__label { color: var(--verde-700); }
 .kpi--warn::before { background: var(--warn-500); }
 .kpi--warn .kpi__label { color: var(--warn-700); }
 .kpi--ok::before { background: var(--ok-500); }

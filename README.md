@@ -54,6 +54,16 @@ npm run varredura
 
 O Playwright e o navegador dele são dependências de desenvolvimento: `npm install` na raiz e `npx playwright install chromium` uma vez. A base padrão é `http://localhost:4280`, trocável por `--base` ou pela variável `GESTNOW_BASE`; `--perfis` e `--larguras` restringem a rodada (ex.: `npm run varredura -- --perfis admin --larguras 1280` para um fumaça). Sai com código 1 se houver qualquer reprovação e imprime a tabela-resumo no fim.
 
+## Acessibilidade
+
+Com o app no ar, a auditoria roda o axe-core 4.13.0 (regras `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` e `best-practice`) em cada tela da lista de navegação, nas larguras 1280 e 760 px, com o perfil Admin em todas e o Fornecedor nas da Programação Semanal. Em 1280 px vem também a passada de teclado com Tab real: o skip link é a primeira parada e cada parada precisa de nome acessível e de anel de foco computado (ISSUE-091):
+
+```powershell
+npm run acessibilidade
+```
+
+A base segue a varredura (`--base` ou `GESTNOW_BASE`, padrão `http://localhost:4280`); `--telas` e `--perfil` restringem a rodada (ex.: `npm run acessibilidade -- --telas inicio/home,riscos/registro --perfil admin`). O relatório lista cada violação com regra, severidade e alvo; sai com código 1 se houver qualquer violação ou falha de teclado.
+
 ## Onde está o quê
 
 | Procurando | Está em |

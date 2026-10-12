@@ -143,7 +143,7 @@
 }
 .graf-gantt__wbs {
   flex-shrink: 0; min-width: 34px;
-  font-family: var(--font-label); font-size: 10px; font-weight: 600; color: var(--verde-500);
+  font-family: var(--font-label); font-size: 10px; font-weight: 600; color: var(--verde-700);
 }
 .graf-gantt__nome {
   flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -209,7 +209,7 @@
 .graf-gantt__data-ini, .graf-gantt__data-fim {
   position: absolute; top: 3px; font-size: 10px; font-weight: 600; white-space: nowrap;
 }
-.graf-gantt__data-ini { right: 100%; margin-right: 8px; color: var(--neutro-400); }
+.graf-gantt__data-ini { right: 100%; margin-right: 8px; color: var(--text-hint); }
 .graf-gantt__data-fim { left: 100%; margin-left: 8px; color: var(--text-secondary); }
 .graf-gantt__delta { margin-left: 6px; font-style: normal; font-weight: 600; }
 .graf-gantt__delta.is-atraso { color: var(--erro-500); }
@@ -268,7 +268,7 @@
 .graf-calendario__seta:focus-visible, .graf-calendario__hoje:focus-visible { outline: 2px solid var(--verde-500); outline-offset: 2px; }
 .graf-calendario__semana { display: grid; grid-template-columns: repeat(7, 1fr); flex: 0 0 auto; gap: 3px; margin-top: 6px; }
 .graf-calendario__semana span {
-  padding: 2px 0; text-align: center; font-size: 8.5px; font-weight: 700; text-transform: uppercase; color: var(--neutro-400);
+  padding: 2px 0; text-align: center; font-size: 8.5px; font-weight: 700; text-transform: uppercase; color: var(--text-hint);
 }
 .graf-calendario__grade {
   display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(6, 1fr);
@@ -322,7 +322,7 @@
 }
 .graf-galeria__contador {
   align-self: flex-start; flex-shrink: 0; padding: 0 0 6px;
-  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--verde-500);
+  font-family: var(--font-label); font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--verde-700);
 }
 .graf-galeria__area { flex: 1; width: 100%; min-height: 0; overflow: hidden; border-radius: 14px; }
 .graf-galeria__trilho { display: flex; height: 100%; transition: transform .4s cubic-bezier(.4, 0, .2, 1); }
@@ -407,7 +407,7 @@
   padding: 3px 10px; border-radius: 20px; background: var(--tom-fundo); font-size: 11px; font-weight: 700; color: var(--tom-texto);
 }
 .graf-fc__status { white-space: nowrap; }
-.graf-fc__seta { font-size: 18px; font-weight: 700; line-height: 1; color: var(--verde-500); }
+.graf-fc__seta { font-size: 18px; font-weight: 700; line-height: 1; color: var(--verde-700); }
 
 /* Detalhe */
 .graf-fc__detalhe { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 12px; padding: 10px 0; }
@@ -458,13 +458,15 @@
   animation: graf-areas-sobe .5s cubic-bezier(.22, 1, .36, 1) both;
 }
 .graf-areas__chips { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; }
+/* Branco e não --neutro-50: o rótulo e o valor do chip (--text-hint e
+   --text-secondary) reprovam sobre o tint (WCAG 1.4.3). */
 .graf-areas__chip {
   display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 3px 8px;
-  border: 1px solid var(--neutro-100); border-radius: 6px; background: var(--neutro-50);
+  border: 1px solid var(--neutro-100); border-radius: 6px; background: var(--branco);
 }
 .graf-areas__chip-rotulo {
   font-family: var(--font-label); font-size: 6.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
-  white-space: nowrap; color: var(--neutro-400);
+  white-space: nowrap; color: var(--text-hint);
 }
 .graf-areas__chip-valor { font-size: 11px; font-weight: 600; line-height: 1.15; white-space: nowrap; color: var(--text-secondary); }
 .graf-areas__chip.is-destaque { border: none; background: var(--verde-500); }
@@ -562,7 +564,7 @@
 }
 .graf-tabela__contagem, .graf-tabela__rodape-texto { font-family: var(--font-label); font-size: 13px; color: var(--text-secondary); }
 .graf-tabela__contagem span { font-weight: 700; color: var(--brand-title); }
-.graf-tabela__rodape-texto { font-weight: 700; color: var(--verde-500); }
+.graf-tabela__rodape-texto { font-weight: 700; color: var(--verde-700); }
 
 @keyframes graf-tabela-entra { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -621,7 +623,7 @@
   animation: graf-tabela2-cresce .9s cubic-bezier(.4, 0, .2, 1) both;
 }
 .graf-tabela2__valor { font-family: var(--font-label); font-size: 13px; font-weight: 700; color: var(--brand-primary-hover); }
-.graf-tabela2__valor.is-realizado { color: var(--verde-500); }
+.graf-tabela2__valor.is-realizado { color: var(--verde-700); }
 .graf-tabela2__selo {
   display: inline-block; min-width: 24px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--tom) 55%, var(--branco));
   border-radius: 9999px; background: var(--tom-fundo); text-align: center;
@@ -649,7 +651,7 @@
 .graf-acoes__titulo { font-size: 17px; font-weight: 600; line-height: 1.15; white-space: nowrap; color: var(--brand-title); }
 .graf-acoes__subtitulo {
   margin-top: 2px; font-family: var(--font-label); font-size: 8px; font-weight: 600; letter-spacing: .8px;
-  text-transform: uppercase; white-space: nowrap; color: var(--verde-500);
+  text-transform: uppercase; white-space: nowrap; color: var(--verde-700);
 }
 .graf-acoes__kpis { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 13px; margin-left: auto; }
 .graf-acoes__kpi { text-align: right; }
@@ -746,7 +748,7 @@
 }
 .graf-acoes__linha i {
   flex: 0 0 auto; font-family: var(--font-label); font-size: 6.5px; font-style: normal; font-weight: 600; letter-spacing: .5px;
-  text-transform: uppercase; white-space: nowrap; color: var(--neutro-400);
+  text-transform: uppercase; white-space: nowrap; color: var(--text-hint);
 }
 .graf-acoes__linha b {
   min-width: 0; font-size: 9.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);
@@ -756,7 +758,9 @@
   display: flex; align-items: center; gap: 4px; min-width: 0; margin-top: 2px; padding: 1px 5px; border-radius: 9999px;
   background: var(--tom-fundo); color: var(--tom-texto);
 }
-.graf-acoes__pilula.is-tom-vazio { color: var(--neutro-400); }
+/* Sobre o fundo do tom vazio (neutro-100 50% com branco) o neutro-400 fecha
+   2,6:1; o neutro-600 passa com 7:1, como nos demais chips vazios do motor. */
+.graf-acoes__pilula.is-tom-vazio { color: var(--neutro-600); }
 .graf-acoes__pilula span, .graf-acoes__desvio, .graf-acoes__comentario {
   font-size: 8px; font-weight: 600; line-height: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -765,7 +769,7 @@
 .graf-acoes__desvio.is-tom-ok { color: var(--ok-800); }
 .graf-acoes__desvio.is-tom-alerta { color: var(--warn-700); }
 .graf-acoes__desvio.is-tom-neutro { color: var(--text-secondary); }
-.graf-acoes__desvio.is-tom-vazio { color: var(--neutro-300); }
+.graf-acoes__desvio.is-tom-vazio { color: var(--neutro-600); }
 .graf-acoes__comentario {
   display: block; margin-top: 2px; padding-left: 5px; border-left: 2px solid var(--verde-200);
   font-style: italic; font-weight: 400; color: var(--text-secondary);
@@ -809,7 +813,7 @@
 .graf-acoes__acao:last-child { border-bottom: 0; }
 .graf-acoes__acao-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 5px; }
 .graf-acoes__acao-cab > b {
-  font-family: var(--font-label); font-size: 8px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--neutro-400);
+  font-family: var(--font-label); font-size: 8px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-hint);
 }
 .graf-acoes__acao-cab .graf-acoes__desvio { margin-top: 0; font-size: 10px; line-height: normal; }
 .graf-acoes__justificativa { font-size: 12px; line-height: 1.45; color: var(--text-primary); }

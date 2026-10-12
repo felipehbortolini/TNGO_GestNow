@@ -278,7 +278,7 @@
 .graf-pareto__tit { flex: 1 1 auto; min-width: 0; }
 .graf-pareto__eb {
   font-family: var(--font-label); font-size: calc(var(--u) * 1.8); font-weight: 600; letter-spacing: .14em;
-  text-transform: uppercase; white-space: nowrap; color: var(--verde-500);
+  text-transform: uppercase; white-space: nowrap; color: var(--verde-700);
 }
 .graf-pareto__h1 {
   margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 4); font-weight: 600; line-height: 1.1;
@@ -300,7 +300,7 @@
 }
 .graf-pareto__kpi-rot {
   font-family: var(--font-label); font-size: calc(var(--u) * 1.4); font-weight: 600; letter-spacing: .1em;
-  text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--verde-500);
+  text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--verde-700);
 }
 .graf-pareto__kpi-val { margin-top: calc(var(--u) * .4); font-size: calc(var(--u) * 4.2); font-weight: 600; line-height: 1.2; }
 .graf-pareto__kpi-sub {
@@ -328,15 +328,17 @@
   position: absolute; transform: translateY(50%);
   font-size: calc(var(--u) * 1.8); font-weight: 600; line-height: 1; white-space: nowrap;
 }
-.graf-pareto__eixo-esq { right: calc(100% + var(--u) * 1.3); color: var(--neutro-400); }
-.graf-pareto__eixo-dir { left: calc(100% + var(--u) * 1.3); color: var(--verde-500); }
+/* Rótulos de eixo são texto: --neutro-400 (2,61:1) e --verde-500 (3,02:1)
+   reprovam sobre branco; o auxiliar e o verde 700 passam (WCAG 1.4.3). */
+.graf-pareto__eixo-esq { right: calc(100% + var(--u) * 1.3); color: var(--text-hint); }
+.graf-pareto__eixo-dir { left: calc(100% + var(--u) * 1.3); color: var(--verde-700); }
 .graf-pareto__titulo-eixo {
   position: absolute; top: 50%; writing-mode: vertical-rl;
   font-family: var(--font-label); font-size: calc(var(--u) * 1.5); font-weight: 600; letter-spacing: .12em;
   text-transform: uppercase; white-space: nowrap;
 }
-.graf-pareto__titulo-eixo.is-esq { left: 0; transform: translateY(-50%) rotate(180deg); color: var(--neutro-400); }
-.graf-pareto__titulo-eixo.is-dir { right: 0; transform: translateY(-50%); color: var(--verde-500); }
+.graf-pareto__titulo-eixo.is-esq { left: 0; transform: translateY(-50%) rotate(180deg); color: var(--text-hint); }
+.graf-pareto__titulo-eixo.is-dir { right: 0; transform: translateY(-50%); color: var(--verde-700); }
 
 .graf-pareto__zona {
   position: absolute; left: 0; top: calc(-1 * var(--pt)); bottom: 0; overflow: hidden;
@@ -455,7 +457,7 @@
 .graf-pareto__xc.is-fora .graf-pareto__xn { color: var(--text-secondary); }
 .graf-pareto__xs {
   font-size: calc(var(--u) * 1.45); font-weight: 600; line-height: 1.3;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--neutro-400);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-hint);
 }
 .graf-pareto__leg { display: flex; align-items: flex-start; flex: 0 0 auto; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.1) var(--gr) 0 var(--gl); }
 .graf-pareto__leg-item { display: flex; flex: 1 1 0; min-width: 0; gap: calc(var(--u) * .8); }

@@ -52,6 +52,9 @@
   gap: var(--space-md);
 }
 
+/* Branco e não --surface-hover-suave: código, recomendação e metadados do
+   card são texto cinza e sobre o tint reprovavam (4,31:1; WCAG 1.4.3). A
+   borda (com o filete colorido) já separa o card do fundo. */
 .pagina--governanca-licoes .licao-card {
   display: flex;
   flex-direction: column;
@@ -60,7 +63,7 @@
   border: 1px solid var(--borda);
   border-left-width: 4px;
   border-radius: var(--r-md);
-  background: var(--surface-hover-suave);
+  background: var(--branco);
 }
 
 .pagina--governanca-licoes .licao-card--repetir {

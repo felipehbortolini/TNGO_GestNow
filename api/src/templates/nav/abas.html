@@ -15,7 +15,9 @@
 #}
 <div id="module-tabs" class="module-tabs"{% if not nav.has_bar %} hidden{% endif %}>
   {% if nav.back %}
-  <div class="module-tabs__in">
+  {# nav e não div: só o Voltar fica fora de qualquer landmark e o axe
+     reprova a barra com a regra `region` (todo conteúdo num landmark). #}
+  <nav class="module-tabs__in" aria-label="{{ t('shell', 'Voltar') }}">
     <a
       class="btn btn--secondary btn--sm module-tabs__voltar"
       href="{{ nav.back.url }}"
@@ -25,7 +27,7 @@
       <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
       {{ t('shell', 'Voltar') }}
     </a>
-  </div>
+  </nav>
   {% elif nav.tabs %}
   <div class="module-tabs__in">
     <nav class="tabs" aria-label="{{ nav.tabs_label }}">
