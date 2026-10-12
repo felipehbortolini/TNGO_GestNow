@@ -378,3 +378,22 @@ Todos os arquivos Python são stubs intencionais na ISSUE-002. As ISSUE-036 a IS
 **Carga e oráculo:** sem carga nova (a da ISSUE-049 serve) e **sem migração** (nenhuma tabela nova). **Oráculo:** `api/tests/plataforma/test_carga_demonstracao.py` (`test_oraculo_do_painel_da_punch_list`): no projeto 1, na âncora, o aging fecha em 3/7/2 itens abertos ("Até 7", "8 a 30", "Mais de 30"), com a categoria A em 1/3/0; os sistemas 210, 310 e 420 bloqueados para a Completação mecânica ou o Comissionamento (75,0% e 25,0% liberados) e o Aceite definitivo bloqueado nos 4; o burndown de 10 semanas termina em 15 abertos, 3 fechados e 12 em aberto. **Testes:** `api/tests/planejamento/test_punch_painel_calculos.py` (fronteiras do aging, fórmula do % liberado e o burndown), `test_punch_servico.py` e `test_punch_rotas.py` (painel, Portfólio e Excel/PDF).
 
 **Onde mexer:** cálculos em `calculations.py` (bloco Painel da punch list: `punch_aging_*`, `punch_burndown*`, `punch_*_counts`, `punch_released_pct`, `PunchPanelState`); leitura e gráficos em `service.py` (bloco Painel da Punch list: `punch_dashboard`, `punch_parameters`, `_punch_*_chart`); rotas em `routes.py` (bloco `PUNCH_DASHBOARD_BASE`); exportação em `export.py` (`punch_dashboard_document`, `punch_dashboard_kpis`, as tabelas); fragmento `punch_painel.html`; view, CSS e JS do trio em `app/_views/planejamento/punch_list.html` e `app/paginas/planejamento/punch_list.css`/`js`; testes em `api/tests/planejamento/test_punch_painel_calculos.py`, `test_punch_servico.py`, `test_punch_rotas.py` e o oráculo na carga.
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `planejamento` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O rótulo do período do relato é montado em `calculations.period_name` (Semana/Week) e o curto em `short_period_name` (`S38`/`W38`); o EAP vira WBS e a SM, CR.
+Os templates chamam `{{ t('planejamento', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `planejamento`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

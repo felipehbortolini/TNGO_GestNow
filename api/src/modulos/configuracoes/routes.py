@@ -62,7 +62,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -85,6 +85,14 @@ from src.modulos.configuracoes import export, forms, service
 from src.modulos.configuracoes.models import ParameterVersion
 
 bp = func.Blueprint()
+
+
+def _aviso(text: str | None, req: func.HttpRequest) -> str | None:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    if not text:
+        return text
+    return translations.translate("configuracoes", text, translations.language_of(req))
+
 
 MODULE = "configuracoes"
 ACCESS = Access(module=MODULE)
@@ -136,7 +144,7 @@ def _modal_error_em(target_id: str) -> ErrorRenderer:
             request=req,
             target_id=target_id,
             status_code=_status(error),
-            toast=messages[0] if messages else "Não foi possível concluir.",
+            toast=messages[0] if messages else _aviso("Não foi possível concluir.", req),
             toast_tipo="erro",
         )
 
@@ -227,7 +235,7 @@ def _screen_response(
         },
         request=req,
         target_id=CONTENT_TARGET,
-        toast=notice,
+        toast=_aviso(notice, req),
     )
 
 
@@ -312,6 +320,7 @@ def _document(session: Session, context: RequestContext) -> Document:
         scope=context.scope,
         projects=service.list_projects(session),
         today=today,
+        idioma=context.idioma,
     )
 
 
@@ -534,7 +543,7 @@ def _collaborator_screen_response(
         request=req,
         target_id=COLLABORATORS_CONTENT_TARGET,
         status_code=status_code,
-        toast=notice,
+        toast=_aviso(notice, req),
         toast_tipo=toast_tipo,
     )
 
@@ -687,6 +696,7 @@ def _collaborator_document(session: Session, context: RequestContext) -> Documen
         scope=context.scope,
         projects=service.list_projects(session),
         today=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -871,7 +881,7 @@ def _registers_screen_response(
         request=req,
         target_id=REGISTERS_CONTENT_TARGET,
         status_code=status_code,
-        toast=notice,
+        toast=_aviso(notice, req),
         toast_tipo=toast_tipo,
     )
 
@@ -956,6 +966,7 @@ def _registers_document(session: Session, context: RequestContext) -> Document:
         scope=context.scope,
         projects=service.list_projects(session),
         today=today,
+        idioma=context.idioma,
     )
 
 

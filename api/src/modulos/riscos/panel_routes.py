@@ -18,13 +18,14 @@ The rules are in ``panel_service``; the routes only read the request, call it an
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, notification, origin_links, rbac
+from src.core import calendario, notification, origin_links, rbac, translations
 from src.core.errors import DomainError, InvalidDataError
 from src.core.excel import excel_response
 from src.core.export_document import Document
@@ -40,6 +41,49 @@ from src.modulos.riscos.service import BandCount
 from src.modulos.riscos.validation import INHERENT, RESIDUAL, RiskFilters
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("riscos", text, idioma)
+
+
+def _chart_data(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """O JSON do gráfico no idioma do request: textos pelo catálogo e os rótulos do motor (D13)."""
+    translated = _translated_strings(data, idioma)
+    especificos = data.get("rotulos")
+    if not isinstance(especificos, Mapping):
+        especificos = {}
+    translated["rotulos"] = translations.rotulos_de_grafico(idioma, dict(especificos))
+    return translated
+
+
+def _translated_strings(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """Os textos de dentro do JSON (títulos, séries, eixos) no idioma; a forma fica igual."""
+    translated: dict[str, object] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            translated[key] = translations.translate("riscos", value, idioma)
+        elif isinstance(value, Mapping):
+            translated[key] = _translated_strings(value, idioma)
+        elif isinstance(value, list):
+            translated[key] = [
+                _translated_strings(item, idioma)
+                if isinstance(item, Mapping)
+                else translations.translate("riscos", item, idioma)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            translated[key] = value
+    return translated
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("riscos", text, translations.language_of(req))
+
 
 MODULE = "riscos"
 READ = Access(module=MODULE)
@@ -130,7 +174,7 @@ def _matrix_response(
     matrix = _matrix(req, session, context)
     return AlpineAjaxResponse(
         template_name=MATRIX_TEMPLATE,
-        context=_matrix_context(session, context, matrix),
+        context=_matrix_context(session, context, matrix, translations.language_of(req)),
         request=req,
         target_id=MATRIX_TARGET,
     )
@@ -157,11 +201,11 @@ def _nature(req: func.HttpRequest) -> str:
 
 
 def _matrix_context(
-    session: Session, context: RequestContext, matrix: RiskMatrix
+    session: Session, context: RequestContext, matrix: RiskMatrix, idioma: str = "pt"
 ) -> dict[str, object]:
     return {
         "matriz": matrix,
-        "grafico": export.matrix_chart(matrix),
+        "grafico": _chart_data(export.matrix_chart(matrix), idioma),
         "link_inerente": _matrix_link(INHERENT, matrix.nature),
         "link_residual": _matrix_link(RESIDUAL, matrix.nature),
         "naturezas": NATURES,
@@ -200,6 +244,7 @@ def _matrix_document(req: func.HttpRequest, session: Session, context: RequestCo
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -215,7 +260,7 @@ def risk_panel_screen(
     panel = _panel(session, context)
     return AlpineAjaxResponse(
         template_name=PANEL_TEMPLATE,
-        context=_panel_context(session, context, panel),
+        context=_panel_context(session, context, panel, translations.language_of(req)),
         request=req,
         target_id=PANEL_TARGET,
     )
@@ -250,13 +295,13 @@ def _panel(session: Session, context: RequestContext) -> RiskPanel:
 
 
 def _panel_context(
-    session: Session, context: RequestContext, panel: RiskPanel
+    session: Session, context: RequestContext, panel: RiskPanel, idioma: str = "pt"
 ) -> dict[str, object]:
     scale = panel.parameters.scale
     return {
         "painel": panel,
         "kpis": _panel_kpis(panel),
-        "grafico": export.panel_evolution_chart(panel),
+        "grafico": _chart_data(export.panel_evolution_chart(panel), idioma),
         "maximo_da_categoria": max((item.score for item in panel.categories), default=0) or 1,
         "portfolio": context.scope.is_portfolio,
         "rotulos_de_projeto": _project_labels(session),
@@ -354,6 +399,7 @@ def _panel_document(session: Session, context: RequestContext) -> Document:
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -369,7 +415,7 @@ def _agenda_error(req: func.HttpRequest, error: DomainError) -> func.HttpRespons
         request=req,
         target_id=PANEL_MODAL_TARGET,
         status_code=routes._error_status(error),
-        toast=mensagens[0] if mensagens else "Não foi possível concluir.",
+        toast=mensagens[0] if mensagens else _notice("Não foi possível concluir.", req),
         toast_tipo="erro",
     )
 
@@ -414,7 +460,7 @@ def risk_panel_agenda_send(
         _scope_label(session, context),
         formulario=None,
         resultado=resultado,
-        toast=outcome.notice,
+        toast=_notice(outcome.notice, req),
         toast_tipo=outcome.toast_kind,
     )
 

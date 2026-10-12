@@ -31,7 +31,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links, rbac
+from src.core import calendario, origin_links, rbac, translations
 from src.core.errors import AccessDeniedError, DomainError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import Document
@@ -54,6 +54,19 @@ from src.modulos.qualidade.validation import (
 )
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("qualidade", text, idioma)
+
+
+def _notice(text: str | None, req: func.HttpRequest) -> str | None:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    if not text:
+        return text
+    return translations.translate("qualidade", text, translations.language_of(req))
+
 
 MODULE = "qualidade"
 READ = Access(module=MODULE)
@@ -116,7 +129,7 @@ def _modal_error(
         request=req,
         target_id=target,
         status_code=_error_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0] if messages else _notice("Não foi possível concluir.", req),
         toast_tipo="erro",
     )
 
@@ -608,7 +621,7 @@ def _screen(
         },
         request=req,
         target_id=CONTENT_TARGET,
-        toast=after,
+        toast=_notice(after, req),
         toast_tipo=after_tipo,
     )
 
@@ -651,6 +664,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         projects=configuracoes.list_project_details(session),
         today=today,
         meta_pct=_meta_pct(session, today),
+        idioma=context.idioma,
     )
 
 

@@ -25,7 +25,7 @@ from decimal import ROUND_HALF_UP, Decimal
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links
+from src.core import calendario, origin_links, translations
 from src.core.excel import excel_response
 from src.core.export_document import Document
 from src.core.printable import printable_response
@@ -36,6 +36,17 @@ from src.modulos.qualidade import export, painel_service
 from src.modulos.qualidade.painel_service import QualityPanel
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("qualidade", text, idioma)
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("qualidade", text, translations.language_of(req))
+
 
 MODULE = "qualidade"
 READ = Access(module=MODULE)
@@ -268,6 +279,7 @@ def _panel_document(session: Session, context: RequestContext) -> Document:
         scope=context.scope,
         projects=configuracoes.list_project_details(session),
         today=panel.reference_date,
+        idioma=context.idioma,
     )
 
 

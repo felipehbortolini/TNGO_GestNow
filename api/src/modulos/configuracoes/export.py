@@ -94,9 +94,12 @@ def parametros_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O documento da tela: a versão vigente no cabeçalho e as duas tabelas do protótipo."""
     return Document(
+        namespace="configuracoes",
+        idioma=idioma,
         title=TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -152,9 +155,12 @@ def colaboradores_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O documento da tela de Colaboradores: a lista de quem tem acesso, com os papéis por projeto."""
     return Document(
+        namespace="configuracoes",
+        idioma=idioma,
         title=COLLABORATORS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -249,6 +255,7 @@ def registers_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O documento da tela de Cadastros: as sete tabelas, com as mesmas colunas da tela.
 
@@ -257,6 +264,8 @@ def registers_document(
     falso): uma empresa não pertence a um projeto.
     """
     return Document(
+        namespace="configuracoes",
+        idioma=idioma,
         title=REGISTERS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,

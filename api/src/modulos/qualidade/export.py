@@ -87,9 +87,12 @@ def build_document(
     projects: Sequence[ProjectLike],
     today: date,
     verification_days: int,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the list for the filters in force: the KPIs and the table."""
     return Document(
+        namespace="qualidade",
+        idioma=idioma,
         title=TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -253,9 +256,12 @@ def build_inspecoes_document(
     projects: Sequence[ProjectLike],
     today: date,
     meta_pct: Decimal,
+    idioma: str = "pt",
 ) -> Document:
     """The document of Inspeções e ITP: the KPIs, the plans and the inspections of the filter."""
     return Document(
+        namespace="qualidade",
+        idioma=idioma,
         title=INSPECOES_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -418,9 +424,12 @@ def build_auditorias_document(
     projects: Sequence[ProjectLike],
     today: date,
     meta_pct: Decimal,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the programme: the five KPIs and the table of the audits of the filter."""
     return Document(
+        namespace="qualidade",
+        idioma=idioma,
         title=AUDITORIAS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -622,10 +631,13 @@ def build_panel_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O painel como documento: os indicadores, os gráficos e as tabelas por trás deles (D12)."""
     labels = {project.id: project_label(project) for project in projects}
     return Document(
+        namespace="qualidade",
+        idioma=idioma,
         title=PANEL_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,

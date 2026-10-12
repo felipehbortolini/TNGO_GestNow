@@ -16,11 +16,12 @@ de suprimentos e os pontos de atenção do Portfólio), então nenhuma tabela pe
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from src.core import calendario
+from src.core import calendario, translations
 from src.core.export_document import (
     Cell,
     Column,
@@ -38,6 +39,19 @@ from src.modulos.relatorio import calculations, service
 
 TITLE_WEEKLY = "Relatório gerencial semanal"
 TITLE_MONTHLY = "Relatório gerencial mensal"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do relatório no idioma do request (D13)."""
+    return translations.translate("relatorio", text, idioma)
+
+
+def _label_parts(text: str, idioma: str) -> str:
+    """Um rótulo composto por ``·``: cada parte passa pelo catálogo, a composição fica igual."""
+    if idioma == translations.DEFAULT_LANGUAGE or not text:
+        return text
+    return " · ".join(_label(part, idioma) for part in text.split(" · "))
+
 
 # O prefixo de cada folha nos rótulos dos indicadores do Resumo.
 SHEET_CARTEIRA = "Carteira"
@@ -77,7 +91,7 @@ _SOURCE_TEXT = {"orcamento": "orçamento vigente (EAC)", "nota": "nota de 1 a 5 
 _MINUS = "\u2212"
 
 
-def build_document(*, sheets: service.ReportSheets, today: date) -> Document:
+def build_document(*, sheets: service.ReportSheets, today: date, idioma: str = "pt") -> Document:
     """O documento do relatório no escopo da requisição; a data de geração vem da rota."""
     kpis: list[Kpi] = []
     tables: list[Table] = []
@@ -102,12 +116,24 @@ def build_document(*, sheets: service.ReportSheets, today: date) -> Document:
     if sheets.hse is not None:
         kpis.extend(_hse_kpis(sheets.hse))
     tables.extend(_analysis_tables(sheets))
+    if idioma != translations.DEFAULT_LANGUAGE:
+        kpis = [
+            replace(
+                kpi,
+                label=_label_parts(kpi.label, idioma),
+                reference=_label_parts(kpi.reference, idioma),
+                status=_label(kpi.status, idioma) if kpi.status else kpi.status,
+            )
+            for kpi in kpis
+        ]
     return Document(
-        title=TITLE_WEEKLY if sheets.kind == calendario.WEEKLY else TITLE_MONTHLY,
+        namespace="relatorio",
+        idioma=idioma,
+        title=_label(TITLE_WEEKLY if sheets.kind == calendario.WEEKLY else TITLE_MONTHLY, idioma),
         scope_label=sheets.scope_label,
         generated_on=today,
         portfolio=sheets.is_portfolio,
-        context=_context(sheets),
+        context=_context(sheets, idioma),
         kpis=tuple(kpis),
         tables=tuple(tables),
         paper=Paper.A4,
@@ -117,15 +143,19 @@ def build_document(*, sheets: service.ReportSheets, today: date) -> Document:
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
-def _context(sheets: service.ReportSheets) -> tuple[tuple[str, str], ...]:
+def _context(sheets: service.ReportSheets, idioma: str = "pt") -> tuple[tuple[str, str], ...]:
     """As linhas do cabeçalho: o tipo, o período, o corte, a referência e quem emitiu."""
-    period = sheets.period_label + (" (em andamento)" if sheets.in_progress else "")
+    suffix = _label(" (em andamento)", idioma) if sheets.in_progress else ""
+    period = sheets.period_label + suffix
     return (
-        ("Tipo", sheets.kind),
-        ("Período", period),
-        ("Corte", format_value(ValueKind.DATE, sheets.cut)),
-        ("Referência", format_value(ValueKind.DATE, sheets.reference_date)),
-        ("Emitido por", sheets.emitted_by),
+        (_label("Tipo", idioma), _label(sheets.kind, idioma)),
+        (_label("Período", idioma), period),
+        (_label("Corte", idioma), format_value(ValueKind.DATE, sheets.cut, idioma=idioma)),
+        (
+            _label("Referência", idioma),
+            format_value(ValueKind.DATE, sheets.reference_date, idioma=idioma),
+        ),
+        (_label("Emitido por", idioma), sheets.emitted_by),
     )
 
 

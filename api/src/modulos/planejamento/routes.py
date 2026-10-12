@@ -149,7 +149,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, importing, rbac
+from src.core import attachments, calendario, importing, rbac, translations
 from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import Document, Kpi, ValueKind, describe_scope, format_value
@@ -163,6 +163,49 @@ from src.modulos.planejamento import calculations, export, importers, service, v
 from src.modulos.planejamento.validation import PointInput
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("planejamento", text, idioma)
+
+
+def _chart_data(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """O JSON do gráfico no idioma do request: textos pelo catálogo e os rótulos do motor (D13)."""
+    translated = _translated_strings(data, idioma)
+    especificos = data.get("rotulos")
+    if not isinstance(especificos, Mapping):
+        especificos = {}
+    translated["rotulos"] = translations.rotulos_de_grafico(idioma, dict(especificos))
+    return translated
+
+
+def _translated_strings(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """Os textos de dentro do JSON (títulos, séries, eixos) no idioma; a forma fica igual."""
+    translated: dict[str, object] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            translated[key] = translations.translate("planejamento", value, idioma)
+        elif isinstance(value, Mapping):
+            translated[key] = _translated_strings(value, idioma)
+        elif isinstance(value, list):
+            translated[key] = [
+                _translated_strings(item, idioma)
+                if isinstance(item, Mapping)
+                else translations.translate("planejamento", item, idioma)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            translated[key] = value
+    return translated
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("planejamento", text, translations.language_of(req))
+
 
 importers.register_importers()
 
@@ -421,7 +464,10 @@ def report_delete(
             version=form.get("versao"),
         )
     except (InvalidDataError, VersionConflictError) as error:
-        refused = Reply(toast=str(error), toast_kind="erro")
+        refused = Reply(
+            toast=translations.translate("planejamento", str(error), translations.language_of(req)),
+            toast_kind="erro",
+        )
         return _panel_response(req, session, context, report_filter, refused)
     return _panel_response(req, session, context, report_filter, Reply(toast=DELETED_MESSAGE))
 
@@ -463,6 +509,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -844,8 +891,10 @@ def _board_context(
         "filtros": chosen,
         "disciplinas": configuracoes.list_discipline_names(session),
         "listas_de_restricoes": CONSTRAINT_LISTS,
-        "gantt": export.gantt_data(board),
-        "galeria": export.gallery_data(board.constraints),
+        "gantt": _chart_data(export.gantt_data(board), translations.language_of(req)),
+        "galeria": _chart_data(
+            export.gallery_data(board.constraints), translations.language_of(req)
+        ),
         "legenda_semana": export.week_caption,
         "horizonte": export.horizon_text(board),
         "indice_de_remocao": format_value(ValueKind.PERCENT, board.figures.removal_index, 0) or "·",
@@ -869,6 +918,7 @@ def _lookahead_document(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         constraints_label=CONSTRAINT_LISTS[filters.constraints],
+        idioma=context.idioma,
     )
 
 
@@ -1560,7 +1610,7 @@ def _progress_error(
         context=data,
         request=req,
         status_code=_error_status(error),
-        toast=str(error),
+        toast=translations.translate("planejamento", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1981,7 +2031,7 @@ def _package_error(
         context=data,
         request=req,
         status_code=_error_status(error),
-        toast=str(error),
+        toast=translations.translate("planejamento", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2002,7 +2052,7 @@ def _revision_error(
         context=data,
         request=req,
         status_code=_error_status(error),
-        toast=str(error),
+        toast=translations.translate("planejamento", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2232,6 +2282,7 @@ def _eap_document(session: Session, context: RequestContext) -> Document:
         _eap_overview(session, context),
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -2390,7 +2441,7 @@ def _dictionary_error(
         context=data,
         request=req,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("planejamento", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2465,7 +2516,9 @@ def curva_fisica_content(
     """A Curva S física do escopo: indicadores, gráfico, tabela período a período e carteira."""
     return AlpineAjaxResponse(
         template_name=CURVA_FISICA_TEMPLATE,
-        context=_curva_fisica_context(_curva_fisica_overview(session, context)),
+        context=_curva_fisica_context(
+            _curva_fisica_overview(session, context), translations.language_of(req)
+        ),
         request=req,
     )
 
@@ -2503,17 +2556,18 @@ def _curva_fisica_document(session: Session, context: RequestContext) -> Documen
         _curva_fisica_overview(session, context),
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
-def _curva_fisica_context(visao: service.CurvaFisicaOverview) -> dict[str, Any]:
+def _curva_fisica_context(visao: service.CurvaFisicaOverview, idioma: str = "pt") -> dict[str, Any]:
     """O que o fragmento da Curva S imprime: a visão, as linhas, o gráfico e o subtítulo."""
     return {
         "visao": visao,
         "kpis": _curva_fisica_kpi_lines(visao),
         "linhas": _curva_fisica_point_lines(visao),
         "carteira": _curva_fisica_composition_lines(visao),
-        "grafico": visao.chart,
+        "grafico": _chart_data(visao.chart, idioma),
         "situacao": "vazio-origem" if visao.is_empty else "conteudo",
         "subtitulo": _curva_fisica_subtitle(visao),
         "alvo_conteudo": CURVA_FISICA_CONTENT_TARGET,
@@ -2698,6 +2752,7 @@ def _planning_kpis_document(session: Session, context: RequestContext) -> Docume
         _planning_kpis_overview(session, context),
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -3045,6 +3100,7 @@ def _quantities_document(
         visao,
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -3455,7 +3511,7 @@ def productivity_delete_item(
             filtro=filtro,
             valores={"mensagem": str(error), "erro": True},
             status_code=422,
-            toast=str(error),
+            toast=translations.translate("planejamento", str(error), translations.language_of(req)),
             toast_tipo="erro",
         )
     mensagem = ITEM_DELETED_MESSAGE.format(code=record.code)
@@ -3886,6 +3942,7 @@ def _hours_document(req: func.HttpRequest, session: Session, context: RequestCon
         visao,
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -4534,6 +4591,7 @@ def _performance_document(
         visao,
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -4923,6 +4981,7 @@ def _punch_document(req: func.HttpRequest, session: Session, context: RequestCon
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
         options=service.punch_filter_options(session, scope=context.scope),
+        idioma=context.idioma,
     )
 
 
@@ -5143,7 +5202,7 @@ def _punch_refusal(
         punch_filter=chosen,
         valores={"mensagens": mensagens},
         status_code=status,
-        toast=str(error),
+        toast=translations.translate("planejamento", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -5263,7 +5322,7 @@ def punch_verify_item(
             punch_filter=chosen,
             valores={"formulario": formulario},
             status_code=403,
-            toast=str(error),
+            toast=translations.translate("planejamento", str(error), translations.language_of(req)),
             toast_tipo="erro",
         )
     except InvalidDataError as error:
@@ -5398,6 +5457,7 @@ def _punch_dashboard_document(session: Session, context: RequestContext) -> Docu
         painel,
         scope_label=describe_scope(context.scope, configuracoes.list_projects(session)),
         generated_on=calendario.today(),
+        idioma=context.idioma,
     )
 
 

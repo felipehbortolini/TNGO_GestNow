@@ -30,7 +30,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import DomainError, InvalidDataError
 from src.core.excel import excel_response
 from src.core.export_document import ValueKind, format_value
@@ -43,6 +43,19 @@ from src.modulos.hse import export, forms, models, service, validation
 from src.modulos.hse.routes import _attempt, _field_errors, _helpers, _status
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("hse", text, idioma)
+
+
+def _notice(text: str | None, req: func.HttpRequest) -> str | None:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    if not text:
+        return text
+    return translations.translate("hse", text, translations.language_of(req))
+
 
 MODULE = "hse"
 READ = Access(module=MODULE)
@@ -73,7 +86,7 @@ def _modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse
         request=req,
         target_id=MODAL_TARGET,
         status_code=_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0] if messages else _notice("Não foi possível concluir.", req),
         toast_tipo="erro",
     )
 
@@ -208,7 +221,7 @@ def _screen_response(
         },
         request=req,
         target_id=CONTENT_TARGET,
-        toast=notice,
+        toast=_notice(notice, req),
     )
 
 
@@ -224,6 +237,7 @@ def _document(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=context.idioma,
     )
 
 

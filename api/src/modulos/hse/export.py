@@ -68,9 +68,12 @@ def hours_document(
     projects: Sequence[ProjectLike],
     names: service.Names,
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the HHT screen: indicators, the HHT table and the labour histogram."""
     return Document(
+        namespace="hse",
+        idioma=idioma,
         title=HOURS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -188,10 +191,17 @@ class ProactiveData:
 
 
 def proactive_document(
-    data: ProactiveData, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+    data: ProactiveData,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the screen Inspeções e observações: indicators and the four lists."""
     return Document(
+        namespace="hse",
+        idioma=idioma,
         title=PROACTIVE_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -377,9 +387,12 @@ def occurrences_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the occurrence screen: its four indicators and the list, as it is shown."""
     return Document(
+        namespace="hse",
+        idioma=idioma,
         title=OCCURRENCES_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -498,9 +511,12 @@ def analyses_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O documento da tela Análises de risco: os quatro indicadores e a lista de estudos."""
     return Document(
+        namespace="hse",
+        idioma=idioma,
         title=ANALYSES_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -592,6 +608,7 @@ def panel_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O painel como documento: os indicadores, as pirâmides, a evolução e as listas (D12).
 
@@ -599,6 +616,8 @@ def panel_document(
     bloco no rótulo; o vazio de origem (sem HHT) sai sem indicadores nem tabelas.
     """
     return Document(
+        namespace="hse",
+        idioma=idioma,
         title=PANEL_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,

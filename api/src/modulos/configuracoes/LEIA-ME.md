@@ -176,3 +176,22 @@ Cada folha do payload vira uma linha de `parametro_valor`: a `chave` é o caminh
 | Testes | `api/tests/configuracoes/` (fachada e regras; `test_parametros_rotas.py` para a tela de Parâmetros, `test_colaboradores_rotas.py` para a de Colaboradores, `test_cadastros_rotas.py` para a de Cadastros e `test_acesso_colaborador.py` para a leitura do acesso) e `api/tests/plataforma/test_calendario.py` |
 
 As tabelas de projeto e cadastros de apoio nasceram na ISSUE-005 (`models.py`), junto da camada de banco. A ISSUE-007 versionou os parâmetros gerais e centralizou o calendário. A ISSUE-008 criou a carga de demonstração e o início de produção (`api/src/carga/LEIA-ME.md`) sobre estes cadastros. A ISSUE-076 entregou a tela de Parâmetros e a ISSUE-077, a de Colaboradores; a ISSUE-078 completa este documento com a tela de Cadastros de apoio.
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `configuracoes` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O bloco de Configurações do `en.js` é a fonte; o cadastro de colaboradores, os parâmetros versionados e os cadastros de apoio são telas de Gestor/Admin, com os avisos traduzidos no render (`_aviso`, porque `_notice` já nomeia o aviso de versões).
+Os templates chamam `{{ t('configuracoes', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `configuracoes`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

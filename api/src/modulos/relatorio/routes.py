@@ -41,7 +41,7 @@ from typing import Any
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.rbac import Permission
@@ -50,6 +50,20 @@ from src.core.routing import Access, RequestContext, file_route, fragment_route
 from src.modulos.relatorio import calculations, export, service, validation
 
 bp = func.Blueprint()
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("relatorio", text, translations.language_of(req))
+
+
+def _translated(messages: Mapping[str, str], idioma: str) -> dict[str, str]:
+    """As mensagens de recusa por campo no idioma do request (D13)."""
+    return {
+        field: translations.translate("relatorio", str(message), idioma)
+        for field, message in messages.items()
+    }
+
 
 ANALYSIS_ROUTE = "relatorio/analise"
 
@@ -138,6 +152,7 @@ def analysis_period_picker(
         module=module,
         kind=kind,
         reference_date=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return _picker_response(req, view)
 
@@ -168,6 +183,7 @@ def analysis_form(
         kind=state.kind,
         period=state.period,
         reference_date=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return _form_response(req, context, view, text=state.text if state.text else None)
 
@@ -187,12 +203,15 @@ def analysis_copy(
         kind=state.kind,
         period=state.period,
         reference_date=calendario.today(),
+        idioma=translations.language_of(req),
     )
     previous = view.previous
     if previous is None:
-        reply = Reply(toast=NO_PREVIOUS_MESSAGE, toast_kind="aviso")
+        reply = Reply(toast=_notice(NO_PREVIOUS_MESSAGE, req), toast_kind="aviso")
         return _form_response(req, context, view, text=state.text or None, reply=reply)
-    reply = Reply(toast=COPIED_MESSAGE.format(label=previous.label), toast_kind="info")
+    reply = Reply(
+        toast=_notice(COPIED_MESSAGE, req).format(label=previous.label), toast_kind="info"
+    )
     return _form_response(req, context, view, text=previous.text, reply=reply)
 
 
@@ -203,6 +222,7 @@ def analysis_save(
 ) -> func.HttpResponse:
     """Grava a análise: 422 por campo com o formulário preenchido, 409 na versão vencida."""
     state = _read_state(req)
+    idioma = translations.language_of(req)
     try:
         saved = service.save_analysis(
             session,
@@ -210,22 +230,37 @@ def analysis_save(
             scope=context.scope,
             request=_request_of(state),
             reference_date=calendario.today(),
+            idioma=idioma,
         )
     except InvalidDataError as error:
         errors = error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
-        return _refilled(req, session, context, state, errors=errors, reply=Reply(status_code=422))
+        return _refilled(
+            req,
+            session,
+            context,
+            state,
+            errors=_translated(errors, idioma),
+            reply=Reply(status_code=422),
+        )
     except VersionConflictError as error:
         return _refilled(
-            req, session, context, state, errors={"geral": str(error)}, reply=Reply(status_code=409)
+            req,
+            session,
+            context,
+            state,
+            errors={"geral": translations.translate("relatorio", str(error), idioma)},
+            reply=Reply(status_code=409),
         )
-    verb = "atualizada" if state.analysis_id is not None else "registrada"
+    verb = _notice("atualizada" if state.analysis_id is not None else "registrada", req)
     return AlpineAjaxResponse(
         template_name=SAVED_TEMPLATE,
         context={},
         request=req,
         target_id=ANALYSIS_MODAL_TARGET,
         root_class=ANALYSIS_PAGE_CLASS,
-        toast=SAVED_MESSAGE.format(kind=saved.kind.lower(), label=saved.period_label, verb=verb),
+        toast=_notice(SAVED_MESSAGE, req).format(
+            kind=saved.kind.lower(), label=saved.period_label, verb=verb
+        ),
     )
 
 
@@ -251,7 +286,11 @@ def analysis_delete(
             session,
             context,
             _read_state(req),
-            errors={"geral": str(error)},
+            errors={
+                "geral": translations.translate(
+                    "relatorio", str(error), translations.language_of(req)
+                )
+            },
             reply=Reply(status_code=status),
         )
     return AlpineAjaxResponse(
@@ -260,7 +299,7 @@ def analysis_delete(
         request=req,
         target_id=ANALYSIS_MODAL_TARGET,
         root_class=ANALYSIS_PAGE_CLASS,
-        toast=DELETED_MESSAGE,
+        toast=_notice(DELETED_MESSAGE, req),
     )
 
 
@@ -282,10 +321,11 @@ def report_screen(
         period=(params.get("periodo") or "").strip(),
         sections=_sections_of(req),
         reference_date=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return AlpineAjaxResponse(
         template_name=SHEETS_TEMPLATE,
-        context=_sheets_context(view),
+        context=_sheets_context(view, req),
         request=req,
         target_id=REPORT_TARGET,
         root_class=REPORT_PAGE_CLASS,
@@ -300,6 +340,7 @@ def report_sheets_excel(
     """A planilha do relatório: os indicadores das folhas, as tabelas e as análises do período."""
     params = req.params
     hoje = calendario.today()
+    idioma = translations.language_of(req)
     view = service.report_view(
         session,
         user=context.user,
@@ -308,8 +349,9 @@ def report_sheets_excel(
         period=(params.get("periodo") or "").strip(),
         sections=_sections_of(req),
         reference_date=hoje,
+        idioma=idioma,
     )
-    return excel_response(export.build_document(sheets=view, today=hoje))
+    return excel_response(export.build_document(sheets=view, today=hoje, idioma=idioma))
 
 
 @bp.route(route=f"{REPORT_ROUTE}/emissao", methods=["GET", "POST"])
@@ -330,6 +372,7 @@ def report_emission(
         period=(values.get("periodo") or "").strip(),
         reference_date=calendario.today(),
         sections=_sections_of(req),
+        idioma=translations.language_of(req),
     )
     return AlpineAjaxResponse(
         template_name=EMISSION_TEMPLATE,
@@ -349,16 +392,17 @@ def _sections_of(req: func.HttpRequest) -> tuple[str, ...]:
     )
 
 
-def _sheets_context(view: service.ReportSheets) -> dict[str, Any]:
+def _sheets_context(view: service.ReportSheets, req: func.HttpRequest) -> dict[str, Any]:
     """O que as folhas precisam: a visão e os formatadores, como nos fragmentos da análise."""
+    idioma = translations.language_of(req)
     return {
         "visao": view,
         "formatar_pct": calculations.format_percent,
         "formatar_pct_sinal": calculations.format_percent_signed,
         "formatar_indice": calculations.format_index,
         "formatar_pp": calculations.format_pp,
-        "formatar_mes": calculations.format_month,
-        "formatar_data": calculations.format_date,
+        "formatar_mes": lambda value: calculations.format_month(value, idioma),
+        "formatar_data": lambda value: calculations.format_date(value, idioma),
         "formatar_num": calculations.format_number,
         "formatar_num0": calculations.format_number0,
         "formatar_num1": calculations.format_number1,
@@ -403,6 +447,7 @@ def _form_response(
             comments=comments,
             errors=errors,
             pode_excluir=rbac.can(context.user, Permission.MANAGE),
+            idioma=translations.language_of(req),
         ),
         request=req,
         target_id=ANALYSIS_MODAL_TARGET,
@@ -444,6 +489,7 @@ def _form_context(
     comments: Mapping[str, str] | None,
     errors: Mapping[str, str] | None,
     pode_excluir: bool,
+    idioma: str = "pt",
 ) -> dict[str, Any]:
     """O que o formulário do passo 2 precisa: a visão, o texto, as linhas de desvio e os erros."""
     found = errors or {}
@@ -459,24 +505,26 @@ def _form_context(
         ),
         "erros": found,
         "mensagens": [message for key, message in found.items() if key not in known],
-        "atualizado": _updated_text(view.record),
+        "atualizado": _updated_text(view.record, idioma),
         "limites": validation.LIMITS,
         "pode_excluir": pode_excluir,
         "formatar_pct": calculations.format_percent,
         "formatar_indice": calculations.format_index,
         "formatar_moeda": calculations.format_money,
-        "formatar_mes": calculations.format_month,
+        "formatar_mes": lambda value: calculations.format_month(value, idioma),
         "formatar_pp": calculations.format_pp,
         "formatar_num": calculations.format_number,
         "formatar_num2": calculations.format_number2,
     }
 
 
-def _updated_text(record: service.AnalysisRecordView | None) -> str:
+def _updated_text(record: service.AnalysisRecordView | None, idioma: str = "pt") -> str:
     """Quando o registro foi atualizado, no fuso do produto; vazio quando não há registro."""
     if record is None:
         return ""
-    return f"{calendario.in_product_timezone(record.updated_at):%d/%m/%Y %H:%M}"
+    return translations.datetime_formatter(idioma)(
+        calendario.in_product_timezone(record.updated_at)
+    )
 
 
 def _deviation_row(

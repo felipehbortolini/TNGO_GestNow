@@ -33,7 +33,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links, rbac
+from src.core import calendario, origin_links, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -61,6 +61,17 @@ from src.modulos.qualidade.validation import (
 )
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("qualidade", text, idioma)
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("qualidade", text, translations.language_of(req))
+
 
 MODULE = "qualidade"
 READ = Access(module=MODULE)
@@ -131,7 +142,7 @@ def _modal_error(
         request=req,
         target_id=target,
         status_code=_error_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0] if messages else _notice("Não foi possível concluir.", req),
         toast_tipo="erro",
     )
 
@@ -867,7 +878,7 @@ def _screen(
         },
         request=req,
         target_id=CONTENT_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
     )
 
 
@@ -931,6 +942,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         projects=configuracoes.list_project_details(session),
         today=calendario.today(),
         verification_days=service.verification_days(session, reference_date=calendario.today()),
+        idioma=context.idioma,
     )
 
 

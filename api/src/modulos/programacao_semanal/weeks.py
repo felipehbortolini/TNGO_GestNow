@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from src.core import translations
+
 WEEK_FORMAT = "S.{number:02d}/{year}"
 DAYS_IN_WEEK = 7
 
@@ -76,12 +78,17 @@ def week_dates(week: str) -> list[date]:
     return [monday + timedelta(days=offset) for offset in range(DAYS_IN_WEEK)]
 
 
-def period_label(week: str) -> str:
+def period_label(week: str, idioma: str = "pt") -> str:
     """The range a person reads: ``20/07 a 26/07/2026``; empty when the reference is not real."""
     first, last = start(week), end(week)
     if not first or not last:
         return ""
-    return f"{first.day:02d}/{first.month:02d} a {last.day:02d}/{last.month:02d}/{last.year}"
+    if idioma == translations.DEFAULT_LANGUAGE:
+        return f"{first.day:02d}/{first.month:02d} a {last.day:02d}/{last.month:02d}/{last.year}"
+    start_text = translations.format_date(first, idioma)[:5]
+    end_text = translations.format_date(last, idioma)
+    connector = translations.translate("programacao_semanal", "a", idioma)
+    return f"{start_text} {connector} {end_text}"
 
 
 @dataclass(frozen=True)

@@ -10,8 +10,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from src.core import translations
 from src.modulos.programacao_semanal import calculations
 from src.modulos.programacao_semanal.calculations import ActivityFigures
+
+MODULE = "programacao_semanal"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Programação Semanal no idioma do request (D13)."""
+    return translations.translate(MODULE, text, idioma)
+
 
 # A countable unit never takes a decimal: "2,0 und" is noise.
 INTEGER_UNITS = frozenset({"und", "unid", "un", "pç", "pc", "peça", "peca"})
@@ -90,7 +99,9 @@ class DayCell:
     has_night: bool
 
 
-def day_cells(figures: ActivityFigures, unit: str, dates: list[date]) -> list[DayCell]:
+def day_cells(
+    figures: ActivityFigures, unit: str, dates: list[date], idioma: str = "pt"
+) -> list[DayCell]:
     """The seven cells of the grid, Monday first.
 
     The color marks the exception, not the rule: delivering a little under the plan is
@@ -102,20 +113,23 @@ def day_cells(figures: ActivityFigures, unit: str, dates: list[date]) -> list[Da
         planned = figures.planned_days[index]
         done = figures.day_totals[index]
         night = figures.night_shift[index]
-        label = _day_label(index, dates)
-        state, meaning = _day_state(planned, done)
+        label = _day_label(index, dates, idioma)
+        state, meaning = _day_state(planned, done, idioma)
         weekend = " is-fds" if index >= calculations.DAYS - 2 else ""
         planned_text = format_quantity(planned, unit)
         done_text = format_quantity(done, unit)
         cells.append(
             DayCell(
                 planned_text=planned_text,
-                planned_title=f"{label} — previsto {planned_text} {unit}".rstrip(),
+                planned_title=(
+                    f"{label} — {_label('previsto', idioma)} {planned_text} {unit}"
+                ).rstrip(),
                 planned_classes=f"dia dia--prev{weekend}{' is-nulo' if not planned else ''}",
                 done_text=done_text,
                 done_title=(
-                    f"{label} — {meaning}. Previsto {planned_text}, realizado {done_text} {unit}"
-                    + (" (inclui turno noite)" if night else "")
+                    f"{label} — {meaning}. {_label('Previsto', idioma)} {planned_text}, "
+                    f"{_label('realizado', idioma)} {done_text} {unit}"
+                    + (f" ({_label('inclui turno noite', idioma)})" if night else "")
                 ).replace("  ", " "),
                 done_classes=f"dia dia--real {state}{weekend}".replace("  ", " "),
                 has_night=bool(night),
@@ -124,21 +138,21 @@ def day_cells(figures: ActivityFigures, unit: str, dates: list[date]) -> list[Da
     return cells
 
 
-def _day_label(index: int, dates: list[date]) -> str:
-    name = calculations.DAY_NAMES[index]
+def _day_label(index: int, dates: list[date], idioma: str = "pt") -> str:
+    name = _label(calculations.DAY_NAMES[index], idioma)
     if not dates:
         return name
-    return f"{name} {dates[index]:%d/%m}"
+    return f"{name} {translations.format_date(dates[index], idioma)[:5]}"
 
 
-def _day_state(planned: float, done: float) -> tuple[str, str]:
+def _day_state(planned: float, done: float, idioma: str = "pt") -> tuple[str, str]:
     """The CSS state of the done cell of a day and what it means."""
     if planned and not done:
-        return "is-parado", "dia programado sem produção registrada"
+        return "is-parado", _label("dia programado sem produção registrada", idioma)
     if done and not planned:
-        return "is-extra", "produção sem previsão para o dia"
+        return "is-extra", _label("produção sem previsão para o dia", idioma)
     if done and done >= planned:
-        return "is-batido", "meta do dia atingida"
+        return "is-batido", _label("meta do dia atingida", idioma)
     if not planned and not done:
-        return "is-nulo", "sem previsão e sem produção"
-    return "", "abaixo do previsto no dia"
+        return "is-nulo", _label("sem previsão e sem produção", idioma)
+    return "", _label("abaixo do previsto no dia", idioma)

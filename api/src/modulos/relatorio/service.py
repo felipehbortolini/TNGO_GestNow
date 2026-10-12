@@ -46,7 +46,7 @@ from urllib.parse import urlencode
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from src.core import audit, calendario, rbac, versioning
+from src.core import audit, calendario, rbac, translations, versioning
 from src.core.audit import TrailLine
 from src.core.errors import InvalidDataError
 from src.core.rbac import Permission, User
@@ -57,6 +57,44 @@ from src.modulos.relatorio import calculations, validation
 from src.modulos.relatorio.models import Analysis, AnalysisDeviation
 
 MODULE = "relatorio"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do relatório no idioma do request (D13)."""
+    return translations.translate(MODULE, text, idioma)
+
+
+def _chart_data(data: Mapping[str, Any], idioma: str) -> dict[str, Any]:
+    """O JSON do gráfico no idioma: textos pelo catálogo e os rótulos do motor (D13)."""
+    translated = _translated_strings(data, idioma)
+    especificos = data.get("rotulos")
+    if not isinstance(especificos, Mapping):
+        especificos = {}
+    translated["rotulos"] = translations.rotulos_de_grafico(idioma, dict(especificos))
+    return translated
+
+
+def _translated_strings(data: Mapping[str, Any], idioma: str) -> dict[str, Any]:
+    """Os textos de dentro do JSON (títulos, séries, eixos) no idioma; a forma fica igual."""
+    translated: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            translated[key] = _label(value, idioma)
+        elif isinstance(value, Mapping):
+            translated[key] = _translated_strings(value, idioma)
+        elif isinstance(value, list):
+            translated[key] = [
+                _translated_strings(item, idioma)
+                if isinstance(item, Mapping)
+                else _label(item, idioma)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            translated[key] = value
+    return translated
+
 
 ANALYSIS_MODULES: Mapping[str, str] = {
     "planejamento": "02 Planejamento",
@@ -236,6 +274,7 @@ def analysis_options(
     module: str,
     kind: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> AnalysisPeriodsView:
     """Os períodos do passo 1, do início do escopo ao corrente, com a situação de cada um.
 
@@ -260,12 +299,13 @@ def analysis_options(
         project_start=_project_start(session, scope),
         reference_date=reference_date,
         taken=registered,
+        idioma=idioma,
     )
     return AnalysisPeriodsView(
         module=module,
-        module_label=ANALYSIS_MODULES[module],
+        module_label=_label(ANALYSIS_MODULES[module], idioma),
         kind=kind,
-        project_label=_scope_label(session, scope),
+        project_label=_scope_label(session, scope, idioma),
         options=tuple(
             AnalysisOption(
                 period=option.period,
@@ -288,6 +328,7 @@ def analysis_view(
     kind: str,
     period: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> AnalysisView:
     """O passo 2 de um módulo, tipo e período: resumo, desvios, registro e o anterior."""
     rbac.require_module(user, MODULE)
@@ -300,6 +341,7 @@ def analysis_view(
         kind=kind,
         period=period,
         reference_date=reference_date,
+        idioma=idioma,
     )
 
 
@@ -312,6 +354,7 @@ def _analysis_reading(
     kind: str,
     period: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> AnalysisView:
     """A leitura do passo 2 sem exigir WRITE: o relatório gerencial (READ) também a usa."""
     rbac.require_module(user, MODULE)
@@ -337,7 +380,7 @@ def _analysis_reading(
         module=module,
         kind=kind,
         period=period,
-        project_label=_scope_label(session, scope),
+        project_label=_scope_label(session, scope, idioma),
         collected=collected,
         record=_record_of(
             session, project_id=scope.project_id, module=module, kind=kind, period=period
@@ -346,6 +389,7 @@ def _analysis_reading(
             session, project_id=scope.project_id, module=module, kind=kind, period=period
         ),
         reference_date=reference_date,
+        idioma=idioma,
     )
 
 
@@ -367,6 +411,7 @@ def _view_of(
     record: Analysis | None,
     previous: PreviousAnalysis | None,
     reference_date: date,
+    idioma: str = "pt",
 ) -> AnalysisView:
     """Monta a leitura do passo 2 a partir das figuras, do registro e do anterior."""
     deviations = _detected(module, collected.figures)
@@ -374,19 +419,23 @@ def _view_of(
     views = tuple(
         AnalysisDeviationView(
             key=deviation.key,
-            indicator=deviation.indicator,
+            indicator=_label(deviation.indicator, idioma),
             description=calculations.deviation_description(deviation),
             comment=comments.get(deviation.key, ""),
         )
         for deviation in deviations
     )
     required = DEVIATION_REQUIRED[module]
+    summary = tuple(
+        replace(item, label=_label(item.label, idioma))
+        for item in calculations.analysis_summary(module, collected.figures)
+    )
     return AnalysisView(
         module=module,
-        module_label=ANALYSIS_MODULES[module],
+        module_label=_label(ANALYSIS_MODULES[module], idioma),
         kind=kind,
         period=period,
-        period_label=calculations.period_name(kind, period),
+        period_label=calculations.period_name(kind, period, idioma),
         in_progress=calendario.is_partial(kind, period, reference_date),
         project_label=project_label,
         record=(
@@ -405,7 +454,7 @@ def _view_of(
         deviations=views,
         pending=sum(1 for view in views if not view.comment) if required else 0,
         previous=previous,
-        summary=calculations.analysis_summary(module, collected.figures),
+        summary=summary,
         sem_fechamento=collected.sem_fechamento,
         deviation_required=required,
     )
@@ -421,6 +470,7 @@ def save_analysis(
     scope: Scope,
     request: AnalysisRequest,
     reference_date: date,
+    idioma: str = "pt",
 ) -> AnalysisView:
     """Cria a análise ou salva a edição de uma, ou recusa com 422 por campo.
 
@@ -504,13 +554,14 @@ def save_analysis(
         module=module,
         kind=kind,
         period=period,
-        project_label=_scope_label(session, scope),
+        project_label=_scope_label(session, scope, idioma),
         collected=collected,
         record=analysis,
         previous=_previous_of(
             session, project_id=project_id, module=module, kind=kind, period=period
         ),
         reference_date=reference_date,
+        idioma=idioma,
     )
 
 
@@ -767,6 +818,7 @@ def report_status(
     period: str,
     reference_date: date,
     sections: Sequence[str] = (),
+    idioma: str = "pt",
 ) -> ReportStatusView:
     """O modal de emissão: o escopo, o tipo e o período escolhidos e a situação real.
 
@@ -783,17 +835,18 @@ def report_status(
         project_start=_project_start(session, scope),
         reference_date=reference_date,
         taken=(),
+        idioma=idioma,
     )
     default = _default_period(options, kind=chosen_kind, reference_date=reference_date)
     chosen_period = period if period in {option.period for option in options} else default
     return ReportStatusView(
         scope=scope.parameter,
-        scope_label=_scope_label(session, scope),
+        scope_label=_scope_label(session, scope, idioma),
         kind=chosen_kind,
         period=chosen_period,
-        period_label=calculations.period_name(chosen_kind, chosen_period),
+        period_label=calculations.period_name(chosen_kind, chosen_period, idioma),
         in_progress=calculations.is_partial_period(chosen_kind, chosen_period, reference_date),
-        project_options=_scope_options(session, scope),
+        project_options=_scope_options(session, scope, idioma),
         period_options=tuple(
             ReportPeriodOption(
                 period=option.period,
@@ -808,7 +861,12 @@ def report_status(
             None
             if scope.is_portfolio
             else _relato_status(
-                session, user=user, scope=scope, kind=chosen_kind, period=chosen_period
+                session,
+                user=user,
+                scope=scope,
+                kind=chosen_kind,
+                period=chosen_period,
+                idioma=idioma,
             )
         ),
         project_relatos=(
@@ -825,19 +883,22 @@ def report_status(
                 kind=chosen_kind,
                 period=chosen_period,
                 reference_date=reference_date,
+                idioma=idioma,
             )
             for module in ANALYSIS_MODULES
         ),
-        sections=_section_options(sections),
+        sections=_section_options(sections, idioma),
     )
 
 
-def _scope_options(session: Session, scope: Scope) -> tuple[ReportScopeOption, ...]:
+def _scope_options(
+    session: Session, scope: Scope, idioma: str = "pt"
+) -> tuple[ReportScopeOption, ...]:
     """As opções do "Relatório de": o Portfólio e os projetos do cadastro."""
     options = [
         ReportScopeOption(
             value=PORTFOLIO_PARAMETER,
-            label="Portfólio (todos os projetos)",
+            label=_label("Portfólio (todos os projetos)", idioma),
             selected=scope.is_portfolio,
         )
     ]
@@ -852,24 +913,28 @@ def _scope_options(session: Session, scope: Scope) -> tuple[ReportScopeOption, .
     return tuple(options)
 
 
-def _section_options(sections: Sequence[str]) -> tuple[ReportSectionOption, ...]:
+def _section_options(
+    sections: Sequence[str], idioma: str = "pt"
+) -> tuple[ReportSectionOption, ...]:
     """As seções implementadas; o que o formulário não mandou entra marcado."""
     requested = {key for key in sections if key}
     return tuple(
-        ReportSectionOption(key=key, label=label, selected=not requested or key in requested)
+        ReportSectionOption(
+            key=key, label=_label(label, idioma), selected=not requested or key in requested
+        )
         for key, label in REPORT_SECTIONS
     )
 
 
 def _relato_status(
-    session: Session, *, user: User, scope: Scope, kind: str, period: str
+    session: Session, *, user: User, scope: Scope, kind: str, period: str, idioma: str = "pt"
 ) -> ReportRelatoStatus:
     """A situação do relato do projeto do escopo: registrado ou pendente, com o endereço."""
     report = _find_report(session, user=user, scope=scope, kind=kind, period=period)
     return ReportRelatoStatus(
         registered=report is not None,
         url=_relato_url(kind, period),
-        project_label=_scope_label(session, scope),
+        project_label=_scope_label(session, scope, idioma),
     )
 
 
@@ -905,6 +970,7 @@ def _analysis_status(
     kind: str,
     period: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> ReportAnalysisStatus:
     """A situação da análise do módulo: registro, desvios detectados e os que estão sem comentário."""
     collected = _collect(
@@ -924,7 +990,7 @@ def _analysis_status(
     required = DEVIATION_REQUIRED[module]
     return ReportAnalysisStatus(
         module=module,
-        label=ANALYSIS_MODULES[module],
+        label=_label(ANALYSIS_MODULES[module], idioma),
         url=_analysis_url(module, kind, period, scope),
         registered=record is not None,
         deviations=len(deviations),
@@ -1457,6 +1523,7 @@ def report_view(
     period: str,
     sections: Sequence[str],
     reference_date: date,
+    idioma: str = "pt",
 ) -> ReportSheets:
     """As folhas do relatório para o escopo, o tipo, o período e as seções pedidas.
 
@@ -1497,6 +1564,7 @@ def report_view(
             period=period,
             reference_date=reference_date,
             cut=cut,
+            idioma=idioma,
         )
         analysis = _analysis_reading(
             session,
@@ -1506,6 +1574,7 @@ def report_view(
             kind=kind,
             period=period,
             reference_date=reference_date,
+            idioma=idioma,
         )
         analysis_url = _analysis_url("planejamento", kind, period, scope)
         if scope.is_portfolio:
@@ -1516,7 +1585,13 @@ def report_view(
             relato_url = _relato_url(kind, period)
     if "financeiro" in chosen:
         financeiro = _financeiro_sheet(
-            session, user=user, scope=scope, kind=kind, period=period, reference_date=reference_date
+            session,
+            user=user,
+            scope=scope,
+            kind=kind,
+            period=period,
+            reference_date=reference_date,
+            idioma=idioma,
         )
     if "suprimentos" in chosen:
         suprimentos = _procurement_sheet(
@@ -1527,6 +1602,7 @@ def report_view(
             period=period,
             reference_date=reference_date,
             cut=cut,
+            idioma=idioma,
         )
     if "riscos" in chosen:
         riscos = _risk_sheet(
@@ -1537,6 +1613,7 @@ def report_view(
             period=period,
             reference_date=reference_date,
             cut=cut,
+            idioma=idioma,
         )
     if "qualidade" in chosen:
         qualidade = _quality_sheet(
@@ -1547,6 +1624,7 @@ def report_view(
             period=period,
             reference_date=reference_date,
             cut=cut,
+            idioma=idioma,
         )
     if "hse" in chosen:
         hse = _hse_sheet(
@@ -1557,14 +1635,15 @@ def report_view(
             period=period,
             reference_date=reference_date,
             cut=cut,
+            idioma=idioma,
         )
     return ReportSheets(
         scope=scope.parameter,
-        scope_label=_scope_label(session, scope),
+        scope_label=_scope_label(session, scope, idioma),
         kind=kind,
         period=period,
-        period_label=calculations.period_name(kind, period),
-        short_period=calculations.short_month(kind, period),
+        period_label=calculations.period_name(kind, period, idioma),
+        short_period=calculations.short_month(kind, period, idioma),
         in_progress=calculations.is_partial_period(kind, period, reference_date),
         cut=cut,
         reference_date=reference_date,
@@ -1608,6 +1687,7 @@ def _planning_sheet(
     period: str,
     reference_date: date,
     cut: date,
+    idioma: str = "pt",
 ) -> PlanningSheet:
     """A folha 1 montada: figuras, linhas por área, barras do avanço por período e os gráficos."""
     read = _planning_read(session, user=user, scope=scope, kind=kind, period=period, cut=cut)
@@ -1624,11 +1704,11 @@ def _planning_sheet(
         figures=_sheet_figures(read, kind=kind, period=period, cut=cut),
         rows=tuple(read.overview.rows),
         bars=bars,
-        bars_chart=_bars_chart(kind, bars),
+        bars_chart=_bars_chart(kind, bars, idioma),
         curve_chart=dict(read.overview.curve.chart),
         deviation_bands=tuple(read.overview.bands),
         is_portfolio=read.overview.is_portfolio,
-        week_label=calculations.short_month(calendario.WEEKLY, calendario.iso_week(cut)),
+        week_label=calculations.short_month(calendario.WEEKLY, calendario.iso_week(cut), idioma),
     )
 
 
@@ -1713,7 +1793,9 @@ def _decimal_of(value: Any) -> Decimal | None:
     return None if value is None else Decimal(str(value))
 
 
-def _bars_chart(kind: str, bars: Sequence[calculations.PeriodBar]) -> Mapping[str, Any]:
+def _bars_chart(
+    kind: str, bars: Sequence[calculations.PeriodBar], idioma: str = "pt"
+) -> Mapping[str, Any]:
     """O ``data-dados`` do avanço por período (D11): barras de previsto e real em p.p."""
     weekly = kind == calendario.WEEKLY
     periods: list[dict[str, Any]] = []
@@ -1733,18 +1815,21 @@ def _bars_chart(kind: str, bars: Sequence[calculations.PeriodBar]) -> Mapping[st
         if start is not None:
             period["semana"] = start.isocalendar()[1]
         periods.append(period)
-    return {
-        "titulo": "Avanço por semana" if weekly else "Avanço por mês",
-        "modo": "periodo",
-        "formato": "numero",
-        "unidade": " p.p.",
-        "casas": 1,
-        "series": [
-            {"id": "previsto", "rotulo": "Previsto", "papel": "linha-base", "tipo": "valor"},
-            {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
-        ],
-        "periodos": periods,
-    }
+    return _chart_data(
+        {
+            "titulo": _label("Avanço por semana" if weekly else "Avanço por mês", idioma),
+            "modo": "periodo",
+            "formato": "numero",
+            "unidade": " p.p.",
+            "casas": 1,
+            "series": [
+                {"id": "previsto", "rotulo": "Previsto", "papel": "linha-base", "tipo": "valor"},
+                {"id": "realizado", "rotulo": "Realizado", "papel": "realizado", "tipo": "valor"},
+            ],
+            "periodos": periods,
+        },
+        idioma,
+    )
 
 
 def _month_of(label: str) -> tuple[int, int]:
@@ -1820,6 +1905,7 @@ def _financeiro_sheet(
     kind: str,
     period: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> FinanceiroSheet:
     """A folha Financeiro montada no mês de competência, pela leitura do dono (D9).
 
@@ -1843,6 +1929,7 @@ def _financeiro_sheet(
         kind=kind,
         period=period,
         reference_date=reference_date,
+        idioma=idioma,
     )
     analysis_url = _analysis_url("financeiro", kind, period, scope)
     if overview.actual is None:
@@ -1944,6 +2031,7 @@ def _procurement_sheet(
     period: str,
     reference_date: date,
     cut: date,
+    idioma: str = "pt",
 ) -> ProcurementSheet:
     """A folha Suprimentos montada no corte, pelas fachadas do dono (D9).
 
@@ -1981,6 +2069,7 @@ def _procurement_sheet(
         kind=kind,
         period=period,
         reference_date=reference_date,
+        idioma=idioma,
     )
     bounds = calendario.period_bounds(kind, period)
     first = bounds[0] if bounds is not None else cut
@@ -2129,6 +2218,7 @@ def _risk_sheet(
     period: str,
     reference_date: date,
     cut: date,
+    idioma: str = "pt",
 ) -> RiskSheet:
     """A folha Riscos montada na data de referência, pelas fachadas do dono (D9).
 
@@ -2184,6 +2274,7 @@ def _risk_sheet(
             kind=kind,
             period=period,
             reference_date=reference_date,
+            idioma=idioma,
         ),
         analysis_url=_analysis_url("riscos", kind, period, scope),
         is_portfolio=scope.is_portfolio,
@@ -2246,7 +2337,9 @@ def _risk_band_view(count: Any) -> RiskBandView:
     )
 
 
-def _risk_evolution_chart(points: Sequence[RiskMonthPoint]) -> Mapping[str, Any]:
+def _risk_evolution_chart(
+    points: Sequence[RiskMonthPoint], idioma: str = "pt"
+) -> Mapping[str, Any]:
     """O ``data-dados`` da exposição mensal: o score residual somado das ameaças por mês."""
     periods: list[dict[str, Any]] = []
     for point in points:
@@ -2258,21 +2351,24 @@ def _risk_evolution_chart(points: Sequence[RiskMonthPoint]) -> Mapping[str, Any]
                 "valores": {"score": float(point.score)},
             }
         )
-    return {
-        "titulo": "Exposição das ameaças",
-        "modo": "periodo",
-        "formato": "numero",
-        "casas": 0,
-        "series": [
-            {
-                "id": "score",
-                "rotulo": "Score residual somado",
-                "papel": "atencao",
-                "tipo": "valor",
-            }
-        ],
-        "periodos": periods,
-    }
+    return _chart_data(
+        {
+            "titulo": "Exposição das ameaças",
+            "modo": "periodo",
+            "formato": "numero",
+            "casas": 0,
+            "series": [
+                {
+                    "id": "score",
+                    "rotulo": "Score residual somado",
+                    "papel": "atencao",
+                    "tipo": "valor",
+                }
+            ],
+            "periodos": periods,
+        },
+        idioma,
+    )
 
 
 def _quality_sheet(
@@ -2284,6 +2380,7 @@ def _quality_sheet(
     period: str,
     reference_date: date,
     cut: date,
+    idioma: str = "pt",
 ) -> QualitySheet:
     """A folha Qualidade montada no corte, pelas fachadas do dono (D9).
 
@@ -2358,6 +2455,7 @@ def _quality_sheet(
             kind=kind,
             period=period,
             reference_date=reference_date,
+            idioma=idioma,
         ),
         analysis_url=_analysis_url("qualidade", kind, period, scope),
         is_portfolio=scope.is_portfolio,
@@ -2416,7 +2514,7 @@ def _quality_sheet(
         discipline=discipline,
         discipline_total=sum(line.total for line in discipline),
         series=series,
-        series_chart=_quality_series_chart(series),
+        series_chart=_quality_series_chart(series, idioma),
         agenda=tuple(
             QualityAgendaRow(
                 code=entry.line.code,
@@ -2430,7 +2528,9 @@ def _quality_sheet(
     )
 
 
-def _quality_series_chart(series: Sequence[QualitySeriesPoint]) -> Mapping[str, Any]:
+def _quality_series_chart(
+    series: Sequence[QualitySeriesPoint], idioma: str = "pt"
+) -> Mapping[str, Any]:
     """O ``data-dados`` das RNC por mês: as abertas e as encerradas de cada mês do corte."""
     periods: list[dict[str, Any]] = []
     for point in series:
@@ -2442,17 +2542,20 @@ def _quality_series_chart(series: Sequence[QualitySeriesPoint]) -> Mapping[str, 
                 "valores": {"abertas": point.opened, "encerradas": point.closed},
             }
         )
-    return {
-        "titulo": "RNC por mês",
-        "modo": "periodo",
-        "formato": "numero",
-        "casas": 0,
-        "series": [
-            {"id": "abertas", "rotulo": "Abertas", "papel": "atencao", "tipo": "valor"},
-            {"id": "encerradas", "rotulo": "Encerradas", "papel": "realizado", "tipo": "valor"},
-        ],
-        "periodos": periods,
-    }
+    return _chart_data(
+        {
+            "titulo": "RNC por mês",
+            "modo": "periodo",
+            "formato": "numero",
+            "casas": 0,
+            "series": [
+                {"id": "abertas", "rotulo": "Abertas", "papel": "atencao", "tipo": "valor"},
+                {"id": "encerradas", "rotulo": "Encerradas", "papel": "realizado", "tipo": "valor"},
+            ],
+            "periodos": periods,
+        },
+        idioma,
+    )
 
 
 def _hse_sheet(
@@ -2464,6 +2567,7 @@ def _hse_sheet(
     period: str,
     reference_date: date,
     cut: date,
+    idioma: str = "pt",
 ) -> HseSheet:
     """A folha HSE montada no mês do corte, pelo painel do dono (D9).
 
@@ -2493,6 +2597,7 @@ def _hse_sheet(
         kind=kind,
         period=period,
         reference_date=reference_date,
+        idioma=idioma,
     )
     analysis_url = _analysis_url("hse", kind, period, scope)
     if (
@@ -3144,11 +3249,12 @@ def _project_start(session: Session, scope: Scope) -> date | None:
     return min(starts) if starts else None
 
 
-def _scope_label(session: Session, scope: Scope) -> str:
+def _scope_label(session: Session, scope: Scope, idioma: str = "pt") -> str:
     """O rótulo do escopo: ``COD · Nome`` no projeto; ``Portfólio · N projetos`` no Portfólio."""
     if scope.project_id is None:
         count = len(configuracoes.list_projects(session))
-        return f"Portfólio · {count} {'projeto' if count == 1 else 'projetos'}"
+        noun = _label("projeto" if count == 1 else "projetos", idioma)
+        return f"{_label('Portfólio', idioma)} · {count} {noun}"
     return _project_label(_project(session, scope.project_id))
 
 

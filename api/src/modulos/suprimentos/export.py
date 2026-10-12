@@ -96,9 +96,12 @@ def build_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the register for the filters in force: KPIs, filters and the table."""
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -226,9 +229,12 @@ def build_plan_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the plan for the filters in force: KPIs, filters and the table."""
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=PLAN_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -380,12 +386,15 @@ def build_process_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the process list, with the equalization map when a process is named."""
     tables = [_process_table(listing.lines)]
     if line is not None:
         tables.append(_map_table(line))
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=PROCESS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -581,12 +590,15 @@ def build_orders_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the expediting, with the milestones of the order the request names."""
     tables = [_orders_table(listing.lines)]
     if line is not None:
         tables.append(_order_milestones_table(line))
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=ORDERS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -772,9 +784,12 @@ def build_mas_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the map for the filters in force: KPIs, filters and the table, in A3."""
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=MAS_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -1012,9 +1027,12 @@ def build_panel_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the panel: the nine indicators, the four visuals and the orders by slack."""
     return Document(
+        namespace="suprimentos",
+        idioma=idioma,
         title=PANEL_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,

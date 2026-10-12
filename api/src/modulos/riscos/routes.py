@@ -29,7 +29,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links, rbac
+from src.core import calendario, origin_links, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -53,6 +53,49 @@ from src.modulos.riscos.validation import (
 )
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("riscos", text, idioma)
+
+
+def _chart_data(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """O JSON do gráfico no idioma do request: textos pelo catálogo e os rótulos do motor (D13)."""
+    translated = _translated_strings(data, idioma)
+    especificos = data.get("rotulos")
+    if not isinstance(especificos, Mapping):
+        especificos = {}
+    translated["rotulos"] = translations.rotulos_de_grafico(idioma, dict(especificos))
+    return translated
+
+
+def _translated_strings(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """Os textos de dentro do JSON (títulos, séries, eixos) no idioma; a forma fica igual."""
+    translated: dict[str, object] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            translated[key] = translations.translate("riscos", value, idioma)
+        elif isinstance(value, Mapping):
+            translated[key] = _translated_strings(value, idioma)
+        elif isinstance(value, list):
+            translated[key] = [
+                _translated_strings(item, idioma)
+                if isinstance(item, Mapping)
+                else translations.translate("riscos", item, idioma)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            translated[key] = value
+    return translated
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("riscos", text, translations.language_of(req))
+
 
 MODULE = "riscos"
 READ = Access(module=MODULE)
@@ -106,7 +149,7 @@ def _modal_error(
         request=req,
         target_id=target,
         status_code=_error_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0] if messages else _notice("Não foi possível concluir.", req),
         toast_tipo="erro",
     )
 
@@ -492,7 +535,7 @@ def _screen(
         context={**_screen_context(listing, shown, context), **(after.extra if after else {})},
         request=req,
         target_id=CONTENT_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
     )
 
 
@@ -726,6 +769,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=context.idioma,
     )
 
 

@@ -70,7 +70,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, rbac
+from src.core import attachments, calendario, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -142,6 +142,16 @@ SITUATION_TONES = {
 CLASS_TONES = {"A": "pill--ok", "B": "pill--fix", "C": "pill--warn", "D": "pill--erro"}
 
 
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface de Suprimentos no idioma do request (D13)."""
+    return translations.translate(MODULE, text, idioma)
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate(MODULE, text, translations.language_of(req))
+
+
 def _error_status(error: DomainError) -> int:
     """The status of a refusal: 403, 409 for a stale screen, 422 for data that does not hold up."""
     if isinstance(error, AccessDeniedError):
@@ -151,14 +161,19 @@ def _error_status(error: DomainError) -> int:
 
 def _modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
     """A refusal inside the modal: the message in the modal body, where the person is looking."""
-    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    idioma = translations.language_of(req)
+    messages = (
+        [translations.translate(MODULE, message, idioma) for message in error.messages()]
+        if isinstance(error, InvalidDataError)
+        else [translations.translate(MODULE, str(error), idioma)]
+    )
     return AlpineAjaxResponse(
         template_name="comum/erro.html",
         context={"mensagens": messages},
         request=req,
         target_id=MODAL_TARGET,
         status_code=_error_status(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0] if messages else _label("Não foi possível concluir.", idioma),
         toast_tipo="erro",
     )
 
@@ -246,7 +261,10 @@ def supplier_save(
     )
     if error is not None or not result:
         return _form(
-            req, values=dict(form), errors=_field_errors(error), documents=_posted_documents(form)
+            req,
+            values=dict(form),
+            errors=_field_errors(error, translations.language_of(req)),
+            documents=_posted_documents(form),
         )
     return _screen(
         req,
@@ -310,7 +328,7 @@ def supplier_qualification_save(
         return _form(
             req,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             documents=_posted_documents(form),
             company_id=line.company_id,
             company_name=line.name,
@@ -374,20 +392,25 @@ def _screen(
     )
     return AlpineAjaxResponse(
         template_name=SCREEN_TEMPLATE,
-        context={**_screen_context(listing, context), **(after.extra if after else {})},
+        context={
+            **_screen_context(listing, context, translations.language_of(req)),
+            **(after.extra if after else {}),
+        },
         request=req,
         target_id=CONTENT_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
     )
 
 
-def _screen_context(listing: service.SupplierListing, context: RequestContext) -> dict[str, object]:
+def _screen_context(
+    listing: service.SupplierListing, context: RequestContext, idioma: str = "pt"
+) -> dict[str, object]:
     filters = listing.filters
     query = _query_string(filters)
     return {
         "listagem": listing,
         "filtros": filters,
-        "kpis": _kpi_cards(listing),
+        "kpis": _kpi_cards(listing, idioma),
         "situacoes": calculations.SITUATIONS,
         "sem_qualificacao": service.NO_QUALIFICATION,
         "link_anterior": _page_link(filters, listing.page - 1, listing.page_count),
@@ -400,14 +423,14 @@ def _screen_context(listing: service.SupplierListing, context: RequestContext) -
         "pode_gravar": rbac.can(context.user, Permission.WRITE),
         "pill_da_situacao": lambda situation: SITUATION_TONES.get(situation, "pill--neutral"),
         "pill_da_classe": lambda name: CLASS_TONES.get(name, "pill--neutral"),
-        "formatar_data": _format_date,
+        "formatar_data": lambda value: _format_date(value, idioma),
         "formatar_moeda": _format_money,
         "pagina_inicial": (listing.page - 1) * validation.PAGE_SIZE + 1,
         "pagina_final": min(listing.page * validation.PAGE_SIZE, listing.total),
     }
 
 
-def _kpi_cards(listing: service.SupplierListing) -> list[KpiCard]:
+def _kpi_cards(listing: service.SupplierListing, idioma: str = "pt") -> list[KpiCard]:
     summary = listing.summary
     filters = listing.filters
     restricted = summary.restricted_or_blocked
@@ -415,7 +438,7 @@ def _kpi_cards(listing: service.SupplierListing) -> list[KpiCard]:
     due = summary.validity_due
     return [
         KpiCard(
-            label="Cadastrados",
+            label=_label("Cadastrados", idioma),
             icon="building",
             tone="neutro",
             value=summary.registered,
@@ -425,7 +448,7 @@ def _kpi_cards(listing: service.SupplierListing) -> list[KpiCard]:
             active=not filters.situation,
         ),
         KpiCard(
-            label="Qualificados",
+            label=_label("Qualificados", idioma),
             icon="checkCircle",
             tone="ok",
             value=summary.qualified,
@@ -435,7 +458,7 @@ def _kpi_cards(listing: service.SupplierListing) -> list[KpiCard]:
             active=filters.situation == calculations.QUALIFIED,
         ),
         KpiCard(
-            label="Em qualificação",
+            label=_label("Em qualificação", idioma),
             icon="clock",
             tone="info",
             value=summary.in_qualification,
@@ -445,31 +468,31 @@ def _kpi_cards(listing: service.SupplierListing) -> list[KpiCard]:
             active=filters.situation == calculations.IN_QUALIFICATION,
         ),
         KpiCard(
-            label="Restritos ou bloqueados",
+            label=_label("Restritos ou bloqueados", idioma),
             icon="lock",
             tone="warn" if restricted else "ok",
             value=restricted,
-            reference="Esperado: 0",
+            reference=_label("Esperado: 0", idioma),
             footer=f"{summary.blocked} bloqueados",
             url=_address(filters, situacao=calculations.RESTRICTED, pagina=1),
             active=filters.situation == calculations.RESTRICTED,
         ),
         KpiCard(
-            label="Documentos vencidos",
+            label=_label("Documentos vencidos", idioma),
             icon="file",
             tone="erro" if expired else "ok",
             value=expired,
-            reference="Esperado: 0",
+            reference=_label("Esperado: 0", idioma),
             footer="certidões e certificados fora da validade",
             url="",
             active=False,
         ),
         KpiCard(
-            label="Qualificação a vencer",
+            label=_label("Qualificação a vencer", idioma),
             icon="calendar",
             tone="warn" if due else "ok",
             value=due,
-            reference="Esperado: 0",
+            reference=_label("Esperado: 0", idioma),
             footer="vencida ou vence em até 90 dias",
             url="",
             active=False,
@@ -511,9 +534,9 @@ def _query_string(filters: SupplierFilters) -> str:
     return urlencode(clean)
 
 
-def _format_date(value: date | None) -> str:
+def _format_date(value: date | None, idioma: str = "pt") -> str:
     """``25/09/2026``; the dash when there is no date."""
-    return "—" if value is None else format_value(ValueKind.DATE, value)
+    return "—" if value is None else format_value(ValueKind.DATE, value, idioma=idioma)
 
 
 def _format_money(cents: int | None) -> str:
@@ -542,6 +565,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -578,12 +602,16 @@ def _attempt(session: Session, work: Callable[[], object]) -> DomainError | None
     return None
 
 
-def _field_errors(error: DomainError | None) -> dict[str, str]:
+def _field_errors(error: DomainError | None, idioma: str = "pt") -> dict[str, str]:
+    """As mensagens de uma recusa, campo a campo, no idioma do request (D13)."""
     if error is None:
         return {}
     if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
-        return dict(error.detail)
-    return {"geral": str(error)}
+        return {
+            field: translations.translate(MODULE, str(message), idioma)
+            for field, message in error.detail.items()
+        }
+    return {"geral": translations.translate(MODULE, str(error), idioma)}
 
 
 def _supplier_input(form: Mapping[str, str]) -> SupplierInput:
@@ -794,7 +822,7 @@ def package_save(
             context,
             package=None,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     return _plan_screen(
@@ -858,7 +886,7 @@ def _save_package_baseline(
             context,
             package=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     return _plan_screen(
@@ -907,7 +935,7 @@ def _save_frozen_package(
             context,
             package=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     return _plan_screen(
@@ -952,7 +980,7 @@ def _plan_screen(
         context={**_plan_context(listing, context), **(after.extra if after else {})},
         request=req,
         target_id=PLAN_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
     )
 
 
@@ -1089,6 +1117,7 @@ def _plan_document(req: func.HttpRequest, session: Session, context: RequestCont
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -1446,7 +1475,7 @@ def _process_screen(
         },
         request=req,
         target_id=PROCESS_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
     )
 
 
@@ -1725,6 +1754,7 @@ def _process_document(req: func.HttpRequest, session: Session, context: RequestC
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -1781,7 +1811,7 @@ def process_requisition_save(
             session,
             context,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             consulta=form.get("consulta", ""),
             status_code=_form_status(error),
         )
@@ -1859,7 +1889,7 @@ def process_action_save(
             name=name,
             line=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     return _process_screen(
@@ -2540,7 +2570,7 @@ def order_milestone_save(
             context,
             line=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     notice = ORDER_UPDATED_NOTICE.format(number=saved[0].number)
@@ -2603,7 +2633,7 @@ def order_receipt_save(
             context,
             line=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     return _diligence_screen(
@@ -2696,7 +2726,7 @@ def order_risk_save(
             context,
             line=line,
             values=dict(form),
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_form_status(error),
         )
     notice = RISK_CREATED_NOTICE.format(code=saved[0].risk_code)
@@ -2825,7 +2855,7 @@ def _diligence_screen(
         },
         request=req,
         target_id=DILIGENCE_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
         toast_tipo=toast_tipo,
     )
 
@@ -2973,6 +3003,7 @@ def _orders_document(req: func.HttpRequest, session: Session, context: RequestCo
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -3421,6 +3452,7 @@ def _mas_document(req: func.HttpRequest, session: Session, context: RequestConte
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -3732,7 +3764,6 @@ def _panel_kpi_cards(listing: service.PanelListing) -> list[KpiCard]:
 
 def _panel_document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
     """The document of the panel for the scope of the request; the only place with the clock."""
-    del req
     today = calendario.today()
     listing = service.list_panel(
         session,
@@ -3745,4 +3776,5 @@ def _panel_document(req: func.HttpRequest, session: Session, context: RequestCon
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )

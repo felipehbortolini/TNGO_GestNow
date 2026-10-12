@@ -28,7 +28,7 @@ from typing import Any
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, importing
+from src.core import attachments, calendario, importing, translations
 from src.core.errors import AccessDeniedError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import Document, ValueKind
@@ -68,6 +68,20 @@ CONFLICT_HINT = " Feche o painel e abra a atividade de novo para ver a versão s
 def _caller(context: RequestContext) -> Caller:
     """The facade's view of the request: who, in which scope, at which instant."""
     return Caller(user=context.user, scope=context.scope, now=calendario.now())
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """The notice of a write in the language of the request (D13)."""
+    return translations.translate("programacao_semanal", text, translations.language_of(req))
+
+
+def _errors_in_language(errors: Mapping[str, str], req: func.HttpRequest) -> dict[str, str]:
+    """The refusal of each field in the language of the request (D13)."""
+    idioma = translations.language_of(req)
+    return {
+        field: translations.translate("programacao_semanal", message, idioma)
+        for field, message in errors.items()
+    }
 
 
 def _body(req: func.HttpRequest) -> dict[str, str]:
@@ -172,9 +186,10 @@ def _form_with_errors(
     """
     caller = _caller(context)
     if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
-        errors = dict(error.detail)
+        errors = _errors_in_language(dict(error.detail), req)
     else:
         text = str(error) + (CONFLICT_HINT if isinstance(error, VersionConflictError) else "")
+        text = translations.translate("programacao_semanal", text, translations.language_of(req))
         errors = {GENERAL_ERROR: text}
     opened = service.open_form(
         session,
@@ -225,7 +240,7 @@ def save_activity(
         return _form_with_errors(
             session, req, context, error, _Submitted(form, activity_id, version)
         )
-    toast = SAVED_NEW if activity_id is None else SAVED_EDIT
+    toast = _notice(SAVED_NEW if activity_id is None else SAVED_EDIT, req)
     answer = _Answer("salvo.html", params={"semana": form.week}, toast=toast)
     return _page(req, context, session, answer)
 
@@ -246,7 +261,7 @@ def delete_activity(
         activity_id=activity_id,
         version=values.get("versao") or None,
     )
-    return _page(req, context, session, _Answer("salvo.html", toast=DELETED))
+    return _page(req, context, session, _Answer("salvo.html", toast=_notice(DELETED, req)))
 
 
 # ── The five steps of the flow ───────────────────────────────────────────
@@ -260,12 +275,15 @@ def _activity_id(raw: str | None) -> int:
     return activity_id
 
 
-def _errors_of(error: InvalidDataError | VersionConflictError) -> dict[str, str]:
+def _errors_of(
+    error: InvalidDataError | VersionConflictError, req: func.HttpRequest
+) -> dict[str, str]:
     """The messages of a refused save, field by field; one general message otherwise."""
+    idioma = translations.language_of(req)
     if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
-        return dict(error.detail)
+        return _errors_in_language(dict(error.detail), req)
     text = str(error) + (CONFLICT_HINT if isinstance(error, VersionConflictError) else "")
-    return {GENERAL_ERROR: text}
+    return {GENERAL_ERROR: translations.translate("programacao_semanal", text, idioma)}
 
 
 def _panel(
@@ -333,7 +351,7 @@ def save_validation(
             session, caller=caller, activity_id=activity_id, form=form, version=version
         )
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         opened = service.flow_screen(session, caller=caller, activity_id=activity_id)
         return _panel(
             req,
@@ -356,7 +374,9 @@ def save_validation(
         _Answer(
             "salvo.html",
             params={"semana": view.week},
-            toast=f"{view.unique_id} validada para {view.inspector}.",
+            toast=_notice("{id} validada para {inspector}.", req).format(
+                id=view.unique_id, inspector=view.inspector
+            ),
         ),
     )
 
@@ -397,7 +417,7 @@ def save_report(
             session, caller=caller, activity_id=activity_id, form=form, version=version
         )
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         opened = service.flow_screen(session, caller=caller, activity_id=activity_id)
         return _panel(
             req,
@@ -418,7 +438,9 @@ def save_report(
         _Answer(
             "salvo.html",
             params={"semana": view.week},
-            toast=(f"Realizado de {view.unique_id} registrado — PPC de {view.figures.ppc:.0f}%."),
+            toast=_notice("Realizado de {id} registrado — PPC de {ppc}%.", req).format(
+                id=view.unique_id, ppc=f"{view.figures.ppc:.0f}"
+            ),
         ),
     )
 
@@ -459,7 +481,7 @@ def save_approval(
             session, caller=caller, activity_id=activity_id, form=form, version=version
         )
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         opened = service.flow_screen(session, caller=caller, activity_id=activity_id)
         return _panel(
             req,
@@ -480,7 +502,7 @@ def save_approval(
         _Answer(
             "salvo.html",
             params={"semana": view.week},
-            toast=f"Realizado de {view.unique_id} aprovado.",
+            toast=_notice("Realizado de {id} aprovado.", req).format(id=view.unique_id),
         ),
     )
 
@@ -501,7 +523,7 @@ def reopen_activity(
             session, caller=caller, activity_id=activity_id, form=form, version=version
         )
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         opened = service.flow_screen(session, caller=caller, activity_id=activity_id)
         return _panel(
             req,
@@ -522,7 +544,7 @@ def reopen_activity(
         _Answer(
             "salvo.html",
             params={"semana": view.week},
-            toast=f"Realizado de {view.unique_id} reaberto.",
+            toast=_notice("Realizado de {id} reaberto.", req).format(id=view.unique_id),
         ),
     )
 
@@ -545,7 +567,11 @@ def publish(req: func.HttpRequest, session: Session, context: RequestContext) ->
         req,
         context,
         session,
-        _Answer("salvo.html", params={"semana": view.week}, toast=f"{view.unique_id} publicada."),
+        _Answer(
+            "salvo.html",
+            params={"semana": view.week},
+            toast=_notice("{id} publicada.", req).format(id=view.unique_id),
+        ),
     )
 
 
@@ -559,7 +585,11 @@ def publish_week(
     values = {**_body(req), **req.params}
     week = service.resolve_week(session, caller=caller, raw=values.get("semana"))
     published = service.publish_week(session, caller=caller, week=week)
-    toast = f"{published} programação(ões) publicada(s)." if published else NO_VALIDATED_TO_PUBLISH
+    toast = (
+        _notice("{count} programação(ões) publicada(s).", req).format(count=published)
+        if published
+        else _notice(NO_VALIDATED_TO_PUBLISH, req)
+    )
     return _page(req, context, session, _Answer("salvo.html", params={"semana": week}, toast=toast))
 
 
@@ -624,7 +654,7 @@ def governance_excel(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """The Excel of the panel and of the queue."""
-    return excel_response(_governance_document(session, context))
+    return excel_response(_governance_document(session, context, req))
 
 
 @bp.route(route="programacao-semanal/governanca/imprimivel", methods=["GET"])
@@ -633,10 +663,12 @@ def governance_printable(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """The printable version of the panel and of the queue: what the PDF button mounts."""
-    return printable_response(_governance_document(session, context), req)
+    return printable_response(_governance_document(session, context, req), req)
 
 
-def _governance_document(session: Session, context: RequestContext) -> Document:
+def _governance_document(
+    session: Session, context: RequestContext, req: func.HttpRequest
+) -> Document:
     caller = _caller(context)
     panel = service.governance_panel(session, caller=caller)
     queue = service.request_queue(session, caller=caller)
@@ -646,6 +678,7 @@ def _governance_document(session: Session, context: RequestContext) -> Document:
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=translations.language_of(req),
     )
 
 
@@ -694,7 +727,7 @@ def open_request(
             session, caller=caller, activity_id=activity_id, reason=reason
         )
     except InvalidDataError as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         view = service.get_activity(session, caller=caller, activity_id=activity_id)
         return _panel(
             req,
@@ -713,7 +746,7 @@ def open_request(
         template_name=f"{TEMPLATE_DIR}/pedido_salvo.html",
         context=data,
         request=req,
-        toast=service.REQUEST_OPEN_TOAST.format(unique_id=view.unique_id),
+        toast=_notice(service.REQUEST_OPEN_TOAST, req).format(unique_id=view.unique_id),
     )
 
 
@@ -761,7 +794,7 @@ def decide_request(
     try:
         decided = service.decide_request(session, caller=caller, request_id=request_id, form=form)
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         message = next(iter(errors.values()), None)
         return _queue_answer(
             req,
@@ -773,11 +806,8 @@ def decide_request(
             erro_mensagem=message or "",
             resposta_digitada=form.answer,
         )
-    toast = (
-        service.REQUEST_APPLY_TOAST.format(unique_id=decided.unique_id)
-        if form.apply
-        else service.REQUEST_REJECT_TOAST.format(unique_id=decided.unique_id)
-    )
+    template = service.REQUEST_APPLY_TOAST if form.apply else service.REQUEST_REJECT_TOAST
+    toast = _notice(template, req).format(unique_id=decided.unique_id)
     return _queue_answer(req, session, context, toast=toast)
 
 
@@ -834,7 +864,7 @@ def save_settings(
     try:
         service.save_parameters(session, caller=caller, form=form, version=version)
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         return _settings_answer(
             req,
             context,
@@ -843,7 +873,7 @@ def save_settings(
             status_code=409 if isinstance(error, VersionConflictError) else 422,
             toast=next(iter(errors.values()), None),
         )
-    return _settings_answer(req, context, session, toast=service.SETTINGS_SAVED)
+    return _settings_answer(req, context, session, toast=_notice(service.SETTINGS_SAVED, req))
 
 
 def _windows_answer(
@@ -880,7 +910,7 @@ def save_window(
     try:
         service.save_window(session, caller=caller, form=form, version=version)
     except (InvalidDataError, VersionConflictError) as error:
-        errors = _errors_of(error)
+        errors = _errors_of(error, req)
         return _windows_answer(
             req,
             context,
@@ -894,7 +924,7 @@ def save_window(
     company_id = form.company_id or 0
     company = registers.company_names(session, {company_id}).get(company_id, "")
     return _windows_answer(
-        req, context, session, toast=service.WINDOW_SAVED.format(company=company)
+        req, context, session, toast=_notice(service.WINDOW_SAVED, req).format(company=company)
     )
 
 
@@ -1012,14 +1042,20 @@ def week_import_check(
     )
 
 
-def _import_notice(result: importing.ImportResult) -> str:
+def _import_notice(result: importing.ImportResult, req: func.HttpRequest) -> str:
     """The toast: how many lines entered and, when an error left some out, how many did not."""
     written = len(result.written)
-    imported = "1 linha importada" if written == 1 else f"{written} linhas importadas"
+    imported = _notice("1 linha importada" if written == 1 else "{n} linhas importadas", req)
+    if written != 1:
+        imported = imported.format(n=written)
     if not result.skipped:
         return f"{imported}."
     skipped = len(result.skipped)
-    left_out = "1 com erro não entrou" if skipped == 1 else f"{skipped} com erro não entraram"
+    left_out = _notice(
+        "1 com erro não entrou" if skipped == 1 else "{n} com erro não entraram", req
+    )
+    if skipped != 1:
+        left_out = left_out.format(n=skipped)
     return f"{imported}; {left_out}."
 
 
@@ -1058,7 +1094,7 @@ def week_import_confirm(
             "semana": _imported_week(result),
         },
         request=req,
-        toast=_import_notice(result),
+        toast=_import_notice(result, req),
         toast_tipo="aviso" if result.skipped else "ok",
     )
 
@@ -1088,6 +1124,7 @@ def week_excel(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return excel_response(document)
 
@@ -1107,6 +1144,7 @@ def week_printable(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return printable_response(document, req)
 
@@ -1148,7 +1186,10 @@ def dashboard_filters(
 
 
 def _dashboard_document(
-    session: Session, context: RequestContext, params: Mapping[str, str | None]
+    session: Session,
+    context: RequestContext,
+    req: func.HttpRequest,
+    params: Mapping[str, str | None],
 ) -> Document:
     caller = _caller(context)
     week = service.resolve_week(session, caller=caller, raw=params.get("semana"))
@@ -1163,6 +1204,7 @@ def _dashboard_document(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=translations.language_of(req),
     )
 
 
@@ -1172,7 +1214,7 @@ def dashboard_excel(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """The Excel of the dashboard: the indicators and the numbers behind each chart."""
-    return excel_response(_dashboard_document(session, context, req.params))
+    return excel_response(_dashboard_document(session, context, req, req.params))
 
 
 @bp.route(route=DASHBOARD_PRINTABLE_ROUTE, methods=["GET"])
@@ -1181,4 +1223,4 @@ def dashboard_printable(
     req: func.HttpRequest, session: Session, context: RequestContext
 ) -> func.HttpResponse:
     """The printable dashboard: the same panel on the sheet of the Design System."""
-    return printable_response(_dashboard_document(session, context, req.params), req)
+    return printable_response(_dashboard_document(session, context, req, req.params), req)

@@ -26,7 +26,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links
+from src.core import calendario, origin_links, translations
 from src.core.excel import excel_response
 from src.core.export_document import Document, ValueKind, format_value
 from src.core.printable import printable_response
@@ -38,6 +38,17 @@ from src.modulos.hse.calculations import HseIndicators
 from src.modulos.hse.painel_service import HsePanel
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("hse", text, idioma)
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("hse", text, translations.language_of(req))
+
 
 MODULE = "hse"
 READ = Access(module=MODULE)
@@ -111,6 +122,7 @@ def _panel_document(
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=panel.reference_date,
+        idioma=context.idioma,
     )
 
 

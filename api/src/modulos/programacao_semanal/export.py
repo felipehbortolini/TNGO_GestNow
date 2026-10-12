@@ -23,8 +23,10 @@ screen never drift apart.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     Chart,
@@ -55,6 +57,27 @@ from src.modulos.programacao_semanal.views import (
 )
 
 GOVERNANCE_TITLE = "Governança da programação"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Programação Semanal no idioma do request (D13)."""
+    return translations.translate("programacao_semanal", text, idioma)
+
+
+def _kpis_in_language(kpis: tuple[Kpi, ...], idioma: str) -> tuple[Kpi, ...]:
+    """Os indicadores do documento no idioma: rótulo e situação pelo catálogo (D13)."""
+    if idioma == translations.DEFAULT_LANGUAGE:
+        return kpis
+    return tuple(
+        replace(
+            kpi,
+            label=_label(kpi.label, idioma),
+            status=_label(kpi.status, idioma) if kpi.status else kpi.status,
+        )
+        for kpi in kpis
+    )
+
+
 CONTROL_TITLE = "Lista de controle"
 QUEUE_TITLE = "Pedidos de alteração"
 
@@ -100,15 +123,18 @@ def governance_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The governance screen as a document: the indicators, the control list and the queue."""
     return Document(
-        title=GOVERNANCE_TITLE,
-        scope_label=describe_scope(scope, projects),
+        namespace="programacao_semanal",
+        idioma=idioma,
+        title=_label(GOVERNANCE_TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=(("Semana de referência", panel.reference_week),),
-        kpis=_kpis(panel),
+        context=((_label("Semana de referência", idioma), panel.reference_week),),
+        kpis=_kpis_in_language(_kpis(panel), idioma),
         tables=(_control_table(panel), _queue_table(queue)),
         paper=Paper.A4,
     )
@@ -225,15 +251,21 @@ def week_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The app's workbook: the summary, the matrix, the breakdowns, the day by day and the curve."""
     return Document(
-        title=f"{WEEK_TITLE} {week}",
-        scope_label=describe_scope(scope, projects),
+        namespace="programacao_semanal",
+        idioma=idioma,
+        title=f"{_label(WEEK_TITLE, idioma)} {week}",
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=(("Semana", week), ("Período", weeks.period_label(week))),
-        kpis=_week_kpis(views, summary, parameters),
+        context=(
+            (_label("Semana", idioma), week),
+            (_label("Período", idioma), weeks.period_label(week, idioma)),
+        ),
+        kpis=_kpis_in_language(_week_kpis(views, summary, parameters), idioma),
         tables=(
             _schedule_table(views),
             _breakdown_table("company", views),
@@ -255,15 +287,21 @@ def week_report_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The app's printed sheet: the four indicators, the matrix and the breakdowns of the paper."""
     return Document(
-        title=f"{WEEK_TITLE} {week}",
-        scope_label=describe_scope(scope, projects),
+        namespace="programacao_semanal",
+        idioma=idioma,
+        title=f"{_label(WEEK_TITLE, idioma)} {week}",
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=(("Semana", week), ("Período", weeks.period_label(week))),
-        kpis=_report_kpis(views, summary, parameters),
+        context=(
+            (_label("Semana", idioma), week),
+            (_label("Período", idioma), weeks.period_label(week, idioma)),
+        ),
+        kpis=_kpis_in_language(_report_kpis(views, summary, parameters), idioma),
         tables=(
             _schedule_table(views),
             _breakdown_table("company", views),
@@ -804,15 +842,21 @@ def dashboard_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The dashboard as a document: the indicators, the charts and the numbers behind them."""
     return Document(
-        title=DASHBOARD_TITLE,
-        scope_label=describe_scope(scope, projects),
+        namespace="programacao_semanal",
+        idioma=idioma,
+        title=_label(DASHBOARD_TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=(("Semana", data.week), ("Período", data.period)),
-        kpis=_dashboard_kpis(data),
+        context=(
+            (_label("Semana", idioma), data.week),
+            (_label("Período", idioma), data.period),
+        ),
+        kpis=_kpis_in_language(_dashboard_kpis(data), idioma),
         charts=dashboard_charts(data),
         tables=(
             _ranking_table(*DASHBOARD_RANKINGS["company"], data.by_company),

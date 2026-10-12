@@ -17,7 +17,7 @@ from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from src.core import calendario
+from src.core import calendario, translations
 from src.core.money import format_brl
 from src.modulos.inicio.calculations import compact_brl as _compact_brl
 from src.modulos.planejamento import calculations as planning_calculations
@@ -73,11 +73,13 @@ def _pp(value: Decimal | None, *, sign: bool = False) -> str:
     return f"{_signed(value, 1) if sign else _plain(value, 1)} p.p."
 
 
-def _mes_curto(value: date | None) -> str:
+def _mes_curto(value: date | None, idioma: str = "pt") -> str:
     """O mês em ``mmm/aa`` (o ``mesCurto`` do protótipo): ``set/26``; nulo vira ``·``."""
     if value is None:
         return "·"
-    month = MONTH_NAMES[value.month - 1][:MONTH_ABBREVIATION_LENGTH].lower()
+    month = translations.mes_curto(value.month, idioma)
+    if idioma == translations.DEFAULT_LANGUAGE:
+        month = month.lower()
     return f"{month}/{value.year % 100:02d}"
 
 
@@ -114,9 +116,9 @@ def format_percent_signed(value: Decimal | None) -> str:
     return "·" if value is None else f"{_signed(value, 1)}%"
 
 
-def format_month(value: date | None) -> str:
+def format_month(value: date | None, idioma: str = "pt") -> str:
     """O formatador de mês que o template usa (``set/26``)."""
-    return _mes_curto(value)
+    return _mes_curto(value, idioma)
 
 
 def format_money(value: int | None) -> str:
@@ -158,13 +160,13 @@ def format_number1(value: Decimal | None) -> str:
     return "·" if value is None else _plain(value, 1)
 
 
-def format_date(value: date | datetime | None) -> str:
+def format_date(value: date | datetime | None, idioma: str = "pt") -> str:
     """A data que o template mostra (``21/09/2026``); um instante passa pelo fuso do produto."""
     if value is None:
         return "·"
     if isinstance(value, datetime):
         value = calendario.in_product_timezone(value).date()
-    return f"{value:%d/%m/%Y}"
+    return translations.format_date(value, idioma)
 
 
 def format_number2(value: Decimal | None) -> str:
@@ -1120,14 +1122,14 @@ def trend_finish(months: Sequence[date], values: Sequence[Decimal | None]) -> da
     return known[-1] if known else None
 
 
-def period_name(kind: str, period: str) -> str:
+def period_name(kind: str, period: str, idioma: str = "pt") -> str:
     """O período como uma pessoa o lê, no padrão do relato: ``Semana 38 · 14/09 a 20/09/2026``."""
-    return planning_calculations.period_name(kind, period)
+    return planning_calculations.period_name(kind, period, idioma)
 
 
-def short_month(kind: str, period: str) -> str:
+def short_month(kind: str, period: str, idioma: str = "pt") -> str:
     """O rótulo curto do período, no padrão do relato: ``S38`` ou ``ago/26``."""
-    return planning_calculations.short_period_name(kind, period)
+    return planning_calculations.short_period_name(kind, period, idioma)
 
 
 def period_options(
@@ -1136,10 +1138,15 @@ def period_options(
     project_start: date | None,
     reference_date: date,
     taken: Iterable[str],
+    idioma: str = "pt",
 ) -> list[planning_calculations.PeriodOption]:
     """Os períodos do início do projeto ao corrente, o mais recente primeiro, com a situação."""
     return planning_calculations.period_options(
-        kind, project_start=project_start, reference_date=reference_date, taken=taken
+        kind,
+        project_start=project_start,
+        reference_date=reference_date,
+        taken=taken,
+        idioma=idioma,
     )
 
 

@@ -272,3 +272,22 @@ Mínimo de propostas (3 inicialmente), dias de alerta de folga (7), metas de ade
 - `test_painel_rotas.py`: a tela com os KPIs e os quatro visuais, a coluna Projeto no Portfólio, o Excel com o Resumo e a aba Pedidos por folga e o imprimível A4 com os gráficos.
 - `api/tests/plataforma/test_carga_demonstracao.py`: o oráculo da carga na âncora — as 17 qualificações do mock, o documento vencido, o histórico, as empresas sem qualificação, o desempenho, os 28 pacotes com as camadas dos marcos, os 4 processos com o PC-14 em equalização comercial, os 14 pedidos com os 84 marcos de fabricação, os 3 recebimentos do mock, o diligenciamento com 3 pedidos críticos (−20, −9 e −5) e OTD de 66,7%, o MAS do projeto com 14 linhas, 12 marcos, 3 críticos e o PC-14 com a LB de fabricação estimada, e o painel com aderência de 92,9%, saving de 5,2% sobre a estimativa e 4,7% na negociação e avanço de 90,9% x 97,3% (índice 0,93).
 - `api/tests/apoio_suprimentos.py`, `api/tests/apoio_pacotes.py`, `api/tests/apoio_processos.py`, `api/tests/apoio_diligenciamento.py` e `api/tests/suprimentos/conftest.py`: os cenários e a sessão do teste.
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `suprimentos` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O bloco 04 do `en.js` é a fonte; a EAC vira CBS no texto da área. Os indicadores dos cadastros passam pelo `_label` da rota e os do plano/processos/pedidos pela tradução do próprio template (`t('suprimentos', kpi.label)`).
+Os templates chamam `{{ t('suprimentos', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `suprimentos`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

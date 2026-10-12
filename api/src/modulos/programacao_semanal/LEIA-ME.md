@@ -314,3 +314,22 @@ O app de origem e seu glossário ficam somente para consulta em `docs/referencia
 - `test_programacao_dashboard.py`: a fachada do dashboard — os indicadores do painel, o horizonte de treze semanas, os filtros, o drill da aderência (o mês soma numerador e denominador), gargalos/heatmap/turnos, o fornecedor recortado à própria empresa e os vazios de origem e de filtro.
 - `test_programacao_dashboard_rotas.py`: o HTTP do painel (os gráficos e as exportações), da barra de filtros, do recorte do fornecedor, dos vazios e o Excel com o Resumo e as tabelas dos gráficos.
 - `api/tests/plataforma/test_carga_demonstracao.py`: os oráculos do fluxo (estados e próximas ações), da governança (painel por empresa/semana, pedidos e trilha na carga) e do dashboard (aderência, ranking, gargalos, turnos, evolução e o recorte do fornecedor na S.34/2026); a carga não mudou com a ISSUE-056.
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `programacao_semanal` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. As chaves do módulo são novas: "Weekly Schedule", "Adherence", "PPC", "Inspector" (Fiscal) e "Foreman" (Encarregado), por analogia ao vocabulário já usado no catálogo; a grade de dias e os títulos dos dias saem de `presentation.day_cells` no idioma.
+Os templates chamam `{{ t('programacao_semanal', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `programacao_semanal`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

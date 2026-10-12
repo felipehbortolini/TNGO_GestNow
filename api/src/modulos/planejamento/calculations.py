@@ -79,7 +79,7 @@ from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from math import ceil
 from typing import Any
 
-from src.core import calendario
+from src.core import calendario, translations
 from src.modulos.planejamento.validation import (
     MONTHLY,
     OPPORTUNITY,
@@ -186,25 +186,36 @@ def next_period(kind: str, period: str) -> str | None:
     return calendario.add_periods(kind, period, 1)
 
 
-def period_name(kind: str, period: str) -> str:
+def period_name(kind: str, period: str, idioma: str = "pt") -> str:
     """The period as a person reads it: ``Semana 38 · 14/09 a 20/09/2026`` or ``Agosto de 2026``."""
     bounds = calendario.period_bounds(kind, period)
     if bounds is None:
         return period
     if kind == WEEKLY:
         number = int(period.split("-S")[1])
-        return f"Semana {number} · {bounds[0]:%d/%m} a {bounds[1]:%d/%m/%Y}"
-    return f"{MONTH_NAMES[bounds[0].month - 1]} de {bounds[0].year}"
+        if idioma == "pt":
+            return f"Semana {number} · {bounds[0]:%d/%m} a {bounds[1]:%d/%m/%Y}"
+        week = translations.semana_label(number, idioma)
+        start = translations.format_date(bounds[0], idioma)[:5]
+        end = translations.format_date(bounds[1], idioma)
+        return (
+            f"{translations.translate('planejamento', 'Semana', idioma)} {week} · {start} "
+            f"{translations.translate('planejamento', 'a', idioma)} {end}"
+        )
+    template = translations.translate("planejamento", "{mes} de {ano}", idioma)
+    return template.format(mes=translations.mes_longo(bounds[0].month, idioma), ano=bounds[0].year)
 
 
-def short_period_name(kind: str, period: str) -> str:
+def short_period_name(kind: str, period: str, idioma: str = "pt") -> str:
     """The short label of a period: ``S38`` for a week, ``ago/26`` for a month."""
     bounds = calendario.period_bounds(kind, period)
     if bounds is None:
         return period
     if kind == WEEKLY:
-        return f"S{int(period.split('-S')[1]):02d}"
-    month = MONTH_NAMES[bounds[0].month - 1][:MONTH_ABBREVIATION_LENGTH].lower()
+        return translations.semana_label(int(period.split("-S")[1]), idioma)
+    month = translations.mes_curto(bounds[0].month, idioma)
+    if idioma == "pt":
+        month = month.lower()
     return f"{month}/{bounds[0].year % 100:02d}"
 
 
@@ -214,6 +225,7 @@ def period_options(
     project_start: date | None,
     reference_date: date,
     taken: Iterable[str],
+    idioma: str = "pt",
 ) -> list[PeriodOption]:
     """The periods of the kind for the form, the most recent first, with the ones already reported."""
     first, last = report_period_range(kind, project_start, reference_date)
@@ -221,7 +233,7 @@ def period_options(
     return [
         PeriodOption(
             period=period,
-            label=period_name(kind, period),
+            label=period_name(kind, period, idioma),
             in_progress=calendario.is_partial(kind, period, reference_date),
             taken=period in already,
         )

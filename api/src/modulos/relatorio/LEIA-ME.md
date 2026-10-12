@@ -146,3 +146,22 @@ escolhas atuais — o mesmo caminho do botão Emitir relatório.
 | Excel | `export.py` (`build_document`; a impressão do relatório é a do navegador, pela tela) |
 
 As folhas de Riscos, Qualidade, HSE e Carteira entraram na ISSUE-085; a ISSUE-086 fechou o módulo com a exportação Excel e a troca de período. A impressão do relatório é a do navegador, pela tela (ISSUE-083).
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `relatorio` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O bloco 9 do `en.js` é a fonte principal; a análise do período, as folhas A4, o Excel e a impressão (a do navegador, pela tela) saem no idioma, com o período em `Week W38` e as seções pelo namespace `relatorio`.
+Os templates chamam `{{ t('relatorio', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `relatorio`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

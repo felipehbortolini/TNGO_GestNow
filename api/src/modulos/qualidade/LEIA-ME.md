@@ -228,3 +228,22 @@ Grupo `qualidade` em Configurações > Parâmetros, versionado: `prazoTratamento
 | Carga de demonstração | `seed.py` (partes `qualidade-rnc`, `qualidade-inspecoes` e `qualidade-auditorias`) |
 | Tela, estilo e comportamento | `app/_views/qualidade/` e `app/paginas/qualidade/` |
 | Testes | `api/tests/qualidade/` e `api/tests/oraculo/test_oraculo_qualidade.py` |
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `qualidade` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O bloco 06 do `en.js` é a fonte; a RNC vira NCR e o ITP fica ITP. As recusas de fluxo (eficácia, cancelamento) são traduzidas no render, como as demais.
+Os templates chamam `{{ t('qualidade', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `qualidade`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

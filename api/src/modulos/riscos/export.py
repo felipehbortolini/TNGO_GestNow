@@ -71,12 +71,15 @@ def build_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the screen for the filters in force: KPIs, filters and the table."""
     labels = project_labels(listing)
     bands = listing.parameters.scale.bands
     owners = dict(listing.owners)
     return Document(
+        namespace="riscos",
+        idioma=idioma,
         title=TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -218,11 +221,18 @@ def _row(line: RiskLine, labels: Mapping[int, str]) -> Row:
 
 
 def ficha_document(
-    sheet: RiskSheet, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+    sheet: RiskSheet,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The ficha of a risk: the situation as KPIs and one table per block of the prototype."""
     line = sheet.line
     return Document(
+        namespace="riscos",
+        idioma=idioma,
         title=f"{SHEET_TITLE} {line.code}",
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -483,11 +493,18 @@ DOCUMENT_TONES: Mapping[str, Tone] = {
 
 
 def matrix_document(
-    matrix: RiskMatrix, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+    matrix: RiskMatrix,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    idioma: str = "pt",
 ) -> Document:
     """A matriz como documento: a distribuição por célula e a movimentação inerente-residual."""
     labels = _project_labels(projects)
     return Document(
+        namespace="riscos",
+        idioma=idioma,
         title=MATRIX_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -630,11 +647,18 @@ def _movement_observation(item: Movement) -> str:
 
 
 def panel_document(
-    panel: RiskPanel, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+    panel: RiskPanel,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O painel como documento: os indicadores, a evolução, as categorias e a pauta (D12)."""
     labels = _project_labels(projects)
     return Document(
+        namespace="riscos",
+        idioma=idioma,
         title=PANEL_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,

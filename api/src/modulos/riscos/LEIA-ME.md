@@ -226,3 +226,22 @@ A ISSUE-067 ligou as integrações de chegada: o risco sugerido do diligenciamen
 (`service.create_suggested_risk`), o vínculo do claim (FK `contrato_claim.risco_id`, lida pela
 fachada do Financeiro), a lição aplicada (`save_risk` + FK `licao_aplicacao.risco_id`, migração
 `m067`) e a exposição para a cobertura da Contingência (`service.active_threats`).
+
+## Idioma (ISSUE-088)
+
+A parte 2 do inglês (D13) completa o catálogo: o namespace `riscos` vive em
+`api/src/core/translations.py`, alimentado pelo `en.js` do protótipo (e, na Programação
+Semanal, por chaves novas escritas com o inglês da casa). O idioma vem do cookie
+`gestnow_idioma`, gravado pela rota `POST /api/idioma`, e o seletor PT | EN fica na barra
+lateral. O bloco 05 do `en.js` é a fonte; o VME vira EMV e a RBS acompanha o vocabulário do protótipo. A matriz e o painel mandam os `rotulos` do motor pelo `_chart_data`.
+Os templates chamam `{{ t('riscos', 'Texto') }}`; as views e o JS estáticos usam
+`data-i18n`/`TN.t`; as datas saem do `data()`/`data_hora()` do contexto e do
+`translations.format_date`/`mes_curto`/`semana_label` (a semana ISO é `S38` em português e
+`W38` em inglês). As rotas traduzem avisos, recusas e erros por campo no idioma do request,
+e os gráficos passam por `_chart_data`, que traduz os textos do `data-dados` e acrescenta os
+`rotulos` do motor de gráficos. Títulos e colunas das planilhas e da folha imprimível são
+traduzidos pelo namespace do documento (`Document.namespace`/`Document.idioma`) em
+`core/export_document`; o `RequestContext.idioma` leva o idioma resolvido às costuras das
+rotas. Para acrescentar tradução, some a chave ao namespace `riscos`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` e a revisão de tela em
+`api/tests/plataforma/test_idioma_nas_areas_2.py` reprovam chave marcada sem tradução.

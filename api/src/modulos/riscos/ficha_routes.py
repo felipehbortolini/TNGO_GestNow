@@ -29,7 +29,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import AccessDeniedError, DomainError, InvalidDataError, VersionConflictError
 from src.core.excel import excel_response
 from src.core.export_document import Document
@@ -43,6 +43,19 @@ from src.modulos.governanca import service as governanca
 from src.modulos.riscos import calculations, export, ficha_service, routes, service, validation
 
 bp = func.Blueprint()
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do módulo no idioma do request (D13)."""
+    return translations.translate("riscos", text, idioma)
+
+
+def _notice(text: str | None, req: func.HttpRequest) -> str | None:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    if not text:
+        return text
+    return translations.translate("riscos", text, translations.language_of(req))
+
 
 MODULE = "riscos"
 READ = Access(module=MODULE)
@@ -147,6 +160,7 @@ def _ficha_document(req: func.HttpRequest, session: Session, context: RequestCon
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=context.idioma,
     )
 
 
@@ -176,7 +190,7 @@ def ficha_response(
         context=_ficha_context(session, sheet, context, today, after),
         request=req,
         target_id=FICHA_TARGET,
-        toast=after.notice if after else None,
+        toast=_notice(after.notice, req) if after else None,
         toast_tipo=after.toast_tipo if after else "ok",
     )
 

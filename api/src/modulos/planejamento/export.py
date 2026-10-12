@@ -133,10 +133,17 @@ class ReportExport:
 
 
 def build_document(
-    data: ReportExport, *, scope: Scope, projects: Sequence[ProjectLike], today: date
+    data: ReportExport,
+    *,
+    scope: Scope,
+    projects: Sequence[ProjectLike],
+    today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the screen: the indicators and the three tables, as the list shows them."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=today,
@@ -361,9 +368,12 @@ def lookahead_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     constraints_label: str,
+    idioma: str = "pt",
 ) -> Document:
     """The 6WLA as the exports carry it: indicators, the Gantt, the grid and the restrictions."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=DOCUMENT_TITLE,
         scope_label=describe_scope(scope, projects),
         generated_on=board.reference_date,
@@ -558,7 +568,9 @@ _BAND_TONES = {
 }
 
 
-def eap_document(visao: EapOverview, *, scope_label: str, generated_on: date) -> Document:
+def eap_document(
+    visao: EapOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
+) -> Document:
     """A EAP como documento: os KPIs, a árvore, as revisões e os desdobramentos da vigente.
 
     ``scope_label`` é a linha do escopo (``describe_scope``), montada pela rota. No Portfólio a
@@ -569,6 +581,8 @@ def eap_document(visao: EapOverview, *, scope_label: str, generated_on: date) ->
     if visao.breakdowns:
         tables.append(_eap_breakdowns_table(visao.breakdowns))
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=EAP_PORTFOLIO_TITLE if visao.is_portfolio else EAP_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -937,13 +951,15 @@ def _real_status(indicadores: CurvaFisicaIndicators) -> str:
 
 
 def curva_fisica_document(
-    visao: CurvaFisicaOverview, *, scope_label: str, generated_on: date
+    visao: CurvaFisicaOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
 ) -> Document:
     """A Curva S física como documento: os indicadores, o gráfico, a tabela e a carteira."""
     tables: list[Table] = [_curve_points_table(visao)]
     if visao.is_portfolio:
         tables.append(_curve_composition_table(visao))
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=CURVA_FISICA_PORTFOLIO_TITLE if visao.is_portfolio else CURVA_FISICA_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1144,10 +1160,12 @@ def _worst_kpi(visao: PlanningKpisOverview) -> Kpi:
 
 
 def planning_kpis_document(
-    visao: PlanningKpisOverview, *, scope_label: str, generated_on: date
+    visao: PlanningKpisOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
 ) -> Document:
     """Os KPIs de prazo como documento: indicadores, gráficos e as duas tabelas."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=PLANNING_KPIS_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1284,10 +1302,12 @@ def percent_text(value: Decimal | None, places: int = 1) -> str:
 
 
 def productivity_document(
-    visao: QuantitiesOverview, *, scope_label: str, generated_on: date
+    visao: QuantitiesOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
 ) -> Document:
     """O documento da aba Quantidades: os indicadores, os gráficos e as duas tabelas."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=PRODUCTIVITY_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1509,9 +1529,13 @@ HOURS_STOPPAGE_RESPONSIBILITY_TITLE = "Efetivo paralisado por responsabilidade"
 HOURS_STOPPAGES_TITLE = "Registros de paralisação"
 
 
-def hours_document(visao: HoursOverview, *, scope_label: str, generated_on: date) -> Document:
+def hours_document(
+    visao: HoursOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
+) -> Document:
     """O documento da aba Horas efetivas: os indicadores, o Pareto e as tabelas."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=HOURS_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1962,10 +1986,12 @@ PERFORMANCE_SITUATION_OK = "No plano"
 
 
 def performance_document(
-    visao: PerformanceOverview, *, scope_label: str, generated_on: date
+    visao: PerformanceOverview, *, scope_label: str, generated_on: date, idioma: str = "pt"
 ) -> Document:
     """O documento da aba KPIs de performance: indicadores, gráficos e as duas tabelas."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=PERFORMANCE_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -2210,9 +2236,12 @@ def punch_document(
     scope_label: str,
     generated_on: date,
     options: PunchFilterOptions,
+    idioma: str = "pt",
 ) -> Document:
     """O documento da lista: os indicadores e a tabela de itens, como o filtro os mostra."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=PUNCH_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -2352,10 +2381,12 @@ PUNCH_SYSTEMS_TABLE_TITLE = "Sistemas e liberação por marco"
 
 
 def punch_dashboard_document(
-    visao: PunchDashboard, *, scope_label: str, generated_on: date
+    visao: PunchDashboard, *, scope_label: str, generated_on: date, idioma: str = "pt"
 ) -> Document:
     """O documento do painel: os indicadores de liberação, os gráficos e as tabelas (D11/D12)."""
     return Document(
+        namespace="planejamento",
+        idioma=idioma,
         title=PUNCH_DASHBOARD_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
