@@ -9,8 +9,8 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Contrato</h1>
-        <p class="page-head__sub">Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims, extensões de prazo e avaliação de desempenho.</p>
+        <h1 class="h-dash" data-i18n="Contrato">Contrato</h1>
+        <p class="page-head__sub" data-i18n="Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims, extensões de prazo e avaliação de desempenho.">Ficha do contrato: valor e cascata, medições, aditivos, marcos de pagamento, claims, extensões de prazo e avaliação de desempenho.</p>
       </div>
       <div class="page-head__actions" x-show="estado === 'conteudo'">
         <button type="button" class="btn btn--ghost" :data-tn-excel="'/api/financeiro/contrato/excel' + consulta()">
@@ -29,28 +29,28 @@
     <div x-show="estado === 'conteudo'">
       <div id="contrato-faixa" x-sync></div>
 
-      <div class="tabs mt-16" role="tablist" aria-label="Seções do contrato">
+      <div class="tabs mt-16" role="tablist" aria-label="Seções do contrato" data-i18n-aria-label="Seções do contrato">
         <button type="button" class="tab" role="tab" id="aba-resumo" aria-controls="painel-resumo"
           :class="{ 'is-active': aba === 'resumo' }" :aria-selected="aba === 'resumo'"
-          @click="aba = 'resumo'">Resumo</button>
+          @click="aba = 'resumo'" data-i18n="Resumo">Resumo</button>
         <button type="button" class="tab" role="tab" id="aba-medicoes" aria-controls="painel-medicoes"
           :class="{ 'is-active': aba === 'medicoes' }" :aria-selected="aba === 'medicoes'"
-          @click="aba = 'medicoes'">Medições</button>
+          @click="aba = 'medicoes'" data-i18n="Medições">Medições</button>
         <button type="button" class="tab" role="tab" id="aba-aditivos" aria-controls="painel-aditivos"
           :class="{ 'is-active': aba === 'aditivos' }" :aria-selected="aba === 'aditivos'"
-          @click="aba = 'aditivos'">Aditivos</button>
+          @click="aba = 'aditivos'" data-i18n="Aditivos">Aditivos</button>
         <button type="button" class="tab" role="tab" id="aba-marcos" aria-controls="painel-marcos"
           :class="{ 'is-active': aba === 'marcos' }" :aria-selected="aba === 'marcos'"
-          @click="aba = 'marcos'">Marcos de pagamento</button>
+          @click="aba = 'marcos'" data-i18n="Marcos de pagamento">Marcos de pagamento</button>
         <button type="button" class="tab" role="tab" id="aba-claims" aria-controls="painel-claims"
           :class="{ 'is-active': aba === 'claims' }" :aria-selected="aba === 'claims'"
-          @click="aba = 'claims'">Claims</button>
+          @click="aba = 'claims'" data-i18n="Claims">Claims</button>
         <button type="button" class="tab" role="tab" id="aba-extensoes" aria-controls="painel-extensoes"
           :class="{ 'is-active': aba === 'extensoes' }" :aria-selected="aba === 'extensoes'"
-          @click="aba = 'extensoes'">Extensões de prazo</button>
+          @click="aba = 'extensoes'" data-i18n="Extensões de prazo">Extensões de prazo</button>
         <button type="button" class="tab" role="tab" id="aba-avaliacoes" aria-controls="painel-avaliacoes"
           :class="{ 'is-active': aba === 'avaliacoes' }" :aria-selected="aba === 'avaliacoes'"
-          @click="aba = 'avaliacoes'">Avaliação de desempenho</button>
+          @click="aba = 'avaliacoes'" data-i18n="Avaliação de desempenho">Avaliação de desempenho</button>
       </div>
 
       <section class="mt-16" role="tabpanel" id="painel-resumo" aria-labelledby="aba-resumo" x-show="aba === 'resumo'">
@@ -175,30 +175,30 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando o contrato...</p>
+          <p data-i18n="Carregando o contrato...">Carregando o contrato...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Contrato não encontrado</h2>
-          <p>Confira o número na lista de Contratos para abrir a ficha.</p>
+          <h2 class="h-card4" data-i18n="Contrato não encontrado">Contrato não encontrado</h2>
+          <p data-i18n="Confira o número na lista de Contratos para abrir a ficha.">Confira o número na lista de Contratos para abrir a ficha.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver os registros.">Ajuste ou limpe os filtros para ver os registros.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

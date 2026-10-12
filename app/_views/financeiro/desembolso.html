@@ -4,8 +4,8 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">Cronograma de desembolso</h1>
-        <p class="page-head__sub">Saldo a pagar distribuído por mês, previsto e realizado, para alinhar com a tesouraria.</p>
+        <h1 class="h-dash" data-i18n="Cronograma de desembolso">Cronograma de desembolso</h1>
+        <p class="page-head__sub" data-i18n="Saldo a pagar distribuído por mês, previsto e realizado, para alinhar com a tesouraria.">Saldo a pagar distribuído por mês, previsto e realizado, para alinhar com a tesouraria.</p>
       </div>
       <div class="page-head__actions">
         <button type="button" class="btn btn--secondary" data-desembolso-enviar>
@@ -28,7 +28,7 @@
       x-init="$ajax('/api/financeiro/desembolso', { target: 'desembolso-conteudo' })"
       @change="$el.requestSubmit()" @submit="estado = 'carregando'">
       <div class="field desembolso-nivel">
-        <label for="desembolso-nivel">Mostrar até</label>
+        <label for="desembolso-nivel" data-i18n="Mostrar até">Mostrar até</label>
         <select class="input" id="desembolso-nivel" name="nivel">
           <option value="1">Mostrar pacotes</option>
           <option value="2" selected>Mostrar subpacotes</option>
@@ -43,30 +43,30 @@
       <div class="card__body">
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando o cronograma de desembolso...</p>
+          <p data-i18n="Carregando o cronograma de desembolso...">Carregando o cronograma de desembolso...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há cronograma de desembolso neste escopo</h2>
-          <p>Assim que a curva financeira do projeto for congelada e o ERP trouxer o realizado, o cronograma aparece aqui.</p>
+          <h2 class="h-card4" data-i18n="Ainda não há cronograma de desembolso neste escopo">Ainda não há cronograma de desembolso neste escopo</h2>
+          <p data-i18n="Assim que a curva financeira do projeto for congelada e o ERP trouxer o realizado, o cronograma aparece aqui.">Assim que a curva financeira do projeto for congelada e o ERP trouxer o realizado, o cronograma aparece aqui.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver os registros.">Ajuste ou limpe os filtros para ver os registros.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>

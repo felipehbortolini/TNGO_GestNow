@@ -4,8 +4,8 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h1 class="h-dash">EAC</h1>
-        <p class="page-head__sub">Árvore da Estrutura Analítica de Custos, com itens, revisões, remanejamentos e importação.</p>
+        <h1 class="h-dash" data-i18n="EAC">EAC</h1>
+        <p class="page-head__sub" data-i18n="Árvore da Estrutura Analítica de Custos, com itens, revisões, remanejamentos e importação.">Árvore da Estrutura Analítica de Custos, com itens, revisões, remanejamentos e importação.</p>
       </div>
     </div>
 
@@ -17,11 +17,11 @@
           x-target="eac-conteudo" x-init="$ajax('/api/financeiro/eac', { target: 'eac-conteudo' })"
           @change="$el.requestSubmit()" @submit="estado = 'carregando'" role="search">
           <div class="field eac-filtros__campo eac-filtros__campo--busca">
-            <label for="eac-f-busca">Buscar</label>
+            <label for="eac-f-busca" data-i18n="Buscar">Buscar</label>
             <input class="input" type="search" id="eac-f-busca" name="busca" placeholder="Código ou descrição" autocomplete="off" />
           </div>
           <div class="field eac-filtros__campo">
-            <label for="eac-f-nivel">Nível</label>
+            <label for="eac-f-nivel" data-i18n="Nível">Nível</label>
             <select class="input" id="eac-f-nivel" name="nivel">
               <option value="1">Pacotes</option>
               <option value="2">Subpacotes</option>
@@ -29,7 +29,7 @@
             </select>
           </div>
           <div class="field eac-filtros__campo">
-            <label for="eac-f-tipo">Tipo de custo</label>
+            <label for="eac-f-tipo" data-i18n="Tipo de custo">Tipo de custo</label>
             <select class="input" id="eac-f-tipo" name="tipo">
               <option value="">Todos</option>
               <option>Material</option>
@@ -41,7 +41,7 @@
             </select>
           </div>
           <div class="eac-filtros__acoes">
-            <a class="btn btn--ghost btn--sm" data-exportar="excel" href="/api/financeiro/eac/excel">Excel</a>
+            <a class="btn btn--ghost btn--sm" data-exportar="excel" href="/api/financeiro/eac/excel" data-i18n="Excel">Excel</a>
             <a class="btn btn--ghost btn--sm" data-exportar="pdf" href="/api/financeiro/eac/imprimivel" target="_blank" rel="noopener">PDF</a>
           </div>
         </form>
@@ -50,30 +50,30 @@
 
         <div class="empty" data-estado="carregando" x-show="estado === 'carregando'" role="status">
           <div class="spinner" aria-hidden="true"></div>
-          <p>Carregando...</p>
+          <p data-i18n="Carregando...">Carregando...</p>
         </div>
 
         <div class="empty" data-estado="vazio-origem" x-show="estado === 'vazio-origem'">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Ainda não há dados aqui</h2>
-          <p>Assim que os registros desta tela forem lançados, eles aparecem aqui.</p>
+          <h2 class="h-card4" data-i18n="Ainda não há dados aqui">Ainda não há dados aqui</h2>
+          <p data-i18n="Assim que os registros desta tela forem lançados, eles aparecem aqui.">Assim que os registros desta tela forem lançados, eles aparecem aqui.</p>
         </div>
 
         <div class="empty" data-estado="vazio-filtro" x-show="estado === 'vazio-filtro'">
-          <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-          <p>Ajuste ou limpe os filtros para ver os registros.</p>
+          <h2 class="h-card4" data-i18n="Nenhum resultado para os filtros aplicados">Nenhum resultado para os filtros aplicados</h2>
+          <p data-i18n="Ajuste ou limpe os filtros para ver os registros.">Ajuste ou limpe os filtros para ver os registros.</p>
         </div>
 
         <div class="aviso aviso--erro" data-estado="erro" x-show="estado === 'erro'" role="alert">
-          <h2 class="h-card5">Não foi possível carregar os dados</h2>
-          <p class="body-txt">Confira a conexão e tente de novo.</p>
+          <h2 class="h-card5" data-i18n="Não foi possível carregar os dados">Não foi possível carregar os dados</h2>
+          <p class="body-txt" data-i18n="Confira a conexão e tente de novo.">Confira a conexão e tente de novo.</p>
         </div>
 
         <div class="guard" data-estado="sem-permissao" x-show="estado === 'sem-permissao'">
           <img src="/ds/assets/ilustra-acesso-negado.png" alt="" loading="lazy" />
-          <h2 class="h-card3">Acesso negado</h2>
-          <p>Você não tem permissão para ver esta tela.</p>
-          <a href="/" class="btn btn--primary" data-tn-tela>Voltar ao início</a>
+          <h2 class="h-card3" data-i18n="Acesso negado">Acesso negado</h2>
+          <p data-i18n="Você não tem permissão para ver esta tela.">Você não tem permissão para ver esta tela.</p>
+          <a href="/" class="btn btn--primary" data-tn-tela data-i18n="Voltar ao início">Voltar ao início</a>
         </div>
       </div>
     </div>
