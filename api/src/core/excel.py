@@ -60,6 +60,7 @@ from src.core.export_document import (
     ValueKind,
     cents_of,
     date_of,
+    document_title,
     format_value,
     number_of,
     resolve_tables,
@@ -153,7 +154,7 @@ def build_workbook(document: Document) -> bytes:
         _write_table_sheet(
             _new_sheet(workbook, table.title, taken, document.idioma), document, table, styles
         )
-    workbook.properties.title = document.title
+    workbook.properties.title = document_title(document)
     workbook.properties.creator = PRODUCT_NAME
     buffer = BytesIO()
     workbook.save(buffer)
@@ -162,7 +163,7 @@ def build_workbook(document: Document) -> bytes:
 
 def file_name(document: Document) -> str:
     """``mapa-de-controle-2026-10-05.xlsx``: the title without accents, in lower case, and the date."""
-    ascii_title = unicodedata.normalize("NFKD", document.title).encode("ascii", "ignore")
+    ascii_title = unicodedata.normalize("NFKD", document_title(document)).encode("ascii", "ignore")
     slug = _NOT_A_FILE_NAME_CHARACTER.sub("-", ascii_title.decode("ascii").lower()).strip("-")
     return f"{slug or 'exportacao'}-{document.generated_on.isoformat()}.xlsx"
 
@@ -243,7 +244,7 @@ def _write_identification(sheet: Worksheet, document: Document, styles: _Styles)
     scope_heading = translations.translate("comum", SCOPE_HEADING, document.idioma)
     generated_heading = translations.translate("comum", GENERATED_HEADING, document.idioma)
     lines = [
-        (document.title, styles.title),
+        (translations.translate(document.namespace, document.title, document.idioma), styles.title),
         (f"{scope_heading}: {document.scope_label}", styles.muted),
         (f"{generated_heading}: {generated}", styles.muted),
         *((f"{label}: {value}", styles.muted) for label, value in document.context),

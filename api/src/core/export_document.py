@@ -234,6 +234,11 @@ def resolve_tables(document: Document) -> tuple[Table, ...]:
     return tuple(_translated_table(table, document) for table in tables)
 
 
+def document_title(document: Document) -> str:
+    """O título do documento no idioma, pelo catálogo do namespace (D13)."""
+    return translations.translate(document.namespace, document.title, document.idioma)
+
+
 def _translated_table(table: Table, document: Document) -> Table:
     return replace(
         table,

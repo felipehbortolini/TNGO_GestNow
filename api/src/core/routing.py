@@ -42,7 +42,7 @@ from typing import Any
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import auth, database, rbac
+from src.core import auth, database, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -84,10 +84,15 @@ OPEN = Access(identity=False)
 
 @dataclass(frozen=True)
 class RequestContext:
-    """What a route with ``access`` hands to its handler: the user and the scope."""
+    """What a route with ``access`` hands to its handler: the user, the scope and the language.
+
+    ``idioma`` is the language of the request (D13), read from the cookie once, so the
+    screens and the exports of the route build their documents in the same language.
+    """
 
     user: User
     scope: Scope
+    idioma: str = "pt"
 
 
 def authorize(session: Session, req: func.HttpRequest, access: Access) -> RequestContext:
@@ -101,18 +106,27 @@ def authorize(session: Session, req: func.HttpRequest, access: Access) -> Reques
         rbac.require_module(user, access.module)
     if access.permission is not None:
         rbac.require(user, access.permission)
-    return RequestContext(user=user, scope=scope_of(session, req))
+    return RequestContext(
+        user=user, scope=scope_of(session, req), idioma=translations.language_of(req)
+    )
 
 
 def error_response(error: DomainError, req: func.HttpRequest) -> func.HttpResponse:
     """Render a domain error into the fragment the screen expects: 403, 409 or 422."""
-    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    idioma = translations.language_of(req)
+    messages = (
+        [translations.translate("comum", message, idioma) for message in error.messages()]
+        if isinstance(error, InvalidDataError)
+        else [translations.translate("comum", str(error), idioma)]
+    )
     return AlpineAjaxResponse(
         template_name="comum/erro.html",
         context={"mensagens": messages},
         request=req,
         status_code=_status_for(error),
-        toast=messages[0] if messages else "Não foi possível concluir.",
+        toast=messages[0]
+        if messages
+        else translations.translate("comum", "Não foi possível concluir.", idioma),
         toast_tipo="erro",
     )
 

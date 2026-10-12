@@ -271,6 +271,13 @@ max-complexity = 10
 "src/modulos/suprimentos/service.py" = ["PLR0913"]
 "src/modulos/suprimentos/routes.py" = ["PLR0913"]
 
+# `build_process_document` e `build_orders_document`, da exportação de Suprimentos (ISSUE-088),
+# passam de cinco parâmetros keyword-only por causa do `idioma` do documento (D13): a lista, o
+# escopo, os projetos, a data de geração e o idioma. A regra existe para argumento posicional,
+# onde a ordem se erra na chamada; reduzir significaria criar um objeto de opções, a mesma coisa
+# com mais indireção.
+"src/modulos/suprimentos/export.py" = ["PLR0913"]
+
 # `_avaliacao_final`, em tests/suprimentos/test_fornecedores_fachada.py, monta a avaliação final
 # do contrato (as notas, o período, o contrato e o armazenamento opcionais) para exercitar a
 # ligação com a qualificação do fornecedor (ISSUE-057), e é assim de propósito: depois do `*` são
@@ -369,6 +376,15 @@ max-complexity = 10
 "src/modulos/qualidade/service.py" = ["PLR0913"]
 "src/modulos/qualidade/routes.py" = ["PLR0913"]
 "src/modulos/qualidade/export.py" = ["PLR0913"]
+
+# `build_document`, em Riscos, `hours_document`, em HSE, e `parametros_document`, em
+# Configurações, passam de cinco parâmetros keyword-only por causa do `idioma` do documento
+# (D13, ISSUE-088): a lista, o escopo, os projetos, a data de geração e o idioma. A regra existe
+# para argumento posicional, onde a ordem se erra na chamada; reduzir significaria criar um
+# objeto de opções, a mesma coisa com mais indireção.
+"src/modulos/riscos/export.py" = ["PLR0913"]
+"src/modulos/hse/export.py" = ["PLR0913"]
+"src/modulos/configuracoes/export.py" = ["PLR0913"]
 
 # `_screen` e `_inspection_fragment`, nas rotas de Inspeções e ITP, recebem a
 # requisição, a sessão e o contexto além do que a resposta precisa imprimir,

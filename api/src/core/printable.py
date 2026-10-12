@@ -31,6 +31,7 @@ from src.core.export_document import (
     Table,
     Tone,
     ValueKind,
+    document_title,
     format_value,
     resolve_tables,
 )
@@ -108,7 +109,7 @@ class Sheet:
 def build_sheet(document: Document) -> Sheet:
     """The document as the template prints it; in the Portfólio each table opens with ``Projeto``."""
     return Sheet(
-        title=document.title,
+        title=document_title(document),
         scope_label=document.scope_label,
         generated_on=format_value(ValueKind.DATE, document.generated_on, idioma=document.idioma),
         context=document.context,
@@ -137,7 +138,9 @@ def printable_response(document: Document, req: func.HttpRequest) -> func.HttpRe
 
 def _file_title(document: Document) -> str:
     """``Mapa de controle - Portfólio - 2026-10-05``: what the browser suggests as the PDF name."""
-    return f"{document.title} - {document.scope_label} - {document.generated_on.isoformat()}"
+    return (
+        f"{document_title(document)} - {document.scope_label} - {document.generated_on.isoformat()}"
+    )
 
 
 def _classes(base: str, *modifiers: str | None) -> str:
