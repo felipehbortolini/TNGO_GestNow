@@ -117,7 +117,7 @@ vem primeiro.
 | ISSUE-088 | Inglês, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, Configurações e relatório | 9 | task | done | ready-for-agent | ISSUE-087 | [ISSUE-088](./088-ingles-parte-2.md) |
 | ISSUE-089 | Oráculo de paridade completo e prova do cálculo vivo | 9 | task | done | ready-for-agent | ISSUE-088 | [ISSUE-089](./089-oraculo-de-paridade-e-calculo-vivo.md) |
 | ISSUE-090 | Varredura de todas as telas nas três larguras | 9 | task | done | ready-for-agent | ISSUE-089 | [ISSUE-090](./090-varredura-de-todas-as-telas.md) |
-| ISSUE-091 | Exportações tela a tela, acessibilidade e roteiro manual | 9 | task | proposed | ready-for-agent | ISSUE-090 | [ISSUE-091](./091-exportacoes-acessibilidade-e-roteiro-manual.md) |
+| ISSUE-091 | Exportações tela a tela, acessibilidade e roteiro manual | 9 | task | done | ready-for-agent | ISSUE-090 | [ISSUE-091](./091-exportacoes-acessibilidade-e-roteiro-manual.md) |
 | ISSUE-092 | Pronto para publicar no Azure | 9 | task | proposed | ready-for-agent | ISSUE-091 | [ISSUE-092](./092-pronto-para-publicar-no-azure.md) |
 | ISSUE-093 | Consolidação dentro do GestNow e desativação das pastas de origem | 9 | task | proposed | ready-for-agent | ISSUE-092 | [ISSUE-093](./093-consolidacao-e-desativacao-das-pastas-de-origem.md) |
 
