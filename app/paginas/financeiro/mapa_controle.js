@@ -64,7 +64,7 @@
   function abrirImportacao() {
     fecharModal();
     modalImportacao = window.TN.modal({
-      title: "Importar custos do ERP",
+      title: window.TN.t("financeiro", "Importar custos do ERP"),
       subtitle: "Fechamento do mês: comprometido, realizado e projeção no término por item",
       width: LARGURA_DO_MODAL,
       onClose: function () { modalImportacao = null; },

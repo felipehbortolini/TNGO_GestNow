@@ -122,7 +122,7 @@
     const saldo = opcao ? opcao.getAttribute("data-saldo") : "";
     dica.textContent = saldo
       ? "Saldo livre na origem: " + saldo + "."
-      : "Só entram os itens com saldo livre; ele desconta o reservado em outras SMs abertas.";
+      : window.TN.t("financeiro", "Só entram os itens com saldo livre; ele desconta o reservado em outras SMs abertas.");
   }
 
   function atualizarCodigo(select) {
@@ -148,7 +148,7 @@
     const endereco = ROTA_IMPORTACAO + (consulta ? "?" + consulta : "");
     fecharModal();
     modalImportacao = window.TN.modal({
-      title: "Importar itens da EAC",
+      title: window.TN.t("financeiro", "Importar itens da EAC"),
       subtitle: "Itens de custo (nível 3) em subpacotes existentes; a importação gera uma revisão",
       width: LARGURA_DO_MODAL,
       onClose: function () { modalImportacao = null; },

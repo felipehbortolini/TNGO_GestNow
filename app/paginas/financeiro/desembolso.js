@@ -70,7 +70,7 @@
   function abrirEnvio() {
     if (modalEnvio) modalEnvio.close();
     modalEnvio = window.TN.modal({
-      title: "Enviar à tesouraria",
+      title: window.TN.t("financeiro", "Enviar à tesouraria"),
       width: 640,
       onClose: function () {
         modalEnvio = null;

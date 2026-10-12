@@ -121,6 +121,13 @@
   function lerInformacoes() {
     const barra = document.getElementById("main-nav");
     const dados = barra ? barra.dataset : {};
+    let textos;
+    try {
+      textos = JSON.parse(dados.textos || "{}");
+    } catch {
+      textos = {}; /* sem o mapa, o cliente fica no português */
+    }
+    window.TN.i18n.aplicar(dados.idioma || "pt", textos);
     return {
       escopo: dados.escopo || PORTFOLIO,
       caminho: dados.caminho || INICIO,
@@ -154,14 +161,14 @@
   function mostrarFalha() {
     const principal = mostrarGuarda(
       "ilustra-erro.png",
-      "Não foi possível abrir a tela",
-      "Confira a conexão e tente de novo."
+      window.TN.t("comum", "Não foi possível abrir a tela"),
+      window.TN.t("comum", "Confira a conexão e tente de novo.")
     );
     if (!principal) return;
     const botao = document.createElement("button");
     botao.type = "button";
     botao.className = "btn btn--primary";
-    botao.textContent = "Tentar de novo";
+    botao.textContent = window.TN.t("comum", "Tentar de novo");
     botao.addEventListener("click", function () { window.location.reload(); });
     principal.querySelector(".guard").appendChild(botao);
   }
@@ -215,10 +222,11 @@
       const consulta = new URLSearchParams({ caminho: window.location.pathname });
       if (acao) consulta.set("acao", acao);
       const modal = window.TN.modal({
-        title: "Escolha o projeto",
-        subtitle: "No Portfólio, todo registro pertence a um projeto.",
+        title: window.TN.t("comum", "Escolha o projeto"),
+        subtitle: window.TN.t("comum", "No Portfólio, todo registro pertence a um projeto."),
         width: 520,
-        body: '<div id="escopo-escolha"><p class="muted">Carregando...</p></div>'
+        body: '<div id="escopo-escolha"><p class="muted">' +
+          window.TN.t("comum", "Carregando...") + "</p></div>"
       });
       modal.body.addEventListener("click", function (e) {
         if (e.target.closest("a[data-tn-tela]")) modal.close();
@@ -325,7 +333,7 @@
         const info = lerInformacoes();
         escopo.parametro = info.escopo;
         if (!info.tela) {
-          window.TN.toast("Endereço não encontrado. Abrimos o Início.", "aviso");
+          window.TN.toast(window.TN.t("comum", "Endereço não encontrado. Abrimos o Início."), "aviso");
           await this.executar(INICIO + "?projeto=" + info.escopo, { historico: "substituir" });
           return;
         }
@@ -337,11 +345,12 @@
           mostrarFalha();
           return;
         }
+        window.TN.i18n.traduzirView();
         if (viewAusente()) {
           mostrarGuarda(
             "ilustra-em-construcao.png",
-            "Esta tela ainda não está disponível",
-            "Ela chega numa próxima etapa da migração."
+            window.TN.t("comum", "Esta tela ainda não está disponível"),
+            window.TN.t("comum", "Ela chega numa próxima etapa da migração.")
           );
         }
         concluirNavegacao();
@@ -392,11 +401,35 @@
           });
           if (!resposta.ok) throw new Error("perfil recusado");
         } catch {
-          window.TN.toast("Não foi possível trocar o perfil.", "erro");
+          window.TN.toast(window.TN.t("comum", "Não foi possível trocar o perfil."), "erro");
           if (seletor) seletor.value = seletor.dataset.atual;
           return;
         }
         await window.TN.shell.navegar(enderecoAtual(), { historico: "substituir" });
+      },
+
+      /* Idioma (D13, ISSUE-087): o servidor grava a escolha no cookie e a
+         página recarrega, como no protótipo — todo fragmento volta traduzido. */
+      async trocarIdioma(idioma) {
+        if (idioma === window.TN.i18n.idioma) return;
+        try {
+          const resposta = await fetch("/api/idioma", {
+            method: "POST",
+            headers: { "X-Alpine-Request": "true" },
+            body: new URLSearchParams({ idioma: idioma })
+          });
+          if (!resposta.ok) throw new Error("idioma recusado");
+        } catch {
+          window.TN.toast(window.TN.t("comum", "Não foi possível trocar o idioma."), "erro");
+          const atual = window.TN.i18n.idioma;
+          this.$el.querySelectorAll("[data-idioma-atual]").forEach(function (botao) {
+            const ativo = botao.dataset.idiomaAtual === atual;
+            botao.classList.toggle("is-active", ativo);
+            botao.setAttribute("aria-pressed", ativo ? "true" : "false");
+          });
+          return;
+        }
+        window.location.reload();
       }
     };
   }

@@ -39,6 +39,7 @@
     </script>
 
     <script defer src="/ds/icons.js"></script>
+    <script defer src="/ds/i18n.js"></script>
     <script defer src="/ds/ui.js"></script>
     <script defer src="/ds/dica.js"></script>
 
@@ -219,7 +220,7 @@
   </head>
 
   <body>
-    <a href="#app-shell" class="skip-link">Pular para o conteúdo</a>
+    <a href="#app-shell" class="skip-link" data-i18n="Pular para o conteúdo">Pular para o conteúdo</a>
 
     <!-- ============================================================
          O componente "shell" (ds/shell.js) é o roteador: confere a sessão,
@@ -250,7 +251,7 @@
         <main id="app-shell" class="content">
           <div class="page-loading">
             <img class="page-loading__img" src="/ds/assets/loading-pagina.gif" alt="" />
-            <p class="page-loading__txt">Carregando...</p>
+            <p class="page-loading__txt" data-i18n="Carregando...">Carregando...</p>
           </div>
         </main>
       </div>

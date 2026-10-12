@@ -21,6 +21,12 @@
     return Array.prototype.slice.call((ctx || document).querySelectorAll(sel));
   };
 
+  /* O texto fixo do cliente no idioma da tela: definido por ds/i18n.js, que
+     carrega antes; sem ele (ou em português), vale o próprio texto. */
+  const t = function (namespace, texto) {
+    return window.TN && window.TN.t ? window.TN.t(namespace, texto) : texto;
+  };
+
   /* Contador para gerar id único de título de modal — dois diálogos
      empilhados não podem disputar o mesmo id. */
   let _seqModal = 0;
@@ -118,7 +124,7 @@
       el.setAttribute("aria-live", "polite");
       el.innerHTML =
         '<img src="/ds/assets/loading-pequeno.gif" alt="" style="width:120px;height:120px"/>' +
-        '<p class="overlay-msg">' + this.esc(msg || "Aguarde...") + "</p>";
+        '<p class="overlay-msg">' + this.esc(msg || t("comum", "Aguarde...")) + "</p>";
       document.body.appendChild(el);
     },
 
@@ -144,7 +150,7 @@
       const idTitulo = "tn-modal-titulo-" + _seqModal;
       const rotulo = o.title
         ? ' aria-labelledby="' + idTitulo + '"'
-        : ' aria-label="' + this.esc(o.ariaLabel || "Confirmação") + '"';
+        : ' aria-label="' + this.esc(o.ariaLabel || t("comum", "Confirmação")) + '"';
 
       const root = document.createElement("div");
       root.className = "modal-backdrop";
@@ -154,7 +160,7 @@
         '<div class="modal__head">' +
         '<div><h2 class="modal__title" id="' + idTitulo + '">' + this.esc(o.title) + "</h2>" +
         (o.subtitle ? '<p class="modal__subtitle">' + this.esc(o.subtitle) + "</p>" : "") + "</div>" +
-        '<button class="iconbtn modal__close" type="button" aria-label="Fechar">' + this.icon("dismiss", 18) + "</button>" +
+        '<button class="iconbtn modal__close" type="button" aria-label="' + t("comum", "Fechar") + '">' + this.icon("dismiss", 18) + "</button>" +
         "</div>" +
         '<div class="modal__body">' + o.body + "</div>" +
         "</div>";
@@ -197,17 +203,17 @@
       }, this);
 
       const m = this.modal({
-        title: o.title || "Confirmação",
+        title: o.title || t("comum", "Confirmação"),
         subtitle: o.subtitle || "",
         width: 600,
         onClose: o.onClose,
         body: '<div class="conf">' +
-          (o.mensagem !== "" ? '<p class="conf__msg">' + this.esc(o.mensagem || "Você confirma a exclusão?") + "</p>" : "") +
+          (o.mensagem !== "" ? '<p class="conf__msg">' + this.esc(o.mensagem || t("comum", "Você confirma a exclusão?")) + "</p>" : "") +
           (rows ? '<div class="conf__destaque">' + rows + "</div>" : "") +
           '<div class="modal__actions">' +
-          '<button type="button" class="btn btn--secondary" data-acao="cancelar">Não, cancelar</button>' +
+          '<button type="button" class="btn btn--secondary" data-acao="cancelar">' + t("comum", "Não, cancelar") + "</button>" +
           '<button type="button" class="btn btn--danger" data-acao="confirmar">' +
-          this.esc(o.labelConfirmar || "Excluir") + "</button></div></div>"
+          this.esc(o.labelConfirmar || t("comum", "Excluir")) + "</button></div></div>"
       });
 
       m.body.querySelector('[data-acao="cancelar"]').addEventListener("click", function () {
@@ -226,10 +232,10 @@
       const self = this;
       return new Promise(function (resolve) {
         self.confirm({
-          title: o.title || "Confirmação de Exclusão",
-          mensagem: o.mensagem || "Você confirma a exclusão do item abaixo?",
+          title: o.title || t("comum", "Confirmação de Exclusão"),
+          mensagem: o.mensagem || t("comum", "Você confirma a exclusão do item abaixo?"),
           rows: o.rows || [],
-          labelConfirmar: o.labelConfirmar || "Excluir",
+          labelConfirmar: o.labelConfirmar || t("comum", "Excluir"),
           onConfirm: function () { resolve(true); },
           onCancel: function () { resolve(false); },
           onClose: function () { resolve(false); }
@@ -246,7 +252,7 @@
           title: "",
           /* Sem título visível, o nome acessível vem daqui — senão o leitor
              de tela anuncia só "diálogo". */
-          ariaLabel: "Sair sem salvar as alterações",
+          ariaLabel: t("comum", "Sair sem salvar as alterações"),
           width: 600,
           onBackdrop: false,
           onClose: function () { resolve(false); },
@@ -254,11 +260,11 @@
             '<div class="guard-center">' +
             '<img src="/ds/assets/ilustra-aviso.png" alt="" style="width:200px"/>' +
             '<p class="conf__msg guard-msg">' +
-            self.esc(mensagem || "Se você sair agora, os dados preenchidos serão perdidos.") +
+            self.esc(mensagem || t("comum", "Se você sair agora, os dados preenchidos serão perdidos.")) +
             "</p>" +
             '<div class="modal__actions">' +
-            '<button type="button" class="btn btn--danger" data-g="sair">Sair sem salvar</button>' +
-            '<button type="button" class="btn btn--primary" data-g="ficar">Continuar editando</button>' +
+            '<button type="button" class="btn btn--danger" data-g="sair">' + t("comum", "Sair sem salvar") + "</button>" +
+            '<button type="button" class="btn btn--primary" data-g="ficar">' + t("comum", "Continuar editando") + "</button>" +
             "</div></div>"
         });
         m.body.querySelector('[data-g="sair"]').addEventListener("click", function () { m.close(); resolve(true); });
@@ -276,7 +282,7 @@
           '<span class="det__valor">' + this.esc(l.valor) + "</span></div>";
       }, this);
       return this.modal({
-        title: o.title || "Detalhes",
+        title: o.title || t("comum", "Detalhes"),
         subtitle: o.subtitle || "",
         width: 600,
         onClose: o.onClose,
@@ -297,7 +303,7 @@
     }
   };
 
-  window.TN = TN;
+  window.TN = Object.assign(window.TN || {}, TN);
 
   /* ============================================================
      Ponte com o Alpine AJAX
@@ -352,13 +358,13 @@
   document.addEventListener("ajax:error", function (e) {
     const status = (e.detail && e.detail.status) || 0;
     if (status >= 400 && status < 500) return;
-    TN.toast("Não foi possível concluir a operação. Tente novamente.", "erro");
+    TN.toast(t("comum", "Não foi possível concluir a operação. Tente novamente."), "erro");
   });
 
   /* Overlay durante requisições demoradas */
   document.addEventListener("ajax:before", function (e) {
     const alvo = e.target && e.target.closest && e.target.closest("[data-tn-loading]");
-    if (alvo) TN.loading(true, alvo.getAttribute("data-tn-loading") || "Aguarde...");
+    if (alvo) TN.loading(true, alvo.getAttribute("data-tn-loading") || t("comum", "Aguarde..."));
   });
 
   /* ajax:sent é o último a disparar, inclusive quando dá erro */
@@ -445,16 +451,16 @@
   TN.baixar = async function (endereco) {
     if (exportando) return;
     exportando = true;
-    TN.loading(true, "Gerando o arquivo...");
+    TN.loading(true, t("comum", "Gerando o arquivo..."));
     try {
       const resposta = await fetch(comEscopo(endereco), { credentials: "same-origin" });
       if (!resposta.ok) {
-        TN.toast(await motivoDaRecusa(resposta, "Não foi possível gerar o arquivo."), "erro");
+        TN.toast(await motivoDaRecusa(resposta, t("comum", "Não foi possível gerar o arquivo.")), "erro");
         return;
       }
       salvarArquivo(await resposta.blob(), nomeDoArquivo(resposta));
     } catch {
-      TN.toast("Não foi possível gerar o arquivo. Tente novamente.", "erro");
+      TN.toast(t("comum", "Não foi possível gerar o arquivo. Tente novamente."), "erro");
     } finally {
       TN.loading(false);
       exportando = false;
@@ -503,14 +509,14 @@
   TN.imprimir = async function (endereco) {
     if (exportando) return;
     exportando = true;
-    TN.loading(true, "Preparando a impressão...");
+    TN.loading(true, t("comum", "Preparando a impressão..."));
     try {
       const resposta = await fetch(comEscopo(endereco), {
         credentials: "same-origin",
         headers: { "X-Alpine-Request": "true", "X-Alpine-Target": ID_FOLHA }
       });
       if (!resposta.ok) {
-        TN.toast(await motivoDaRecusa(resposta, "Não foi possível preparar a impressão."), "erro");
+        TN.toast(await motivoDaRecusa(resposta, t("comum", "Não foi possível preparar a impressão.")), "erro");
         return;
       }
       descartarFolha();
@@ -523,7 +529,7 @@
     } catch (erro) {
       descartarFolha();
       console.error("[exportar] " + erro.message);
-      TN.toast("Não foi possível preparar a impressão. Tente novamente.", "erro");
+      TN.toast(t("comum", "Não foi possível preparar a impressão. Tente novamente."), "erro");
     } finally {
       TN.loading(false);
       exportando = false;

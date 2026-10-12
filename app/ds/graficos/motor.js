@@ -239,7 +239,9 @@
 
   function rotulo(dados, chave) {
     const doServidor = dados && dados.rotulos ? dados.rotulos[chave] : undefined;
-    return doServidor === undefined ? ROTULOS[chave] : doServidor;
+    if (doServidor !== undefined) return doServidor;
+    const padrao = ROTULOS[chave];
+    return TN.t ? TN.t("graficos", padrao) : padrao;
   }
 
   /* ---------- Elementos ---------- */
@@ -471,7 +473,7 @@
       return fabrica(host, dados);
     } catch (erro) {
       console.error("[graficos] falha ao desenhar " + host.dataset.grafico, erro);
-      mostrarMensagem(host, ROTULOS.falha);
+      mostrarMensagem(host, rotulo(dados, "falha"));
       return null;
     }
   }
@@ -494,7 +496,7 @@
     host.classList.toggle("graf--parado", !podeAnimar(host));
     const dados = analisar(bruto);
     if (dados === null) {
-      mostrarMensagem(host, ROTULOS.falha);
+      mostrarMensagem(host, TN.t ? TN.t("graficos", ROTULOS.falha) : ROTULOS.falha);
       montados.set(host, { bruto: bruto, instancia: null });
       return;
     }

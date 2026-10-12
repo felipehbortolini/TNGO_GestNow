@@ -65,7 +65,7 @@
 
   function nova() {
     abrirModal({
-      titulo: "Nova solicitação de mudança",
+      titulo: window.TN.t("governanca", "Nova solicitação de mudança"),
       subtitulo: "O número nasce na gravação e a SM nasce Registrada",
       endereco: "/api/governanca/mudancas/nova" + window.location.search
     });

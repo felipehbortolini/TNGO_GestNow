@@ -43,7 +43,7 @@
   function abrirNova(endereco) {
     if (modalAberto) modalAberto.close();
     modalAberto = window.TN.modal({
-      title: "Gerar nova ata",
+      title: window.TN.t("central_acoes", "Gerar nova ata"),
       subtitle: "O número nasce na gravação, pelo padrão do projeto",
       width: LARGURA_DO_FORMULARIO,
       onClose: function () { modalAberto = null; },

@@ -66,7 +66,7 @@
     if (!modelo) return;
     if (modalAberto) modalAberto.close();
     modalAberto = window.TN.modal({
-      title: "Colunas da tabela",
+      title: window.TN.t("central_acoes", "Colunas da tabela"),
       subtitle: "Colunas visíveis nas tabelas de itens",
       width: LARGURA_DAS_COLUNAS,
       onClose: function () { modalAberto = null; },

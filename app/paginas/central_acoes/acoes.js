@@ -40,7 +40,7 @@
     const modelo = document.querySelector("template[data-acoes-filtros-modelo]");
     if (!modelo) return;
     window.TN.modal({
-      title: "Filtros da Central",
+      title: window.TN.t("central_acoes", "Filtros da Central"),
       subtitle: "Busca, origem, status e responsável",
       width: LARGURA_DOS_FILTROS,
       body: modelo.innerHTML

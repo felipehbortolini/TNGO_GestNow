@@ -32,10 +32,10 @@
     aplicar: "/api/governanca/licoes/aplicar"
   };
   const TITULOS = {
-    ver: "Lição",
+    ver: window.TN.t("governanca", "Lição"),
     editar: "Editar lição",
     validar: "Validar lição",
-    aplicar: "Aplicar em projeto"
+    aplicar: window.TN.t("governanca", "Aplicar em projeto")
   };
   let modalAberto = null;
   let ouvindo = false;
@@ -80,7 +80,7 @@
 
   function nova() {
     abrirModal({
-      titulo: "Nova lição aprendida",
+      titulo: window.TN.t("governanca", "Nova lição aprendida"),
       subtitulo: "O número nasce na gravação e a lição nasce em Rascunho",
       endereco: "/api/governanca/licoes/nova" + window.location.search
     });
@@ -103,7 +103,7 @@
     if (!fase || !situacao) return;
     const ativo = botao.getAttribute("aria-pressed") === "true";
     fase.value = ativo ? "" : botao.dataset.licoesFase;
-    situacao.value = ativo ? "" : "Publicada";
+    situacao.value = ativo ? "" : window.TN.t("governanca", "Publicada");
     fase.form.requestSubmit();
   }
 

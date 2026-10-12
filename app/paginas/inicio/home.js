@@ -52,9 +52,11 @@
   function abrirPonderacao() {
     fecharModal();
     modalAberto = window.TN.modal({
-      title: "Ponderação da carteira",
-      subtitle:
-        "Define a relevância de cada projeto na Curva S física e nos índices ponderados do portfólio",
+      title: window.TN.t("inicio", "Ponderação da carteira"),
+      subtitle: window.TN.t(
+        "inicio",
+        "Define a relevância de cada projeto na Curva S física e nos índices ponderados do portfólio"
+      ),
       width: PONDERATION_WIDTH,
       onClose: function () {
         modalAberto = null;
@@ -67,7 +69,9 @@
         '" x-init="$ajax($el.dataset.endereco, { target: \'' +
         PONDERATION_MODAL +
         "' })\">" +
-        '<div class="spinner" role="status" aria-label="Carregando"></div></div>'
+        '<div class="spinner" role="status" aria-label="' +
+        window.TN.t("comum", "Carregando...") +
+        '"></div></div>'
     });
   }
 

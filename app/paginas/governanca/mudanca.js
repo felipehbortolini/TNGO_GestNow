@@ -64,7 +64,7 @@
 
   function cancelar(endereco, codigo) {
     abrirModal({
-      titulo: "Cancelar solicitação",
+      titulo: window.TN.t("governanca", "Cancelar solicitação"),
       subtitulo: codigo,
       endereco: endereco
     });

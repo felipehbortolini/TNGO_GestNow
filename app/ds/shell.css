@@ -185,6 +185,12 @@
 .sidebar__perfil { flex: none; padding: 0 16px 12px; }
 .sidebar__perfil .escopo__seletor { padding: 8px 36px 8px 12px; font-size: 13px; text-overflow: ellipsis; }
 
+/* Seletor de idioma (D13, ISSUE-087): o botão segmentado PT | EN, no desenho
+   do Design System (.seg), logo abaixo dos seletores de escopo e de perfil. */
+.sidebar__idioma { flex: none; padding: 0 16px 12px; }
+.sidebar__idioma .seg { font-size: 12px; }
+.sidebar__idioma .seg__btn { padding: 6px 14px; }
+
 /* Escolha do projeto da inclusão no Portfólio (fragmento /api/escopo/projetos) */
 .escopo-escolha__link {
   display: flex; align-items: center; gap: 12px; flex: 1;
@@ -227,6 +233,11 @@
   padding: 0; opacity: 0; cursor: pointer;
 }
 .sidebar-trilho .escopo:focus-within .escopo__icone { outline: 2px solid var(--verde-500); outline-offset: 2px; }
+
+/* O seletor de idioma encolhe para os dois botões, sem o rótulo. */
+.sidebar-trilho .sidebar__idioma { padding: 0 0 8px; }
+.sidebar-trilho .sidebar__idioma .seg { padding: 2px; }
+.sidebar-trilho .sidebar__idioma .seg__btn { padding: 4px 5px; font-size: 10px; }
 
 /* Saúde da API vira um ponto (o texto segue lá, para o leitor de tela); o card
    do usuário vira o avatar com o botão de sair embaixo. */
