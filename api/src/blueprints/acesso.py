@@ -18,10 +18,10 @@ refused.
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import auth, navigation, rbac, scope
+from src.core import auth, navigation, rbac, scope, translations
 from src.core.errors import AccessDeniedError, DomainError
 from src.core.responses import AlpineAjaxResponse, redirect_to
-from src.core.routing import OPEN, Access, RequestContext, fragment_route
+from src.core.routing import OPEN, Access, RequestContext, fragment_route, plain_text_response
 
 bp = func.Blueprint()
 
@@ -91,5 +91,20 @@ def switch_demo_profile(req: func.HttpRequest, session: Session) -> func.HttpRes
     response = func.HttpResponse("")
     response.headers["Set-Cookie"] = auth.demo_cookie_header(
         chosen.id, secure=scope.is_secure_request(req)
+    )
+    return response
+
+
+@bp.route(route="idioma", methods=["POST"])
+@fragment_route(access=OPEN)
+def switch_language(req: func.HttpRequest, session: Session) -> func.HttpResponse:
+    """Remember the language picked in the sidebar selector (D13, ISSUE-087)."""
+    del session
+    chosen = (req.form.get("idioma") or "").strip().lower()
+    if chosen not in translations.SUPPORTED_LANGUAGES:
+        return plain_text_response("Idioma inválido.", status_code=422)
+    response = func.HttpResponse("")
+    response.headers["Set-Cookie"] = translations.cookie_header(
+        chosen, secure=scope.is_secure_request(req)
     )
     return response

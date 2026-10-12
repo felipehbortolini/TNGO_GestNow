@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 import azure.functions as func
 
+from . import translations
 from .jinja_env import jinja_env
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,13 @@ class AlpineAjaxResponse(func.HttpResponse):
 
         if root_class:
             context.setdefault("root_class", root_class)
+
+        if request is not None:
+            idioma = translations.language_of(request)
+            context.setdefault("idioma", idioma)
+            context.setdefault("t", translations.closure(idioma))
+            context.setdefault("data", translations.date_formatter(idioma))
+            context.setdefault("data_hora", translations.datetime_formatter(idioma))
 
         html_content = jinja_env.get_template(template_name).render(**context)
 

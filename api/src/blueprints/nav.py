@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import auth, navigation, navigation_view, scope
+from src.core import auth, navigation, navigation_view, scope, translations
 from src.core.errors import AccessDeniedError, DomainError
 from src.core.glossary import load_glossary
 from src.core.responses import AlpineAjaxResponse
@@ -53,12 +53,16 @@ def _nav_denied(req: func.HttpRequest, error: DomainError) -> func.HttpResponse 
     if not isinstance(error, AccessDeniedError):
         return None
     email = error.email if isinstance(error, auth.NotRegisteredError) else None
+    idioma = translations.language_of(req)
     return AlpineAjaxResponse(
         template_name="nav/navegacao_negada.html",
         context={
             "email": email,
             "tela": navigation_view.DENIAL_ROUTE,
-            "titulo": navigation_view.DENIED_PAGE_TITLE,
+            "titulo": f"{translations.translate('shell', 'Acesso negado', idioma)}"
+            f" · {navigation_view.APP_NAME}",
+            "idioma": idioma,
+            "textos": translations.textos_do_cliente(idioma),
         },
         request=req,
         status_code=403,
@@ -71,15 +75,20 @@ def main_nav(req: func.HttpRequest, session: Session, context: RequestContext) -
     """Return the sidebar and the module tabs, and remember the scope in a cookie."""
     projects = configuracoes.list_projects(session)
     demo = auth.demo_selector(session, req, context.user)
+    idioma = translations.language_of(req)
     view = navigation_view.build(
-        req.params.get("caminho"), context.scope, projects, context.user, demo
+        req.params.get("caminho"), context.scope, projects, context.user, demo, idioma=idioma
     )
 
     response = AlpineAjaxResponse(
         template_name="nav/navegacao.html",
-        context={"nav": view},
+        context={
+            "nav": view,
+            "idioma": idioma,
+            "textos": translations.textos_do_cliente(idioma),
+        },
         request=req,
-        toast=_rejected_notice(context.scope, view.scope_label),
+        toast=_rejected_notice(context.scope, view.scope_label, idioma),
         toast_tipo="aviso",
     )
     response.headers["Set-Cookie"] = scope.cookie_header(
@@ -124,8 +133,11 @@ def glossary(req: func.HttpRequest, session: Session, context: RequestContext) -
     )
 
 
-def _rejected_notice(current_scope: scope.Scope, label: str) -> str | None:
+def _rejected_notice(current_scope: scope.Scope, label: str, idioma: str) -> str | None:
     """Say so when the scope asked for does not exist, instead of silently showing other data."""
     if current_scope.rejected is None:
         return None
-    return f"O escopo «{current_scope.rejected}» não existe. Mostrando {label}."
+    message = translations.translate(
+        "shell", "O escopo «{scope}» não existe. Mostrando {label}.", idioma
+    )
+    return message.format(scope=current_scope.rejected, label=label)

@@ -24,7 +24,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from src.core import navigation, rbac
+from src.core import navigation, rbac, translations
 from src.core.auth import DemoSelector
 from src.core.navigation import NavModule, Screen
 from src.core.rbac import Bond, User
@@ -167,6 +167,8 @@ def build(
     projects: Sequence[ProjectLike],
     user: User | None = None,
     demo: DemoSelector | None = None,
+    *,
+    idioma: str = "pt",
 ) -> NavigationView:
     """The navigation of the screen at ``path``, in the given scope, for the user.
 
@@ -176,21 +178,27 @@ def build(
     open also leaves nothing open, but ``current_view`` is then the route of
     the screen of denied access. Without a ``user`` nothing is cut (the list as
     it is); ``demo`` is the profile selector of the demonstration, when it exists.
+    ``idioma`` is the language of the request (D13): the titles of module and
+    screen come translated; every other text is data and goes as it is.
     """
-    modules = _visible_modules(user)
+    modules = _visible_modules(user, idioma)
     where = _position(path, modules, user)
     active_module = where.module
     parameter = scope.parameter
-    tabs, subtabs, subtabs_label = _tabs(active_module, where.screen, parameter)
-    options = _scope_options(scope, projects)
+    tabs, subtabs, subtabs_label = _tabs(active_module, where.screen, parameter, idioma)
+    options = _scope_options(scope, projects, idioma)
     selected = next((option for option in options if option.selected), options[0])
     return NavigationView(
-        modules=tuple(_module_link(module, active_module, parameter) for module in modules),
+        modules=tuple(_module_link(module, active_module, parameter, idioma) for module in modules),
         tabs=tabs,
         subtabs=subtabs,
         subtabs_label=subtabs_label,
-        tabs_label=f"Telas de {active_module.title}" if tabs and active_module else None,
-        back=_back_link(where.screen, parameter),
+        tabs_label=(
+            f"{_label('Telas de', idioma)} {_label(active_module.title, idioma)}"
+            if tabs and active_module
+            else None
+        ),
+        back=_back_link(where.screen, parameter, idioma),
         scope_options=options,
         scope_parameter=parameter,
         scope_label=selected.label,
@@ -199,8 +207,8 @@ def build(
         home_url=_home_url(parameter),
         current_path=_current_path(where),
         current_view=_current_view(where),
-        page_title=_page_title(where),
-        user=_badge(user),
+        page_title=_page_title(where, idioma),
+        user=_badge(user, idioma),
         demo=demo,
     )
 
@@ -208,7 +216,12 @@ def build(
 # ── What the user may see ────────────────────────────────────────────────
 
 
-def _visible_modules(user: User | None) -> tuple[NavModule, ...]:
+def _label(text: str, idioma: str) -> str:
+    """An interface text of the navigation in the language of the request (D13)."""
+    return translations.translate("shell", text, idioma)
+
+
+def _visible_modules(user: User | None, idioma: str) -> tuple[NavModule, ...]:
     """The modules of the list narrowed to what the user may open (D7).
 
     Every screen goes through ``rbac.can_open_screen``, the same rule the
@@ -218,7 +231,7 @@ def _visible_modules(user: User | None) -> tuple[NavModule, ...]:
     if user is None:
         return navigation.modules()
     if user.bond is Bond.SUPPLIER:
-        return _supplier_modules(user)
+        return _supplier_modules(user, idioma)
     narrowed = (_narrow(module, user) for module in navigation.modules())
     return tuple(module for module in narrowed if module is not None)
 
@@ -230,7 +243,7 @@ def _narrow(module: NavModule, user: User) -> NavModule | None:
     return module if len(screens) == len(module.screens) else replace(module, screens=screens)
 
 
-def _supplier_modules(user: User) -> tuple[NavModule, ...]:
+def _supplier_modules(user: User, idioma: str) -> tuple[NavModule, ...]:
     """The Programação Semanal as the supplier's only module, with its screens as the tabs."""
     screens = tuple(
         replace(screen, group=None, nav_module=SUPPLIER_MODULE_ID)
@@ -242,7 +255,7 @@ def _supplier_modules(user: User) -> tuple[NavModule, ...]:
     return (
         NavModule(
             id=SUPPLIER_MODULE_ID,
-            title=SUPPLIER_MODULE_TITLE,
+            title=_label(SUPPLIER_MODULE_TITLE, idioma),
             icon=SUPPLIER_MODULE_ICON,
             screens=screens,
         ),
@@ -290,13 +303,13 @@ def _current_view(where: _Position) -> str | None:
     return None
 
 
-def _badge(user: User | None) -> UserBadge | None:
+def _badge(user: User | None, idioma: str) -> UserBadge | None:
     if user is None:
         return None
     return UserBadge(
         name=user.name,
         initials=_initials(user.name),
-        description=f"{user.general_profile} · {user.bond}",
+        description=f"{_label(user.general_profile, idioma)} · {_label(user.bond, idioma)}",
         email=user.email,
     )
 
@@ -315,11 +328,14 @@ def _home_url(parameter: str) -> str:
     return navigation.scoped_url(home, parameter) if home is not None else navigation.HOME_PATH
 
 
-def _module_link(module: NavModule, active: NavModule | None, parameter: str) -> ModuleLink:
+def _module_link(
+    module: NavModule, active: NavModule | None, parameter: str, idioma: str
+) -> ModuleLink:
+    title = _label(module.title, idioma)
     return ModuleLink(
-        label=module.label,
+        label=f"{module.number} {title}" if module.number else title,
         number=module.number,
-        title=module.title,
+        title=title,
         icon=module.icon,
         url=navigation.scoped_url(module.landing, parameter),
         active=active is not None and module.id == active.id,
@@ -327,7 +343,7 @@ def _module_link(module: NavModule, active: NavModule | None, parameter: str) ->
 
 
 def _tabs(
-    module: NavModule | None, current: Screen | None, parameter: str
+    module: NavModule | None, current: Screen | None, parameter: str, idioma: str
 ) -> tuple[tuple[TabLink, ...], tuple[TabLink, ...], str | None]:
     """Tabs of the open module, the sub-tabs of the open group and the group's name.
 
@@ -343,52 +359,65 @@ def _tabs(
     seen_groups: set[str] = set()
     for screen in listed:
         if screen.group is None:
-            tabs.append(_tab(screen, parameter, current))
+            tabs.append(_tab(screen, parameter, current, idioma))
         elif screen.group not in seen_groups:
             seen_groups.add(screen.group)
-            tabs.append(_group_tab(screen, parameter, current))
-    return tuple(tabs), _subtabs(listed, current, parameter), current.group
+            tabs.append(_group_tab(screen, parameter, current, idioma))
+    return (
+        tuple(tabs),
+        _subtabs(listed, current, parameter, idioma),
+        _label(current.group, idioma) if current.group else None,
+    )
 
 
-def _tab(screen: Screen, parameter: str, current: Screen) -> TabLink:
+def _tab(screen: Screen, parameter: str, current: Screen, idioma: str) -> TabLink:
     return TabLink(
-        label=screen.tab_label,
-        title=screen.title,
+        label=_label(screen.tab_label, idioma),
+        title=_label(screen.title, idioma),
         url=navigation.scoped_url(screen, parameter),
         current="page" if screen.key == current.key else None,
     )
 
 
-def _group_tab(first: Screen, parameter: str, current: Screen) -> TabLink:
+def _group_tab(first: Screen, parameter: str, current: Screen, idioma: str) -> TabLink:
     """One tab for a whole group: it opens the group's first screen and is lit inside it."""
     group = first.group or ""
+    label = _label(group, idioma)
     return TabLink(
-        label=group,
-        title=group,
+        label=label,
+        title=label,
         url=navigation.scoped_url(first, parameter),
         current="true" if current.group == group else None,
     )
 
 
-def _subtabs(listed: Sequence[Screen], current: Screen, parameter: str) -> tuple[TabLink, ...]:
+def _subtabs(
+    listed: Sequence[Screen], current: Screen, parameter: str, idioma: str
+) -> tuple[TabLink, ...]:
     if current.group is None:
         return ()
     return tuple(
-        _tab(screen, parameter, current) for screen in listed if screen.group == current.group
+        _tab(screen, parameter, current, idioma)
+        for screen in listed
+        if screen.group == current.group
     )
 
 
-def _back_link(current: Screen | None, parameter: str) -> BackLink | None:
+def _back_link(current: Screen | None, parameter: str, idioma: str) -> BackLink | None:
     if current is None or not current.is_detail:
         return None
     origin = navigation.origin_of(current)
-    return BackLink(title=origin.title, url=navigation.scoped_url(origin, parameter))
+    return BackLink(
+        title=_label(origin.title, idioma), url=navigation.scoped_url(origin, parameter)
+    )
 
 
-def _scope_options(scope: Scope, projects: Sequence[ProjectLike]) -> tuple[ScopeOption, ...]:
+def _scope_options(
+    scope: Scope, projects: Sequence[ProjectLike], idioma: str
+) -> tuple[ScopeOption, ...]:
     portfolio = ScopeOption(
         value=PORTFOLIO_PARAMETER,
-        label=_portfolio_label(len(projects)),
+        label=_portfolio_label(len(projects), idioma),
         selected=scope.is_portfolio,
     )
     chosen = tuple(
@@ -402,9 +431,9 @@ def _scope_options(scope: Scope, projects: Sequence[ProjectLike]) -> tuple[Scope
     return (portfolio, *chosen)
 
 
-def _portfolio_label(count: int) -> str:
-    noun = "projeto" if count == 1 else "projetos"
-    return f"Portfólio ({count} {noun})"
+def _portfolio_label(count: int, idioma: str) -> str:
+    noun = _label("projeto" if count == 1 else "projetos", idioma)
+    return f"{_label('Portfólio', idioma)} ({count} {noun})"
 
 
 def _scope_destination(current: Screen | None) -> str:
@@ -414,13 +443,13 @@ def _scope_destination(current: Screen | None) -> str:
     return navigation.public_path(navigation.origin_of(current))
 
 
-def _page_title(where: _Position) -> str:
+def _page_title(where: _Position, idioma: str) -> str:
     """``Ata · Central de Ações · Timenow GestNow``; Início is just ``Início · Timenow GestNow``."""
     if where.denied is not None:
-        return DENIED_PAGE_TITLE
+        return f"{_label('Acesso negado', idioma)} · {APP_NAME}"
     current, module = where.screen, where.module
     if current is None or module is None:
         return APP_NAME
     if current.title == module.title:
-        return f"{current.title} · {APP_NAME}"
-    return f"{current.title} · {module.title} · {APP_NAME}"
+        return f"{_label(current.title, idioma)} · {APP_NAME}"
+    return f"{_label(current.title, idioma)} · {_label(module.title, idioma)} · {APP_NAME}"

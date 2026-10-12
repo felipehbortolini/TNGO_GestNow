@@ -110,13 +110,13 @@ def build_sheet(document: Document) -> Sheet:
     return Sheet(
         title=document.title,
         scope_label=document.scope_label,
-        generated_on=format_value(ValueKind.DATE, document.generated_on),
+        generated_on=format_value(ValueKind.DATE, document.generated_on, idioma=document.idioma),
         context=document.context,
         paper=document.paper.value,
         file_title=_file_title(document),
-        kpis=tuple(_kpi(kpi) for kpi in document.kpis),
+        kpis=tuple(_kpi(kpi, document.idioma) for kpi in document.kpis),
         charts=document.charts,
-        tables=tuple(_table(table) for table in resolve_tables(document)),
+        tables=tuple(_table(table, document.idioma) for table in resolve_tables(document)),
     )
 
 
@@ -149,34 +149,40 @@ def _tone(tone: Tone | None) -> str | None:
     return None if tone is None else tone.value
 
 
-def _kpi(kpi: Kpi) -> SheetKpi:
+def _kpi(kpi: Kpi, idioma: str) -> SheetKpi:
     return SheetKpi(
         label=kpi.label,
-        value=format_value(kpi.kind, kpi.value, kpi.digits),
+        value=format_value(kpi.kind, kpi.value, kpi.digits, idioma=idioma),
         reference=kpi.reference,
         status=kpi.status,
         css=_classes("folha__kpi", _tone(kpi.tone)),
     )
 
 
-def _table(table: Table) -> SheetTable:
+def _table(table: Table, idioma: str) -> SheetTable:
     return SheetTable(
         title=table.title,
         columns=tuple(
             SheetColumn(column.header, _classes("folha__th", _ALIGNMENT.get(column.kind)))
             for column in table.columns
         ),
-        rows=tuple(_cells(table.columns, item.cells, total=False) for item in table.rows),
-        totals=None if table.totals is None else _cells(table.columns, table.totals, total=True),
+        rows=tuple(
+            _cells(table.columns, item.cells, total=False, idioma=idioma) for item in table.rows
+        ),
+        totals=(
+            None
+            if table.totals is None
+            else _cells(table.columns, table.totals, total=True, idioma=idioma)
+        ),
     )
 
 
 def _cells(
-    columns: Sequence[Column], cells: Sequence[Cell], *, total: bool
+    columns: Sequence[Column], cells: Sequence[Cell], *, total: bool, idioma: str
 ) -> tuple[SheetCell, ...]:
     return tuple(
         SheetCell(
-            text=format_value(column.kind, cell.value, column.digits),
+            text=format_value(column.kind, cell.value, column.digits, idioma=idioma),
             css=_classes(
                 "folha__td",
                 _ALIGNMENT.get(column.kind),
