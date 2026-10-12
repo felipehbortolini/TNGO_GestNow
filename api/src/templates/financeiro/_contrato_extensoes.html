@@ -10,15 +10,15 @@
 <section class="card" aria-labelledby="contrato-extensoes-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-extensoes-titulo">Extensões de prazo</h2>
-      <span class="hint">Concedida prorroga o término vigente e pede SM para a linha de base do cronograma</span>
+      <h2 class="h-card4" id="contrato-extensoes-titulo">{{ t('financeiro', 'Extensões de prazo') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Concedida prorroga o término vigente e pede SM para a linha de base do cronograma') }}</span>
     </div>
     {% if pode_gerir %}
     <div>
       <a class="btn btn--primary" href="/api/financeiro/contrato/extensoes/nova?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova extensão de prazo
+        {{ t('financeiro', 'Nova extensão de prazo') }}
       </a>
     </div>
     {% endif %}
@@ -26,24 +26,24 @@
   <div class="card__body">
     {% if erro_extensoes %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro_extensoes }}</span>
     </div>
     {% endif %}
 
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Extensões de prazo do contrato</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Extensões de prazo do contrato') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Código</th>
-            <th scope="col">Evento causador</th>
-            <th scope="col" class="td-num">Solicitados</th>
-            <th scope="col" class="td-num">Concedidos</th>
-            <th scope="col">Classificação</th>
-            <th scope="col">Análise de atraso</th>
-            <th scope="col">Situação</th>
-            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Código') }}</th>
+            <th scope="col">{{ t('financeiro', 'Evento causador') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Solicitados') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Concedidos') }}</th>
+            <th scope="col">{{ t('financeiro', 'Classificação') }}</th>
+            <th scope="col">{{ t('financeiro', 'Análise de atraso') }}</th>
+            <th scope="col">{{ t('financeiro', 'Situação') }}</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -73,14 +73,14 @@
               {% if linha.pode_decidir %}
               <a class="btn btn--sm btn--secondary"
                 href="/api/financeiro/contrato/extensoes/{{ linha.eot.id }}/decidir?numero={{ ficha.number }}"
-                x-target="{{ alvo_formulario }}">Decidir</a>
+                x-target="{{ alvo_formulario }}">{{ t('financeiro', 'Decidir') }}</a>
               {% endif %}
               </div>
             </td>
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">Nenhuma extensão de prazo registrada.</td></tr>
+          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">{{ t('financeiro', 'Nenhuma extensão de prazo registrada.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

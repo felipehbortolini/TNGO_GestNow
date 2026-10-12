@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     Column,
@@ -31,6 +32,11 @@ from src.modulos.governanca.lessons_service import Acervo, LessonFilter, LessonP
 ACERVO_TITLE = "Acervo de lições aprendidas"
 
 
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Governança no idioma do request (D13)."""
+    return translations.translate("governanca", text, idioma)
+
+
 def acervo_document(
     acervo: Acervo,
     *,
@@ -39,36 +45,48 @@ def acervo_document(
     projects: Sequence[ProjectLike],
     filters: LessonFilter,
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The Acervo de lições: the table of the filters and the tables of the Painel."""
     return Document(
-        title=ACERVO_TITLE,
-        scope_label=describe_scope(scope, projects),
+        namespace="governanca",
+        title=_label(ACERVO_TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=_filter_context(filters),
-        charts=panel_charts.charts_of(panel),
+        context=_filter_context(filters, idioma),
+        charts=panel_charts.charts_of(panel, idioma),
         tables=(
-            _lessons_table(acervo),
-            _panel_group_table("Lições por fase", "Fase", panel.by_phase),
-            _panel_group_table("Lições por área de conhecimento", "Área", panel.by_area),
-            _panel_situation_table(panel),
-            _panel_reused_table(panel),
-            _panel_projects_table(panel),
+            _lessons_table(acervo, idioma),
+            _panel_group_table(
+                _label("Lições por fase", idioma), _label("Fase", idioma), panel.by_phase, idioma
+            ),
+            _panel_group_table(
+                _label("Lições por área de conhecimento", idioma),
+                _label("Área", idioma),
+                panel.by_area,
+                idioma,
+            ),
+            _panel_situation_table(panel, idioma),
+            _panel_reused_table(panel, idioma),
+            _panel_projects_table(panel, idioma),
         ),
         paper=Paper.A3,
+        idioma=idioma,
     )
 
 
-def _panel_group_table(title: str, label: str, lines: Sequence[LessonGroupLine]) -> Table:
+def _panel_group_table(
+    title: str, label: str, lines: Sequence[LessonGroupLine], idioma: str
+) -> Table:
     return Table(
         title=title,
         columns=(
             Column(label, width=30),
-            Column("Lições", ValueKind.INTEGER),
-            Column("A repetir", ValueKind.INTEGER),
-            Column("A evitar", ValueKind.INTEGER),
-            Column("Publicadas", ValueKind.INTEGER),
+            Column(_label("Lições", idioma), ValueKind.INTEGER),
+            Column(_label("A repetir", idioma), ValueKind.INTEGER),
+            Column(_label("A evitar", idioma), ValueKind.INTEGER),
+            Column(_label("Publicadas", idioma), ValueKind.INTEGER),
         ),
         rows=tuple(
             row(line.label, line.total, line.to_repeat, line.to_avoid, line.published)
@@ -78,10 +96,13 @@ def _panel_group_table(title: str, label: str, lines: Sequence[LessonGroupLine])
     )
 
 
-def _panel_situation_table(panel: LessonPanel) -> Table:
+def _panel_situation_table(panel: LessonPanel, idioma: str) -> Table:
     return Table(
-        title="Lições por situação",
-        columns=(Column("Situação", width=30), Column("Lições", ValueKind.INTEGER)),
+        title=_label("Lições por situação", idioma),
+        columns=(
+            Column(_label("Situação", idioma), width=30),
+            Column(_label("Lições", idioma), ValueKind.INTEGER),
+        ),
         rows=tuple(
             row(Cell(line.label, presentation.situation_tone(line.label)), line.total)
             for line in panel.by_situation
@@ -90,14 +111,14 @@ def _panel_situation_table(panel: LessonPanel) -> Table:
     )
 
 
-def _panel_reused_table(panel: LessonPanel) -> Table:
+def _panel_reused_table(panel: LessonPanel, idioma: str) -> Table:
     return Table(
-        title="Lições mais reusadas",
+        title=_label("Lições mais reusadas", idioma),
         columns=(
-            Column("Lição", width=18),
-            Column("Título", width=44),
-            Column("Tipo"),
-            Column("Reusos", ValueKind.INTEGER),
+            Column(_label("Lição", idioma), width=18),
+            Column(_label("Título", idioma), width=44),
+            Column(_label("Tipo", idioma)),
+            Column(_label("Reusos", idioma), ValueKind.INTEGER),
         ),
         rows=tuple(
             row(
@@ -112,10 +133,10 @@ def _panel_reused_table(panel: LessonPanel) -> Table:
     )
 
 
-def _panel_projects_table(panel: LessonPanel) -> Table:
+def _panel_projects_table(panel: LessonPanel, idioma: str) -> Table:
     return Table(
-        title="Projetos sem registro de lição no período",
-        columns=(Column("Projeto", width=40),),
+        title=_label("Projetos sem registro de lição no período", idioma),
+        columns=(Column(_label("Projeto", idioma), width=40),),
         rows=tuple(
             row(project_label(item), project=project_label(item))
             for item in panel.projects_without_record
@@ -123,38 +144,38 @@ def _panel_projects_table(panel: LessonPanel) -> Table:
     )
 
 
-def _filter_context(filters: LessonFilter) -> tuple[tuple[str, str], ...]:
+def _filter_context(filters: LessonFilter, idioma: str) -> tuple[tuple[str, str], ...]:
     labelled = (
-        ("Tipo", filters.kind),
-        ("Situação", filters.situation),
-        ("Fase", filters.phase),
-        ("Área", filters.area),
-        ("Disciplina", filters.discipline),
-        ("Origem", filters.origin),
-        ("Aplicabilidade", filters.applicability),
-        ("Busca", filters.search),
+        (_label("Tipo", idioma), filters.kind),
+        (_label("Situação", idioma), filters.situation),
+        (_label("Fase", idioma), filters.phase),
+        (_label("Área", idioma), filters.area),
+        (_label("Disciplina", idioma), filters.discipline),
+        (_label("Origem", idioma), filters.origin),
+        (_label("Aplicabilidade", idioma), filters.applicability),
+        (_label("Busca", idioma), filters.search),
     )
     return tuple((label, value) for label, value in labelled if value)
 
 
-def _lessons_table(acervo: Acervo) -> Table:
+def _lessons_table(acervo: Acervo, idioma: str) -> Table:
     return Table(
-        title="Lições",
+        title=_label("Lições", idioma),
         columns=(
-            Column("Código", width=18),
-            Column("Título", width=44),
-            Column("Tipo"),
-            Column("Situação", width=14),
-            Column("Fase"),
-            Column("Área"),
-            Column("Disciplina"),
-            Column("Aplicabilidade"),
-            Column("Origem", width=30),
-            Column("Recomendação", width=60),
-            Column("Prazo (dias)", ValueKind.INTEGER),
-            Column("Custo", ValueKind.MONEY),
-            Column("Reusos", ValueKind.INTEGER),
-            Column("Data", ValueKind.DATE),
+            Column(_label("Código", idioma), width=18),
+            Column(_label("Título", idioma), width=44),
+            Column(_label("Tipo", idioma)),
+            Column(_label("Situação", idioma), width=14),
+            Column(_label("Fase", idioma)),
+            Column(_label("Área", idioma)),
+            Column(_label("Disciplina", idioma)),
+            Column(_label("Aplicabilidade", idioma)),
+            Column(_label("Origem", idioma), width=30),
+            Column(_label("Recomendação", idioma), width=60),
+            Column(_label("Prazo (dias)", idioma), ValueKind.INTEGER),
+            Column(_label("Custo", idioma), ValueKind.MONEY),
+            Column(_label("Reusos", idioma), ValueKind.INTEGER),
+            Column(_label("Data", idioma), ValueKind.DATE),
         ),
         rows=tuple(
             row(

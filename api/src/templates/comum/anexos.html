@@ -32,11 +32,11 @@
 
   {% if pode_enviar %}
   <form class="upload" method="post" action="/api/anexos/enviar" enctype="multipart/form-data" x-target="{{ target_id }}"
-    data-tn-loading="Enviando o arquivo...">
+    data-tn-loading="{{ t('comum', 'Enviando o arquivo...') }}">
     <input type="hidden" name="origem" value="{{ origem }}" />
     <input type="hidden" name="registro" value="{{ registro }}" />
     <div class="field upload__campo">
-      <label for="{{ target_id }}-arquivo">Arquivo</label>
+      <label for="{{ target_id }}-arquivo">{{ t('comum', 'Arquivo') }}</label>
       <input id="{{ target_id }}-arquivo" class="input upload__arquivo{% if erro_arquivo %} input--erro{% endif %}"
         type="file" name="arquivo" accept="{{ aceitos }}" required
         {% if erro_arquivo %}aria-invalid="true" {% endif %}aria-describedby="{{ target_id }}-dica{% if erro_arquivo %} {{ target_id }}-erro{% endif %}" />
@@ -45,7 +45,7 @@
       <span class="field__erro" id="{{ target_id }}-erro" role="alert">{{ erro_arquivo }}</span>
       {% endif %}
     </div>
-    <button class="btn btn--primary" type="submit">Enviar anexo</button>
+    <button class="btn btn--primary" type="submit">{{ t('comum', 'Enviar anexo') }}</button>
   </form>
   {% endif %}
 
@@ -58,10 +58,10 @@
     <table class="tbl">
       <thead>
         <tr>
-          <th>Nome</th>
-          <th class="td-num">Tamanho</th>
-          <th>Enviado por</th>
-          <th>Enviado em</th>
+          <th>{{ t('comum', 'Nome') }}</th>
+          <th class="td-num">{{ t('comum', 'Tamanho') }}</th>
+          <th>{{ t('comum', 'Enviado por') }}</th>
+          <th>{{ t('comum', 'Enviado em') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -82,7 +82,7 @@
     </table>
   </div>
   {% else %}
-  <p class="body-txt muted">Nenhum anexo enviado ainda.</p>
+  <p class="body-txt muted">{{ t('comum', 'Nenhum anexo enviado ainda.') }}</p>
   {% endif %}
 </section>
 {% endblock %}

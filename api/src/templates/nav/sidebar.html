@@ -22,27 +22,29 @@
 <aside
   id="main-nav"
   class="sidebar"
-  aria-label="Navegação principal"
+  aria-label="{{ t('shell', 'Navegação principal') }}"
   x-data="sidebar"
   @tn-trilho.window="trilho = $event.detail"
   data-escopo="{{ nav.scope_parameter }}"
   data-caminho="{{ nav.current_path or '' }}"
   data-tela="{{ nav.current_view or '' }}"
   data-titulo="{{ nav.page_title }}"
+  data-idioma="{{ idioma }}"
+  data-textos='{{ textos | tojson }}'
 >
   <div class="sidebar__brand">
     <a
       href="{{ nav.home_url }}"
       data-tn-tela
       class="sidebar__logo-link"
-      aria-label="Timenow GestNow, Início"
-      data-dica-trilho="Início"
+      aria-label="{{ t('shell', 'Timenow GestNow, Início') }}"
+      data-dica-trilho="{{ t('shell', 'Início') }}"
     ></a>
     <button
       type="button"
       class="iconbtn sidebar__recolher"
       @click="alternarTrilho()"
-      :aria-label="trilho ? 'Expandir a barra lateral' : 'Recolher a barra lateral'"
+      :aria-label="trilho ? '{{ t('shell', 'Expandir a barra lateral') }}' : '{{ t('shell', 'Recolher a barra lateral') }}'"
     >
       <span class="sidebar__recolher-icone sidebar__recolher-icone--recolher" x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
       <span class="sidebar__recolher-icone sidebar__recolher-icone--expandir" x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
@@ -52,14 +54,14 @@
   <hr class="sidebar__divisor" />
 
   <div class="sidebar__escopo" data-destino="{{ nav.scope_destination }}">
-    <label class="sidebar__escopo-rotulo" for="escopo-seletor">Escopo</label>
+    <label class="sidebar__escopo-rotulo" for="escopo-seletor">{{ t('shell', 'Escopo') }}</label>
     <div class="escopo">
       <span class="escopo__icone" x-init="$el.innerHTML = window.icon('{{ nav.scope_icon }}', 18)" aria-hidden="true"></span>
       <select
         id="escopo-seletor"
         class="input escopo__seletor"
-        aria-label="Escopo dos dados"
-        data-dica-trilho="Escopo: {{ nav.scope_label }}"
+        aria-label="{{ t('shell', 'Escopo dos dados') }}"
+        data-dica-trilho="{{ t('shell', 'Escopo') }}: {{ nav.scope_label }}"
         @change="trocarEscopo($event.target.value)"
       >
         {% for opcao in nav.scope_options %}
@@ -71,14 +73,14 @@
 
   {% if nav.demo %}
   <div class="sidebar__perfil">
-    <label class="sidebar__escopo-rotulo" for="perfil-seletor">Perfil (demonstração)</label>
+    <label class="sidebar__escopo-rotulo" for="perfil-seletor">{{ t('shell', 'Perfil (demonstração)') }}</label>
     <div class="escopo">
       <span class="escopo__icone" x-init="$el.innerHTML = window.icon('person', 18)" aria-hidden="true"></span>
       <select
         id="perfil-seletor"
         class="input escopo__seletor"
-        aria-label="Perfil de demonstração"
-        data-dica-trilho="Perfil: {{ nav.user.name if nav.user else '' }}"
+        aria-label="{{ t('shell', 'Perfil de demonstração') }}"
+        data-dica-trilho="{{ t('shell', 'Perfil') }}: {{ nav.user.name if nav.user else '' }}"
         data-atual="{{ nav.demo.current_id }}"
         x-init="$el.value = $el.dataset.atual"
         @change="trocarPerfil($event.target.value)"
@@ -91,9 +93,31 @@
   </div>
   {% endif %}
 
-  <p class="sidebar__section-label">Módulos</p>
+  <div class="sidebar__idioma">
+    <span class="sidebar__escopo-rotulo" id="idioma-rotulo">{{ t('shell', 'Idioma') }}</span>
+    <div class="seg" role="group" aria-labelledby="idioma-rotulo">
+      <button
+        type="button"
+        class="seg__btn{% if idioma == 'pt' %} is-active{% endif %}"
+        data-idioma-atual="pt"
+        aria-pressed="{{ 'true' if idioma == 'pt' else 'false' }}"
+        data-dica-trilho="{{ t('shell', 'Português') }}"
+        @click="trocarIdioma('pt')"
+      >PT</button>
+      <button
+        type="button"
+        class="seg__btn{% if idioma == 'en' %} is-active{% endif %}"
+        data-idioma-atual="en"
+        aria-pressed="{{ 'true' if idioma == 'en' else 'false' }}"
+        data-dica-trilho="{{ t('shell', 'Inglês') }}"
+        @click="trocarIdioma('en')"
+      >EN</button>
+    </div>
+  </div>
 
-  <nav class="sidebar__nav" aria-label="Módulos">
+  <p class="sidebar__section-label">{{ t('shell', 'Módulos') }}</p>
+
+  <nav class="sidebar__nav" aria-label="{{ t('shell', 'Módulos') }}">
     {% for modulo in nav.modules %}
     <a
       class="sidebar__item{% if modulo.active %} is-active{% endif %}"
@@ -119,8 +143,8 @@
       class="pill"
       role="status"
       :class="saude === 'ok' ? 'pill--ok' : 'pill--erro'"
-      :data-dica-trilho="'API ' + (saude === 'ok' ? 'online' : saude)"
-      x-text="saude === 'ok' ? 'API online' : 'API ' + saude"
+      :data-dica-trilho="saude === 'ok' ? '{{ t('shell', 'API online') }}' : 'API ' + saude"
+      x-text="saude === 'ok' ? '{{ t('shell', 'API online') }}' : 'API ' + saude"
     ></span>
   </div>
 
@@ -134,8 +158,8 @@
     <a
       href="/.auth/logout"
       class="iconbtn sidebar__user-chev"
-      aria-label="Sair"
-      data-dica-trilho="Sair"
+      aria-label="{{ t('shell', 'Sair') }}"
+      data-dica-trilho="{{ t('shell', 'Sair') }}"
       x-init="$el.innerHTML = window.icon('signout', 16)"
     ></a>
   </div>

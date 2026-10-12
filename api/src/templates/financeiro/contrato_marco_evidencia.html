@@ -21,11 +21,11 @@
     <form method="post" enctype="multipart/form-data"
       action="/api/financeiro/contrato/marcos/{{ marco.id }}/evidencia?numero={{ ficha.number }}"
       x-target="{{ alvo_formulario }} {{ alvo_marcos }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Enviando a evidência...">
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Enviando a evidência...') }}">
       <input type="hidden" name="versao" value="{{ marco.version }}" />
       <div class="fgrid">
         <div class="field">
-          <label for="contrato-marco-conclusao">Data de conclusão</label>
+          <label for="contrato-marco-conclusao">{{ t('financeiro', 'Data de conclusão') }}</label>
           <input id="contrato-marco-conclusao" name="conclusao" type="date"
             class="input{{ ' input--erro' if erros.conclusao else '' }}"
             value="{{ valores.conclusao or '' }}" required
@@ -33,7 +33,7 @@
           {% if erros.conclusao %}<span class="field__erro" id="contrato-marco-conclusao-erro">{{ erros.conclusao }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="contrato-marco-arquivo">Evidência</label>
+          <label for="contrato-marco-arquivo">{{ t('financeiro', 'Evidência') }}</label>
           <input id="contrato-marco-arquivo" name="{{ campo_arquivo }}" type="file" class="input{{ ' input--erro' if erros.arquivo else '' }}"
             accept="{{ aceitos }}" required
             {% if erros.arquivo %}aria-invalid="true" aria-describedby="contrato-marco-arquivo-erro"{% endif %} />
@@ -43,10 +43,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Enviar evidência
+          {{ t('financeiro', 'Enviar evidência') }}
         </button>
       </div>
     </form>

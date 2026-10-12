@@ -6,18 +6,18 @@
   Espera: acao, linhas (registered_on, from_date, to_date, author_name, justification) e formatar_data.
 #}
 {% block fragment %}
-<p class="body-txt mb-16">Prevista original: <strong>{{ formatar_data(acao.planned_date) }}</strong></p>
+<p class="body-txt mb-16">{{ t('central_acoes', 'Prevista original:') }} <strong>{{ formatar_data(acao.planned_date) }}</strong></p>
 {% if linhas %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Replanejamentos da ação</caption>
+    <caption class="sr-only">{{ t('central_acoes', 'Replanejamentos da ação') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Registrado em</th>
-        <th scope="col">De</th>
-        <th scope="col">Para</th>
-        <th scope="col">Por</th>
-        <th scope="col">Justificativa</th>
+        <th scope="col">{{ t('central_acoes', 'Registrado em') }}</th>
+        <th scope="col">{{ t('central_acoes', 'De') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Para') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Por') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Justificativa') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -34,6 +34,6 @@
   </table>
 </div>
 {% else %}
-<p class="body-txt muted">Esta ação nunca foi replanejada.</p>
+<p class="body-txt muted">{{ t('central_acoes', 'Esta ação nunca foi replanejada.') }}</p>
 {% endif %}
 {% endblock %}

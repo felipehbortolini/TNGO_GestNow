@@ -12,7 +12,7 @@
   <div class="card__body">
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Nenhum contrato no escopo</h2>
+      <h2 class="h-card4">{{ t('financeiro', 'Nenhum contrato no escopo') }}</h2>
       <p>{% if carteira %}Nenhum projeto do portfólio tem contratos registrados.{% else %}Este projeto ainda não tem contratos registrados.{% endif %}
         Os contratos nascem na adjudicação de Suprimentos e a administração contratual aparece aqui.</p>
     </div>
@@ -20,61 +20,61 @@
 </div>
 {% else %}
 <div x-data="{ aba: 'contratos' }">
-  <div class="tabs mt-16" role="tablist" aria-label="Registros da administração contratual">
+  <div class="tabs mt-16" role="tablist" aria-label="{{ t('financeiro', 'Registros da administração contratual') }}">
     <button type="button" class="tab" role="tab" id="aba-contratos" aria-controls="painel-contratos"
       :class="{ 'is-active': aba === 'contratos' }" :aria-selected="aba === 'contratos'"
       @click="aba = 'contratos'">
       <span x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
-      Contratos <span class="tab__count">{{ contratos | length }}</span>
+      {{ t('financeiro', 'Contratos') }} <span class="tab__count">{{ contratos | length }}</span>
     </button>
     <button type="button" class="tab" role="tab" id="aba-claims" aria-controls="painel-claims"
       :class="{ 'is-active': aba === 'claims' }" :aria-selected="aba === 'claims'"
       @click="aba = 'claims'">
       <span x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-      Claims <span class="tab__count">{{ claims | length }}</span>
+      {{ t('financeiro', 'Claims') }} <span class="tab__count">{{ claims | length }}</span>
     </button>
     <button type="button" class="tab" role="tab" id="aba-extensoes" aria-controls="painel-extensoes"
       :class="{ 'is-active': aba === 'extensoes' }" :aria-selected="aba === 'extensoes'"
       @click="aba = 'extensoes'">
       <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
-      Extensões de prazo <span class="tab__count">{{ extensoes | length }}</span>
+      {{ t('financeiro', 'Extensões de prazo') }} <span class="tab__count">{{ extensoes | length }}</span>
     </button>
     <button type="button" class="tab" role="tab" id="aba-marcos" aria-controls="painel-marcos"
       :class="{ 'is-active': aba === 'marcos' }" :aria-selected="aba === 'marcos'"
       @click="aba = 'marcos'">
       <span x-init="$el.innerHTML = window.icon('pin', 16)" aria-hidden="true"></span>
-      Marcos de pagamento <span class="tab__count">{{ marcos | length }}</span>
+      {{ t('financeiro', 'Marcos de pagamento') }} <span class="tab__count">{{ marcos | length }}</span>
     </button>
     <button type="button" class="tab" role="tab" id="aba-avaliacoes" aria-controls="painel-avaliacoes"
       :class="{ 'is-active': aba === 'avaliacoes' }" :aria-selected="aba === 'avaliacoes'"
       @click="aba = 'avaliacoes'">
       <span x-init="$el.innerHTML = window.icon('person', 16)" aria-hidden="true"></span>
-      Avaliações <span class="tab__count">{{ avaliacoes | length }}</span>
+      {{ t('financeiro', 'Avaliações') }} <span class="tab__count">{{ avaliacoes | length }}</span>
     </button>
   </div>
 
   <section class="card mt-16" role="tabpanel" id="painel-contratos" aria-labelledby="aba-contratos" x-show="aba === 'contratos'">
     <div class="card__head">
       <div>
-        <h2 class="h-card4">Contratos</h2>
+        <h2 class="h-card4">{{ t('financeiro', 'Contratos') }}</h2>
         <span class="hint">{{ sub_contratos }}</span>
       </div>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl" data-contratos>
-          <caption class="sr-only">Contratos do escopo</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Contratos do escopo') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Nº</th>
-              <th scope="col">Contratada</th>
-              <th scope="col" class="td-num">Valor atual</th>
-              <th scope="col" class="td-num">Medido</th>
-              <th scope="col" class="td-num">Saldo a faturar</th>
-              <th scope="col">Término vigente</th>
-              <th scope="col" class="td-num">Claims abertos</th>
-              <th scope="col">Última avaliação</th>
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Nº') }}</th>
+              <th scope="col">{{ t('financeiro', 'Contratada') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Valor atual') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Medido') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Saldo a faturar') }}</th>
+              <th scope="col">{{ t('financeiro', 'Término vigente') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Claims abertos') }}</th>
+              <th scope="col">{{ t('financeiro', 'Última avaliação') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -90,7 +90,7 @@
               <td class="td-num">{{ linha.medido }}</td>
               <td class="td-num">{{ linha.contrato.balance_to_invoice_cents | brl }}</td>
               <td>
-                {{ linha.contrato.current_end.strftime('%d/%m/%Y') }}
+                {{ data(linha.contrato.current_end) }}
                 {% if linha.dias_aditados %}<br /><span class="hint">{{ linha.dias_aditados }}</span>{% endif %}
               </td>
               <td class="td-num">{{ linha.contrato.open_claims }}</td>
@@ -101,7 +101,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 9 if carteira else 8 }}" class="muted">Nenhum contrato encontrado.</td></tr>
+            <tr><td colspan="{{ 9 if carteira else 8 }}" class="muted">{{ t('financeiro', 'Nenhum contrato encontrado.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -112,24 +112,24 @@
   <section class="card mt-16" role="tabpanel" id="painel-claims" aria-labelledby="aba-claims" x-show="aba === 'claims'">
     <div class="card__head">
       <div>
-        <h2 class="h-card4">Claims</h2>
+        <h2 class="h-card4">{{ t('financeiro', 'Claims') }}</h2>
         <span class="hint">{{ sub_claims }}</span>
       </div>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl" data-claims>
-          <caption class="sr-only">Claims do escopo</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Claims do escopo') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Código</th>
-              <th scope="col">Direção / tipo</th>
-              <th scope="col">Descrição</th>
-              <th scope="col">Notificação</th>
-              <th scope="col" class="td-num">Pleiteado</th>
-              <th scope="col" class="td-num">Reconhecido</th>
-              <th scope="col">Situação</th>
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Código') }}</th>
+              <th scope="col">{{ t('financeiro', 'Direção / tipo') }}</th>
+              <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+              <th scope="col">{{ t('financeiro', 'Notificação') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Pleiteado') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Reconhecido') }}</th>
+              <th scope="col">{{ t('financeiro', 'Situação') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -146,7 +146,7 @@
               </td>
               <td>{{ linha.claim.description }}</td>
               <td>
-                {{ linha.claim.notification_date.strftime('%d/%m/%Y') }}
+                {{ data(linha.claim.notification_date) }}
                 <br />
                 {% if linha.claim.notification_late %}
                 <span class="pill pill--erro">{{ linha.claim.notification_days }} dias após o evento · fora do prazo</span>
@@ -167,7 +167,7 @@
               <td><span class="pill pill--{{ linha.situacao_tom }}">{{ linha.claim.situation }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhum claim encontrado.</td></tr>
+            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">{{ t('financeiro', 'Nenhum claim encontrado.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -178,24 +178,24 @@
   <section class="card mt-16" role="tabpanel" id="painel-extensoes" aria-labelledby="aba-extensoes" x-show="aba === 'extensoes'">
     <div class="card__head">
       <div>
-        <h2 class="h-card4">Extensões de prazo</h2>
+        <h2 class="h-card4">{{ t('financeiro', 'Extensões de prazo') }}</h2>
         <span class="hint">{{ sub_extensoes }}</span>
       </div>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl" data-eot>
-          <caption class="sr-only">Extensões de prazo do escopo</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Extensões de prazo do escopo') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Código</th>
-              <th scope="col">Evento causador</th>
-              <th scope="col" class="td-num">Dias solicitados</th>
-              <th scope="col" class="td-num">Dias concedidos</th>
-              <th scope="col">Classificação</th>
-              <th scope="col">Marco afetado</th>
-              <th scope="col">Situação</th>
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Código') }}</th>
+              <th scope="col">{{ t('financeiro', 'Evento causador') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Dias solicitados') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Dias concedidos') }}</th>
+              <th scope="col">{{ t('financeiro', 'Classificação') }}</th>
+              <th scope="col">{{ t('financeiro', 'Marco afetado') }}</th>
+              <th scope="col">{{ t('financeiro', 'Situação') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -217,7 +217,7 @@
               <td><span class="pill pill--{{ linha.situacao_tom }}">{{ linha.eot.situation }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhuma extensão de prazo encontrada.</td></tr>
+            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">{{ t('financeiro', 'Nenhuma extensão de prazo encontrada.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -228,24 +228,24 @@
   <section class="card mt-16" role="tabpanel" id="painel-marcos" aria-labelledby="aba-marcos" x-show="aba === 'marcos'">
     <div class="card__head">
       <div>
-        <h2 class="h-card4">Marcos de pagamento</h2>
+        <h2 class="h-card4">{{ t('financeiro', 'Marcos de pagamento') }}</h2>
         <span class="hint">{{ sub_marcos }}</span>
       </div>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl" data-marcos>
-          <caption class="sr-only">Marcos de pagamento do escopo</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Marcos de pagamento do escopo') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Contrato</th>
-              <th scope="col">Marco</th>
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Contrato') }}</th>
+              <th scope="col">{{ t('financeiro', 'Marco') }}</th>
               <th scope="col" class="td-num">%</th>
-              <th scope="col" class="td-num">Valor</th>
-              <th scope="col">Prevista</th>
-              <th scope="col">Conclusão</th>
-              <th scope="col">Situação</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
+              <th scope="col">{{ t('financeiro', 'Prevista') }}</th>
+              <th scope="col">{{ t('financeiro', 'Conclusão') }}</th>
+              <th scope="col">{{ t('financeiro', 'Situação') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -260,18 +260,18 @@
               <td class="td-num">{{ linha.marco.pct }}%</td>
               <td class="td-num">{{ linha.marco.value_cents | brl }}</td>
               <td>
-                {{ linha.marco.expected_on.strftime('%d/%m/%Y') }}
+                {{ data(linha.marco.expected_on) }}
                 {% if linha.marco.is_late %}
                 <br /><span class="pill pill--erro">
                   {% if linha.marco.late_days == 1 %}1 dia de atraso{% else %}{{ linha.marco.late_days }} dias de atraso{% endif %}
                 </span>
                 {% endif %}
               </td>
-              <td>{{ linha.marco.completed_on.strftime('%d/%m/%Y') if linha.marco.completed_on else '' }}</td>
+              <td>{{ data(linha.marco.completed_on) if linha.marco.completed_on else '' }}</td>
               <td><span class="pill pill--{{ linha.situacao_tom }}">{{ linha.marco.situation }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhum marco encontrado.</td></tr>
+            <tr><td colspan="{{ 8 if carteira else 7 }}" class="muted">{{ t('financeiro', 'Nenhum marco encontrado.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -282,25 +282,25 @@
   <section class="card mt-16" role="tabpanel" id="painel-avaliacoes" aria-labelledby="aba-avaliacoes" x-show="aba === 'avaliacoes'">
     <div class="card__head">
       <div>
-        <h2 class="h-card4">Avaliações de desempenho</h2>
+        <h2 class="h-card4">{{ t('financeiro', 'Avaliações de desempenho') }}</h2>
         <span class="hint">{{ sub_avaliacoes }}</span>
       </div>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl" data-avaliacoes>
-          <caption class="sr-only">Avaliações de desempenho do escopo</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Avaliações de desempenho do escopo') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Contrato</th>
-              <th scope="col">Período</th>
-              <th scope="col">Tipo</th>
-              <th scope="col" class="td-num">Nota</th>
-              <th scope="col">Classe</th>
-              <th scope="col">Plano de melhoria</th>
-              <th scope="col">Comentário</th>
-              <th scope="col">Avaliador</th>
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Contrato') }}</th>
+              <th scope="col">{{ t('financeiro', 'Período') }}</th>
+              <th scope="col">{{ t('financeiro', 'Tipo') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Nota') }}</th>
+              <th scope="col">{{ t('financeiro', 'Classe') }}</th>
+              <th scope="col">{{ t('financeiro', 'Plano de melhoria') }}</th>
+              <th scope="col">{{ t('financeiro', 'Comentário') }}</th>
+              <th scope="col">{{ t('financeiro', 'Avaliador') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -321,15 +321,15 @@
                 {% if linha.avaliacao.view.class_description %}<br /><span class="hint">{{ linha.avaliacao.view.class_description }}</span>{% endif %}
               </td>
               <td>
-                {% if linha.avaliacao.view.requires_plan %}<span class="pill pill--warn">Exigido</span>{% endif %}
-                {% if linha.avaliacao.view.has_evidence %}<br /><span class="hint">Evidência anexada</span>{% endif %}
+                {% if linha.avaliacao.view.requires_plan %}<span class="pill pill--warn">{{ t('financeiro', 'Exigido') }}</span>{% endif %}
+                {% if linha.avaliacao.view.has_evidence %}<br /><span class="hint">{{ t('financeiro', 'Evidência anexada') }}</span>{% endif %}
                 {% if not linha.avaliacao.view.requires_plan and not linha.avaliacao.view.has_evidence %}·{% endif %}
               </td>
               <td>{{ linha.avaliacao.view.comment }}</td>
               <td>{{ linha.avaliacao.view.evaluator }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="{{ 9 if carteira else 8 }}" class="muted">Nenhuma avaliação encontrada.</td></tr>
+            <tr><td colspan="{{ 9 if carteira else 8 }}" class="muted">{{ t('financeiro', 'Nenhuma avaliação encontrada.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>

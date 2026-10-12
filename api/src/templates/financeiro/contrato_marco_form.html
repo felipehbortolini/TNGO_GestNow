@@ -10,7 +10,7 @@
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
   <div class="card__head">
-    <h2 class="h-card4" id="{{ target_id }}-titulo">Novo marco de pagamento</h2>
+    <h2 class="h-card4" id="{{ target_id }}-titulo">{{ t('financeiro', 'Novo marco de pagamento') }}</h2>
     <span class="hint">{{ ficha.number }} · {{ disponivel_pct }}% disponíveis</span>
   </div>
   <div class="card__body">
@@ -19,24 +19,24 @@
     {% endif %}
     <form method="post" action="/api/financeiro/contrato/marcos?numero={{ ficha.number }}"
       x-target="{{ alvo_formulario }} {{ alvo_marcos }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Cadastrando o marco...">
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Cadastrando o marco...') }}">
       <div class="fgrid">
         <div class="field field--full">
-          <label for="contrato-marco-descricao">Descrição</label>
+          <label for="contrato-marco-descricao">{{ t('financeiro', 'Descrição') }}</label>
           <input id="contrato-marco-descricao" name="descricao" class="input{{ ' input--erro' if erros.descricao else '' }}"
             maxlength="120" value="{{ valores.descricao or '' }}" required
             {% if erros.descricao %}aria-invalid="true" aria-describedby="contrato-marco-descricao-erro"{% endif %} />
           {% if erros.descricao %}<span class="field__erro" id="contrato-marco-descricao-erro">{{ erros.descricao }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="contrato-marco-criterio">Critério de aceite (evidência exigida)</label>
+          <label for="contrato-marco-criterio">{{ t('financeiro', 'Critério de aceite (evidência exigida)') }}</label>
           <input id="contrato-marco-criterio" name="criterio" class="input{{ ' input--erro' if erros.criterio else '' }}"
             maxlength="160" value="{{ valores.criterio or '' }}" required
             {% if erros.criterio %}aria-invalid="true" aria-describedby="contrato-marco-criterio-erro"{% endif %} />
           {% if erros.criterio %}<span class="field__erro" id="contrato-marco-criterio-erro">{{ erros.criterio }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="contrato-marco-pct">% do valor do contrato</label>
+          <label for="contrato-marco-pct">{{ t('financeiro', '% do valor do contrato') }}</label>
           <input id="contrato-marco-pct" name="pct" type="number" min="1" max="100" step="1"
             class="input{{ ' input--erro' if erros.pct else '' }}"
             value="{{ valores.pct or '' }}" required
@@ -45,7 +45,7 @@
           <span class="hint">Restam {{ disponivel_pct }}% até fechar os 100% do contrato.</span>
         </div>
         <div class="field">
-          <label for="contrato-marco-prevista">Data prevista</label>
+          <label for="contrato-marco-prevista">{{ t('financeiro', 'Data prevista') }}</label>
           <input id="contrato-marco-prevista" name="prevista" type="date"
             class="input{{ ' input--erro' if erros.prevista else '' }}"
             value="{{ valores.prevista or '' }}" required
@@ -55,10 +55,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Cadastrar marco
+          {{ t('financeiro', 'Cadastrar marco') }}
         </button>
       </div>
     </form>

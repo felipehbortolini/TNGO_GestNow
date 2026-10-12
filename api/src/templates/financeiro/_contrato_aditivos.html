@@ -8,15 +8,15 @@
 <section class="card" aria-labelledby="contrato-aditivos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-aditivos-titulo">Aditivos</h2>
-      <span class="hint">Aditivos somam ao valor; dias prorrogam o término vigente.</span>
+      <h2 class="h-card4" id="contrato-aditivos-titulo">{{ t('financeiro', 'Aditivos') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Aditivos somam ao valor; dias prorrogam o término vigente.') }}</span>
     </div>
     {% if pode_gerir %}
     <div>
       <a class="btn btn--primary" href="/api/financeiro/contrato/aditivos/novo?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Novo aditivo
+        {{ t('financeiro', 'Novo aditivo') }}
       </a>
     </div>
     {% endif %}
@@ -24,22 +24,22 @@
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Aditivos do contrato</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Aditivos do contrato') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Nº</th>
-            <th scope="col">Data</th>
-            <th scope="col" class="td-num">Valor</th>
-            <th scope="col" class="td-num">Dias</th>
-            <th scope="col">Motivo</th>
-            <th scope="col">SM</th>
+            <th scope="col">{{ t('financeiro', 'Nº') }}</th>
+            <th scope="col">{{ t('financeiro', 'Data') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Dias') }}</th>
+            <th scope="col">{{ t('financeiro', 'Motivo') }}</th>
+            <th scope="col">{{ t('financeiro', 'SM') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for aditivo in ficha.addenda %}
           <tr data-aditivo="{{ aditivo.id }}">
             <td class="num fw-600">{{ aditivo.number }}</td>
-            <td class="num">{{ aditivo.signed_on.strftime('%d/%m/%Y') }}</td>
+            <td class="num">{{ data(aditivo.signed_on) }}</td>
             <td class="td-num">{{ aditivo.value_cents | brl }}</td>
             <td class="td-num">{{ aditivo.days }}</td>
             <td>{{ aditivo.reason }}</td>
@@ -47,12 +47,12 @@
               {% if aditivo.change_code %}
               <a href="/governanca/mudanca?codigo={{ aditivo.change_code }}" data-tn-tela>{{ aditivo.change_code }}</a>
               {% else %}
-              <span class="muted">sem SM</span>
+              <span class="muted">{{ t('financeiro', 'sem SM') }}</span>
               {% endif %}
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="muted">Nenhum aditivo registrado.</td></tr>
+          <tr><td colspan="6" class="muted">{{ t('financeiro', 'Nenhum aditivo registrado.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

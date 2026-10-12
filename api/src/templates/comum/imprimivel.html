@@ -26,25 +26,25 @@
       <img class="folha__logo" src="/ds/assets/favicon-timenow.png" alt="" />
       <span class="folha__produto">Timenow GestNow</span>
     </div>
-    <p class="folha__emissao">Gerado em {{ folha.generated_on }}</p>
+    <p class="folha__emissao">{{ t('comum', 'Gerado em') }} {{ folha.generated_on }}</p>
   </header>
 
   <h1 class="folha__titulo">{{ folha.title }}</h1>
   <dl class="folha__contexto">
-    <div class="folha__item"><dt>Escopo</dt><dd>{{ folha.scope_label }}</dd></div>
+    <div class="folha__item"><dt>{{ t('comum', 'Escopo') }}</dt><dd>{{ folha.scope_label }}</dd></div>
     {% for rotulo, valor in folha.context %}
     <div class="folha__item"><dt>{{ rotulo }}</dt><dd>{{ valor }}</dd></div>
     {% endfor %}
   </dl>
 
   {% if folha.kpis %}
-  <section class="folha__kpis" aria-label="Indicadores">
+  <section class="folha__kpis" aria-label="{{ t('comum', 'Indicadores') }}">
     {% for kpi in folha.kpis %}
     <div class="{{ kpi.css }}">
       <span class="folha__kpi-rotulo">{{ kpi.label }}</span>
       <strong class="folha__kpi-valor">{{ kpi.value }}</strong>
       {% if kpi.status %}<span class="folha__kpi-situacao">{{ kpi.status }}</span>{% endif %}
-      {% if kpi.reference %}<span class="folha__kpi-referencia">Referência: {{ kpi.reference }}</span>{% endif %}
+      {% if kpi.reference %}<span class="folha__kpi-referencia">{{ t('comum', 'Referência') }}: {{ kpi.reference }}</span>{% endif %}
     </div>
     {% endfor %}
   </section>
@@ -72,7 +72,7 @@
           {% for celula in linha %}<td class="{{ celula.css }}">{{ celula.text }}</td>{% endfor %}
         </tr>
         {% else %}
-        <tr><td class="folha__vazio" colspan="{{ tabela.columns|length }}">Nenhum registro.</td></tr>
+        <tr><td class="folha__vazio" colspan="{{ tabela.columns|length }}">{{ t('comum', 'Nenhum registro.') }}</td></tr>
         {% endfor %}
       </tbody>
       {% if tabela.totals %}

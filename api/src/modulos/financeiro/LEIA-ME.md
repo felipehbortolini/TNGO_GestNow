@@ -303,3 +303,18 @@ Incluem faixas do mapa de calor (1%, 5%, 10% inicialmente), tolerância de consu
 | Testes | `api/tests/financeiro/` |
 
 Todos os arquivos Python são stubs intencionais na ISSUE-002. As issues de Financeiro completam este documento e acrescentam testes de fronteira para cada cálculo.
+
+## Idioma (ISSUE-087)
+
+A fatia do inglês (D13) traduz no servidor: o catálogo é `api/src/core/translations.py`
+(namespace `financeiro`, com os termos do bloco 03 do `en.js`: EAC vira CBS e a sigla SM fica
+SM, como o bloco da área), o idioma vem do cookie `gestnow_idioma` e a rota `POST /api/idioma`
+grava a escolha; o seletor PT | EN fica na barra lateral. Os templates chamam
+`{{ t('financeiro', 'Texto') }}` e as datas usam o `data()` do contexto; as rotas traduzem
+recusas, erros por campo e avisos no idioma do request, e os gráficos passam por `_chart_data`,
+que traduz os textos e acrescenta os `rotulos` do motor. Títulos e colunas das planilhas e da
+folha imprimível são traduzidos pelo namespace do documento (`Document.namespace`) em
+`core/export_document.resolve_tables`; datas seguem o idioma e número/moeda continuam pt-BR.
+Views e JS estáticos usam `data-i18n`/`TN.t`. Para acrescentar tradução, some a chave ao
+namespace `financeiro`; a cobertura em `api/tests/plataforma/test_traducoes.py` reprova chave
+marcada sem tradução.

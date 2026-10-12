@@ -28,7 +28,7 @@ from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
-from src.core import navigation, rbac
+from src.core import navigation, rbac, translations
 from src.core.errors import InvalidDataError
 from src.core.export_document import ValueKind
 from src.core.rbac import Permission, User
@@ -116,6 +116,11 @@ _HUNDRED = Decimal(100)
 
 # O prefixo do código do projeto no Portfólio: recebe o projeto e devolve ``TN-... · ``.
 Prefixer = Callable[[int], str]
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do Início no idioma do request (D13)."""
+    return translations.translate("inicio", text, idioma)
 
 
 @dataclass(frozen=True)
@@ -220,6 +225,10 @@ class PortfolioRow:
     def health_label(self) -> str:
         """``Em dia``, ``Atenção`` ou ``Crítico``: o rótulo da situação."""
         return calculations.health_label(self.health)
+
+    def health_label_in(self, idioma: str) -> str:
+        """O rótulo da situação no idioma do request (D13)."""
+        return calculations.health_label(self.health, idioma)
 
 
 @dataclass(frozen=True)
@@ -342,14 +351,14 @@ class _Owners:
 
 
 def home_overview(
-    session: Session, *, user: User, scope: Scope, reference_date: date
+    session: Session, *, user: User, scope: Scope, reference_date: date, idioma: str = "pt"
 ) -> HomeOverview:
     """O resumo do escopo na data de referência, montado pelas fachadas dos módulos donos."""
     rbac.require_module(user, MODULE)
     projects = configuracoes.list_projects(session)
     chosen = _chosen_project(projects, scope)
     if chosen is None and scope.is_portfolio and not projects:
-        return _empty_overview(scope=scope, reference_date=reference_date)
+        return _empty_overview(scope=scope, reference_date=reference_date, idioma=idioma)
     owners = _read_owners(session, user=user, scope=scope, reference_date=reference_date)
     codes = {project.id: project.code for project in projects}
     portfolio_rows: tuple[PortfolioRow, ...] = ()
@@ -360,18 +369,18 @@ def home_overview(
             session, user=user, projects=projects, reference_date=reference_date
         )
         portfolio_totals = _portfolio_totals(owners, rows=portfolio_rows)
-        portfolio_note = _portfolio_note(session, reference_date=reference_date)
+        portfolio_note = _portfolio_note(session, reference_date=reference_date, idioma=idioma)
     return HomeOverview(
         reference_date=reference_date,
         is_portfolio=scope.is_portfolio,
-        scope_label=_scope_label(chosen, scope),
+        scope_label=_scope_label(chosen, scope, idioma),
         project=chosen,
         project_count=len(projects),
         budget_cents=_scope_budget(chosen, projects, scope=scope),
         expected_end_date=_scope_end_date(chosen, projects, scope=scope),
-        kpis=_kpis(owners),
-        attention=_attention(owners, scope=scope, codes=codes),
-        cards=_cards(owners),
+        kpis=_kpis(owners, idioma),
+        attention=_attention(owners, scope=scope, codes=codes, idioma=idioma),
+        cards=_cards(owners, idioma),
         portfolio_rows=portfolio_rows,
         portfolio_totals=portfolio_totals,
         portfolio_note=portfolio_note,
@@ -452,95 +461,102 @@ def _read_owners(session: Session, *, user: User, scope: Scope, reference_date: 
 # ── Os oito indicadores ──────────────────────────────────────────────────
 
 
-def _kpis(owners: _Owners) -> tuple[HomeKpi, ...]:
+def _kpis(owners: _Owners, idioma: str) -> tuple[HomeKpi, ...]:
     """Os oito indicadores-chave, na ordem dos módulos, com a referência de gestão."""
     return (
-        _actions_kpi(owners.actions),
-        _spi_kpi(owners.planning),
-        _cpi_kpi(owners.cost),
-        _orders_kpi(owners.supply),
-        _risks_kpi(owners.risks),
-        _rncs_kpi(owners.quality),
-        _hse_kpi(owners.hse),
-        _changes_kpi(owners.changes),
+        _actions_kpi(owners.actions, idioma),
+        _spi_kpi(owners.planning, idioma),
+        _cpi_kpi(owners.cost, idioma),
+        _orders_kpi(owners.supply, idioma),
+        _risks_kpi(owners.risks, idioma),
+        _rncs_kpi(owners.quality, idioma),
+        _hse_kpi(owners.hse, idioma),
+        _changes_kpi(owners.changes, idioma),
     )
 
 
-def _actions_kpi(counts: StatusCounts) -> HomeKpi:
+def _module_label(module: str, idioma: str) -> str:
+    """O rótulo do módulo dono no idioma, como os indicadores e os cards o escrevem."""
+    return _label(MODULE_LABELS[module], idioma)
+
+
+def _actions_kpi(counts: StatusCounts, idioma: str) -> HomeKpi:
     overdue = counts.overdue
     return HomeKpi(
         key="acoes",
         module="central_acoes",
-        module_label=MODULE_LABELS["central_acoes"],
-        label="Ações atrasadas",
+        module_label=_module_label("central_acoes", idioma),
+        label=_label("Ações atrasadas", idioma),
         icon="taskList",
         tone="erro" if overdue else "ok",
         value=calculations.integer_text(overdue),
         export_value=overdue,
         export_kind=ValueKind.INTEGER,
-        reference="Esperado 0",
-        footer=f"de {calculations.integer_text(counts.open)} ações em aberto",
+        reference=_label("Esperado 0", idioma),
+        footer=_label("de {value} ações em aberto", idioma).format(
+            value=calculations.integer_text(counts.open)
+        ),
         badge="",
-        status="Atrasadas" if overdue else "Nenhuma atrasada",
+        status=_label("Atrasadas", idioma) if overdue else _label("Nenhuma atrasada", idioma),
         url=ACTIONS_URL,
     )
 
 
-def _spi_kpi(planning: planejamento.PlanningKpisOverview) -> HomeKpi:
+def _spi_kpi(planning: planejamento.PlanningKpisOverview, idioma: str) -> HomeKpi:
     indicators = planning.indicators
     spi = indicators.spi
     label = "SPI ponderado da carteira" if planning.is_portfolio else "SPI (desempenho de prazo)"
     footer = ""
     if spi is not None:
-        delta = calculations.delta_text(spi, indicators.previous_spi)
-        position = (
-            f"real {calculations.percent_text(indicators.actual)}"
-            f" x previsto {calculations.percent_text(indicators.predicted)}"
+        delta = calculations.delta_text(spi, indicators.previous_spi, idioma)
+        position = _label("real {actual} x previsto {predicted}", idioma).format(
+            actual=calculations.percent_text(indicators.actual),
+            predicted=calculations.percent_text(indicators.predicted),
         )
         footer = f"{delta} · {position}" if delta else position
     return HomeKpi(
         key="spi",
         module="planejamento",
-        module_label=MODULE_LABELS["planejamento"],
-        label=label,
+        module_label=_module_label("planejamento", idioma),
+        label=_label(label, idioma),
         icon="chartLine",
         tone=calculations.index_tone(spi),
-        value=calculations.index_text(spi),
+        value=calculations.index_text(spi, idioma),
         export_value=spi,
         export_kind=ValueKind.DECIMAL,
-        reference="Meta ≥ 1,00",
+        reference=_label("Meta ≥ 1,00", idioma),
         footer=footer,
         badge="",
-        status=_index_status(spi),
+        status=_index_status(spi, idioma),
         url=PLANNING_URL,
     )
 
 
-def _cpi_kpi(cost: financeiro.CostKpisOverview) -> HomeKpi:
+def _cpi_kpi(cost: financeiro.CostKpisOverview, idioma: str) -> HomeKpi:
     cpi = cost.indicators.cpi if cost.indicators is not None else None
     label = "CPI da carteira" if cost.is_portfolio else "CPI (desempenho de custo)"
     footer = ""
     if cpi is not None:
-        delta = calculations.delta_text(cpi, cost.previous.cpi if cost.previous else None)
-        projection = (
-            f"projeção {calculations.compact_brl(cost.projection_cents)}"
-            f" ({calculations.signed_percent_text(_projection_deviation_pct(cost))})"
+        delta = calculations.delta_text(cpi, cost.previous.cpi if cost.previous else None, idioma)
+        projection = _label("projeção {value} ({pct})", idioma).format(
+            value=calculations.compact_brl(cost.projection_cents),
+            pct=calculations.signed_percent_text(_projection_deviation_pct(cost)),
         )
         footer = f"{delta} · {projection}" if delta else projection
     return HomeKpi(
         key="cpi",
         module="financeiro",
-        module_label=MODULE_LABELS["financeiro"],
-        label=label,
+        module_label=_module_label("financeiro", idioma),
+        label=_label(label, idioma),
         icon="money",
         tone=calculations.index_tone(cpi),
-        value=calculations.index_text(cpi),
+        value=calculations.index_text(cpi, idioma),
         export_value=cpi,
         export_kind=ValueKind.DECIMAL,
-        reference="Meta ≥ 1,00",
+        reference=_label("Meta ≥ 1,00", idioma),
         footer=footer,
         badge="",
-        status=_index_status(cpi),
+        status=_index_status(cpi, idioma),
         url=COST_URL,
     )
 
@@ -553,78 +569,86 @@ def _projection_deviation_pct(cost: financeiro.CostKpisOverview) -> Decimal | No
     return (deviation * _HUNDRED).quantize(_ONE_PLACE, rounding=ROUND_HALF_UP)
 
 
-def _orders_kpi(supply: suprimentos.PanelListing) -> HomeKpi:
+def _orders_kpi(supply: suprimentos.PanelListing, idioma: str) -> HomeKpi:
     orders = supply.summary.orders
     return HomeKpi(
         key="pedidos",
         module="suprimentos",
-        module_label=MODULE_LABELS["suprimentos"],
-        label="Pedidos críticos",
+        module_label=_module_label("suprimentos", idioma),
+        label=_label("Pedidos críticos", idioma),
         icon="cart",
         tone="erro" if orders.critical else "ok",
         value=calculations.integer_text(orders.critical),
         export_value=orders.critical,
         export_kind=ValueKind.INTEGER,
-        reference="Esperado 0",
-        footer=(
-            "folga negativa em relação ao ROS · "
-            f"{calculations.integer_text(orders.lli_critical)} de longo prazo"
+        reference=_label("Esperado 0", idioma),
+        footer=_label("folga negativa em relação ao ROS · {value} de longo prazo", idioma).format(
+            value=calculations.integer_text(orders.lli_critical)
         ),
         badge="",
-        status="Críticos" if orders.critical else "Nenhum crítico",
+        status=_label("Críticos", idioma) if orders.critical else _label("Nenhum crítico", idioma),
         url=ORDERS_URL,
     )
 
 
-def _risks_kpi(risks: riscos_painel.RiskPanel) -> HomeKpi:
+def _risks_kpi(risks: riscos_painel.RiskPanel, idioma: str) -> HomeKpi:
     summary = risks.summary
     top = summary.top
-    footer = f"exposição {calculations.compact_brl(summary.exposure_cents)}"
+    footer = _label("exposição {value}", idioma).format(
+        value=calculations.compact_brl(summary.exposure_cents)
+    )
     if summary.second is not None:
         second = summary.second
-        footer = f"{calculations.integer_text(second.total)} {second.band.name.lower()} · {footer}"
+        footer = (
+            f"{calculations.integer_text(second.total)} "
+            f"{_label(second.band.name.lower(), idioma)} · {footer}"
+        )
     return HomeKpi(
         key="riscos",
         module="riscos",
-        module_label=MODULE_LABELS["riscos"],
-        label=f"Riscos {top.band.name.lower()}s",
+        module_label=_module_label("riscos", idioma),
+        label=_label(f"Riscos {top.band.name.lower()}s", idioma),
         icon="warning",
         tone="erro" if top.total else "ok",
         value=calculations.integer_text(top.total),
         export_value=top.total,
         export_kind=ValueKind.INTEGER,
-        reference="Esperado 0",
+        reference=_label("Esperado 0", idioma),
         footer=footer,
         badge="",
-        status="Críticos" if top.total else "Nenhum crítico",
+        status=_label("Críticos", idioma) if top.total else _label("Nenhum crítico", idioma),
         url=RISKS_URL,
     )
 
 
-def _rncs_kpi(quality: qualidade_painel.QualityIndicators) -> HomeKpi:
+def _rncs_kpi(quality: qualidade_painel.QualityIndicators, idioma: str) -> HomeKpi:
     tone = "erro" if quality.overdue_rncs else ("warn" if quality.open_rncs else "ok")
     return HomeKpi(
         key="rncs",
         module="qualidade",
-        module_label=MODULE_LABELS["qualidade"],
-        label="Não conformidades abertas",
+        module_label=_module_label("qualidade", idioma),
+        label=_label("Não conformidades abertas", idioma),
         icon="shield",
         tone=tone,
         value=calculations.integer_text(quality.open_rncs),
         export_value=quality.open_rncs,
         export_kind=ValueKind.INTEGER,
-        reference="Limite 0 vencidas",
-        footer=(
-            f"{calculations.plural(quality.overdue_rncs, 'vencida')} · "
-            f"inspeções aprovadas {calculations.percent_text(quality.inspection_approval_pct)}"
+        reference=_label("Limite 0 vencidas", idioma),
+        footer=_label("{value} · inspeções aprovadas {pct}", idioma).format(
+            value=calculations.plural(
+                quality.overdue_rncs, _label("vencida", idioma), _label("vencidas", idioma)
+            ),
+            pct=calculations.percent_text(quality.inspection_approval_pct),
         ),
         badge="",
-        status="Com vencidas" if quality.overdue_rncs else "Em aberto",
+        status=_label("Com vencidas", idioma)
+        if quality.overdue_rncs
+        else _label("Em aberto", idioma),
         url=RNCS_URL,
     )
 
 
-def _hse_kpi(hse: hse_painel.HsePanel) -> HomeKpi:
+def _hse_kpi(hse: hse_painel.HsePanel, idioma: str) -> HomeKpi:
     accumulated = hse.accumulated_indicators
     days = None if accumulated is None else accumulated.days_without_leave
     tf = None if accumulated is None else accumulated.tf
@@ -632,53 +656,71 @@ def _hse_kpi(hse: hse_painel.HsePanel) -> HomeKpi:
     return HomeKpi(
         key="hse",
         module="hse",
-        module_label=MODULE_LABELS["hse"],
-        label="Dias sem acidente com afastamento",
+        module_label=_module_label("hse", idioma),
+        label=_label("Dias sem acidente com afastamento", idioma),
         icon="hardHat",
         tone="warn" if hipo else "ok",
-        value="sem registro" if days is None else calculations.integer_text(days),
+        value=_label("sem registro", idioma) if days is None else calculations.integer_text(days),
         export_value=days,
         export_kind=ValueKind.INTEGER,
-        reference="Esperado desde o início do projeto",
-        footer=f"TF {calculations.decimal_text(tf, digits=2)}",
-        badge=f"{calculations.plural(hipo, 'HiPo')} no mês" if hipo else "",
-        status="Sem afastamento" if days is not None else "Sem registro",
+        reference=_label("Esperado desde o início do projeto", idioma),
+        footer="TF " + calculations.decimal_text(tf, digits=2),
+        badge=(
+            _label("{value} no mês", idioma).format(value=calculations.plural(hipo, "HiPo"))
+            if hipo
+            else ""
+        ),
+        status=_label("Sem afastamento", idioma)
+        if days is not None
+        else _label("Sem registro", idioma),
         url=HSE_URL,
     )
 
 
-def _changes_kpi(changes: governanca.RegisterOverview) -> HomeKpi:
+def _changes_kpi(changes: governanca.RegisterOverview, idioma: str) -> HomeKpi:
     summary = changes.summary
-    scope_text = "do orçamento da carteira" if changes.is_portfolio else "do orçamento"
+    scope_text = _label(
+        "do orçamento da carteira" if changes.is_portfolio else "do orçamento", idioma
+    )
     percent = calculations.percent_text(summary.approved_value_percent)
-    approved = f"{calculations.compact_brl(summary.approved_value_cents)} aprovados"
+    approved = _label("{value} aprovados", idioma).format(
+        value=calculations.compact_brl(summary.approved_value_cents)
+    )
     footer = (
         f"{approved} ({percent} {scope_text})" if percent != "-" else f"{approved} {scope_text}"
     )
     return HomeKpi(
         key="mudancas",
         module="governanca",
-        module_label=MODULE_LABELS["governanca"],
-        label="Mudanças aguardando comitê",
+        module_label=_module_label("governanca", idioma),
+        label=_label("Mudanças aguardando comitê", idioma),
         icon="landmark",
         tone="info" if summary.awaiting_committee else "ok",
         value=calculations.integer_text(summary.awaiting_committee),
         export_value=summary.awaiting_committee,
         export_kind=ValueKind.INTEGER,
-        reference="Esperado 0",
+        reference=_label("Esperado 0", idioma),
         footer=footer,
         badge="",
-        status="Aguardando comitê" if summary.awaiting_committee else "Nenhuma aguardando",
+        status=(
+            _label("Aguardando comitê", idioma)
+            if summary.awaiting_committee
+            else _label("Nenhuma aguardando", idioma)
+        ),
         url=CHANGES_URL,
     )
 
 
-def _index_status(value: Decimal | None) -> str:
+def _index_status(value: Decimal | None, idioma: str) -> str:
     if value is None:
-        return "Sem dados"
+        return _label("Sem dados", idioma)
     if value >= 1:
-        return "Dentro da meta"
-    return "Atenção" if value >= calculations.ATTENTION_INDEX else "Abaixo da meta"
+        return _label("Dentro da meta", idioma)
+    return (
+        _label("Atenção", idioma)
+        if value >= calculations.ATTENTION_INDEX
+        else _label("Abaixo da meta", idioma)
+    )
 
 
 # ── A carteira de projetos (ISSUE-080) ───────────────────────────────────
@@ -769,7 +811,7 @@ def _portfolio_totals(owners: _Owners, *, rows: tuple[PortfolioRow, ...]) -> Por
     )
 
 
-def _portfolio_note(session: Session, *, reference_date: date) -> str:
+def _portfolio_note(session: Session, *, reference_date: date, idioma: str) -> str:
     """``Peso na carteira pela ponderação composta: Valor ... 60% · ...`` (protótipo)."""
     criteria = _criteria_views(session, reference_date=reference_date)
     if not criteria:
@@ -777,7 +819,11 @@ def _portfolio_note(session: Session, *, reference_date: date) -> str:
     summary = " · ".join(
         f"{criterion.name} {calculations.input_number(criterion.weight)}%" for criterion in criteria
     )
-    return f"Peso na carteira pela ponderação composta: {summary}. Posição na data de referência."
+    template = _label(
+        "Peso na carteira pela ponderação composta: {summary}. Posição na data de referência.",
+        idioma,
+    )
+    return template.format(summary=summary)
 
 
 # ── A ponderação da carteira (ISSUE-080) ─────────────────────────────────
@@ -871,6 +917,7 @@ def save_ponderation(
     grades: Mapping[int, Mapping[str, str]],
     justification: str,
     reference_date: date,
+    idioma: str = "pt",
 ) -> ParameterVersion:
     """Grava a ponderação: valida, cria a versão nova do grupo portfolio e substitui as notas.
 
@@ -885,15 +932,17 @@ def save_ponderation(
     group = configuracoes.current_group(session, group="portfolio", reference_date=reference_date)
     views = _criteria_views(session, reference_date=reference_date)
     minimum, maximum = _grade_bounds(group)
-    errors = _justification_errors(justification)
-    payloads, weight_errors = _posted_weight_payloads(group, views, criteria)
+    errors = _justification_errors(justification, idioma)
+    payloads, weight_errors = _posted_weight_payloads(group, views, criteria, idioma)
     errors.update(weight_errors)
     if not weight_errors and payloads:
         message = configuracoes_validation.portfolio_weights_error({"criterios": payloads})
         if message:
-            errors[validation.weight_field(views[0].id)] = message
+            errors[validation.weight_field(views[0].id)] = translations.translate(
+                "inicio", message, idioma
+            )
     posted_grades, grade_errors = _posted_grade_payloads(
-        projects, views, grades, minimum=minimum, maximum=maximum
+        projects, views, grades, minimum=minimum, maximum=maximum, idioma=idioma
     )
     errors.update(grade_errors)
     if errors:
@@ -960,6 +1009,7 @@ def _posted_weight_payloads(
     group: Mapping[str, Any],
     views: tuple[PonderationCriterionView, ...],
     posted: Mapping[str, str],
+    idioma: str,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Os critérios vigentes com o peso digitado e os erros por campo quando o peso não vale."""
     configured = {
@@ -975,7 +1025,9 @@ def _posted_weight_payloads(
         )
         value = validation.parse_weight(posted.get(view.id, ""))
         if value is None or not validation.WEIGHT_MIN <= value <= validation.WEIGHT_MAX:
-            errors[validation.weight_field(view.id)] = validation.WEIGHT_RANGE_MESSAGE
+            errors[validation.weight_field(view.id)] = translations.translate(
+                "inicio", validation.WEIGHT_RANGE_MESSAGE, idioma
+            )
         else:
             payload["peso"] = _weight_payload(value)
         payloads.append(payload)
@@ -996,6 +1048,7 @@ def _posted_grade_payloads(
     *,
     minimum: int,
     maximum: int,
+    idioma: str,
 ) -> tuple[dict[int, dict[str, int]], dict[str, str]]:
     """As notas digitadas por projeto e critério de fonte nota e os erros por campo."""
     note_criteria = [view for view in views if view.source == "nota"]
@@ -1008,7 +1061,7 @@ def _posted_grade_payloads(
             value = validation.parse_grade(posted.get(criterion.id, ""))
             if value is None or not minimum <= value <= maximum:
                 errors[validation.grade_field(project.id, criterion.id)] = validation.grade_message(
-                    minimum, maximum
+                    minimum, maximum, idioma
                 )
                 continue
             values[criterion.id] = value
@@ -1016,8 +1069,8 @@ def _posted_grade_payloads(
     return payloads, errors
 
 
-def _justification_errors(justification: str) -> dict[str, str]:
-    message = validation.justification_error(justification)
+def _justification_errors(justification: str, idioma: str) -> dict[str, str]:
+    message = validation.justification_error(justification, idioma)
     return {} if message is None else {validation.JUSTIFICATION_FIELD: message}
 
 
@@ -1025,24 +1078,26 @@ def _justification_errors(justification: str) -> dict[str, str]:
 
 
 def _attention(
-    owners: _Owners, *, scope: Scope, codes: dict[int, str]
+    owners: _Owners, *, scope: Scope, codes: dict[int, str], idioma: str
 ) -> tuple[HomeAttention, ...]:
     """Os pontos de atenção calculados, na ordem do protótipo, com o código no Portfólio."""
     prefix = _prefixer(scope, codes)
     entries: list[HomeAttention] = []
-    entries.extend(_attention_actions(owners.overdue_actions, prefix=prefix, scope=scope))
-    entries.extend(_attention_orders(owners.critical_orders, prefix=prefix))
-    entries.extend(_attention_punch(owners.punch))
-    entries.extend(_attention_risks(owners.risks, prefix=prefix))
-    entries.extend(_attention_claims(owners.contracts, prefix=prefix))
-    entries.extend(_attention_changes(owners.changes, prefix=prefix))
-    entries.extend(_attention_rncs(owners.rncs, prefix=prefix))
-    entries.extend(_attention_hipo(owners.hse))
+    entries.extend(
+        _attention_actions(owners.overdue_actions, prefix=prefix, scope=scope, idioma=idioma)
+    )
+    entries.extend(_attention_orders(owners.critical_orders, prefix=prefix, idioma=idioma))
+    entries.extend(_attention_punch(owners.punch, idioma=idioma))
+    entries.extend(_attention_risks(owners.risks, prefix=prefix, idioma=idioma))
+    entries.extend(_attention_claims(owners.contracts, prefix=prefix, idioma=idioma))
+    entries.extend(_attention_changes(owners.changes, prefix=prefix, idioma=idioma))
+    entries.extend(_attention_rncs(owners.rncs, prefix=prefix, idioma=idioma))
+    entries.extend(_attention_hipo(owners.hse, idioma=idioma))
     return tuple(entries)
 
 
 def _attention_actions(
-    listing: central_acoes.ActionListing, *, prefix: Prefixer, scope: Scope
+    listing: central_acoes.ActionListing, *, prefix: Prefixer, scope: Scope, idioma: str
 ) -> list[HomeAttention]:
     """As ações mais atrasadas: 3 no projeto, 4 no Portfólio, da mais atrasada para a menos."""
     limit = ATTENTION_ACTIONS_PORTFOLIO if scope.is_portfolio else ATTENTION_ACTIONS_PROJECT
@@ -1054,7 +1109,8 @@ def _attention_actions(
             title=f"{prefix(row.record.project_id)}{row.record.subject}",
             detail=(
                 f"{' '.join(filter(None, (row.record.origin, row.record.origin_ref)))} · "
-                f"{calculations.plural(row.record.days_overdue, 'dia')} de atraso"
+                f"{calculations.plural(row.record.days_overdue, _label('dia', idioma))} "
+                f"{_label('de atraso', idioma)}"
             ),
             url=ACTIONS_URL,
         )
@@ -1063,15 +1119,16 @@ def _attention_actions(
 
 
 def _attention_orders(
-    listing: suprimentos.OrderListing, *, prefix: Prefixer
+    listing: suprimentos.OrderListing, *, prefix: Prefixer, idioma: str
 ) -> list[HomeAttention]:
     """Os pedidos com folga negativa em relação ao ROS."""
+    template = _label("Folga de {value} dias em relação ao ROS", idioma)
     return [
         HomeAttention(
             level="danger",
             module="suprimentos",
             title=f"{prefix(line.project_id)}{line.number} {line.description}",
-            detail=f"Folga de {line.slack_days} dias em relação ao ROS",
+            detail=template.format(value=line.slack_days),
             url=ORDERS_URL,
         )
         for line in listing.lines
@@ -1079,20 +1136,21 @@ def _attention_orders(
     ]
 
 
-def _attention_punch(listing: planejamento.PunchListing) -> list[HomeAttention]:
+def _attention_punch(listing: planejamento.PunchListing, *, idioma: str) -> list[HomeAttention]:
     """Cada sistema bloqueado por item de categoria A em aberto, com o seu próprio link.
 
     O bloco de sistema não diz a que projeto pertence, então no Portfólio o alerta
     sai sem o código do projeto: o sistema e o link filtrado o identificam.
     """
+    title_template = _label("Sistema {label} bloqueado por item A", idioma)
     return [
         HomeAttention(
             level="warning",
             module="planejamento",
-            title=f"Sistema {block.label} bloqueado por item A",
+            title=title_template.format(label=block.label),
             detail=(
-                f"{calculations.plural(block.a_open, 'item A aberto', 'itens A abertos')}"
-                " na Punch list"
+                f"{calculations.plural(block.a_open, _label('item A aberto', idioma), _label('itens A abertos', idioma))}"
+                f" {_label('na Punch list', idioma)}"
             ),
             url=PUNCH_URL.format(system_id=block.system_id),
         )
@@ -1102,14 +1160,15 @@ def _attention_punch(listing: planejamento.PunchListing) -> list[HomeAttention]:
 
 
 def _attention_risks(
-    risk_panel: riscos_painel.RiskPanel, *, prefix: Prefixer
+    risk_panel: riscos_painel.RiskPanel, *, prefix: Prefixer, idioma: str
 ) -> list[HomeAttention]:
     """Os riscos com a revisão periódica vencida."""
+    title_template = _label("{code} com revisão vencida", idioma)
     return [
         HomeAttention(
             level="warning",
             module="riscos",
-            title=f"{prefix(line.project_id)}{line.code} com revisão vencida",
+            title=title_template.format(code=f"{prefix(line.project_id)}{line.code}"),
             detail=line.title,
             url=RISKS_REVIEW_URL,
         )
@@ -1118,17 +1177,19 @@ def _attention_risks(
 
 
 def _attention_claims(
-    contracts: financeiro.ContractsOverview, *, prefix: Prefixer
+    contracts: financeiro.ContractsOverview, *, prefix: Prefixer, idioma: str
 ) -> list[HomeAttention]:
     """Os claims abertos notificados fora do prazo contratual."""
+    title_template = _label("{code} notificado fora do prazo contratual", idioma)
+    detail_template = _label("{contract} · {value} entre evento e notificação", idioma)
     return [
         HomeAttention(
             level="warning",
             module="financeiro",
-            title=f"{prefix(claim.project_id)}{claim.code} notificado fora do prazo contratual",
-            detail=(
-                f"{claim.contract_number} · "
-                f"{calculations.plural(claim.notification_days, 'dia')} entre evento e notificação"
+            title=title_template.format(code=f"{prefix(claim.project_id)}{claim.code}"),
+            detail=detail_template.format(
+                contract=claim.contract_number,
+                value=calculations.plural(claim.notification_days, _label("dia", idioma)),
             ),
             url=CONTRACTS_URL.format(code=claim.code),
         )
@@ -1138,7 +1199,7 @@ def _attention_claims(
 
 
 def _attention_changes(
-    changes: governanca.RegisterOverview, *, prefix: Prefixer
+    changes: governanca.RegisterOverview, *, prefix: Prefixer, idioma: str
 ) -> list[HomeAttention]:
     """A emergencial sem ratificação do Comitê e a análise de impacto vencida."""
     entries: list[HomeAttention] = []
@@ -1148,10 +1209,10 @@ def _attention_changes(
                 HomeAttention(
                     level="danger",
                     module="governanca",
-                    title=(
-                        f"{prefix(row.project_id)}{row.code} emergencial sem ratificação do Comitê"
+                    title=_label("{code} emergencial sem ratificação do Comitê", idioma).format(
+                        code=f"{prefix(row.project_id)}{row.code}"
                     ),
-                    detail="Prazo de ratificação vencido",
+                    detail=_label("Prazo de ratificação vencido", idioma),
                     url=CHANGE_SHEET_URL.format(code=row.code),
                 )
             )
@@ -1160,7 +1221,9 @@ def _attention_changes(
                 HomeAttention(
                     level="warning",
                     module="governanca",
-                    title=f"{prefix(row.project_id)}{row.code} com análise de impacto vencida",
+                    title=_label("{code} com análise de impacto vencida", idioma).format(
+                        code=f"{prefix(row.project_id)}{row.code}"
+                    ),
                     detail=row.title,
                     url=CHANGE_SHEET_URL.format(code=row.code),
                 )
@@ -1168,7 +1231,9 @@ def _attention_changes(
     return entries
 
 
-def _attention_rncs(listing: qualidade.RncListing, *, prefix: Prefixer) -> list[HomeAttention]:
+def _attention_rncs(
+    listing: qualidade.RncListing, *, prefix: Prefixer, idioma: str
+) -> list[HomeAttention]:
     """As RNC com prazo de tratamento vencido ou críticas em aberto."""
     return [
         HomeAttention(
@@ -1176,7 +1241,10 @@ def _attention_rncs(listing: qualidade.RncListing, *, prefix: Prefixer) -> list[
             module="qualidade",
             title=(
                 f"{prefix(line.project_id)}{line.code}"
-                + (" com prazo de tratamento vencido" if line.overdue else " crítica em aberto")
+                + _label(
+                    " com prazo de tratamento vencido" if line.overdue else " crítica em aberto",
+                    idioma,
+                )
             ),
             detail=line.description,
             url=RNC_SEARCH_URL.format(code=line.code),
@@ -1186,7 +1254,7 @@ def _attention_rncs(listing: qualidade.RncListing, *, prefix: Prefixer) -> list[
     ]
 
 
-def _attention_hipo(hse: hse_painel.HsePanel) -> list[HomeAttention]:
+def _attention_hipo(hse: hse_painel.HsePanel, *, idioma: str) -> list[HomeAttention]:
     """As ocorrências de alto potencial (HiPo) do mês da leitura do painel."""
     hipo = 0 if hse.month_indicators is None else hse.month_indicators.hipo
     if not hipo:
@@ -1195,10 +1263,12 @@ def _attention_hipo(hse: hse_painel.HsePanel) -> list[HomeAttention]:
         HomeAttention(
             level="danger",
             module="hse",
-            title=(
-                f"{calculations.plural(hipo, 'ocorrência', 'ocorrências')} de alto potencial no mês"
+            title=_label("{value} de alto potencial no mês", idioma).format(
+                value=calculations.plural(
+                    hipo, _label("ocorrência", idioma), _label("ocorrências", idioma)
+                )
             ),
-            detail="Relatório final exigido",
+            detail=_label("Relatório final exigido", idioma),
             url=HSE_OCCURRENCES_URL,
         )
     ]
@@ -1207,39 +1277,55 @@ def _attention_hipo(hse: hse_painel.HsePanel) -> list[HomeAttention]:
 # ── Os cards dos módulos ─────────────────────────────────────────────────
 
 
-def _cards(owners: _Owners) -> tuple[HomeCard, ...]:
+def _cards(owners: _Owners, idioma: str) -> tuple[HomeCard, ...]:
     """Os oito cards dos módulos, com o selo calculado de cada um."""
     badges: dict[str, HomeBadge] = {
         "central_acoes": HomeBadge(
-            f"{calculations.integer_text(owners.actions.overdue)} atrasadas",
+            _label("{value} atrasadas", idioma).format(
+                value=calculations.integer_text(owners.actions.overdue)
+            ),
             tone="erro" if owners.actions.overdue else "ok",
         ),
         "planejamento": HomeBadge(
-            f"{calculations.integer_text(owners.punch.kpis.open_a)} itens A abertos",
+            _label("{value} itens A abertos", idioma).format(
+                value=calculations.integer_text(owners.punch.kpis.open_a)
+            ),
             tone="warn" if owners.punch.kpis.open_a else "ok",
         ),
         "financeiro": HomeBadge(
-            f"{calculations.integer_text(owners.contracts.summary.open_claims)} claims em aberto",
+            _label("{value} claims em aberto", idioma).format(
+                value=calculations.integer_text(owners.contracts.summary.open_claims)
+            ),
             tone="warn" if owners.contracts.summary.open_claims else "ok",
         ),
         "suprimentos": HomeBadge(
-            f"aderência ao plano {calculations.percent_text(owners.supply.summary.adherence_pct)}",
+            _label("aderência ao plano {value}", idioma).format(
+                value=calculations.percent_text(owners.supply.summary.adherence_pct)
+            ),
             tone="info",
         ),
         "riscos": HomeBadge(
-            f"{calculations.integer_text(len(owners.risks.summary.overdue))} revisão vencida",
+            _label("{value} revisão vencida", idioma).format(
+                value=calculations.integer_text(len(owners.risks.summary.overdue))
+            ),
             tone="warn" if owners.risks.summary.overdue else "ok",
         ),
         "qualidade": HomeBadge(
-            f"{calculations.integer_text(owners.quality.open_rncs)} RNC abertas",
+            _label("{value} RNC abertas", idioma).format(
+                value=calculations.integer_text(owners.quality.open_rncs)
+            ),
             tone="warn" if owners.quality.open_rncs else "ok",
         ),
         "hse": HomeBadge(
-            f"TRIF {calculations.decimal_text(_hse_trif(owners.hse), digits=2)}",
+            _label("TRIF {value}", idioma).format(
+                value=calculations.decimal_text(_hse_trif(owners.hse), digits=2)
+            ),
             tone="info",
         ),
         "governanca": HomeBadge(
-            f"{calculations.integer_text(owners.changes.summary.in_analysis)} em análise de impacto",
+            _label("{value} em análise de impacto", idioma).format(
+                value=calculations.integer_text(owners.changes.summary.in_analysis)
+            ),
             tone="info",
         ),
     }
@@ -1247,9 +1333,9 @@ def _cards(owners: _Owners) -> tuple[HomeCard, ...]:
     return tuple(
         HomeCard(
             module=module_id,
-            title=navigation.module_of(screens[module_id]).label,
+            title=_module_label(module_id, idioma),
             icon=navigation.module_of(screens[module_id]).icon,
-            description=CARD_DESCRIPTIONS[module_id],
+            description=_label(CARD_DESCRIPTIONS[module_id], idioma),
             url=navigation.public_path(screens[module_id]),
             badges=(badges[module_id],),
         )
@@ -1284,10 +1370,10 @@ def _chosen_project(projects: list[ProjectSummary], scope: Scope) -> HomeProject
     )
 
 
-def _scope_label(chosen: HomeProject | None, scope: Scope) -> str:
+def _scope_label(chosen: HomeProject | None, scope: Scope, idioma: str) -> str:
     if scope.is_portfolio:
-        return "Portfólio de projetos"
-    return chosen.label if chosen is not None else f"Projeto {scope.project_id}"
+        return _label("Portfólio de projetos", idioma)
+    return chosen.label if chosen is not None else f"{_label('Projeto', idioma)} {scope.project_id}"
 
 
 def _scope_budget(
@@ -1312,12 +1398,12 @@ def _scope_end_date(
     return max(ends) if ends else None
 
 
-def _empty_overview(*, scope: Scope, reference_date: date) -> HomeOverview:
+def _empty_overview(*, scope: Scope, reference_date: date, idioma: str) -> HomeOverview:
     """O Portfólio sem projetos: a tela mostra o vazio de origem."""
     return HomeOverview(
         reference_date=reference_date,
         is_portfolio=scope.is_portfolio,
-        scope_label="Portfólio de projetos",
+        scope_label=_label("Portfólio de projetos", idioma),
         project=None,
         project_count=0,
         budget_cents=None,

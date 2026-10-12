@@ -128,6 +128,7 @@ def eac_document(
     ``scope_label`` is the line of the scope (``describe_scope``), made by the route.
     """
     return Document(
+        namespace="financeiro",
         title=PORTFOLIO_TITLE if view.is_portfolio else PROJECT_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -322,6 +323,7 @@ def mapa_document(view: MapaControleView, *, scope_label: str, generated_on: dat
     cada linha é um projeto e a coluna Projeto entra pelo mecanismo genérico (HU-016).
     """
     return Document(
+        namespace="financeiro",
         title=MAP_PORTFOLIO_TITLE if view.is_portfolio else MAP_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -450,6 +452,7 @@ def contrato_document(view: ContractView, *, scope_label: str, generated_on: dat
     valor", para nenhum dos dois ter menos que o outro.
     """
     return Document(
+        namespace="financeiro",
         title=CONTRACT_TITLE.format(number=view.number),
         scope_label=scope_label,
         generated_on=generated_on,
@@ -630,6 +633,7 @@ def contrato_marcos_document(
     prevista com o dia corrente; o mesmo conteúdo da aba vai para o Excel e o imprimível.
     """
     return Document(
+        namespace="financeiro",
         title=CONTRACT_TITLE.format(number=view.number),
         scope_label=scope_label,
         generated_on=generated_on,
@@ -643,6 +647,7 @@ def contrato_claims_document(
 ) -> Document:
     """Os claims da ficha como documento, com o alerta de notificação fora do prazo."""
     return Document(
+        namespace="financeiro",
         title=CONTRACT_TITLE.format(number=view.number),
         scope_label=scope_label,
         generated_on=generated_on,
@@ -656,6 +661,7 @@ def contrato_extensoes_document(
 ) -> Document:
     """As extensões de prazo da ficha como documento, com a decisão e a SM da linha de base."""
     return Document(
+        namespace="financeiro",
         title=CONTRACT_TITLE.format(number=view.number),
         scope_label=scope_label,
         generated_on=generated_on,
@@ -829,6 +835,7 @@ def contrato_avaliacoes_document(
     vai para o Excel e o imprimível.
     """
     return Document(
+        namespace="financeiro",
         title=CONTRACT_TITLE.format(number=view.number),
         scope_label=scope_label,
         generated_on=generated_on,
@@ -898,6 +905,7 @@ def contratos_consolidado_document(
     tables_view = view if filtered is None else filtered
     context = (("Filtro", filter_label),) if filter_label else ()
     return Document(
+        namespace="financeiro",
         title=CONTRACTS_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1252,6 +1260,7 @@ def contingencia_document(
     vem pelo mecanismo genérico (HU-016).
     """
     return Document(
+        namespace="financeiro",
         title=CONTINGENCY_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1648,6 +1657,7 @@ def curva_financeira_document(
     o projeto e para o Portfólio: a série da carteira já é a soma em reais dos projetos.
     """
     return Document(
+        namespace="financeiro",
         title=CURVA_FINANCEIRA_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -1842,6 +1852,7 @@ def custos_kpis_document(
     tables.append(_custos_kpis_summary_table(view))
     tables.append(_custos_kpis_value_table(view))
     return Document(
+        namespace="financeiro",
         title=CUSTOS_KPIS_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,
@@ -2267,6 +2278,7 @@ def desembolso_document(
     (HU-016).
     """
     return Document(
+        namespace="financeiro",
         title=DESEMBOLSO_TITLE,
         scope_label=scope_label,
         generated_on=generated_on,

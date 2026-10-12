@@ -16,9 +16,9 @@
 <span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
 
 {% if visao.is_empty %}
-<p class="body-txt">{{ 'Nenhum projeto da carteira tem curva financeira cadastrada.' if carteira else 'Este projeto ainda não tem curva financeira cadastrada.' }}</p>
+<p class="body-txt">{{ t('financeiro', 'Nenhum projeto da carteira tem curva financeira cadastrada.') if carteira else t('financeiro', 'Este projeto ainda não tem curva financeira cadastrada.') }}</p>
 {% else %}
-<div class="kpis" role="group" aria-label="Indicadores da Curva S financeira">
+<div class="kpis" role="group" aria-label="{{ t('financeiro', 'Indicadores da Curva S financeira') }}">
   {% for kpi in kpis %}
   <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -46,30 +46,30 @@
 <section class="card mb-16" aria-labelledby="curva-financeira-tabela-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="curva-financeira-tabela-titulo">Período a período</h2>
-      <span class="hint">Valores acumulados até cada mês, com o movimento do mês; o mês do corte está destacado</span>
+      <h2 class="h-card4" id="curva-financeira-tabela-titulo">{{ t('financeiro', 'Período a período') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Valores acumulados até cada mês, com o movimento do mês; o mês do corte está destacado') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-periodos>
-        <caption class="sr-only">Curva S financeira período a período</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Curva S financeira período a período') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Mês</th>
-            <th scope="col" class="td-num">Planejado no mês</th>
-            <th scope="col" class="td-num">Planejado acumulado</th>
-            <th scope="col" class="td-num">Comprometido acumulado</th>
-            <th scope="col" class="td-num">Realizado no mês</th>
-            <th scope="col" class="td-num">Realizado acumulado</th>
-            <th scope="col" class="td-num">Projeção acumulada</th>
-            <th scope="col" class="td-num">Realizado menos planejado</th>
+            <th scope="col">{{ t('financeiro', 'Mês') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Planejado no mês') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Planejado acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Comprometido acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Realizado no mês') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Realizado acumulado') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Projeção acumulada') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Realizado menos planejado') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for linha in linhas %}
           <tr{% if linha.corte %} class="fw-600" aria-current="true"{% endif %}>
-            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">corte</span>{% endif %}</td>
+            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">{{ t('financeiro', 'corte') }}</span>{% endif %}</td>
             <td class="td-num">{{ linha.planejado_mes }}</td>
             <td class="td-num">{{ linha.planejado }}</td>
             <td class="td-num">{{ linha.comprometido }}</td>

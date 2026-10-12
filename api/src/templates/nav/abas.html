@@ -20,10 +20,10 @@
       class="btn btn--secondary btn--sm module-tabs__voltar"
       href="{{ nav.back.url }}"
       data-tn-tela
-      aria-label="Voltar para {{ nav.back.title }}"
+      aria-label="{{ t('shell', 'Voltar para') }} {{ nav.back.title }}"
     >
       <span x-init="$el.innerHTML = window.icon('chevronLeft', 16)" aria-hidden="true"></span>
-      Voltar
+      {{ t('shell', 'Voltar') }}
     </a>
   </div>
   {% elif nav.tabs %}
@@ -43,7 +43,7 @@
   {% if nav.subtabs %}
   <div class="module-tabs__sub">
     <div class="module-tabs__in">
-      <nav class="tabs" aria-label="Telas de {{ nav.subtabs_label }}">
+      <nav class="tabs" aria-label="{{ t('shell', 'Telas de') }} {{ nav.subtabs_label }}">
         {% for aba in nav.subtabs %}
         <a
           class="tab{% if aba.is_active %} is-active{% endif %}"

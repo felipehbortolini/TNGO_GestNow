@@ -11,23 +11,23 @@
 <form method="post" action="/api/central-acoes/ata/empresas"
   x-target="ata-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
-  data-tn-loading="Salvando as empresas...">
+  data-tn-loading="{{ t('central_acoes', 'Salvando as empresas...') }}">
   <input type="hidden" name="id" value="{{ ficha.record.id }}" />
   <input type="hidden" name="versao" value="{{ versao }}" />
   <input type="hidden" name="aba" value="{{ aba }}" />
   {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
   <div class="fgrid">
     <div class="field field--full">
-      <label for="{{ target_id }}-principal">Empresa principal</label>
+      <label for="{{ target_id }}-principal">{{ t('central_acoes', 'Empresa principal') }}</label>
       <select id="{{ target_id }}-principal" name="empresa_principal" class="input">
-        <option value="">Nenhuma</option>
+        <option value="">{{ t('central_acoes', 'Nenhuma') }}</option>
         {% for empresa in empresas %}
         <option value="{{ empresa.id }}"{% if valores.get('empresa_principal') == empresa.id|string %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
       </select>
     </div>
     <div class="field field--full">
-      <label for="{{ target_id }}-empresas">Empresas executoras</label>
+      <label for="{{ target_id }}-empresas">{{ t('central_acoes', 'Empresas executoras') }}</label>
       <select id="{{ target_id }}-empresas" name="empresas" class="input{% if erros.empresas %} input--erro{% endif %}" multiple size="6"
         aria-describedby="{{ target_id }}-empresas-dica{% if erros.empresas %} {{ target_id }}-empresas-erro{% endif %}"
         {% if erros.empresas %}aria-invalid="true"{% endif %}>
@@ -35,14 +35,14 @@
         <option value="{{ empresa.id }}"{% if empresa.id|string in valores.get('empresas', []) %} selected{% endif %}>{{ empresa.name }}</option>
         {% endfor %}
       </select>
-      <span class="hint" id="{{ target_id }}-empresas-dica">Segure Ctrl (ou Cmd) para marcar mais de uma.</span>
+      <span class="hint" id="{{ target_id }}-empresas-dica">{{ t('central_acoes', 'Segure Ctrl (ou Cmd) para marcar mais de uma.') }}</span>
       {% if erros.empresas %}<span class="field__erro" id="{{ target_id }}-empresas-erro" role="alert">{{ erros.empresas }}</span>{% endif %}
     </div>
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
-    <button type="submit" class="btn btn--primary">Salvar empresas</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('central_acoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Salvar empresas') }}</button>
   </div>
 </form>
 {% endblock %}

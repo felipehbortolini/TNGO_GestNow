@@ -19,12 +19,12 @@
     {% endif %}
     <form method="post" action="{{ acao }}"
       x-target="{{ alvo_formulario }} {{ alvo_claims }} {{ alvo_resumo }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Atualizando o claim..."
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Atualizando o claim...') }}"
       x-data="{ situacao: '{{ valores.situacao or (situacoes[0] if situacoes else '') }}' }">
       <input type="hidden" name="versao" value="{{ valores.versao or claim.version }}" />
       <div class="fgrid">
         <div class="field">
-          <label for="contrato-claim-situacao">Nova situação</label>
+          <label for="contrato-claim-situacao">{{ t('financeiro', 'Nova situação') }}</label>
           <select id="contrato-claim-situacao" name="situacao"
             class="input{{ ' input--erro' if erros.situacao else '' }}" x-model="situacao" required>
             {% for situacao in situacoes %}
@@ -32,10 +32,10 @@
             {% endfor %}
           </select>
           {% if erros.situacao %}<span class="field__erro" id="contrato-claim-situacao-erro">{{ erros.situacao }}</span>{% endif %}
-          {% if not situacoes %}<span class="hint">O claim não admite novas situações neste estado.</span>{% endif %}
+          {% if not situacoes %}<span class="hint">{{ t('financeiro', 'O claim não admite novas situações neste estado.') }}</span>{% endif %}
         </div>
         <div class="field" x-show="situacao === 'Acordado'">
-          <label for="contrato-claim-reconhecido">Valor reconhecido</label>
+          <label for="contrato-claim-reconhecido">{{ t('financeiro', 'Valor reconhecido') }}</label>
           <input id="contrato-claim-reconhecido" name="reconhecido" inputmode="decimal"
             class="input{{ ' input--erro' if erros.reconhecido else '' }}"
             value="{{ valores.reconhecido or '' }}"
@@ -43,12 +43,12 @@
           {% if erros.reconhecido %}<span class="field__erro" id="contrato-claim-reconhecido-erro">{{ erros.reconhecido }}</span>{% endif %}
         </div>
         <div class="field" x-show="situacao === 'Acordado'">
-          <label for="contrato-claim-dias-reconhecidos">Dias reconhecidos</label>
+          <label for="contrato-claim-dias-reconhecidos">{{ t('financeiro', 'Dias reconhecidos') }}</label>
           <input id="contrato-claim-dias-reconhecidos" name="dias" type="number" min="0" step="1"
             class="input" value="{{ valores.dias or '0' }}" />
         </div>
         <div class="field field--full">
-          <label for="contrato-claim-parecer">Parecer</label>
+          <label for="contrato-claim-parecer">{{ t('financeiro', 'Parecer') }}</label>
           <textarea id="contrato-claim-parecer" name="parecer" maxlength="400"
             class="input{{ ' input--erro' if erros.parecer else '' }}" required
             {% if erros.parecer %}aria-invalid="true" aria-describedby="contrato-claim-parecer-erro"{% endif %}>{{ valores.parecer or '' }}</textarea>
@@ -57,10 +57,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Salvar situação
+          {{ t('financeiro', 'Salvar situação') }}
         </button>
       </div>
     </form>

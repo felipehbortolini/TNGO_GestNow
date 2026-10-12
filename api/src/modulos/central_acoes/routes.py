@@ -29,7 +29,7 @@ from urllib.parse import parse_qsl, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -37,7 +37,7 @@ from src.core.errors import (
     VersionConflictError,
 )
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, format_value
+from src.core.export_document import Document
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
@@ -90,7 +90,11 @@ def _error_status(error: DomainError) -> int:
 
 def _modal_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
     """A refusal inside the modal: the message in the modal body, where the person is looking."""
-    messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    idioma = translations.language_of(req)
+    messages = [
+        translations.translate("central_acoes", message, idioma)
+        for message in (error.messages() if isinstance(error, InvalidDataError) else [str(error)])
+    ]
     return AlpineAjaxResponse(
         template_name="comum/erro.html",
         context={"mensagens": messages},
@@ -225,7 +229,15 @@ def replan_save(
     )
     if error is not None:
         return _form(session, context, template=REPLAN_TEMPLATE, state=state, error=error)
-    return _saved(req, session, context, state=state, notice=REPLANNED_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", REPLANNED_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 @bp.route(route="central-acoes/acoes/{acao_id}/concluir", methods=["GET"])
@@ -275,7 +287,15 @@ def complete_save(
     )
     if error is not None:
         return _form(session, context, template=COMPLETE_TEMPLATE, state=state, error=error)
-    return _saved(req, session, context, state=state, notice=COMPLETED_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", COMPLETED_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 @bp.route(route="central-acoes/acoes/{acao_id}/historico", methods=["GET"])
@@ -297,7 +317,7 @@ def replan_history_view(
         context={
             "acao": action,
             "linhas": lines,
-            "formatar_data": _format_date,
+            "formatar_data": _date_formatter(translations.language_of(req)),
         },
         request=req,
         target_id=MODAL_TARGET,
@@ -326,7 +346,7 @@ def _screen(
     shown = replace(query.filters, page=listing.page)
     return AlpineAjaxResponse(
         template_name=LIST_TEMPLATE,
-        context=_screen_context(listing, shown, query.view, context),
+        context=_screen_context(listing, shown, query.view, context, translations.language_of(req)),
         request=req,
         target_id=CONTENT_TARGET,
         toast=notice,
@@ -334,16 +354,20 @@ def _screen(
 
 
 def _screen_context(
-    listing: service.ActionListing, filters: ActionFilters, view: str, context: RequestContext
+    listing: service.ActionListing,
+    filters: ActionFilters,
+    view: str,
+    context: RequestContext,
+    idioma: str,
 ) -> dict[str, object]:
     query = presentation.query_string(filters, view)
     return {
         "listagem": listing,
         "filtros": filters,
         "visao": view,
-        "kpis": _kpi_cards(listing, filters, view),
-        "chips": _chips(listing, filters, view),
-        "colunas_do_quadro": _board(listing),
+        "kpis": _kpi_cards(listing, filters, view, idioma),
+        "chips": _chips(listing, filters, view, idioma),
+        "colunas_do_quadro": _board(listing, idioma),
         "links_de_visao": {
             "lista": presentation.address(filters, validation.LIST_VIEW),
             "kanban": presentation.address(filters, validation.KANBAN_VIEW),
@@ -365,21 +389,31 @@ def _screen_context(
         "consulta": query,
         "parametro_consulta": urlencode({"consulta": query}),
         "origens": ORIGINS,
-        "opcoes_de_status": _status_options(),
+        "opcoes_de_status": _status_options(idioma),
         "portfolio": context.scope.is_portfolio,
         "pode_gravar": rbac.can(context.user, Permission.WRITE),
         "etiqueta_de_status": STATUS_PILLS,
-        "formatar_data": _format_date,
+        "formatar_data": _date_formatter(idioma),
         "pagina_inicial": (filters.page - 1) * validation.PAGE_SIZE + 1,
         "pagina_final": min(filters.page * validation.PAGE_SIZE, listing.total),
     }
 
 
-def _status_options() -> list[tuple[str, str]]:
-    return [(item.value, calculations.STATUS_FILTER_LABELS[item]) for item in StatusFilter]
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
 
 
-def _kpi_cards(listing: service.ActionListing, filters: ActionFilters, view: str) -> list[KpiCard]:
+def _status_options(idioma: str) -> list[tuple[str, str]]:
+    return [
+        (item.value, _label(calculations.STATUS_FILTER_LABELS[item], idioma))
+        for item in StatusFilter
+    ]
+
+
+def _kpi_cards(
+    listing: service.ActionListing, filters: ActionFilters, view: str, idioma: str
+) -> list[KpiCard]:
     counts = listing.counts
     share = listing.overdue_share
 
@@ -391,57 +425,61 @@ def _kpi_cards(listing: service.ActionListing, filters: ActionFilters, view: str
     return [
         KpiCard(
             status=StatusFilter.ON_TIME,
-            label="Em dia",
+            label=_label("Em dia", idioma),
             icon="clock",
             tone="info",
             value=counts.on_time,
-            reference_label="Esperado",
+            reference_label=_label("Esperado", idioma),
             reference_value=str(counts.open),
-            footer="prazo vigente ainda não venceu",
+            footer=_label("prazo vigente ainda não venceu", idioma),
             url=link(StatusFilter.ON_TIME),
             active=filters.status is StatusFilter.ON_TIME,
         ),
         KpiCard(
             status=StatusFilter.OVERDUE,
-            label="Atrasadas",
+            label=_label("Atrasadas", idioma),
             icon="warning",
             tone="erro",
             value=counts.overdue,
-            reference_label="Meta",
+            reference_label=_label("Meta", idioma),
             reference_value="0",
-            footer="" if share is None else f"{share}% das abertas",
+            footer=""
+            if share is None
+            else _label("{value}% das abertas", idioma).format(value=share),
             url=link(StatusFilter.OVERDUE),
             active=filters.status is StatusFilter.OVERDUE,
         ),
         KpiCard(
             status=StatusFilter.COMPLETED,
-            label="Concluídas",
+            label=_label("Concluídas", idioma),
             icon="checkCircle",
             tone="ok",
             value=counts.completed,
-            reference_label="Previsto",
+            reference_label=_label("Previsto", idioma),
             reference_value=str(listing.due_by_reference),
-            footer="com data de conclusão",
+            footer=_label("com data de conclusão", idioma),
             url=link(StatusFilter.COMPLETED),
             active=filters.status is StatusFilter.COMPLETED,
         ),
         KpiCard(
             status=StatusFilter.ALL,
-            label="Total de ações",
+            label=_label("Total de ações", idioma),
             icon="taskList",
             tone="neutro",
             value=counts.total,
-            reference_label="Referência",
+            reference_label=_label("Referência", idioma),
             reference_value=str(listing.universe),
-            footer=f"{counts.open} em andamento",
+            footer=_label("{value} em andamento", idioma).format(value=counts.open),
             url=link(StatusFilter.ALL),
             active=filters.status is StatusFilter.ALL,
         ),
     ]
 
 
-def _chips(listing: service.ActionListing, filters: ActionFilters, view: str) -> list[ChipLink]:
-    chips = presentation.active_chips(filters, listing.responsibles)
+def _chips(
+    listing: service.ActionListing, filters: ActionFilters, view: str, idioma: str
+) -> list[ChipLink]:
+    chips = presentation.active_chips(filters, listing.responsibles, idioma)
     return [
         ChipLink(
             text=chip.text,
@@ -452,9 +490,9 @@ def _chips(listing: service.ActionListing, filters: ActionFilters, view: str) ->
     ]
 
 
-def _board(listing: service.ActionListing) -> list[BoardColumn]:
+def _board(listing: service.ActionListing, idioma: str) -> list[BoardColumn]:
     return [
-        BoardColumn(title=title, tone=tone, rows=listing.board_column(status))
+        BoardColumn(title=_label(title, idioma), tone=tone, rows=listing.board_column(status))
         for status, title, tone in BOARD_COLUMNS
     ]
 
@@ -465,9 +503,18 @@ def _page_link(filters: ActionFilters, view: str, page: int, page_count: int) ->
     return presentation.address(presentation.with_page(filters, page), view)
 
 
-def _format_date(value: date | None) -> str:
+def _format_date(value: date | None, idioma: str = "pt") -> str:
     """``25/09/2026``; the dash when there is no date."""
-    return "—" if value is None else format_value(ValueKind.DATE, value)
+    return "—" if value is None else translations.format_date(value, idioma)
+
+
+def _date_formatter(idioma: str):
+    """A data da Central no idioma do request, como o fragmento a chama."""
+
+    def formatar(value: date | None) -> str:
+        return _format_date(value, idioma)
+
+    return formatar
 
 
 def _document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
@@ -483,6 +530,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -519,6 +567,7 @@ def _form(
     # again is the person's informed choice. A 422 keeps the version the form was opened with.
     stale = isinstance(error, VersionConflictError)
     version = action.version if stale or state.version is None else state.version
+    idioma = translations.language_of(state.req)
     return AlpineAjaxResponse(
         template_name=template,
         context={
@@ -526,9 +575,9 @@ def _form(
             "versao": version,
             "consulta": state.query,
             "valores": dict(state.values or {}),
-            "erros": _field_errors(error),
+            "erros": _field_errors(error, idioma),
             "referencia": today.isoformat(),
-            "formatar_data": _format_date,
+            "formatar_data": _date_formatter(idioma),
         },
         request=state.req,
         target_id=MODAL_TARGET,
@@ -563,12 +612,15 @@ def _attempt(session: Session, work: Callable[[], object]) -> DomainError | None
     return None
 
 
-def _field_errors(error: DomainError | None) -> dict[str, str]:
+def _field_errors(error: DomainError | None, idioma: str) -> dict[str, str]:
     if error is None:
         return {}
     if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
-        return dict(error.detail)
-    return {"geral": str(error)}
+        return {
+            field: translations.translate("central_acoes", message, idioma)
+            for field, message in error.detail.items()
+        }
+    return {"geral": translations.translate("central_acoes", str(error), idioma)}
 
 
 def _action_id(req: func.HttpRequest) -> int:

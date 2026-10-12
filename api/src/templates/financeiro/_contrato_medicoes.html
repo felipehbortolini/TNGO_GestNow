@@ -9,7 +9,7 @@
 <section class="card" aria-labelledby="contrato-medicoes-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-medicoes-titulo">Medições</h2>
+      <h2 class="h-card4" id="contrato-medicoes-titulo">{{ t('financeiro', 'Medições') }}</h2>
       <span class="hint">Em análise → Aprovada → Faturada → Paga (ou Devolvida com motivo) · retenção de {{ ficha.retention_pct }}%</span>
     </div>
     {% if pode_gerir %}
@@ -17,7 +17,7 @@
       <a class="btn btn--primary" href="/api/financeiro/contrato/medicoes/nova?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova medição
+        {{ t('financeiro', 'Nova medição') }}
       </a>
     </div>
     {% endif %}
@@ -25,23 +25,23 @@
   <div class="card__body">
     {% if erro %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro }}</span>
     </div>
     {% endif %}
 
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Medições do contrato</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Medições do contrato') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Nº</th>
-            <th scope="col">Período</th>
-            <th scope="col" class="td-num">Valor bruto</th>
-            <th scope="col" class="td-num">Retenção</th>
-            <th scope="col" class="td-num">Valor líquido</th>
-            <th scope="col">Situação</th>
-            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Nº') }}</th>
+            <th scope="col">{{ t('financeiro', 'Período') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor bruto') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Retenção') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor líquido') }}</th>
+            <th scope="col">{{ t('financeiro', 'Situação') }}</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -63,36 +63,36 @@
               <div class="contrato-acoes">
               {% if linha.pode_aprovar %}
               <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/aprovar?numero={{ ficha.number }}"
-                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Aprovando a medição...">
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="{{ t('financeiro', 'Aprovando a medição...') }}">
                 <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Aprovar</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Aprovar') }}</button>
               </form>
               {% endif %}
               {% if linha.pode_faturar %}
               <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/faturar?numero={{ ficha.number }}"
-                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Faturando a medição...">
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="{{ t('financeiro', 'Faturando a medição...') }}">
                 <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Faturar</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Faturar') }}</button>
               </form>
               {% endif %}
               {% if linha.pode_pagar %}
               <form method="post" action="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/pagar?numero={{ ficha.number }}"
-                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="Registrando o pagamento...">
+                x-target="{{ alvo_medicoes }} {{ alvo_resumo }}" data-tn-loading="{{ t('financeiro', 'Registrando o pagamento...') }}">
                 <input type="hidden" name="versao" value="{{ linha.medicao.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Registrar pagamento</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Registrar pagamento') }}</button>
               </form>
               {% endif %}
               {% if linha.pode_devolver %}
               <a class="btn btn--sm btn--ghost"
                 href="/api/financeiro/contrato/medicoes/{{ linha.medicao.id }}/devolucao?numero={{ ficha.number }}"
-                x-target="{{ alvo_formulario }}">Devolver</a>
+                x-target="{{ alvo_formulario }}">{{ t('financeiro', 'Devolver') }}</a>
               {% endif %}
               </div>
             </td>
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{{ 7 if pode_gerir else 6 }}" class="muted">Nenhuma medição registrada.</td></tr>
+          <tr><td colspan="{{ 7 if pode_gerir else 6 }}" class="muted">{{ t('financeiro', 'Nenhuma medição registrada.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

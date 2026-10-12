@@ -212,3 +212,16 @@ As ISSUE-025, ISSUE-026 e ISSUE-028 completam este documento (decisão, painel d
 
 **Testes.** `api/tests/governanca/test_fachada_eap.py` (fonte, incorporação, ficha, próximo passo e encerramento) e, nesta etapa, o alerta, a linha com os quatro textos e o aviso do encerramento pelas rotas.
 
+## Idioma (ISSUE-087)
+
+A fatia do inglês (D13) traduz no servidor: o catálogo é `api/src/core/translations.py`
+(namespace `governanca`, com os termos do bloco 08 do `en.js`: SM vira CR, EAP vira WBS, EAC vira
+CBS), o idioma vem do cookie `gestnow_idioma` e a rota `POST /api/idioma` grava a escolha; o
+seletor PT | EN fica na barra lateral. Os templates chamam `{{ t('governanca', 'Texto') }}` e as
+datas usam o `data()` do contexto; as rotas traduzem recusas e avisos no idioma do request e as
+apresentações (`presentation.py`, `export.py`, `lessons_export.py`, `lessons_presentation.py`,
+`panel.py`, `lessons_panel.py`, `routes.py`, `lessons_routes.py`) recebem `idioma`. Gráficos levam
+`rotulos` do motor no JSON. Views e JS estáticos usam `data-i18n`/`TN.t`. Para acrescentar
+tradução, some a chave ao namespace `governanca`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` reprova chave marcada sem tradução.
+

@@ -8,19 +8,19 @@
 {% block fragment %}
 <p class="body-txt mb-16">
   Item {{ item.item }} · {{ item.subject }}<br />
-  Prevista original: <strong>{{ formatar_data(item.planned_date) }}</strong>
+  {{ t('central_acoes', 'Prevista original:') }} <strong>{{ formatar_data(item.planned_date) }}</strong>
 </p>
 {% if replans %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Replanejamentos do item</caption>
+    <caption class="sr-only">{{ t('central_acoes', 'Replanejamentos do item') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Registrado em</th>
-        <th scope="col">De</th>
-        <th scope="col">Para</th>
-        <th scope="col">Por</th>
-        <th scope="col">Justificativa</th>
+        <th scope="col">{{ t('central_acoes', 'Registrado em') }}</th>
+        <th scope="col">{{ t('central_acoes', 'De') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Para') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Por') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Justificativa') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -38,12 +38,12 @@
 </div>
 {% else %}
 <div class="empty" data-estado="vazio-origem">
-  <h2 class="h-card4">Nenhum replanejamento registrado</h2>
-  <p>O item mantém a data prevista original.</p>
+  <h2 class="h-card4">{{ t('central_acoes', 'Nenhum replanejamento registrado') }}</h2>
+  <p>{{ t('central_acoes', 'O item mantém a data prevista original.') }}</p>
 </div>
 {% endif %}
 <div class="modal__actions">
   <button type="button" class="btn btn--secondary"
-    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('central_acoes', 'Fechar') }}</button>
 </div>
 {% endblock %}

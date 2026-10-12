@@ -20,7 +20,7 @@
 {% set colunas = 11 + (1 if carteira else 0) + (1 if pode_gravar else 0) %}
 {% if erro %}
 <div class="aviso aviso--erro" role="alert">
-  <strong>Não foi possível concluir.</strong>
+  <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
   <span>{{ erro }}</span>
 </div>
 {% endif %}
@@ -28,17 +28,17 @@
 <div class="kpis" style="--kpis-colunas: 5">
   <div class="kpi kpi--neutro kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
-    <span class="kpi__label">Orçado atual</span>
+    <span class="kpi__label">{{ t('financeiro', 'Orçado atual') }}</span>
     <span class="kpi__value">{{ total.current }}</span>
   </div>
   <div class="kpi kpi--info kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('file', 16)" aria-hidden="true"></span>
-    <span class="kpi__label">Comprometido</span>
+    <span class="kpi__label">{{ t('financeiro', 'Comprometido') }}</span>
     <span class="kpi__value">{{ total.committed }}</span>
   </div>
   <div class="kpi kpi--info kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
-    <span class="kpi__label">Realizado</span>
+    <span class="kpi__label">{{ t('financeiro', 'Realizado') }}</span>
     <span class="kpi__value">{{ total.actual }}</span>
   </div>
   <div class="kpi kpi--{{ 'erro' if total.row.deviation_cents > 0 else 'ok' if total.row.deviation_cents < 0 else 'neutro' }} kpi--estatico">
@@ -55,7 +55,7 @@
 
 {% if mapa.reserves %}
 <div class="aviso aviso--{{ 'info' if mapa.reserves.covers_deviation else 'warn' }}" data-reservas>
-  <strong>Reservas</strong>
+  <strong>{{ t('financeiro', 'Reservas') }}</strong>
   <span>
     Contingência com saldo de {{ mapa.reserves.contingency_balance_cents | brl }}
     ({% if mapa.reserves.contingency_consumption_pct is not none %}{{ mapa.reserves.contingency_consumption_pct }}% consumida; {% endif %}{{ mapa.reserves.in_analysis_cents | brl }} pedidos em SMs em análise) e reserva gerencial de {{ mapa.reserves.management_balance_cents | brl }}.
@@ -67,11 +67,11 @@
 {% endif %}
 
 <div class="mapa-acoes">
-  <p class="hint">Valores em R$ mil · desvio = projeção no término menos orçado atual (positivo = sobrecusto).</p>
+  <p class="hint">{{ t('financeiro', 'Valores em R$ mil · desvio = projeção no término menos orçado atual (positivo = sobrecusto).') }}</p>
   {% if pode_gravar or carteira %}
   <button type="button" class="btn btn--secondary btn--sm" data-mapa-importar{% if carteira %} data-tn-incluir="importar"{% endif %}>
     <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
-    Importar custos do ERP
+    {{ t('financeiro', 'Importar custos do ERP') }}
   </button>
   {% endif %}
 </div>
@@ -82,22 +82,22 @@
       {% if pode_gravar %}@grafico:selecionar.prevent="$ajax('/api/financeiro/mapa-de-controle/projecao/' + $event.detail.id + '/formulario', { target: 'mapa-projecao-formulario' })"{% endif %}>
       <div class="tbl-wrap">
         <table class="tbl" data-mapa>
-          <caption class="sr-only">Mapa de controle</caption>
+          <caption class="sr-only">{{ t('financeiro', 'Mapa de controle') }}</caption>
           <thead>
             <tr>
-              {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-              <th scope="col">Código</th>
-              <th scope="col">Descrição</th>
-              <th scope="col" class="td-num">Orçado</th>
-              <th scope="col" class="td-num">Remanejamentos</th>
-              <th scope="col" class="td-num">Orçado atual</th>
-              <th scope="col" class="td-num">Comprometido</th>
-              <th scope="col" class="td-num">Realizado</th>
-              <th scope="col" class="td-num">Saldo a comprometer</th>
-              <th scope="col" class="td-num">Projeção no término</th>
-              <th scope="col" class="td-num">Desvio</th>
-              <th scope="col" class="td-num">Desvio %</th>
-              {% if pode_gravar %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+              {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+              <th scope="col">{{ t('financeiro', 'Código') }}</th>
+              <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Orçado') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Remanejamentos') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Orçado atual') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Comprometido') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Realizado') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Saldo a comprometer') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Projeção no término') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Desvio') }}</th>
+              <th scope="col" class="td-num">{{ t('financeiro', 'Desvio %') }}</th>
+              {% if pode_gravar %}<th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -124,7 +124,7 @@
               <td class="td-center nowrap">
                 {% if linha.can_project %}
                 <button type="button" class="iconbtn" data-projecao="{{ linha.row.item_id }}"
-                  aria-label="Atualizar a projeção de {{ linha.row.code }}" title="Atualizar projeção">
+                  aria-label="Atualizar a projeção de {{ linha.row.code }}" title="{{ t('financeiro', 'Atualizar projeção') }}">
                   <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
                 </button>
                 {% endif %}
@@ -133,7 +133,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="{{ colunas }}" class="muted">Nenhum item de custo no escopo.</td>
+              <td colspan="{{ colunas }}" class="muted">{{ t('financeiro', 'Nenhum item de custo no escopo.') }}</td>
             </tr>
             {% endfor %}
           </tbody>

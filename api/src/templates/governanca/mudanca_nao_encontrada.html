@@ -5,8 +5,8 @@
 {% block fragment %}
 <div class="empty" data-estado="vazio-origem">
   <img src="/ds/assets/ilustra-aviso.png" alt="" />
-  <h2 class="h-card4">Mudança não encontrada</h2>
-  <p>Solicitação de mudança não encontrada. Confira o número ou volte ao registro.</p>
-  <a class="btn btn--primary" href="/governanca/mudancas" data-tn-tela>Voltar ao registro de mudanças</a>
+  <h2 class="h-card4">{{ t('governanca', 'Mudança não encontrada') }}</h2>
+  <p>{{ t('governanca', 'Solicitação de mudança não encontrada. Confira o número ou volte ao registro.') }}</p>
+  <a class="btn btn--primary" href="/governanca/mudancas" data-tn-tela>{{ t('governanca', 'Voltar ao registro de mudanças') }}</a>
 </div>
 {% endblock %}

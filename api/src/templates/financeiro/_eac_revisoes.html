@@ -11,44 +11,44 @@
 <section class="card" aria-labelledby="eac-revisoes-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="eac-revisoes-titulo">Revisões do orçamento</h2>
-      <span class="hint">Rev 0 é a linha de base; o acréscimo ao total só entra por revisão, a partir de SM aprovada com custo.</span>
+      <h2 class="h-card4" id="eac-revisoes-titulo">{{ t('financeiro', 'Revisões do orçamento') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Rev 0 é a linha de base; o acréscimo ao total só entra por revisão, a partir de SM aprovada com custo.') }}</span>
     </div>
     {% if pode_gravar %}
     <div class="eac-painel__acoes">
       <button type="button" class="btn btn--primary" data-eac-form="eac-form-revisao"
-        aria-expanded="false" aria-controls="eac-form-revisao">Nova revisão</button>
-      <button type="button" class="btn btn--secondary" data-eac-importar>Importar itens</button>
+        aria-expanded="false" aria-controls="eac-form-revisao">{{ t('financeiro', 'Nova revisão') }}</button>
+      <button type="button" class="btn btn--secondary" data-eac-importar>{{ t('financeiro', 'Importar itens') }}</button>
     </div>
     {% endif %}
   </div>
   <div class="card__body">
     {% if erro %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro }}</span>
     </div>
     {% endif %}
 
     {% if pode_gravar %}
     <form id="eac-form-revisao" class="eac-form" method="post" action="/api/financeiro/eac/revisoes"
-      x-target="eac-revisoes eac-conteudo" data-tn-loading="Criando a revisão..." hidden>
+      x-target="eac-revisoes eac-conteudo" data-tn-loading="{{ t('financeiro', 'Criando a revisão...') }}" hidden>
       {% include "financeiro/_eac_filtros_ocultos.html" %}
-      <p class="hint">A revisão consolida os remanejamentos aplicados, incorpora o custo aprovado na SM e congela a linha de base da Curva S financeira.</p>
+      <p class="hint">{{ t('financeiro', 'A revisão consolida os remanejamentos aplicados, incorpora o custo aprovado na SM e congela a linha de base da Curva S financeira.') }}</p>
       {% if fontes %}
       <div class="fgrid">
         <div class="field field--full">
-          <label for="eac-revisao-mudanca">SM aprovada</label>
+          <label for="eac-revisao-mudanca">{{ t('financeiro', 'SM aprovada') }}</label>
           <select id="eac-revisao-mudanca" name="mudanca_id" class="input" required>
-            <option value="">Escolha a SM que origina a revisão</option>
+            <option value="">{{ t('financeiro', 'Escolha a SM que origina a revisão') }}</option>
             {% for fonte in fontes %}
             <option value="{{ fonte.change_id }}">{{ fonte.code }} · custo {{ fonte.cost_cents | brl }}</option>
             {% endfor %}
           </select>
-          <span class="hint">Só as SM aprovadas com custo que nenhuma revisão incorporou ainda.</span>
+          <span class="hint">{{ t('financeiro', 'Só as SM aprovadas com custo que nenhuma revisão incorporou ainda.') }}</span>
         </div>
         <div class="field">
-          <label for="eac-revisao-item">Item que recebe o valor</label>
+          <label for="eac-revisao-item">{{ t('financeiro', 'Item que recebe o valor') }}</label>
           <select id="eac-revisao-item" name="item" class="input" required>
             {% for item in itens %}
             <option value="{{ item.code }}">{{ item.code }} · {{ item.description }}</option>
@@ -56,17 +56,17 @@
           </select>
         </div>
         <div class="field">
-          <label for="eac-revisao-valor">Valor incorporado</label>
+          <label for="eac-revisao-valor">{{ t('financeiro', 'Valor incorporado') }}</label>
           <input id="eac-revisao-valor" name="valor" class="input" inputmode="decimal" placeholder="0,00" required />
-          <span class="hint">Até o custo aprovado na SM.</span>
+          <span class="hint">{{ t('financeiro', 'Até o custo aprovado na SM.') }}</span>
         </div>
         <div class="field field--full">
-          <label for="eac-revisao-justificativa">Justificativa</label>
+          <label for="eac-revisao-justificativa">{{ t('financeiro', 'Justificativa') }}</label>
           <textarea id="eac-revisao-justificativa" name="justificativa" class="input" maxlength="300" minlength="10" required></textarea>
         </div>
       </div>
       <div class="acoes-rodape">
-        <button type="button" class="btn btn--secondary" data-eac-fechar>Cancelar</button>
+        <button type="button" class="btn btn--secondary" data-eac-fechar>{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
           Criar Rev {{ proxima_revisao }}
@@ -74,11 +74,11 @@
       </div>
       {% else %}
       <div class="aviso aviso--info" role="note">
-        <strong>Não há SM aprovada com custo pendente de incorporação.</strong>
-        <span>Aprove uma SM com custo em Governança para criar a próxima revisão.</span>
+        <strong>{{ t('financeiro', 'Não há SM aprovada com custo pendente de incorporação.') }}</strong>
+        <span>{{ t('financeiro', 'Aprove uma SM com custo em Governança para criar a próxima revisão.') }}</span>
       </div>
       <div class="acoes-rodape">
-        <button type="button" class="btn btn--secondary" data-eac-fechar>Fechar</button>
+        <button type="button" class="btn btn--secondary" data-eac-fechar>{{ t('financeiro', 'Fechar') }}</button>
       </div>
       {% endif %}
     </form>
@@ -86,17 +86,17 @@
 
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Revisões do orçamento</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Revisões do orçamento') }}</caption>
         <thead>
           <tr>
-            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Revisão</th>
-            <th scope="col">Data</th>
-            <th scope="col" class="td-num">Total</th>
-            <th scope="col" class="td-num">Variação</th>
-            <th scope="col">SM</th>
-            <th scope="col">Justificativa</th>
-            <th scope="col">Aprovado por</th>
+            {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Revisão') }}</th>
+            <th scope="col">{{ t('financeiro', 'Data') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Total') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Variação') }}</th>
+            <th scope="col">{{ t('financeiro', 'SM') }}</th>
+            <th scope="col">{{ t('financeiro', 'Justificativa') }}</th>
+            <th scope="col">{{ t('financeiro', 'Aprovado por') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -106,10 +106,10 @@
             {% if carteira %}<td>{{ linha.project_label }}</td>{% endif %}
             <td class="nowrap">
               <span class="fw-600 num">Rev {{ linha.view.revision }}</span>
-              {% if linha.view.revision == 0 %}<span class="pill pill--info">Linha de base</span>{% endif %}
-              {% if linha.is_current %}<span class="pill pill--ok">Vigente</span>{% endif %}
+              {% if linha.view.revision == 0 %}<span class="pill pill--info">{{ t('financeiro', 'Linha de base') }}</span>{% endif %}
+              {% if linha.is_current %}<span class="pill pill--ok">{{ t('financeiro', 'Vigente') }}</span>{% endif %}
             </td>
-            <td class="nowrap">{{ linha.view.revision_date.strftime('%d/%m/%Y') }}</td>
+            <td class="nowrap">{{ data(linha.view.revision_date) }}</td>
             <td class="td-num">{{ linha.view.total_cents | brl }}</td>
             <td class="td-num">
               {% if linha.variation_cents is not none %}
@@ -120,7 +120,7 @@
               {% if linha.view.change_code %}
               <a href="/governanca/mudanca?codigo={{ linha.view.change_code }}">{{ linha.view.change_code }}</a>
               {% else %}
-              <span class="muted">sem SM</span>
+              <span class="muted">{{ t('financeiro', 'sem SM') }}</span>
               {% endif %}
             </td>
             <td>{{ linha.view.justification }}</td>
@@ -128,7 +128,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="{{ 8 if carteira else 7 }}" class="muted">Nenhuma revisão registrada.</td>
+            <td colspan="{{ 8 if carteira else 7 }}" class="muted">{{ t('financeiro', 'Nenhuma revisão registrada.') }}</td>
           </tr>
           {% endfor %}
         </tbody>

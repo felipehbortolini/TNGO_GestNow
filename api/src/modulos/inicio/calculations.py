@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from src.core import translations
 from src.core.export_document import ValueKind, format_value
 
 # Limiares de leitura do SPI e do CPI (home.js do protótipo).
@@ -38,10 +39,10 @@ def integer_text(value: int) -> str:
     return format_value(ValueKind.INTEGER, value)
 
 
-def index_text(value: Decimal | None) -> str:
+def index_text(value: Decimal | None, idioma: str = "pt") -> str:
     """``0,94``: o índice com duas casas; sem valor, ``sem dados``."""
     if value is None:
-        return "sem dados"
+        return translations.translate("inicio", "sem dados", idioma)
     return format_value(ValueKind.DECIMAL, value, digits=2)
 
 
@@ -78,7 +79,7 @@ def signed_percent_text(value: Decimal | None, digits: int = 1) -> str:
     return text if value < 0 else f"+{text}"
 
 
-def delta_text(current: Decimal | None, previous: Decimal | None) -> str:
+def delta_text(current: Decimal | None, previous: Decimal | None, idioma: str = "pt") -> str:
     """``0,02 acima vs. mês anterior``: a leitura do índice contra o mês anterior.
 
     O protótipo mostrava uma seta; aqui a direção vai por extenso, porque cor e
@@ -88,10 +89,11 @@ def delta_text(current: Decimal | None, previous: Decimal | None) -> str:
         return ""
     difference = current - previous
     if difference == 0:
-        return "estável vs. mês anterior"
-    direction = "acima" if difference > 0 else "abaixo"
-    return (
-        f"{format_value(ValueKind.DECIMAL, abs(difference), digits=2)} {direction} vs. mês anterior"
+        return translations.translate("inicio", "estável vs. mês anterior", idioma)
+    direction = translations.translate("inicio", "acima" if difference > 0 else "abaixo", idioma)
+    template = translations.translate("inicio", "{value} {direction} vs. mês anterior", idioma)
+    return template.format(
+        value=format_value(ValueKind.DECIMAL, abs(difference), digits=2), direction=direction
     )
 
 
@@ -139,9 +141,10 @@ def health_band(spi: Decimal | None, cpi: Decimal | None) -> str | None:
     return max(bands, key=HEALTH_ORDER.__getitem__)
 
 
-def health_label(health: str | None) -> str:
+def health_label(health: str | None, idioma: str = "pt") -> str:
     """``Em dia``, ``Atenção`` ou ``Crítico``: o rótulo da situação (vazio sem ela)."""
-    return HEALTH_LABELS.get(health or "", "")
+    label = HEALTH_LABELS.get(health or "", "")
+    return translations.translate("inicio", label, idioma) if label else ""
 
 
 def input_number(value: Decimal) -> str:

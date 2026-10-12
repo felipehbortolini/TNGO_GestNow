@@ -17,47 +17,47 @@
 <form method="post" action="{{ action }}"
   x-target="ata-ficha" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
-  data-tn-loading="Salvando o item...">
+  data-tn-loading="{{ t('central_acoes', 'Salvando o item...') }}">
   <input type="hidden" name="id" value="{{ ficha.record.id }}" />
   <input type="hidden" name="versao" value="{{ versao }}" />
   <input type="hidden" name="aba" value="{{ aba }}" />
   {% if erros.geral %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros.geral }}</span></div>{% endif %}
-  <p class="hint mb-16">Responsável e solicitante vêm da lista de presença. Para mudar o prazo de uma ação existente use "Registrar replanejamento".</p>
+  <p class="hint mb-16">{{ t('central_acoes', 'Responsável e solicitante vêm da lista de presença. Para mudar o prazo de uma ação existente use "Registrar replanejamento".') }}</p>
   <div class="fgrid">
     <div class="field">
-      <label for="{{ target_id }}-tipo">Tipo</label>
+      <label for="{{ target_id }}-tipo">{{ t('central_acoes', 'Tipo') }}</label>
       <select id="{{ target_id }}-tipo" name="tipo" class="input{% if erros.get('tipo') %} input--erro{% endif %}" required{{ invalido(erros, 'tipo') }}>
-        <option value="Ação"{% if valores.get('tipo') == 'Ação' %} selected{% endif %}>Ação</option>
-        <option value="Informação"{% if valores.get('tipo') == 'Informação' %} selected{% endif %}>Informação</option>
+        <option value="Ação"{% if valores.get('tipo') == 'Ação' %} selected{% endif %}>{{ t('central_acoes', 'Ação') }}</option>
+        <option value="Informação"{% if valores.get('tipo') == 'Informação' %} selected{% endif %}>{{ t('central_acoes', 'Informação') }}</option>
       </select>
       {{ campo_erro(erros, 'tipo') }}
     </div>
     <div class="field">
-      <label for="{{ target_id }}-grupo">Grupo / Área</label>
+      <label for="{{ target_id }}-grupo">{{ t('central_acoes', 'Grupo / Área') }}</label>
       <input id="{{ target_id }}-grupo" name="grupo" class="input{% if erros.get('grupo') %} input--erro{% endif %}" maxlength="100" required
         list="{{ target_id }}-grupos" value="{{ valores.get('grupo') or '' }}"{{ invalido(erros, 'grupo') }} />
       <datalist id="{{ target_id }}-grupos">
         {% for grupo in grupos %}<option value="{{ grupo }}"></option>{% endfor %}
       </datalist>
-      <span class="hint">Escolha um grupo existente ou digite um novo; mudar o grupo renumera o item.</span>
+      <span class="hint">{{ t('central_acoes', 'Escolha um grupo existente ou digite um novo; mudar o grupo renumera o item.') }}</span>
       {{ campo_erro(erros, 'grupo') }}
     </div>
     <div class="field field--full">
-      <label for="{{ target_id }}-assunto">Assunto</label>
+      <label for="{{ target_id }}-assunto">{{ t('central_acoes', 'Assunto') }}</label>
       <input id="{{ target_id }}-assunto" name="assunto" class="input{% if erros.get('assunto') %} input--erro{% endif %}" maxlength="150" required
         value="{{ valores.get('assunto') or '' }}"{{ invalido(erros, 'assunto') }} />
       {{ campo_erro(erros, 'assunto') }}
     </div>
     <div class="field field--full">
-      <label for="{{ target_id }}-descricao">Descrição</label>
+      <label for="{{ target_id }}-descricao">{{ t('central_acoes', 'Descrição') }}</label>
       <textarea id="{{ target_id }}-descricao" name="descricao" class="input{% if erros.get('descricao') %} input--erro{% endif %}" rows="3" maxlength="500" required
         {{ invalido(erros, 'descricao') }}>{{ valores.get('descricao') or '' }}</textarea>
       {{ campo_erro(erros, 'descricao') }}
     </div>
     <div class="field">
-      <label for="{{ target_id }}-solicitante">Solicitante</label>
+      <label for="{{ target_id }}-solicitante">{{ t('central_acoes', 'Solicitante') }}</label>
       <select id="{{ target_id }}-solicitante" name="solicitante" class="input{% if erros.get('solicitante') %} input--erro{% endif %}" required{{ invalido(erros, 'solicitante') }}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('central_acoes', 'Escolha...') }}</option>
         {% for pessoa in participantes %}
         <option value="{{ pessoa.id }}"{% if valores.get('solicitante') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -65,9 +65,9 @@
       {{ campo_erro(erros, 'solicitante') }}
     </div>
     <div class="field">
-      <label for="{{ target_id }}-responsavel">Responsável</label>
+      <label for="{{ target_id }}-responsavel">{{ t('central_acoes', 'Responsável') }}</label>
       <select id="{{ target_id }}-responsavel" name="responsavel" class="input{% if erros.get('responsavel') %} input--erro{% endif %}" required{{ invalido(erros, 'responsavel') }}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('central_acoes', 'Escolha...') }}</option>
         {% for pessoa in participantes %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavel') == pessoa.id|string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -76,31 +76,31 @@
     </div>
     {% if item and item.replanned_date %}
     <div class="field">
-      <span class="registro__rotulo">Data prevista</span>
-      <p class="body-txt">Original: <b>{{ formatar_data(item.planned_date) }}</b> · vigente: <b>{{ formatar_data(item.replanned_date) }}</b></p>
-      <span class="hint">Há replanejamento registrado; o prazo vigente é mantido por aqui.</span>
+      <span class="registro__rotulo">{{ t('central_acoes', 'Data prevista') }}</span>
+      <p class="body-txt">{{ t('central_acoes', 'Original:') }} <b>{{ formatar_data(item.planned_date) }}</b> {{ t('central_acoes', '· vigente:') }} <b>{{ formatar_data(item.replanned_date) }}</b></p>
+      <span class="hint">{{ t('central_acoes', 'Há replanejamento registrado; o prazo vigente é mantido por aqui.') }}</span>
     </div>
     {% else %}
     <div class="field">
-      <label for="{{ target_id }}-prevista">Data prevista</label>
+      <label for="{{ target_id }}-prevista">{{ t('central_acoes', 'Data prevista') }}</label>
       <input id="{{ target_id }}-prevista" name="prevista" type="date" class="input{% if erros.get('prevista') %} input--erro{% endif %}"
         value="{{ valores.get('prevista') or '' }}"{{ invalido(erros, 'prevista') }} />
-      <span class="hint">Obrigatória para ações.</span>
+      <span class="hint">{{ t('central_acoes', 'Obrigatória para ações.') }}</span>
       {{ campo_erro(erros, 'prevista') }}
     </div>
     {% endif %}
     <div class="field">
-      <label for="{{ target_id }}-conclusao">Data de conclusão</label>
+      <label for="{{ target_id }}-conclusao">{{ t('central_acoes', 'Data de conclusão') }}</label>
       <input id="{{ target_id }}-conclusao" name="conclusao" type="date" class="input{% if erros.get('conclusao') %} input--erro{% endif %}"
         value="{{ valores.get('conclusao') or '' }}"{{ invalido(erros, 'conclusao') }} />
-      <span class="hint">Preenchida, define Concluída.</span>
+      <span class="hint">{{ t('central_acoes', 'Preenchida, define Concluída.') }}</span>
       {{ campo_erro(erros, 'conclusao') }}
     </div>
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
-    <button type="submit" class="btn btn--primary">Salvar item</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('central_acoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Salvar item') }}</button>
   </div>
 </form>
 {% endblock %}

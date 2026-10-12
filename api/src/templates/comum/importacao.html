@@ -23,47 +23,47 @@
 <section class="card" aria-labelledby="{{ target_id }}-titulo">
   <div class="card__head">
     <h2 class="h-card4" id="{{ target_id }}-titulo">Importar planilha: {{ titulo }}</h2>
-    <span class="hint">nada é gravado antes da sua confirmação</span>
+    <span class="hint">{{ t('comum', 'nada é gravado antes da sua confirmação') }}</span>
   </div>
   <div class="card__body">
     <ol class="lista-simples mb-16">
       <li class="lista-simples__item">
         <span class="pill pill--fix">1</span>
         <span class="linha__main">
-          <span class="linha__titulo">Baixe o modelo</span>
-          <span class="linha__meta">As colunas já vêm na ordem certa; a aba Instruções diz o que cada uma pede.</span>
+          <span class="linha__titulo">{{ t('comum', 'Baixe o modelo') }}</span>
+          <span class="linha__meta">{{ t('comum', 'As colunas já vêm na ordem certa; a aba Instruções diz o que cada uma pede.') }}</span>
         </span>
         <button type="button" class="btn btn--secondary" data-tn-excel="{{ modelo_url }}">
           <span x-init="$el.innerHTML = window.icon('download', 16)" aria-hidden="true"></span>
-          Baixar o modelo (.xlsx)
+          {{ t('comum', 'Baixar o modelo (.xlsx)') }}
         </button>
       </li>
       <li class="lista-simples__item">
         <span class="pill pill--fix">2</span>
         <span class="linha__main">
-          <span class="linha__titulo">Envie e confira</span>
-          <span class="linha__meta">O sistema valida linha a linha e mostra o que vai gravar. Nada é salvo neste passo.</span>
+          <span class="linha__titulo">{{ t('comum', 'Envie e confira') }}</span>
+          <span class="linha__meta">{{ t('comum', 'O sistema valida linha a linha e mostra o que vai gravar. Nada é salvo neste passo.') }}</span>
         </span>
       </li>
       <li class="lista-simples__item">
         <span class="pill pill--fix">3</span>
         <span class="linha__main">
-          <span class="linha__titulo">Confirme</span>
-          <span class="linha__meta">Só o que passou na conferência é gravado, tudo ou nada, com registro na trilha.</span>
+          <span class="linha__titulo">{{ t('comum', 'Confirme') }}</span>
+          <span class="linha__meta">{{ t('comum', 'Só o que passou na conferência é gravado, tudo ou nada, com registro na trilha.') }}</span>
         </span>
       </li>
     </ol>
 
-    <h3 class="h-card5 mb-16">O que cada coluna pede</h3>
+    <h3 class="h-card5 mb-16">{{ t('comum', 'O que cada coluna pede') }}</h3>
     <div class="tbl-wrap mb-16">
       <table class="tbl">
-        <caption class="sr-only">Colunas do modelo de importação</caption>
+        <caption class="sr-only">{{ t('comum', 'Colunas do modelo de importação') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Coluna</th>
-            <th scope="col">Obrigatória</th>
-            <th scope="col">Formato</th>
-            <th scope="col">Exemplo</th>
+            <th scope="col">{{ t('comum', 'Coluna') }}</th>
+            <th scope="col">{{ t('comum', 'Obrigatória') }}</th>
+            <th scope="col">{{ t('comum', 'Formato') }}</th>
+            <th scope="col">{{ t('comum', 'Exemplo') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -80,11 +80,11 @@
     </div>
 
     <form method="post" action="{{ conferir_url }}" enctype="multipart/form-data"
-      x-target="{{ target_id }}-resultado" data-tn-loading="Processando a planilha..."
+      x-target="{{ target_id }}-resultado" data-tn-loading="{{ t('comum', 'Processando a planilha...') }}"
       x-data="{ nome: '' }" @reset="nome = ''">
       <div class="upload">
         <div class="field upload__campo">
-          <label for="{{ target_id }}-arquivo">Planilha preenchida</label>
+          <label for="{{ target_id }}-arquivo">{{ t('comum', 'Planilha preenchida') }}</label>
           <input id="{{ target_id }}-arquivo" class="input upload__arquivo" type="file"
             name="{{ campo_arquivo }}" accept=".xlsx" required aria-describedby="{{ target_id }}-dica"
             @change="nome = $el.files[0] ? $el.files[0].name : ''; document.getElementById('{{ target_id }}-resultado').replaceChildren()" />
@@ -92,7 +92,7 @@
         </div>
         <button type="submit" class="btn btn--primary" :disabled="!nome">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Conferir a planilha
+          {{ t('comum', 'Conferir a planilha') }}
         </button>
       </div>
       <div id="{{ target_id }}-resultado" aria-live="polite"></div>

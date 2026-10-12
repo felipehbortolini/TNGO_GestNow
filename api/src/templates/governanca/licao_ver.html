@@ -12,55 +12,54 @@
 <div class="det__row"><span class="det__label">{{ rotulo }}</span><span class="det__valor">{{ valor if valor not in (none, '') else '·' }}</span></div>
 {% endmacro %}
 {% block fragment %}
-{% set data = '%d/%m/%Y' %}
 {% if ficha.return_note %}
 <div class="aviso aviso--warn mb-16" role="alert">
-  <strong>Devolvida pelo validador.</strong> <span>{{ ficha.return_note }}</span>
+  <strong>{{ t('governanca', 'Devolvida pelo validador.') }}</strong> <span>{{ ficha.return_note }}</span>
 </div>
 {% endif %}
 
 <div class="licao-ficha__grade">
-  <div class="det__row"><span class="det__label">Situação</span><span class="det__valor"><span class="pill {{ pill_situacao(linha.situation) }}">{{ linha.situation }}</span></span></div>
-  <div class="det__row"><span class="det__label">Tipo</span><span class="det__valor"><span class="pill {{ pill_tipo(linha.kind) }}">{{ linha.kind }}</span></span></div>
+  <div class="det__row"><span class="det__label">{{ t('governanca', 'Situação') }}</span><span class="det__valor"><span class="pill {{ pill_situacao(linha.situation) }}">{{ linha.situation }}</span></span></div>
+  <div class="det__row"><span class="det__label">{{ t('governanca', 'Tipo') }}</span><span class="det__valor"><span class="pill {{ pill_tipo(linha.kind) }}">{{ linha.kind }}</span></span></div>
   {{ dado('Fase', linha.phase) }}
   {{ dado('Área de conhecimento', linha.area) }}
   {{ dado('Disciplina', linha.discipline) }}
   {{ dado('Aplicabilidade', linha.applicability) }}
-  <div class="det__row"><span class="det__label">Origem</span><span class="det__valor">
+  <div class="det__row"><span class="det__label">{{ t('governanca', 'Origem') }}</span><span class="det__valor">
     {% if origem_url %}<a href="{{ origem_url }}" data-tn-tela>{{ linha.origin_label }} {{ linha.origin_ref }}</a>
     {% else %}{{ linha.origin_label }}{% if linha.origin_ref %} {{ linha.origin_ref }}{% endif %}{% endif %}</span></div>
   {{ dado('Projeto', linha.project_label) }}
   {{ dado('Autor', ficha.author_name) }}
-  {{ dado('Registrada em', linha.registered_on.strftime(data)) }}
+  {{ dado('Registrada em', data(linha.registered_on)) }}
   {{ dado('Impacto', texto_impacto(linha.term_days, linha.cost_cents)) }}
   {{ dado('Reusos', linha.reuses) }}
 </div>
 
 <dl class="licao-ficha__texto">
-  <dt>O que aconteceu</dt><dd>{{ ficha.what_happened }}</dd>
-  <dt>Causa</dt><dd>{{ ficha.cause }}</dd>
-  <dt>Recomendação</dt><dd><strong>{{ linha.recommendation }}</strong></dd>
-  <dt>Palavras-chave</dt>
+  <dt>{{ t('governanca', 'O que aconteceu') }}</dt><dd>{{ ficha.what_happened }}</dd>
+  <dt>{{ t('governanca', 'Causa') }}</dt><dd>{{ ficha.cause }}</dd>
+  <dt>{{ t('governanca', 'Recomendação') }}</dt><dd><strong>{{ linha.recommendation }}</strong></dd>
+  <dt>{{ t('governanca', 'Palavras-chave') }}</dt>
   <dd>{% for palavra in linha.keywords %}<span class="pill pill--neutral">{{ palavra }}</span> {% endfor %}</dd>
 </dl>
 
 {% if ficha.applications %}
-<h3 class="h-card5 mt-16">Aplicações registradas</h3>
+<h3 class="h-card5 mt-16">{{ t('governanca', 'Aplicações registradas') }}</h3>
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Aplicações da lição</caption>
+    <caption class="sr-only">{{ t('governanca', 'Aplicações da lição') }}</caption>
     <thead>
-      <tr><th scope="col">Data</th><th scope="col">Projeto</th><th scope="col">Como</th><th scope="col">Quem</th><th scope="col">Gerado</th></tr>
+      <tr><th scope="col">{{ t('governanca', 'Data') }}</th><th scope="col">{{ t('governanca', 'Projeto') }}</th><th scope="col">{{ t('governanca', 'Como') }}</th><th scope="col">{{ t('governanca', 'Quem') }}</th><th scope="col">{{ t('governanca', 'Gerado') }}</th></tr>
     </thead>
     <tbody>
       {% for aplicacao in ficha.applications %}
       <tr>
-        <td>{{ aplicacao.applied_on.strftime(data) }}</td>
+        <td>{{ data(aplicacao.applied_on) }}</td>
         <td>{{ aplicacao.project_label }}</td>
         <td>{{ aplicacao.how }}</td>
         <td>{{ aplicacao.registered_by or '·' }}</td>
         <td>
-          {% if aplicacao.action_id %}<a href="/central-acoes/acoes?busca={{ linha.code | urlencode }}" data-tn-tela>Ação na Central</a>
+          {% if aplicacao.action_id %}<a href="/central-acoes/acoes?busca={{ linha.code | urlencode }}" data-tn-tela>{{ t('governanca', 'Ação na Central') }}</a>
           {% elif aplicacao.risk_code %}<a href="/riscos/ficha?codigo={{ aplicacao.risk_code | urlencode }}" data-tn-tela>{{ aplicacao.risk_code }}</a>
           {% else %}<span class="muted">·</span>{% endif %}
         </td>
@@ -71,17 +70,17 @@
 </div>
 {% endif %}
 
-<h3 class="h-card5 mt-16">Histórico</h3>
+<h3 class="h-card5 mt-16">{{ t('governanca', 'Histórico') }}</h3>
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Histórico da lição</caption>
+    <caption class="sr-only">{{ t('governanca', 'Histórico da lição') }}</caption>
     <thead>
-      <tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">O que aconteceu</th></tr>
+      <tr><th scope="col">{{ t('governanca', 'Quando') }}</th><th scope="col">{{ t('governanca', 'Quem') }}</th><th scope="col">{{ t('governanca', 'O que aconteceu') }}</th></tr>
     </thead>
     <tbody>
       {% for entrada in ficha.history %}
       <tr>
-        <td class="licao-ficha__quando">{{ entrada.moment.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td class="licao-ficha__quando">{{ data_hora(entrada.moment) }}</td>
         <td>{{ entrada.person_name or '·' }}</td>
         <td>{{ entrada.text }}</td>
       </tr>
@@ -92,28 +91,28 @@
 
 <div class="modal__actions licao-ficha__acoes">
   <button type="button" class="btn btn--secondary"
-    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('governanca', 'Fechar') }}</button>
   {% if acoes.edit %}
-  <button type="button" class="btn btn--secondary" data-licao-acao="editar" data-codigo="{{ linha.code }}">Editar</button>
+  <button type="button" class="btn btn--secondary" data-licao-acao="editar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Editar') }}</button>
   {% endif %}
   {% if acoes.validate %}
-  <button type="button" class="btn btn--primary" data-licao-acao="validar" data-codigo="{{ linha.code }}">Validar</button>
+  <button type="button" class="btn btn--primary" data-licao-acao="validar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Validar') }}</button>
   {% endif %}
   {% if acoes.apply %}
-  <button type="button" class="btn btn--primary" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">Aplicar em projeto</button>
+  <button type="button" class="btn btn--primary" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Aplicar em projeto') }}</button>
   {% endif %}
   {% if acoes.send %}
-  <form method="post" action="{{ action_enviar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="Enviando para validação...">
+  <form method="post" action="{{ action_enviar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="{{ t('governanca', 'Enviando para validação...') }}">
     <input type="hidden" name="codigo" value="{{ linha.code }}" />
     <input type="hidden" name="versao" value="{{ ficha.version }}" />
-    <button type="submit" class="btn btn--primary">Enviar para validação</button>
+    <button type="submit" class="btn btn--primary">{{ t('governanca', 'Enviar para validação') }}</button>
   </form>
   {% endif %}
   {% if acoes.publish %}
-  <form method="post" action="{{ action_publicar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="Publicando...">
+  <form method="post" action="{{ action_publicar }}" x-target="{{ target_id }}" x-target.away="_top" data-tn-loading="{{ t('governanca', 'Publicando...') }}">
     <input type="hidden" name="codigo" value="{{ linha.code }}" />
     <input type="hidden" name="versao" value="{{ ficha.version }}" />
-    <button type="submit" class="btn btn--primary">Publicar</button>
+    <button type="submit" class="btn btn--primary">{{ t('governanca', 'Publicar') }}</button>
   </form>
   {% endif %}
 </div>

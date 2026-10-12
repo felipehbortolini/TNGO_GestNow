@@ -21,24 +21,24 @@
   {% elif not lidas %}
   <div class="aviso aviso--info">
     <strong>{{ arquivo }} não tem linhas de dados</strong>
-    <span>Preencha as linhas abaixo do cabeçalho do modelo e envie de novo.</span>
+    <span>{{ t('comum', 'Preencha as linhas abaixo do cabeçalho do modelo e envie de novo.') }}</span>
   </div>
   {% else %}
 
   <div class="kpis">
     <div class="kpi kpi--ok kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('checkCircle', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Vão ser gravadas</span>
+      <span class="kpi__label">{{ t('comum', 'Vão ser gravadas') }}</span>
       <span class="kpi__value">{{ vao_gravar }}</span>
     </div>
     <div class="kpi kpi--warn kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('warning', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Com aviso</span>
+      <span class="kpi__label">{{ t('comum', 'Com aviso') }}</span>
       <span class="kpi__value">{{ com_aviso }}</span>
     </div>
     <div class="kpi kpi--erro kpi--estatico">
       <span class="kpi__icone" x-init="$el.innerHTML = window.icon('errorCircle', 16)" aria-hidden="true"></span>
-      <span class="kpi__label">Bloqueadas por erro</span>
+      <span class="kpi__label">{{ t('comum', 'Bloqueadas por erro') }}</span>
       <span class="kpi__value">{{ com_erro }}</span>
     </div>
   </div>
@@ -50,8 +50,8 @@
   {% if preview.problem_rows %}
   <section class="card mb-16" aria-labelledby="{{ target_id }}-problemas">
     <div class="card__head">
-      <h3 class="h-card5" id="{{ target_id }}-problemas">Linhas com motivo</h3>
-      <span class="hint">erro bloqueia a linha; aviso não impede a importação</span>
+      <h3 class="h-card5" id="{{ target_id }}-problemas">{{ t('comum', 'Linhas com motivo') }}</h3>
+      <span class="hint">{{ t('comum', 'erro bloqueia a linha; aviso não impede a importação') }}</span>
     </div>
     <div class="card__body">
       <ul class="lista-simples">
@@ -79,20 +79,20 @@
   {% if vao_gravar %}
   <section class="card mb-16" aria-labelledby="{{ target_id }}-previa">
     <div class="card__head">
-      <h3 class="h-card5" id="{{ target_id }}-previa">Pré-visualização</h3>
+      <h3 class="h-card5" id="{{ target_id }}-previa">{{ t('comum', 'Pré-visualização') }}</h3>
       <span class="hint">primeiras {{ preview.sample_rows | length }} de {{ vao_gravar }} linhas que vão ser gravadas, já convertidas</span>
     </div>
     <div class="card__body">
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Linhas da planilha que vão ser gravadas</caption>
+          <caption class="sr-only">{{ t('comum', 'Linhas da planilha que vão ser gravadas') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Linha</th>
+              <th scope="col">{{ t('comum', 'Linha') }}</th>
               {% for coluna in colunas %}
               <th scope="col"{% if coluna.numerica %} class="td-num"{% endif %}>{{ coluna.cabecalho }}</th>
               {% endfor %}
-              <th scope="col">Situação</th>
+              <th scope="col">{{ t('comum', 'Situação') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -104,9 +104,9 @@
               {% endfor %}
               <td>
                 {% if item.warnings %}
-                <span class="pill pill--warn">Entra com aviso</span>
+                <span class="pill pill--warn">{{ t('comum', 'Entra com aviso') }}</span>
                 {% else %}
-                <span class="pill pill--ok">Entra</span>
+                <span class="pill pill--ok">{{ t('comum', 'Entra') }}</span>
                 {% endif %}
               </td>
             </tr>
@@ -131,13 +131,13 @@
     {% if com_erro %}
     <label class="body-txt mb-16">
       <input type="checkbox" name="{{ campo_ciente }}" value="{{ valor_ciente }}" x-model="ciente" />
-      Estou ciente de que as linhas com erro não serão importadas
+      {{ t('comum', 'Estou ciente de que as linhas com erro não serão importadas') }}
     </label>
     {% endif %}
     <div class="acoes-rodape">
       <button type="button" class="btn btn--ghost"
         @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">
-        Cancelar
+        {{ t('comum', 'Cancelar') }}
       </button>
       <button type="submit" class="btn btn--primary" formaction="{{ confirmar_url }}"
         {% if com_erro %}:disabled="!ciente"{% endif %}>
@@ -150,7 +150,7 @@
   <div class="acoes-rodape">
     <button type="button" class="btn btn--ghost"
       @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">
-      Fechar
+      {{ t('comum', 'Fechar') }}
     </button>
   </div>
   {% endif %}

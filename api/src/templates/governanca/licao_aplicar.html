@@ -13,17 +13,17 @@
 {% endmacro %}
 {% block fragment %}
 <form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
-  data-tn-loading="Registrando a aplicação..." x-data="{ gerar: 'nada' }" x-init="gerar = $refs.gerar.value">
+  data-tn-loading="{{ t('governanca', 'Registrando a aplicação...') }}" x-data="{ gerar: 'nada' }" x-init="gerar = $refs.gerar.value">
   <input type="hidden" name="codigo" value="{{ codigo }}" />
   {% if erros.get('geral') %}
   <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros['geral'] }}</span></div>
   {% endif %}
   <div class="fgrid">
     <div class="field">
-      <label for="aplicar-projeto_id">Projeto</label>
+      <label for="aplicar-projeto_id">{{ t('governanca', 'Projeto') }}</label>
       <select id="aplicar-projeto_id" name="projeto_id" class="input{% if erros.get('projeto_id') %} input--erro{% endif %}" required
         {% if erros.get('projeto_id') %}aria-invalid="true" aria-describedby="erro-projeto_id"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for projeto in projetos %}
         <option value="{{ projeto.id }}"{% if valores.get('projeto_id') == projeto.id | string %} selected{% endif %}>{{ projeto.code }} · {{ projeto.name }}</option>
         {% endfor %}
@@ -31,34 +31,34 @@
       {{ erro(erros, 'projeto_id') }}
     </div>
     <div class="field">
-      <label for="aplicar-data">Data</label>
+      <label for="aplicar-data">{{ t('governanca', 'Data') }}</label>
       <input id="aplicar-data" name="data" type="date" max="{{ hoje }}" class="input{% if erros.get('data') %} input--erro{% endif %}" required
         value="{{ valores.get('data') or '' }}"{% if erros.get('data') %} aria-invalid="true" aria-describedby="erro-data"{% endif %} />
       {{ erro(erros, 'data') }}
     </div>
     <div class="field field--full">
-      <label for="aplicar-como">Como a lição será aplicada</label>
+      <label for="aplicar-como">{{ t('governanca', 'Como a lição será aplicada') }}</label>
       <textarea id="aplicar-como" name="como" class="input{% if erros.get('como') %} input--erro{% endif %}" rows="3" maxlength="600" required
         {% if erros.get('como') %}aria-invalid="true" aria-describedby="erro-como"{% endif %}>{{ valores.get('como') or '' }}</textarea>
       {{ erro(erros, 'como') }}
     </div>
     <div class="field field--full">
-      <label for="aplicar-gerar">O que gerar</label>
+      <label for="aplicar-gerar">{{ t('governanca', 'O que gerar') }}</label>
       <select id="aplicar-gerar" name="gerar" x-ref="gerar" class="input{% if erros.get('gerar') %} input--erro{% endif %}" x-model="gerar"
         {% if erros.get('gerar') %}aria-invalid="true" aria-describedby="erro-gerar"{% endif %}>
-        <option value="nada"{% if valores.get('gerar') == 'nada' or not valores.get('gerar') %} selected{% endif %}>Só registrar a aplicação</option>
-        <option value="acao"{% if valores.get('gerar') == 'acao' %} selected{% endif %}>Criar ação na Central de Ações</option>
+        <option value="nada"{% if valores.get('gerar') == 'nada' or not valores.get('gerar') %} selected{% endif %}>{{ t('governanca', 'Só registrar a aplicação') }}</option>
+        <option value="acao"{% if valores.get('gerar') == 'acao' %} selected{% endif %}>{{ t('governanca', 'Criar ação na Central de Ações') }}</option>
         <option value="risco"{% if valores.get('gerar') == 'risco' %} selected{% endif %}>
-          {{ 'Registrar ameaça no registro de riscos (05)' if tipo_licao == 'A evitar' else 'Registrar oportunidade no registro de riscos (05)' }}
+          {{ t('governanca', 'Registrar ameaça no registro de riscos (05)') if tipo_licao == 'A evitar' else t('governanca', 'Registrar oportunidade no registro de riscos (05)') }}
         </option>
       </select>
       {{ erro(erros, 'gerar') }}
     </div>
     <div class="field" x-show="gerar === 'acao'">
-      <label for="aplicar-responsavel_id">Responsável pela ação</label>
+      <label for="aplicar-responsavel_id">{{ t('governanca', 'Responsável pela ação') }}</label>
       <select id="aplicar-responsavel_id" name="responsavel_id" class="input{% if erros.get('responsavel_id') %} input--erro{% endif %}"
         {% if erros.get('responsavel_id') %}aria-invalid="true" aria-describedby="erro-responsavel_id"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavel_id') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -66,16 +66,16 @@
       {{ erro(erros, 'responsavel_id') }}
     </div>
     <div class="field" x-show="gerar === 'acao'">
-      <label for="aplicar-prevista">Data prevista</label>
+      <label for="aplicar-prevista">{{ t('governanca', 'Data prevista') }}</label>
       <input id="aplicar-prevista" name="prevista" type="date" min="{{ hoje }}" class="input{% if erros.get('prevista') %} input--erro{% endif %}"
         value="{{ valores.get('prevista') or '' }}"{% if erros.get('prevista') %} aria-invalid="true" aria-describedby="erro-prevista"{% endif %} />
       {{ erro(erros, 'prevista') }}
     </div>
     <div class="field" x-show="gerar === 'risco'">
-      <label for="aplicar-categoria">Categoria (RBS)</label>
+      <label for="aplicar-categoria">{{ t('governanca', 'Categoria (RBS)') }}</label>
       <select id="aplicar-categoria" name="categoria" class="input{% if erros.get('categoria') %} input--erro{% endif %}"
         {% if erros.get('categoria') %}aria-invalid="true" aria-describedby="erro-categoria"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for categoria in categorias %}
         <option value="{{ categoria.id }}"{% if valores.get('categoria') == categoria.id | string %} selected{% endif %}>{{ categoria.group }} &gt; {{ categoria.name }}</option>
         {% endfor %}
@@ -83,10 +83,10 @@
       {{ erro(erros, 'categoria') }}
     </div>
     <div class="field" x-show="gerar === 'risco'">
-      <label for="aplicar-dono_id">Dono do risco</label>
+      <label for="aplicar-dono_id">{{ t('governanca', 'Dono do risco') }}</label>
       <select id="aplicar-dono_id" name="dono_id" class="input{% if erros.get('dono_id') %} input--erro{% endif %}"
         {% if erros.get('dono_id') %}aria-invalid="true" aria-describedby="erro-dono_id"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('dono_id') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -96,8 +96,8 @@
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
-    <button type="submit" class="btn btn--primary">Registrar aplicação</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('governanca', 'Voltar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('governanca', 'Registrar aplicação') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -13,12 +13,18 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from urllib.parse import urlencode
 
+from src.core import translations
 from src.modulos.central_acoes import calculations
 from src.modulos.central_acoes.calculations import StatusFilter
 from src.modulos.central_acoes.service import ResponsibleOption
 from src.modulos.central_acoes.validation import KANBAN_VIEW, LIST_VIEW, ActionFilters
 
 ROUTE = "/api/central-acoes/acoes"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
 
 
 class FilterField(StrEnum):
@@ -89,29 +95,43 @@ def cleared() -> ActionFilters:
     return ActionFilters()
 
 
-def active_chips(filters: ActionFilters, responsibles: Sequence[ResponsibleOption]) -> list[Chip]:
+def active_chips(
+    filters: ActionFilters, responsibles: Sequence[ResponsibleOption], idioma: str = "pt"
+) -> list[Chip]:
     """The chips of the active filters; the status is always there, fixed while it is the default."""
-    status_text = calculations.STATUS_FILTER_LABELS[filters.status]
+    status_text = _label(calculations.STATUS_FILTER_LABELS[filters.status], idioma)
     chips = [
         Chip(
             FilterField.STATUS,
-            f"Status: {status_text}",
+            f"{_label('Status', idioma)}: {status_text}",
             removable=filters.status is not StatusFilter.OPEN,
         )
     ]
     if filters.origin:
-        chips.append(Chip(FilterField.ORIGIN, f"Origem: {filters.origin}", removable=True))
+        chips.append(
+            Chip(
+                FilterField.ORIGIN,
+                f"{_label('Origem', idioma)}: {filters.origin}",
+                removable=True,
+            )
+        )
     if filters.responsible_id is not None:
         name = next((item.name for item in responsibles if item.id == filters.responsible_id), "")
         chips.append(
             Chip(
                 FilterField.RESPONSIBLE,
-                f"Responsável: {name or filters.responsible_id}",
+                f"{_label('Responsável', idioma)}: {name or filters.responsible_id}",
                 removable=True,
             )
         )
     if filters.search:
-        chips.append(Chip(FilterField.SEARCH, f"Busca: {filters.search}", removable=True))
+        chips.append(
+            Chip(
+                FilterField.SEARCH,
+                f"{_label('Busca', idioma)}: {filters.search}",
+                removable=True,
+            )
+        )
     return chips
 
 
@@ -125,6 +145,8 @@ def has_extra_filters(filters: ActionFilters) -> bool:
     )
 
 
-def summary(filters: ActionFilters, responsibles: Sequence[ResponsibleOption]) -> str:
+def summary(
+    filters: ActionFilters, responsibles: Sequence[ResponsibleOption], idioma: str = "pt"
+) -> str:
     """The active filters in one line, as the exports print them."""
-    return " · ".join(chip.text for chip in active_chips(filters, responsibles))
+    return " · ".join(chip.text for chip in active_chips(filters, responsibles, idioma))

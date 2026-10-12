@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     CellValue,
@@ -46,13 +47,21 @@ STATUS_SERIES = (
     {"id": "concluidas", "rotulo": "Concluídas", "papel": "ok"},
 )
 OPEN_SERIES = STATUS_SERIES[:2]
-MONTH_NAMES = ("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
 
 
-def month_label(month: str) -> str:
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
+
+
+def _series(series: Sequence[dict[str, str]], idioma: str) -> list[dict[str, str]]:
+    return [{**item, "rotulo": _label(item["rotulo"], idioma)} for item in series]
+
+
+def month_label(month: str, idioma: str = "pt") -> str:
     """``2026-09`` as ``set/2026``, the way the chart and the table write the month."""
     year, _, number = month.partition("-")
-    return f"{MONTH_NAMES[int(number) - 1]}/{year}"
+    return f"{translations.mes_curto(int(number), idioma)}/{year}"
 
 
 def build_document(
@@ -61,80 +70,90 @@ def build_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the panel for the origin filter in force."""
-    tables = [_origin_table(panel)]
+    tables = [_origin_table(panel, idioma)]
     if scope.is_portfolio:
-        tables.append(_project_table(panel))
-    tables.append(_responsible_table(panel))
-    tables.append(_month_table(panel))
+        tables.append(_project_table(panel, idioma))
+    tables.append(_responsible_table(panel, idioma))
+    tables.append(_month_table(panel, idioma))
     return Document(
-        title=TITLE,
-        scope_label=describe_scope(scope, projects),
+        title=_label(TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
-        context=((ORIGIN_LABEL, panel.origin or REPORT_ORIGIN_LABEL),),
-        kpis=_kpis(panel),
-        charts=charts_of(panel, portfolio=scope.is_portfolio),
+        context=(
+            (_label(ORIGIN_LABEL, idioma), panel.origin or _label(REPORT_ORIGIN_LABEL, idioma)),
+        ),
+        kpis=_kpis(panel, idioma),
+        charts=charts_of(panel, portfolio=scope.is_portfolio, idioma=idioma),
         tables=tuple(tables),
         paper=Paper.A4,
+        idioma=idioma,
     )
 
 
-def charts_of(panel: Dashboard, *, portfolio: bool) -> tuple[Chart, ...]:
+def charts_of(panel: Dashboard, *, portfolio: bool, idioma: str = "pt") -> tuple[Chart, ...]:
     """The charts of the panel, in the order of the screen: the same ones the printable carries."""
-    charts = [_origin_chart(panel), _responsible_chart(panel)]
+    charts = [_origin_chart(panel, idioma), _responsible_chart(panel, idioma)]
     if portfolio:
-        charts.append(_project_chart(panel))
-    charts.append(_month_chart(panel))
+        charts.append(_project_chart(panel, idioma))
+    charts.append(_month_chart(panel, idioma))
     return tuple(charts)
 
 
-def _kpis(panel: Dashboard) -> tuple[Kpi, ...]:
+def _kpis(panel: Dashboard, idioma: str) -> tuple[Kpi, ...]:
     counts = panel.counts
     share = panel.overdue_share
     on_planned = panel.on_planned_share
     return (
         Kpi(
-            "Total de ações",
+            _label("Total de ações", idioma),
             counts.total,
-            f"Referência: {panel.universe}",
+            _label("Referência: {value}", idioma).format(value=panel.universe),
             ValueKind.INTEGER,
             tone=Tone.NEUTRAL,
-            status=f"{counts.open} em andamento",
+            status=_label("{value} em andamento", idioma).format(value=counts.open),
         ),
         Kpi(
-            "Em dia",
+            _label("Em dia", idioma),
             counts.on_time,
-            f"Esperado: {counts.open}",
+            _label("Esperado: {value}", idioma).format(value=counts.open),
             ValueKind.INTEGER,
             tone=Tone.INFO,
-            status="Prazo vigente ainda não venceu",
+            status=_label("Prazo vigente ainda não venceu", idioma),
         ),
         Kpi(
-            "Atrasadas",
+            _label("Atrasadas", idioma),
             counts.overdue,
-            "Meta: 0",
+            _label("Meta: 0", idioma),
             ValueKind.INTEGER,
             tone=Tone.ERROR if counts.overdue else Tone.OK,
-            status="Sem atrasadas" if share is None else f"{share}% das abertas",
+            status=(
+                _label("Sem atrasadas", idioma)
+                if share is None
+                else _label("{value}% das abertas", idioma).format(value=share)
+            ),
         ),
         Kpi(
-            "Concluídas",
+            _label("Concluídas", idioma),
             counts.completed,
-            f"Previsto: {panel.due_by_reference}",
+            _label("Previsto: {value}", idioma).format(value=panel.due_by_reference),
             ValueKind.INTEGER,
             tone=Tone.OK,
-            status="Com data de conclusão",
+            status=_label("Com data de conclusão", idioma),
         ),
         Kpi(
-            "Concluídas no prazo original",
+            _label("Concluídas no prazo original", idioma),
             on_planned,
-            "Esperado: 100%",
+            _label("Esperado: 100%", idioma),
             ValueKind.PERCENT,
             digits=0,
             tone=None if on_planned is None else (Tone.OK if on_planned == 100 else Tone.WARN),
-            status=f"{panel.completed_on_planned} de {counts.completed} sem replanejar",
+            status=_label("{done} de {total} sem replanejar", idioma).format(
+                done=panel.completed_on_planned, total=counts.completed
+            ),
         ),
     )
 
@@ -144,85 +163,97 @@ def _status_values(tally: ResponsibleTally) -> dict[str, int]:
 
 
 def _pareto(
-    title: str, series: Sequence[dict[str, str]], categories: list[dict[str, object]]
+    title: str,
+    series: Sequence[dict[str, str]],
+    categories: list[dict[str, object]],
+    idioma: str,
 ) -> Chart:
     return Chart(
         title,
         "pareto",
         {
             "titulo": title,
-            "eixo_esquerdo": "Nº de ações",
-            "eixo_direito": "% acumulado",
+            "eixo_esquerdo": _label("Nº de ações", idioma),
+            "eixo_direito": _label("% acumulado", idioma),
             "status": list(series),
             "categorias": categories,
+            "rotulos": translations.rotulos_de_grafico(idioma),
         },
     )
 
 
-def _origin_chart(panel: Dashboard) -> Chart:
+def _origin_chart(panel: Dashboard, idioma: str) -> Chart:
     return _pareto(
-        "Status por origem",
-        STATUS_SERIES,
-        [{"rotulo": line.origin, "valores": _status_values(line.tally)} for line in panel.origins],
+        _label("Status por origem", idioma),
+        _series(STATUS_SERIES, idioma),
+        [
+            {"rotulo": _label(line.origin, idioma), "valores": _status_values(line.tally)}
+            for line in panel.origins
+        ],
+        idioma,
     )
 
 
-def _responsible_chart(panel: Dashboard) -> Chart:
+def _responsible_chart(panel: Dashboard, idioma: str) -> Chart:
     return _pareto(
-        "Ações abertas por responsável",
-        OPEN_SERIES,
+        _label("Ações abertas por responsável", idioma),
+        _series(OPEN_SERIES, idioma),
         [
             {"rotulo": line.name, "valores": _status_values(line.tally)}
             for line in panel.top_responsibles
         ],
+        idioma,
     )
 
 
-def _project_chart(panel: Dashboard) -> Chart:
+def _project_chart(panel: Dashboard, idioma: str) -> Chart:
     return _pareto(
-        "Status por projeto",
-        STATUS_SERIES,
+        _label("Status por projeto", idioma),
+        _series(STATUS_SERIES, idioma),
         [{"rotulo": line.code, "valores": _status_values(line.tally)} for line in panel.projects],
+        idioma,
     )
 
 
-def _month_chart(panel: Dashboard) -> Chart:
+def _month_chart(panel: Dashboard, idioma: str) -> Chart:
     categories = [
-        {"id": item.month, "rotulo": month_label(item.month), "papel": "neutro"}
+        {"id": item.month, "rotulo": month_label(item.month, idioma), "papel": "neutro"}
         for item in panel.months
     ]
+    title = _label("Previstas x concluídas por mês", idioma)
     return Chart(
-        "Previstas x concluídas por mês",
+        title,
         "comparativo-barras",
         {
-            "titulo": "Previstas x concluídas por mês",
+            "titulo": title,
             "paineis": [
                 {
-                    "titulo": "Ações por mês",
+                    "titulo": _label("Ações por mês", idioma),
                     "categorias": categories,
                     "linhas": [
                         {
-                            "rotulo": "Previstas",
+                            "rotulo": _label("Previstas", idioma),
                             "valores": {item.month: item.planned for item in panel.months},
                         },
                         {
-                            "rotulo": "Concluídas",
+                            "rotulo": _label("Concluídas", idioma),
                             "valores": {item.month: item.completed for item in panel.months},
                         },
                     ],
                 }
             ],
+            "rotulos": translations.rotulos_de_grafico(idioma),
         },
     )
 
 
-def _status_columns(first: Column) -> tuple[Column, ...]:
+def _status_columns(first: Column, idioma: str) -> tuple[Column, ...]:
     return (
         first,
-        Column("Em dia", ValueKind.INTEGER),
-        Column("Atrasadas", ValueKind.INTEGER),
-        Column("Concluídas", ValueKind.INTEGER),
-        Column("Total", ValueKind.INTEGER),
+        Column(_label("Em dia", idioma), ValueKind.INTEGER),
+        Column(_label("Atrasadas", idioma), ValueKind.INTEGER),
+        Column(_label("Concluídas", idioma), ValueKind.INTEGER),
+        Column(_label("Total", idioma), ValueKind.INTEGER),
     )
 
 
@@ -235,37 +266,39 @@ def _status_cells(tally: ResponsibleTally) -> tuple[Cell | CellValue, ...]:
     )
 
 
-def _origin_table(panel: Dashboard) -> Table:
+def _origin_table(panel: Dashboard, idioma: str) -> Table:
     return Table(
-        title="Status por origem",
-        columns=_status_columns(Column(ORIGIN_LABEL, width=18)),
-        rows=tuple(row(line.origin, *_status_cells(line.tally)) for line in panel.origins),
+        title=_label("Status por origem", idioma),
+        columns=_status_columns(Column(_label(ORIGIN_LABEL, idioma), width=18), idioma),
+        rows=tuple(
+            row(_label(line.origin, idioma), *_status_cells(line.tally)) for line in panel.origins
+        ),
         per_project=False,
     )
 
 
-def _project_table(panel: Dashboard) -> Table:
+def _project_table(panel: Dashboard, idioma: str) -> Table:
     def line_row(line: ProjectLine) -> Row:
         return row(line.label, *_status_cells(line.tally))
 
     return Table(
-        title="Status por projeto",
-        columns=_status_columns(Column("Projeto", width=36)),
+        title=_label("Status por projeto", idioma),
+        columns=_status_columns(Column(_label("Projeto", idioma), width=36), idioma),
         rows=tuple(line_row(line) for line in panel.projects),
         per_project=False,
     )
 
 
-def _responsible_table(panel: Dashboard) -> Table:
+def _responsible_table(panel: Dashboard, idioma: str) -> Table:
     return Table(
-        title="Desempenho por responsável",
+        title=_label("Desempenho por responsável", idioma),
         columns=(
-            Column("Responsável", width=28),
-            Column("Abertas", ValueKind.INTEGER),
-            Column("Atrasadas", ValueKind.INTEGER),
-            Column("% atrasadas", ValueKind.PERCENT, digits=0),
-            Column("Concluídas", ValueKind.INTEGER),
-            Column("Maior atraso (dias)", ValueKind.INTEGER),
+            Column(_label("Responsável", idioma), width=28),
+            Column(_label("Abertas", idioma), ValueKind.INTEGER),
+            Column(_label("Atrasadas", idioma), ValueKind.INTEGER),
+            Column(_label("% atrasadas", idioma), ValueKind.PERCENT, digits=0),
+            Column(_label("Concluídas", idioma), ValueKind.INTEGER),
+            Column(_label("Maior atraso (dias)", idioma), ValueKind.INTEGER),
         ),
         rows=tuple(_responsible_row(line) for line in panel.responsibles),
         per_project=False,
@@ -284,16 +317,16 @@ def _responsible_row(line: ResponsibleLine) -> Row:
     )
 
 
-def _month_table(panel: Dashboard) -> Table:
+def _month_table(panel: Dashboard, idioma: str) -> Table:
     def month_row(item: MonthCount) -> Row:
-        return row(month_label(item.month), item.planned, item.completed)
+        return row(month_label(item.month, idioma), item.planned, item.completed)
 
     return Table(
-        title="Previstas x concluídas por mês",
+        title=_label("Previstas x concluídas por mês", idioma),
         columns=(
-            Column("Mês", width=14),
-            Column("Previstas", ValueKind.INTEGER),
-            Column("Concluídas", ValueKind.INTEGER),
+            Column(_label("Mês", idioma), width=14),
+            Column(_label("Previstas", idioma), ValueKind.INTEGER),
+            Column(_label("Concluídas", idioma), ValueKind.INTEGER),
         ),
         rows=tuple(month_row(item) for item in panel.months),
         per_project=False,

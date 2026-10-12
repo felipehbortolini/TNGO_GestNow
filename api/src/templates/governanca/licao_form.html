@@ -16,7 +16,7 @@
   <label for="licao-{{ nome }}">{{ rotulo }}</label>
   <select id="licao-{{ nome }}" name="{{ nome }}" class="input{% if erros.get(nome) %} input--erro{% endif %}"
     {% if erros.get(nome) %}aria-invalid="true" aria-describedby="erro-{{ nome }}"{% endif %}>
-    <option value="">Escolha...</option>
+    <option value="">{{ t('governanca', 'Escolha...') }}</option>
     {% for opcao in opcoes %}
     {% set valor = opcao[0] if opcao is not string else opcao %}
     {% set texto = opcao[1] if opcao is not string else opcao %}
@@ -36,7 +36,7 @@
 {% endmacro %}
 {% block fragment %}
 <form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
-  data-tn-loading="Salvando a lição...">
+  data-tn-loading="{{ t('governanca', 'Salvando a lição...') }}">
   {% if codigo %}<input type="hidden" name="codigo" value="{{ codigo }}" />{% endif %}
   <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
   {% for chave in ['geral', 'versao'] %}
@@ -46,7 +46,7 @@
   {% endfor %}
   <div class="fgrid">
     <div class="field field--full">
-      <label for="licao-titulo">Título</label>
+      <label for="licao-titulo">{{ t('governanca', 'Título') }}</label>
       <input id="licao-titulo" name="titulo" class="input{% if erros.get('titulo') %} input--erro{% endif %}" maxlength="150"
         value="{{ valores.get('titulo') or '' }}"{% if erros.get('titulo') %} aria-invalid="true" aria-describedby="erro-titulo"{% endif %} />
       {{ erro(erros, 'titulo') }}
@@ -57,41 +57,41 @@
     {{ lista(erros, valores, 'disciplina', 'Disciplina', disciplinas) }}
     {{ lista(erros, valores, 'origem', 'Origem', origens) }}
     <div class="field">
-      <label for="licao-origem_ref">Número do registro de origem</label>
+      <label for="licao-origem_ref">{{ t('governanca', 'Número do registro de origem') }}</label>
       <input id="licao-origem_ref" name="origem_ref" class="input{% if erros.get('origem_ref') %} input--erro{% endif %}"
         value="{{ valores.get('origem_ref') or '' }}"{% if erros.get('origem_ref') %} aria-invalid="true" aria-describedby="erro-origem_ref"{% endif %} />
-      <span class="hint">Obrigatório quando a origem é um módulo (Ata, Mudança...): o número precisa existir lá.</span>
+      <span class="hint">{{ t('governanca', 'Obrigatório quando a origem é um módulo (Ata, Mudança...): o número precisa existir lá.') }}</span>
       {{ erro(erros, 'origem_ref') }}
     </div>
     {{ texto(erros, valores, 'aconteceu', 'O que aconteceu', 3, 1000) }}
     {{ texto(erros, valores, 'causa', 'Causa', 2, 600) }}
     <div class="field">
-      <label for="licao-impacto_prazo_dias">Impacto em prazo (dias)</label>
+      <label for="licao-impacto_prazo_dias">{{ t('governanca', 'Impacto em prazo (dias)') }}</label>
       <input id="licao-impacto_prazo_dias" name="impacto_prazo_dias" type="number" min="0" step="1" class="input{% if erros.get('impacto_prazo_dias') %} input--erro{% endif %}"
         value="{{ valores.get('impacto_prazo_dias') or '' }}"{% if erros.get('impacto_prazo_dias') %} aria-invalid="true" aria-describedby="erro-impacto_prazo_dias"{% endif %} />
       {{ erro(erros, 'impacto_prazo_dias') }}
     </div>
     <div class="field">
-      <label for="licao-impacto_custo">Impacto em custo (R$)</label>
+      <label for="licao-impacto_custo">{{ t('governanca', 'Impacto em custo (R$)') }}</label>
       <input id="licao-impacto_custo" name="impacto_custo" inputmode="decimal" class="input{% if erros.get('impacto_custo') %} input--erro{% endif %}"
         value="{{ valores.get('impacto_custo') or '' }}"{% if erros.get('impacto_custo') %} aria-invalid="true" aria-describedby="erro-impacto_custo"{% endif %} />
       {{ erro(erros, 'impacto_custo') }}
     </div>
     {{ texto(erros, valores, 'recomendacao', 'Recomendação', 3, 1000) }}
     <div class="field field--full">
-      <label for="licao-palavras_chave">Palavras-chave (separe por vírgula, no máximo 8)</label>
+      <label for="licao-palavras_chave">{{ t('governanca', 'Palavras-chave (separe por vírgula, no máximo 8)') }}</label>
       <input id="licao-palavras_chave" name="palavras_chave" class="input{% if erros.get('palavras_chave') %} input--erro{% endif %}"
         value="{{ valores.get('palavras_chave') or '' }}"{% if erros.get('palavras_chave') %} aria-invalid="true" aria-describedby="erro-palavras_chave"{% endif %} />
       {{ erro(erros, 'palavras_chave') }}
     </div>
     {{ lista(erros, valores, 'aplicabilidade', 'Aplicabilidade', aplicabilidades) }}
   </div>
-  <p class="hint">Projeto: a lição fica restrita ao projeto. Corporativa: depois de publicada, é compartilhada com a organização para os próximos projetos.</p>
+  <p class="hint">{{ t('governanca', 'Projeto: a lição fica restrita ao projeto. Corporativa: depois de publicada, é compartilhada com a organização para os próximos projetos.') }}</p>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
-    <button type="submit" class="btn btn--secondary">Salvar rascunho</button>
-    <button type="submit" name="enviar" value="sim" class="btn btn--primary">Salvar e enviar para validação</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('governanca', 'Voltar') }}</button>
+    <button type="submit" class="btn btn--secondary">{{ t('governanca', 'Salvar rascunho') }}</button>
+    <button type="submit" name="enviar" value="sim" class="btn btn--primary">{{ t('governanca', 'Salvar e enviar para validação') }}</button>
   </div>
 </form>
 {% endblock %}

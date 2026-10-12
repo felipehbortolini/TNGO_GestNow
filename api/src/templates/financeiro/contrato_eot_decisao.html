@@ -20,12 +20,12 @@
     {% endif %}
     <form method="post" action="/api/financeiro/contrato/extensoes/{{ eot.id }}/decidir?numero={{ ficha.number }}"
       x-target="{{ alvo_formulario }} {{ alvo_extensoes }} {{ alvo_resumo }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Decidindo a extensão..."
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Decidindo a extensão...') }}"
       x-data="{ decisao: '{{ valores.situacao or (decisoes[0] if decisoes else '') }}' }">
       <input type="hidden" name="versao" value="{{ valores.versao or eot.version }}" />
       <div class="fgrid">
         <div class="field">
-          <label for="contrato-eot-situacao">Decisão</label>
+          <label for="contrato-eot-situacao">{{ t('financeiro', 'Decisão') }}</label>
           <select id="contrato-eot-situacao" name="situacao"
             class="input{{ ' input--erro' if erros.situacao else '' }}" x-model="decisao" required>
             {% for decisao in decisoes %}
@@ -35,7 +35,7 @@
           {% if erros.situacao %}<span class="field__erro" id="contrato-eot-situacao-erro">{{ erros.situacao }}</span>{% endif %}
         </div>
         <div class="field" x-show="decisao !== 'Negada'">
-          <label for="contrato-eot-dias-concedidos">Dias concedidos</label>
+          <label for="contrato-eot-dias-concedidos">{{ t('financeiro', 'Dias concedidos') }}</label>
           <input id="contrato-eot-dias-concedidos" name="dias" type="number" min="1"
             max="{{ eot.requested_days }}" step="1"
             class="input{{ ' input--erro' if erros.dias else '' }}"
@@ -45,7 +45,7 @@
           <span class="hint">Concedida integral usa os {{ eot.requested_days }} dias; parcial usa menos.</span>
         </div>
         <div class="field" x-show="decisao !== 'Negada'">
-          <label for="contrato-eot-classificacao">Classificação</label>
+          <label for="contrato-eot-classificacao">{{ t('financeiro', 'Classificação') }}</label>
           <select id="contrato-eot-classificacao" name="classificacao"
             class="input{{ ' input--erro' if erros.classificacao else '' }}">
             {% for classificacao in classificacoes %}
@@ -55,7 +55,7 @@
           {% if erros.classificacao %}<span class="field__erro" id="contrato-eot-classificacao-erro">{{ erros.classificacao }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="contrato-eot-parecer">Parecer da análise de atraso</label>
+          <label for="contrato-eot-parecer">{{ t('financeiro', 'Parecer da análise de atraso') }}</label>
           <textarea id="contrato-eot-parecer" name="parecer" maxlength="400"
             class="input{{ ' input--erro' if erros.parecer else '' }}" required
             {% if erros.parecer %}aria-invalid="true" aria-describedby="contrato-eot-parecer-erro"{% endif %}>{{ valores.parecer or '' }}</textarea>
@@ -64,10 +64,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Decidir extensão
+          {{ t('financeiro', 'Decidir extensão') }}
         </button>
       </div>
     </form>

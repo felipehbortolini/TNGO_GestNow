@@ -9,7 +9,7 @@
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
   <div class="card__head">
-    <h2 class="h-card4" id="{{ target_id }}-titulo">Nova medição</h2>
+    <h2 class="h-card4" id="{{ target_id }}-titulo">{{ t('financeiro', 'Nova medição') }}</h2>
     <span class="hint">{{ ficha.number }} · disponível a medir {{ disponivel }}</span>
   </div>
   <div class="card__body">
@@ -18,10 +18,10 @@
     {% endif %}
     <form method="post" action="/api/financeiro/contrato/medicoes?numero={{ ficha.number }}"
       x-target="{{ alvo_formulario }} {{ alvo_medicoes }} {{ alvo_resumo }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando a medição...">
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Registrando a medição...') }}">
       <div class="fgrid">
         <div class="field">
-          <label for="contrato-medicao-periodo">Período</label>
+          <label for="contrato-medicao-periodo">{{ t('financeiro', 'Período') }}</label>
           <input id="contrato-medicao-periodo" name="periodo" type="month"
             class="input{{ ' input--erro' if erros.periodo else '' }}"
             value="{{ valores.periodo or '' }}" required
@@ -29,13 +29,13 @@
           {% if erros.periodo %}<span class="field__erro" id="contrato-medicao-periodo-erro">{{ erros.periodo }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="contrato-medicao-marco">Marco de pagamento (opcional)</label>
+          <label for="contrato-medicao-marco">{{ t('financeiro', 'Marco de pagamento (opcional)') }}</label>
           <input id="contrato-medicao-marco" name="marco" class="input" inputmode="numeric"
             value="{{ valores.marco or '' }}" />
-          <span class="hint">Sem marco a medição é por quantidade.</span>
+          <span class="hint">{{ t('financeiro', 'Sem marco a medição é por quantidade.') }}</span>
         </div>
         <div class="field">
-          <label for="contrato-medicao-bruto">Valor bruto</label>
+          <label for="contrato-medicao-bruto">{{ t('financeiro', 'Valor bruto') }}</label>
           <input id="contrato-medicao-bruto" name="bruto"
             class="input{{ ' input--erro' if erros.bruto else '' }}" inputmode="decimal"
             value="{{ valores.bruto or '' }}" required
@@ -46,10 +46,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Registrar medição
+          {{ t('financeiro', 'Registrar medição') }}
         </button>
       </div>
     </form>

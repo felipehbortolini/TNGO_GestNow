@@ -9,20 +9,26 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from src.core import translations
 from src.core.export_document import Chart
 from src.modulos.governanca.lessons_calculations import LessonGroupLine
 from src.modulos.governanca.lessons_service import LessonPanel
 
 
-def charts_of(panel: LessonPanel) -> tuple[Chart, ...]:
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Governança no idioma do request (D13)."""
+    return translations.translate("governanca", text, idioma)
+
+
+def charts_of(panel: LessonPanel, idioma: str = "pt") -> tuple[Chart, ...]:
     """Os gráficos do painel, na ordem da tela."""
     return (
-        _group_chart("Lições por fase", panel.by_phase),
-        _group_chart("Lições por área de conhecimento", panel.by_area),
+        _group_chart(_label("Lições por fase", idioma), panel.by_phase, idioma),
+        _group_chart(_label("Lições por área de conhecimento", idioma), panel.by_area, idioma),
     )
 
 
-def _group_chart(title: str, lines: Sequence[LessonGroupLine]) -> Chart:
+def _group_chart(title: str, lines: Sequence[LessonGroupLine], idioma: str) -> Chart:
     categories = [{"id": line.label, "rotulo": line.label, "papel": "neutro"} for line in lines]
     return Chart(
         title,
@@ -35,15 +41,16 @@ def _group_chart(title: str, lines: Sequence[LessonGroupLine]) -> Chart:
                     "categorias": categories,
                     "linhas": [
                         {
-                            "rotulo": "A repetir",
+                            "rotulo": _label("A repetir", idioma),
                             "valores": {line.label: line.to_repeat for line in lines},
                         },
                         {
-                            "rotulo": "A evitar",
+                            "rotulo": _label("A evitar", idioma),
                             "valores": {line.label: line.to_avoid for line in lines},
                         },
                     ],
                 }
             ],
+            "rotulos": translations.rotulos_de_grafico(idioma),
         },
     )

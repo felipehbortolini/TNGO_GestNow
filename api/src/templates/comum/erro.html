@@ -7,7 +7,7 @@
 #}
 {% block fragment %}
 <div class="aviso aviso--erro" role="alert">
-  <strong>Não foi possível concluir.</strong>
+  <strong>{{ t('comum', 'Não foi possível concluir.') }}</strong>
   {% for mensagem in mensagens %}
   <span>{{ mensagem }}</span>
   {% endfor %}

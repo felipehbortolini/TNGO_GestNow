@@ -8,14 +8,14 @@
 {% block fragment %}
 <div class="tbl-wrap">
   <table class="tbl">
-    <caption class="sr-only">Revisões da ata</caption>
+    <caption class="sr-only">{{ t('central_acoes', 'Revisões da ata') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Revisão</th>
-        <th scope="col">Data</th>
-        <th scope="col">Assunto</th>
-        <th scope="col">Situação</th>
-        <th scope="col"><span class="sr-only">Abrir</span></th>
+        <th scope="col">{{ t('central_acoes', 'Revisão') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Data') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Assunto') }}</th>
+        <th scope="col">{{ t('central_acoes', 'Situação') }}</th>
+        <th scope="col"><span class="sr-only">{{ t('central_acoes', 'Abrir') }}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -25,12 +25,12 @@
         <td class="nowrap">{{ formatar_data(revisao.meeting_date) }}</td>
         <td>{{ revisao.subject }}</td>
         <td>
-          <span class="pill {{ 'pill--ok' if revisao.is_latest else 'pill--neutral' }}">{{ 'Vigente' if revisao.is_latest else 'Histórico' }}</span>
-          {% if revisao.id == atual_id %}<span class="pill pill--fix">Aberta agora</span>{% endif %}
+          <span class="pill {{ 'pill--ok' if revisao.is_latest else 'pill--neutral' }}">{{ t('central_acoes', 'Vigente') if revisao.is_latest else t('central_acoes', 'Histórico') }}</span>
+          {% if revisao.id == atual_id %}<span class="pill pill--fix">{{ t('central_acoes', 'Aberta agora') }}</span>{% endif %}
         </td>
         <td>
           {% if revisao.id != atual_id %}
-          <a class="btn btn--ghost btn--sm" href="{{ endereco_da_revisao(revisao.id) }}" data-tn-tela>Abrir</a>
+          <a class="btn btn--ghost btn--sm" href="{{ endereco_da_revisao(revisao.id) }}" data-tn-tela>{{ t('central_acoes', 'Abrir') }}</a>
           {% endif %}
         </td>
       </tr>
@@ -40,6 +40,6 @@
 </div>
 <div class="modal__actions">
   <button type="button" class="btn btn--secondary"
-    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Fechar</button>
+    @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('central_acoes', 'Fechar') }}</button>
 </div>
 {% endblock %}

@@ -104,7 +104,15 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import attachments, calendario, database, importing, notification, rbac
+from src.core import (
+    attachments,
+    calendario,
+    database,
+    importing,
+    notification,
+    rbac,
+    translations,
+)
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -139,6 +147,52 @@ from src.modulos.financeiro.service import EacFilters, EacView, ItemForm
 from src.modulos.hse import painel_service as hse_painel
 
 bp = func.Blueprint()
+
+
+def _notice(text: str, req: func.HttpRequest) -> str:
+    """O aviso de uma gravação no idioma do request (D13)."""
+    return translations.translate("financeiro", text, translations.language_of(req))
+
+
+def _chart_data(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """O JSON do gráfico no idioma do request: textos pelo catálogo e os rótulos do motor (D13)."""
+    translated = _translated_strings(data, idioma)
+    especificos = data.get("rotulos")
+    if not isinstance(especificos, Mapping):
+        especificos = {}
+    translated["rotulos"] = translations.rotulos_de_grafico(idioma, dict(especificos))
+    return translated
+
+
+def _translated_strings(data: Mapping[str, object], idioma: str) -> dict[str, object]:
+    """Os textos de dentro do JSON (títulos, séries, eixos) no idioma; a forma fica igual."""
+    translated: dict[str, object] = {}
+    for key, value in data.items():
+        if isinstance(value, str):
+            translated[key] = translations.translate("financeiro", value, idioma)
+        elif isinstance(value, Mapping):
+            translated[key] = _translated_strings(value, idioma)
+        elif isinstance(value, list):
+            translated[key] = [
+                _translated_strings(item, idioma)
+                if isinstance(item, Mapping)
+                else translations.translate("financeiro", item, idioma)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            translated[key] = value
+    return translated
+
+
+def _translated(messages: Mapping[str, object], idioma: str) -> dict[str, str]:
+    """As mensagens de recusa por campo no idioma do request (D13)."""
+    return {
+        field: translations.translate("financeiro", str(message), idioma)
+        for field, message in messages.items()
+    }
+
 
 importers.register_importers()
 
@@ -477,12 +531,14 @@ def _render_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpRe
             values=_posted(req.form),
             problems=problems if isinstance(problems, Mapping) else {},
             filters=_filters_of(req.form),
-            message=str(error) if isinstance(error, VersionConflictError) else "",
+            message=translations.translate("financeiro", str(error), translations.language_of(req))
+            if isinstance(error, VersionConflictError)
+            else "",
         ),
         request=req,
         target_id=FORM_TARGET,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -509,7 +565,9 @@ def eac_item_save(
         template_name=SAVED_TEMPLATE,
         context=_content_context(view),
         request=req,
-        toast=SAVED_MESSAGE.format(code=code) if result.changed_fields else NOTHING_CHANGED_MESSAGE,
+        toast=_notice(SAVED_MESSAGE, req).format(code=code)
+        if result.changed_fields
+        else _notice(NOTHING_CHANGED_MESSAGE, req),
         toast_tipo="ok" if result.changed_fields else "aviso",
     )
 
@@ -870,7 +928,7 @@ def eac_import_confirm(
         session,
         context,
         revision,
-        toast=IMPORT_CONFIRMED_MESSAGE.format(
+        toast=_notice(IMPORT_CONFIRMED_MESSAGE, req).format(
             revision=revision.revision, items=items, total=_money(revision.total_cents)
         ),
     )
@@ -1053,7 +1111,7 @@ def _reallocation_saved(
         template_name=REALLOCATION_SAVED_TEMPLATE,
         context=data,
         request=req,
-        toast=REALLOCATION_CREATED_MESSAGE.format(code=created.code),
+        toast=_notice(REALLOCATION_CREATED_MESSAGE, req).format(code=created.code),
         toast_tipo="ok",
     )
 
@@ -1107,7 +1165,7 @@ def _render_panel_error(
         context=data,
         request=req,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1251,14 +1309,18 @@ def _render_projection_error(req: func.HttpRequest, error: DomainError) -> func.
             row = _projection_row(session, context, _item_id_of(req))
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=MAP_PROJECTION_FORM_TEMPLATE,
         context=_projection_context(row, values=_posted_projection(req.form), problems=problems),
         request=req,
         target_id=PROJECTION_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1284,7 +1346,7 @@ def mapa_projection_save(
         template_name=MAP_PROJECTION_SAVED_TEMPLATE,
         context=_mapa_context(session, context),
         request=req,
-        toast=PROJECTION_SAVED_MESSAGE.format(code=row.code),
+        toast=_notice(PROJECTION_SAVED_MESSAGE, req).format(code=row.code),
         toast_tipo="ok",
     )
 
@@ -1355,7 +1417,7 @@ def erp_import_confirm(
         template_name=ERP_IMPORT_RESULT_TEMPLATE,
         context=data,
         request=req,
-        toast=_erp_imported_notice(result),
+        toast=_erp_imported_notice(result, translations.language_of(req)),
         toast_tipo="aviso" if result.skipped else "ok",
     )
 
@@ -1553,13 +1615,19 @@ def _erp_check_context(preview: importing.ImportPreview) -> dict[str, object]:
     }
 
 
-def _erp_imported_notice(result: importing.ImportResult) -> str:
+def _erp_imported_notice(result: importing.ImportResult, idioma: str) -> str:
     written = len(result.written)
     notice = (
-        ERP_IMPORTED_ONE_MESSAGE if written == 1 else ERP_IMPORTED_MESSAGE.format(count=written)
+        translations.translate("financeiro", ERP_IMPORTED_ONE_MESSAGE, idioma)
+        if written == 1
+        else translations.translate("financeiro", ERP_IMPORTED_MESSAGE, idioma).format(
+            count=written
+        )
     )
     if result.skipped:
-        return notice + ERP_SKIPPED_SUFFIX.format(count=len(result.skipped))
+        return notice + translations.translate("financeiro", ERP_SKIPPED_SUFFIX, idioma).format(
+            count=len(result.skipped)
+        )
     return notice
 
 
@@ -1668,7 +1736,11 @@ def _render_medicao_form_error(
             view = _contract_of(req, session, context)
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_MEASUREMENT_FORM_TEMPLATE,
         context=_contrato_medicao_form_context(
@@ -1680,7 +1752,7 @@ def _render_medicao_form_error(
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1703,7 +1775,7 @@ def contrato_medicao_create(
         req,
         session,
         context,
-        toast=CONTRACT_MEASUREMENT_CREATED_MESSAGE.format(number=medicao.number),
+        toast=_notice(CONTRACT_MEASUREMENT_CREATED_MESSAGE, req).format(number=medicao.number),
     )
 
 
@@ -1724,7 +1796,7 @@ def _render_contrato_error(req: func.HttpRequest, error: DomainError) -> func.Ht
         context=data,
         request=req,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1783,7 +1855,7 @@ def _render_devolucao_error(req: func.HttpRequest, error: DomainError) -> func.H
     except DomainError:
         return None
     problems = (
-        error.detail
+        _translated(error.detail, translations.language_of(req))
         if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
         else {}
     )
@@ -1794,12 +1866,14 @@ def _render_devolucao_error(req: func.HttpRequest, error: DomainError) -> func.H
             medicao,
             values=_posted_transition(req.form),
             problems=problems,
-            message=str(error) if isinstance(error, VersionConflictError) else "",
+            message=translations.translate("financeiro", str(error), translations.language_of(req))
+            if isinstance(error, VersionConflictError)
+            else "",
         ),
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1839,7 +1913,11 @@ def _render_aditivo_form_error(
             view = _contract_of(req, session, context)
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_ADDENDUM_FORM_TEMPLATE,
         context=_contrato_aditivo_form_context(
@@ -1852,7 +1930,7 @@ def _render_aditivo_form_error(
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -1916,13 +1994,17 @@ def _move_measurement(
         target=target,
         form=_posted_transition(req.form),
     )
-    return _contrato_saved(req, session, context, toast=_moved_message(moved))
+    return _contrato_saved(
+        req, session, context, toast=_moved_message(moved, translations.language_of(req))
+    )
 
 
-def _moved_message(medicao: service.MeasurementView) -> str:
+def _moved_message(medicao: service.MeasurementView, idioma: str) -> str:
     if medicao.situation == calculations.SITUATION_RETURNED:
-        return CONTRACT_MEASUREMENT_RETURNED_MESSAGE.format(number=medicao.number)
-    return CONTRACT_MEASUREMENT_MOVED_MESSAGE.format(
+        return translations.translate(
+            "financeiro", CONTRACT_MEASUREMENT_RETURNED_MESSAGE, idioma
+        ).format(number=medicao.number)
+    return translations.translate("financeiro", CONTRACT_MEASUREMENT_MOVED_MESSAGE, idioma).format(
         number=medicao.number, situation=medicao.situation.lower()
     )
 
@@ -2275,7 +2357,11 @@ def _render_marco_form_error(req: func.HttpRequest, error: DomainError) -> func.
             view = _contract_of(req, session, context)
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_MILESTONE_FORM_TEMPLATE,
         context=_contrato_marco_form_context(
@@ -2289,7 +2375,7 @@ def _render_marco_form_error(req: func.HttpRequest, error: DomainError) -> func.
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2312,7 +2398,7 @@ def contrato_marco_create(
         req,
         session,
         context,
-        toast=CONTRACT_MILESTONE_CREATED_MESSAGE.format(number=marco.number),
+        toast=_notice(CONTRACT_MILESTONE_CREATED_MESSAGE, req).format(number=marco.number),
     )
 
 
@@ -2342,7 +2428,11 @@ def _render_evidencia_error(req: func.HttpRequest, error: DomainError) -> func.H
             marco = _marco_of(view, _marco_id_of(req))
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_MILESTONE_EVIDENCE_TEMPLATE,
         context=_contrato_evidencia_context(
@@ -2358,7 +2448,7 @@ def _render_evidencia_error(req: func.HttpRequest, error: DomainError) -> func.H
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2386,7 +2476,7 @@ def contrato_marco_evidencia(
         req,
         session,
         context,
-        toast=CONTRACT_MILESTONE_EVIDENCE_MESSAGE.format(number=updated.number),
+        toast=_notice(CONTRACT_MILESTONE_EVIDENCE_MESSAGE, req).format(number=updated.number),
     )
 
 
@@ -2414,7 +2504,7 @@ def contrato_marco_approve(
         req,
         session,
         context,
-        toast=CONTRACT_MILESTONE_MOVED_MESSAGE.format(
+        toast=_notice(CONTRACT_MILESTONE_MOVED_MESSAGE, req).format(
             number=approved.number, situation=approved.situation.lower()
         ),
     )
@@ -2456,7 +2546,11 @@ def _render_claim_form_error(req: func.HttpRequest, error: DomainError) -> func.
     """O formulário do claim de volta, com o que a pessoa digitou, no 422."""
     if not isinstance(error, InvalidDataError):
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     try:
         with database.unidade_de_trabalho() as session:
             context = authorize(session, req, WRITE_ACCESS)
@@ -2475,7 +2569,9 @@ def _render_claim_form_error(req: func.HttpRequest, error: DomainError) -> func.
                 request=req,
                 target_id=CONTRACT_FORM_TARGET,
                 status_code=422,
-                toast=str(error),
+                toast=translations.translate(
+                    "financeiro", str(error), translations.language_of(req)
+                ),
                 toast_tipo="erro",
             )
     except DomainError:
@@ -2497,7 +2593,10 @@ def contrato_claim_create(
         form=_posted_claim(req.form),
     )
     return _fluxos_saved(
-        req, session, context, toast=CONTRACT_CLAIM_CREATED_MESSAGE.format(code=claim.code)
+        req,
+        session,
+        context,
+        toast=_notice(CONTRACT_CLAIM_CREATED_MESSAGE, req).format(code=claim.code),
     )
 
 
@@ -2570,7 +2669,7 @@ def _render_claim_form_update(
     except DomainError:
         return None
     problems = (
-        error.detail
+        _translated(error.detail, translations.language_of(req))
         if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
         else {}
     )
@@ -2582,7 +2681,11 @@ def _render_claim_form_update(
             FormState(
                 values=_posted_claim_update(req.form),
                 problems=problems,
-                message=str(error) if isinstance(error, VersionConflictError) else "",
+                message=translations.translate(
+                    "financeiro", str(error), translations.language_of(req)
+                )
+                if isinstance(error, VersionConflictError)
+                else "",
             ),
             action=_claim_action(view, claim.id, route),
             situations=_claim_decisions(claim)
@@ -2592,7 +2695,7 @@ def _render_claim_form_update(
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2613,7 +2716,12 @@ def contrato_claim_update(
         form=_posted_claim_update(req.form),
         reference_date=calendario.today(),
     )
-    return _fluxos_saved(req, session, context, toast=_claim_moved_message(updated))
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=_claim_moved_message(updated, translations.language_of(req)),
+    )
 
 
 @bp.route(route=CONTRACT_CLAIM_DECIDE_ROUTE, methods=["POST"])
@@ -2632,7 +2740,12 @@ def contrato_claim_decide(
         form=_posted_claim_update(req.form),
         reference_date=calendario.today(),
     )
-    return _fluxos_saved(req, session, context, toast=_claim_moved_message(decided))
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=_claim_moved_message(decided, translations.language_of(req)),
+    )
 
 
 @bp.route(route=CONTRACT_EXTENSION_FORM_ROUTE, methods=["GET"])
@@ -2659,7 +2772,11 @@ def _render_eot_form_error(req: func.HttpRequest, error: DomainError) -> func.Ht
             view = _contract_of(req, session, context)
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_EXTENSION_FORM_TEMPLATE,
         context=_contrato_eot_form_context(
@@ -2673,7 +2790,7 @@ def _render_eot_form_error(req: func.HttpRequest, error: DomainError) -> func.Ht
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2694,7 +2811,10 @@ def contrato_extensao_create(
         reference_date=calendario.today(),
     )
     return _fluxos_saved(
-        req, session, context, toast=CONTRACT_EXTENSION_CREATED_MESSAGE.format(code=eot.code)
+        req,
+        session,
+        context,
+        toast=_notice(CONTRACT_EXTENSION_CREATED_MESSAGE, req).format(code=eot.code),
     )
 
 
@@ -2727,7 +2847,7 @@ def _render_eot_decisao_error(
     except DomainError:
         return None
     problems = (
-        error.detail
+        _translated(error.detail, translations.language_of(req))
         if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping)
         else {}
     )
@@ -2739,13 +2859,17 @@ def _render_eot_decisao_error(
             FormState(
                 values=_posted_eot_decisao(req.form),
                 problems=problems,
-                message=str(error) if isinstance(error, VersionConflictError) else "",
+                message=translations.translate(
+                    "financeiro", str(error), translations.language_of(req)
+                )
+                if isinstance(error, VersionConflictError)
+                else "",
             ),
         ),
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -2766,7 +2890,12 @@ def contrato_extensao_decide(
         form=_posted_eot_decisao(req.form),
         reference_date=calendario.today(),
     )
-    return _fluxos_saved(req, session, context, toast=_extension_moved_message(decided))
+    return _fluxos_saved(
+        req,
+        session,
+        context,
+        toast=_extension_moved_message(decided, translations.language_of(req)),
+    )
 
 
 def _move_marco(
@@ -2786,7 +2915,7 @@ def _move_marco(
         req,
         session,
         context,
-        toast=CONTRACT_MILESTONE_MOVED_MESSAGE.format(
+        toast=_notice(CONTRACT_MILESTONE_MOVED_MESSAGE, req).format(
             number=moved.number, situation=moved.situation.lower()
         ),
     )
@@ -2824,7 +2953,7 @@ def _render_fluxos_error(
         context=data,
         request=req,
         status_code=409 if isinstance(error, VersionConflictError) else 422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -3067,21 +3196,25 @@ def _claim_action(view: service.ContractView, claim_id: int, route: str) -> str:
     return f"/api/{route.format(claim_id=claim_id)}?numero={view.number}"
 
 
-def _claim_moved_message(claim: service.ClaimView) -> str:
-    message = CONTRACT_CLAIM_MOVED_MESSAGE.format(
+def _claim_moved_message(claim: service.ClaimView, idioma: str) -> str:
+    message = translations.translate("financeiro", CONTRACT_CLAIM_MOVED_MESSAGE, idioma).format(
         code=claim.code, situation=claim.situation.lower()
     )
     if claim.change_code:
-        message += CONTRACT_CLAIM_AGREED_SUFFIX.format(code=claim.change_code)
+        message += translations.translate(
+            "financeiro", CONTRACT_CLAIM_AGREED_SUFFIX, idioma
+        ).format(code=claim.change_code)
     return message
 
 
-def _extension_moved_message(eot: service.ExtensionView) -> str:
-    message = CONTRACT_EXTENSION_MOVED_MESSAGE.format(
+def _extension_moved_message(eot: service.ExtensionView, idioma: str) -> str:
+    message = translations.translate("financeiro", CONTRACT_EXTENSION_MOVED_MESSAGE, idioma).format(
         code=eot.code, situation=eot.situation.lower()
     )
     if eot.granted_days:
-        message += CONTRACT_EXTENSION_EXTENDED_SUFFIX.format(days=eot.granted_days)
+        message += translations.translate(
+            "financeiro", CONTRACT_EXTENSION_EXTENDED_SUFFIX, idioma
+        ).format(days=eot.granted_days)
     return message
 
 
@@ -3304,7 +3437,11 @@ def _render_avaliacao_form_error(
             criterios = _criterios_da_avaliacao(session)
     except DomainError:
         return None
-    problems = error.detail if isinstance(error.detail, Mapping) else {}
+    problems = (
+        _translated(error.detail, translations.language_of(req))
+        if isinstance(error.detail, Mapping)
+        else {}
+    )
     return AlpineAjaxResponse(
         template_name=CONTRACT_EVALUATION_FORM_TEMPLATE,
         context=_contrato_avaliacao_form_context(
@@ -3319,7 +3456,7 @@ def _render_avaliacao_form_error(
         request=req,
         target_id=CONTRACT_FORM_TARGET,
         status_code=422,
-        toast=str(error),
+        toast=translations.translate("financeiro", str(error), translations.language_of(req)),
         toast_tipo="erro",
     )
 
@@ -3343,7 +3480,12 @@ def contrato_avaliacao_create(
         file_name=sent.filename if sent is not None else None,
         content=sent.stream.read() if sent is not None else b"",
     )
-    return _avaliacao_saved(req, session, context, toast=_avaliacao_created_message(avaliacao))
+    return _avaliacao_saved(
+        req,
+        session,
+        context,
+        toast=_avaliacao_created_message(avaliacao, translations.language_of(req)),
+    )
 
 
 def _avaliacao_saved(
@@ -3359,14 +3501,14 @@ def _avaliacao_saved(
     )
 
 
-def _avaliacao_created_message(avaliacao: service.EvaluationView) -> str:
-    message = CONTRACT_EVALUATION_CREATED_MESSAGE.format(
-        kind=avaliacao.kind.lower(), period=avaliacao.period.strftime("%m/%Y")
-    )
+def _avaliacao_created_message(avaliacao: service.EvaluationView, idioma: str) -> str:
+    message = translations.translate(
+        "financeiro", CONTRACT_EVALUATION_CREATED_MESSAGE, idioma
+    ).format(kind=avaliacao.kind.lower(), period=avaliacao.period.strftime("%m/%Y"))
     if avaliacao.requires_plan:
-        message += CONTRACT_EVALUATION_PLAN_SUFFIX
+        message += translations.translate("financeiro", CONTRACT_EVALUATION_PLAN_SUFFIX, idioma)
     if avaliacao.kind == calculations.EVALUATION_KIND_FINAL:
-        message += CONTRACT_EVALUATION_LESSON_SUFFIX
+        message += translations.translate("financeiro", CONTRACT_EVALUATION_LESSON_SUFFIX, idioma)
     return message
 
 
@@ -4116,7 +4258,7 @@ def contingencia_content(
     view = _contingencia_view(session, context)
     return AlpineAjaxResponse(
         template_name=CONTINGENCY_TEMPLATE,
-        context=_contingencia_context(view, context=context),
+        context=_contingencia_context(view, context=context, idioma=translations.language_of(req)),
         request=req,
     )
 
@@ -4157,7 +4299,7 @@ def _contingencia_document_of(session: Session, context: RequestContext) -> Docu
 
 
 def _contingencia_context(
-    view: service.ContingencyOverview, *, context: RequestContext
+    view: service.ContingencyOverview, *, context: RequestContext, idioma: str
 ) -> dict[str, object]:
     """O que o fragmento imprime: a visão, os indicadores, o gráfico, as tabelas e o estado."""
     return {
@@ -4165,7 +4307,7 @@ def _contingencia_context(
         "carteira": view.is_portfolio,
         "situacao": "vazio-origem" if view.is_empty else "conteudo",
         "kpis": _contingencia_kpis(view, projeto=context.scope.parameter),
-        "grafico": export.contingencia_chart(view),
+        "grafico": _chart_data(export.contingencia_chart(view), idioma),
         "composicao": _contingencia_composicao(view),
         "movimentos": _contingencia_movimentos(view),
         "projetos": _contingencia_projetos(view),
@@ -4470,7 +4612,9 @@ def curva_financeira_content(
     """A Curva S financeira do escopo: indicadores, gráfico e tabela período a período."""
     return AlpineAjaxResponse(
         template_name=CURVA_FINANCEIRA_TEMPLATE,
-        context=_curva_financeira_context(_curva_financeira_view(session, context)),
+        context=_curva_financeira_context(
+            _curva_financeira_view(session, context), translations.language_of(req)
+        ),
         request=req,
     )
 
@@ -4502,7 +4646,9 @@ def custos_kpis_content(
     """Os KPIs de custo do escopo: indicadores, gráfico de CPI e SPI e a tabela de valor agregado."""
     return AlpineAjaxResponse(
         template_name=CUSTOS_KPIS_TEMPLATE,
-        context=_custos_kpis_context(_custos_kpis_view(session, context)),
+        context=_custos_kpis_context(
+            _custos_kpis_view(session, context), translations.language_of(req)
+        ),
         request=req,
     )
 
@@ -4558,29 +4704,31 @@ def _custos_kpis_document_of(session: Session, context: RequestContext) -> Docum
     )
 
 
-def _curva_financeira_context(view: service.FinancialCurveOverview) -> dict[str, object]:
+def _curva_financeira_context(
+    view: service.FinancialCurveOverview, idioma: str
+) -> dict[str, object]:
     """O que o fragmento imprime: a visão, os indicadores, o gráfico e a tabela."""
     return {
         "visao": view,
         "carteira": view.is_portfolio,
         "situacao": "vazio-origem" if view.is_empty else "conteudo",
         "kpis": _curva_financeira_kpis(view),
-        "grafico": export.curva_financeira_chart(view),
+        "grafico": _chart_data(export.curva_financeira_chart(view), idioma),
         "linhas": _curva_financeira_linhas(view),
         "subtitulo": _curva_financeira_subtitulo(view),
         "alvo_conteudo": CURVA_FINANCEIRA_TARGET,
     }
 
 
-def _custos_kpis_context(view: service.CostKpisOverview) -> dict[str, object]:
+def _custos_kpis_context(view: service.CostKpisOverview, idioma: str) -> dict[str, object]:
     """O que o fragmento dos KPIs imprime: a visão, os cartões, o gráfico e as tabelas."""
     return {
         "visao": view,
         "carteira": view.is_portfolio,
         "situacao": "vazio-origem" if view.is_empty else "conteudo",
         "kpis": _custos_kpis(view),
-        "grafico": export.custos_kpis_chart(view),
-        "grafico_valor": export.custos_valor_chart(view),
+        "grafico": _chart_data(export.custos_kpis_chart(view), idioma),
+        "grafico_valor": _chart_data(export.custos_valor_chart(view), idioma),
         "linhas": _custos_valor_linhas(view),
         "resumo": _custos_resumo_linhas(view),
         "projetos": _custos_projeto_linhas(view),
@@ -4845,7 +4993,11 @@ class DesembolsoEnvioResultado:
 
 def _desembolso_envio_error(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
     """A recusa dentro do modal: a mensagem no corpo onde a pessoa está olhando."""
-    mensagens = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+    idioma = translations.language_of(req)
+    mensagens = [
+        translations.translate("financeiro", message, idioma)
+        for message in (error.messages() if isinstance(error, InvalidDataError) else [str(error)])
+    ]
     return AlpineAjaxResponse(
         template_name="comum/erro.html",
         context={"mensagens": mensagens},
@@ -4872,7 +5024,11 @@ def desembolso_content(
     nivel = validation.parse_desembolso_level(req.params.get("nivel"))
     return AlpineAjaxResponse(
         template_name=DESEMBOLSO_TEMPLATE,
-        context=_desembolso_context(_desembolso_view(session, context), nivel=nivel),
+        context=_desembolso_context(
+            _desembolso_view(session, context),
+            nivel=nivel,
+            idioma=translations.language_of(req),
+        ),
         request=req,
     )
 
@@ -4954,14 +5110,16 @@ def _desembolso_document_of(session: Session, context: RequestContext, *, nivel:
     )
 
 
-def _desembolso_context(view: service.DisbursementOverview, *, nivel: int) -> dict[str, object]:
+def _desembolso_context(
+    view: service.DisbursementOverview, *, nivel: int, idioma: str
+) -> dict[str, object]:
     """O que o fragmento imprime: a visão, os indicadores, o gráfico e a tabela do nível."""
     return {
         "visao": view,
         "carteira": view.is_portfolio,
         "situacao": "vazio-origem" if view.is_empty else "conteudo",
         "kpis": _desembolso_kpis(view),
-        "grafico": export.desembolso_chart(view),
+        "grafico": _chart_data(export.desembolso_chart(view), idioma),
         "meses": _desembolso_meses(view),
         "linhas": _desembolso_linhas(view, nivel=nivel),
         "totais": _desembolso_totais(view),

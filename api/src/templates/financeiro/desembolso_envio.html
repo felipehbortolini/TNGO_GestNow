@@ -14,30 +14,30 @@
   <span>{{ resultado.aviso }}</span>
 </div>
 <div class="modal__actions">
-  <button type="button" class="btn btn--primary" data-desembolso-fechar-modal>Fechar</button>
+  <button type="button" class="btn btn--primary" data-desembolso-fechar-modal>{{ t('financeiro', 'Fechar') }}</button>
 </div>
 {% else %}
 <form method="post" action="/api/financeiro/desembolso/enviar"
   x-target="{{ target_id }}" x-target.422="{{ target_id }}" x-target.403="{{ target_id }}"
-  data-tn-loading="Enviando o cronograma...">
-  <p class="body-txt mb-16">Segue a planilha do cronograma (Excel) com o saldo a pagar por mês.</p>
+  data-tn-loading="{{ t('financeiro', 'Enviando o cronograma...') }}">
+  <p class="body-txt mb-16">{{ t('financeiro', 'Segue a planilha do cronograma (Excel) com o saldo a pagar por mês.') }}</p>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="desembolso-envio-para">Para</label>
+      <label for="desembolso-envio-para">{{ t('financeiro', 'Para') }}</label>
       <input id="desembolso-envio-para" name="para" type="email" required
         class="input" value="{{ formulario.para }}" />
-      <span class="hint">O envio fica registrado na trilha de auditoria; com o envio por e-mail desligado, nada é enviado.</span>
+      <span class="hint">{{ t('financeiro', 'O envio fica registrado na trilha de auditoria; com o envio por e-mail desligado, nada é enviado.') }}</span>
     </div>
     <div class="field field--full">
-      <label for="desembolso-envio-mensagem">Mensagem</label>
+      <label for="desembolso-envio-mensagem">{{ t('financeiro', 'Mensagem') }}</label>
       <textarea id="desembolso-envio-mensagem" name="mensagem" rows="5" maxlength="400" class="input">{{ formulario.mensagem }}</textarea>
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-desembolso-fechar-modal>Cancelar</button>
+    <button type="button" class="btn btn--secondary" data-desembolso-fechar-modal>{{ t('financeiro', 'Cancelar') }}</button>
     <button type="submit" class="btn btn--primary">
       <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
-      Enviar
+      {{ t('financeiro', 'Enviar') }}
     </button>
   </div>
 </form>

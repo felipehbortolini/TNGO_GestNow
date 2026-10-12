@@ -213,3 +213,17 @@ O link de origem **Ata** está registrado (`origin_links`, no fim de `minutes_se
 **Carga e oráculo.** A carga da ISSUE-019 já trazia os itens das atas (a coleção `acoes` do protótipo tem 28 itens com `ataId`, todos de origem `Ata`), então nada novo entrou no `seed.py`. `api/tests/oraculo/test_oraculo_atas_itens.py` afirma os 28 itens, a numeração 1.1 a 3.1 e os grupos da ata TN-2026-0028.
 
 **Testes.** `api/tests/central_acoes/test_atas_itens.py`: numeração por grupo e renumeração ao mudar o grupo, a ação na lista da Central com link de volta (e a anotação fora dela), a nova revisão com linhagem, cópia e somente leitura, o histórico com a vigente marcada, o replanejamento com autor e justificativa, a validação (data prevista e pessoa da presença) e as rotas da aba e do formulário.
+
+## Idioma (ISSUE-087)
+
+A fatia do inglês (D13) traduz no servidor: o catálogo é `api/src/core/translations.py`
+(namespace `central_acoes`, com os termos do bloco 01 do `en.js`), o idioma vem do cookie
+`gestnow_idioma` e a rota `POST /api/idioma` grava a escolha; o seletor PT | EN fica na barra
+lateral. Os templates chamam `{{ t('central_acoes', 'Texto') }}`; as rotas traduzem as recusas e
+os avisos com `translations.translate('central_acoes', ...)` no idioma do request, e as
+apresentações (`export.py`, `panel_export.py`, `minutes_export.py`, `presentation.py`,
+`follow_up.py`, `routes.py`, `minutes_routes.py`, `panel_service.py`) recebem `idioma`. Datas
+seguem o idioma (`translations.format_date`); número e moeda continuam pt-BR. Gráficos levam
+`rotulos` do motor no JSON. Views e JS estáticos usam `data-i18n`/`TN.t`. Para acrescentar
+tradução, some a chave ao namespace `central_acoes`; a cobertura em
+`api/tests/plataforma/test_traducoes.py` reprova chave marcada sem tradução.

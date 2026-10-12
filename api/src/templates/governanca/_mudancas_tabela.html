@@ -5,10 +5,10 @@
 #}
 <div class="card">
   <div class="card__head">
-    <h2 class="h-card4">Solicitações de mudança</h2>
+    <h2 class="h-card4">{{ t('governanca', 'Solicitações de mudança') }}</h2>
     <span class="hint" role="status">{{ contagem }}</span>
     <div class="mudancas-exportar">
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">{{ t('governanca', 'Excel') }}</button>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}{{ consulta }}">PDF</button>
     </div>
   </div>
@@ -16,31 +16,31 @@
     {% if total_no_escopo == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h3 class="h-card4">Nenhuma solicitação de mudança ainda</h3>
+      <h3 class="h-card4">{{ t('governanca', 'Nenhuma solicitação de mudança ainda') }}</h3>
       <p>{% if portfolio %}Nenhum projeto do portfólio tem solicitações registradas.{% else %}Este projeto ainda não tem solicitações registradas.{% endif %}
         {% if pode_registrar %}Use "Nova solicitação" para formalizar a primeira.{% endif %}</p>
     </div>
     {% elif not linhas %}
     <div class="empty" data-estado="vazio-filtro">
-      <h3 class="h-card4">Nenhum resultado para os filtros aplicados</h3>
-      <p>Ajuste ou limpe os filtros para ver as solicitações.</p>
-      <a class="btn btn--secondary" href="/api/governanca/mudancas" x-target="mudancas-kpis mudancas-tabela">Limpar filtros</a>
+      <h3 class="h-card4">{{ t('governanca', 'Nenhum resultado para os filtros aplicados') }}</h3>
+      <p>{{ t('governanca', 'Ajuste ou limpe os filtros para ver as solicitações.') }}</p>
+      <a class="btn btn--secondary" href="/api/governanca/mudancas" x-target="mudancas-kpis mudancas-tabela">{{ t('governanca', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Solicitações de mudança</caption>
+        <caption class="sr-only">{{ t('governanca', 'Solicitações de mudança') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Nº</th>
-            <th scope="col">Título</th>
-            <th scope="col">Tipo · origem</th>
-            <th scope="col" class="td-num">Custo</th>
-            <th scope="col" class="td-num">Prazo</th>
-            <th scope="col">Situação</th>
-            <th scope="col">Próxima etapa</th>
-            <th scope="col"><span class="sr-only">Abrir</span></th>
+            {% if portfolio %}<th scope="col">{{ t('governanca', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('governanca', 'Nº') }}</th>
+            <th scope="col">{{ t('governanca', 'Título') }}</th>
+            <th scope="col">{{ t('governanca', 'Tipo · origem') }}</th>
+            <th scope="col" class="td-num">{{ t('governanca', 'Custo') }}</th>
+            <th scope="col" class="td-num">{{ t('governanca', 'Prazo') }}</th>
+            <th scope="col">{{ t('governanca', 'Situação') }}</th>
+            <th scope="col">{{ t('governanca', 'Próxima etapa') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('governanca', 'Abrir') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -51,7 +51,7 @@
             <td class="mudancas-codigo"><a href="{{ endereco }}" data-tn-tela>{{ linha.code }}</a></td>
             <td>
               <div class="fw-600">{{ linha.title }}</div>
-              <div class="muted">{{ linha.request_date.strftime('%d/%m/%Y') }}</div>
+              <div class="muted">{{ data(linha.request_date) }}</div>
               {% if linha.priority != 'Normal' %}
               <span class="pill {{ pill_prioridade(linha.priority) }}">{{ linha.priority }}</span>
               {% endif %}
@@ -70,11 +70,11 @@
               {% if linha.next_step %}
               {{ linha.next_step }}
               {% elif linha.closing_date %}
-              <span class="muted">encerrada em {{ linha.closing_date.strftime('%d/%m/%Y') }}</span>
+              <span class="muted">encerrada em {{ data(linha.closing_date) }}</span>
               {% else %}
               <span class="muted">·</span>
               {% endif %}
-              {% if linha.analysis_overdue %}<span class="pill pill--erro">Análise vencida</span>{% endif %}
+              {% if linha.analysis_overdue %}<span class="pill pill--erro">{{ t('governanca', 'Análise vencida') }}</span>{% endif %}
             </td>
             <td>
               <a class="iconbtn" href="{{ endereco }}" data-tn-tela aria-label="Abrir a ficha de {{ linha.code }}"

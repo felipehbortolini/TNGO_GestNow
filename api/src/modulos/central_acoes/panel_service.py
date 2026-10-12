@@ -19,7 +19,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from src.core import config, notification, rbac
+from src.core import config, notification, rbac, translations
 from src.core.errors import InvalidDataError
 from src.core.notification import NotificationChannel, NotificationRequest
 from src.core.rbac import Permission, User
@@ -40,6 +40,11 @@ from src.modulos.configuracoes import service as configuracoes
 NO_OPEN_ACTIONS_MESSAGE = "Nenhuma ação em aberto no filtro atual."
 NO_ADDRESS_MESSAGE = "Nenhum responsável com e-mail cadastrado: {names}."
 REPORT_ORIGIN_LABEL = "Todas as origens"
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
 
 
 @dataclass(frozen=True)
@@ -246,7 +251,9 @@ def is_simulated() -> bool:
     return config.email_sending() != config.EMAIL_SENDING_ON
 
 
-def plan_follow_up(session: Session, *, user: User, request: FollowUpRequest) -> FollowUpPlan:
+def plan_follow_up(
+    session: Session, *, user: User, request: FollowUpRequest, idioma: str = "pt"
+) -> FollowUpPlan:
     """The open actions of the filter (origin, responsible and search) grouped by responsible."""
     rbac.require_module(user, service.MODULE)
     rbac.require(user, Permission.MANAGE)
@@ -263,7 +270,7 @@ def plan_follow_up(session: Session, *, user: User, request: FollowUpRequest) ->
     groups = calculations.group_for_follow_up(items, names)
     return FollowUpPlan(
         entries=tuple(
-            _entry(group, people.get(group.responsible_id), request.reference_date)
+            _entry(group, people.get(group.responsible_id), request.reference_date, idioma)
             for group in groups
         ),
         simulated=is_simulated(),
@@ -276,18 +283,19 @@ def send_follow_up(
     user: User,
     request: FollowUpRequest,
     channel: NotificationChannel | None = None,
+    idioma: str = "pt",
 ) -> FollowUpResult:
     """One notification per responsible with an address; each one leaves a row and a trail line.
 
     Refuses with 422 when there is nothing open in the filter or nobody has an address. A person
     without address is named in the notice, never silently skipped.
     """
-    plan = plan_follow_up(session, user=user, request=request)
+    plan = plan_follow_up(session, user=user, request=request, idioma=idioma)
     if not plan.entries:
-        raise InvalidDataError(NO_OPEN_ACTIONS_MESSAGE)
+        raise InvalidDataError(_label(NO_OPEN_ACTIONS_MESSAGE, idioma))
     if not plan.addressed:
         names = ", ".join(entry.name for entry in plan.without_address)
-        raise InvalidDataError(NO_ADDRESS_MESSAGE.format(names=names))
+        raise InvalidDataError(_label(NO_ADDRESS_MESSAGE, idioma).format(names=names))
     outcomes = tuple(
         notification.send(
             session,
@@ -304,7 +312,7 @@ def send_follow_up(
         for entry in plan.addressed
     )
     missing = tuple(entry.name for entry in plan.without_address)
-    text, kind = follow_up.result_notice([item.situation for item in outcomes], missing)
+    text, kind = follow_up.result_notice([item.situation for item in outcomes], missing, idioma)
     return FollowUpResult(outcomes=outcomes, without_address=missing, notice=text, toast_kind=kind)
 
 
@@ -323,7 +331,10 @@ def _follow_up_action(line: service.ActionRow) -> FollowUpAction:
 
 
 def _entry(
-    group: FollowUpGroup, person: configuracoes.PersonSummary | None, reference_date: date
+    group: FollowUpGroup,
+    person: configuracoes.PersonSummary | None,
+    reference_date: date,
+    idioma: str,
 ) -> FollowUpEntry:
     name = person.name if person is not None else service.UNKNOWN_PERSON_NAME
     return FollowUpEntry(
@@ -331,6 +342,6 @@ def _entry(
         name=name,
         email=person.email if person is not None else "",
         project_id=group.actions[0].project_id,
-        subject=follow_up.message_subject(group),
-        body=follow_up.message_body(group, name=name, reference_date=reference_date),
+        subject=follow_up.message_subject(group, idioma),
+        body=follow_up.message_body(group, name=name, reference_date=reference_date, idioma=idioma),
     )

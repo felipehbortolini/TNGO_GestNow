@@ -17,21 +17,21 @@
   <div class="home__etiquetas">
     {% if visao.is_portfolio %}
     <span class="home__etiqueta home__etiqueta--escopo">
-      Portfólio de projetos · {{ visao.project_count }} {{ 'projeto' if visao.project_count == 1 else 'projetos' }}
+      {{ t('inicio', 'Portfólio de projetos') }} · {{ visao.project_count }} {{ t('inicio', 'projeto' if visao.project_count == 1 else 'projetos') }}
     </span>
     {% elif visao.project %}
     <span class="home__etiqueta home__etiqueta--escopo">{{ visao.project.label }}</span>
     {% endif %}
-    <span class="home__etiqueta">Data de referência {{ formatar_data(visao.reference_date) }}</span>
+    <span class="home__etiqueta">{{ t('inicio', 'Data de referência') }} {{ formatar_data(visao.reference_date) }}</span>
     {% if visao.budget_cents is not none %}
-    <span class="home__etiqueta">Orçamento {{ formatar_moeda(visao.budget_cents) }}</span>
+    <span class="home__etiqueta">{{ t('inicio', 'Orçamento') }} {{ formatar_moeda(visao.budget_cents) }}</span>
     {% endif %}
     {% if visao.expected_end_date is not none %}
-    <span class="home__etiqueta">Término previsto {{ formatar_data(visao.expected_end_date) }}</span>
+    <span class="home__etiqueta">{{ t('inicio', 'Término previsto') }} {{ formatar_data(visao.expected_end_date) }}</span>
     {% endif %}
   </div>
   <div class="home__exportacoes">
-    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">Excel</button>
+    <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ url_excel }}">{{ t('inicio', 'Excel') }}</button>
     <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ url_pdf }}">PDF</button>
   </div>
 </div>
@@ -41,15 +41,15 @@
   <div class="card__body">
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Nenhum projeto cadastrado</h2>
-      <p>O Início é montado a partir dos projetos e dos módulos donos; cadastre o primeiro projeto em Configurações.</p>
-      <a class="btn btn--primary" href="/configuracoes/parametros" data-tn-tela>Abrir Configurações</a>
+      <h2 class="h-card4">{{ t('inicio', 'Nenhum projeto cadastrado') }}</h2>
+      <p>{{ t('inicio', 'O Início é montado a partir dos projetos e dos módulos donos; cadastre o primeiro projeto em Configurações.') }}</p>
+      <a class="btn btn--primary" href="/configuracoes/parametros" data-tn-tela>{{ t('inicio', 'Abrir Configurações') }}</a>
     </div>
   </div>
 </div>
 {% else %}
 <section aria-labelledby="home-t-indicadores">
-  <h2 class="sr-only" id="home-t-indicadores">Indicadores-chave por módulo</h2>
+  <h2 class="sr-only" id="home-t-indicadores">{{ t('inicio', 'Indicadores-chave por módulo') }}</h2>
   <div class="kpis home__kpis">
     {% for kpi in visao.kpis %}
     <a class="kpi kpi--{{ kpi.tone }} home__kpi" href="{{ kpi.url }}" data-tn-tela>
@@ -74,13 +74,13 @@
 <section class="card home__carteira" aria-labelledby="home-t-carteira">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="home-t-carteira">Carteira de projetos</h2>
+      <h2 class="h-card4" id="home-t-carteira">{{ t('inicio', 'Carteira de projetos') }}</h2>
       {% if visao.portfolio_note %}<span class="hint">{{ visao.portfolio_note }}</span>{% endif %}
     </div>
     {% if pode_ponderar %}
     <button type="button" class="btn btn--secondary btn--sm" data-ponderacao>
       <span x-init="$el.innerHTML = window.icon('gear', 16)" aria-hidden="true"></span>
-      Ponderação
+      {{ t('inicio', 'Ponderação') }}
     </button>
     {% endif %}
   </div>
@@ -95,18 +95,18 @@
 <section class="card home__atencao" aria-labelledby="home-t-atencao">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="home-t-atencao">Pontos de atenção</h2>
-      <span class="hint">Calculados na data de referência; o clique abre a tela dona do dado.</span>
+      <h2 class="h-card4" id="home-t-atencao">{{ t('inicio', 'Pontos de atenção') }}</h2>
+      <span class="hint">{{ t('inicio', 'Calculados na data de referência; o clique abre a tela dona do dado.') }}</span>
     </div>
     {% if visao.attention %}
-    <span class="pill pill--neutral">{{ visao.attention | length }} {{ 'item' if visao.attention | length == 1 else 'itens' }}</span>
+    <span class="pill pill--neutral">{{ visao.attention | length }} {{ t('inicio', 'item' if visao.attention | length == 1 else 'itens') }}</span>
     {% endif %}
   </div>
   {% if not visao.attention %}
   <div class="card__body">
     <div class="empty" data-estado="vazio-filtro">
       <span class="home__atencao-vazio-icone" x-init="$el.innerHTML = window.icon('checkCircle', 32)" aria-hidden="true"></span>
-      <p>Nenhum ponto de atenção na data de referência.</p>
+      <p>{{ t('inicio', 'Nenhum ponto de atenção na data de referência.') }}</p>
     </div>
   </div>
   {% else %}
@@ -118,7 +118,7 @@
         <span class="home__atencao-titulo">{{ item.title }}</span>
         <span class="home__atencao-detalhe">{{ item.detail }}</span>
       </div>
-      <a class="btn btn--ghost btn--icon btn--sm" href="{{ item.url }}" data-tn-tela aria-label="Abrir: {{ item.title }}">
+      <a class="btn btn--ghost btn--icon btn--sm" href="{{ item.url }}" data-tn-tela aria-label="{{ t('inicio', 'Abrir') }}: {{ item.title }}">
         <span x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
       </a>
     </li>
@@ -128,7 +128,7 @@
 </section>
 
 <section class="home__modulos-sec" aria-labelledby="home-t-modulos">
-  <h2 class="h-card4" id="home-t-modulos">Módulos</h2>
+  <h2 class="h-card4" id="home-t-modulos">{{ t('inicio', 'Módulos') }}</h2>
   <div class="home__modulos">
     {% for card in visao.cards %}
     <a class="card home__modulo home__modulo--{{ card.module }}" href="{{ card.url }}" data-tn-tela>

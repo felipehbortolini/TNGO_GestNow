@@ -9,22 +9,22 @@
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
   <div class="card__head">
-    <h2 class="h-card4" id="{{ target_id }}-titulo">Atualizar projeção no término</h2>
+    <h2 class="h-card4" id="{{ target_id }}-titulo">{{ t('financeiro', 'Atualizar projeção no término') }}</h2>
     <span class="hint">{{ formulario.row.code }} · {{ formulario.row.description }}</span>
   </div>
   <div class="card__body">
     <p class="body-txt">
-      <strong>Orçado atual:</strong> {{ formulario.current }} ·
-      <strong>Comprometido:</strong> {{ formulario.committed }} ·
-      <strong>Realizado:</strong> {{ formulario.actual }} ·
-      <strong>Projeção vigente:</strong> {{ formulario.projection }}
+      <strong>{{ t('financeiro', 'Orçado atual:') }}</strong> {{ formulario.current }} ·
+      <strong>{{ t('financeiro', 'Comprometido:') }}</strong> {{ formulario.committed }} ·
+      <strong>{{ t('financeiro', 'Realizado:') }}</strong> {{ formulario.actual }} ·
+      <strong>{{ t('financeiro', 'Projeção vigente:') }}</strong> {{ formulario.projection }}
     </p>
     <form method="post" action="/api/financeiro/mapa-de-controle/projecao/{{ formulario.row.item_id }}"
       x-target="mapa-projecao-formulario mapa-conteudo" x-target.error="mapa-projecao-formulario"
-      data-tn-loading="Gravando a projeção...">
+      data-tn-loading="{{ t('financeiro', 'Gravando a projeção...') }}">
       <div class="fgrid">
         <div class="field">
-          <label for="mapa-projecao-valor">Nova projeção no término</label>
+          <label for="mapa-projecao-valor">{{ t('financeiro', 'Nova projeção no término') }}</label>
           <input id="mapa-projecao-valor" name="projecao"
             class="input{{ ' input--erro' if erros.projecao else '' }}" inputmode="decimal"
             value="{{ valores.projecao or '' }}" required
@@ -32,7 +32,7 @@
           {% if erros.projecao %}<span class="field__erro" id="mapa-projecao-valor-erro">{{ erros.projecao }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="mapa-projecao-justificativa">Justificativa</label>
+          <label for="mapa-projecao-justificativa">{{ t('financeiro', 'Justificativa') }}</label>
           <textarea id="mapa-projecao-justificativa" name="justificativa" class="input"
             maxlength="300" required
             {% if erros.justificativa %}aria-invalid="true" aria-describedby="mapa-projecao-justificativa-erro"{% endif %}>{{ valores.justificativa or '' }}</textarea>
@@ -41,10 +41,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Salvar projeção
+          {{ t('financeiro', 'Salvar projeção') }}
         </button>
       </div>
     </form>

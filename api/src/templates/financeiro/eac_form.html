@@ -33,12 +33,12 @@
     {% endif %}
 
     {% if item.history %}
-    <h3 class="h-card5 mb-16">Histórico de cadastro</h3>
+    <h3 class="h-card5 mb-16">{{ t('financeiro', 'Histórico de cadastro') }}</h3>
     <ul class="lista-simples mb-16">
       {% for entrada in item.history[:5] %}
       <li class="lista-simples__item">
         <span class="linha__main">
-          <span class="linha__titulo">{{ entrada.occurred_on.strftime('%d/%m/%Y') }} · {{ entrada.author }} · {{ entrada.fields | join(', ') }}</span>
+          <span class="linha__titulo">{{ data(entrada.occurred_on) }} · {{ entrada.author }} · {{ entrada.fields | join(', ') }}</span>
           <span class="linha__meta">{{ entrada.justification }}</span>
         </span>
       </li>
@@ -47,21 +47,21 @@
     {% endif %}
 
     <form method="post" action="/api/financeiro/eac/itens/{{ linha.item_id }}"
-      x-target="{{ target_id }} {{ alvo_conteudo }}" data-tn-loading="Salvando...">
+      x-target="{{ target_id }} {{ alvo_conteudo }}" data-tn-loading="{{ t('financeiro', 'Salvando...') }}">
       <input type="hidden" name="versao" value="{{ v_versao }}" />
       <input type="hidden" name="busca" value="{{ filtros.search }}" />
       <input type="hidden" name="nivel" value="{{ filtros.level }}" />
       <input type="hidden" name="tipo" value="{{ filtros.cost_type }}" />
       <div class="fgrid">
         <div class="field field--full">
-          <label for="{{ target_id }}-descricao">Descrição</label>
+          <label for="{{ target_id }}-descricao">{{ t('financeiro', 'Descrição') }}</label>
           <input id="{{ target_id }}-descricao" name="descricao" class="input{{ ' input--erro' if erros.get('descricao') else '' }}"
             type="text" maxlength="120" required value="{{ v_descricao }}"
             {% if erros.get('descricao') %}aria-invalid="true" aria-describedby="{{ target_id }}-descricao-erro"{% endif %} />
           {% if erros.get('descricao') %}<span class="field__erro" id="{{ target_id }}-descricao-erro">{{ erros.get('descricao') }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="{{ target_id }}-tipo">Tipo de custo</label>
+          <label for="{{ target_id }}-tipo">{{ t('financeiro', 'Tipo de custo') }}</label>
           <select id="{{ target_id }}-tipo" name="tipo_custo" class="input{{ ' input--erro' if erros.get('tipo_custo') else '' }}" required
             {% if erros.get('tipo_custo') %}aria-invalid="true" aria-describedby="{{ target_id }}-tipo-erro"{% endif %}>
             {% for tipo in tipos_de_custo %}
@@ -71,7 +71,7 @@
           {% if erros.get('tipo_custo') %}<span class="field__erro" id="{{ target_id }}-tipo-erro">{{ erros.get('tipo_custo') }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="{{ target_id }}-classificacao">Classificação</label>
+          <label for="{{ target_id }}-classificacao">{{ t('financeiro', 'Classificação') }}</label>
           <select id="{{ target_id }}-classificacao" name="classificacao" class="input{{ ' input--erro' if erros.get('classificacao') else '' }}" required
             {% if erros.get('classificacao') %}aria-invalid="true" aria-describedby="{{ target_id }}-classificacao-erro"{% endif %}>
             {% for classificacao in classificacoes %}
@@ -81,14 +81,14 @@
           {% if erros.get('classificacao') %}<span class="field__erro" id="{{ target_id }}-classificacao-erro">{{ erros.get('classificacao') }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="{{ target_id }}-centro">Centro de custo</label>
+          <label for="{{ target_id }}-centro">{{ t('financeiro', 'Centro de custo') }}</label>
           <input id="{{ target_id }}-centro" name="centro_custo" class="input{{ ' input--erro' if erros.get('centro_custo') else '' }}"
             type="text" maxlength="20" value="{{ v_centro }}"
             {% if erros.get('centro_custo') %}aria-invalid="true" aria-describedby="{{ target_id }}-centro-erro"{% endif %} />
           {% if erros.get('centro_custo') %}<span class="field__erro" id="{{ target_id }}-centro-erro">{{ erros.get('centro_custo') }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="{{ target_id }}-responsavel">Responsável</label>
+          <label for="{{ target_id }}-responsavel">{{ t('financeiro', 'Responsável') }}</label>
           <select id="{{ target_id }}-responsavel" name="responsavel" class="input{{ ' input--erro' if erros.get('responsavel') else '' }}" required
             {% if erros.get('responsavel') %}aria-invalid="true" aria-describedby="{{ target_id }}-responsavel-erro"{% endif %}>
             {% for pessoa in item.people %}
@@ -98,7 +98,7 @@
           {% if erros.get('responsavel') %}<span class="field__erro" id="{{ target_id }}-responsavel-erro">{{ erros.get('responsavel') }}</span>{% endif %}
         </div>
         <div class="field field--full">
-          <label for="{{ target_id }}-justificativa">Justificativa da alteração</label>
+          <label for="{{ target_id }}-justificativa">{{ t('financeiro', 'Justificativa da alteração') }}</label>
           <textarea id="{{ target_id }}-justificativa" name="justificativa" class="input{{ ' input--erro' if erros.get('justificativa') else '' }}"
             maxlength="300" required
             {% if erros.get('justificativa') %}aria-invalid="true" aria-describedby="{{ target_id }}-justificativa-erro"{% endif %}>{{ v_justificativa }}</textarea>
@@ -107,8 +107,8 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
-        <button type="submit" class="btn btn--primary">Salvar</button>
+          @click="document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
+        <button type="submit" class="btn btn--primary">{{ t('financeiro', 'Salvar') }}</button>
       </div>
     </form>
   </div>

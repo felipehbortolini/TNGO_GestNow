@@ -10,7 +10,7 @@
 <section class="card" aria-labelledby="contrato-claims-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-claims-titulo">Claims</h2>
+      <h2 class="h-card4" id="contrato-claims-titulo">{{ t('financeiro', 'Claims') }}</h2>
       <span class="hint">Prazo contratual de notificação: {{ ficha.claim_notice_days }} dias após o evento</span>
     </div>
     {% if pode_gerir %}
@@ -18,7 +18,7 @@
       <a class="btn btn--primary" href="/api/financeiro/contrato/claims/novo?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Novo claim
+        {{ t('financeiro', 'Novo claim') }}
       </a>
     </div>
     {% endif %}
@@ -26,25 +26,25 @@
   <div class="card__body">
     {% if erro_claims %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro_claims }}</span>
     </div>
     {% endif %}
 
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Claims do contrato</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Claims do contrato') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Código</th>
-            <th scope="col">Direção / tipo</th>
-            <th scope="col">Descrição</th>
-            <th scope="col">Notificação</th>
-            <th scope="col" class="td-num">Pleiteado</th>
-            <th scope="col" class="td-num">Reconhecido</th>
-            <th scope="col">Situação</th>
-            <th scope="col">Risco</th>
-            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Código') }}</th>
+            <th scope="col">{{ t('financeiro', 'Direção / tipo') }}</th>
+            <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+            <th scope="col">{{ t('financeiro', 'Notificação') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Pleiteado') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Reconhecido') }}</th>
+            <th scope="col">{{ t('financeiro', 'Situação') }}</th>
+            <th scope="col">{{ t('financeiro', 'Risco') }}</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -60,7 +60,7 @@
               {% if linha.claim.clause %}<br /><span class="hint">Cláusula {{ linha.claim.clause }}</span>{% endif %}
             </td>
             <td>
-              {{ linha.claim.notification_date.strftime('%d/%m/%Y') }}
+              {{ data(linha.claim.notification_date) }}
               <br />
               {% if linha.claim.notification_late %}
               <span class="pill pill--erro">
@@ -101,19 +101,19 @@
               {% if linha.pode_atualizar %}
               <a class="btn btn--sm btn--secondary"
                 href="/api/financeiro/contrato/claims/{{ linha.claim.id }}/atualizar?numero={{ ficha.number }}"
-                x-target="{{ alvo_formulario }}">Atualizar</a>
+                x-target="{{ alvo_formulario }}">{{ t('financeiro', 'Atualizar') }}</a>
               {% endif %}
               {% if linha.pode_decidir %}
               <a class="btn btn--sm btn--secondary"
                 href="/api/financeiro/contrato/claims/{{ linha.claim.id }}/decidir?numero={{ ficha.number }}"
-                x-target="{{ alvo_formulario }}">Decidir</a>
+                x-target="{{ alvo_formulario }}">{{ t('financeiro', 'Decidir') }}</a>
               {% endif %}
               </div>
             </td>
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{{ 9 if pode_gerir else 8 }}" class="muted">Nenhum claim registrado.</td></tr>
+          <tr><td colspan="{{ 9 if pode_gerir else 8 }}" class="muted">{{ t('financeiro', 'Nenhum claim registrado.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

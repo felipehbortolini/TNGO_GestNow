@@ -9,18 +9,18 @@
 #}
 {% block fragment %}
 <form method="post" action="/api/central-acoes/ata/revisao" x-target="{{ target_id }}" x-target.away="_top"
-  data-tn-loading="Gerando a revisão...">
+  data-tn-loading="{{ t('central_acoes', 'Gerando a revisão...') }}">
   <input type="hidden" name="id" value="{{ ficha.record.id }}" />
   <input type="hidden" name="versao" value="{{ versao }}" />
   {% for chave in ['geral', 'versao'] %}
   {% if erros.get(chave) %}<div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>{% endif %}
   {% endfor %}
   <div class="aviso aviso--info mb-16" role="note">
-    <span>A revisão atual fica guardada como histórico (somente leitura). Os itens, as empresas e a lista de presença são copiados para a nova revisão, que passa a alimentar a Central de Ações.</span>
+    <span>{{ t('central_acoes', 'A revisão atual fica guardada como histórico (somente leitura). Os itens, as empresas e a lista de presença são copiados para a nova revisão, que passa a alimentar a Central de Ações.') }}</span>
   </div>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="{{ target_id }}-data">Data da nova revisão</label>
+      <label for="{{ target_id }}-data">{{ t('central_acoes', 'Data da nova revisão') }}</label>
       <input id="{{ target_id }}-data" name="data" type="date" class="input{% if erros.get('data') %} input--erro{% endif %}" required
         min="{{ ficha.record.meeting_date.isoformat() }}" max="{{ hoje }}" value="{{ valores.get('data') or '' }}"
         {% if erros.get('data') %}aria-invalid="true" aria-describedby="{{ target_id }}-data-erro"{% endif %} />
@@ -30,8 +30,8 @@
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Cancelar</button>
-    <button type="submit" class="btn btn--primary">Gerar revisão</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('central_acoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Gerar revisão') }}</button>
   </div>
 </form>
 {% endblock %}

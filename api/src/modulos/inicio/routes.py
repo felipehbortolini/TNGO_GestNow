@@ -28,10 +28,10 @@ from typing import Any
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import InvalidDataError
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, format_value
+from src.core.export_document import Document
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse
@@ -82,12 +82,14 @@ def home_view(
         user=context.user,
         scope=context.scope,
         reference_date=calendario.today(),
+        idioma=translations.language_of(req),
     )
     return AlpineAjaxResponse(
         template_name=HOME_TEMPLATE,
         context=_home_context(
             overview=overview,
             pode_ponderar=overview.is_portfolio and _can_manage(context),
+            idioma=translations.language_of(req),
         ),
         request=req,
         target_id=HOME_TARGET,
@@ -114,16 +116,17 @@ def home_printable(
 
 def _document(req: func.HttpRequest, session: Session, context: RequestContext) -> Document:
     """O documento do resumo no corte de hoje; o único lugar da tela que lê o relógio (D6)."""
-    del req
     today = calendario.today()
+    idioma = translations.language_of(req)
     overview = service.home_overview(
-        session, user=context.user, scope=context.scope, reference_date=today
+        session, user=context.user, scope=context.scope, reference_date=today, idioma=idioma
     )
     return export.build_document(
         overview=overview,
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=idioma,
     )
 
 
@@ -139,7 +142,7 @@ def ponderation_modal(
     view = service.ponderation_view(session, user=context.user, reference_date=calendario.today())
     return AlpineAjaxResponse(
         template_name=PONDERATION_TEMPLATE,
-        context=_ponderation_context(view),
+        context=_ponderation_context(view, idioma=translations.language_of(req)),
         request=req,
         target_id=PONDERATION_MODAL_TARGET,
         root_class=PONDERATION_PAGE_CLASS,
@@ -164,7 +167,9 @@ def ponderation_preview(
     )
     return AlpineAjaxResponse(
         template_name=PONDERATION_TEMPLATE,
-        context=_ponderation_context(view, values=form.values, preview=preview),
+        context=_ponderation_context(
+            view, values=form.values, preview=preview, idioma=translations.language_of(req)
+        ),
         request=req,
         target_id=PONDERATION_MODAL_TARGET,
         root_class=PONDERATION_PAGE_CLASS,
@@ -187,25 +192,37 @@ def ponderation_save(
             grades=form.grades,
             justification=form.justification,
             reference_date=reference_date,
+            idioma=translations.language_of(req),
         )
     except InvalidDataError as error:
         view = service.ponderation_view(session, user=context.user, reference_date=reference_date)
         return AlpineAjaxResponse(
             template_name=PONDERATION_TEMPLATE,
-            context=_ponderation_context(view, values=form.values, errors=_field_messages(error)),
+            context=_ponderation_context(
+                view,
+                values=form.values,
+                errors=_field_messages(error),
+                idioma=translations.language_of(req),
+            ),
             request=req,
             target_id=PONDERATION_MODAL_TARGET,
             root_class=PONDERATION_PAGE_CLASS,
             status_code=422,
         )
     overview = service.home_overview(
-        session, user=context.user, scope=context.scope, reference_date=reference_date
+        session,
+        user=context.user,
+        scope=context.scope,
+        reference_date=reference_date,
+        idioma=translations.language_of(req),
     )
     return AlpineAjaxResponse(
         template_name=PONDERATION_SAVED_TEMPLATE,
-        context=_carteira_context(overview),
+        context=_carteira_context(overview, translations.language_of(req)),
         request=req,
-        toast=PONDERATION_SAVED_MESSAGE,
+        toast=translations.translate(
+            "inicio", PONDERATION_SAVED_MESSAGE, translations.language_of(req)
+        ),
     )
 
 
@@ -214,22 +231,24 @@ def _field_messages(error: InvalidDataError) -> Mapping[str, str]:
     return error.detail if isinstance(error.detail, Mapping) else {"geral": str(error)}
 
 
-def _home_context(*, overview: service.HomeOverview, pode_ponderar: bool) -> dict[str, object]:
+def _home_context(
+    *, overview: service.HomeOverview, pode_ponderar: bool, idioma: str
+) -> dict[str, object]:
     """O que o fragmento imprime: a visão, os formatadores, os endereços e quem pode ponderar."""
     return {
         "visao": overview,
         "pode_ponderar": pode_ponderar,
         "url_excel": f"{HOME_ROUTE}/excel",
         "url_pdf": f"{HOME_ROUTE}/imprimivel",
-        **_carteira_context(overview),
+        **_carteira_context(overview, idioma),
     }
 
 
-def _carteira_context(overview: service.HomeOverview) -> dict[str, object]:
+def _carteira_context(overview: service.HomeOverview, idioma: str) -> dict[str, object]:
     """O que a carteira e a ponderação precisam: a visão e os formatadores de leitura."""
     return {
         "visao": overview,
-        "formatar_data": _format_date,
+        "formatar_data": _date_formatter(idioma),
         "formatar_moeda": calculations.compact_brl,
         "formatar_pct": calculations.percent_text,
         "formatar_indice": calculations.index_text,
@@ -238,12 +257,22 @@ def _carteira_context(overview: service.HomeOverview) -> dict[str, object]:
     }
 
 
+def _date_formatter(idioma: str):
+    """A data do Início no idioma do request, como o fragmento a chama."""
+
+    def formatar(value: date | None) -> str:
+        return _format_date(value, idioma)
+
+    return formatar
+
+
 def _ponderation_context(
     view: service.PonderationView,
     *,
     values: Mapping[str, str] | None = None,
     preview: service.PonderationPreview | None = None,
     errors: Mapping[str, str] | None = None,
+    idioma: str = "pt",
 ) -> dict[str, Any]:
     """O que o modal imprime: a visão, os valores digitados, a prévia e os erros por campo."""
     found = errors or {}
@@ -255,6 +284,7 @@ def _ponderation_context(
         "mensagens": [message for message in found.values() if message],
         "formatar_pct": calculations.percent_text,
         "formatar_num": calculations.input_number,
+        "formatar_data": _date_formatter(idioma),
     }
 
 
@@ -278,6 +308,6 @@ def _can_manage(context: RequestContext) -> bool:
     return rbac.can(context.user, Permission.MANAGE)
 
 
-def _format_date(value: date | None) -> str:
+def _format_date(value: date | None, idioma: str = "pt") -> str:
     """``25/09/2026``: a data como a barra de contexto e a exportação a escrevem."""
-    return "" if value is None else format_value(ValueKind.DATE, value)
+    return translations.format_date(value, idioma)

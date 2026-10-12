@@ -9,10 +9,10 @@
 #}
 {% block fragment %}
 <form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
-  data-tn-loading="Registrando a validação...">
+  data-tn-loading="{{ t('governanca', 'Registrando a validação...') }}">
   <input type="hidden" name="codigo" value="{{ codigo }}" />
   <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
-  <p class="muted mb-16">A validação é feita pelo PMO ou pela gerência do projeto, nunca pelo autor da lição. A devolução volta a lição a Rascunho com o seu comentário.</p>
+  <p class="muted mb-16">{{ t('governanca', 'A validação é feita pelo PMO ou pela gerência do projeto, nunca pelo autor da lição. A devolução volta a lição a Rascunho com o seu comentário.') }}</p>
   {% for chave in ['geral', 'versao'] %}
   {% if erros.get(chave) %}
   <div class="aviso aviso--erro mb-16" role="alert"><span>{{ erros[chave] }}</span></div>
@@ -20,21 +20,21 @@
   {% endfor %}
   <div class="fgrid">
     <div class="field">
-      <label for="validar-resultado">Resultado</label>
+      <label for="validar-resultado">{{ t('governanca', 'Resultado') }}</label>
       <select id="validar-resultado" name="resultado" class="input{% if erros.get('resultado') %} input--erro{% endif %}" required
         {% if erros.get('resultado') %}aria-invalid="true" aria-describedby="erro-resultado"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for resultado in resultados %}
-        <option value="{{ resultado }}"{% if valores.get('resultado') == resultado %} selected{% endif %}>{{ 'Validada e publicada' if resultado == 'Publicada' else resultado }}</option>
+        <option value="{{ resultado }}"{% if valores.get('resultado') == resultado %} selected{% endif %}>{{ t('governanca', 'Validada e publicada') if resultado == 'Publicada' else resultado }}</option>
         {% endfor %}
       </select>
       {% if erros.get('resultado') %}<span id="erro-resultado" class="field__erro">{{ erros['resultado'] }}</span>{% endif %}
     </div>
     <div class="field">
-      <label for="validar-aplicabilidade">Aplicabilidade</label>
+      <label for="validar-aplicabilidade">{{ t('governanca', 'Aplicabilidade') }}</label>
       <select id="validar-aplicabilidade" name="aplicabilidade" class="input{% if erros.get('aplicabilidade') %} input--erro{% endif %}"
         {% if erros.get('aplicabilidade') %}aria-invalid="true" aria-describedby="erro-aplicabilidade"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for opcao in aplicabilidades %}
         <option value="{{ opcao }}"{% if valores.get('aplicabilidade') == opcao %} selected{% endif %}>{{ opcao }}</option>
         {% endfor %}
@@ -42,17 +42,17 @@
       {% if erros.get('aplicabilidade') %}<span id="erro-aplicabilidade" class="field__erro">{{ erros['aplicabilidade'] }}</span>{% endif %}
     </div>
     <div class="field field--full">
-      <label for="validar-comentario">Comentário</label>
+      <label for="validar-comentario">{{ t('governanca', 'Comentário') }}</label>
       <textarea id="validar-comentario" name="comentario" class="input{% if erros.get('comentario') %} input--erro{% endif %}" rows="3" maxlength="500"
         {% if erros.get('comentario') %}aria-invalid="true" aria-describedby="erro-comentario"{% endif %}>{{ valores.get('comentario') or '' }}</textarea>
-      <span class="hint">Obrigatório (mínimo de 10 caracteres) quando a lição é devolvida ao autor.</span>
+      <span class="hint">{{ t('governanca', 'Obrigatório (mínimo de 10 caracteres) quando a lição é devolvida ao autor.') }}</span>
       {% if erros.get('comentario') %}<span id="erro-comentario" class="field__erro">{{ erros['comentario'] }}</span>{% endif %}
     </div>
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
-    <button type="submit" class="btn btn--primary">Registrar validação</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('governanca', 'Voltar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('governanca', 'Registrar validação') }}</button>
   </div>
 </form>
 {% endblock %}

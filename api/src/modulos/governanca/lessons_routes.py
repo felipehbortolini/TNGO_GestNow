@@ -26,7 +26,7 @@ from urllib.parse import quote, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import InvalidDataError
 from src.core.excel import excel_response
 from src.core.export_document import Document
@@ -150,12 +150,15 @@ def lesson_acervo(
     filters = _filters_of(req)
     acervo = service.acervo(session, user=context.user, scope=context.scope, filters=filters)
     template = PARTS_TEMPLATE if _asks_for_parts(req) else PAGE_TEMPLATE
-    context_data = _acervo_context(session, acervo, filters, context)
+    context_data = _acervo_context(session, acervo, filters, context, translations.language_of(req))
     if template == PAGE_TEMPLATE:
         panel = service.lesson_panel(
             session, user=context.user, scope=context.scope, reference_date=calendario.today()
         )
-        context_data |= {"painel": panel, "graficos": panel_charts.charts_of(panel)}
+        context_data |= {
+            "painel": panel,
+            "graficos": panel_charts.charts_of(panel, translations.language_of(req)),
+        }
     return AlpineAjaxResponse(
         template_name=template,
         context=context_data,
@@ -195,6 +198,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         projects=configuracoes.list_projects(session),
         filters=filters,
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -226,6 +230,7 @@ def _acervo_context(
     acervo: service.Acervo,
     filters: service.LessonFilter,
     context: RequestContext,
+    idioma: str,
 ) -> dict[str, Any]:
     project = (
         configuracoes.find_project(session, context.scope.project_id)
@@ -242,6 +247,7 @@ def _acervo_context(
             project_code=project.code if project else "",
             own=acervo.counts.own,
             corporate=acervo.counts.corporate,
+            idioma=idioma,
         ),
         "kickoff": [
             KickoffButton(
@@ -254,7 +260,11 @@ def _acervo_context(
         "situacao_publicada": lm.SITUATION_PUBLISHED,
         "filtros": filters,
         "consulta": _query_of(filters),
-        "contagem": presentation.plural(len(acervo.rows), "lição encontrada", "lições encontradas"),
+        "contagem": presentation.plural(
+            len(acervo.rows),
+            translations.translate("governanca", "lição encontrada", idioma),
+            translations.translate("governanca", "lições encontradas", idioma),
+        ),
         "pode_registrar": rbac.can(context.user, Permission.WRITE),
         "tipos": lm.LESSON_TYPES,
         "situacoes": lm.LESSON_SITUATIONS,
@@ -265,17 +275,39 @@ def _acervo_context(
         "aplicabilidades": lm.LESSON_APPLICABILITIES,
         "excel_url": f"/api/{EXCEL_ROUTE}",
         "pdf_url": f"/api/{PRINTABLE_ROUTE}",
-        **_presenters(),
+        **_presenters(idioma),
     }
 
 
-def _presenters() -> dict[str, Any]:
+def _plural_formatter(idioma: str):
+    """O plural das lições no idioma do request, como o fragmento o chama."""
+
+    def formatar(count: int, singular: str, plural_text: str | None = None) -> str:
+        return presentation.plural(
+            count,
+            translations.translate("governanca", singular, idioma),
+            translations.translate("governanca", plural_text, idioma) if plural_text else None,
+        )
+
+    return formatar
+
+
+def _impact_formatter(idioma: str):
+    """O impacto de uma lição no idioma do request, como o fragmento o chama."""
+
+    def formatar(term_days: int, cost_cents: int) -> str:
+        return presentation.impact_text(term_days, cost_cents, idioma)
+
+    return formatar
+
+
+def _presenters(idioma: str) -> dict[str, Any]:
     """The functions the fragments call to write a situation, a type and an impact."""
     return {
         "pill_situacao": presentation.situation_pill,
         "pill_tipo": presentation.kind_pill,
-        "texto_impacto": presentation.impact_text,
-        "plural": presentation.plural,
+        "texto_impacto": _impact_formatter(idioma),
+        "plural": _plural_formatter(idioma),
     }
 
 
@@ -283,11 +315,15 @@ def _address(code: str, project_id: int) -> str:
     return f"{PAGE_ADDRESS}?codigo={quote(code)}&projeto={project_id}"
 
 
-def _field_messages(error: InvalidDataError) -> dict[str, str]:
+def _field_messages(error: InvalidDataError, idioma: str) -> dict[str, str]:
     """The message of each field; a message that is not of a field goes under ``geral``."""
     if isinstance(error.detail, Mapping):
-        return {field: message for field, message in error.detail.items() if message}
-    return {"geral": str(error.detail)}
+        return {
+            field: translations.translate("governanca", message, idioma)
+            for field, message in error.detail.items()
+            if message
+        }
+    return {"geral": translations.translate("governanca", str(error.detail), idioma)}
 
 
 def _code_of(req: func.HttpRequest) -> str:
@@ -318,7 +354,7 @@ def lesson_sheet(
             "origem_url": sheet.row.origin_url,
             "action_enviar": f"/api/{SEND_ROUTE}",
             "action_publicar": f"/api/{PUBLISH_ROUTE}",
-            **_presenters(),
+            **_presenters(translations.language_of(req)),
         },
         request=req,
     )
@@ -391,7 +427,12 @@ def lesson_register(
             req,
             session,
             context,
-            FormState(code="", values=values, errors=_field_messages(error), status_code=422),
+            FormState(
+                code="",
+                values=values,
+                errors=_field_messages(error, translations.language_of(req)),
+                status_code=422,
+            ),
         )
     return redirect_to(_address(created.code, created.project_id))
 
@@ -423,7 +464,12 @@ def lesson_edit(
             req,
             session,
             context,
-            FormState(code=code, values=values, errors=_field_messages(error), status_code=422),
+            FormState(
+                code=code,
+                values=values,
+                errors=_field_messages(error, translations.language_of(req)),
+                status_code=422,
+            ),
         )
     return redirect_to(_address(saved.code, saved.project_id))
 
@@ -486,7 +532,12 @@ def lesson_validate(
         values = {field: req.form.get(field) or "" for field in DECISION_FORM_FIELDS}
         return _decision_response(
             req,
-            FormState(code=code, values=values, errors=_field_messages(error), status_code=422),
+            FormState(
+                code=code,
+                values=values,
+                errors=_field_messages(error, translations.language_of(req)),
+                status_code=422,
+            ),
         )
     return redirect_to(_address(decided.code, decided.project_id))
 
@@ -568,6 +619,11 @@ def lesson_apply(
             req,
             session,
             context,
-            FormState(code=code, values=values, errors=_field_messages(error), status_code=422),
+            FormState(
+                code=code,
+                values=values,
+                errors=_field_messages(error, translations.language_of(req)),
+                status_code=422,
+            ),
         )
     return redirect_to(_address(applied.code, applied.project_id))

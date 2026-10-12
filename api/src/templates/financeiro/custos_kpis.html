@@ -18,9 +18,9 @@
 <span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
 
 {% if visao.is_empty %}
-<p class="body-txt">{{ 'Nenhum projeto da carteira tem curva física e financeira para o valor agregado.' if carteira else 'Este projeto ainda não tem curva física e financeira para o valor agregado.' }}</p>
+<p class="body-txt">{{ t('financeiro', 'Nenhum projeto da carteira tem curva física e financeira para o valor agregado.') if carteira else t('financeiro', 'Este projeto ainda não tem curva física e financeira para o valor agregado.') }}</p>
 {% else %}
-<div class="kpis" role="group" aria-label="Indicadores de custo">
+<div class="kpis" role="group" aria-label="{{ t('financeiro', 'Indicadores de custo') }}">
   {% for kpi in kpis %}
   <div class="kpi kpi--{{ kpi.tom }} kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -36,8 +36,8 @@
 <section class="card mb-16" aria-labelledby="custos-kpis-grafico-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="custos-kpis-grafico-titulo">CPI e SPI por mês</h2>
-      <span class="hint">1,00 = no plano; abaixo de 1,00 = acima do custo ou atrasado</span>
+      <h2 class="h-card4" id="custos-kpis-grafico-titulo">{{ t('financeiro', 'CPI e SPI por mês') }}</h2>
+      <span class="hint">{{ t('financeiro', '1,00 = no plano; abaixo de 1,00 = acima do custo ou atrasado') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -48,8 +48,8 @@
 <section class="card mb-16" aria-labelledby="custos-kpis-valor-grafico-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="custos-kpis-valor-grafico-titulo">Valor agregado acumulado</h2>
-      <span class="hint">Planejado (PV), agregado (EV) e custo real (AC), em R$ mil</span>
+      <h2 class="h-card4" id="custos-kpis-valor-grafico-titulo">{{ t('financeiro', 'Valor agregado acumulado') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Planejado (PV), agregado (EV) e custo real (AC), em R$ mil') }}</span>
     </div>
   </div>
   <div class="card__body">
@@ -61,25 +61,25 @@
 <section class="card mb-16" aria-labelledby="custos-kpis-projetos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="custos-kpis-projetos-titulo">Desempenho de custo por projeto</h2>
-      <span class="hint">Índices de cada projeto na data de corte; a carteira soma EV, PV e AC</span>
+      <h2 class="h-card4" id="custos-kpis-projetos-titulo">{{ t('financeiro', 'Desempenho de custo por projeto') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Índices de cada projeto na data de corte; a carteira soma EV, PV e AC') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-projetos>
-        <caption class="sr-only">Desempenho de custo por projeto</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Desempenho de custo por projeto') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
+            <th scope="col">{{ t('financeiro', 'Projeto') }}</th>
             <th scope="col" class="td-num">BAC</th>
             <th scope="col" class="td-num">EV</th>
             <th scope="col" class="td-num">AC</th>
             <th scope="col" class="td-num">CPI</th>
-            <th scope="col" class="td-num">SPI</th>
-            <th scope="col" class="td-num">Projeção no término</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'SPI') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Projeção no término') }}</th>
             <th scope="col" class="td-num">VAC</th>
-            <th scope="col" class="td-num">Contingência consumida</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Contingência consumida') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -109,21 +109,21 @@
 <section class="card mb-16" aria-labelledby="custos-kpis-resumo-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="custos-kpis-resumo-titulo">Valor agregado na data de corte</h2>
-      <span class="hint">BAC, PV, EV, AC, desvios, EAC pelo CPI, projeção no término (bottom-up), VAC e TCPI</span>
+      <h2 class="h-card4" id="custos-kpis-resumo-titulo">{{ t('financeiro', 'Valor agregado na data de corte') }}</h2>
+      <span class="hint">{{ t('financeiro', 'BAC, PV, EV, AC, desvios, EAC pelo CPI, projeção no término (bottom-up), VAC e TCPI') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-resumo>
-        <caption class="sr-only">Valor agregado na data de corte</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Valor agregado na data de corte') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Indicador</th>
-            <th scope="col">Descrição</th>
-            <th scope="col" class="td-num">Valor</th>
-            <th scope="col" class="td-num">Índice</th>
-            <th scope="col">Leitura</th>
+            <th scope="col">{{ t('financeiro', 'Indicador') }}</th>
+            <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Índice') }}</th>
+            <th scope="col">{{ t('financeiro', 'Leitura') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -149,32 +149,32 @@
 <section class="card mb-16" aria-labelledby="custos-kpis-valor-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="custos-kpis-valor-titulo">Período a período</h2>
+      <h2 class="h-card4" id="custos-kpis-valor-titulo">{{ t('financeiro', 'Período a período') }}</h2>
       <span class="hint">{{ subtitulo }} · valores acumulados até cada mês; o mês do corte está destacado</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-valor>
-        <caption class="sr-only">Valor agregado período a período</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Valor agregado período a período') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Mês</th>
+            <th scope="col">{{ t('financeiro', 'Mês') }}</th>
             <th scope="col" class="td-num">PV</th>
             <th scope="col" class="td-num">EV</th>
             <th scope="col" class="td-num">AC</th>
             <th scope="col" class="td-num">CV</th>
             <th scope="col" class="td-num">SV</th>
             <th scope="col" class="td-num">CPI</th>
-            <th scope="col" class="td-num">SPI</th>
-            <th scope="col" class="td-num">EAC pelo CPI</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'SPI') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'EAC pelo CPI') }}</th>
             <th scope="col" class="td-num">TCPI</th>
           </tr>
         </thead>
         <tbody>
           {% for linha in linhas %}
           <tr{% if linha.corte %} class="fw-600" aria-current="true"{% endif %}>
-            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">corte</span>{% endif %}</td>
+            <td>{{ linha.mes }}{% if linha.corte %} <span class="pill pill--fix">{{ t('financeiro', 'corte') }}</span>{% endif %}</td>
             <td class="td-num">{{ linha.pv }}</td>
             <td class="td-num">{{ linha.ev }}</td>
             <td class="td-num">{{ linha.ac }}</td>

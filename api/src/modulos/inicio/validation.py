@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from src.core import translations
+
 JUSTIFICATION_MIN = 10
 WEIGHT_MIN = Decimal(0)
 WEIGHT_MAX = Decimal(100)
@@ -39,9 +41,10 @@ def grade_field(project_id: int, criterion_id: str) -> str:
     return f"{_GRADE_PREFIX}{project_id}_{criterion_id}"
 
 
-def grade_message(minimum: int, maximum: int) -> str:
+def grade_message(minimum: int, maximum: int, idioma: str = "pt") -> str:
     """``Nota inteira de 1 a 5.``: a mensagem da nota fora da faixa (protótipo)."""
-    return f"Nota inteira de {minimum} a {maximum}."
+    template = translations.translate("inicio", "Nota inteira de {min} a {max}.", idioma)
+    return template.format(min=minimum, max=maximum)
 
 
 def parse_weight(raw: Any) -> Decimal | None:
@@ -64,11 +67,11 @@ def parse_grade(raw: Any) -> int | None:
     return int(value)
 
 
-def justification_error(justification: str) -> str | None:
+def justification_error(justification: str, idioma: str = "pt") -> str | None:
     """A justificativa obrigatória, com o mínimo do dono; ``None`` quando passa."""
-    return (
-        None if len((justification or "").strip()) >= JUSTIFICATION_MIN else JUSTIFICATION_MESSAGE
-    )
+    if len((justification or "").strip()) >= JUSTIFICATION_MIN:
+        return None
+    return translations.translate("inicio", JUSTIFICATION_MESSAGE, idioma)
 
 
 @dataclass(frozen=True)

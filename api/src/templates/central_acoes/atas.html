@@ -18,18 +18,18 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/central-acoes/atas" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar atas</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('central_acoes', 'Buscar atas') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
-          value="{{ filtros.search }}" maxlength="120" placeholder="Número, assunto, tipo de reunião..." />
+          value="{{ filtros.search }}" maxlength="120" placeholder="{{ t('central_acoes', 'Número, assunto, tipo de reunião...') }}" />
       </form>
       <div class="atas__barra">
         {% if pode_gravar %}
         <button type="button" class="btn btn--primary" data-tn-incluir="nova" data-atas-nova="{{ url_nova }}">
           <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-          Gerar nova ata
+          {{ t('central_acoes', 'Gerar nova ata') }}
         </button>
         {% endif %}
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('central_acoes', 'Excel') }}</button>
         <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
       </div>
     </div>
@@ -41,31 +41,31 @@
     {% if listagem.universe == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há atas</h2>
+      <h2 class="h-card4">{{ t('central_acoes', 'Ainda não há atas') }}</h2>
       <p>Use "Gerar nova ata" para registrar a primeira reunião{% if portfolio %} (o Portfólio pede o projeto antes){% endif %}.</p>
     </div>
     {% elif not listagem.rows %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-      <p>Ajuste ou limpe a busca para ver as atas.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar busca</a>
+      <h2 class="h-card4">{{ t('central_acoes', 'Nenhum resultado para os filtros aplicados') }}</h2>
+      <p>{{ t('central_acoes', 'Ajuste ou limpe a busca para ver as atas.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Limpar busca') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Atas do projeto</caption>
+        <caption class="sr-only">{{ t('central_acoes', 'Atas do projeto') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Número</th>
-            <th scope="col">Rev</th>
-            <th scope="col">Data</th>
-            <th scope="col">Assunto</th>
-            <th scope="col">Empresa principal</th>
-            <th scope="col">Tipo de reunião</th>
-            <th scope="col">Ações abertas</th>
-            <th scope="col">Atrasadas</th>
-            <th scope="col"><span class="sr-only">Abrir a ata</span></th>
+            {% if portfolio %}<th scope="col">{{ t('central_acoes', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('central_acoes', 'Número') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Rev') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Data') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Assunto') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Empresa principal') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Tipo de reunião') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Ações abertas') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Atrasadas') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('central_acoes', 'Abrir a ata') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -92,14 +92,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="atas__paginas" aria-label="Páginas da lista">
+    <nav class="atas__paginas" aria-label="{{ t('central_acoes', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}

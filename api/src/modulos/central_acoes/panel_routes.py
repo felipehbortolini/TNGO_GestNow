@@ -21,7 +21,7 @@ from collections.abc import Mapping
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, navigation
+from src.core import calendario, navigation, translations
 from src.core.excel import excel_response
 from src.core.export_document import Document
 from src.core.printable import printable_response
@@ -75,22 +75,34 @@ def panel_screen(
     panel = _panel(req, session, context)
     screen = navigation.find_screen(ACTIONS_SCREEN)
     actions_path = navigation.public_path(screen) if screen is not None else "/"
+    idioma = translations.language_of(req)
     return AlpineAjaxResponse(
         template_name=PANEL_TEMPLATE,
         context={
             "painel": panel,
-            "graficos": panel_export.charts_of(panel, portfolio=context.scope.is_portfolio),
+            "graficos": panel_export.charts_of(
+                panel, portfolio=context.scope.is_portfolio, idioma=idioma
+            ),
             "origens": ORIGINS,
             "origem": panel.origin,
             "portfolio": context.scope.is_portfolio,
             "caminho_das_acoes": actions_path,
-            "mes": panel_export.month_label,
+            "mes": _month_formatter(idioma),
             "url_excel": _export_address("painel/excel", panel.origin),
             "url_pdf": _export_address("painel/imprimivel", panel.origin),
         },
         request=req,
         target_id=PANEL_TARGET,
     )
+
+
+def _month_formatter(idioma: str):
+    """O mês curto do painel no idioma do request, como o fragmento o chama."""
+
+    def formatar(month: str) -> str:
+        return panel_export.month_label(month, idioma)
+
+    return formatar
 
 
 def _export_address(path: str, origin: str) -> str:
@@ -104,6 +116,7 @@ def _document(req: func.HttpRequest, session: Session, context: RequestContext) 
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=calendario.today(),
+        idioma=translations.language_of(req),
     )
 
 
@@ -145,7 +158,9 @@ def follow_up_form(
 ) -> func.HttpResponse:
     """The preview of the follow-up: one line per responsible and the message each one gets."""
     request = _follow_up_request(req, context)
-    plan = panel_service.plan_follow_up(session, user=context.user, request=request)
+    plan = panel_service.plan_follow_up(
+        session, user=context.user, request=request, idioma=translations.language_of(req)
+    )
     return AlpineAjaxResponse(
         template_name=FOLLOW_UP_TEMPLATE,
         context={
@@ -165,7 +180,9 @@ def follow_up_send(
 ) -> func.HttpResponse:
     """Send one follow-up per responsible and answer what was recorded, with the toast."""
     request = _follow_up_request(req, context)
-    result = panel_service.send_follow_up(session, user=context.user, request=request)
+    result = panel_service.send_follow_up(
+        session, user=context.user, request=request, idioma=translations.language_of(req)
+    )
     return AlpineAjaxResponse(
         template_name=FOLLOW_UP_TEMPLATE,
         context={

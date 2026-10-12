@@ -29,7 +29,7 @@ from urllib.parse import urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, origin_links, rbac
+from src.core import calendario, origin_links, rbac, translations
 from src.core.errors import (
     AccessDeniedError,
     DomainError,
@@ -37,7 +37,7 @@ from src.core.errors import (
     VersionConflictError,
 )
 from src.core.excel import excel_response
-from src.core.export_document import Document, ValueKind, format_value
+from src.core.export_document import Document
 from src.core.printable import printable_response
 from src.core.rbac import Permission
 from src.core.responses import AlpineAjaxResponse, redirect_to
@@ -120,7 +120,13 @@ def _modal_error(target: str) -> Callable[[func.HttpRequest, DomainError], func.
     """A refusal inside the modal: the message in the modal body, where the person is looking."""
 
     def render(req: func.HttpRequest, error: DomainError) -> func.HttpResponse:
-        messages = error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+        idioma = translations.language_of(req)
+        messages = [
+            translations.translate("central_acoes", message, idioma)
+            for message in (
+                error.messages() if isinstance(error, InvalidDataError) else [str(error)]
+            )
+        ]
         return AlpineAjaxResponse(
             template_name="comum/erro.html",
             context={"mensagens": messages},
@@ -144,17 +150,29 @@ def _attempt(session: Session, work: Callable[[], object]) -> DomainError | None
     return None
 
 
-def _field_errors(error: DomainError | None) -> dict[str, str]:
+def _field_errors(error: DomainError | None, idioma: str) -> dict[str, str]:
     if error is None:
         return {}
     if isinstance(error, InvalidDataError) and isinstance(error.detail, Mapping):
-        return dict(error.detail)
-    return {"geral": str(error)}
+        return {
+            field: translations.translate("central_acoes", message, idioma)
+            for field, message in error.detail.items()
+        }
+    return {"geral": translations.translate("central_acoes", str(error), idioma)}
 
 
-def _format_date(value: date | None) -> str:
+def _format_date(value: date | None, idioma: str = "pt") -> str:
     """``25/09/2026``; the dash when there is no date."""
-    return "—" if value is None else format_value(ValueKind.DATE, value)
+    return "—" if value is None else translations.format_date(value, idioma)
+
+
+def _date_formatter(idioma: str):
+    """A data das atas no idioma do request, como o fragmento a chama."""
+
+    def formatar(value: date | None) -> str:
+        return _format_date(value, idioma)
+
+    return formatar
 
 
 def _sheet_address(minutes_id: int, project_id: int | None = None) -> str:
@@ -198,7 +216,7 @@ def list_minutes_screen(
     )
     return AlpineAjaxResponse(
         template_name=LIST_TEMPLATE,
-        context=_list_context(listing, filters, context),
+        context=_list_context(listing, filters, context, translations.language_of(req)),
         request=req,
         target_id=LIST_TARGET,
     )
@@ -219,7 +237,10 @@ def _list_address(filters: MinutesFilters, *, page: int, path: str = LIST_ROUTE)
 
 
 def _list_context(
-    listing: minutes_service.MinutesListing, filters: MinutesFilters, context: RequestContext
+    listing: minutes_service.MinutesListing,
+    filters: MinutesFilters,
+    context: RequestContext,
+    idioma: str,
 ) -> dict[str, object]:
     shown = MinutesFilters(search=filters.search, page=listing.page)
     start = (listing.page - 1) * validation.MINUTES_PAGE_SIZE
@@ -237,7 +258,7 @@ def _list_context(
         "url_pdf": _list_address(shown, page=1, path=f"{LIST_ROUTE}/imprimivel"),
         "url_nova": f"{LIST_ROUTE}/nova",
         "endereco_da_ficha": _sheet_address,
-        "formatar_data": _format_date,
+        "formatar_data": _date_formatter(idioma),
         "pagina_inicial": start + 1,
         "pagina_final": min(start + validation.MINUTES_PAGE_SIZE, listing.total),
     }
@@ -256,6 +277,7 @@ def _list_document(req: func.HttpRequest, session: Session, context: RequestCont
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -373,7 +395,7 @@ def create_minutes_route(
         refused = _NewForm(
             project_label=_project_label(session, project_id),
             values=values,
-            errors=_field_errors(error),
+            errors=_field_errors(error, translations.language_of(req)),
             status_code=_error_status(error),
         )
         return _new_form(session, req, refused)
@@ -390,7 +412,12 @@ def _sheet_of(session: Session, context: RequestContext, minutes_id: int) -> Min
 
 
 def _sheet_context(
-    session: Session, sheet: MinutesSheet, context: RequestContext, *, tab: str
+    session: Session,
+    sheet: MinutesSheet,
+    context: RequestContext,
+    *,
+    tab: str,
+    idioma: str,
 ) -> dict[str, object]:
     minutes_id = sheet.record.id
     can_write = rbac.can(context.user, Permission.WRITE)
@@ -428,7 +455,7 @@ def _sheet_context(
             + urlencode({"id": minutes_id, "aba": TAB_ITEMS})
         ),
         "url_vigente": _sheet_address(sheet.latest_id),
-        "formatar_data": _format_date,
+        "formatar_data": _date_formatter(idioma),
     }
 
 
@@ -451,7 +478,9 @@ def _sheet_response(
         )
     return AlpineAjaxResponse(
         template_name=SHEET_TEMPLATE,
-        context=_sheet_context(session, sheet, context, tab=state.tab),
+        context=_sheet_context(
+            session, sheet, context, tab=state.tab, idioma=translations.language_of(req)
+        ),
         request=req,
         target_id=SHEET_TARGET,
         toast=notice,
@@ -477,7 +506,12 @@ def _sheet_document(req: func.HttpRequest, session: Session, context: RequestCon
     items = minutes_service.list_items(
         session, user=context.user, minutes_id=minutes_id, reference_date=calendario.today()
     )
-    return minutes_export.build_sheet_document(sheet=sheet, items=items, today=calendario.today())
+    return minutes_export.build_sheet_document(
+        sheet=sheet,
+        items=items,
+        today=calendario.today(),
+        idioma=translations.language_of(req),
+    )
 
 
 @bp.route(route="central-acoes/ata/excel", methods=["GET"])
@@ -512,7 +546,10 @@ class _ModalState:
 
 
 def _modal_context(
-    sheet: MinutesSheet, state: _ModalState, error: DomainError | None
+    sheet: MinutesSheet,
+    state: _ModalState,
+    error: DomainError | None,
+    idioma: str,
 ) -> dict[str, object]:
     stale = isinstance(error, VersionConflictError)
     version = sheet.record.version if stale or state.version is None else state.version
@@ -521,7 +558,7 @@ def _modal_context(
         "aba": state.tab,
         "versao": version,
         "valores": dict(state.values),
-        "erros": _field_errors(error),
+        "erros": _field_errors(error, idioma),
     }
 
 
@@ -548,7 +585,9 @@ def _modal_form(
     req: func.HttpRequest, session: Session, context: RequestContext, page: _ModalPage
 ) -> func.HttpResponse:
     sheet = _open_sheet(session, context, page.state.minutes_id)
-    page_context = _modal_context(sheet, page.state, page.error) | dict(page.extra or {})
+    page_context = _modal_context(
+        sheet, page.state, page.error, translations.language_of(req)
+    ) | dict(page.extra or {})
     return AlpineAjaxResponse(
         template_name=page.template,
         context=page_context,
@@ -624,7 +663,15 @@ def companies_save(
     if error is not None:
         page = _ModalPage(COMPANIES_TEMPLATE, state, _company_extra(session), error)
         return _modal_form(req, session, context, page)
-    return _saved(req, session, context, state=state, notice=COMPANIES_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", COMPANIES_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 # Guests
@@ -680,7 +727,15 @@ def guests_save(
     if error is not None:
         extra = _guest_extra(session, context, request.minutes_id, "")
         return _modal_form(req, session, context, _ModalPage(GUESTS_TEMPLATE, state, extra, error))
-    return _saved(req, session, context, state=state, notice=GUESTS_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", GUESTS_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 # Withdrawal
@@ -731,7 +786,15 @@ def withdraw_save(
         extra = _withdraw_extra(sheet, person_id)
         page = _ModalPage(WITHDRAW_TEMPLATE, state, extra, error)
         return _modal_form(req, session, context, page)
-    return _saved(req, session, context, state=state, notice=WITHDRAWN_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", WITHDRAWN_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 # ── Items and revisions of the ficha (ISSUE-022) ─────────────────────────────────────────────
@@ -805,11 +868,11 @@ def _item_form_response(
             "item": row,
             "versao": version,
             "valores": dict(form.values) or _item_values(row),
-            "erros": _field_errors(form.error),
+            "erros": _field_errors(form.error, translations.language_of(req)),
             "participantes": [attendee.person for attendee in sheet.attendees],
             "grupos": [group.name for group in listing.groups],
             "hoje": calendario.today().isoformat(),
-            "formatar_data": _format_date,
+            "formatar_data": _date_formatter(translations.language_of(req)),
             "action": action,
         },
         request=req,
@@ -835,7 +898,13 @@ def _item_saved(
     if error is not None:
         return _item_form_response(req, session, context, replace(form, error=error))
     state = _ModalState(form.minutes_id, TAB_ITEMS, {})
-    return _saved(req, session, context, state=state, notice=ITEM_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate("central_acoes", ITEM_NOTICE, translations.language_of(req)),
+    )
 
 
 @bp.route(route="central-acoes/ata/itens/novo", methods=["GET"])
@@ -885,7 +954,9 @@ def item_edit_save(
 # Replan
 
 
-def _replan_extra(session: Session, context: RequestContext, form: _ItemForm) -> dict[str, object]:
+def _replan_extra(
+    req: func.HttpRequest, session: Session, context: RequestContext, form: _ItemForm
+) -> dict[str, object]:
     row = minutes_service.find_item(
         session,
         user=context.user,
@@ -895,7 +966,11 @@ def _replan_extra(session: Session, context: RequestContext, form: _ItemForm) ->
     )
     if row is None:
         raise InvalidDataError(minutes_service.ITEM_NOT_FOUND_MESSAGE)
-    return {"item": row, "hoje": calendario.today().isoformat(), "formatar_data": _format_date}
+    return {
+        "item": row,
+        "hoje": calendario.today().isoformat(),
+        "formatar_data": _date_formatter(translations.language_of(req)),
+    }
 
 
 @bp.route(route="central-acoes/ata/itens/{item_id}/replanejar", methods=["GET"])
@@ -905,7 +980,7 @@ def item_replan_form(
 ) -> func.HttpResponse:
     """The replan of an item, with the same rules of the Central (HU-053)."""
     form = _ItemForm(_id_of(req), _id_of(req, "item_id"), _tab_of(req), {})
-    extra = _replan_extra(session, context, form)
+    extra = _replan_extra(req, session, context, form)
     page = _ModalPage(REPLAN_TEMPLATE, _ModalState(form.minutes_id, form.tab, {}), extra)
     return _modal_form(req, session, context, page)
 
@@ -937,10 +1012,18 @@ def item_replan_save(
         ),
     )
     if error is not None:
-        extra = _replan_extra(session, context, _ItemForm(minutes_id, item_id, TAB_ITEMS, {}))
+        extra = _replan_extra(req, session, context, _ItemForm(minutes_id, item_id, TAB_ITEMS, {}))
         page = _ModalPage(REPLAN_TEMPLATE, state, extra, error)
         return _modal_form(req, session, context, page)
-    return _saved(req, session, context, state=state, notice=REPLAN_NOTICE)
+    return _saved(
+        req,
+        session,
+        context,
+        state=state,
+        notice=translations.translate(
+            "central_acoes", REPLAN_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 # Justifications and history
@@ -988,7 +1071,7 @@ def minutes_history_view(
             "revisoes": revisions,
             "atual_id": minutes_id,
             "endereco_da_revisao": lambda revision_id: _sheet_address(revision_id),
-            "formatar_data": _format_date,
+            "formatar_data": _date_formatter(translations.language_of(req)),
         },
         request=req,
         target_id=SHEET_MODAL_TARGET,
@@ -1013,7 +1096,7 @@ def revision_form(
             "valores": {"data": calendario.today().isoformat()},
             "erros": {},
             "hoje": calendario.today().isoformat(),
-            "formatar_data": _format_date,
+            "formatar_data": _date_formatter(translations.language_of(req)),
         },
         request=req,
         target_id=SHEET_MODAL_TARGET,
@@ -1050,9 +1133,9 @@ def revision_save(
                 "ficha": sheet,
                 "versao": form.get("versao"),
                 "valores": {"data": form.get("data") or ""},
-                "erros": _field_errors(error),
+                "erros": _field_errors(error, translations.language_of(req)),
                 "hoje": calendario.today().isoformat(),
-                "formatar_data": _format_date,
+                "formatar_data": _date_formatter(translations.language_of(req)),
             },
             request=req,
             target_id=SHEET_MODAL_TARGET,

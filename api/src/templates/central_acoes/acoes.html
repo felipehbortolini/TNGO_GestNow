@@ -26,7 +26,7 @@
 {% if linha.link.has_link %}
 <a href="{{ linha.link.url }}" data-tn-tela>{{ linha.link.reference }}</a>
 {% elif linha.link.reference %}
-<span class="acoes__sem-link" title="O registro de origem ainda não tem tela própria">{{ linha.link.reference }}</span>
+<span class="acoes__sem-link" title="{{ t('central_acoes', 'O registro de origem ainda não tem tela própria') }}">{{ linha.link.reference }}</span>
 {% else %}
 <span class="muted">—</span>
 {% endif %}
@@ -70,40 +70,40 @@
     <div class="toolbar">
       <form class="busca" method="get" action="/api/central-acoes/acoes" x-target="{{ target_id }}" role="search">
         <span class="busca__icone" x-init="$el.innerHTML = window.icon('search', 18)" aria-hidden="true"></span>
-        <label class="sr-only" for="{{ target_id }}-busca">Buscar ações</label>
+        <label class="sr-only" for="{{ target_id }}-busca">{{ t('central_acoes', 'Buscar ações') }}</label>
         <input id="{{ target_id }}-busca" class="input busca__input" type="search" name="busca"
           value="{{ filtros.search }}" maxlength="120"
-          placeholder="Assunto, descrição, referência, responsável..." />
+          placeholder="{{ t('central_acoes', 'Assunto, descrição, referência, responsável...') }}" />
         {% if filtros.origin %}<input type="hidden" name="origem" value="{{ filtros.origin }}" />{% endif %}
         {% if filtros.responsible_id is not none %}<input type="hidden" name="responsavel" value="{{ filtros.responsible_id }}" />{% endif %}
         <input type="hidden" name="status" value="{{ filtros.status.value }}" />
         {% if visao == 'kanban' %}<input type="hidden" name="visao" value="kanban" />{% endif %}
       </form>
       <div class="acoes__barra">
-        <div class="seg" role="group" aria-label="Visão das ações">
+        <div class="seg" role="group" aria-label="{{ t('central_acoes', 'Visão das ações') }}">
           <a class="seg__btn{% if visao == 'lista' %} is-active{% endif %}" href="{{ links_de_visao.lista }}"
-            x-target="{{ target_id }}"{% if visao == 'lista' %} aria-current="true"{% endif %}>Lista</a>
+            x-target="{{ target_id }}"{% if visao == 'lista' %} aria-current="true"{% endif %}>{{ t('central_acoes', 'Lista') }}</a>
           <a class="seg__btn{% if visao == 'kanban' %} is-active{% endif %}" href="{{ links_de_visao.kanban }}"
-            x-target="{{ target_id }}"{% if visao == 'kanban' %} aria-current="true"{% endif %}>Kanban</a>
+            x-target="{{ target_id }}"{% if visao == 'kanban' %} aria-current="true"{% endif %}>{{ t('central_acoes', 'Kanban') }}</a>
         </div>
         <button type="button" class="btn btn--secondary" data-acoes-filtros>
           <span x-init="$el.innerHTML = window.icon('filter', 16)" aria-hidden="true"></span>
-          Filtros
+          {{ t('central_acoes', 'Filtros') }}
         </button>
-        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
+        <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('central_acoes', 'Excel') }}</button>
         <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">PDF</button>
         {% if pode_gerir %}
         <button type="button" class="btn btn--secondary" data-acoes-modal-url="{{ url_followup }}"
-          data-acoes-modal-titulo="Enviar follow-up" data-acoes-modal-subtitulo="Ações em aberto do filtro atual, por responsável">
+          data-acoes-modal-titulo="{{ t('central_acoes', 'Enviar follow-up') }}" data-acoes-modal-subtitulo="{{ t('central_acoes', 'Ações em aberto do filtro atual, por responsável') }}">
           <span x-init="$el.innerHTML = window.icon('send', 16)" aria-hidden="true"></span>
-          Enviar follow-up
+          {{ t('central_acoes', 'Enviar follow-up') }}
         </button>
         {% endif %}
       </div>
     </div>
 
-    <div class="acoes__chips" aria-label="Filtros ativos">
-      <span class="hint">Filtros ativos:</span>
+    <div class="acoes__chips" aria-label="{{ t('central_acoes', 'Filtros ativos') }}">
+      <span class="hint">{{ t('central_acoes', 'Filtros ativos:') }}</span>
       {% for chip in chips %}
       <span class="chip">
         <span>{{ chip.text }}</span>
@@ -115,7 +115,7 @@
       </span>
       {% endfor %}
       {% if tem_filtro_extra %}
-      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <a class="btn btn--ghost btn--sm" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Limpar filtros') }}</a>
       {% endif %}
     </div>
 
@@ -126,15 +126,15 @@
     {% if listagem.universe == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h2 class="h-card4">Ainda não há ações</h2>
-      <p>As ações nascem nos registros de origem: atas, riscos, RNC, contratos, suprimentos e os demais módulos.</p>
+      <h2 class="h-card4">{{ t('central_acoes', 'Ainda não há ações') }}</h2>
+      <p>{{ t('central_acoes', 'As ações nascem nos registros de origem: atas, riscos, RNC, contratos, suprimentos e os demais módulos.') }}</p>
     </div>
     {% elif visao == 'kanban' %}
     {% if not listagem.board %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-      <p>Ajuste ou limpe os filtros para ver as ações.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('central_acoes', 'Nenhum resultado para os filtros aplicados') }}</h2>
+      <p>{{ t('central_acoes', 'Ajuste ou limpe os filtros para ver as ações.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="acoes__quadro">
@@ -163,7 +163,7 @@
           <div class="acoes__card-acoes">{{ acoes_da_linha(linha) }}</div>
         </article>
         {% else %}
-        <p class="hint">Nenhuma ação.</p>
+        <p class="hint">{{ t('central_acoes', 'Nenhuma ação.') }}</p>
         {% endfor %}
       </section>
       {% endfor %}
@@ -171,26 +171,26 @@
     {% endif %}
     {% elif not listagem.rows %}
     <div class="empty" data-estado="vazio-filtro">
-      <h2 class="h-card4">Nenhum resultado para os filtros aplicados</h2>
-      <p>Ajuste ou limpe os filtros para ver as ações.</p>
-      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">Limpar filtros</a>
+      <h2 class="h-card4">{{ t('central_acoes', 'Nenhum resultado para os filtros aplicados') }}</h2>
+      <p>{{ t('central_acoes', 'Ajuste ou limpe os filtros para ver as ações.') }}</p>
+      <a class="btn btn--secondary" href="{{ link_limpar }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Ações da Central</caption>
+        <caption class="sr-only">{{ t('central_acoes', 'Ações da Central') }}</caption>
         <thead>
           <tr>
-            {% if portfolio %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Origem</th>
-            <th scope="col">Ata</th>
-            <th scope="col">Item</th>
-            <th scope="col">Assunto / Descrição</th>
-            <th scope="col">Responsável</th>
-            <th scope="col">Prevista</th>
-            <th scope="col">Replanejada</th>
-            <th scope="col">Status</th>
-            <th scope="col"><span class="sr-only">Ações da linha</span></th>
+            {% if portfolio %}<th scope="col">{{ t('central_acoes', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('central_acoes', 'Origem') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Ata') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Item') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Assunto / Descrição') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Responsável') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Prevista') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Replanejada') }}</th>
+            <th scope="col">{{ t('central_acoes', 'Status') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('central_acoes', 'Ações da linha') }}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -221,14 +221,14 @@
         </tbody>
       </table>
     </div>
-    <nav class="acoes__paginas" aria-label="Páginas da lista">
+    <nav class="acoes__paginas" aria-label="{{ t('central_acoes', 'Páginas da lista') }}">
       <span class="hint">{{ pagina_inicial }} a {{ pagina_final }} de {{ listagem.total }}</span>
       {% if link_anterior %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">Anterior</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_anterior }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Anterior') }}</a>
       {% endif %}
       <span class="hint">Página {{ listagem.page }} de {{ listagem.page_count }}</span>
       {% if link_proximo %}
-      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">Próxima</a>
+      <a class="btn btn--secondary btn--sm" href="{{ link_proximo }}" x-target="{{ target_id }}">{{ t('central_acoes', 'Próxima') }}</a>
       {% endif %}
     </nav>
     {% endif %}
@@ -240,21 +240,21 @@
     @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">
     <div class="fgrid">
       <div class="field field--full">
-        <label for="{{ target_id }}-f-busca">Busca livre</label>
+        <label for="{{ target_id }}-f-busca">{{ t('central_acoes', 'Busca livre') }}</label>
         <input id="{{ target_id }}-f-busca" class="input" type="text" name="busca" maxlength="120"
-          value="{{ filtros.search }}" placeholder="Assunto, descrição, referência, responsável..." />
+          value="{{ filtros.search }}" placeholder="{{ t('central_acoes', 'Assunto, descrição, referência, responsável...') }}" />
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-origem">Origem</label>
+        <label for="{{ target_id }}-f-origem">{{ t('central_acoes', 'Origem') }}</label>
         <select id="{{ target_id }}-f-origem" class="input" name="origem">
-          <option value="">Todas as origens</option>
+          <option value="">{{ t('central_acoes', 'Todas as origens') }}</option>
           {% for origem in origens %}
           <option value="{{ origem }}"{% if filtros.origin == origem %} selected{% endif %}>{{ origem }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label for="{{ target_id }}-f-status">Status</label>
+        <label for="{{ target_id }}-f-status">{{ t('central_acoes', 'Status') }}</label>
         <select id="{{ target_id }}-f-status" class="input" name="status">
           {% for valor, texto in opcoes_de_status %}
           <option value="{{ valor }}"{% if filtros.status.value == valor %} selected{% endif %}>{{ texto }}</option>
@@ -262,9 +262,9 @@
         </select>
       </div>
       <div class="field field--full">
-        <label for="{{ target_id }}-f-responsavel">Responsável</label>
+        <label for="{{ target_id }}-f-responsavel">{{ t('central_acoes', 'Responsável') }}</label>
         <select id="{{ target_id }}-f-responsavel" class="input" name="responsavel">
-          <option value="">Todos</option>
+          <option value="">{{ t('central_acoes', 'Todos') }}</option>
           {% for pessoa in listagem.responsibles %}
           <option value="{{ pessoa.id }}"{% if filtros.responsible_id == pessoa.id %} selected{% endif %}>{{ pessoa.name }}</option>
           {% endfor %}
@@ -273,8 +273,8 @@
     </div>
     {% if visao == 'kanban' %}<input type="hidden" name="visao" value="kanban" />{% endif %}
     <div class="modal__actions">
-      <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>Cancelar</button>
-      <button type="submit" class="btn btn--primary">Consultar</button>
+      <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>{{ t('central_acoes', 'Cancelar') }}</button>
+      <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Consultar') }}</button>
     </div>
   </form>
 </template>

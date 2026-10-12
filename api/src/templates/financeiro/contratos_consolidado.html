@@ -21,14 +21,14 @@
   x-target="{{ alvo_kpis }} {{ alvo_tabelas }}" @change="$el.requestSubmit()">
   <input type="hidden" name="projeto" value="{{ projeto }}" />
   <div class="field">
-    <label class="sr-only" for="contratos-busca">Buscar</label>
+    <label class="sr-only" for="contratos-busca">{{ t('financeiro', 'Buscar') }}</label>
     <input class="input" type="search" id="contratos-busca" name="busca" value="{{ filtros.search }}"
-      placeholder="Buscar número, contratada ou descrição" />
+      placeholder="{{ t('financeiro', 'Buscar número, contratada ou descrição') }}" />
   </div>
   <div class="field">
-    <label class="sr-only" for="contratos-filtro">Contrato</label>
+    <label class="sr-only" for="contratos-filtro">{{ t('financeiro', 'Contrato') }}</label>
     <select class="input" id="contratos-filtro" name="contrato">
-      <option value="">Todos os contratos</option>
+      <option value="">{{ t('financeiro', 'Todos os contratos') }}</option>
       {% for numero, rotulo in contrato_opcoes %}
       <option value="{{ numero }}"{% if filtros.contract == numero %} selected{% endif %}>{{ rotulo }}</option>
       {% endfor %}

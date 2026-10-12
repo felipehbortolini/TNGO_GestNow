@@ -5,10 +5,10 @@
 #}
 <div class="card">
   <div class="card__head">
-    <h2 class="h-card4">Lições</h2>
+    <h2 class="h-card4">{{ t('governanca', 'Lições') }}</h2>
     <span class="hint" role="status">{{ contagem }}</span>
     <div class="licoes-exportar">
-      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">Excel</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-tn-excel="{{ excel_url }}{{ consulta }}">{{ t('governanca', 'Excel') }}</button>
       <button type="button" class="btn btn--secondary btn--sm" data-tn-pdf="{{ pdf_url }}{{ consulta }}">PDF</button>
     </div>
   </div>
@@ -16,15 +16,15 @@
     {% if total_no_escopo == 0 %}
     <div class="empty" data-estado="vazio-origem">
       <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-      <h3 class="h-card4">Nenhuma lição no acervo ainda</h3>
+      <h3 class="h-card4">{{ t('governanca', 'Nenhuma lição no acervo ainda') }}</h3>
       <p>{% if portfolio %}Nenhum projeto do portfólio tem lições registradas.{% else %}Este projeto ainda não tem lições registradas.{% endif %}
         {% if pode_registrar %}Use "Nova lição" para registrar a primeira.{% endif %}</p>
     </div>
     {% elif not linhas %}
     <div class="empty" data-estado="vazio-filtro">
-      <h3 class="h-card4">Nenhuma lição encontrada com os filtros atuais</h3>
-      <p>Ajuste ou limpe os filtros para ver as lições.</p>
-      <a class="btn btn--secondary" href="/api/governanca/licoes" x-target="licoes-resumo licoes-cartoes">Limpar filtros</a>
+      <h3 class="h-card4">{{ t('governanca', 'Nenhuma lição encontrada com os filtros atuais') }}</h3>
+      <p>{{ t('governanca', 'Ajuste ou limpe os filtros para ver as lições.') }}</p>
+      <a class="btn btn--secondary" href="/api/governanca/licoes" x-target="licoes-resumo licoes-cartoes">{{ t('governanca', 'Limpar filtros') }}</a>
     </div>
     {% else %}
     <div class="licoes-grade">
@@ -55,12 +55,12 @@
           {% if linha.has_impact %}<span>Impacto: {{ texto_impacto(linha.term_days, linha.cost_cents) }}</span>{% endif %}
         </div>
         <div class="licao-card__acoes">
-          <button type="button" class="btn btn--ghost btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Ver</button>
-          {% if linha.actions.send %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Enviar para validação</button>{% endif %}
-          {% if linha.actions.edit %}<button type="button" class="btn btn--secondary btn--sm" data-licao-acao="editar" data-codigo="{{ linha.code }}">Editar</button>{% endif %}
-          {% if linha.actions.validate %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="validar" data-codigo="{{ linha.code }}">Validar</button>{% endif %}
-          {% if linha.actions.publish %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">Publicar</button>{% endif %}
-          {% if linha.actions.apply %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">Aplicar em projeto</button>{% endif %}
+          <button type="button" class="btn btn--ghost btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">{{ t('governanca', 'Ver') }}</button>
+          {% if linha.actions.send %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">{{ t('governanca', 'Enviar para validação') }}</button>{% endif %}
+          {% if linha.actions.edit %}<button type="button" class="btn btn--secondary btn--sm" data-licao-acao="editar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Editar') }}</button>{% endif %}
+          {% if linha.actions.validate %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="validar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Validar') }}</button>{% endif %}
+          {% if linha.actions.publish %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="ver" data-codigo="{{ linha.code }}">{{ t('governanca', 'Publicar') }}</button>{% endif %}
+          {% if linha.actions.apply %}<button type="button" class="btn btn--primary btn--sm" data-licao-acao="aplicar" data-codigo="{{ linha.code }}">{{ t('governanca', 'Aplicar em projeto') }}</button>{% endif %}
         </div>
       </article>
       {% endfor %}

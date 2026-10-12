@@ -190,3 +190,17 @@ vigente da EAC no peso e na carteira.
 
 O módulo não tem tabela própria (`models.py` vazio): a tela só lê, e a ponderação grava pelos
 parâmetros de Configurações.
+
+## Idioma (ISSUE-087)
+
+A fatia do inglês (D13) traduz no servidor: o catálogo é `api/src/core/translations.py`
+(namespace `inicio`), o idioma vem do cookie `gestnow_idioma` (`pt` é o padrão) e a rota
+`POST /api/idioma` grava a escolha; o seletor PT | EN fica na barra lateral. O `t` e o `idioma`
+entram no contexto de todo fragmento por `core/responses.py`, então os templates chamam
+`{{ t('inicio', 'Texto') }}` e as funções de apresentação do módulo (`service.py`,
+`calculations.py`, `export.py`, `routes.py`, `validation.py`) recebem `idioma` e usam
+`translations.translate('inicio', ...)`. O que é estático nas views (`app/_views/inicio/home.html`)
+usa `data-i18n` e o `TN.t` do cliente (`app/ds/i18n.js`); datas seguem o idioma
+(`translations.format_date`), número e moeda continuam pt-BR. Para acrescentar tradução, some a
+chave ao namespace `inicio` do catálogo; a cobertura em
+`api/tests/plataforma/test_traducoes.py` reprova chave marcada sem tradução.

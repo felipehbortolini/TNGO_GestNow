@@ -9,7 +9,7 @@
 <div class="kpis" style="--kpis-colunas: 2">
   <div class="kpi kpi--neutro kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('money', 16)" aria-hidden="true"></span>
-    <span class="kpi__label">{{ 'Orçamento vigente da carteira' if view.is_portfolio else 'Orçamento vigente' }}</span>
+    <span class="kpi__label">{{ t('financeiro', 'Orçamento vigente da carteira') if view.is_portfolio else t('financeiro', 'Orçamento vigente') }}</span>
     <span class="kpi__value">{{ orcamento }}</span>
   </div>
   {% if view.is_portfolio %}
@@ -28,26 +28,26 @@
 </div>
 
 {% if view.is_portfolio %}
-<p class="hint mb-16">Portfólio: projeto e pacotes principais, somente leitura. Abra o projeto para editar os itens.</p>
+<p class="hint mb-16">{{ t('financeiro', 'Portfólio: projeto e pacotes principais, somente leitura. Abra o projeto para editar os itens.') }}</p>
 {% endif %}
 
 <div class="tbl-wrap">
   <table class="tbl eac-tabela" data-arvore>
-    <caption class="sr-only">{{ 'Estrutura analítica de custos da carteira' if view.is_portfolio else 'Estrutura analítica de custos' }}</caption>
+    <caption class="sr-only">{{ t('financeiro', 'Estrutura analítica de custos da carteira') if view.is_portfolio else t('financeiro', 'Estrutura analítica de custos') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Código</th>
-        <th scope="col">Descrição</th>
-        <th scope="col">Tipo de custo</th>
-        <th scope="col">Un.</th>
-        <th scope="col" class="td-num">Qtd.</th>
-        <th scope="col" class="td-num">Preço unitário</th>
-        <th scope="col" class="td-num">Valor orçado</th>
-        <th scope="col">CAPEX/OPEX</th>
-        <th scope="col">Centro de custo</th>
-        <th scope="col">Responsável</th>
-        {% if view.is_portfolio %}<th scope="col" class="td-num">Peso na carteira</th>{% endif %}
-        <th scope="col"><span class="sr-only">Ações</span></th>
+        <th scope="col">{{ t('financeiro', 'Código') }}</th>
+        <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+        <th scope="col">{{ t('financeiro', 'Tipo de custo') }}</th>
+        <th scope="col">{{ t('financeiro', 'Un.') }}</th>
+        <th scope="col" class="td-num">{{ t('financeiro', 'Qtd.') }}</th>
+        <th scope="col" class="td-num">{{ t('financeiro', 'Preço unitário') }}</th>
+        <th scope="col" class="td-num">{{ t('financeiro', 'Valor orçado') }}</th>
+        <th scope="col">{{ t('financeiro', 'CAPEX/OPEX') }}</th>
+        <th scope="col">{{ t('financeiro', 'Centro de custo') }}</th>
+        <th scope="col">{{ t('financeiro', 'Responsável') }}</th>
+        {% if view.is_portfolio %}<th scope="col" class="td-num">{{ t('financeiro', 'Peso na carteira') }}</th>{% endif %}
+        <th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -78,12 +78,12 @@
           {% if linha.can_edit %}
           <a class="iconbtn" data-editar x-target="{{ alvo_formulario }}"
             href="/api/financeiro/eac/itens/{{ r.item_id }}/editar{{ '?' ~ linha.edit_query if linha.edit_query else '' }}"
-            aria-label="Editar item {{ r.code }}" title="Editar">
+            aria-label="Editar item {{ r.code }}" title="{{ t('financeiro', 'Editar') }}">
             <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
           </a>
           {% elif view.is_portfolio and r.level == 1 %}
           <a class="btn btn--ghost btn--sm" href="/financeiro/eac?projeto={{ r.project_id }}" data-tn-tela>
-            Abrir
+            {{ t('financeiro', 'Abrir') }}
             <span x-init="$el.innerHTML = window.icon('chevronRight', 16)" aria-hidden="true"></span>
           </a>
           {% endif %}
@@ -94,7 +94,7 @@
     {% if total_filtrado %}
     <tfoot>
       <tr class="eac-linha eac-linha--total">
-        <td colspan="6">Total filtrado</td>
+        <td colspan="6">{{ t('financeiro', 'Total filtrado') }}</td>
         <td class="td-num eac-linha__valor">{{ total_filtrado }}</td>
         <td colspan="{{ 5 if view.is_portfolio else 4 }}"></td>
       </tr>

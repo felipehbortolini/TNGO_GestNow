@@ -8,7 +8,7 @@
 #}
 {% block fragment %}
 <form method="post" action="{{ action }}" x-target="{{ target_id }}" x-target.away="_top"
-  data-tn-loading="Iniciando a análise...">
+  data-tn-loading="{{ t('governanca', 'Iniciando a análise...') }}">
   <input type="hidden" name="codigo" value="{{ codigo }}" />
   <input type="hidden" name="versao" value="{{ valores.get('versao') or '' }}" />
   <p class="muted mb-16">A análise de impacto é obrigatória antes da decisão. O prazo padrão é de {{ prazo_dias }} dias, e pode ser ajustado aqui.</p>
@@ -17,10 +17,10 @@
   {% endif %}
   <div class="fgrid">
     <div class="field">
-      <label for="analise-responsavel">Responsável pela análise</label>
+      <label for="analise-responsavel">{{ t('governanca', 'Responsável pela análise') }}</label>
       <select id="analise-responsavel" name="responsavel_id" class="input{% if erros.get('responsavel_id') %} input--erro{% endif %}" required
         {% if erros.get('responsavel_id') %}aria-invalid="true" aria-describedby="erro-responsavel_id"{% endif %}>
-        <option value="">Escolha...</option>
+        <option value="">{{ t('governanca', 'Escolha...') }}</option>
         {% for pessoa in pessoas %}
         <option value="{{ pessoa.id }}"{% if valores.get('responsavel_id') == pessoa.id | string %} selected{% endif %}>{{ pessoa.name }}</option>
         {% endfor %}
@@ -28,7 +28,7 @@
       {% if erros.get('responsavel_id') %}<span id="erro-responsavel_id" class="field__erro">{{ erros['responsavel_id'] }}</span>{% endif %}
     </div>
     <div class="field">
-      <label for="analise-prazo">Prazo da análise</label>
+      <label for="analise-prazo">{{ t('governanca', 'Prazo da análise') }}</label>
       <input id="analise-prazo" name="prazo" type="date" class="input{% if erros.get('prazo') %} input--erro{% endif %}" required
         value="{{ valores.get('prazo') or '' }}"{% if erros.get('prazo') %} aria-invalid="true" aria-describedby="erro-prazo"{% endif %} />
       {% if erros.get('prazo') %}<span id="erro-prazo" class="field__erro">{{ erros['prazo'] }}</span>{% endif %}
@@ -36,8 +36,8 @@
   </div>
   <div class="modal__actions">
     <button type="button" class="btn btn--secondary"
-      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">Voltar</button>
-    <button type="submit" class="btn btn--primary">Iniciar análise</button>
+      @click="$el.closest('.modal-backdrop').querySelector('.modal__close').click()">{{ t('governanca', 'Voltar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('governanca', 'Iniciar análise') }}</button>
   </div>
 </form>
 {% endblock %}

@@ -8,22 +8,22 @@
 -#}
 <div class="tbl-wrap">
   <table class="tbl home__carteira-tbl">
-    <caption class="sr-only">Carteira de projetos</caption>
+    <caption class="sr-only">{{ t('inicio', 'Carteira de projetos') }}</caption>
     <thead>
       <tr>
-        <th scope="col">Projeto</th>
-        <th scope="col" class="td-num">Peso na carteira</th>
-        <th scope="col" class="td-num">Orçamento vigente</th>
-        <th scope="col" class="td-num">Avanço real x previsto</th>
-        <th scope="col" class="td-num">SPI</th>
+        <th scope="col">{{ t('inicio', 'Projeto') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Peso na carteira') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Orçamento vigente') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Avanço real x previsto') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'SPI') }}</th>
         <th scope="col" class="td-num">CPI</th>
-        <th scope="col" class="td-num">Projeção no término</th>
-        <th scope="col">Término pela tendência</th>
-        <th scope="col" class="td-num">Riscos no topo</th>
-        <th scope="col" class="td-num">Pedidos críticos</th>
-        <th scope="col" class="td-num">Ações atrasadas</th>
-        <th scope="col">Situação</th>
-        <th scope="col"><span class="sr-only">Abrir</span></th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Projeção no término') }}</th>
+        <th scope="col">{{ t('inicio', 'Término pela tendência') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Riscos no topo') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Pedidos críticos') }}</th>
+        <th scope="col" class="td-num">{{ t('inicio', 'Ações atrasadas') }}</th>
+        <th scope="col">{{ t('inicio', 'Situação') }}</th>
+        <th scope="col"><span class="sr-only">{{ t('inicio', 'Abrir') }}</span></th>
       </tr>
     </thead>
     <tbody>
@@ -35,7 +35,7 @@
         </td>
         <td class="td-num">
           <div class="home__peso">
-            <span class="home__peso-barra" role="img" aria-label="Peso {{ formatar_pct(linha.weight, 2) }}">
+            <span class="home__peso-barra" role="img" aria-label="{{ t('inicio', 'Peso') }} {{ formatar_pct(linha.weight, 2) }}">
               <span style="width: {{ linha.weight }}%"></span>
             </span>
             <span class="num">{{ formatar_pct(linha.weight, 2) }}</span>
@@ -70,11 +70,11 @@
         <td class="td-num">{{ formatar_num(linha.critical_orders) }}</td>
         <td class="td-num">{{ formatar_num(linha.overdue_actions) }}</td>
         <td>
-          {% if linha.health %}<span class="pill pill--{{ linha.health }}">{{ linha.health_label }}</span>{% endif %}
+          {% if linha.health %}<span class="pill pill--{{ linha.health }}">{{ linha.health_label_in(idioma) }}</span>{% endif %}
         </td>
         <td>
           <a class="btn btn--ghost btn--sm" href="/inicio/home?projeto={{ linha.project_id }}" data-tn-tela
-            aria-label="Abrir o projeto {{ linha.code }}">Abrir</a>
+            aria-label="{{ t('inicio', 'Abrir o projeto') }} {{ linha.code }}">{{ t('inicio', 'Abrir') }}</a>
         </td>
       </tr>
       {% endfor %}
@@ -82,7 +82,7 @@
     {% if visao.portfolio_totals %}
     <tfoot>
       <tr>
-        <td><b>Portfólio</b></td>
+        <td><b>{{ t('inicio', 'Portfólio') }}</b></td>
         <td class="td-num"><b class="num">100,00%</b></td>
         <td class="td-num"><b>{{ formatar_moeda(visao.portfolio_totals.budget_cents) }}</b></td>
         <td class="td-num">

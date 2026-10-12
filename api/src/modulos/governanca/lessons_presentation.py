@@ -7,6 +7,7 @@ the spreadsheet agree.
 
 from __future__ import annotations
 
+from src.core import translations
 from src.core.export_document import Tone
 from src.core.money import format_brl
 from src.modulos.governanca import lessons_models as lm
@@ -19,6 +20,11 @@ SITUATION_TONES: dict[str, Tone] = {
     lm.SITUATION_PUBLISHED: Tone.OK,
 }
 KIND_TONES: dict[str, Tone] = {"A repetir": Tone.OK, "A evitar": Tone.WARN}
+
+
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Governança no idioma do request (D13)."""
+    return translations.translate("governanca", text, idioma)
 
 
 def situation_tone(situation: str) -> Tone:
@@ -41,15 +47,27 @@ def kind_pill(kind: str) -> str:
     return PILL_BY_TONE[kind_tone(kind)]
 
 
-def impact_text(term_days: int, cost_cents: int) -> str:
+def impact_text(term_days: int, cost_cents: int, idioma: str = "pt") -> str:
     """The impact of the lesson: ``21 dias · R$ 400.000,00``."""
-    return f"{plural(term_days, 'dia')} · {format_brl(cost_cents)}"
-
-
-def scope_line(*, is_portfolio: bool, project_code: str, own: int, corporate: int) -> str:
-    """The line over the acervo: whose lessons these are and how many are shared with the organization."""
-    whose = "Acervo do portfólio" if is_portfolio else f"Acervo do projeto {project_code}"
-    shared = plural(corporate, "corporativa", "corporativas")
     return (
-        f"{whose}: {plural(own, 'lição', 'lições')} ({shared}, compartilhadas com a organização)."
+        f"{plural(term_days, _label('dia', idioma), _label('dias', idioma))} · "
+        f"{format_brl(cost_cents)}"
+    )
+
+
+def scope_line(
+    *, is_portfolio: bool, project_code: str, own: int, corporate: int, idioma: str = "pt"
+) -> str:
+    """The line over the acervo: whose lessons these are and how many are shared with the organization."""
+    whose = (
+        _label("Acervo do portfólio", idioma)
+        if is_portfolio
+        else _label("Acervo do projeto {code}", idioma).format(code=project_code)
+    )
+    shared = plural(corporate, _label("corporativa", idioma), _label("corporativas", idioma))
+    template = _label("{whose}: {own} ({shared}, compartilhadas com a organização).", idioma)
+    return template.format(
+        whose=whose,
+        own=plural(own, _label("lição", idioma), _label("lições", idioma)),
+        shared=shared,
     )

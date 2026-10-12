@@ -11,7 +11,7 @@
 <section class="card" aria-labelledby="contrato-avaliacoes-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-avaliacoes-titulo">Avaliação de desempenho</h2>
+      <h2 class="h-card4" id="contrato-avaliacoes-titulo">{{ t('financeiro', 'Avaliação de desempenho') }}</h2>
       <span class="hint">Nota {{ limite_plano }} ou menor exige evidência e abre plano de melhoria na Central · pesos gravados na avaliação</span>
     </div>
     {% if pode_gerir %}
@@ -19,7 +19,7 @@
       <a class="btn btn--primary" href="/api/financeiro/contrato/avaliacoes/nova?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova avaliação
+        {{ t('financeiro', 'Nova avaliação') }}
       </a>
     </div>
     {% endif %}
@@ -27,7 +27,7 @@
   <div class="card__body">
     {% if erro_avaliacoes %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro_avaliacoes }}</span>
     </div>
     {% endif %}
@@ -36,16 +36,16 @@
 
     <div class="tbl-wrap mt-16">
       <table class="tbl">
-        <caption class="sr-only">Avaliações de desempenho da contratada</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Avaliações de desempenho da contratada') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Período</th>
-            <th scope="col">Tipo</th>
-            <th scope="col">Avaliador</th>
+            <th scope="col">{{ t('financeiro', 'Período') }}</th>
+            <th scope="col">{{ t('financeiro', 'Tipo') }}</th>
+            <th scope="col">{{ t('financeiro', 'Avaliador') }}</th>
             {% for criterio in criterios %}<th scope="col" class="td-num">{{ criterio.name }}</th>{% endfor %}
-            <th scope="col" class="td-num">Nota</th>
-            <th scope="col">Classe</th>
-            <th scope="col">Plano de melhoria</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Nota') }}</th>
+            <th scope="col">{{ t('financeiro', 'Classe') }}</th>
+            <th scope="col">{{ t('financeiro', 'Plano de melhoria') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -68,13 +68,13 @@
               {% if linha.avaliacao.class_description %}<br /><span class="hint">{{ linha.avaliacao.class_description }}</span>{% endif %}
             </td>
             <td>
-              {% if linha.avaliacao.requires_plan %}<span class="pill pill--warn">Plano de melhoria</span>{% endif %}
-              {% if linha.avaliacao.has_evidence %}<br /><span class="hint">Evidência anexada</span>{% endif %}
+              {% if linha.avaliacao.requires_plan %}<span class="pill pill--warn">{{ t('financeiro', 'Plano de melhoria') }}</span>{% endif %}
+              {% if linha.avaliacao.has_evidence %}<br /><span class="hint">{{ t('financeiro', 'Evidência anexada') }}</span>{% endif %}
               {% if not linha.avaliacao.requires_plan and not linha.avaliacao.has_evidence %}·{% endif %}
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="{{ 6 + (criterios | length) }}" class="muted">Nenhuma avaliação registrada.</td></tr>
+          <tr><td colspan="{{ 6 + (criterios | length) }}" class="muted">{{ t('financeiro', 'Nenhuma avaliação registrada.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

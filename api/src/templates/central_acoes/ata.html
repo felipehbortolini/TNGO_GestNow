@@ -27,12 +27,12 @@
 
 {% if not ficha.is_latest %}
 <div class="aviso aviso--warn mb-16" role="status">
-  <strong>Revisão anterior, somente leitura.</strong>
-  <span><a href="{{ url_vigente }}" data-tn-tela>Abrir a revisão vigente</a>.</span>
+  <strong>{{ t('central_acoes', 'Revisão anterior, somente leitura.') }}</strong>
+  <span><a href="{{ url_vigente }}" data-tn-tela>{{ t('central_acoes', 'Abrir a revisão vigente') }}</a>.</span>
 </div>
 {% endif %}
 
-<section class="card ata-faixa" aria-label="Identificação da ata">
+<section class="card ata-faixa" aria-label="{{ t('central_acoes', 'Identificação da ata') }}">
   <div class="card__body ata-faixa__corpo">
     <div>
       <p class="ata-faixa__codigo">{{ ata.number }} · Rev {{ ata.revision }}</p>
@@ -51,27 +51,27 @@
   </div>
 </section>
 
-<div class="toolbar mt-16 mb-16" role="group" aria-label="Ações e exportação da ata">
+<div class="toolbar mt-16 mb-16" role="group" aria-label="{{ t('central_acoes', 'Ações e exportação da ata') }}">
   {% if pode_editar %}
   <button type="button" class="btn btn--primary" data-ata-modal-url="{{ url_revisao }}?id={{ ata.id }}"
     data-ata-modal-titulo="Gerar nova revisão" data-ata-modal-subtitulo="{{ ata.number }} · próxima: Rev {{ ata.revision + 1 }}">
     <span x-init="$el.innerHTML = window.icon('fileAdd', 16)" aria-hidden="true"></span>
-    Gerar nova revisão
+    {{ t('central_acoes', 'Gerar nova revisão') }}
   </button>
   {% endif %}
   <button type="button" class="btn btn--secondary" data-ata-modal-url="{{ url_historico }}"
     data-ata-modal-titulo="Histórico da ata" data-ata-modal-subtitulo="{{ ata.number }}">
     <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
-    Histórico da ata
+    {{ t('central_acoes', 'Histórico da ata') }}
   </button>
   <div class="ata-faixa__exportar">
-    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">Excel</button>
-    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">Gerar PDF</button>
+    <button type="button" class="btn btn--secondary" data-tn-excel="{{ url_excel }}">{{ t('central_acoes', 'Excel') }}</button>
+    <button type="button" class="btn btn--secondary" data-tn-pdf="{{ url_pdf }}">{{ t('central_acoes', 'Gerar PDF') }}</button>
   </div>
 </div>
 
 <div x-data="{ aba: $el.dataset.aba }" data-aba="{{ aba }}">
-  <div class="tabs" role="tablist" aria-label="Seções da ata">
+  <div class="tabs" role="tablist" aria-label="{{ t('central_acoes', 'Seções da ata') }}">
     {% for chave, nome in [('dados', 'Dados da Reunião'), ('presenca', 'Lista de Presença'), ('itens', 'Anotações e Ações')] %}
     <button type="button" class="tab" role="tab" id="aba-{{ chave }}" aria-controls="painel-{{ chave }}"
       :class="{ 'is-active': aba === '{{ chave }}' }" :aria-selected="aba === '{{ chave }}'"
@@ -85,12 +85,12 @@
   <section class="mt-16" role="tabpanel" id="painel-dados" aria-labelledby="aba-dados" x-show="aba === 'dados'">
     <div class="card">
       <div class="card__header ata-cabeca">
-        <h2 class="h-card4">Dados da Reunião</h2>
+        <h2 class="h-card4">{{ t('central_acoes', 'Dados da Reunião') }}</h2>
         {% if pode_editar %}
         <button type="button" class="btn btn--secondary btn--sm" data-ata-modal-url="{{ url_empresas }}"
           data-ata-modal-titulo="Empresas executoras" data-ata-modal-subtitulo="{{ ata.number }}">
           <span x-init="$el.innerHTML = window.icon('building', 16)" aria-hidden="true"></span>
-          Empresas executoras
+          {{ t('central_acoes', 'Empresas executoras') }}
         </button>
         {% endif %}
       </div>
@@ -114,29 +114,29 @@
     <div class="card">
       <div class="card__header ata-cabeca">
         <div>
-          <h2 class="h-card4">Lista de Presença</h2>
+          <h2 class="h-card4">{{ t('central_acoes', 'Lista de Presença') }}</h2>
           <p class="hint">{{ ficha.attendees | length }} {{ 'participante' if ficha.attendees | length == 1 else 'participantes' }}</p>
         </div>
         {% if pode_editar %}
         <button type="button" class="btn btn--secondary btn--sm" data-ata-modal-url="{{ url_convidados }}"
           data-ata-modal-titulo="Buscar convidado" data-ata-modal-subtitulo="{{ ata.number }}">
           <span x-init="$el.innerHTML = window.icon('search', 16)" aria-hidden="true"></span>
-          Buscar convidado
+          {{ t('central_acoes', 'Buscar convidado') }}
         </button>
         {% endif %}
       </div>
       {% if ficha.attendees %}
       <div class="tbl-wrap">
         <table class="tbl">
-          <caption class="sr-only">Participantes da ata</caption>
+          <caption class="sr-only">{{ t('central_acoes', 'Participantes da ata') }}</caption>
           <thead>
             <tr>
-              <th scope="col">Nome</th>
-              <th scope="col">Função</th>
-              <th scope="col">Empresa</th>
-              <th scope="col">E-mail</th>
-              <th scope="col">Ações abertas nesta ata</th>
-              <th scope="col"><span class="sr-only">Retirar da lista</span></th>
+              <th scope="col">{{ t('central_acoes', 'Nome') }}</th>
+              <th scope="col">{{ t('central_acoes', 'Função') }}</th>
+              <th scope="col">{{ t('central_acoes', 'Empresa') }}</th>
+              <th scope="col">{{ t('central_acoes', 'E-mail') }}</th>
+              <th scope="col">{{ t('central_acoes', 'Ações abertas nesta ata') }}</th>
+              <th scope="col"><span class="sr-only">{{ t('central_acoes', 'Retirar da lista') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +151,7 @@
                 {% if pode_editar %}
                 <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_retirada(participante.person.id) }}"
                   data-ata-modal-titulo="Retirar participante" data-ata-modal-subtitulo="{{ participante.person.name }}"
-                  aria-label="Retirar {{ participante.person.name }} da lista" title="Retirar da lista">
+                  aria-label="Retirar {{ participante.person.name }} da lista" title="{{ t('central_acoes', 'Retirar da lista') }}">
                   <span x-init="$el.innerHTML = window.icon('trash', 16)" aria-hidden="true"></span>
                 </button>
                 {% endif %}
@@ -164,8 +164,8 @@
       {% else %}
       <div class="card__body">
         <div class="empty" data-estado="vazio-origem">
-          <h2 class="h-card4">Lista de presença vazia</h2>
-          <p>Use "Buscar convidado" para incluir quem participou da reunião.</p>
+          <h2 class="h-card4">{{ t('central_acoes', 'Lista de presença vazia') }}</h2>
+          <p>{{ t('central_acoes', 'Use "Buscar convidado" para incluir quem participou da reunião.') }}</p>
         </div>
       </div>
       {% endif %}
@@ -173,17 +173,17 @@
   </section>
 
   <section class="mt-16" role="tabpanel" id="painel-itens" aria-labelledby="aba-itens" x-show="aba === 'itens'">
-    <div class="toolbar mb-16" role="group" aria-label="Itens da ata">
+    <div class="toolbar mb-16" role="group" aria-label="{{ t('central_acoes', 'Itens da ata') }}">
       {% if pode_editar %}
       <button type="button" class="btn btn--primary" data-ata-modal-url="{{ url_novo_item }}"
         data-ata-modal-titulo="Nova anotação/ação" data-ata-modal-subtitulo="{{ ata.number }} Rev {{ ata.revision }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Nova anotação/ação
+        {{ t('central_acoes', 'Nova anotação/ação') }}
       </button>
       {% endif %}
       <button type="button" class="btn btn--secondary" data-ata-colunas>
         <span x-init="$el.innerHTML = window.icon('table', 16)" aria-hidden="true"></span>
-        Colunas da tabela
+        {{ t('central_acoes', 'Colunas da tabela') }}
       </button>
     </div>
 
@@ -199,16 +199,16 @@
             <caption class="sr-only">Itens do grupo {{ grupo.name }}</caption>
             <thead>
               <tr>
-                <th scope="col" class="num">Item</th>
-                <th scope="col"{{ celula_coluna('tipo', false) }}>Tipo</th>
-                <th scope="col">Assunto / Descrição</th>
-                <th scope="col"{{ celula_coluna('solicitante', true) }}>Solicitante</th>
-                <th scope="col"{{ celula_coluna('responsavel', false) }}>Responsável</th>
-                <th scope="col"{{ celula_coluna('prevista', false) }}>Prevista</th>
-                <th scope="col"{{ celula_coluna('replanejada', false) }}>Replanejada</th>
-                <th scope="col"{{ celula_coluna('conclusao', true) }}>Conclusão</th>
-                <th scope="col">Status</th>
-                <th scope="col"><span class="sr-only">Ações da linha</span></th>
+                <th scope="col" class="num">{{ t('central_acoes', 'Item') }}</th>
+                <th scope="col"{{ celula_coluna('tipo', false) }}>{{ t('central_acoes', 'Tipo') }}</th>
+                <th scope="col">{{ t('central_acoes', 'Assunto / Descrição') }}</th>
+                <th scope="col"{{ celula_coluna('solicitante', true) }}>{{ t('central_acoes', 'Solicitante') }}</th>
+                <th scope="col"{{ celula_coluna('responsavel', false) }}>{{ t('central_acoes', 'Responsável') }}</th>
+                <th scope="col"{{ celula_coluna('prevista', false) }}>{{ t('central_acoes', 'Prevista') }}</th>
+                <th scope="col"{{ celula_coluna('replanejada', false) }}>{{ t('central_acoes', 'Replanejada') }}</th>
+                <th scope="col"{{ celula_coluna('conclusao', true) }}>{{ t('central_acoes', 'Conclusão') }}</th>
+                <th scope="col">{{ t('central_acoes', 'Status') }}</th>
+                <th scope="col"><span class="sr-only">{{ t('central_acoes', 'Ações da linha') }}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -233,21 +233,21 @@
                   {% if pode_editar %}
                   <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_do_item(item.id) }}"
                     data-ata-modal-titulo="Editar item {{ item.item }}" data-ata-modal-subtitulo="{{ item.subject }}"
-                    aria-label="Editar item {{ item.item }}" title="Editar">
+                    aria-label="Editar item {{ item.item }}" title="{{ t('central_acoes', 'Editar') }}">
                     <span x-init="$el.innerHTML = window.icon('edit', 16)" aria-hidden="true"></span>
                   </button>
                   {% endif %}
                   {% if pode_editar and item.is_action and item.status != 'concluida' %}
                   <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_replanejar(item.id) }}"
                     data-ata-modal-titulo="Registrar replanejamento" data-ata-modal-subtitulo="Item {{ item.item }} · {{ item.subject }}"
-                    aria-label="Registrar replanejamento do item {{ item.item }}" title="Registrar replanejamento">
+                    aria-label="Registrar replanejamento do item {{ item.item }}" title="{{ t('central_acoes', 'Registrar replanejamento') }}">
                     <span x-init="$el.innerHTML = window.icon('calendar', 16)" aria-hidden="true"></span>
                   </button>
                   {% endif %}
                   {% if item.has_replans %}
                   <button type="button" class="iconbtn" data-ata-modal-url="{{ endereco_de_justificativas(item.id) }}"
                     data-ata-modal-titulo="Justificativas" data-ata-modal-subtitulo="Item {{ item.item }} · {{ item.subject }}"
-                    aria-label="Justificativas do item {{ item.item }}" title="Justificativas">
+                    aria-label="Justificativas do item {{ item.item }}" title="{{ t('central_acoes', 'Justificativas') }}">
                     <span x-init="$el.innerHTML = window.icon('clock', 16)" aria-hidden="true"></span>
                   </button>
                   {% endif %}
@@ -265,24 +265,24 @@
       <div class="card__body">
         <div class="empty" data-estado="vazio-origem">
           <img src="/ds/assets/ilustra-em-construcao.png" alt="" />
-          <h2 class="h-card4">Esta ata ainda não tem anotações nem ações</h2>
-          <p>Use "Nova anotação/ação" para registrar o primeiro item; as ações aparecem na Central.</p>
+          <h2 class="h-card4">{{ t('central_acoes', 'Esta ata ainda não tem anotações nem ações') }}</h2>
+          <p>{{ t('central_acoes', 'Use "Nova anotação/ação" para registrar o primeiro item; as ações aparecem na Central.') }}</p>
         </div>
       </div>
     </div>
     {% endif %}
 
-    <div class="kpis" style="--kpis-colunas: 5" role="group" aria-label="Resumo dos itens">
+    <div class="kpis" style="--kpis-colunas: 5" role="group" aria-label="{{ t('central_acoes', 'Resumo dos itens') }}">
       <div class="kpi kpi--neutro kpi--estatico">
-        <span class="kpi__label">Itens</span>
+        <span class="kpi__label">{{ t('central_acoes', 'Itens') }}</span>
         <span class="kpi__value">{{ itens.summary.total }}</span>
       </div>
       <div class="kpi kpi--info kpi--estatico">
-        <span class="kpi__label">Em dia</span>
+        <span class="kpi__label">{{ t('central_acoes', 'Em dia') }}</span>
         <span class="kpi__value">{{ itens.summary.on_time }}</span>
       </div>
       <div class="kpi kpi--erro kpi--estatico">
-        <span class="kpi__label">Atrasadas</span>
+        <span class="kpi__label">{{ t('central_acoes', 'Atrasadas') }}</span>
         <span class="kpi__value">{{ itens.summary.overdue }}</span>
       </div>
       <div class="kpi kpi--ok kpi--estatico">
@@ -290,14 +290,14 @@
         <span class="kpi__value">{{ itens.summary.completed }}</span>
       </div>
       <div class="kpi kpi--neutro kpi--estatico">
-        <span class="kpi__label">Informações</span>
+        <span class="kpi__label">{{ t('central_acoes', 'Informações') }}</span>
         <span class="kpi__value">{{ itens.summary.information }}</span>
       </div>
     </div>
 
     <template data-ata-colunas-modelo>
       <form data-ata-colunas-form>
-        <p class="hint mb-16">Item, Assunto / Descrição e Status são sempre visíveis.</p>
+        <p class="hint mb-16">{{ t('central_acoes', 'Item, Assunto / Descrição e Status são sempre visíveis.') }}</p>
         <div class="fgrid">
           {% for chave, rotulo, oculta in [('tipo', 'Tipo', false), ('solicitante', 'Solicitante', true), ('responsavel', 'Responsável', false), ('prevista', 'Prevista', false), ('replanejada', 'Replanejada', false), ('conclusao', 'Conclusão', true)] %}
           <div class="field">
@@ -309,8 +309,8 @@
           {% endfor %}
         </div>
         <div class="modal__actions">
-          <button type="button" class="btn btn--secondary" data-ata-colunas-cancelar>Cancelar</button>
-          <button type="submit" class="btn btn--primary">Aplicar</button>
+          <button type="button" class="btn btn--secondary" data-ata-colunas-cancelar>{{ t('central_acoes', 'Cancelar') }}</button>
+          <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Aplicar') }}</button>
         </div>
       </form>
     </template>

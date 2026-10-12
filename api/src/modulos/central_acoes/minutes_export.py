@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     Column,
@@ -41,6 +42,11 @@ SHEET_ATTENDANCE_TITLE = "Lista de Presença"
 SHEET_ITEMS_TITLE = "Anotações e Ações"
 
 
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
+
+
 def build_list_document(
     *,
     listing: MinutesListing,
@@ -48,33 +54,36 @@ def build_list_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the list of minutes for the search in force."""
-    context = [(COUNT_LABEL, str(listing.total))]
+    context = [(_label(COUNT_LABEL, idioma), str(listing.total))]
     if search:
-        context.insert(0, (SEARCH_LABEL, search))
+        context.insert(0, (_label(SEARCH_LABEL, idioma), search))
     return Document(
-        title=LIST_TITLE,
-        scope_label=describe_scope(scope, projects),
+        namespace="central_acoes",
+        title=_label(LIST_TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
         context=tuple(context),
-        tables=(_list_table(listing.rows),),
+        tables=(_list_table(listing.rows, idioma),),
+        idioma=idioma,
     )
 
 
-def _list_table(rows: Sequence[MinutesRow]) -> Table:
+def _list_table(rows: Sequence[MinutesRow], idioma: str) -> Table:
     return Table(
-        title=LIST_TABLE_TITLE,
+        title=_label(LIST_TABLE_TITLE, idioma),
         columns=(
-            Column("Número", width=16),
+            Column(_label("Número", idioma), width=16),
             Column("Rev", ValueKind.INTEGER),
-            Column("Data", ValueKind.DATE),
-            Column("Assunto", width=60),
-            Column("Empresa principal", width=26),
-            Column("Tipo de reunião", width=26),
-            Column("Ações abertas", ValueKind.INTEGER),
-            Column("Atrasadas", ValueKind.INTEGER),
+            Column(_label("Data", idioma), ValueKind.DATE),
+            Column(_label("Assunto", idioma), width=60),
+            Column(_label("Empresa principal", idioma), width=26),
+            Column(_label("Tipo de reunião", idioma), width=26),
+            Column(_label("Ações abertas", idioma), ValueKind.INTEGER),
+            Column(_label("Atrasadas", idioma), ValueKind.INTEGER),
         ),
         rows=tuple(_list_row(line) for line in rows),
     )
@@ -95,45 +104,56 @@ def _list_row(line: MinutesRow) -> Row:
     )
 
 
-def build_sheet_document(*, sheet: MinutesSheet, items: ItemListing, today: date) -> Document:
+def build_sheet_document(
+    *, sheet: MinutesSheet, items: ItemListing, today: date, idioma: str = "pt"
+) -> Document:
     """The document of the ficha: the data, the companies, the attendance and the items."""
     record = sheet.record
     counts = sheet.counts
     return Document(
-        title=f"Ata {record.number} Rev {record.revision}",
+        namespace="central_acoes",
+        title=f"{_label('Ata', idioma)} {record.number} Rev {record.revision}",
         scope_label=sheet.project_label,
         generated_on=today,
         context=(
-            ("Data", f"{record.meeting_date:%d/%m/%Y}"),
-            ("Tipo de reunião", record.meeting_type),
-            ("Diretoria", record.board),
-            ("Unidade", sheet.unit_name),
-            ("Elaborado por", sheet.prepared_by_name),
-            ("Assunto", record.subject),
-            ("Empresa principal", sheet.main_company_name or "—"),
+            (_label("Data", idioma), translations.format_date(record.meeting_date, idioma)),
+            (_label("Tipo de reunião", idioma), record.meeting_type),
+            (_label("Diretoria", idioma), record.board),
+            (_label("Unidade", idioma), sheet.unit_name),
+            (_label("Elaborado por", idioma), sheet.prepared_by_name),
+            (_label("Assunto", idioma), record.subject),
+            (_label("Empresa principal", idioma), sheet.main_company_name or "—"),
             (
-                "Ações",
-                f"{counts.total} ({counts.open} abertas, {counts.overdue} atrasadas)",
+                _label("Ações", idioma),
+                _label("{total} ({open} abertas, {overdue} atrasadas)", idioma).format(
+                    total=counts.total, open=counts.open, overdue=counts.overdue
+                ),
             ),
         ),
         tables=(
             Table(
-                title=SHEET_COMPANIES_TITLE,
-                columns=(Column("Empresa", width=40), Column("Principal", width=12)),
+                title=_label(SHEET_COMPANIES_TITLE, idioma),
+                columns=(
+                    Column(_label("Empresa", idioma), width=40),
+                    Column(_label("Principal", idioma), width=12),
+                ),
                 rows=tuple(
-                    row(company.name, "Sim" if company.is_main else "Não")
+                    row(
+                        company.name,
+                        _label("Sim", idioma) if company.is_main else _label("Não", idioma),
+                    )
                     for company in sheet.companies
                 ),
                 per_project=False,
             ),
             Table(
-                title=SHEET_ATTENDANCE_TITLE,
+                title=_label(SHEET_ATTENDANCE_TITLE, idioma),
                 columns=(
-                    Column("Nome", width=30),
-                    Column("Função", width=26),
-                    Column("Empresa", width=26),
+                    Column(_label("Nome", idioma), width=30),
+                    Column(_label("Função", idioma), width=26),
+                    Column(_label("Empresa", idioma), width=26),
                     Column("E-mail", width=34),
-                    Column("Ações abertas nesta ata", ValueKind.INTEGER),
+                    Column(_label("Ações abertas nesta ata", idioma), ValueKind.INTEGER),
                 ),
                 rows=tuple(
                     row(
@@ -147,37 +167,38 @@ def build_sheet_document(*, sheet: MinutesSheet, items: ItemListing, today: date
                 ),
                 per_project=False,
             ),
-            _items_table(items),
+            _items_table(items, idioma),
         ),
+        idioma=idioma,
     )
 
 
-def _items_table(items: ItemListing) -> Table:
+def _items_table(items: ItemListing, idioma: str) -> Table:
     return Table(
-        title=SHEET_ITEMS_TITLE,
+        title=_label(SHEET_ITEMS_TITLE, idioma),
         columns=(
-            Column("Item", width=8),
-            Column("Grupo", width=18),
-            Column("Tipo", width=12),
-            Column("Assunto / Descrição", width=56),
-            Column("Responsável", width=24),
-            Column("Prevista", ValueKind.DATE),
-            Column("Replanejada", ValueKind.DATE),
-            Column("Status", width=14),
+            Column(_label("Item", idioma), width=8),
+            Column(_label("Grupo", idioma), width=18),
+            Column(_label("Tipo", idioma), width=12),
+            Column(_label("Assunto / Descrição", idioma), width=56),
+            Column(_label("Responsável", idioma), width=24),
+            Column(_label("Prevista", idioma), ValueKind.DATE),
+            Column(_label("Replanejada", idioma), ValueKind.DATE),
+            Column(_label("Status", idioma), width=14),
         ),
-        rows=tuple(_item_row(item) for group in items.groups for item in group.items),
+        rows=tuple(_item_row(item, idioma) for group in items.groups for item in group.items),
         per_project=False,
     )
 
 
-def _item_row(item: ItemRow) -> Row:
+def _item_row(item: ItemRow, idioma: str) -> Row:
     return row(
         item.item,
         item.group,
-        item.kind,
+        _label(item.kind, idioma),
         f"{item.subject} · {item.description}" if item.description else item.subject,
         item.responsible_name,
         item.planned_date,
         item.replanned_date,
-        item.status_label,
+        _label(item.status_label, idioma),
     )

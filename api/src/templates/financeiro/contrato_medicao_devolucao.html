@@ -19,11 +19,11 @@
     {% endif %}
     <form method="post" action="/api/financeiro/contrato/medicoes/{{ medicao.id }}/devolver?numero={{ ficha.number }}"
       x-target="{{ alvo_formulario }} {{ alvo_medicoes }} {{ alvo_resumo }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Devolvendo a medição...">
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Devolvendo a medição...') }}">
       <input type="hidden" name="versao" value="{{ medicao.version }}" />
       <div class="fgrid">
         <div class="field field--full">
-          <label for="contrato-medicao-motivo">Motivo da devolução</label>
+          <label for="contrato-medicao-motivo">{{ t('financeiro', 'Motivo da devolução') }}</label>
           <textarea id="contrato-medicao-motivo" name="motivo"
             class="input{{ ' input--erro' if erros.motivo else '' }}" maxlength="300" required
             {% if erros.motivo %}aria-invalid="true" aria-describedby="contrato-medicao-motivo-erro"{% endif %}>{{ valores.motivo or '' }}</textarea>
@@ -32,10 +32,10 @@
       </div>
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--danger">
           <span x-init="$el.innerHTML = window.icon('dismiss', 16)" aria-hidden="true"></span>
-          Devolver à contratada
+          {{ t('financeiro', 'Devolver à contratada') }}
         </button>
       </div>
     </form>

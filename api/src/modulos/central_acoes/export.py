@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     Column,
@@ -45,6 +46,11 @@ STATUS_TONES = {
 }
 
 
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface da Central no idioma do request (D13)."""
+    return translations.translate("central_acoes", text, idioma)
+
+
 def build_document(
     *,
     listing: ActionListing,
@@ -52,86 +58,96 @@ def build_document(
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """The document of the screen for the filters in force: KPIs, filters and the table."""
     return Document(
-        title=TITLE,
-        scope_label=describe_scope(scope, projects),
+        namespace="central_acoes",
+        title=_label(TITLE, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=scope.is_portfolio,
         context=(
-            (FILTERS_LABEL, presentation.summary(filters, listing.responsibles)),
-            (ACTION_COUNT_LABEL, str(listing.total)),
+            (
+                _label(FILTERS_LABEL, idioma),
+                presentation.summary(filters, listing.responsibles, idioma),
+            ),
+            (_label(ACTION_COUNT_LABEL, idioma), str(listing.total)),
         ),
-        kpis=_kpis(listing),
-        tables=(_table(listing.rows),),
+        kpis=_kpis(listing, idioma),
+        tables=(_table(listing.rows, idioma),),
         paper=Paper.A3,
+        idioma=idioma,
     )
 
 
-def _kpis(listing: ActionListing) -> tuple[Kpi, ...]:
+def _kpis(listing: ActionListing, idioma: str) -> tuple[Kpi, ...]:
     counts = listing.counts
     share = listing.overdue_share
     return (
         Kpi(
-            "Em dia",
+            _label("Em dia", idioma),
             counts.on_time,
-            f"Esperado: {counts.open}",
+            _label("Esperado: {value}", idioma).format(value=counts.open),
             ValueKind.INTEGER,
             tone=Tone.INFO,
-            status="Prazo vigente ainda não venceu",
+            status=_label("Prazo vigente ainda não venceu", idioma),
         ),
         Kpi(
-            "Atrasadas",
+            _label("Atrasadas", idioma),
             counts.overdue,
-            "Meta: 0",
+            _label("Meta: 0", idioma),
             ValueKind.INTEGER,
             tone=Tone.ERROR if counts.overdue else Tone.OK,
-            status="Sem atrasadas" if share is None else f"{share}% das abertas",
+            status=(
+                _label("Sem atrasadas", idioma)
+                if share is None
+                else _label("{value}% das abertas", idioma).format(value=share)
+            ),
         ),
         Kpi(
-            "Concluídas",
+            _label("Concluídas", idioma),
             counts.completed,
-            f"Previsto: {listing.due_by_reference}",
+            _label("Previsto: {value}", idioma).format(value=listing.due_by_reference),
             ValueKind.INTEGER,
             tone=Tone.OK,
-            status="Com data de conclusão",
+            status=_label("Com data de conclusão", idioma),
         ),
         Kpi(
-            "Total de ações",
+            _label("Total de ações", idioma),
             counts.total,
-            f"Referência: {listing.universe}",
+            _label("Referência: {value}", idioma).format(value=listing.universe),
             ValueKind.INTEGER,
             tone=Tone.NEUTRAL,
-            status=f"{counts.open} em andamento",
+            status=_label("{value} em andamento", idioma).format(value=counts.open),
         ),
     )
 
 
-def _table(rows: Sequence[ActionRow]) -> Table:
+def _table(rows: Sequence[ActionRow], idioma: str) -> Table:
     return Table(
-        title=TABLE_TITLE,
+        title=_label(TABLE_TITLE, idioma),
         columns=(
-            Column("Origem", width=14),
-            Column("Referência", width=20),
-            Column("Item", width=8),
-            Column("Assunto", width=40),
-            Column("Descrição", width=50),
-            Column("Grupo", width=22),
-            Column("Solicitante", width=22),
-            Column("Responsável", width=22),
-            Column("Prazo vigente", ValueKind.DATE),
-            Column("Prevista", ValueKind.DATE),
-            Column("Replanejada", ValueKind.DATE),
-            Column("Conclusão", ValueKind.DATE),
-            Column("Status", width=14),
-            Column("Dias de atraso", ValueKind.INTEGER),
+            Column(_label("Origem", idioma), width=14),
+            Column(_label("Referência", idioma), width=20),
+            Column(_label("Item", idioma), width=8),
+            Column(_label("Assunto", idioma), width=40),
+            Column(_label("Descrição", idioma), width=50),
+            Column(_label("Grupo", idioma), width=22),
+            Column(_label("Solicitante", idioma), width=22),
+            Column(_label("Responsável", idioma), width=22),
+            Column(_label("Prazo vigente", idioma), ValueKind.DATE),
+            Column(_label("Prevista", idioma), ValueKind.DATE),
+            Column(_label("Replanejada", idioma), ValueKind.DATE),
+            Column(_label("Conclusão", idioma), ValueKind.DATE),
+            Column(_label("Status", idioma), width=14),
+            Column(_label("Dias de atraso", idioma), ValueKind.INTEGER),
         ),
-        rows=tuple(_row(line) for line in rows),
+        rows=tuple(_row(line, idioma) for line in rows),
     )
 
 
-def _row(line: ActionRow) -> Row:
+def _row(line: ActionRow, idioma: str) -> Row:
     record = line.record
     return row(
         record.origin,
@@ -146,7 +162,7 @@ def _row(line: ActionRow) -> Row:
         record.planned_date,
         record.replanned_date,
         record.completed_on,
-        Cell(record.status_label, STATUS_TONES[record.status]),
+        Cell(_label(record.status_label, idioma), STATUS_TONES[record.status]),
         record.days_overdue or None,
         project=line.project_label,
     )

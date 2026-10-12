@@ -11,7 +11,7 @@
 <form method="post" action="/api/central-acoes/acoes/{{ acao.id }}/concluir"
   x-target="acoes-conteudo" x-target.422="{{ target_id }}" x-target.409="{{ target_id }}" x-target.403="{{ target_id }}"
   @ajax:success="$el.closest('.modal-backdrop').querySelector('.modal__close').click()"
-  data-tn-loading="Concluindo a ação...">
+  data-tn-loading="{{ t('central_acoes', 'Concluindo a ação...') }}">
   <input type="hidden" name="versao" value="{{ versao }}" />
   <input type="hidden" name="consulta" value="{{ consulta }}" />
   {% if erros.geral %}
@@ -20,11 +20,11 @@
   </div>
   {% endif %}
   <p class="body-txt mb-16">
-    Prazo vigente: <strong>{{ formatar_data(acao.due_date) }}</strong>. Para guardar a evidência, use o botão Anexos da linha.
+    {{ t('central_acoes', 'Prazo vigente:') }} <strong>{{ formatar_data(acao.due_date) }}</strong>{{ t('central_acoes', '. Para guardar a evidência, use o botão Anexos da linha.') }}
   </p>
   <div class="fgrid">
     <div class="field field--full">
-      <label for="{{ target_id }}-data-conclusao">Data de conclusão</label>
+      <label for="{{ target_id }}-data-conclusao">{{ t('central_acoes', 'Data de conclusão') }}</label>
       <input id="{{ target_id }}-data-conclusao" class="input{% if erros.data_conclusao %} input--erro{% endif %}"
         type="date" name="data_conclusao" max="{{ referencia }}" value="{{ valores.data_conclusao }}" required
         {% if erros.data_conclusao %}aria-invalid="true" aria-describedby="{{ target_id }}-data-conclusao-erro"{% endif %} />
@@ -32,8 +32,8 @@
     </div>
   </div>
   <div class="modal__actions">
-    <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>Cancelar</button>
-    <button type="submit" class="btn btn--primary">Concluir</button>
+    <button type="button" class="btn btn--secondary" data-acoes-fechar-modal>{{ t('central_acoes', 'Cancelar') }}</button>
+    <button type="submit" class="btn btn--primary">{{ t('central_acoes', 'Concluir') }}</button>
   </div>
 </form>
 {% endblock %}

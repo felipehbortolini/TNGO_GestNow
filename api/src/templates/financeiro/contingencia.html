@@ -20,9 +20,9 @@
 <span hidden data-situacao="{{ situacao }}" data-carteira="{{ 'sim' if carteira else 'nao' }}"></span>
 
 {% if situacao == 'vazio-origem' %}
-<p class="body-txt">{{ 'Nenhum projeto da carteira tem reservas constituídas.' if carteira else 'Este projeto ainda não tem reservas constituídas.' }}</p>
+<p class="body-txt">{{ t('financeiro', 'Nenhum projeto da carteira tem reservas constituídas.') if carteira else t('financeiro', 'Este projeto ainda não tem reservas constituídas.') }}</p>
 {% else %}
-<div class="kpis" role="group" aria-label="Indicadores da Contingência">
+<div class="kpis" role="group" aria-label="{{ t('financeiro', 'Indicadores da Contingência') }}">
   {% for kpi in kpis %}
   {% if kpi.href %}<a class="kpi kpi--{{ kpi.tom }}" href="{{ kpi.href }}" data-tn-tela>{% else %}<div class="kpi kpi--{{ kpi.tom }} kpi--estatico">{% endif %}
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ kpi.icone }}', 16)" aria-hidden="true"></span>
@@ -45,7 +45,7 @@
 <section class="card mb-16" aria-labelledby="contingencia-grafico-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contingencia-grafico-titulo">Saldo da contingência</h2>
+      <h2 class="h-card4" id="contingencia-grafico-titulo">{{ t('financeiro', 'Saldo da contingência') }}</h2>
       <span class="hint">{{ subtitulo }} · valores em R$ mil</span>
     </div>
   </div>
@@ -57,18 +57,18 @@
 <section class="card mb-16" aria-labelledby="contingencia-composicao-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contingencia-composicao-titulo">Linha de base de custo e reservas</h2>
-      <span class="hint">Orçado da EAC mais o saldo da contingência; a reserva gerencial fica fora da linha de base</span>
+      <h2 class="h-card4" id="contingencia-composicao-titulo">{{ t('financeiro', 'Linha de base de custo e reservas') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Orçado da EAC mais o saldo da contingência; a reserva gerencial fica fora da linha de base') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-composicao>
-        <caption class="sr-only">Composição do orçamento</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Composição do orçamento') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Composição</th>
-            <th scope="col" class="td-num">Valor</th>
+            <th scope="col">{{ t('financeiro', 'Composição') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -81,7 +81,7 @@
         </tbody>
       </table>
     </div>
-    <p class="hint">Contingência consumida por SM aprovada sai da reserva e entra no orçado da EAC pela nova revisão; o total da linha de base de custo não muda.</p>
+    <p class="hint">{{ t('financeiro', 'Contingência consumida por SM aprovada sai da reserva e entra no orçado da EAC pela nova revisão; o total da linha de base de custo não muda.') }}</p>
   </div>
 </section>
 
@@ -89,23 +89,23 @@
 <section class="card mb-16" aria-labelledby="contingencia-projetos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contingencia-projetos-titulo">Reservas por projeto</h2>
-      <span class="hint">Consumo comparado ao avanço físico real de cada projeto</span>
+      <h2 class="h-card4" id="contingencia-projetos-titulo">{{ t('financeiro', 'Reservas por projeto') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Consumo comparado ao avanço físico real de cada projeto') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-projetos>
-        <caption class="sr-only">Reservas por projeto</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Reservas por projeto') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Projeto</th>
-            <th scope="col" class="td-num">Constituída</th>
-            <th scope="col" class="td-num">Consumida</th>
-            <th scope="col" class="td-num">Saldo</th>
-            <th scope="col" class="td-num">Consumo</th>
-            <th scope="col" class="td-num">Em análise</th>
-            <th scope="col" class="td-num">Reserva gerencial</th>
+            <th scope="col">{{ t('financeiro', 'Projeto') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Constituída') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Consumida') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Saldo') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Consumo') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Em análise') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Reserva gerencial') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -150,23 +150,23 @@
 <section class="card mb-16" aria-labelledby="contingencia-movimentos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contingencia-movimentos-titulo">Extrato de movimentos</h2>
-      <span class="hint">Constituição na linha de base, consumos por SM aprovada e pedidos em análise (ainda sem efeito no saldo)</span>
+      <h2 class="h-card4" id="contingencia-movimentos-titulo">{{ t('financeiro', 'Extrato de movimentos') }}</h2>
+      <span class="hint">{{ t('financeiro', 'Constituição na linha de base, consumos por SM aprovada e pedidos em análise (ainda sem efeito no saldo)') }}</span>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-movimentos>
-        <caption class="sr-only">Extrato de movimentos das reservas</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Extrato de movimentos das reservas') }}</caption>
         <thead>
           <tr>
-            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Data</th>
-            <th scope="col">Reserva</th>
-            <th scope="col">Movimento</th>
-            <th scope="col">Descrição</th>
-            <th scope="col" class="td-num">Valor</th>
-            <th scope="col" class="td-num">Saldo</th>
+            {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Data') }}</th>
+            <th scope="col">{{ t('financeiro', 'Reserva') }}</th>
+            <th scope="col">{{ t('financeiro', 'Movimento') }}</th>
+            <th scope="col">{{ t('financeiro', 'Descrição') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Saldo') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -186,7 +186,7 @@
             <td class="td-num">{{ linha.saldo }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">Nenhum movimento.</td></tr>
+          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">{{ t('financeiro', 'Nenhum movimento.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -197,29 +197,29 @@
 <section class="card mb-16" aria-labelledby="contingencia-ameacas-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contingencia-ameacas-titulo">Ameaças ativas e cobertura</h2>
+      <h2 class="h-card4" id="contingencia-ameacas-titulo">{{ t('financeiro', 'Ameaças ativas e cobertura') }}</h2>
       <span class="hint">{{ subtitulo_ameacas }}</span>
     </div>
     <div>
       <a class="btn btn--secondary btn--sm" href="{{ pauta_url }}" data-tn-tela>
         <span x-init="$el.innerHTML = window.icon('shield', 16)" aria-hidden="true"></span>
-        Painel de riscos
+        {{ t('financeiro', 'Painel de riscos') }}
       </a>
     </div>
   </div>
   <div class="card__body">
     <div class="tbl-wrap">
       <table class="tbl" data-ameacas>
-        <caption class="sr-only">Ameaças ativas e cobertura</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Ameaças ativas e cobertura') }}</caption>
         <thead>
           <tr>
-            {% if carteira %}<th scope="col">Projeto</th>{% endif %}
-            <th scope="col">Risco</th>
-            <th scope="col">Ameaça</th>
-            <th scope="col">Severidade</th>
-            <th scope="col">Situação</th>
+            {% if carteira %}<th scope="col">{{ t('financeiro', 'Projeto') }}</th>{% endif %}
+            <th scope="col">{{ t('financeiro', 'Risco') }}</th>
+            <th scope="col">{{ t('financeiro', 'Ameaça') }}</th>
+            <th scope="col">{{ t('financeiro', 'Severidade') }}</th>
+            <th scope="col">{{ t('financeiro', 'Situação') }}</th>
             <th scope="col" class="td-num">VME</th>
-            <th scope="col">SMs vinculadas</th>
+            <th scope="col">{{ t('financeiro', 'SMs vinculadas') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -238,7 +238,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">Nenhuma ameaça ativa.</td></tr>
+          <tr><td colspan="{{ 7 if carteira else 6 }}" class="muted">{{ t('financeiro', 'Nenhuma ameaça ativa.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

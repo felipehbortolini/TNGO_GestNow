@@ -28,7 +28,7 @@ from urllib.parse import quote, urlencode
 import azure.functions as func
 from sqlalchemy.orm import Session
 
-from src.core import calendario, rbac
+from src.core import calendario, rbac, translations
 from src.core.errors import AccessDeniedError, DomainError, InvalidDataError
 from src.core.excel import excel_response
 from src.core.export_document import Document
@@ -145,7 +145,7 @@ def change_register(
         reference_date=calendario.today(),
     )
     template = REGISTER_PARTS_TEMPLATE if _asks_for_parts(req) else REGISTER_TEMPLATE
-    context_data = _register_context(overview, filters, context)
+    context_data = _register_context(overview, filters, context, translations.language_of(req))
     if template == REGISTER_TEMPLATE:
         panel = service.change_panel(
             session,
@@ -155,8 +155,8 @@ def change_register(
         )
         context_data |= {
             "painel": panel,
-            "graficos": panel_charts.charts_of(panel),
-            "mes": panel_charts.month_label,
+            "graficos": panel_charts.charts_of(panel, translations.language_of(req)),
+            "mes": _month_formatter(translations.language_of(req)),
         }
     return AlpineAjaxResponse(
         template_name=template,
@@ -201,6 +201,7 @@ def _register_document(
         projects=configuracoes.list_projects(session),
         filters=filters,
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
@@ -228,18 +229,23 @@ def _query_of(filters: service.ChangeFilter) -> str:
 
 
 def _register_context(
-    overview: service.RegisterOverview, filters: service.ChangeFilter, context: RequestContext
+    overview: service.RegisterOverview,
+    filters: service.ChangeFilter,
+    context: RequestContext,
+    idioma: str,
 ) -> dict[str, Any]:
     count = len(overview.rows)
     return {
-        "cartoes": presentation.kpi_cards(overview),
+        "cartoes": presentation.kpi_cards(overview, idioma),
         "linhas": overview.rows,
         "total_no_escopo": overview.total_in_scope,
         "portfolio": overview.is_portfolio,
         "filtros": filters,
         "consulta": _query_of(filters),
         "contagem": presentation.plural(
-            count, "solicitação encontrada", "solicitações encontradas"
+            count,
+            translations.translate("governanca", "solicitação encontrada", idioma),
+            translations.translate("governanca", "solicitações encontradas", idioma),
         ),
         "pode_registrar": rbac.can(context.user, Permission.WRITE),
         "opcoes_situacao": SITUATION_OPTIONS,
@@ -249,17 +255,44 @@ def _register_context(
         "alcadas": models.CHANGE_AUTHORITIES,
         "excel_url": f"/api/{REGISTER_EXCEL_ROUTE}",
         "pdf_url": f"/api/{REGISTER_PRINTABLE_ROUTE}",
-        **_presenters(),
+        **_presenters(idioma),
     }
 
 
-def _presenters() -> dict[str, Any]:
+def _cost_formatter(idioma: str):
+    """O custo de uma mudança no idioma do request, como o fragmento o chama."""
+
+    def formatar(cost_cents: int | None) -> str:
+        return presentation.cost_text(cost_cents, idioma)
+
+    return formatar
+
+
+def _term_formatter(idioma: str):
+    """O prazo de uma mudança no idioma do request, como o fragmento o chama."""
+
+    def formatar(term_days: int | None) -> str:
+        return presentation.term_text(term_days, idioma)
+
+    return formatar
+
+
+def _month_formatter(idioma: str):
+    """O mês curto do painel no idioma do request, como o fragmento o chama."""
+
+    def formatar(month: date) -> str:
+        return panel_charts.month_label(month, idioma)
+
+    return formatar
+
+
+def _presenters(idioma: str) -> dict[str, Any]:
     """The functions the fragments call to write a situation, a priority, a cost and a term."""
     return {
         "pill_situacao": presentation.situation_pill,
         "pill_prioridade": presentation.priority_pill,
-        "texto_custo": presentation.cost_text,
-        "texto_prazo": presentation.term_text,
+        "texto_custo": _cost_formatter(idioma),
+        "texto_prazo": _term_formatter(idioma),
     }
 
 
@@ -275,16 +308,20 @@ def _new_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpRespo
         req,
         values=values,
         today=calendario.today(),
-        errors=_field_messages(error),
+        errors=_field_messages(error, translations.language_of(req)),
         status_code=422,
     )
 
 
-def _field_messages(error: InvalidDataError) -> dict[str, str]:
+def _field_messages(error: InvalidDataError, idioma: str) -> dict[str, str]:
     """The message of each field; a message that is not of a field goes under ``geral``."""
     if isinstance(error.detail, Mapping):
-        return {field: message for field, message in error.detail.items() if message}
-    return {"geral": str(error.detail)}
+        return {
+            field: translations.translate("governanca", message, idioma)
+            for field, message in error.detail.items()
+            if message
+        }
+    return {"geral": translations.translate("governanca", str(error.detail), idioma)}
 
 
 def _new_form_response(
@@ -368,6 +405,7 @@ def change_sheet(
             code,
             pode_gerir=rbac.can(context.user, Permission.MANAGE),
             pode_escrever=rbac.can(context.user, Permission.WRITE),
+            idioma=translations.language_of(req),
         ),
         request=req,
     )
@@ -402,11 +440,17 @@ def _sheet_document(req: func.HttpRequest, session: Session, context: RequestCon
         scope=context.scope,
         projects=configuracoes.list_projects(session),
         today=today,
+        idioma=translations.language_of(req),
     )
 
 
 def _sheet_context(
-    sheet: service.ChangeSheet, code: str, *, pode_gerir: bool, pode_escrever: bool
+    sheet: service.ChangeSheet,
+    code: str,
+    *,
+    pode_gerir: bool,
+    pode_escrever: bool,
+    idioma: str,
 ) -> dict[str, Any]:
     query = urlencode({CODE_PARAMETER: code})
     change = sheet.change
@@ -438,7 +482,7 @@ def _sheet_context(
         "eap_url": f"/planejamento/eap?projeto={sheet.change.project_id}",
         "anexos_url": f"/api/anexos?origem={service.ORIGIN_TABLE}&registro={sheet.change.id}",
         "tipo_emergencial": models.PRIORITY_EMERGENCY,
-        **_presenters(),
+        **_presenters(idioma),
     }
 
 
@@ -483,7 +527,11 @@ def _cancel_form_error(req: func.HttpRequest, error: DomainError) -> func.HttpRe
         validation.FIELD_VERSION: req.form.get(validation.FIELD_VERSION) or "",
     }
     errors = (
-        _field_messages(error) if isinstance(error, InvalidDataError) else {"geral": str(error)}
+        _field_messages(error, translations.language_of(req))
+        if isinstance(error, InvalidDataError)
+        else {
+            "geral": translations.translate("governanca", str(error), translations.language_of(req))
+        }
     )
     return _cancel_form_response(
         req,
@@ -617,7 +665,11 @@ def start_analysis(
             )
         }
         return _start_form_response(
-            req, form=form, values=values, errors=_field_messages(error), status_code=422
+            req,
+            form=form,
+            values=values,
+            errors=_field_messages(error, translations.language_of(req)),
+            status_code=422,
         )
     return redirect_to(_sheet_address(change.code, change.project_id))
 
@@ -682,7 +734,11 @@ def conclude_impact_analysis(
         form = service.impact_form(session, user=context.user, code=code, reference_date=today)
         values = {field: req.form.get(field) or "" for field in req.form}
         return _impact_form_response(
-            req, form=form, values=values, errors=_field_messages(error), status_code=422
+            req,
+            form=form,
+            values=values,
+            errors=_field_messages(error, translations.language_of(req)),
+            status_code=422,
         )
     return redirect_to(_sheet_address(change.code, change.project_id))
 
@@ -713,6 +769,7 @@ def _sheet_again(
             code,
             pode_gerir=rbac.can(context.user, Permission.MANAGE),
             pode_escrever=rbac.can(context.user, Permission.WRITE),
+            idioma=translations.language_of(req),
         ),
         request=req,
         target_id=SHEET_TARGET,
@@ -792,12 +849,14 @@ def decide_change_request(
             req,
             form=form,
             values=_decision_values(req),
-            errors=_field_messages(error),
+            errors=_field_messages(error, translations.language_of(req)),
             status_code=422,
         )
-    notice = DECIDED_NOTICE
+    notice = translations.translate("governanca", DECIDED_NOTICE, translations.language_of(req))
     if result.actions_created:
-        notice += f" {result.actions_created} ação(ões) na Central."
+        notice += " " + translations.translate(
+            "governanca", "{value} ação(ões) na Central.", translations.language_of(req)
+        ).format(value=result.actions_created)
     return _sheet_again(req, session, context, code=code, notice=notice)
 
 
@@ -853,10 +912,18 @@ def reopen_request(
             req,
             code=code,
             version=req.form.get(validation.FIELD_VERSION),
-            errors=_field_messages(error),
+            errors=_field_messages(error, translations.language_of(req)),
             status_code=422,
         )
-    return _sheet_again(req, session, context, code=change.code, notice=RESUBMITTED_NOTICE)
+    return _sheet_again(
+        req,
+        session,
+        context,
+        code=change.code,
+        notice=translations.translate(
+            "governanca", RESUBMITTED_NOTICE, translations.language_of(req)
+        ),
+    )
 
 
 def _closing_form_response(
@@ -922,10 +989,12 @@ def close_change_request(
             req,
             form=form,
             values={field: req.form.get(field) or "" for field in req.form},
-            errors=_field_messages(error),
+            errors=_field_messages(error, translations.language_of(req)),
             status_code=422,
         )
-    notice = CLOSED_NOTICE
+    notice = translations.translate("governanca", CLOSED_NOTICE, translations.language_of(req))
     if result.lesson_code:
-        notice += f" Lição {result.lesson_code} criada em Rascunho."
+        notice += " " + translations.translate(
+            "governanca", "Lição {code} criada em Rascunho.", translations.language_of(req)
+        ).format(code=result.lesson_code)
     return _sheet_again(req, session, context, code=result.code, notice=notice)

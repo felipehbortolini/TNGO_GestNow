@@ -14,12 +14,14 @@
 <aside
   id="main-nav"
   class="sidebar"
-  aria-label="Navegação principal"
+  aria-label="{{ t('shell', 'Navegação principal') }}"
   x-data="sidebar"
   data-escopo="portfolio"
   data-caminho=""
   data-tela="{{ tela }}"
   data-titulo="{{ titulo }}"
+  data-idioma="{{ idioma }}"
+  data-textos='{{ textos | tojson }}'
 >
   <div class="sidebar__brand">
     <a href="/" class="sidebar__logo-link" aria-label="Timenow GestNow"></a>
@@ -31,14 +33,14 @@
   <div class="sidebar__user">
     <div class="avatar" data-dica-trilho="{{ email }}">{{ email[:1]|upper }}</div>
     <div class="userchip__info">
-      <div class="userchip__name">Sem acesso</div>
+      <div class="userchip__name">{{ t('shell', 'Sem acesso') }}</div>
       <div class="userchip__role" title="{{ email }}">{{ email }}</div>
     </div>
     <a
       href="/.auth/logout"
       class="iconbtn sidebar__user-chev"
-      aria-label="Sair"
-      data-dica-trilho="Sair"
+      aria-label="{{ t('shell', 'Sair') }}"
+      data-dica-trilho="{{ t('shell', 'Sair') }}"
       x-init="$el.innerHTML = window.icon('signout', 16)"
     ></a>
   </div>

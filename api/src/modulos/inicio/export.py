@@ -17,6 +17,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from src.core import translations
 from src.core.export_document import (
     Cell,
     Column,
@@ -56,38 +57,52 @@ _KPI_TONES: dict[str, Tone] = {
 _LEVEL_TONES: dict[str, Tone] = {"danger": Tone.ERROR, "warning": Tone.WARN}
 
 
+def _label(text: str, idioma: str) -> str:
+    """O texto de interface do Início no idioma do request (D13)."""
+    return translations.translate("inicio", text, idioma)
+
+
 def build_document(
     *,
     overview: service.HomeOverview,
     scope: Scope,
     projects: Sequence[ProjectLike],
     today: date,
+    idioma: str = "pt",
 ) -> Document:
     """O documento do Início no escopo do request; a data de geração vem da rota."""
-    tables = [_attention_table(overview), _modules_table(overview)]
+    tables = [_attention_table(overview, idioma), _modules_table(overview, idioma)]
     if overview.is_portfolio and overview.portfolio_rows:
-        tables.insert(0, _carteira_table(overview))
+        tables.insert(0, _carteira_table(overview, idioma))
     return Document(
-        title=TITLE_PORTFOLIO if overview.is_portfolio else TITLE_PROJECT,
-        scope_label=describe_scope(scope, projects),
+        namespace="inicio",
+        title=_label(TITLE_PORTFOLIO if overview.is_portfolio else TITLE_PROJECT, idioma),
+        scope_label=describe_scope(scope, projects, idioma),
         generated_on=today,
         portfolio=overview.is_portfolio,
-        context=_context(overview),
+        context=_context(overview, idioma),
         kpis=_kpis(overview),
         tables=tuple(tables),
         paper=Paper.A4,
+        idioma=idioma,
     )
 
 
-def _context(overview: service.HomeOverview) -> tuple[tuple[str, str], ...]:
+def _context(overview: service.HomeOverview, idioma: str) -> tuple[tuple[str, str], ...]:
     """As etiquetas da barra de contexto, com o consolidado no Portfólio."""
     context = [
-        ("Data de referência", format_value(ValueKind.DATE, overview.reference_date)),
-        ("Orçamento", format_value(ValueKind.MONEY, overview.budget_cents)),
+        (
+            _label("Data de referência", idioma),
+            format_value(ValueKind.DATE, overview.reference_date, idioma=idioma),
+        ),
+        (_label("Orçamento", idioma), format_value(ValueKind.MONEY, overview.budget_cents)),
     ]
     if overview.expected_end_date is not None:
         context.append(
-            ("Término previsto", format_value(ValueKind.DATE, overview.expected_end_date))
+            (
+                _label("Término previsto", idioma),
+                format_value(ValueKind.DATE, overview.expected_end_date, idioma=idioma),
+            )
         )
     return tuple(context)
 
@@ -107,7 +122,7 @@ def _kpis(overview: service.HomeOverview) -> tuple[Kpi, ...]:
     )
 
 
-def _carteira_table(overview: service.HomeOverview) -> Table:
+def _carteira_table(overview: service.HomeOverview, idioma: str) -> Table:
     """A carteira de projetos: peso, BAC, avanço, índices, projeção, término, contagens e situação.
 
     A linha de fechamento é o rodapé ``Portfólio`` da tela: o peso fecha em
@@ -115,23 +130,23 @@ def _carteira_table(overview: service.HomeOverview) -> Table:
     """
     totals = overview.portfolio_totals
     return Table(
-        title=CARTEIRA_TITLE,
+        title=_label(CARTEIRA_TITLE, idioma),
         columns=(
             Column("Projeto", width=30),
-            Column("Peso na carteira", ValueKind.PERCENT, digits=2, width=14),
-            Column("Orçamento vigente", ValueKind.MONEY, width=16),
-            Column("Avanço previsto", ValueKind.PERCENT, digits=1, width=14),
-            Column("Avanço real", ValueKind.PERCENT, digits=1, width=14),
+            Column(_label("Peso na carteira", idioma), ValueKind.PERCENT, digits=2, width=14),
+            Column(_label("Orçamento vigente", idioma), ValueKind.MONEY, width=16),
+            Column(_label("Avanço previsto", idioma), ValueKind.PERCENT, digits=1, width=14),
+            Column(_label("Avanço real", idioma), ValueKind.PERCENT, digits=1, width=14),
             Column("SPI", ValueKind.DECIMAL, digits=2, width=10),
             Column("CPI", ValueKind.DECIMAL, digits=2, width=10),
-            Column("Projeção no término", ValueKind.MONEY, width=16),
+            Column(_label("Projeção no término", idioma), ValueKind.MONEY, width=16),
             Column("VAC", ValueKind.MONEY, width=14),
-            Column("Término (linha de base)", ValueKind.DATE, width=14),
-            Column("Término (tendência)", ValueKind.DATE, width=14),
-            Column("Riscos no topo", ValueKind.INTEGER, width=12),
-            Column("Pedidos críticos", ValueKind.INTEGER, width=13),
-            Column("Ações atrasadas", ValueKind.INTEGER, width=13),
-            Column("Situação", width=12),
+            Column(_label("Término (linha de base)", idioma), ValueKind.DATE, width=14),
+            Column(_label("Término (tendência)", idioma), ValueKind.DATE, width=14),
+            Column(_label("Riscos no topo", idioma), ValueKind.INTEGER, width=12),
+            Column(_label("Pedidos críticos", idioma), ValueKind.INTEGER, width=13),
+            Column(_label("Ações atrasadas", idioma), ValueKind.INTEGER, width=13),
+            Column(_label("Situação", idioma), width=12),
         ),
         rows=tuple(
             row(
@@ -149,19 +164,19 @@ def _carteira_table(overview: service.HomeOverview) -> Table:
                 item.critical_risks,
                 item.critical_orders,
                 item.overdue_actions,
-                Cell(item.health_label, _HEALTH_TONES.get(item.health or "")),
+                Cell(item.health_label_in(idioma), _HEALTH_TONES.get(item.health or "")),
             )
             for item in overview.portfolio_rows
         ),
-        totals=None if totals is None else _carteira_totals(totals),
+        totals=None if totals is None else _carteira_totals(totals, idioma),
         per_project=False,
     )
 
 
-def _carteira_totals(totals: service.PortfolioTotals) -> tuple[Cell, ...]:
+def _carteira_totals(totals: service.PortfolioTotals, idioma: str) -> tuple[Cell, ...]:
     """O rodapé da carteira no formato do documento: o peso fecha em 100,00%."""
     return (
-        Cell("Portfólio", Tone.NEUTRAL),
+        Cell(_label("Portfólio", idioma), Tone.NEUTRAL),
         Cell(Decimal(100)),
         Cell(totals.budget_cents),
         Cell(totals.predicted),
@@ -179,20 +194,22 @@ def _carteira_totals(totals: service.PortfolioTotals) -> tuple[Cell, ...]:
     )
 
 
-def _attention_table(overview: service.HomeOverview) -> Table:
+def _attention_table(overview: service.HomeOverview, idioma: str) -> Table:
     """Os pontos de atenção: módulo, nível, título e detalhe."""
     return Table(
-        title=ATTENTION_TITLE,
+        title=_label(ATTENTION_TITLE, idioma),
         columns=(
-            Column("Módulo", width=28),
-            Column("Nível", width=12),
-            Column("Ponto de atenção", width=48),
-            Column("Detalhe", width=48),
+            Column(_label("Módulo", idioma), width=28),
+            Column(_label("Nível", idioma), width=12),
+            Column(_label("Ponto de atenção", idioma), width=48),
+            Column(_label("Detalhe", idioma), width=48),
         ),
         rows=tuple(
             row(
-                service.MODULE_LABELS.get(attention.module, attention.module),
-                "Crítico" if attention.level == "danger" else "Atenção",
+                _label(service.MODULE_LABELS.get(attention.module, attention.module), idioma),
+                _label("Crítico", idioma)
+                if attention.level == "danger"
+                else _label("Atenção", idioma),
                 Cell(attention.title, _LEVEL_TONES.get(attention.level)),
                 attention.detail,
             )
@@ -202,14 +219,14 @@ def _attention_table(overview: service.HomeOverview) -> Table:
     )
 
 
-def _modules_table(overview: service.HomeOverview) -> Table:
+def _modules_table(overview: service.HomeOverview, idioma: str) -> Table:
     """Os cards dos módulos como tabela: título, descrição e selos."""
     return Table(
-        title=MODULES_TITLE,
+        title=_label(MODULES_TITLE, idioma),
         columns=(
-            Column("Módulo", width=28),
-            Column("Descrição", width=60),
-            Column("Selos", width=28),
+            Column(_label("Módulo", idioma), width=28),
+            Column(_label("Descrição", idioma), width=60),
+            Column(_label("Selos", idioma), width=28),
         ),
         rows=tuple(
             row(card.title, card.description, "; ".join(badge.text for badge in card.badges))

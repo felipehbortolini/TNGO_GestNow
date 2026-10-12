@@ -7,7 +7,7 @@
   Espera: cartoes, vazio.
 #}
 {% if not vazio %}
-<div class="kpis" style="--kpis-colunas: 6" role="group" aria-label="Indicadores da administração contratual">
+<div class="kpis" style="--kpis-colunas: 6" role="group" aria-label="{{ t('financeiro', 'Indicadores da administração contratual') }}">
   {% for cartao in cartoes %}
   <div class="kpi kpi--{{ cartao.tone }} kpi--estatico">
     <span class="kpi__icone" x-init="$el.innerHTML = window.icon('{{ cartao.icon }}', 16)" aria-hidden="true"></span>

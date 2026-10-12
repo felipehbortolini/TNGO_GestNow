@@ -16,7 +16,7 @@
 {% block fragment %}
 <section class="card mb-16" aria-labelledby="{{ target_id }}-titulo">
   <div class="card__head">
-    <h2 class="h-card4" id="{{ target_id }}-titulo">Nova avaliação</h2>
+    <h2 class="h-card4" id="{{ target_id }}-titulo">{{ t('financeiro', 'Nova avaliação') }}</h2>
     <span class="hint">{{ ficha.number }} · {{ ficha.company }} · os pesos ficam gravados na avaliação</span>
   </div>
   <div class="card__body">
@@ -27,10 +27,10 @@
       action="/api/financeiro/contrato/avaliacoes?numero={{ ficha.number }}"
       data-avaliacao data-limite-plano="{{ limite_plano }}"
       x-target="{{ alvo_formulario }} {{ alvo_avaliacoes }}"
-      x-target.error="{{ alvo_formulario }}" data-tn-loading="Registrando a avaliação...">
+      x-target.error="{{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Registrando a avaliação...') }}">
       <div class="fgrid">
         <div class="field">
-          <label for="contrato-avaliacao-periodo">Período</label>
+          <label for="contrato-avaliacao-periodo">{{ t('financeiro', 'Período') }}</label>
           <input id="contrato-avaliacao-periodo" name="periodo" type="month"
             class="input{{ ' input--erro' if erros.periodo else '' }}"
             value="{{ valores.periodo or '' }}" required
@@ -38,7 +38,7 @@
           {% if erros.periodo %}<span class="field__erro" id="contrato-avaliacao-periodo-erro">{{ erros.periodo }}</span>{% endif %}
         </div>
         <div class="field">
-          <label for="contrato-avaliacao-tipo">Tipo</label>
+          <label for="contrato-avaliacao-tipo">{{ t('financeiro', 'Tipo') }}</label>
           <select id="contrato-avaliacao-tipo" name="tipo"
             class="input{{ ' input--erro' if erros.tipo else '' }}" required
             {% if erros.tipo %}aria-invalid="true" aria-describedby="contrato-avaliacao-tipo-erro"{% endif %}>
@@ -51,7 +51,7 @@
       </div>
 
       <fieldset class="mt-16">
-        <legend class="h-card5">Critérios (nota de 1 a 5)</legend>
+        <legend class="h-card5">{{ t('financeiro', 'Critérios (nota de 1 a 5)') }}</legend>
         <div class="fgrid mt-16">
           {% for criterio in criterios %}
           <div class="field">
@@ -73,12 +73,12 @@
 
       <div class="aviso aviso--erro contrato-avaliacao__aviso" data-aviso-plano role="status" hidden>
         <strong>Nota {{ limite_plano }} ou menor exige plano de melhoria.</strong>
-        <span>O anexo de evidência passa a ser obrigatório e a ação é aberta na Central com origem Contrato.</span>
+        <span>{{ t('financeiro', 'O anexo de evidência passa a ser obrigatório e a ação é aberta na Central com origem Contrato.') }}</span>
       </div>
 
       <div class="fgrid mt-16">
         <div class="field field--full">
-          <label for="contrato-avaliacao-comentario">Comentário</label>
+          <label for="contrato-avaliacao-comentario">{{ t('financeiro', 'Comentário') }}</label>
           <textarea id="contrato-avaliacao-comentario" name="comentario" rows="2" maxlength="400"
             class="input{{ ' input--erro' if erros.comentario else '' }}"
             {% if erros.comentario %}aria-invalid="true" aria-describedby="contrato-avaliacao-comentario-erro"{% endif %}>{{ valores.comentario or '' }}</textarea>
@@ -97,10 +97,10 @@
 
       <div class="acoes-rodape mt-24">
         <button type="button" class="btn btn--secondary"
-          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">Cancelar</button>
+          @click="$el.closest('form').reset(); document.getElementById('{{ target_id }}').replaceChildren()">{{ t('financeiro', 'Cancelar') }}</button>
         <button type="submit" class="btn btn--primary">
           <span x-init="$el.innerHTML = window.icon('check', 16)" aria-hidden="true"></span>
-          Registrar avaliação
+          {{ t('financeiro', 'Registrar avaliação') }}
         </button>
       </div>
     </form>

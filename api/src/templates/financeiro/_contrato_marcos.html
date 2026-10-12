@@ -11,7 +11,7 @@
 <section class="card" aria-labelledby="contrato-marcos-titulo">
   <div class="card__head">
     <div>
-      <h2 class="h-card4" id="contrato-marcos-titulo">Marcos de pagamento</h2>
+      <h2 class="h-card4" id="contrato-marcos-titulo">{{ t('financeiro', 'Marcos de pagamento') }}</h2>
       <span class="hint">Soma dos marcos: {{ soma_pct }}% · marco só é aprovado com evidência anexada</span>
     </div>
     {% if pode_gerir %}
@@ -19,7 +19,7 @@
       <a class="btn btn--primary" href="/api/financeiro/contrato/marcos/novo?numero={{ ficha.number }}"
         x-target="{{ alvo_formulario }}">
         <span x-init="$el.innerHTML = window.icon('add', 16)" aria-hidden="true"></span>
-        Novo marco
+        {{ t('financeiro', 'Novo marco') }}
       </a>
     </div>
     {% endif %}
@@ -27,24 +27,24 @@
   <div class="card__body">
     {% if erro_marcos %}
     <div class="aviso aviso--erro" role="alert">
-      <strong>Não foi possível concluir.</strong>
+      <strong>{{ t('financeiro', 'Não foi possível concluir.') }}</strong>
       <span>{{ erro_marcos }}</span>
     </div>
     {% endif %}
 
     <div class="tbl-wrap">
       <table class="tbl">
-        <caption class="sr-only">Marcos de pagamento do contrato</caption>
+        <caption class="sr-only">{{ t('financeiro', 'Marcos de pagamento do contrato') }}</caption>
         <thead>
           <tr>
-            <th scope="col">Marco</th>
+            <th scope="col">{{ t('financeiro', 'Marco') }}</th>
             <th scope="col" class="td-num">%</th>
-            <th scope="col" class="td-num">Valor</th>
-            <th scope="col" class="td-num">Retenção</th>
-            <th scope="col">Prevista</th>
-            <th scope="col">Conclusão</th>
-            <th scope="col">Situação</th>
-            {% if pode_gerir %}<th scope="col"><span class="sr-only">Ações</span></th>{% endif %}
+            <th scope="col" class="td-num">{{ t('financeiro', 'Valor') }}</th>
+            <th scope="col" class="td-num">{{ t('financeiro', 'Retenção') }}</th>
+            <th scope="col">{{ t('financeiro', 'Prevista') }}</th>
+            <th scope="col">{{ t('financeiro', 'Conclusão') }}</th>
+            <th scope="col">{{ t('financeiro', 'Situação') }}</th>
+            {% if pode_gerir %}<th scope="col"><span class="sr-only">{{ t('financeiro', 'Ações') }}</span></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -58,17 +58,17 @@
             <td class="td-num">{{ linha.marco.value_cents | brl }}</td>
             <td class="td-num">{{ linha.marco.retention_cents | brl }}</td>
             <td>
-              {{ linha.marco.expected_on.strftime('%d/%m/%Y') }}
+              {{ data(linha.marco.expected_on) }}
               {% if linha.atrasado %}
               <br /><span class="pill pill--erro">
                 {% if linha.atraso_dias == 1 %}1 dia de atraso{% else %}{{ linha.atraso_dias }} dias de atraso{% endif %}
               </span>
               {% endif %}
             </td>
-            <td>{{ linha.marco.completed_on.strftime('%d/%m/%Y') if linha.marco.completed_on else '' }}</td>
+            <td>{{ data(linha.marco.completed_on) if linha.marco.completed_on else '' }}</td>
             <td>
               <span class="pill pill--{{ linha.situacao_tom }}">{{ linha.marco.situation }}</span>
-              {% if linha.marco.has_evidence %}<br /><span class="hint">Evidência anexada</span>{% endif %}
+              {% if linha.marco.has_evidence %}<br /><span class="hint">{{ t('financeiro', 'Evidência anexada') }}</span>{% endif %}
             </td>
             {% if pode_gerir %}
             <td class="td-center">
@@ -76,27 +76,27 @@
               {% if linha.pode_enviar_evidencia %}
               <a class="btn btn--sm btn--secondary"
                 href="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/evidencia?numero={{ ficha.number }}"
-                x-target="{{ alvo_formulario }}">Enviar evidência</a>
+                x-target="{{ alvo_formulario }}">{{ t('financeiro', 'Enviar evidência') }}</a>
               {% endif %}
               {% if linha.pode_aprovar %}
               <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/aprovar?numero={{ ficha.number }}"
-                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Aprovando o marco...">
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Aprovando o marco...') }}">
                 <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Aprovar</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Aprovar') }}</button>
               </form>
               {% endif %}
               {% if linha.pode_faturar %}
               <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/faturar?numero={{ ficha.number }}"
-                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Faturando o marco...">
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Faturando o marco...') }}">
                 <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Faturar</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Faturar') }}</button>
               </form>
               {% endif %}
               {% if linha.pode_pagar %}
               <form method="post" action="/api/financeiro/contrato/marcos/{{ linha.marco.id }}/pagar?numero={{ ficha.number }}"
-                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="Registrando o pagamento...">
+                x-target="{{ alvo_marcos }} {{ alvo_formulario }}" data-tn-loading="{{ t('financeiro', 'Registrando o pagamento...') }}">
                 <input type="hidden" name="versao" value="{{ linha.marco.version }}" />
-                <button type="submit" class="btn btn--sm btn--secondary">Registrar pagamento</button>
+                <button type="submit" class="btn btn--sm btn--secondary">{{ t('financeiro', 'Registrar pagamento') }}</button>
               </form>
               {% endif %}
               </div>
@@ -104,12 +104,12 @@
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">Nenhum marco cadastrado.</td></tr>
+          <tr><td colspan="{{ 8 if pode_gerir else 7 }}" class="muted">{{ t('financeiro', 'Nenhum marco cadastrado.') }}</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">Total</th>
+            <th scope="row">{{ t('financeiro', 'Total') }}</th>
             <td class="td-num fw-600">{{ soma_pct }}%</td>
             <td class="td-num fw-600">{{ linhas_marcos | sum(attribute='marco.value_cents') | brl }}</td>
             <td colspan="{{ 5 if pode_gerir else 4 }}"></td>
