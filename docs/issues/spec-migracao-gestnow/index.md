@@ -114,7 +114,7 @@ vem primeiro.
 | ISSUE-085 | Relatório: folhas Riscos, Qualidade, HSE e Carteira de projetos | 8 | task | done | ready-for-agent | ISSUE-084, ISSUE-080 | [ISSUE-085](./085-relatorio-riscos-qualidade-hse-e-carteira.md) |
 | ISSUE-086 | Relatório: Excel, Imprimir / PDF e Alterar período | 8 | task | done | ready-for-agent | ISSUE-085 | [ISSUE-086](./086-relatorio-excel-impressao-e-alterar-periodo.md) |
 | ISSUE-087 | Inglês, parte 1: catálogo no servidor, seletor PT / EN, shell, Início, Central, Governança e Financeiro | 9 | task | done | ready-for-agent | ISSUE-086, ISSUE-078 | [ISSUE-087](./087-ingles-parte-1.md) |
-| ISSUE-088 | Inglês, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, Configurações e relatório | 9 | task | proposed | ready-for-agent | ISSUE-087 | [ISSUE-088](./088-ingles-parte-2.md) |
+| ISSUE-088 | Inglês, parte 2: Planejamento, Programação Semanal, Suprimentos, Riscos, Qualidade, HSE, Configurações e relatório | 9 | task | done | ready-for-agent | ISSUE-087 | [ISSUE-088](./088-ingles-parte-2.md) |
 | ISSUE-089 | Oráculo de paridade completo e prova do cálculo vivo | 9 | task | proposed | ready-for-agent | ISSUE-088 | [ISSUE-089](./089-oraculo-de-paridade-e-calculo-vivo.md) |
 | ISSUE-090 | Varredura de todas as telas nas três larguras | 9 | task | proposed | ready-for-agent | ISSUE-089 | [ISSUE-090](./090-varredura-de-todas-as-telas.md) |
 | ISSUE-091 | Exportações tela a tela, acessibilidade e roteiro manual | 9 | task | proposed | ready-for-agent | ISSUE-090 | [ISSUE-091](./091-exportacoes-acessibilidade-e-roteiro-manual.md) |
