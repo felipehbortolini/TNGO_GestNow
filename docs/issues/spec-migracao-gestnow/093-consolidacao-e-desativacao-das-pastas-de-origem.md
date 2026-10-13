@@ -65,3 +65,29 @@ Nenhuma. A exclusão foi decidida na Q32 (pergunta só no fim) e a versão das s
 ## Notas
 
 D15, item 9, e Further Notes da spec ("Desativação das pastas de origem").
+
+## Registro de execução
+
+Fatia entregue em 12/10/2026, fechando a migração. **Pré-condições conferidas**: o necessário
+das origens está preservado em `docs/referencia/` (os 22 visuais de `Graficos HTML`, os READMEs
+do protótipo e do app de Programação Semanal, a carga de demonstração convertida dentro do
+GestNow); a busca por caminhos das pastas de origem não achou uso operacional — só o campo
+`origem` do `demonstracao.json` da Programação Semanal, reapontado para a fonte como histórico
+(sem o caminho `fontes/`); oráculo, varredura e porta de qualidade verdes. **Consolidação**: as
+skills de ferramenta da raiz entraram na pasta do projeto, mescladas às do Padrão — `grill-me` e
+`grilling` ficaram na **versão da raiz** (Q34) e entraram `grill-with-docs` e `to-spec`, em
+`.agents/skills/` e `.claude/skills/`; o `skills-lock.json` mesclou as dez entradas (hash da
+raiz vencendo nos nomes iguais); o README passou a dizer que **as sessões de trabalho abrem
+dentro da pasta do projeto**. **Desativação (Q32, confirmada pelo dono no pop-up)**: `fontes/`
+(501 arquivos) e `Graficos HTML/` (22) saíram do repositório pelo `git rm` — o histórico
+preserva —; na raiz do OneDrive, `Sistema`, `Padrao Desenvolvimento`, `Graficos HTML` e
+`Timenow - Programação Semanal` foram para a **lixeira**. Caminhos acima de 260 caracteres
+exigiram a remoção com shim (`\\?\` e `shutil.rmtree` com limpeza de atributo), porque os
+arquivos chegaram com atributos de somente-leitura/OneDrive. **Verificação**: o `run.bat` subiu
+em porta alternativa com `/api/health` `ok`/`m075` depois da consolidação, e a porta de
+qualidade passa (**5/5**); a suíte completa e o oráculo/varredura finais rodam na etapa de
+fechamento da entrega.
+
+- DECISAO: skills | as skills da raiz entram na pasta do projeto, mescladas; grill-me e grilling ficam na versão da raiz e entram grill-with-docs e to-spec; o skills-lock.json mescla as dez entradas | Q34, D15, ISSUE-093
+- DECISAO: desativação | confirmada no pop-up (Q32): fontes/ e Graficos HTML/ saem do repositório pelo git (histórico preserva) e Sistema, Padrao Desenvolvimento, Graficos HTML e Timenow - Programação Semanal vão para a lixeira do OneDrive; docs/referencia/ preserva o necessário | Q32, D15, ISSUE-093
+- DECISAO: proveniência | o campo origem do demonstracao.json da Programação Semanal foi reapontado para a fonte como histórico, sem o caminho fontes/ | D15, ISSUE-093

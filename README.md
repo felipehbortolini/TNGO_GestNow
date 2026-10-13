@@ -86,7 +86,7 @@ A base segue a varredura (`--base` ou `GESTNOW_BASE`, padrão `http://localhost:
 | Skills de agente | `.agents/skills/` e `.claude/skills/` |
 | Mapa “quero mudar X, abro Y” | [docs/MAPA-DE-MODULOS.md](docs/MAPA-DE-MODULOS.md) |
 
-O mapa detalhado está em [docs/ONDE-ESTA.md](docs/ONDE-ESTA.md). As referências em `docs/referencia/` são cópias de consulta das pastas de origem.
+O mapa detalhado está em [docs/ONDE-ESTA.md](docs/ONDE-ESTA.md). As referências em `docs/referencia/` preservam o necessário das pastas de origem, desativadas ao fim da migração (ISSUE-093).
 
 ## Regras do repositório
 
