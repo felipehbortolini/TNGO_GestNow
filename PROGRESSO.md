@@ -1,13 +1,12 @@
-<!-- Progresso da migração: 92 de 93 -->
+<!-- Progresso da migração: 93 de 93 -->
 
 # Progresso da migração
 
-**92 de 93 issues concluídas** (última fechada: ISSUE-092). Atualizado em 12/10/2026 14:01 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
+**93 de 93 issues concluídas** (última fechada: ISSUE-093). Atualizado em 13/10/2026 11:16 UTC por `scripts/execucao/gerar_progresso.py`; a situação oficial é a coluna Situação do `docs/issues/spec-migracao-gestnow/index.md`.
 
 | Situação | Quantidade | Issues |
 |---|---|---|
-| concluída | 92 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092 |
-| na fila | 1 | 093 |
+| concluída | 93 | 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012, 013, 014, 015, 016, 017, 018, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080, 081, 082, 083, 084, 085, 086, 087, 088, 089, 090, 091, 092, 093 |
 
 ## Concluídas
 
@@ -105,11 +104,6 @@
 | ISSUE-090 | Varredura de todas as telas nas três larguras | `37dbbd0` |
 | ISSUE-091 | Exportações tela a tela, acessibilidade e roteiro manual | `5a32edd` |
 | ISSUE-092 | Pronto para publicar no Azure | `7a4555a` |
-
-## Em andamento, bloqueadas e na fila
-
-| Issue | Título | Situação | Bloqueada por |
-|---|---|---|---|
-| ISSUE-093 | Consolidação dentro do GestNow e desativação das pastas de origem | na fila | ISSUE-092 |
+| ISSUE-093 | Consolidação dentro do GestNow e desativação das pastas de origem | `a122717` |
 
 Pendências de fonte: `docs/issues/spec-migracao-gestnow/PENDENCIAS-DE-FONTE.md`. Retrato por entrega: `docs/issues/spec-migracao-gestnow/RELATORIO-DE-EXECUCAO.md`.
